@@ -48,9 +48,14 @@ The next start of Keycloak adds them.
 
 Other databases have only the checks of the application.
 
-## Removal of a realm
+## Removal of a realm or a user
 
 When a realm is removed, the extension deletes every row of that realm in the same transaction.
+
+When a user is removed, the extension deletes the employments of that user in the same transaction.
+The terms and the assignments of those employments go with them.
+This removes the history of the person too.
+To keep the history of a person who left, end the employment and disable the user. Do not remove the user.
 
 ## Entities
 
