@@ -1,5 +1,7 @@
 package net.exoego.keycloak.fuhito.store;
 
+import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -26,6 +28,31 @@ public interface EmploymentStore {
      * @return the employments
      */
     List<Employment> findByStaffNumber(String staffNumber);
+
+    /**
+     * Lists the employments of a user, oldest first.
+     *
+     * @param userId the ID of the user
+     * @return the employments
+     */
+    List<Employment> findByUser(String userId);
+
+    /**
+     * Lists the employments with the given IDs.
+     *
+     * @param ids the IDs
+     * @return the employments that exist in the realm
+     */
+    List<Employment> findAll(Collection<String> ids);
+
+    /**
+     * Lists the terms that are valid on a date for the given employments.
+     *
+     * @param employmentIds the IDs of the employments
+     * @param date the date
+     * @return at most one set of terms for each employment
+     */
+    List<EmploymentTerms> termsOn(Collection<String> employmentIds, LocalDate date);
 
     /**
      * Stores a new employment.

@@ -1,5 +1,7 @@
 package net.exoego.keycloak.fuhito.jpa;
 
+import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -42,6 +44,48 @@ public class JpaEmploymentStore implements EmploymentStore {
                         + " and e.staffNumber = :staffNumber order by e.validFrom", EmploymentEntity.class)
                 .setParameter("realmId", realmId)
                 .setParameter("staffNumber", staffNumber)
+                .getResultStream()
+                .map(JpaEmploymentStore::toDomain)
+                .toList();
+    }
+
+    @Override
+    public List<Employment> findByUser(String userId) {
+        return em.createQuery("select e from EmploymentEntity e where e.realmId = :realmId and e.userId = :userId"
+                        + " order by e.validFrom, e.id", EmploymentEntity.class)
+                .setParameter("realmId", realmId)
+                .setParameter("userId", userId)
+                .getResultStream()
+                .map(JpaEmploymentStore::toDomain)
+                .toList();
+    }
+
+    @Override
+    public List<Employment> findAll(Collection<String> ids) {
+        if (ids.isEmpty()) {
+            return List.of();
+        }
+        return em.createQuery("select e from EmploymentEntity e where e.realmId = :realmId and e.id in :ids",
+                        EmploymentEntity.class)
+                .setParameter("realmId", realmId)
+                .setParameter("ids", ids)
+                .getResultStream()
+                .map(JpaEmploymentStore::toDomain)
+                .toList();
+    }
+
+    @Override
+    public List<EmploymentTerms> termsOn(Collection<String> employmentIds, LocalDate date) {
+        if (employmentIds.isEmpty()) {
+            return List.of();
+        }
+        return em.createQuery("select t from EmploymentTermsEntity t where t.realmId = :realmId"
+                        + " and t.employmentId in :employmentIds"
+                        + " and t.validFrom <= :date and (t.validTo is null or t.validTo > :date)",
+                        EmploymentTermsEntity.class)
+                .setParameter("realmId", realmId)
+                .setParameter("employmentIds", employmentIds)
+                .setParameter("date", date)
                 .getResultStream()
                 .map(JpaEmploymentStore::toDomain)
                 .toList();

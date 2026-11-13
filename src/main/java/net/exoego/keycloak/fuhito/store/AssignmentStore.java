@@ -1,5 +1,7 @@
 package net.exoego.keycloak.fuhito.store;
 
+import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
 
 import net.exoego.keycloak.fuhito.domain.Assignment;
@@ -32,6 +34,15 @@ public interface AssignmentStore {
      * @return the rows
      */
     List<Assignment> rowsOfOrgUnit(String orgUnitId);
+
+    /**
+     * Lists the rows that are valid on a date in any of the given org units.
+     *
+     * @param orgUnitIds the IDs of the org units
+     * @param date the date
+     * @return the rows
+     */
+    List<Assignment> rowsOn(Collection<String> orgUnitIds, LocalDate date);
 
     /**
      * Stores a new row.
