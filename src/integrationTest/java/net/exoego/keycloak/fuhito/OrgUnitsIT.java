@@ -162,6 +162,53 @@ class OrgUnitsIT {
         assertEquals("A", Api.json(api.get("/org-units/" + id + "?asOf=2026-10-01")).get("name").asText());
     }
 
+    private static String newUnit(String name, String parentId) throws Exception {
+        String parent = parentId == null ? "" : ", \"parentId\": \"" + parentId + "\"";
+        return created(api.post("/org-units", "{\"name\": \"" + name + "\"" + parent + ", \"validFrom\": \"2026-04-01\"}"))
+                .get("id").asText();
+    }
+
+    private static String move(String parentId, String validFrom) {
+        String parent = parentId == null ? "" : "\"parentId\": \"" + parentId + "\", ";
+        return "{" + parent + "\"validFrom\": \"" + validFrom + "\"}";
+    }
+
+    @Test
+    void movesAUnitAndMakesItARoot() throws Exception {
+        String a = newUnit("A部", null);
+        String b = newUnit("B部", null);
+        String unit = newUnit("経理課", a);
+
+        HttpResponse<String> response = api.put("/org-units/" + unit + "/parent", move(b, "2027-04-01"));
+
+        assertEquals(200, response.statusCode(), response.body());
+        assertEquals(b, Api.json(response).get("parentId").asText());
+        assertEquals(a, Api.json(api.get("/org-units/" + unit + "?asOf=2027-03-31")).get("parentId").asText());
+        assertEquals(b, Api.json(api.get("/org-units/" + unit + "?asOf=2027-04-01")).get("parentId").asText());
+
+        assertFalse(Api.json(api.put("/org-units/" + unit + "/parent", move(null, "2028-04-01"))).has("parentId"));
+        assertEquals(b, Api.json(api.get("/org-units/" + unit + "?asOf=2028-03-31")).get("parentId").asText());
+        // A move on the first date of the current parent corrects it.
+        assertEquals(a, Api.json(api.put("/org-units/" + unit + "/parent", move(a, "2027-04-01"))).get("parentId").asText());
+        assertEquals(a, Api.json(api.get("/org-units/" + unit + "?asOf=2028-03-31")).get("parentId").asText());
+        assertFalse(Api.json(api.get("/org-units/" + unit + "?asOf=2028-04-01")).has("parentId"));
+    }
+
+    @Test
+    void rejectsAMoveBelowItselfAndOtherBadMoves() throws Exception {
+        String a = newUnit("A", null);
+        String b = newUnit("B", a);
+        String c = newUnit("C", b);
+
+        assertEquals("org_unit.cycle", errorOf(409, api.put("/org-units/" + a + "/parent", move(c, "2026-10-01"))));
+        assertEquals("org_unit.cycle", errorOf(409, api.put("/org-units/" + a + "/parent", move(a, "2026-10-01"))));
+        assertEquals("org_unit.parent_unknown", errorOf(400, api.put("/org-units/" + c + "/parent", move("nope", "2026-10-01"))));
+        assertEquals("org_unit.not_valid_on", errorOf(404, api.put("/org-units/" + c + "/parent", move(a, "2026-03-31"))));
+        assertEquals("invalid.required", errorOf(400, api.put("/org-units/" + c + "/parent", "{\"parentId\": \"" + a + "\"}")));
+        assertEquals("org_unit.not_found", errorOf(404, otherRealmApi.put("/org-units/" + c + "/parent", move(null, "2026-10-01"))));
+        assertEquals(b, Api.json(api.get("/org-units/" + c + "?asOf=2030-01-01")).get("parentId").asText());
+    }
+
     @Test
     void aUnitTypeInUseCannotBeDeleted() throws Exception {
         String typeId = created(api.post("/ref-items",

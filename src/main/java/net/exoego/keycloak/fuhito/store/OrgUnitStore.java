@@ -79,4 +79,18 @@ public interface OrgUnitStore {
      * @param link the link
      */
     void insertLink(OrgUnitLink link);
+
+    /**
+     * Stores the new state of an existing parent link.
+     *
+     * @param link the link
+     */
+    void updateLink(OrgUnitLink link);
+
+    /**
+     * Removes a parent link.
+     *
+     * @param id the ID of the link
+     */
+    void deleteLink(String id);
 }

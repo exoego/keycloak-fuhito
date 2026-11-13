@@ -284,6 +284,145 @@ class OrgUnitServiceTest {
         assertEquals("A", service.get(id, "2026-10-01").version().name());
     }
 
+    private String root(String name) {
+        return service.create(named(name, null, "2026-04-01")).unit().id();
+    }
+
+    private String child(String name, String parentId) {
+        return service.create(named(name, parentId, "2026-04-01")).unit().id();
+    }
+
+    private FuhitoException moveFailure(String id, String parentId, String validFrom) {
+        return assertThrows(FuhitoException.class, () -> service.move(id, parentId, validFrom));
+    }
+
+    @Test
+    void movesAUnitFromADate() {
+        String a = root("A");
+        String b = root("B");
+        String unit = child("Unit", a);
+
+        OrgUnitState moved = service.move(unit, b, "2026-10-01");
+
+        assertEquals(b, moved.parentId());
+        assertEquals(a, service.get(unit, "2026-09-30").parentId());
+        assertEquals(b, service.get(unit, "2030-01-01").parentId());
+        assertEquals(2, store.links.size());
+    }
+
+    @Test
+    void makesAUnitARootAndPutsARootUnderAParent() {
+        String a = root("A");
+        String unit = child("Unit", a);
+
+        assertNull(service.move(unit, null, "2026-10-01").parentId());
+        assertEquals(a, service.get(unit, "2026-09-30").parentId());
+        assertEquals(1, store.links.size());
+
+        assertNull(service.move(unit, null, "2026-11-01").parentId());
+        assertEquals(1, store.links.size());
+
+        assertEquals(a, service.move(unit, a, "2027-04-01").parentId());
+        assertNull(service.get(unit, "2027-03-31").parentId());
+    }
+
+    @Test
+    void anEarlierMoveKeepsALaterOne() {
+        String a = root("A");
+        String b = root("B");
+        String c = root("C");
+        String unit = child("Unit", a);
+        service.move(unit, c, "2027-04-01");
+
+        service.move(unit, b, "2026-10-01");
+
+        assertEquals(a, service.get(unit, "2026-09-30").parentId());
+        assertEquals(b, service.get(unit, "2027-03-31").parentId());
+        assertEquals(c, service.get(unit, "2027-04-01").parentId());
+    }
+
+    @Test
+    void aMoveOfARootLastsUntilTheNextStoredMove() {
+        String a = root("A");
+        String b = root("B");
+        String unit = root("Unit");
+        service.move(unit, b, "2027-04-01");
+
+        service.move(unit, a, "2026-10-01");
+
+        assertNull(service.get(unit, "2026-09-30").parentId());
+        assertEquals(a, service.get(unit, "2027-03-31").parentId());
+        assertEquals(b, service.get(unit, "2027-04-01").parentId());
+    }
+
+    @Test
+    void aMoveOnTheFirstDateOfALinkCorrectsIt() {
+        String a = root("A");
+        String b = root("B");
+        String unit = child("Unit", a);
+
+        assertEquals(b, service.move(unit, b, "2026-04-01").parentId());
+        assertEquals(1, store.links.size());
+
+        assertNull(service.move(unit, null, "2026-04-01").parentId());
+        assertTrue(store.links.isEmpty());
+    }
+
+    @Test
+    void rejectsAMoveBelowItself() {
+        String a = root("A");
+        String b = child("B", a);
+        String c = child("C", b);
+
+        for (String target : new String[] {a, b, c}) {
+            FuhitoException e = moveFailure(a, target, "2026-10-01");
+            assertEquals(FuhitoException.Reason.CONFLICT, e.reason());
+            assertEquals("org_unit.cycle", e.code());
+            assertEquals(Map.of("id", a), e.params());
+        }
+        assertNull(service.get(a, "2026-10-01").parentId());
+    }
+
+    @Test
+    void aCycleCountsOnlyOnTheDatesOfTheMove() {
+        String a = root("A");
+        String b = child("B", a);
+        service.move(b, null, "2027-04-01");
+
+        // B is below A until 2027-04-01, so A can go below B only from that date.
+        assertEquals("org_unit.cycle", moveFailure(a, b, "2026-10-01").code());
+        assertEquals(b, service.move(a, b, "2027-04-01").parentId());
+        // And now B cannot go back below A.
+        assertEquals("org_unit.cycle", moveFailure(b, a, "2028-04-01").code());
+    }
+
+    @Test
+    void rejectsABadMove() {
+        String a = root("A");
+        String unit = child("Unit", a);
+        String later = service.create(named("Later", null, "2027-04-01")).unit().id();
+
+        assertEquals("invalid.required", moveFailure(unit, a, null).code());
+        assertEquals("org_unit.not_found", moveFailure("nope", a, "2026-10-01").code());
+        assertEquals("org_unit.not_valid_on", moveFailure(unit, a, "2026-03-31").code());
+        assertEquals("org_unit.parent_unknown", moveFailure(unit, "nope", "2026-10-01").code());
+        assertEquals("org_unit.parent_not_valid", moveFailure(unit, later, "2026-10-01").code());
+        assertEquals(a, service.get(unit, "2030-01-01").parentId());
+        assertEquals(1, store.links.size());
+    }
+
+    @Test
+    void aNewParentLastsAsLongAsTheUnit() {
+        String a = root("A");
+        store.insertUnit(new OrgUnit("ending", null, null, null, null));
+        store.versions.add(new OrgUnitVersion("v1", "ending", new ValidPeriod(LocalDate.of(2026, 4, 1),
+                LocalDate.of(2027, 4, 1)), "Ending", Map.of(), null, Map.of(), null, null, 0, Map.of()));
+
+        service.move("ending", a, "2026-10-01");
+
+        assertEquals(new ValidPeriod(LocalDate.of(2026, 10, 1), LocalDate.of(2027, 4, 1)), store.links.get(0).period());
+    }
+
     @Test
     void readsAUnitAsOfADate() {
         unitType("ward", true);

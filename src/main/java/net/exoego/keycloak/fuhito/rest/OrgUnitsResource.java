@@ -70,6 +70,23 @@ public class OrgUnitsResource {
     }
 
     /**
+     * Gives an org unit a new parent in the default hierarchy from a date.
+     *
+     * @param id the ID
+     * @param body the new parent and the first date under it. No parent makes the unit a root.
+     * @return the unit as it is on that date
+     */
+    @PUT
+    @Path("{id}/parent")
+    public OrgUnitRepresentation move(@PathParam("id") String id, ParentChangeRepresentation body) {
+        context.requireWrite();
+        return Calls.run(context, () -> {
+            Checks.required("body", body);
+            return OrgUnitRepresentation.of(service.move(id, body.parentId(), body.validFrom()));
+        });
+    }
+
+    /**
      * Returns an org unit as it is on a date.
      *
      * @param id the ID

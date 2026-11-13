@@ -102,6 +102,65 @@ public class OrgUnitService {
     }
 
     /**
+     * Gives an org unit a new parent in the default hierarchy from a date, or makes it a root.
+     * The change lasts until the next parent change that is already stored, or has no end.
+     *
+     * @param id the ID
+     * @param parentId the ID of the new parent, or null to make the unit a root
+     * @param validFrom the first date under the new parent, as {@code YYYY-MM-DD}
+     * @return the unit as it is on that date
+     * @throws FuhitoException when the unit or the parent is not valid, or the move would make a cycle
+     */
+    public OrgUnitState move(String id, String parentId, String validFrom) {
+        LocalDate from = Checks.date("validFrom", validFrom);
+        requireUnit(id);
+        versionOn(id, from);
+        String hierarchyId = store.defaultHierarchyId();
+        List<OrgUnitLink> links = store.parentLinks(hierarchyId, id);
+        OrgUnitLink current = links.stream().filter(l -> l.period().contains(from)).findFirst().orElse(null);
+        List<OrgUnitVersion> versions = store.versions(id);
+        // With no later parent change, the new parent lasts as long as the unit does.
+        LocalDate until = current != null ? current.period().to() : links.stream()
+                .map(l -> l.period().from())
+                .filter(start -> start.isAfter(from))
+                .findFirst()
+                .orElse(versions.get(versions.size() - 1).period().to());
+        ValidPeriod period = new ValidPeriod(from, until);
+
+        if (parentId != null) {
+            requireParentCovers(parentId, period);
+            requireNoCycle(hierarchyId, id, parentId, period);
+        }
+        if (current != null && current.period().from().equals(from)) {
+            if (parentId == null) {
+                store.deleteLink(current.id());
+            } else {
+                store.updateLink(new OrgUnitLink(current.id(), hierarchyId, id, parentId, period));
+            }
+            return get(id, validFrom);
+        }
+        if (current != null) {
+            store.updateLink(new OrgUnitLink(current.id(), hierarchyId, id, current.parentId(),
+                    current.period().endingAt(from)));
+        }
+        if (parentId != null) {
+            store.insertLink(new OrgUnitLink(newId(), hierarchyId, id, parentId, period));
+        }
+        return get(id, validFrom);
+    }
+
+    // Walks up from the new parent on every date of the period. Meeting the moved unit means a cycle.
+    private void requireNoCycle(String hierarchyId, String movedId, String ancestorId, ValidPeriod period) {
+        if (ancestorId.equals(movedId)) {
+            throw FuhitoException.conflict("org_unit.cycle", Map.of("id", movedId));
+        }
+        for (OrgUnitLink link : store.parentLinks(hierarchyId, ancestorId)) {
+            link.period().intersection(period)
+                    .ifPresent(shared -> requireNoCycle(hierarchyId, movedId, link.parentId(), shared));
+        }
+    }
+
+    /**
      * Returns an org unit as it is on a date.
      *
      * @param id the ID
