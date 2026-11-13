@@ -1,4 +1,4 @@
 /**
- * JPA entities and their registration in Keycloak.
+ * JPA entities.
  */
 package net.exoego.keycloak.fuhito.jpa;
