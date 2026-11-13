@@ -8,6 +8,7 @@ import org.keycloak.connections.jpa.entityprovider.JpaEntityProvider;
 import org.keycloak.connections.jpa.entityprovider.JpaEntityProviderFactory;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.KeycloakSessionFactory;
+import org.keycloak.models.OrganizationModel;
 import org.keycloak.models.RealmModel;
 import org.keycloak.models.UserModel;
 
@@ -45,6 +46,10 @@ public class FuhitoJpaEntityProviderFactory implements JpaEntityProviderFactory 
             } else if (event instanceof UserModel.UserRemovedEvent removed) {
                 RealmData.deleteUser(entityManager(removed.getKeycloakSession()), removed.getRealm().getId(),
                         removed.getUser().getId());
+            } else if (event instanceof OrganizationModel.OrganizationRemovedEvent removed) {
+                KeycloakSession session = removed.getKeycloakSession();
+                RealmData.unlinkOrganization(entityManager(session), session.getContext().getRealm().getId(),
+                        removed.getOrganization().getId());
             }
         });
     }

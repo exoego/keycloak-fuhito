@@ -29,10 +29,12 @@ import net.exoego.keycloak.fuhito.service.EmploymentService;
 import net.exoego.keycloak.fuhito.service.ImportService;
 import net.exoego.keycloak.fuhito.service.MembershipService;
 import net.exoego.keycloak.fuhito.service.OrgUnitService;
+import net.exoego.keycloak.fuhito.service.OrganizationLinkService;
 import net.exoego.keycloak.fuhito.service.QualificationService;
 import net.exoego.keycloak.fuhito.service.RefItemService;
 import net.exoego.keycloak.fuhito.service.ReorganizationService;
 import net.exoego.keycloak.fuhito.service.ReportingLineService;
+import net.exoego.keycloak.fuhito.store.OrganizationDirectory;
 import net.exoego.keycloak.fuhito.store.UserDirectory;
 
 /**
@@ -46,6 +48,7 @@ public class FuhitoResource {
     private final RequestContext context;
     private final EntityManager entityManager;
     private final UserDirectory users;
+    private final OrganizationDirectory organizations;
 
     /**
      * Creates the resource for one request.
@@ -54,8 +57,11 @@ public class FuhitoResource {
      * @param context the request and its caller
      * @param entityManager the entity manager of the request
      * @param users the users of the realm
+     * @param organizations the Keycloak organizations of the realm
      */
-    public FuhitoResource(String realmId, RequestContext context, EntityManager entityManager, UserDirectory users) {
+    public FuhitoResource(String realmId, RequestContext context, EntityManager entityManager, UserDirectory users,
+            OrganizationDirectory organizations) {
+        this.organizations = organizations;
         this.realmId = realmId;
         this.context = context;
         this.entityManager = entityManager;
@@ -166,7 +172,8 @@ public class FuhitoResource {
      */
     @Path("org-units")
     public OrgUnitsResource orgUnits() {
-        return new OrgUnitsResource(context, orgUnitService(), membershipService());
+        return new OrgUnitsResource(context, orgUnitService(), membershipService(),
+                new OrganizationLinkService(new JpaOrgUnitStore(entityManager, realmId), organizations));
     }
 
     /**

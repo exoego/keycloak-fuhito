@@ -24,11 +24,12 @@ import net.exoego.keycloak.fuhito.service.OrgUnitState;
  * @param attributes free values that the realm defines
  * @param externalId the ID of the unit in the system it came from, or null
  * @param source the name of that system, or null
+ * @param keycloakOrganizationId the ID of the linked Keycloak organization, or null. Requests ignore it.
  */
 public record OrgUnitRepresentation(String id, String code, String name, Map<String, String> names,
         String shortName, Map<String, String> shortNames, String phoneticName, String unitType, String parentId,
         String validFrom, String validTo, Integer displayOrder, Map<String, Object> attributes, String externalId,
-        String source) {
+        String source, String keycloakOrganizationId) {
 
     static OrgUnitRepresentation of(OrgUnitState state) {
         var unit = state.unit();
@@ -37,7 +38,8 @@ public record OrgUnitRepresentation(String id, String code, String name, Map<Str
         return new OrgUnitRepresentation(unit.id(), unit.code(), version.name(), version.names(),
                 version.shortName(), version.shortNames(), version.phoneticName(), state.unitType(),
                 state.parentId(), period.from().toString(), period.to() == null ? null : period.to().toString(),
-                version.displayOrder(), version.attributes(), unit.externalId(), unit.source());
+                version.displayOrder(), version.attributes(), unit.externalId(), unit.source(),
+                unit.keycloakOrganizationId());
     }
 
     OrgUnitChange toChange() {

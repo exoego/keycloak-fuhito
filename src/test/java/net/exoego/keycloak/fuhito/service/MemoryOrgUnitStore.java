@@ -42,6 +42,16 @@ final class MemoryOrgUnitStore implements OrgUnitStore {
     }
 
     @Override
+    public Optional<OrgUnit> findUnitByOrganizationId(String organizationId) {
+        return units.values().stream().filter(u -> organizationId.equals(u.keycloakOrganizationId())).findFirst();
+    }
+
+    @Override
+    public void updateUnit(OrgUnit unit) {
+        units.put(unit.id(), unit);
+    }
+
+    @Override
     public List<OrgUnit> units() {
         return List.copyOf(units.values());
     }

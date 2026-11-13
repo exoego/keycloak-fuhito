@@ -48,6 +48,21 @@ The next start of Keycloak adds them.
 
 Other databases have only the checks of the application.
 
+## Keycloak Organizations
+
+The extension does not need Keycloak Organizations. A realm with Organizations turned off works.
+
+An org unit can be linked to a Keycloak organization.
+The link says that the unit, for example a hospital, stands for that organization.
+
+- `PUT /org-units/{id}/organization` with `{"organizationId": "..."}` sets the link.
+- `DELETE /org-units/{id}/organization` removes it.
+- One organization is linked to at most one org unit.
+- When the organization is removed in Keycloak, the link is removed too. The org unit stays.
+
+The Organizations API of Keycloak changes between minor versions.
+Only the class `KeycloakOrganizations` calls it.
+
 ## Removal of a realm or a user
 
 When a realm is removed, the extension deletes every row of that realm in the same transaction.

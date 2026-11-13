@@ -89,6 +89,29 @@ public class JpaOrgUnitStore implements OrgUnitStore {
     }
 
     @Override
+    public Optional<OrgUnit> findUnitByOrganizationId(String organizationId) {
+        return em.createQuery("select u from OrgUnitEntity u where u.realmId = :realmId"
+                        + " and u.keycloakOrganizationId = :organizationId", OrgUnitEntity.class)
+                .setParameter("realmId", realmId)
+                .setParameter("organizationId", organizationId)
+                .getResultStream()
+                .findFirst()
+                .map(JpaOrgUnitStore::toDomain);
+    }
+
+    @Override
+    public void updateUnit(OrgUnit unit) {
+        OrgUnitEntity entity = em.find(OrgUnitEntity.class, unit.id());
+        if (entity == null || !entity.realmId.equals(realmId)) {
+            throw new IllegalStateException("No such org unit in the realm: " + unit.id());
+        }
+        entity.code = unit.code();
+        entity.externalId = unit.externalId();
+        entity.source = unit.source();
+        entity.keycloakOrganizationId = unit.keycloakOrganizationId();
+    }
+
+    @Override
     public List<OrgUnit> units() {
         return em.createQuery("select u from OrgUnitEntity u where u.realmId = :realmId", OrgUnitEntity.class)
                 .setParameter("realmId", realmId)

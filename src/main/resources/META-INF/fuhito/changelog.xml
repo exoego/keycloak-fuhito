@@ -476,4 +476,8 @@
             <column name="MANAGER_USER_ID"/>
         </createIndex>
     </changeSet>
+    <changeSet id="0.1.0-org-unit-organization-unique" author="keycloak-fuhito">
+        <addUniqueConstraint tableName="FUHITO_ORG_UNIT" columnNames="REALM_ID, KC_ORG_ID"
+                             constraintName="UK_FUHITO_ORG_UNIT_KC_ORG"/>
+    </changeSet>
 </databaseChangeLog>
