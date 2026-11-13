@@ -39,6 +39,18 @@ public class JpaEmploymentStore implements EmploymentStore {
     }
 
     @Override
+    public Optional<Employment> findByExternalId(String source, String externalId) {
+        return em.createQuery("select e from EmploymentEntity e where e.realmId = :realmId and e.source = :source"
+                        + " and e.externalId = :externalId", EmploymentEntity.class)
+                .setParameter("realmId", realmId)
+                .setParameter("source", source)
+                .setParameter("externalId", externalId)
+                .getResultStream()
+                .findFirst()
+                .map(JpaEmploymentStore::toDomain);
+    }
+
+    @Override
     public List<Employment> findByStaffNumber(String staffNumber) {
         return em.createQuery("select e from EmploymentEntity e where e.realmId = :realmId"
                         + " and e.staffNumber = :staffNumber order by e.validFrom", EmploymentEntity.class)

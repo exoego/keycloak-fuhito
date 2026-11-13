@@ -22,6 +22,15 @@ public interface EmploymentStore {
     Optional<Employment> find(String id);
 
     /**
+     * Finds an employment by the ID it has in the system it came from.
+     *
+     * @param source the name of that system
+     * @param externalId the ID in that system
+     * @return the employment, or empty when the realm has no such employment
+     */
+    Optional<Employment> findByExternalId(String source, String externalId);
+
+    /**
      * Lists the employments that use a staff number.
      *
      * @param staffNumber the staff number

@@ -24,6 +24,13 @@ final class MemoryEmploymentStore implements EmploymentStore {
     }
 
     @Override
+    public Optional<Employment> findByExternalId(String source, String externalId) {
+        return employments.values().stream()
+                .filter(e -> source.equals(e.source()) && externalId.equals(e.externalId()))
+                .findFirst();
+    }
+
+    @Override
     public List<Employment> findByStaffNumber(String staffNumber) {
         return employments.values().stream().filter(e -> staffNumber.equals(e.staffNumber())).toList();
     }

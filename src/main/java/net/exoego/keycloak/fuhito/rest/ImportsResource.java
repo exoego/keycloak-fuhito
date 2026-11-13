@@ -8,6 +8,8 @@ import jakarta.ws.rs.core.Response;
 import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.RefItem;
 import net.exoego.keycloak.fuhito.rest.RequestContext.Change;
+import net.exoego.keycloak.fuhito.service.AssignmentView;
+import net.exoego.keycloak.fuhito.service.EmploymentView;
 import net.exoego.keycloak.fuhito.service.ImportDocument;
 import net.exoego.keycloak.fuhito.service.ImportReport;
 import net.exoego.keycloak.fuhito.service.ImportService;
@@ -62,8 +64,17 @@ public class ImportsResource {
     }
 
     private void record(ImportReport.Write write) {
-        Object representation = write.state() instanceof RefItem item ? RefItemRepresentation.of(item)
-                : OrgUnitRepresentation.of((OrgUnitState) write.state());
+        Object state = write.state();
+        Object representation;
+        if (state instanceof RefItem item) {
+            representation = RefItemRepresentation.of(item);
+        } else if (state instanceof OrgUnitState unit) {
+            representation = OrgUnitRepresentation.of(unit);
+        } else if (state instanceof EmploymentView employment) {
+            representation = EmploymentRepresentation.of(employment);
+        } else {
+            representation = AssignmentRepresentation.of((AssignmentView) state);
+        }
         context.recordChange(write.created() ? Change.CREATE : Change.UPDATE, write.resourceType(),
                 write.resourceId(), write.path(), representation);
     }
