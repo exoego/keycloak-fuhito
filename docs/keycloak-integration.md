@@ -55,6 +55,7 @@ When a realm is removed, the extension deletes every row of that realm in the sa
 When a user is removed, the extension deletes the employments of that user in the same transaction.
 The terms and the assignments of those employments go with them.
 The qualifications of the user are deleted too.
+So are the reporting lines where the user reports, and the reporting lines where the user is the manager.
 So do the change log entries about them.
 This removes the history of the person too.
 To keep the history of a person who left, end the employment and disable the user. Do not remove the user.
@@ -108,6 +109,9 @@ Clients in another time zone should always send `asOf`.
 | `/users/{userId}/assignments` | Where a user works on a date |
 | `/users/{userId}/history` | Every employment and assignment of a user |
 | `/qualifications` | Licenses and certificates of users |
+| `/reporting-lines` | Links from an assignment to a manager |
+| `/users/{userId}/managers` | The managers of a user on a date |
+| `/users/{userId}/reports` | The direct reports of a user on a date |
 | `/users/{userId}/qualifications` | The qualifications of a user on a date, or all of them |
 | `/reorganizations` | Many org unit changes on one date, in one transaction |
 | `/imports` | Many rows in one request, with a dry run |
@@ -131,6 +135,7 @@ The realm stores the events when admin events are turned on in its settings.
 | `FUHITO_ASSIGNMENT` | `CREATE`, `UPDATE` | `fuhito/assignments/{id}`, and the same with `/details` or `/end` |
 | `FUHITO_CHANGE_ORDER` | `CREATE`, `UPDATE`, `DELETE` | `fuhito/change-orders/{id}` |
 | `FUHITO_QUALIFICATION` | `CREATE`, `UPDATE`, `DELETE` | `fuhito/qualifications/{id}` |
+| `FUHITO_REPORTING_LINE` | `CREATE`, `UPDATE`, `DELETE` | `fuhito/reporting-lines/{id}`, and the same with `/end` |
 
 The event has the new state as its representation when the realm keeps representations.
 A failed request records no event.

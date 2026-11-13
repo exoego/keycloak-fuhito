@@ -17,6 +17,7 @@ import net.exoego.keycloak.fuhito.domain.ValidPeriod;
 import net.exoego.keycloak.fuhito.store.AssignmentStore;
 import net.exoego.keycloak.fuhito.store.EmploymentStore;
 import net.exoego.keycloak.fuhito.store.RefItemStore;
+import net.exoego.keycloak.fuhito.store.ReportingLineStore;
 import net.exoego.keycloak.fuhito.store.UserDirectory;
 
 /**
@@ -28,6 +29,7 @@ public class EmploymentService {
     private final AssignmentStore assignments;
     private final RefItemStore refItems;
     private final UserDirectory users;
+    private final ReportingLineStore reportingLines;
 
     /**
      * Creates the service.
@@ -36,9 +38,11 @@ public class EmploymentService {
      * @param assignments the storage of assignments of the realm
      * @param refItems the storage of reference items of the realm
      * @param users the users of the realm
+     * @param reportingLines the storage of reporting lines of the realm
      */
     public EmploymentService(EmploymentStore store, AssignmentStore assignments, RefItemStore refItems,
-            UserDirectory users) {
+            UserDirectory users, ReportingLineStore reportingLines) {
+        this.reportingLines = reportingLines;
         this.store = store;
         this.assignments = assignments;
         this.refItems = refItems;
@@ -182,6 +186,8 @@ public class EmploymentService {
             return;
         }
         for (Assignment row : assignments.rowsOfEmployment(id)) {
+            // A reporting line cannot outlast its assignment.
+            reportingLines.truncate(row.assignmentId(), to);
             if (!row.period().from().isBefore(to)) {
                 assignments.delete(row.rowId());
             } else if (row.period().to() == null || row.period().to().isAfter(to)) {

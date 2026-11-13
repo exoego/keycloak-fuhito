@@ -29,9 +29,11 @@ class MembershipServiceTest {
     private final MemoryRefItemStore refItems = new MemoryRefItemStore();
     private final Set<String> knownUsers = Set.of("doctor", "nurse", "clerk", "idle");
     private final EmploymentService employments =
-            new EmploymentService(employmentStore, assignmentStore, refItems, knownUsers::contains);
+            new EmploymentService(employmentStore, assignmentStore, refItems, knownUsers::contains,
+            new MemoryReportingLineStore());
     private final AssignmentService assignments =
-            new AssignmentService(assignmentStore, employmentStore, orgUnitStore, refItems);
+            new AssignmentService(assignmentStore, employmentStore, orgUnitStore, refItems,
+            new MemoryReportingLineStore());
     private final OrgUnitService orgUnits = new OrgUnitService(orgUnitStore, assignmentStore, refItems, CLOCK);
     private final MembershipService service = new MembershipService(assignmentStore, employmentStore, orgUnitStore,
             refItems, knownUsers::contains, CLOCK);

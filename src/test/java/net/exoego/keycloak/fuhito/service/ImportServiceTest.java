@@ -46,9 +46,11 @@ class ImportServiceTest {
         }
     };
     private final EmploymentService employments =
-            new EmploymentService(employmentStore, assignmentStore, refItems, users);
+            new EmploymentService(employmentStore, assignmentStore, refItems, users,
+            new MemoryReportingLineStore());
     private final AssignmentService assignments =
-            new AssignmentService(assignmentStore, employmentStore, orgUnitStore, refItems);
+            new AssignmentService(assignmentStore, employmentStore, orgUnitStore, refItems,
+            new MemoryReportingLineStore());
     private final ImportService service = new ImportService(new RefItemService(refItems), refItems, orgUnits,
             orgUnitStore, new ImportService.People(employments, employmentStore, assignments, assignmentStore, users));
 

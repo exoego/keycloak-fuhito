@@ -11,7 +11,8 @@ class RealmRemovalIT {
 
     private static final List<String> TABLES = List.of("fuhito_hierarchy", "fuhito_ref_item", "fuhito_org_unit",
             "fuhito_org_unit_version", "fuhito_org_unit_link", "fuhito_employment", "fuhito_employment_terms",
-            "fuhito_assignment", "fuhito_change_order", "fuhito_change_log", "fuhito_qualification");
+            "fuhito_assignment", "fuhito_change_order", "fuhito_change_log", "fuhito_qualification",
+            "fuhito_reporting_line");
 
     // A new table must be added to this test and to the cleanup. This test fails until that is done.
     @Test
@@ -60,9 +61,12 @@ class RealmRemovalIT {
         var employment = api.post("/employments", "{\"userId\": \"" + staff
                 + "\", \"validFrom\": \"2026-04-01\"}");
         assertEquals(201, employment.statusCode(), employment.body());
-        assertEquals(201, api.post("/assignments", "{\"employmentId\": \"" + Api.json(employment).get("id").asText()
+        var assignment = api.post("/assignments", "{\"employmentId\": \"" + Api.json(employment).get("id").asText()
                 + "\", \"orgUnitId\": \"" + Api.json(parent).get("id").asText()
-                + "\", \"validFrom\": \"2026-04-01\"}").statusCode());
+                + "\", \"validFrom\": \"2026-04-01\"}");
+        assertEquals(201, assignment.statusCode(), assignment.body());
+        assertEquals(201, api.post("/reporting-lines", "{\"assignmentId\": \"" + Api.json(assignment).get("id").asText()
+                + "\", \"managerUserId\": \"" + realm.user("manager") + "\", \"validFrom\": \"2026-04-01\"}").statusCode());
     }
 
     private static String rows(String table, String realmId) throws Exception {
