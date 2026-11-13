@@ -26,6 +26,7 @@ Access control is out of scope. The caller decides who may do what with the data
 
 [docs/concepts.md](docs/concepts.md) defines the terms.
 [docs/history.md](docs/history.md) explains how dated changes and the change log behave.
+[docs/import.md](docs/import.md) explains bulk import by JSON and CSV, and the export.
 [docs/keycloak-integration.md](docs/keycloak-integration.md) explains how the extension plugs into Keycloak.
 
 ## Compatibility

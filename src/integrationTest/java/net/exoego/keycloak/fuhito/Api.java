@@ -54,6 +54,18 @@ final class Api {
         return send("DELETE", path, null);
     }
 
+    HttpResponse<String> postBytes(String path, String contentType, byte[] body) throws Exception {
+        var request = HttpRequest.newBuilder(
+                        URI.create(KEYCLOAK.getAuthServerUrl() + "/admin/realms/" + realm + "/fuhito" + path))
+                .POST(BodyPublishers.ofByteArray(body))
+                .header("Content-Type", contentType)
+                .header("Authorization", "Bearer " + token);
+        if (acceptLanguage != null) {
+            request.header("Accept-Language", acceptLanguage);
+        }
+        return HTTP.send(request.build(), HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+    }
+
     static JsonNode json(HttpResponse<String> response) throws Exception {
         return MAPPER.readTree(response.body());
     }
