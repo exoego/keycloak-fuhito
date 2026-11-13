@@ -5,7 +5,9 @@ import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.time.Clock;
 import java.util.List;
+import java.util.Optional;
 import java.util.Properties;
+import java.util.function.Consumer;
 
 import jakarta.persistence.EntityManager;
 import jakarta.ws.rs.GET;
@@ -55,6 +57,7 @@ public class FuhitoResource {
     private final OrganizationDirectory organizations;
     private final OrganizationGroups organizationGroups;
     private final UserAttributeSource userAttributes;
+    private final Consumer<String> eraseUser;
 
     /**
      * Creates the resource for one request.
@@ -66,17 +69,37 @@ public class FuhitoResource {
      * @param organizations the Keycloak organizations of the realm
      * @param organizationGroups the groups and members of the Keycloak organizations of the realm
      * @param userAttributes the user attributes that an identity provider fills
+     * @param eraseUser removes every row and every change log entry about one user
      */
     public FuhitoResource(String realmId, RequestContext context, EntityManager entityManager, UserDirectory users,
             OrganizationDirectory organizations, OrganizationGroups organizationGroups,
-            UserAttributeSource userAttributes) {
+            UserAttributeSource userAttributes, Consumer<String> eraseUser) {
         this.userAttributes = userAttributes;
+        this.eraseUser = eraseUser;
         this.organizationGroups = organizationGroups;
         this.organizations = organizations;
         this.realmId = realmId;
         this.context = context;
         this.entityManager = entityManager;
-        this.users = users;
+        // A removed user who left data behind is still known to the reads.
+        this.users = new UserDirectory() {
+            @Override
+            public boolean exists(String userId) {
+                return users.exists(userId);
+            }
+
+            @Override
+            public Optional<String> findIdByUsername(String username) {
+                return users.findIdByUsername(username);
+            }
+
+            @Override
+            public boolean isKnown(String userId) {
+                return users.exists(userId)
+                        || !new JpaEmploymentStore(entityManager, realmId).findByUser(userId).isEmpty()
+                        || !new JpaQualificationStore(entityManager, realmId).findByUser(userId).isEmpty();
+            }
+        };
     }
 
     /**
@@ -272,7 +295,7 @@ public class FuhitoResource {
     @Path("users")
     public UsersResource users() {
         return new UsersResource(context, membershipService(), employmentService(), assignmentService(),
-                qualificationService(), reportingLineService());
+                qualificationService(), reportingLineService(), users, eraseUser);
     }
 
     /**

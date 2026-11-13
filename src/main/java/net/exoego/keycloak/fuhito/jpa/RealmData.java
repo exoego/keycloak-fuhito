@@ -42,7 +42,8 @@ public final class RealmData {
     }
 
     /**
-     * Deletes every row about one user. These are the employments of the user with their terms and assignments,
+     * Erases every row about one user, for a request to delete personal data. Removal of a user from Keycloak
+     * does not call this. These are the employments of the user with their terms and assignments,
      * and the qualifications of the user.
      *
      * @param em the entity manager
@@ -60,7 +61,7 @@ public final class RealmData {
                 .setParameter("realmId", realmId)
                 .setParameter("userId", userId)
                 .executeUpdate();
-        // The change log keeps the ID of a removed user as the actor of a write.
+        // The change log keeps the ID of the user as the actor of a write.
         // It does not keep the entries about the employments and assignments of that user.
         em.createQuery("delete from ChangeLogEntity l where l.realmId = :realmId"
                         + " and ((l.resourceType = 'FUHITO_EMPLOYMENT' and l.resourceId in " + employmentsOfUser + ")"

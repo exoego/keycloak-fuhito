@@ -186,7 +186,7 @@ public class MembershipService {
     }
 
     private void requireUser(String userId) {
-        if (!users.exists(userId)) {
+        if (!users.isKnown(userId)) {
             throw FuhitoException.notFound("user.not_found", Map.of("userId", userId));
         }
     }

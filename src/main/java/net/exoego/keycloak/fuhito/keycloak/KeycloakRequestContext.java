@@ -102,7 +102,7 @@ final class KeycloakRequestContext implements RequestContext {
         return session.getContext().getUri().getQueryParameters().getFirst(CHANGE_ORDER_PARAMETER);
     }
 
-    private static String toJson(Object representation) {
+    static String toJson(Object representation) {
         if (representation == null) {
             return null;
         }

@@ -144,6 +144,15 @@ public class JpaEmploymentStore implements EmploymentStore {
     }
 
     @Override
+    public void delete(String id) {
+        EmploymentEntity entity = em.find(EmploymentEntity.class, id);
+        if (entity != null && entity.realmId.equals(realmId)) {
+            em.remove(entity);
+            em.flush();
+        }
+    }
+
+    @Override
     public void deleteTerms(String termsId) {
         EmploymentTermsEntity entity = em.find(EmploymentTermsEntity.class, termsId);
         if (entity != null && entity.realmId.equals(realmId)) {

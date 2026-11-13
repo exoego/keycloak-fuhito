@@ -107,6 +107,13 @@ public interface EmploymentStore {
     void update(Employment employment);
 
     /**
+     * Removes an employment. Its terms and assignments must be removed first.
+     *
+     * @param id the ID
+     */
+    void delete(String id);
+
+    /**
      * Removes terms.
      *
      * @param termsId the ID of the terms

@@ -109,7 +109,7 @@ public class QualificationService {
      */
     public List<QualificationView> ofUser(String userId, String asOf, boolean all) {
         LocalDate date = asOf == null ? LocalDate.now(clock) : Checks.optionalDate("asOf", asOf);
-        if (!users.exists(userId)) {
+        if (!users.isKnown(userId)) {
             throw FuhitoException.notFound("user.not_found", Map.of("userId", userId));
         }
         return store.findByUser(userId).stream()

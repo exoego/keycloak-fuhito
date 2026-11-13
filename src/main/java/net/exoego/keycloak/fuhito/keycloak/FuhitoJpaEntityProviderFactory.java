@@ -44,7 +44,7 @@ public class FuhitoJpaEntityProviderFactory implements JpaEntityProviderFactory 
             if (event instanceof RealmModel.RealmRemovedEvent removed) {
                 RealmData.delete(entityManager(removed.getKeycloakSession()), removed.getRealm().getId());
             } else if (event instanceof UserModel.UserRemovedEvent removed) {
-                RealmData.deleteUser(entityManager(removed.getKeycloakSession()), removed.getRealm().getId(),
+                UserRemovalHandler.retire(entityManager(removed.getKeycloakSession()), removed.getRealm().getId(),
                         removed.getUser().getId());
             } else if (event instanceof OrganizationModel.OrganizationRemovedEvent removed) {
                 KeycloakSession session = removed.getKeycloakSession();

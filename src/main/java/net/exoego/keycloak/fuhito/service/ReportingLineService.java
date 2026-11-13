@@ -213,7 +213,7 @@ public class ReportingLineService {
     }
 
     private void requireUser(String userId) {
-        if (!sources.users().exists(userId)) {
+        if (!sources.users().isKnown(userId)) {
             throw FuhitoException.notFound("user.not_found", Map.of("userId", userId));
         }
     }

@@ -2,6 +2,7 @@ package net.exoego.keycloak.fuhito.keycloak;
 
 import java.util.Optional;
 
+import net.exoego.keycloak.fuhito.jpa.RealmData;
 import net.exoego.keycloak.fuhito.rest.FuhitoResource;
 import net.exoego.keycloak.fuhito.store.UserDirectory;
 import org.keycloak.connections.jpa.JpaConnectionProvider;
@@ -41,7 +42,8 @@ public class FuhitoAdminRealmResourceProvider implements AdminRealmResourceProvi
                         return Optional.ofNullable(session.users().getUserByUsername(realm, username))
                                 .map(UserModel::getId);
                     }
-                }, organizations, organizations, new KeycloakUserAttributes(session, realm));
+                }, organizations, organizations, new KeycloakUserAttributes(session, realm),
+                userId -> RealmData.deleteUser(entityManager, realm.getId(), userId));
     }
 
     @Override
