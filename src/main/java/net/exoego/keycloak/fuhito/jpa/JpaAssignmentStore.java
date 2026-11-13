@@ -99,6 +99,19 @@ public class JpaAssignmentStore implements AssignmentStore {
     }
 
     @Override
+    public List<Assignment> rowsBySourceOn(String source, LocalDate date) {
+        return em.createQuery("select a from AssignmentEntity a where a.realmId = :realmId and a.source = :source"
+                        + " and a.validFrom <= :date and (a.validTo is null or a.validTo > :date) order by a.id",
+                        AssignmentEntity.class)
+                .setParameter("realmId", realmId)
+                .setParameter("source", source)
+                .setParameter("date", date)
+                .getResultStream()
+                .map(JpaAssignmentStore::toDomain)
+                .toList();
+    }
+
+    @Override
     public void insert(Assignment row) {
         AssignmentEntity entity = new AssignmentEntity();
         entity.id = row.rowId();

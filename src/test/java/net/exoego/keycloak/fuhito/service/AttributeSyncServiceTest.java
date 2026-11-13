@@ -1,0 +1,289 @@
+package net.exoego.keycloak.fuhito.service;
+
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
+import net.exoego.keycloak.fuhito.domain.Assignment;
+import net.exoego.keycloak.fuhito.domain.FuhitoException;
+import net.exoego.keycloak.fuhito.domain.RefItem;
+import net.exoego.keycloak.fuhito.domain.RefKind;
+import net.exoego.keycloak.fuhito.service.SyncReport.Unmatched;
+import net.exoego.keycloak.fuhito.store.UserAttributeSource;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+class AttributeSyncServiceTest {
+
+    private static final ZoneId TOKYO = ZoneId.of("Asia/Tokyo");
+
+    private Clock clock = Clock.fixed(Instant.parse("2026-06-15T03:00:00Z"), TOKYO);
+    private boolean enabled = true;
+    private final Map<String, UserAttributeSource.Values> attributes = new LinkedHashMap<>();
+    private final UserAttributeSource source = new UserAttributeSource() {
+        @Override
+        public Settings settings() {
+            return new Settings(enabled, "department", "title", "manager", "employeeNumber");
+        }
+
+        @Override
+        public List<Values> usersWithDepartment(Settings settings) {
+            return attributes.values().stream().filter(v -> v.department() != null).toList();
+        }
+    };
+    private final MemoryReportingLineStore lineStore = new MemoryReportingLineStore();
+    private final MemoryAssignmentStore assignmentStore = new MemoryAssignmentStore();
+    private final MemoryEmploymentStore employmentStore = new MemoryEmploymentStore();
+    private final MemoryOrgUnitStore orgUnitStore = new MemoryOrgUnitStore();
+    private final MemoryRefItemStore refItems = new MemoryRefItemStore();
+
+    private String medicine;
+    private String surgery;
+
+    @BeforeEach
+    void createUnitsAndTitles() {
+        OrgUnitService orgUnits = new OrgUnitService(orgUnitStore, assignmentStore, refItems, clock);
+        String hospital = orgUnits.create(unit("hospital", "Hospital", null)).unit().id();
+        medicine = orgUnits.create(unit("med", "Internal Medicine", hospital)).unit().id();
+        surgery = orgUnits.create(unit(null, "Surgery", hospital)).unit().id();
+        orgUnits.create(unit(null, "Office", hospital));
+        orgUnits.create(unit(null, "Office", medicine));
+        refItems.insert(new RefItem("t1", RefKind.JOB_TITLE, "director", "Director", Map.of(), 0, Map.of(), true));
+        refItems.insert(new RefItem("t2", RefKind.JOB_TITLE, "staff", "Staff", Map.of(), 0, Map.of(), true));
+    }
+
+    private static NewOrgUnit unit(String code, String name, String parentId) {
+        return new NewOrgUnit(code, name, null, null, null, null, null, parentId, "2020-04-01", null, null, null,
+                null);
+    }
+
+    private void set(String userId, String department, String title, String manager, String employeeNumber) {
+        attributes.put(userId, new UserAttributeSource.Values(userId, department, title, manager, employeeNumber));
+    }
+
+    private EmploymentService employments() {
+        return new EmploymentService(employmentStore, assignmentStore, refItems, attributes::containsKey, lineStore);
+    }
+
+    private AssignmentService assignments() {
+        return new AssignmentService(assignmentStore, employmentStore, orgUnitStore, refItems, lineStore);
+    }
+
+    private SyncReport run() {
+        ReportingLineService lineService = new ReportingLineService(lineStore, new ReportingLineService.Sources(
+                assignmentStore, employmentStore, orgUnitStore, refItems, attributes::containsKey), clock);
+        return new AttributeSyncService(new AttributeSyncService.Sources(source, attributes::containsKey,
+                orgUnitStore, refItems, employmentStore, employments(), assignmentStore, assignments(), lineStore,
+                lineService), clock).run();
+    }
+
+    private void nextDay() {
+        clock = Clock.offset(clock, Duration.ofDays(1));
+    }
+
+    private List<String> assignmentsOf(String userId) {
+        List<String> result = new ArrayList<>();
+        employmentStore.findByUser(userId).forEach(e -> assignmentStore.rowsOfEmployment(e.id()).forEach(row ->
+                result.add(unitName(row) + " " + row.period().from() + " " + row.period().to() + " "
+                        + (row.jobTitleId() == null ? "-" : refItems.find(row.jobTitleId()).orElseThrow().code())
+                        + (row.primary() ? " primary" : ""))));
+        return result;
+    }
+
+    private String unitName(Assignment row) {
+        return orgUnitStore.versions(row.orgUnitId()).get(0).name();
+    }
+
+    private List<String> managersOf(String userId) {
+        List<String> result = new ArrayList<>();
+        employmentStore.findByUser(userId).forEach(e -> assignmentStore.rowsOfEmployment(e.id()).forEach(row ->
+                lineStore.findByAssignment(row.assignmentId()).forEach(line -> {
+                    String entry = line.managerUserId() + " " + line.period().from() + " " + line.period().to();
+                    if (!result.contains(entry)) {
+                        result.add(entry);
+                    }
+                })));
+        return result;
+    }
+
+    @Test
+    void buildsAnEmploymentAnAssignmentAndAReportingLine() {
+        set("boss", "med", "Director", null, "E-001");
+        set("alice", "Internal Medicine", "staff", "boss", "E-002");
+
+        SyncReport report = run();
+
+        assertEquals(2, report.users());
+        assertEquals(2, report.employmentsStarted());
+        assertEquals(2, report.assignmentsAdded());
+        assertEquals(1, report.reportingLinesChanged());
+        assertEquals(List.of(), report.unmatched());
+        assertEquals(List.of("Internal Medicine 2026-06-15 null director primary"), assignmentsOf("boss"));
+        assertEquals(List.of("Internal Medicine 2026-06-15 null staff primary"), assignmentsOf("alice"));
+        assertEquals(List.of("boss 2026-06-15 null"), managersOf("alice"));
+        var employment = employmentStore.findByUser("alice").get(0);
+        assertEquals("E-002", employment.staffNumber());
+        assertEquals("scim", employment.source());
+        assertEquals("alice", employment.externalId());
+        assertEquals(List.of("FUHITO_EMPLOYMENT", "FUHITO_ASSIGNMENT", "FUHITO_EMPLOYMENT", "FUHITO_ASSIGNMENT"),
+                report.writes().stream().map(ImportReport.Write::resourceType).toList());
+    }
+
+    @Test
+    void aSecondRunWithNoChangeDoesNothing() {
+        set("boss", "med", "director", null, null);
+        set("alice", "med", null, "boss", null);
+        run();
+
+        SyncReport again = run();
+
+        assertEquals(new SyncReport(2, 0, 0, 0, 0, 0, 0, List.of(), List.of()), again);
+    }
+
+    @Test
+    void followsANewDepartmentANewTitleAndANewManagerOnALaterDay() {
+        set("boss", "med", null, null, null);
+        set("chief", "Surgery", null, null, null);
+        set("alice", "med", "staff", "boss", null);
+        run();
+        nextDay();
+        set("alice", "Surgery", "staff", "chief", null);
+        set("boss", "med", "director", null, null);
+
+        SyncReport report = run();
+
+        assertEquals(1, report.assignmentsMoved());
+        assertEquals(1, report.assignmentsChanged());
+        assertEquals(1, report.reportingLinesChanged());
+        assertEquals(0, report.employmentsStarted());
+        assertEquals(List.of("Internal Medicine 2026-06-15 2026-06-16 staff primary",
+                "Surgery 2026-06-16 null staff primary"), assignmentsOf("alice"));
+        assertEquals(List.of("Internal Medicine 2026-06-15 2026-06-16 - primary",
+                "Internal Medicine 2026-06-16 null director primary"), assignmentsOf("boss"));
+        // The line to the old manager ended with the old assignment.
+        assertEquals(List.of("boss 2026-06-15 2026-06-16", "chief 2026-06-16 null"), managersOf("alice"));
+    }
+
+    @Test
+    void aChangeOnTheSameDayLeavesNoTrace() {
+        set("boss", "med", null, null, null);
+        set("chief", "Surgery", null, null, null);
+        set("alice", "med", null, "boss", null);
+        run();
+        set("alice", "Surgery", null, "chief", null);
+
+        run();
+
+        assertEquals(List.of("Surgery 2026-06-15 null - primary"), assignmentsOf("alice"));
+        assertEquals(List.of("chief 2026-06-15 null"), managersOf("alice"));
+
+        set("alice", "Surgery", null, "boss", null);
+        run();
+        assertEquals(List.of("boss 2026-06-15 null"), managersOf("alice"));
+        set("alice", "Surgery", null, null, null);
+        assertEquals(1, run().reportingLinesChanged());
+        assertEquals(List.of(), managersOf("alice"));
+    }
+
+    @Test
+    void aRemovedDepartmentEndsTheAssignmentAndARemovedManagerEndsTheLine() {
+        set("boss", "med", null, null, null);
+        set("alice", "med", null, "boss", null);
+        set("bob", "med", null, "boss", null);
+        run();
+        nextDay();
+        set("alice", null, null, "boss", null);
+        set("bob", "med", null, null, null);
+
+        SyncReport report = run();
+
+        assertEquals(1, report.assignmentsEnded());
+        assertEquals(1, report.reportingLinesChanged());
+        assertEquals(List.of("Internal Medicine 2026-06-15 2026-06-16 - primary"), assignmentsOf("alice"));
+        assertEquals(List.of("boss 2026-06-15 2026-06-16"), managersOf("alice"));
+        assertEquals(List.of("boss 2026-06-15 2026-06-16"), managersOf("bob"));
+        assertEquals(List.of("Internal Medicine 2026-06-15 null - primary"), assignmentsOf("bob"));
+    }
+
+    @Test
+    void reportsWhatMatchesNothingAndSkipsOnlyThatPart() {
+        set("alice", "Radiology", null, null, null);
+        set("bob", "Office", null, null, null);
+        set("carol", "med", "Wizard", "nobody", null);
+        set("dave", "med", null, "dave", null);
+
+        SyncReport report = run();
+
+        assertEquals(List.of(
+                new Unmatched("alice", "department", "Radiology", "unknown"),
+                new Unmatched("bob", "department", "Office", "ambiguous"),
+                new Unmatched("carol", "title", "Wizard", "unknown"),
+                new Unmatched("carol", "manager", "nobody", "unknown"),
+                new Unmatched("dave", "manager", "dave", "unknown")), report.unmatched());
+        assertEquals(List.of(), assignmentsOf("alice"));
+        assertEquals(List.of(), assignmentsOf("bob"));
+        assertEquals(List.of("Internal Medicine 2026-06-15 null - primary"), assignmentsOf("carol"));
+        assertEquals(List.of(), managersOf("carol"));
+        assertEquals(2, report.assignmentsAdded());
+    }
+
+    @Test
+    void usesAnEmploymentThatExistsAndLeavesOtherAssignmentsAlone() {
+        set("alice", "med", null, null, null);
+        String employment = employments().start(new NewEmployment("alice", "2020-04-01", null, "OLD-1", null, null,
+                null, null, null, null, null)).employment().id();
+        assignments().add(new AssignmentValues(employment, surgery, "2020-04-01", null, null, null, null, null,
+                true, null, null, null, null, null, null));
+
+        SyncReport report = run();
+
+        assertEquals(0, report.employmentsStarted());
+        assertEquals(1, report.assignmentsAdded());
+        // The assignment made by hand stays primary, so the one of the sync is not.
+        assertEquals(List.of("Surgery 2020-04-01 null - primary", "Internal Medicine 2026-06-15 null -"),
+                assignmentsOf("alice"));
+
+        nextDay();
+        set("alice", null, null, null, null);
+        run();
+        assertEquals(List.of("Surgery 2020-04-01 null - primary", "Internal Medicine 2026-06-15 2026-06-16 -"),
+                assignmentsOf("alice"));
+    }
+
+    @Test
+    void aStaffNumberThatCannotBeUsedDoesNotStopTheUser() {
+        set("alice", "med", null, null, "E-1");
+        set("bob", "med", null, null, "E-1");
+        set("carol", "med", null, null, "not a code");
+
+        SyncReport report = run();
+
+        assertEquals(3, report.employmentsStarted());
+        assertEquals("E-1", employmentStore.findByUser("alice").get(0).staffNumber());
+        assertEquals(null, employmentStore.findByUser("bob").get(0).staffNumber());
+        assertEquals(null, employmentStore.findByUser("carol").get(0).staffNumber());
+    }
+
+    @Test
+    void doesNothingUnlessTheRealmTurnedItOn() {
+        enabled = false;
+        set("alice", "med", null, null, null);
+
+        FuhitoException e = assertThrows(FuhitoException.class, this::run);
+
+        assertEquals(FuhitoException.Reason.CONFLICT, e.reason());
+        assertEquals("sync.disabled", e.code());
+        assertTrue(employmentStore.employments.isEmpty());
+        assertEquals(LocalDate.of(2026, 6, 15), LocalDate.now(clock));
+    }
+}

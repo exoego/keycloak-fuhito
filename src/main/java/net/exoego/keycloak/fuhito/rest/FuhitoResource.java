@@ -22,6 +22,7 @@ import net.exoego.keycloak.fuhito.jpa.JpaQualificationStore;
 import net.exoego.keycloak.fuhito.jpa.JpaRefItemStore;
 import net.exoego.keycloak.fuhito.jpa.JpaReportingLineStore;
 import net.exoego.keycloak.fuhito.service.AssignmentService;
+import net.exoego.keycloak.fuhito.service.AttributeSyncService;
 import net.exoego.keycloak.fuhito.service.ChangeLogService;
 import net.exoego.keycloak.fuhito.service.ChangeOrderService;
 import net.exoego.keycloak.fuhito.service.CsvImportService;
@@ -37,6 +38,7 @@ import net.exoego.keycloak.fuhito.service.ReorganizationService;
 import net.exoego.keycloak.fuhito.service.ReportingLineService;
 import net.exoego.keycloak.fuhito.store.OrganizationDirectory;
 import net.exoego.keycloak.fuhito.store.OrganizationGroups;
+import net.exoego.keycloak.fuhito.store.UserAttributeSource;
 import net.exoego.keycloak.fuhito.store.UserDirectory;
 
 /**
@@ -52,6 +54,7 @@ public class FuhitoResource {
     private final UserDirectory users;
     private final OrganizationDirectory organizations;
     private final OrganizationGroups organizationGroups;
+    private final UserAttributeSource userAttributes;
 
     /**
      * Creates the resource for one request.
@@ -62,9 +65,12 @@ public class FuhitoResource {
      * @param users the users of the realm
      * @param organizations the Keycloak organizations of the realm
      * @param organizationGroups the groups and members of the Keycloak organizations of the realm
+     * @param userAttributes the user attributes that an identity provider fills
      */
     public FuhitoResource(String realmId, RequestContext context, EntityManager entityManager, UserDirectory users,
-            OrganizationDirectory organizations, OrganizationGroups organizationGroups) {
+            OrganizationDirectory organizations, OrganizationGroups organizationGroups,
+            UserAttributeSource userAttributes) {
+        this.userAttributes = userAttributes;
         this.organizationGroups = organizationGroups;
         this.organizations = organizations;
         this.realmId = realmId;
@@ -201,6 +207,21 @@ public class FuhitoResource {
         return new ProjectionResource(context, new ProjectionService(new JpaOrgUnitStore(entityManager, realmId),
                 new JpaAssignmentStore(entityManager, realmId), new JpaEmploymentStore(entityManager, realmId),
                 new JpaRefItemStore(entityManager, realmId), organizationGroups, Clock.systemDefaultZone()));
+    }
+
+    /**
+     * Returns the sync from user attributes.
+     *
+     * @return the sub-resource
+     */
+    @Path("attribute-sync")
+    public AttributeSyncResource attributeSync() {
+        return new AttributeSyncResource(context, new AttributeSyncService(new AttributeSyncService.Sources(
+                userAttributes, users, new JpaOrgUnitStore(entityManager, realmId),
+                new JpaRefItemStore(entityManager, realmId), new JpaEmploymentStore(entityManager, realmId),
+                employmentService(), new JpaAssignmentStore(entityManager, realmId), assignmentService(),
+                new JpaReportingLineStore(entityManager, realmId), reportingLineService()),
+                Clock.systemDefaultZone()));
     }
 
     /**
