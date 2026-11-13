@@ -19,6 +19,7 @@ import net.exoego.keycloak.fuhito.jpa.JpaOrgUnitStore;
 import net.exoego.keycloak.fuhito.jpa.JpaRefItemStore;
 import net.exoego.keycloak.fuhito.service.AssignmentService;
 import net.exoego.keycloak.fuhito.service.EmploymentService;
+import net.exoego.keycloak.fuhito.service.MembershipService;
 import net.exoego.keycloak.fuhito.service.OrgUnitService;
 import net.exoego.keycloak.fuhito.service.RefItemService;
 import net.exoego.keycloak.fuhito.store.UserDirectory;
@@ -110,7 +111,23 @@ public class FuhitoResource {
     public OrgUnitsResource orgUnits() {
         return new OrgUnitsResource(context, new OrgUnitService(new JpaOrgUnitStore(entityManager, realmId),
                 new JpaAssignmentStore(entityManager, realmId), new JpaRefItemStore(entityManager, realmId),
-                Clock.systemDefaultZone()));
+                Clock.systemDefaultZone()), membershipService());
+    }
+
+    /**
+     * Returns what is stored about the users of the realm.
+     *
+     * @return the sub-resource
+     */
+    @Path("users")
+    public UsersResource users() {
+        return new UsersResource(context, membershipService(), employmentService(), assignmentService());
+    }
+
+    private MembershipService membershipService() {
+        return new MembershipService(new JpaAssignmentStore(entityManager, realmId),
+                new JpaEmploymentStore(entityManager, realmId), new JpaOrgUnitStore(entityManager, realmId),
+                new JpaRefItemStore(entityManager, realmId), users, Clock.systemDefaultZone());
     }
 
     /**

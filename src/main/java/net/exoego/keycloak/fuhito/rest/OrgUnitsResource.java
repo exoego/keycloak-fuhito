@@ -14,6 +14,8 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.rest.RequestContext.Change;
+import net.exoego.keycloak.fuhito.service.MemberQuery;
+import net.exoego.keycloak.fuhito.service.MembershipService;
 import net.exoego.keycloak.fuhito.service.OrgUnitService;
 import net.exoego.keycloak.fuhito.service.OrgUnitState;
 
@@ -31,16 +33,19 @@ public class OrgUnitsResource {
 
     private final RequestContext context;
     private final OrgUnitService service;
+    private final MembershipService membership;
 
     /**
      * Creates the resource for one request.
      *
      * @param context the request and its caller
      * @param service the operations on the realm of the request
+     * @param membership the reads of members on the realm of the request
      */
-    public OrgUnitsResource(RequestContext context, OrgUnitService service) {
+    public OrgUnitsResource(RequestContext context, OrgUnitService service, MembershipService membership) {
         this.context = context;
         this.service = service;
+        this.membership = membership;
     }
 
     /**
@@ -166,6 +171,33 @@ public class OrgUnitsResource {
     public List<OrgUnitRepresentation> path(@PathParam("id") String id, @QueryParam("asOf") String asOf) {
         context.requireRead();
         return Calls.run(context, () -> represent(service.path(id, asOf)));
+    }
+
+    /**
+     * Lists the assignments to an org unit that hold on a date.
+     *
+     * @param id the ID
+     * @param asOf the date as {@code YYYY-MM-DD}. The default is today in the time zone of the server.
+     * @param includeDescendants true to also list the members of every unit below
+     * @param occupation the code of an occupation to keep
+     * @param jobTitle the code of a job title to keep
+     * @param status an employment status to keep. It is {@code ACTIVE}, {@code ON_LEAVE}, or {@code SUSPENDED}.
+     * @param first the number of members to skip. The default is 0.
+     * @param max the largest number of members to return. The default is 100.
+     * @return the members on the date
+     */
+    @GET
+    @Path("{id}/members")
+    public List<MemberRepresentation> members(@PathParam("id") String id, @QueryParam("asOf") String asOf,
+            @QueryParam("includeDescendants") boolean includeDescendants,
+            @QueryParam("occupation") String occupation, @QueryParam("jobTitle") String jobTitle,
+            @QueryParam("status") String status, @QueryParam("first") Integer first,
+            @QueryParam("max") Integer max) {
+        context.requireRead();
+        return Calls.run(context, () -> membership.members(id,
+                        new MemberQuery(asOf, includeDescendants, occupation, jobTitle, status, first, max)).stream()
+                .map(MemberRepresentation::of)
+                .toList());
     }
 
     /**

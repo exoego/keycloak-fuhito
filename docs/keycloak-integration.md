@@ -102,6 +102,9 @@ Clients in another time zone should always send `asOf`.
 | `/employments` | Employments of users, with their terms over time |
 | `/assignments` | Assignments of employments to org units |
 | `/staff` | A shortcut that starts an employment and adds its first assignment in one call |
+| `/org-units/{id}/members` | Who works in an org unit on a date, with or without the units below |
+| `/users/{userId}/assignments` | Where a user works on a date |
+| `/users/{userId}/history` | Every employment and assignment of a user |
 | `/hierarchies` | The hierarchies of the realm |
 
 ## Admin events

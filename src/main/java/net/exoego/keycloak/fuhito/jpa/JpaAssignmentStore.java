@@ -1,5 +1,7 @@
 package net.exoego.keycloak.fuhito.jpa;
 
+import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
 
 import jakarta.persistence.EntityManager;
@@ -54,6 +56,23 @@ public class JpaAssignmentStore implements AssignmentStore {
                         + " and a.orgUnitId = :orgUnitId order by a.validFrom, a.id", AssignmentEntity.class)
                 .setParameter("realmId", realmId)
                 .setParameter("orgUnitId", orgUnitId)
+                .getResultStream()
+                .map(JpaAssignmentStore::toDomain)
+                .toList();
+    }
+
+    @Override
+    public List<Assignment> rowsOn(Collection<String> orgUnitIds, LocalDate date) {
+        if (orgUnitIds.isEmpty()) {
+            return List.of();
+        }
+        return em.createQuery("select a from AssignmentEntity a where a.realmId = :realmId"
+                        + " and a.orgUnitId in :orgUnitIds"
+                        + " and a.validFrom <= :date and (a.validTo is null or a.validTo > :date)",
+                        AssignmentEntity.class)
+                .setParameter("realmId", realmId)
+                .setParameter("orgUnitIds", orgUnitIds)
+                .setParameter("date", date)
                 .getResultStream()
                 .map(JpaAssignmentStore::toDomain)
                 .toList();

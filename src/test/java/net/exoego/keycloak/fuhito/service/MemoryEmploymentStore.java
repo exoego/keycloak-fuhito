@@ -1,6 +1,8 @@
 package net.exoego.keycloak.fuhito.service;
 
+import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -24,6 +26,26 @@ final class MemoryEmploymentStore implements EmploymentStore {
     @Override
     public List<Employment> findByStaffNumber(String staffNumber) {
         return employments.values().stream().filter(e -> staffNumber.equals(e.staffNumber())).toList();
+    }
+
+    @Override
+    public List<Employment> findByUser(String userId) {
+        return employments.values().stream()
+                .filter(e -> e.userId().equals(userId))
+                .sorted(Comparator.comparing(e -> e.period().from()))
+                .toList();
+    }
+
+    @Override
+    public List<Employment> findAll(Collection<String> ids) {
+        return employments.values().stream().filter(e -> ids.contains(e.id())).toList();
+    }
+
+    @Override
+    public List<EmploymentTerms> termsOn(Collection<String> employmentIds, LocalDate date) {
+        return terms.stream()
+                .filter(t -> employmentIds.contains(t.employmentId()) && t.period().contains(date))
+                .toList();
     }
 
     @Override

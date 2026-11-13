@@ -1,6 +1,8 @@
 package net.exoego.keycloak.fuhito.service;
 
+import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 
@@ -33,6 +35,11 @@ final class MemoryAssignmentStore implements AssignmentStore {
                 .filter(r -> r.orgUnitId().equals(orgUnitId))
                 .sorted(Comparator.comparing(r -> r.period().from()))
                 .toList();
+    }
+
+    @Override
+    public List<Assignment> rowsOn(Collection<String> orgUnitIds, LocalDate date) {
+        return rows.stream().filter(r -> orgUnitIds.contains(r.orgUnitId()) && r.period().contains(date)).toList();
     }
 
     @Override
