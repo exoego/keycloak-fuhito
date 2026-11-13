@@ -35,6 +35,13 @@ final class MemoryOrgUnitStore implements OrgUnitStore {
     }
 
     @Override
+    public Optional<OrgUnit> findUnitByExternalId(String source, String externalId) {
+        return units.values().stream()
+                .filter(u -> source.equals(u.source()) && externalId.equals(u.externalId()))
+                .findFirst();
+    }
+
+    @Override
     public List<OrgUnit> units() {
         return List.copyOf(units.values());
     }

@@ -77,6 +77,18 @@ public class JpaOrgUnitStore implements OrgUnitStore {
     }
 
     @Override
+    public Optional<OrgUnit> findUnitByExternalId(String source, String externalId) {
+        return em.createQuery("select u from OrgUnitEntity u where u.realmId = :realmId and u.source = :source"
+                        + " and u.externalId = :externalId", OrgUnitEntity.class)
+                .setParameter("realmId", realmId)
+                .setParameter("source", source)
+                .setParameter("externalId", externalId)
+                .getResultStream()
+                .findFirst()
+                .map(JpaOrgUnitStore::toDomain);
+    }
+
+    @Override
     public List<OrgUnit> units() {
         return em.createQuery("select u from OrgUnitEntity u where u.realmId = :realmId", OrgUnitEntity.class)
                 .setParameter("realmId", realmId)
@@ -121,6 +133,9 @@ public class JpaOrgUnitStore implements OrgUnitStore {
         entity.source = unit.source();
         entity.keycloakOrganizationId = unit.keycloakOrganizationId();
         em.persist(entity);
+        // Other rows refer to this one. Hibernate groups inserts by entity type, so this row goes to the
+        // database now, before a row that needs it.
+        em.flush();
     }
 
     @Override

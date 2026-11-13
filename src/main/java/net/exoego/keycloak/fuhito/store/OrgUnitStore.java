@@ -37,6 +37,15 @@ public interface OrgUnitStore {
     Optional<OrgUnit> findUnitByCode(String code);
 
     /**
+     * Finds an org unit by the ID it has in the system it came from.
+     *
+     * @param source the name of that system
+     * @param externalId the ID in that system
+     * @return the unit, or empty when the realm has no such unit
+     */
+    Optional<OrgUnit> findUnitByExternalId(String source, String externalId);
+
+    /**
      * Lists all org units of the realm.
      *
      * @return the units

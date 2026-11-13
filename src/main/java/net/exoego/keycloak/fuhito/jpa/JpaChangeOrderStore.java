@@ -67,6 +67,9 @@ public class JpaChangeOrderStore implements ChangeOrderStore {
         entity.createdAt = order.createdAt();
         copy(order, entity);
         em.persist(entity);
+        // Other rows refer to this one. Hibernate groups inserts by entity type, so this row goes to the
+        // database now, before a row that needs it.
+        em.flush();
     }
 
     @Override

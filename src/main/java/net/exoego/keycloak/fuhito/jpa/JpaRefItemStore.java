@@ -85,6 +85,9 @@ public class JpaRefItemStore implements RefItemStore {
         entity.code = item.code();
         copyChangeable(item, entity);
         em.persist(entity);
+        // Other rows refer to this one. Hibernate groups inserts by entity type, so this row goes to the
+        // database now, before a row that needs it.
+        em.flush();
     }
 
     @Override
