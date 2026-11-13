@@ -38,5 +38,10 @@ public enum RefKind {
     /**
      * How an assignment is held, for example "regular", "acting", or "support".
      */
-    ASSIGNMENT_KIND
+    ASSIGNMENT_KIND,
+
+    /**
+     * A kind of license or certificate, for example "physician license".
+     */
+    QUALIFICATION
 }

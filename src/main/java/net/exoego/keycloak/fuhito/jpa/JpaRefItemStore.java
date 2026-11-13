@@ -21,7 +21,8 @@ public class JpaRefItemStore implements RefItemStore {
             "EmploymentTermsEntity e where e.gradeId",
             "AssignmentEntity e where e.jobTitleId",
             "AssignmentEntity e where e.occupationId",
-            "AssignmentEntity e where e.kindId");
+            "AssignmentEntity e where e.kindId",
+            "QualificationEntity e where e.kindId");
 
     private final EntityManager em;
     private final String realmId;

@@ -11,6 +11,7 @@ import jakarta.ws.rs.core.MediaType;
 import net.exoego.keycloak.fuhito.service.AssignmentService;
 import net.exoego.keycloak.fuhito.service.EmploymentService;
 import net.exoego.keycloak.fuhito.service.MembershipService;
+import net.exoego.keycloak.fuhito.service.QualificationService;
 
 /**
  * What is stored about the users of one realm.
@@ -22,6 +23,7 @@ public class UsersResource {
     private final MembershipService membership;
     private final EmploymentService employments;
     private final AssignmentService assignments;
+    private final QualificationService qualifications;
 
     /**
      * Creates the resource for one request.
@@ -30,13 +32,33 @@ public class UsersResource {
      * @param membership the reads on the realm of the request
      * @param employments the operations on employments of the realm
      * @param assignments the operations on assignments of the realm
+     * @param qualifications the operations on qualifications of the realm
      */
     public UsersResource(RequestContext context, MembershipService membership, EmploymentService employments,
-            AssignmentService assignments) {
+            AssignmentService assignments, QualificationService qualifications) {
         this.context = context;
         this.membership = membership;
         this.employments = employments;
         this.assignments = assignments;
+        this.qualifications = qualifications;
+    }
+
+    /**
+     * Lists the qualifications of a user, oldest first.
+     *
+     * @param userId the ID of the user
+     * @param asOf the date as {@code YYYY-MM-DD}. The default is today in the time zone of the server.
+     * @param all true to return every qualification, expired ones and future ones included
+     * @return the qualifications
+     */
+    @GET
+    @Path("{userId}/qualifications")
+    public List<QualificationRepresentation> qualifications(@PathParam("userId") String userId,
+            @QueryParam("asOf") String asOf, @QueryParam("all") boolean all) {
+        context.requireRead();
+        return Calls.run(context, () -> qualifications.ofUser(userId, asOf, all).stream()
+                .map(QualificationRepresentation::of)
+                .toList());
     }
 
     /**

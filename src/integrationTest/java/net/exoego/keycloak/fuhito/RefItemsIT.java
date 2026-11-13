@@ -80,7 +80,7 @@ class RefItemsIT {
     @Test
     void everyKindHasItsOwnCodes() throws Exception {
         for (String kind : List.of("UNIT_TYPE", "JOB_TITLE", "OCCUPATION", "EMPLOYMENT_TYPE", "GRADE", "END_REASON",
-                "ASSIGNMENT_KIND")) {
+                "ASSIGNMENT_KIND", "QUALIFICATION")) {
             JsonNode item = created(api.post("/ref-items",
                     "{\"kind\": \"" + kind + "\", \"code\": \"same-code\", \"name\": \"" + kind + "\"}"));
             assertEquals(kind, item.get("kind").asText());
