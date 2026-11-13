@@ -56,12 +56,12 @@ class AssignmentServiceTest {
     }
 
     private AssignmentValues to(String orgUnitId, String validFrom) {
-        return new AssignmentValues(employment, orgUnitId, validFrom, null, null, null, null, null, null, null, null,
+        return new AssignmentValues(employment, orgUnitId, validFrom, null, null, null, null, null, null, null, null, null,
                 null, null, null);
     }
 
     private static AssignmentValues details(String validFrom, String jobTitle, Boolean head) {
-        return new AssignmentValues(null, null, validFrom, null, jobTitle, null, null, head, null, null, null, null,
+        return new AssignmentValues(null, null, validFrom, null, jobTitle, null, null, head, null, null, null, null, null,
                 null, null);
     }
 
@@ -107,7 +107,7 @@ class AssignmentServiceTest {
         RefItem kind = item(RefKind.ASSIGNMENT_KIND, "acting", true);
 
         AssignmentView view = service.add(new AssignmentValues(employment, ward, "2026-04-01", "2027-04-01",
-                "head-nurse", "nurse", "acting", true, true, new BigDecimal("60"), 3, Map.of("shift", "night"),
+                "head-nurse", "nurse", "acting", true, true, null, new BigDecimal("60"), 3, Map.of("shift", "night"),
                 "A-1", "hr"));
 
         AssignmentView.Row row = view.rows().get(0);
@@ -147,7 +147,7 @@ class AssignmentServiceTest {
                 null, null, null, null, null)).employment().id();
 
         AssignmentView view = service.add(new AssignmentValues(fixed, ward, "2026-10-01", null, null, null, null,
-                null, null, null, null, null, null, null));
+                null, null, null, null, null, null, null, null));
 
         assertEquals(new ValidPeriod(LocalDate.of(2026, 10, 1), LocalDate.of(2027, 4, 1)), view.period());
         assertEquals("bob", view.userId());
@@ -160,7 +160,7 @@ class AssignmentServiceTest {
 
         for (String[] dates : new String[][] {{"2026-03-31", null}, {"2026-10-01", "2027-04-02"}, {"2027-04-01", null}}) {
             FuhitoException e = addFailure(new AssignmentValues(fixed, ward, dates[0], dates[1], null, null, null,
-                    null, null, null, null, null, null, null));
+                    null, null, null, null, null, null, null, null));
             assertEquals(dates[0].equals("2027-04-01") ? "invalid.period" : "assignment.outside_employment", e.code());
         }
         FuhitoException e = addFailure(to(ward, "2026-03-31"));
@@ -181,7 +181,7 @@ class AssignmentServiceTest {
         assertEquals("assignment.org_unit_not_valid", e.code());
         assertEquals(Map.of("orgUnitId", ending, "validFrom", "2026-10-01"), e.params());
         // An assignment that ends with the unit is fine.
-        service.add(new AssignmentValues(employment, ending, "2026-10-01", "2027-04-01", null, null, null, null, null,
+        service.add(new AssignmentValues(employment, ending, "2026-10-01", "2027-04-01", null, null, null, null, null, null,
                 null, null, null, null, null));
         assertEquals("assignment.org_unit_unknown", addFailure(to("nope", "2026-10-01")).code());
     }
@@ -193,18 +193,18 @@ class AssignmentServiceTest {
 
         assertEquals("invalid.required", assertThrows(FuhitoException.class, () -> service.add(null)).code());
         assertEquals("invalid.required", addFailure(new AssignmentValues(null, ward, "2026-04-01", null, null, null,
-                null, null, null, null, null, null, null, null)).code());
+                null, null, null, null, null, null, null, null, null)).code());
         assertEquals("invalid.required", addFailure(to(null, "2026-04-01")).code());
         assertEquals("invalid.required", addFailure(to(ward, null)).code());
         assertEquals("assignment.employment_unknown", addFailure(new AssignmentValues("nope", ward, "2026-04-01",
-                null, null, null, null, null, null, null, null, null, null, null)).code());
+                null, null, null, null, null, null, null, null, null, null, null, null)).code());
         for (String[] codes : new String[][] {{"retired", null, null}, {"nurse", null, null}, {null, "nope", null},
                 {null, null, "nope"}}) {
             assertEquals("ref_item.unknown", addFailure(new AssignmentValues(employment, ward, "2026-04-01", null,
-                    codes[0], codes[1], codes[2], null, null, null, null, null, null, null)).code());
+                    codes[0], codes[1], codes[2], null, null, null, null, null, null, null, null)).code());
         }
         assertEquals("invalid.percent", addFailure(new AssignmentValues(employment, ward, "2026-04-01", null, null,
-                null, null, null, null, new BigDecimal("101"), null, null, null, null)).code());
+                null, null, null, null, null, new BigDecimal("101"), null, null, null, null)).code());
         assertTrue(store.rows.isEmpty());
     }
 
@@ -214,7 +214,7 @@ class AssignmentServiceTest {
         item(RefKind.JOB_TITLE, "chief", true);
         item(RefKind.JOB_TITLE, "director", true);
         String id = service.add(new AssignmentValues(employment, ward, "2026-04-01", null, "staff", null, null, null,
-                null, null, null, null, "A-1", "hr")).assignmentId();
+                null, null, null, null, null, "A-1", "hr")).assignmentId();
         service.changeDetails(id, details("2028-04-01", "director", true));
 
         AssignmentView view = service.changeDetails(id, details("2027-04-01", "chief", null));
@@ -234,7 +234,7 @@ class AssignmentServiceTest {
         item(RefKind.JOB_TITLE, "staff", true);
         item(RefKind.OCCUPATION, "nurse", true);
         String id = service.add(new AssignmentValues(employment, ward, "2026-04-01", null, "staff", "nurse", null,
-                true, true, new BigDecimal("50"), 4, Map.of("k", "v"), null, null)).assignmentId();
+                true, true, null, new BigDecimal("50"), 4, Map.of("k", "v"), null, null)).assignmentId();
         String rowId = store.rows(id).get(0).rowId();
 
         AssignmentView view = service.changeDetails(id, details("2026-04-01", null, null));
@@ -256,13 +256,13 @@ class AssignmentServiceTest {
         RefItem old = item(RefKind.JOB_TITLE, "old-title", true);
         item(RefKind.OCCUPATION, "retired", false);
         String id = service.add(new AssignmentValues(employment, ward, "2026-04-01", null, "old-title", null, null,
-                null, null, null, null, null, null, null)).assignmentId();
+                null, null, null, null, null, null, null, null)).assignmentId();
         refItems.update(new RefItem(old.id(), RefKind.JOB_TITLE, "old-title", "old", Map.of(), 0, Map.of(), false));
 
         assertEquals("old-title", service.changeDetails(id, details("2026-10-01", "old-title", true)).rows().get(1)
                 .jobTitle());
         assertEquals("ref_item.unknown", assertThrows(FuhitoException.class, () -> service.changeDetails(id,
-                new AssignmentValues(null, null, "2027-04-01", null, null, "retired", null, null, null, null, null,
+                new AssignmentValues(null, null, "2027-04-01", null, null, "retired", null, null, null, null, null, null,
                         null, null, null))).code());
         assertEquals(2, store.rows(id).size());
     }
@@ -317,11 +317,116 @@ class AssignmentServiceTest {
         assertEquals(LocalDate.of(2027, 4, 2), service.end(id, "2027-04-02").period().to());
     }
 
+    private AssignmentValues primary(String orgUnitId, String validFrom, String validTo, Boolean switchPrimary) {
+        return new AssignmentValues(employment, orgUnitId, validFrom, validTo, null, null, null, null, true,
+                switchPrimary, null, null, null, null, null);
+    }
+
+    private List<String> primaryPeriods(String assignmentId) {
+        return store.rows(assignmentId).stream()
+                .map(r -> r.period().from() + " " + r.period().to() + " " + r.primary())
+                .toList();
+    }
+
+    @Test
+    void rejectsASecondPrimaryAssignmentOnTheSameDates() {
+        String first = service.add(primary(ward, "2026-04-01", null, null)).assignmentId();
+
+        FuhitoException e = addFailure(primary(xHospital, "2027-04-01", null, false));
+
+        assertEquals(FuhitoException.Reason.CONFLICT, e.reason());
+        assertEquals("assignment.primary_exists", e.code());
+        assertEquals(Map.of("employmentId", employment, "assignmentId", first, "validFrom", "2027-04-01"), e.params());
+        assertEquals(1, store.rows.size());
+    }
+
+    @Test
+    void primaryAssignmentsMayFollowEachOtherAndBelongToOtherEmployments() {
+        service.add(primary(ward, "2026-04-01", "2027-04-01", null));
+        service.add(primary(xHospital, "2027-04-01", null, null));
+        String other = employmentService.start(new NewEmployment("bob", "2026-04-01", null, null, null, null, null,
+                null, null, null, null)).employment().id();
+
+        service.add(new AssignmentValues(other, ward, "2026-04-01", null, null, null, null, null, true, null, null,
+                null, null, null, null));
+        // An assignment that is not primary never conflicts.
+        service.add(to(yHospital, "2026-04-01"));
+
+        assertEquals(4, store.rows.size());
+    }
+
+    @Test
+    void switchingTakesThePrimaryFlagFromTheDate() {
+        String old = service.add(primary(ward, "2026-04-01", null, null)).assignmentId();
+
+        String now = service.add(primary(xHospital, "2027-04-01", null, true)).assignmentId();
+
+        assertEquals(List.of("2026-04-01 2027-04-01 true", "2027-04-01 null false"), primaryPeriods(old));
+        assertEquals(List.of("2027-04-01 null true"), primaryPeriods(now));
+    }
+
+    @Test
+    void switchingForABoundedPeriodGivesTheFlagBackAfterIt() {
+        String old = service.add(primary(ward, "2026-04-01", null, null)).assignmentId();
+
+        service.add(primary(xHospital, "2027-04-01", "2028-04-01", true));
+
+        assertEquals(List.of("2026-04-01 2027-04-01 true", "2027-04-01 2028-04-01 false", "2028-04-01 null true"),
+                primaryPeriods(old));
+    }
+
+    @Test
+    void switchingFromTheFirstDateOfTheHolderChangesItInPlace() {
+        String old = service.add(primary(ward, "2026-04-01", null, null)).assignmentId();
+        String rowId = store.rows(old).get(0).rowId();
+
+        service.add(primary(xHospital, "2026-04-01", "2027-04-01", true));
+
+        assertEquals(List.of("2026-04-01 2027-04-01 false", "2027-04-01 null true"), primaryPeriods(old));
+        assertEquals(rowId, store.rows(old).get(0).rowId());
+    }
+
+    @Test
+    void switchingTakesTheFlagFromEveryHolderInThePeriod() {
+        String first = service.add(primary(ward, "2026-04-01", "2027-04-01", null)).assignmentId();
+        String second = service.add(primary(xHospital, "2027-04-01", "2028-04-01", null)).assignmentId();
+
+        service.add(primary(yHospital, "2026-10-01", "2027-10-01", true));
+
+        assertEquals(List.of("2026-04-01 2026-10-01 true", "2026-10-01 2027-04-01 false"), primaryPeriods(first));
+        assertEquals(List.of("2027-04-01 2027-10-01 false", "2027-10-01 2028-04-01 true"), primaryPeriods(second));
+    }
+
+    @Test
+    void aChangeOfDetailsCanClaimAndKeepThePrimaryFlag() {
+        String old = service.add(primary(ward, "2026-04-01", null, null)).assignmentId();
+        String other = service.add(to(xHospital, "2026-04-01")).assignmentId();
+        AssignmentValues claim = new AssignmentValues(null, null, "2027-04-01", null, null, null, null, null, true,
+                null, null, null, null, null, null);
+        AssignmentValues claimAndSwitch = new AssignmentValues(null, null, "2027-04-01", null, null, null, null, null,
+                true, true, null, null, null, null, null);
+
+        assertEquals("assignment.primary_exists",
+                assertThrows(FuhitoException.class, () -> service.changeDetails(other, claim)).code());
+        assertEquals(1, store.rows(other).size());
+
+        service.changeDetails(other, claimAndSwitch);
+        assertEquals(List.of("2026-04-01 2027-04-01 false", "2027-04-01 null true"), primaryPeriods(other));
+        assertEquals(List.of("2026-04-01 2027-04-01 true", "2027-04-01 null false"), primaryPeriods(old));
+
+        // The holder may change its own details and stay primary. A correction on the first date works too.
+        service.changeDetails(other, new AssignmentValues(null, null, "2028-04-01", null, null, null, null, true,
+                true, null, null, null, null, null, null));
+        service.changeDetails(other, claim);
+        assertEquals(List.of("2026-04-01 2027-04-01 false", "2027-04-01 2028-04-01 true", "2028-04-01 null true"),
+                primaryPeriods(other));
+    }
+
     @Test
     void readsAnAssignmentWhoseEmploymentOrItemIsGone() {
         RefItem title = item(RefKind.JOB_TITLE, "staff", true);
         String id = service.add(new AssignmentValues(employment, ward, "2026-04-01", null, "staff", null, null, null,
-                null, null, null, null, null, null)).assignmentId();
+                null, null, null, null, null, null, null)).assignmentId();
         refItems.delete(title.id());
         employments.employments.clear();
 

@@ -121,6 +121,52 @@ class AssignmentsIT {
     }
 
     @Test
+    void anEmploymentHasOnePrimaryAssignmentAtATime() throws Exception {
+        String nurse = realm.user("nurse-" + System.nanoTime());
+        String nurseEmployment = id(api.post("/employments", "{\"userId\": \"" + nurse + "\", \"validFrom\": \"2026-04-01\"}"));
+        String start = "{\"employmentId\": \"" + nurseEmployment + "\", \"primary\": true, \"orgUnitId\": \"";
+        String old = id(api.post("/assignments", start + xMedicine + "\", \"validFrom\": \"2026-04-01\"}"));
+
+        HttpResponse<String> rejected = api.post("/assignments", start + ySurgery + "\", \"validFrom\": \"2027-04-01\"}");
+        assertEquals("assignment.primary_exists", errorOf(409, rejected));
+        assertEquals(old, Api.json(rejected).get("params").get("assignmentId").asText());
+
+        String now = id(api.post("/assignments", start + ySurgery + "\", \"validFrom\": \"2027-04-01\", \"switchPrimary\": true}"));
+
+        JsonNode oldPeriods = Api.json(api.get("/assignments/" + old)).get("periods");
+        assertEquals(List.of("true", "false"), oldPeriods.findValuesAsText("primary"));
+        assertEquals("2027-04-01", oldPeriods.get(1).get("validFrom").asText());
+        assertFalse(oldPeriods.get(0).has("switchPrimary"));
+        assertEquals(List.of("true"), Api.json(api.get("/assignments/" + now)).get("periods").findValuesAsText("primary"));
+
+        // The old assignment takes the flag back from 2028 with a change of its details.
+        assertEquals("assignment.primary_exists", errorOf(409, api.put("/assignments/" + old + "/details",
+                "{\"validFrom\": \"2028-04-01\", \"primary\": true}")));
+        assertEquals(200, api.put("/assignments/" + old + "/details",
+                "{\"validFrom\": \"2028-04-01\", \"primary\": true, \"switchPrimary\": true}").statusCode());
+        assertEquals(List.of("true", "false", "true"),
+                Api.json(api.get("/assignments/" + old)).get("periods").findValuesAsText("primary"));
+        assertEquals(List.of("true", "false"),
+                Api.json(api.get("/assignments/" + now)).get("periods").findValuesAsText("primary"));
+    }
+
+    // This row goes around the application, as a bug in it would.
+    @Test
+    void theDatabaseRejectsTwoPrimaryAssignmentsOnTheSameDates() throws Exception {
+        String nurse = realm.user("nurse-" + System.nanoTime());
+        String nurseEmployment = id(api.post("/employments", "{\"userId\": \"" + nurse + "\", \"validFrom\": \"2026-04-01\"}"));
+        id(api.post("/assignments", "{\"employmentId\": \"" + nurseEmployment + "\", \"primary\": true, \"orgUnitId\": \""
+                + xMedicine + "\", \"validFrom\": \"2026-04-01\"}"));
+        String insert = "insert into fuhito_assignment (id, realm_id, assignment_id, employment_id, org_unit_id,"
+                + " valid_from, is_primary, attributes) values ('%s', '" + realm.id() + "', '%s', '" + nurseEmployment
+                + "', '" + ySurgery + "', '2027-04-01', %s, '{}')";
+
+        assertTrue(KeycloakEnvironment.sqlError(String.format(insert, "sql-row-1", "sql-assignment-1", "true"))
+                .contains("ex_fuhito_assignment_primary"));
+        KeycloakEnvironment.sql(String.format(insert, "sql-row-2", "sql-assignment-2", "false"));
+    }
+
+    @Test
     void rejectsBadRequests() throws Exception {
         String id = id(api.post("/assignments", assign(xMedicine, "")));
         String closing = unit("閉鎖予定", null);
