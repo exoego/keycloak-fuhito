@@ -1,6 +1,7 @@
 package net.exoego.keycloak.fuhito.rest;
 
 import jakarta.ws.rs.Consumes;
+import jakarta.ws.rs.DELETE;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.PUT;
@@ -74,6 +75,44 @@ public class EmploymentsResource {
             var employment = EmploymentRepresentation.of(service.changeTerms(id, new TermsChange(body.validFrom(),
                     body.employmentType(), body.grade(), body.status(), body.workPercent(), body.attributes())));
             context.recordChange(Change.UPDATE, RESOURCE_TYPE, "fuhito/employments/" + id + "/terms", employment);
+            return employment;
+        });
+    }
+
+    /**
+     * Sets the end of an employment.
+     * An earlier end is how a person leaves. It also ends the terms and the assignments on that date.
+     * A later end extends a fixed-term employment.
+     *
+     * @param id the ID
+     * @param body the first date on which the employment no longer holds, and the end reason
+     * @return the employment with the terms of every period
+     */
+    @PUT
+    @Path("{id}/end")
+    public EmploymentRepresentation end(@PathParam("id") String id, EndRepresentation body) {
+        context.requireWrite();
+        return Calls.run(context, () -> {
+            Checks.required("body", body);
+            var employment = EmploymentRepresentation.of(service.end(id, body.validTo(), body.endReason()));
+            context.recordChange(Change.UPDATE, RESOURCE_TYPE, "fuhito/employments/" + id + "/end", employment);
+            return employment;
+        });
+    }
+
+    /**
+     * Removes the end of an employment, for example to take back a resignation.
+     *
+     * @param id the ID
+     * @return the employment with the terms of every period
+     */
+    @DELETE
+    @Path("{id}/end")
+    public EmploymentRepresentation removeEnd(@PathParam("id") String id) {
+        context.requireWrite();
+        return Calls.run(context, () -> {
+            var employment = EmploymentRepresentation.of(service.removeEnd(id));
+            context.recordChange(Change.UPDATE, RESOURCE_TYPE, "fuhito/employments/" + id + "/end", employment);
             return employment;
         });
     }

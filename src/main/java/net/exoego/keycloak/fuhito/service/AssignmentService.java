@@ -114,29 +114,59 @@ public class AssignmentService {
     }
 
     /**
-     * Ends an assignment. Its history stays readable.
+     * Sets the end of an assignment. Its history stays readable.
+     * The end can move earlier or later. A later end must stay inside the employment and the life of the org unit.
      *
      * @param id the ID of the assignment
      * @param validTo the first date on which the assignment no longer holds, as {@code YYYY-MM-DD}
      * @return the assignment with all its details
-     * @throws FuhitoException when the date is not inside the last details of the assignment
+     * @throws FuhitoException when the date would cut off a stored change, or the new period is not covered
      */
     public AssignmentView end(String id, String validTo) {
         LocalDate to = Checks.date("validTo", validTo);
         List<Assignment> rows = requireRows(id);
-        Assignment last = rows.get(rows.size() - 1);
         if (!to.isAfter(rows.get(0).period().from())) {
             throw FuhitoException.notFound("assignment.not_valid_on", Map.of("id", id, "date", validTo));
         }
+        Assignment last = rows.get(rows.size() - 1);
         if (!to.isAfter(last.period().from())) {
             throw FuhitoException.conflict("assignment.later_changes_exist", Map.of("id", id, "validTo", validTo));
         }
-        if (last.period().to() != null && to.isAfter(last.period().to())) {
-            throw FuhitoException.conflict("assignment.already_ended",
-                    Map.of("id", id, "validTo", last.period().to().toString()));
-        }
-        store.update(last.withPeriod(last.period().endingAt(to)));
+        setEnd(last, to);
         return get(id);
+    }
+
+    /**
+     * Removes the end of an assignment. The assignment then lasts as long as its employment.
+     *
+     * @param id the ID of the assignment
+     * @return the assignment with all its details
+     * @throws FuhitoException when the org unit does not cover the new period
+     */
+    public AssignmentView removeEnd(String id) {
+        List<Assignment> rows = requireRows(id);
+        Assignment last = rows.get(rows.size() - 1);
+        LocalDate employmentEnd = employments.find(last.employmentId()).orElseThrow().period().to();
+        setEnd(last, employmentEnd);
+        return get(id);
+    }
+
+    private void setEnd(Assignment last, LocalDate to) {
+        Assignment changed = last.withPeriod(last.period().endingAt(to));
+        boolean longer = last.period().to() != null && (to == null || to.isAfter(last.period().to()));
+        if (longer) {
+            Employment employment = employments.find(last.employmentId()).orElseThrow();
+            if (!employment.period().encloses(changed.period())) {
+                throw FuhitoException.conflict("assignment.outside_employment", Map.of("employmentId",
+                        employment.id(), "validFrom", changed.period().from().toString()));
+            }
+            requireOrgUnitCovers(last.orgUnitId(), changed.period());
+            if (changed.primary()) {
+                claimPrimary(changed, new AssignmentValues(null, null, null, null, null, null, null, null, true,
+                        false, null, null, null, null, null));
+            }
+        }
+        store.update(changed);
     }
 
     /**

@@ -73,6 +73,15 @@ public class JpaAssignmentStore implements AssignmentStore {
         em.flush();
     }
 
+    @Override
+    public void delete(String rowId) {
+        AssignmentEntity entity = em.find(AssignmentEntity.class, rowId);
+        if (entity != null && entity.realmId.equals(realmId)) {
+            em.remove(entity);
+            em.flush();
+        }
+    }
+
     private static void copy(Assignment row, AssignmentEntity entity) {
         entity.validFrom = row.period().from();
         entity.validTo = row.period().to();
