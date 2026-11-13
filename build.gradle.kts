@@ -103,6 +103,27 @@ tasks.jacocoTestReport {
     }
 }
 
+// The domain package has no Keycloak and no database, so unit tests must cover all of it.
+// The integration tests cover the other packages, and they run in a container where JaCoCo does not see them.
+tasks.jacocoTestCoverageVerification {
+    violationRules {
+        rule {
+            element = "CLASS"
+            includes = listOf("net.exoego.keycloak.fuhito.domain.*")
+            for (counter in listOf("INSTRUCTION", "BRANCH")) {
+                limit {
+                    this.counter = counter
+                    minimum = "1.0".toBigDecimal()
+                }
+            }
+        }
+    }
+}
+
+tasks.check {
+    dependsOn(tasks.jacocoTestCoverageVerification)
+}
+
 nexusPublishing {
     repositories {
         sonatype {
