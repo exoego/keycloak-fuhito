@@ -24,6 +24,10 @@ When Keycloak changes one of them, only that package needs a change.
 - Liquibase creates and updates the tables when Keycloak starts.
 - The changelog is `META-INF/fuhito/changelog.xml` in the jar.
 
+## Removal of a realm
+
+When a realm is removed, the extension deletes every row of that realm in the same transaction.
+
 ## Entities
 
 Keycloak finds the JPA entities of the jar when it builds the server.
