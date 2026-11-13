@@ -48,6 +48,18 @@ The caller needs an access token for the admin API, the same as for the other ad
 A request with no token gets 401.
 A caller without the permission gets 403.
 
+A response leaves out every field that has no value.
+For example, an org unit with no end date has no `validTo` field.
+
+## Dates
+
+Dates have the form `YYYY-MM-DD`.
+A period includes its `validFrom` date and does not include its `validTo` date.
+
+Read endpoints take an `asOf` date.
+The default is today in the time zone of the server.
+Clients in another time zone should always send `asOf`.
+
 ## Errors
 
 An error response has a stable code, the values that belong to it, and a message for people.

@@ -1,5 +1,7 @@
 package net.exoego.keycloak.fuhito.domain;
 
+import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 import java.util.IllformedLocaleException;
 import java.util.LinkedHashMap;
 import java.util.Locale;
@@ -73,6 +75,61 @@ public final class Checks {
             throw FuhitoException.invalid("invalid.name", Map.of("field", field));
         }
         return trimmed;
+    }
+
+    /**
+     * Checks a code that may be missing.
+     *
+     * @param field the name of the field, for the error
+     * @param value the code, or null
+     * @return the code, or null
+     * @throws FuhitoException when the code has a bad form
+     */
+    public static String optionalCode(String field, String value) {
+        return value == null ? null : code(field, value);
+    }
+
+    /**
+     * Checks a name that may be missing.
+     *
+     * @param field the name of the field, for the error
+     * @param value the name, or null
+     * @return the name without spaces around it, or null
+     * @throws FuhitoException when the name is blank or too long
+     */
+    public static String optionalName(String field, String value) {
+        return value == null ? null : name(field, value);
+    }
+
+    /**
+     * Reads a date in the form {@code YYYY-MM-DD}.
+     *
+     * @param field the name of the field, for the error
+     * @param value the text, or null
+     * @return the date, or null when the text is null
+     * @throws FuhitoException when the text is not a date
+     */
+    public static LocalDate optionalDate(String field, String value) {
+        if (value == null) {
+            return null;
+        }
+        try {
+            return LocalDate.parse(value);
+        } catch (DateTimeParseException e) {
+            throw FuhitoException.invalid("invalid.date", Map.of("field", field, "value", value));
+        }
+    }
+
+    /**
+     * Reads a required date in the form {@code YYYY-MM-DD}.
+     *
+     * @param field the name of the field, for the error
+     * @param value the text
+     * @return the date
+     * @throws FuhitoException when the text is missing or not a date
+     */
+    public static LocalDate date(String field, String value) {
+        return optionalDate(field, required(field, value));
     }
 
     /**

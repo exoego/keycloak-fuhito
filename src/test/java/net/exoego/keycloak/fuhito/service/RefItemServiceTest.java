@@ -1,15 +1,11 @@
 package net.exoego.keycloak.fuhito.service;
 
-import java.util.Comparator;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.RefItem;
 import net.exoego.keycloak.fuhito.domain.RefKind;
-import net.exoego.keycloak.fuhito.store.RefItemStore;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -19,44 +15,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class RefItemServiceTest {
 
-    private static final class MemoryStore implements RefItemStore {
-        private final Map<String, RefItem> items = new LinkedHashMap<>();
-
-        @Override
-        public List<RefItem> list(RefKind kind, boolean includeInactive) {
-            return items.values().stream()
-                    .filter(i -> i.kind() == kind && (includeInactive || i.active()))
-                    .sorted(Comparator.comparingInt(RefItem::displayOrder).thenComparing(RefItem::code))
-                    .toList();
-        }
-
-        @Override
-        public Optional<RefItem> find(String id) {
-            return Optional.ofNullable(items.get(id));
-        }
-
-        @Override
-        public boolean exists(RefKind kind, String code) {
-            return items.values().stream().anyMatch(i -> i.kind() == kind && i.code().equals(code));
-        }
-
-        @Override
-        public void insert(RefItem item) {
-            items.put(item.id(), item);
-        }
-
-        @Override
-        public void update(RefItem item) {
-            items.put(item.id(), item);
-        }
-
-        @Override
-        public void delete(String id) {
-            items.remove(id);
-        }
-    }
-
-    private final RefItemService service = new RefItemService(new MemoryStore());
+    private final MemoryRefItemStore store = new MemoryRefItemStore();
+    private final RefItemService service = new RefItemService(store);
 
     private RefItem create(String code, Integer displayOrder) {
         return service.create(RefKind.UNIT_TYPE, code, code + " name", null, displayOrder, null);
@@ -158,6 +118,18 @@ class RefItemServiceTest {
         FuhitoException e = assertThrows(FuhitoException.class, () -> service.get(item.id()));
         assertEquals(FuhitoException.Reason.NOT_FOUND, e.reason());
         assertEquals("ref_item.not_found", e.code());
+    }
+
+    @Test
+    void doesNotDeleteAnItemInUse() {
+        RefItem item = create("dept", null);
+        store.inUse.add(item.id());
+
+        FuhitoException e = assertThrows(FuhitoException.class, () -> service.delete(item.id()));
+
+        assertEquals(FuhitoException.Reason.CONFLICT, e.reason());
+        assertEquals("ref_item.in_use", e.code());
+        assertEquals(item, service.get(item.id()));
     }
 
     @Test

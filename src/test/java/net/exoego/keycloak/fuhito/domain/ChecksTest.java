@@ -1,5 +1,6 @@
 package net.exoego.keycloak.fuhito.domain;
 
+import java.time.LocalDate;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -9,6 +10,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class ChecksTest {
@@ -63,6 +65,30 @@ class ChecksTest {
         String kanji = "𠮷";
         assertEquals(255, Checks.name("name", kanji.repeat(255)).codePointCount(0, 510));
         assertEquals("invalid.name", invalid(() -> Checks.name("name", kanji.repeat(256))).code());
+    }
+
+    @Test
+    void optionalValuesMayBeMissing() {
+        assertNull(Checks.optionalCode("code", null));
+        assertEquals("a", Checks.optionalCode("code", "a"));
+        assertEquals("invalid.code", invalid(() -> Checks.optionalCode("code", "a b")).code());
+        assertNull(Checks.optionalName("name", null));
+        assertEquals("a", Checks.optionalName("name", " a "));
+        assertNull(Checks.optionalDate("date", null));
+    }
+
+    @Test
+    void readsADate() {
+        assertEquals(LocalDate.of(2026, 4, 1), Checks.date("validFrom", "2026-04-01"));
+        assertEquals("invalid.required", invalid(() -> Checks.date("validFrom", null)).code());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"", "2026/04/01", "2026-4-1", "2026-02-30", "today"})
+    void rejectsABadDate(String text) {
+        FuhitoException e = invalid(() -> Checks.date("validFrom", text));
+        assertEquals("invalid.date", e.code());
+        assertEquals(Map.of("field", "validFrom", "value", text), e.params());
     }
 
     @Test
