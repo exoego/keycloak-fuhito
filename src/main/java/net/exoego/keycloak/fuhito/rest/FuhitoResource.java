@@ -23,6 +23,7 @@ import net.exoego.keycloak.fuhito.service.AssignmentService;
 import net.exoego.keycloak.fuhito.service.ChangeLogService;
 import net.exoego.keycloak.fuhito.service.ChangeOrderService;
 import net.exoego.keycloak.fuhito.service.EmploymentService;
+import net.exoego.keycloak.fuhito.service.ImportService;
 import net.exoego.keycloak.fuhito.service.MembershipService;
 import net.exoego.keycloak.fuhito.service.OrgUnitService;
 import net.exoego.keycloak.fuhito.service.RefItemService;
@@ -152,6 +153,18 @@ public class FuhitoResource {
     @Path("reorganizations")
     public ReorganizationsResource reorganizations() {
         return new ReorganizationsResource(context, new ReorganizationService(orgUnitService()));
+    }
+
+    /**
+     * Returns the endpoint that loads many rows in one request.
+     *
+     * @return the sub-resource
+     */
+    @Path("imports")
+    public ImportsResource imports() {
+        var refItemStore = new JpaRefItemStore(entityManager, realmId);
+        return new ImportsResource(context, new ImportService(new RefItemService(refItemStore), refItemStore,
+                orgUnitService(), new JpaOrgUnitStore(entityManager, realmId)));
     }
 
     private OrgUnitService orgUnitService() {

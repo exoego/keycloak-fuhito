@@ -107,6 +107,7 @@ Clients in another time zone should always send `asOf`.
 | `/users/{userId}/assignments` | Where a user works on a date |
 | `/users/{userId}/history` | Every employment and assignment of a user |
 | `/reorganizations` | Many org unit changes on one date, in one transaction |
+| `/imports` | Many rows in one request, with a dry run |
 | `/change-orders` | Approved instructions that cause changes, with their approver |
 | `/change-orders/{id}/changes` | The writes that belong to a change order |
 | `/change-log` | The writes to one resource |
