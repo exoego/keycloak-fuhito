@@ -2,6 +2,7 @@ package net.exoego.keycloak.fuhito.service;
 
 import java.time.Clock;
 import java.time.LocalDate;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -216,7 +217,7 @@ public class OrgUnitService {
      * @throws FuhitoException when the unit does not exist, or does not exist on the date
      */
     public OrgUnitState get(String id, String asOf) {
-        LocalDate date = asOf == null ? LocalDate.now(clock) : Checks.optionalDate("asOf", asOf);
+        LocalDate date = dateOrToday(asOf);
         OrgUnit unit = requireUnit(id);
         OrgUnitVersion version = versionOn(id, date);
         String unitType = version.unitTypeId() == null ? null
@@ -227,6 +228,84 @@ public class OrgUnitService {
                 .findFirst()
                 .orElse(null);
         return new OrgUnitState(unit, version, unitType, parentId);
+    }
+
+    /**
+     * Lists the org units that exist on a date, in the default hierarchy.
+     * Each parent comes before its children.
+     * Siblings follow the display order, then the phonetic name, then the name.
+     *
+     * @param asOf the date as {@code YYYY-MM-DD}, or null for today
+     * @param rootsOnly true to return only the units with no parent
+     * @return the units on the date
+     */
+    public List<OrgUnitState> list(String asOf, boolean rootsOnly) {
+        OrgUnitTree tree = tree(asOf);
+        return rootsOnly ? tree.roots() : tree.all();
+    }
+
+    /**
+     * Lists the direct children of an org unit on a date.
+     *
+     * @param id the ID
+     * @param asOf the date as {@code YYYY-MM-DD}, or null for today
+     * @return the children on the date
+     * @throws FuhitoException when the unit does not exist, or does not exist on the date
+     */
+    public List<OrgUnitState> children(String id, String asOf) {
+        requireUnit(id);
+        return tree(asOf).children(id);
+    }
+
+    /**
+     * Lists an org unit and everything below it on a date. Each parent comes before its children.
+     *
+     * @param id the ID
+     * @param asOf the date as {@code YYYY-MM-DD}, or null for today
+     * @return the unit and its descendants on the date
+     * @throws FuhitoException when the unit does not exist, or does not exist on the date
+     */
+    public List<OrgUnitState> subtree(String id, String asOf) {
+        requireUnit(id);
+        return tree(asOf).subtree(id);
+    }
+
+    /**
+     * Lists the units from the root down to an org unit on a date.
+     *
+     * @param id the ID
+     * @param asOf the date as {@code YYYY-MM-DD}, or null for today
+     * @return the path, with the root first and the unit last
+     * @throws FuhitoException when the unit does not exist, or does not exist on the date
+     */
+    public List<OrgUnitState> path(String id, String asOf) {
+        requireUnit(id);
+        return tree(asOf).path(id);
+    }
+
+    /**
+     * Returns everything that is stored about an org unit over time.
+     *
+     * @param id the ID
+     * @return the details of every period and the parent of every period
+     * @throws FuhitoException when the unit does not exist
+     */
+    public OrgUnitHistory history(String id) {
+        OrgUnit unit = requireUnit(id);
+        Map<String, String> unitTypeCodes = new HashMap<>();
+        refItems.list(RefKind.UNIT_TYPE, true).forEach(item -> unitTypeCodes.put(item.id(), item.code()));
+        List<OrgUnitState> versions = store.versions(id).stream()
+                .map(version -> new OrgUnitState(unit, version, unitTypeCodes.get(version.unitTypeId()), null))
+                .toList();
+        return new OrgUnitHistory(unit, versions, store.parentLinks(store.defaultHierarchyId(), id));
+    }
+
+    private OrgUnitTree tree(String asOf) {
+        return new OrgUnitTree(store, refItems, dateOrToday(asOf));
+    }
+
+    private LocalDate dateOrToday(String asOf) {
+        return asOf == null ? LocalDate.now(clock) : Checks.optionalDate("asOf", asOf);
     }
 
     private OrgUnit requireUnit(String id) {

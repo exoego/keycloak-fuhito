@@ -1,5 +1,7 @@
 package net.exoego.keycloak.fuhito.rest;
 
+import java.util.List;
+
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.POST;
@@ -12,6 +14,7 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.service.OrgUnitService;
+import net.exoego.keycloak.fuhito.service.OrgUnitState;
 
 /**
  * The org units of one realm.
@@ -101,6 +104,78 @@ public class OrgUnitsResource {
             Checks.required("body", body);
             return OrgUnitRepresentation.of(service.end(id, body.validTo()));
         });
+    }
+
+    /**
+     * Lists the org units that exist on a date. Each parent comes before its children.
+     *
+     * @param asOf the date as {@code YYYY-MM-DD}. The default is today in the time zone of the server.
+     * @param roots true to return only the units with no parent
+     * @return the units on the date
+     */
+    @GET
+    public List<OrgUnitRepresentation> list(@QueryParam("asOf") String asOf, @QueryParam("roots") boolean roots) {
+        context.requireRead();
+        return Calls.run(context, () -> represent(service.list(asOf, roots)));
+    }
+
+    /**
+     * Lists the direct children of an org unit on a date.
+     *
+     * @param id the ID
+     * @param asOf the date as {@code YYYY-MM-DD}. The default is today in the time zone of the server.
+     * @return the children on the date
+     */
+    @GET
+    @Path("{id}/children")
+    public List<OrgUnitRepresentation> children(@PathParam("id") String id, @QueryParam("asOf") String asOf) {
+        context.requireRead();
+        return Calls.run(context, () -> represent(service.children(id, asOf)));
+    }
+
+    /**
+     * Lists an org unit and everything below it on a date. Each parent comes before its children.
+     *
+     * @param id the ID
+     * @param asOf the date as {@code YYYY-MM-DD}. The default is today in the time zone of the server.
+     * @return the unit and its descendants on the date
+     */
+    @GET
+    @Path("{id}/subtree")
+    public List<OrgUnitRepresentation> subtree(@PathParam("id") String id, @QueryParam("asOf") String asOf) {
+        context.requireRead();
+        return Calls.run(context, () -> represent(service.subtree(id, asOf)));
+    }
+
+    /**
+     * Lists the units from the root down to an org unit on a date.
+     *
+     * @param id the ID
+     * @param asOf the date as {@code YYYY-MM-DD}. The default is today in the time zone of the server.
+     * @return the path, with the root first and the unit last
+     */
+    @GET
+    @Path("{id}/path")
+    public List<OrgUnitRepresentation> path(@PathParam("id") String id, @QueryParam("asOf") String asOf) {
+        context.requireRead();
+        return Calls.run(context, () -> represent(service.path(id, asOf)));
+    }
+
+    /**
+     * Returns everything that is stored about an org unit over time.
+     *
+     * @param id the ID
+     * @return the details of every period and the parent of every period
+     */
+    @GET
+    @Path("{id}/history")
+    public OrgUnitHistoryRepresentation history(@PathParam("id") String id) {
+        context.requireRead();
+        return Calls.run(context, () -> OrgUnitHistoryRepresentation.of(service.history(id)));
+    }
+
+    private static List<OrgUnitRepresentation> represent(List<OrgUnitState> states) {
+        return states.stream().map(OrgUnitRepresentation::of).toList();
     }
 
     /**

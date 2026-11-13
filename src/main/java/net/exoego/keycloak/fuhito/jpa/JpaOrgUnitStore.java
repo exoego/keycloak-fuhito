@@ -1,5 +1,6 @@
 package net.exoego.keycloak.fuhito.jpa;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -73,6 +74,41 @@ public class JpaOrgUnitStore implements OrgUnitStore {
                 .getResultStream()
                 .findFirst()
                 .map(JpaOrgUnitStore::toDomain);
+    }
+
+    @Override
+    public List<OrgUnit> units() {
+        return em.createQuery("select u from OrgUnitEntity u where u.realmId = :realmId", OrgUnitEntity.class)
+                .setParameter("realmId", realmId)
+                .getResultStream()
+                .map(JpaOrgUnitStore::toDomain)
+                .toList();
+    }
+
+    @Override
+    public List<OrgUnitVersion> versionsOn(LocalDate date) {
+        return em.createQuery("select v from OrgUnitVersionEntity v where v.realmId = :realmId"
+                        + " and v.validFrom <= :date and (v.validTo is null or v.validTo > :date)",
+                        OrgUnitVersionEntity.class)
+                .setParameter("realmId", realmId)
+                .setParameter("date", date)
+                .getResultStream()
+                .map(JpaOrgUnitStore::toDomain)
+                .toList();
+    }
+
+    @Override
+    public List<OrgUnitLink> linksOn(String hierarchyId, LocalDate date) {
+        return em.createQuery("select l from OrgUnitLinkEntity l where l.realmId = :realmId"
+                        + " and l.hierarchyId = :hierarchyId"
+                        + " and l.validFrom <= :date and (l.validTo is null or l.validTo > :date)",
+                        OrgUnitLinkEntity.class)
+                .setParameter("realmId", realmId)
+                .setParameter("hierarchyId", hierarchyId)
+                .setParameter("date", date)
+                .getResultStream()
+                .map(JpaOrgUnitStore::toDomain)
+                .toList();
     }
 
     @Override
