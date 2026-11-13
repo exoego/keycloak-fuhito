@@ -33,12 +33,47 @@ tasks.withType<Jar>().configureEach {
     }
 }
 
+// An empty value, as from a CI matrix row without it, means the version of the catalog.
+val testKeycloakVersion = providers.gradleProperty("testKeycloakVersion")
+    .filter { it.isNotBlank() }
+    .orElse(libs.versions.keycloak)
+
 testing {
     suites {
         named<JvmTestSuite>("test") {
             useJUnitJupiter(libs.versions.junit)
         }
+
+        // Runs the built jar in a real Keycloak container with PostgreSQL. Needs Docker.
+        register<JvmTestSuite>("integrationTest") {
+            useJUnitJupiter(libs.versions.junit)
+            dependencies {
+                implementation(libs.testcontainers.keycloak)
+                implementation(libs.testcontainers.postgresql)
+                runtimeOnly(libs.slf4j.simple)
+            }
+            targets.all {
+                testTask.configure {
+                    dependsOn(tasks.jar)
+                    systemProperty("keycloak.version", testKeycloakVersion.get())
+                    systemProperty("provider.jar", tasks.jar.get().archiveFile.get().asFile.absolutePath)
+                    shouldRunAfter(tasks.test)
+                }
+            }
+        }
     }
+}
+
+tasks.check {
+    dependsOn(testing.suites.named("integrationTest"))
+}
+
+tasks.javadoc {
+    (options as StandardJavadocDocletOptions).addBooleanOption("Werror", true)
+}
+
+tasks.check {
+    dependsOn(tasks.javadoc)
 }
 
 val testJavaVersion = providers.gradleProperty("testJavaVersion").orElse("21")
