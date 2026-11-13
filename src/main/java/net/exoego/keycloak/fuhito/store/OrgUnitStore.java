@@ -58,6 +58,13 @@ public interface OrgUnitStore {
     void insertVersion(OrgUnitVersion version);
 
     /**
+     * Stores the new state of an existing version.
+     *
+     * @param version the version
+     */
+    void updateVersion(OrgUnitVersion version);
+
+    /**
      * Lists all parent links of an org unit in a hierarchy, oldest first.
      *
      * @param hierarchyId the ID of the hierarchy

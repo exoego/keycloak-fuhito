@@ -60,15 +60,9 @@ public class OrgUnitService {
         }
 
         OrgUnit unit = new OrgUnit(newId(), code, request.externalId(), request.source(), null);
-        OrgUnitVersion version = new OrgUnitVersion(newId(), unit.id(), period,
-                Checks.name("name", request.name()),
-                Checks.localizedNames("names", request.names()),
-                Checks.optionalName("shortName", request.shortName()),
-                Checks.localizedNames("shortNames", request.shortNames()),
-                Checks.optionalName("phoneticName", request.phoneticName()),
-                unitType == null ? null : unitType.id(),
-                request.displayOrder() == null ? 0 : request.displayOrder(),
-                request.attributes() == null ? Map.of() : request.attributes());
+        OrgUnitVersion version = version(newId(), unit.id(), period, new OrgUnitChange(request.validFrom(),
+                request.name(), request.names(), request.shortName(), request.shortNames(), request.phoneticName(),
+                request.unitType(), request.displayOrder(), request.attributes()), unitType);
         store.insertUnit(unit);
         store.insertVersion(version);
         if (request.parentId() != null) {
@@ -76,6 +70,35 @@ public class OrgUnitService {
                     period));
         }
         return new OrgUnitState(unit, version, request.unitType(), request.parentId());
+    }
+
+    /**
+     * Replaces the details of an org unit from a date. The unit keeps its ID.
+     * The change lasts until the next change that is already stored, or has no end.
+     * A change on the first date of stored details corrects those details.
+     *
+     * @param id the ID
+     * @param request the new details and their first date
+     * @return the unit as it is on that date
+     * @throws FuhitoException when the unit does not exist on the date or a value is bad
+     */
+    public OrgUnitState changeDetails(String id, OrgUnitChange request) {
+        Checks.required("body", request);
+        LocalDate from = Checks.date("validFrom", request.validFrom());
+        requireUnit(id);
+        OrgUnitVersion current = versionOn(id, from);
+        RefItem unitType = request.unitType() == null ? null : unitTypeForChange(request.unitType(), current);
+
+        if (current.period().from().equals(from)) {
+            store.updateVersion(version(current.id(), id, current.period(), request, unitType));
+        } else {
+            List<ValidPeriod> parts = current.period().splitAt(from);
+            // Build the new version first, so that a bad value fails before anything is written.
+            OrgUnitVersion next = version(newId(), id, parts.get(1), request, unitType);
+            store.updateVersion(withPeriod(current, parts.get(0)));
+            store.insertVersion(next);
+        }
+        return get(id, request.validFrom());
     }
 
     /**
@@ -88,13 +111,8 @@ public class OrgUnitService {
      */
     public OrgUnitState get(String id, String asOf) {
         LocalDate date = asOf == null ? LocalDate.now(clock) : Checks.optionalDate("asOf", asOf);
-        OrgUnit unit = store.findUnit(id)
-                .orElseThrow(() -> FuhitoException.notFound("org_unit.not_found", Map.of("id", id)));
-        OrgUnitVersion version = store.versions(id).stream()
-                .filter(v -> v.period().contains(date))
-                .findFirst()
-                .orElseThrow(() -> FuhitoException.notFound("org_unit.not_valid_on",
-                        Map.of("id", id, "date", date.toString())));
+        OrgUnit unit = requireUnit(id);
+        OrgUnitVersion version = versionOn(id, date);
         String unitType = version.unitTypeId() == null ? null
                 : refItems.find(version.unitTypeId()).map(RefItem::code).orElse(null);
         String parentId = store.parentLinks(store.defaultHierarchyId(), id).stream()
@@ -103,6 +121,44 @@ public class OrgUnitService {
                 .findFirst()
                 .orElse(null);
         return new OrgUnitState(unit, version, unitType, parentId);
+    }
+
+    private OrgUnit requireUnit(String id) {
+        return store.findUnit(id)
+                .orElseThrow(() -> FuhitoException.notFound("org_unit.not_found", Map.of("id", id)));
+    }
+
+    private OrgUnitVersion versionOn(String id, LocalDate date) {
+        return store.versions(id).stream()
+                .filter(v -> v.period().contains(date))
+                .findFirst()
+                .orElseThrow(() -> FuhitoException.notFound("org_unit.not_valid_on",
+                        Map.of("id", id, "date", date.toString())));
+    }
+
+    private static OrgUnitVersion version(String versionId, String unitId, ValidPeriod period, OrgUnitChange details,
+            RefItem unitType) {
+        return new OrgUnitVersion(versionId, unitId, period,
+                Checks.name("name", details.name()),
+                Checks.localizedNames("names", details.names()),
+                Checks.optionalName("shortName", details.shortName()),
+                Checks.localizedNames("shortNames", details.shortNames()),
+                Checks.optionalName("phoneticName", details.phoneticName()),
+                unitType == null ? null : unitType.id(),
+                details.displayOrder() == null ? 0 : details.displayOrder(),
+                details.attributes() == null ? Map.of() : details.attributes());
+    }
+
+    private static OrgUnitVersion withPeriod(OrgUnitVersion v, ValidPeriod period) {
+        return new OrgUnitVersion(v.id(), v.orgUnitId(), period, v.name(), v.names(), v.shortName(), v.shortNames(),
+                v.phoneticName(), v.unitTypeId(), v.displayOrder(), v.attributes());
+    }
+
+    // A unit may keep a unit type that was deactivated after the unit got it.
+    private RefItem unitTypeForChange(String code, OrgUnitVersion current) {
+        return refItems.findByCode(RefKind.UNIT_TYPE, code)
+                .filter(item -> item.active() || item.id().equals(current.unitTypeId()))
+                .orElseThrow(() -> FuhitoException.invalid("org_unit.unit_type_unknown", Map.of("unitType", code)));
     }
 
     private RefItem activeUnitType(String code) {

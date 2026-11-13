@@ -52,6 +52,11 @@ final class MemoryOrgUnitStore implements OrgUnitStore {
     }
 
     @Override
+    public void updateVersion(OrgUnitVersion version) {
+        versions.replaceAll(v -> v.id().equals(version.id()) ? version : v);
+    }
+
+    @Override
     public List<OrgUnitLink> parentLinks(String hierarchyId, String childId) {
         return links.stream()
                 .filter(l -> l.hierarchyId().equals(hierarchyId) && l.childId().equals(childId))

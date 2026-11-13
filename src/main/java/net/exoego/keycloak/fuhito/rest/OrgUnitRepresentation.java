@@ -3,6 +3,7 @@ package net.exoego.keycloak.fuhito.rest;
 import java.util.Map;
 
 import net.exoego.keycloak.fuhito.service.NewOrgUnit;
+import net.exoego.keycloak.fuhito.service.OrgUnitChange;
 import net.exoego.keycloak.fuhito.service.OrgUnitState;
 
 /**
@@ -37,6 +38,11 @@ public record OrgUnitRepresentation(String id, String code, String name, Map<Str
                 version.shortName(), version.shortNames(), version.phoneticName(), state.unitType(),
                 state.parentId(), period.from().toString(), period.to() == null ? null : period.to().toString(),
                 version.displayOrder(), version.attributes(), unit.externalId(), unit.source());
+    }
+
+    OrgUnitChange toChange() {
+        return new OrgUnitChange(validFrom, name, names, shortName, shortNames, phoneticName, unitType, displayOrder,
+                attributes);
     }
 
     NewOrgUnit toNewOrgUnit() {

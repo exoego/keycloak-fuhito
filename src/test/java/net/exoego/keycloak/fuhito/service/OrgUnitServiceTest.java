@@ -170,6 +170,120 @@ class OrgUnitServiceTest {
         assertEquals("org_unit.parent_not_valid", failure(named("Ward", "closing", "2026-04-01")).code());
     }
 
+    private static OrgUnitChange rename(String validFrom, String name) {
+        return new OrgUnitChange(validFrom, name, null, null, null, null, null, null, null);
+    }
+
+    @Test
+    void aChangeSplitsTheDetailsAtItsDate() {
+        String id = service.create(named("Old", null, "2026-04-01")).unit().id();
+
+        OrgUnitState changed = service.changeDetails(id, rename("2026-10-01", "New"));
+
+        assertEquals(id, changed.unit().id());
+        assertEquals("New", changed.version().name());
+        assertEquals(ValidPeriod.startingAt(LocalDate.of(2026, 10, 1)), changed.version().period());
+        assertEquals("Old", service.get(id, "2026-09-30").version().name());
+        assertEquals(new ValidPeriod(LocalDate.of(2026, 4, 1), LocalDate.of(2026, 10, 1)),
+                service.get(id, "2026-09-30").version().period());
+        assertEquals("New", service.get(id, "2026-10-01").version().name());
+    }
+
+    @Test
+    void aChangeInsideOlderDetailsKeepsTheLaterOnes() {
+        String id = service.create(named("A", null, "2026-04-01")).unit().id();
+        service.changeDetails(id, rename("2027-04-01", "C"));
+
+        OrgUnitState changed = service.changeDetails(id, rename("2026-10-01", "B"));
+
+        assertEquals(new ValidPeriod(LocalDate.of(2026, 10, 1), LocalDate.of(2027, 4, 1)), changed.version().period());
+        assertEquals("A", service.get(id, "2026-09-30").version().name());
+        assertEquals("B", service.get(id, "2027-03-31").version().name());
+        assertEquals("C", service.get(id, "2027-04-01").version().name());
+        assertEquals(3, store.versions(id).size());
+    }
+
+    @Test
+    void aChangeOnTheFirstDateOfDetailsCorrectsThem() {
+        String id = service.create(named("Typo", null, "2026-04-01")).unit().id();
+        String versionId = store.versions(id).get(0).id();
+
+        OrgUnitState changed = service.changeDetails(id, rename("2026-04-01", "Fixed"));
+
+        assertEquals(versionId, changed.version().id());
+        assertEquals("Fixed", changed.version().name());
+        assertEquals(1, store.versions(id).size());
+    }
+
+    @Test
+    void aChangeReplacesAllDetails() {
+        unitType("ward", true);
+        RefItem clinic = unitType("clinic", true);
+        String parentId = service.create(named("Hospital", null, "2026-04-01")).unit().id();
+        String id = service.create(new NewOrgUnit("w1", "Ward", Map.of("ja", "病棟"), "W", Map.of("ja", "病"), "わーど",
+                "ward", parentId, "2026-04-01", 9, Map.of("beds", 30), "X-1", "hr")).unit().id();
+
+        OrgUnitState changed = service.changeDetails(id, new OrgUnitChange("2026-10-01", "Clinic",
+                Map.of("ja", "診療所"), "C", Map.of("ja", "診"), "くりにっく", "clinic", 2, Map.of("rooms", 3)));
+
+        OrgUnitVersion v = changed.version();
+        assertEquals("Clinic", v.name());
+        assertEquals(Map.of("ja", "診療所"), v.names());
+        assertEquals("C", v.shortName());
+        assertEquals(Map.of("ja", "診"), v.shortNames());
+        assertEquals("くりにっく", v.phoneticName());
+        assertEquals(clinic.id(), v.unitTypeId());
+        assertEquals("clinic", changed.unitType());
+        assertEquals(2, v.displayOrder());
+        assertEquals(Map.of("rooms", 3), v.attributes());
+        // Not details, so they stay.
+        assertEquals("w1", changed.unit().code());
+        assertEquals("X-1", changed.unit().externalId());
+        assertEquals(parentId, changed.parentId());
+
+        OrgUnitState cleared = service.changeDetails(id, rename("2027-04-01", "Bare"));
+        assertNull(cleared.version().shortName());
+        assertNull(cleared.version().phoneticName());
+        assertNull(cleared.unitType());
+        assertEquals(Map.of(), cleared.version().attributes());
+        assertEquals(0, cleared.version().displayOrder());
+    }
+
+    @Test
+    void aChangeMayKeepADeactivatedUnitTypeButNotTakeANewOne() {
+        RefItem ward = unitType("ward", true);
+        unitType("retired", false);
+        String id = service.create(new NewOrgUnit(null, "Ward", null, null, null, null, "ward", null, "2026-04-01",
+                null, null, null, null)).unit().id();
+        refItems.update(new RefItem(ward.id(), RefKind.UNIT_TYPE, "ward", "ward", Map.of(), 0, Map.of(), false));
+
+        assertEquals("ward", service.changeDetails(id, new OrgUnitChange("2026-10-01", "Ward 2", null, null, null,
+                null, "ward", null, null)).unitType());
+        for (String unitType : new String[] {"retired", "nope"}) {
+            assertEquals("org_unit.unit_type_unknown", assertThrows(FuhitoException.class,
+                    () -> service.changeDetails(id, new OrgUnitChange("2027-04-01", "x", null, null, null, null,
+                            unitType, null, null))).code());
+        }
+    }
+
+    @Test
+    void rejectsABadChange() {
+        String id = service.create(named("A", null, "2026-04-01")).unit().id();
+
+        assertEquals("invalid.required",
+                assertThrows(FuhitoException.class, () -> service.changeDetails(id, null)).code());
+        assertEquals("invalid.required",
+                assertThrows(FuhitoException.class, () -> service.changeDetails(id, rename(null, "x"))).code());
+        assertEquals("invalid.name",
+                assertThrows(FuhitoException.class, () -> service.changeDetails(id, rename("2026-10-01", " "))).code());
+        assertEquals("org_unit.not_valid_on",
+                assertThrows(FuhitoException.class, () -> service.changeDetails(id, rename("2026-03-31", "x"))).code());
+        assertEquals("org_unit.not_found",
+                assertThrows(FuhitoException.class, () -> service.changeDetails("nope", rename("2026-10-01", "x"))).code());
+        assertEquals(1, store.versions(id).size());
+        assertEquals("A", service.get(id, "2026-10-01").version().name());
+    }
+
     @Test
     void readsAUnitAsOfADate() {
         unitType("ward", true);

@@ -114,6 +114,55 @@ class OrgUnitsIT {
     }
 
     @Test
+    void renamesAUnitOnAnEffectiveDate() throws Exception {
+        String id = created(api.post("/org-units", "{\"name\": \"第一内科\", \"shortName\": \"一内\", \"validFrom\": \"2026-04-01\"}"))
+                .get("id").asText();
+
+        HttpResponse<String> response = api.put("/org-units/" + id, "{\"name\": \"総合内科\", \"validFrom\": \"2027-04-01\"}");
+
+        assertEquals(200, response.statusCode(), response.body());
+        JsonNode renamed = Api.json(response);
+        assertEquals(id, renamed.get("id").asText());
+        assertEquals("総合内科", renamed.get("name").asText());
+        assertEquals("2027-04-01", renamed.get("validFrom").asText());
+        assertFalse(renamed.has("validTo"));
+        assertFalse(renamed.has("shortName"));
+
+        JsonNode before = Api.json(api.get("/org-units/" + id + "?asOf=2027-03-31"));
+        assertEquals("第一内科", before.get("name").asText());
+        assertEquals("一内", before.get("shortName").asText());
+        assertEquals("2026-04-01", before.get("validFrom").asText());
+        assertEquals("2027-04-01", before.get("validTo").asText());
+        assertEquals(renamed, Api.json(api.get("/org-units/" + id + "?asOf=2027-04-01")));
+    }
+
+    @Test
+    void changesInsideAPastPeriodAndCorrectsAFirstDate() throws Exception {
+        String id = created(api.post("/org-units", "{\"name\": \"A\", \"validFrom\": \"2026-04-01\"}")).get("id").asText();
+        assertEquals(200, api.put("/org-units/" + id, "{\"name\": \"C\", \"validFrom\": \"2027-04-01\"}").statusCode());
+
+        JsonNode middle = Api.json(api.put("/org-units/" + id, "{\"name\": \"B\", \"validFrom\": \"2026-10-01\"}"));
+        assertEquals("2027-04-01", middle.get("validTo").asText());
+        JsonNode corrected = Api.json(api.put("/org-units/" + id, "{\"name\": \"B2\", \"validFrom\": \"2026-10-01\"}"));
+        assertEquals("2027-04-01", corrected.get("validTo").asText());
+
+        assertEquals("A", Api.json(api.get("/org-units/" + id + "?asOf=2026-09-30")).get("name").asText());
+        assertEquals("B2", Api.json(api.get("/org-units/" + id + "?asOf=2026-10-01")).get("name").asText());
+        assertEquals("C", Api.json(api.get("/org-units/" + id + "?asOf=2027-04-01")).get("name").asText());
+    }
+
+    @Test
+    void rejectsABadChange() throws Exception {
+        String id = created(api.post("/org-units", "{\"name\": \"A\", \"validFrom\": \"2026-04-01\"}")).get("id").asText();
+
+        assertEquals("org_unit.not_valid_on", errorOf(404, api.put("/org-units/" + id, "{\"name\": \"x\", \"validFrom\": \"2026-03-31\"}")));
+        assertEquals("org_unit.not_found", errorOf(404, api.put("/org-units/nope", "{\"name\": \"x\", \"validFrom\": \"2026-04-01\"}")));
+        assertEquals("invalid.required", errorOf(400, api.put("/org-units/" + id, "{\"validFrom\": \"2026-10-01\"}")));
+        assertEquals("org_unit.not_found", errorOf(404, otherRealmApi.put("/org-units/" + id, "{\"name\": \"x\", \"validFrom\": \"2026-10-01\"}")));
+        assertEquals("A", Api.json(api.get("/org-units/" + id + "?asOf=2026-10-01")).get("name").asText());
+    }
+
+    @Test
     void aUnitTypeInUseCannotBeDeleted() throws Exception {
         String typeId = created(api.post("/ref-items",
                 "{\"kind\": \"UNIT_TYPE\", \"code\": \"in-use\", \"name\": \"In use\"}")).get("id").asText();
