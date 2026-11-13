@@ -62,7 +62,8 @@ public class FuhitoAdminRealmResourceProvider implements AdminRealmResourceProvi
             }
         };
         var entityManager = session.getProvider(JpaConnectionProvider.class).getEntityManager();
-        return new FuhitoResource(realm.getId(), context, entityManager);
+        return new FuhitoResource(realm.getId(), context, entityManager,
+                userId -> session.users().getUserById(realm, userId) != null);
     }
 
     @Override

@@ -1,5 +1,6 @@
 package net.exoego.keycloak.fuhito.domain;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -89,6 +90,45 @@ class ChecksTest {
         FuhitoException e = invalid(() -> Checks.date("validFrom", text));
         assertEquals("invalid.date", e.code());
         assertEquals(Map.of("field", "validFrom", "value", text), e.params());
+    }
+
+    @Test
+    void buildsAPeriod() {
+        LocalDate from = LocalDate.of(2026, 4, 1);
+        assertEquals(ValidPeriod.startingAt(from), Checks.period(from, null));
+        assertEquals(new ValidPeriod(from, from.plusDays(1)), Checks.period(from, from.plusDays(1)));
+        for (LocalDate to : List.of(from, from.minusDays(1))) {
+            FuhitoException e = invalid(() -> Checks.period(from, to));
+            assertEquals("invalid.period", e.code());
+            assertEquals(Map.of("validFrom", "2026-04-01", "validTo", to.toString()), e.params());
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"0.01", "50", "80.5", "100", "100.00"})
+    void acceptsAPercentage(String value) {
+        assertEquals(new BigDecimal(value), Checks.optionalPercent("workPercent", new BigDecimal(value)));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"0", "-1", "100.01", "33.333"})
+    void rejectsABadPercentage(String value) {
+        FuhitoException e = invalid(() -> Checks.optionalPercent("workPercent", new BigDecimal(value)));
+        assertEquals("invalid.percent", e.code());
+        assertEquals(Map.of("field", "workPercent", "value", value), e.params());
+    }
+
+    @Test
+    void readsAnEnumName() {
+        assertNull(Checks.optionalPercent("workPercent", null));
+        assertEquals(EmploymentStatus.ON_LEAVE,
+                Checks.optionalEnum("status", EmploymentStatus.class, "ON_LEAVE", EmploymentStatus.ACTIVE));
+        assertEquals(EmploymentStatus.ACTIVE,
+                Checks.optionalEnum("status", EmploymentStatus.class, null, EmploymentStatus.ACTIVE));
+        FuhitoException e = invalid(() -> Checks.optionalEnum("status", EmploymentStatus.class, "on_leave", null));
+        assertEquals("invalid.choice", e.code());
+        assertEquals(Map.of("field", "status", "value", "on_leave"), e.params());
+        assertEquals(3, EmploymentStatus.values().length);
     }
 
     @Test

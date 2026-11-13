@@ -13,6 +13,13 @@ import net.exoego.keycloak.fuhito.store.RefItemStore;
  */
 public class JpaRefItemStore implements RefItemStore {
 
+    // Every column that holds the ID of a reference item.
+    private static final List<String> REFERENCES = List.of(
+            "OrgUnitVersionEntity e where e.unitTypeId",
+            "EmploymentEntity e where e.endReasonId",
+            "EmploymentTermsEntity e where e.employmentTypeId",
+            "EmploymentTermsEntity e where e.gradeId");
+
     private final EntityManager em;
     private final String realmId;
 
@@ -59,11 +66,11 @@ public class JpaRefItemStore implements RefItemStore {
 
     @Override
     public boolean isInUse(String id) {
-        return em.createQuery("select count(v) from OrgUnitVersionEntity v where v.realmId = :realmId"
-                        + " and v.unitTypeId = :id", Long.class)
+        return REFERENCES.stream().anyMatch(reference -> em.createQuery("select count(e) from " + reference
+                        + " = :id and e.realmId = :realmId", Long.class)
                 .setParameter("realmId", realmId)
                 .setParameter("id", id)
-                .getSingleResult() > 0;
+                .getSingleResult() > 0);
     }
 
     @Override

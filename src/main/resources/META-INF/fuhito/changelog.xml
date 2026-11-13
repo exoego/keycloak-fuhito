@@ -174,4 +174,84 @@
             EXCLUDE USING gist (HIERARCHY_ID WITH =, CHILD_ID WITH =, daterange(VALID_FROM, VALID_TO) WITH &amp;&amp;)
         </sql>
     </changeSet>
+    <changeSet id="0.1.0-employment" author="keycloak-fuhito">
+        <createTable tableName="FUHITO_EMPLOYMENT">
+            <column name="ID" type="VARCHAR(36)">
+                <constraints primaryKey="true" primaryKeyName="PK_FUHITO_EMPLOYMENT" nullable="false"/>
+            </column>
+            <column name="REALM_ID" type="VARCHAR(36)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="USER_ID" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="VALID_FROM" type="DATE">
+                <constraints nullable="false"/>
+            </column>
+            <column name="VALID_TO" type="DATE"/>
+            <column name="STAFF_NUMBER" type="VARCHAR(64)"/>
+            <column name="END_REASON_ID" type="VARCHAR(36)"/>
+            <column name="EXTERNAL_ID" type="VARCHAR(255)"/>
+            <column name="SOURCE" type="VARCHAR(64)"/>
+        </createTable>
+        <addForeignKeyConstraint baseTableName="FUHITO_EMPLOYMENT" baseColumnNames="END_REASON_ID"
+                                 referencedTableName="FUHITO_REF_ITEM" referencedColumnNames="ID"
+                                 constraintName="FK_FUHITO_EMPLOYMENT_END_REASON"/>
+        <addUniqueConstraint tableName="FUHITO_EMPLOYMENT" columnNames="REALM_ID, SOURCE, EXTERNAL_ID"
+                             constraintName="UK_FUHITO_EMPLOYMENT_EXTERNAL"/>
+        <createIndex tableName="FUHITO_EMPLOYMENT" indexName="IDX_FUHITO_EMPLOYMENT_USER">
+            <column name="REALM_ID"/>
+            <column name="USER_ID"/>
+        </createIndex>
+        <createIndex tableName="FUHITO_EMPLOYMENT" indexName="IDX_FUHITO_EMPLOYMENT_STAFF_NUMBER">
+            <column name="REALM_ID"/>
+            <column name="STAFF_NUMBER"/>
+        </createIndex>
+
+        <createTable tableName="FUHITO_EMPLOYMENT_TERMS">
+            <column name="ID" type="VARCHAR(36)">
+                <constraints primaryKey="true" primaryKeyName="PK_FUHITO_EMPLOYMENT_TERMS" nullable="false"/>
+            </column>
+            <column name="REALM_ID" type="VARCHAR(36)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="EMPLOYMENT_ID" type="VARCHAR(36)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="VALID_FROM" type="DATE">
+                <constraints nullable="false"/>
+            </column>
+            <column name="VALID_TO" type="DATE"/>
+            <column name="EMPLOYMENT_TYPE_ID" type="VARCHAR(36)"/>
+            <column name="GRADE_ID" type="VARCHAR(36)"/>
+            <column name="STATUS" type="VARCHAR(16)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="WORK_PERCENT" type="DECIMAL(5,2)"/>
+            <column name="ATTRIBUTES" type="CLOB">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        <addForeignKeyConstraint baseTableName="FUHITO_EMPLOYMENT_TERMS" baseColumnNames="EMPLOYMENT_ID"
+                                 referencedTableName="FUHITO_EMPLOYMENT" referencedColumnNames="ID"
+                                 constraintName="FK_FUHITO_EMPLOYMENT_TERMS_EMPLOYMENT"/>
+        <addForeignKeyConstraint baseTableName="FUHITO_EMPLOYMENT_TERMS" baseColumnNames="EMPLOYMENT_TYPE_ID"
+                                 referencedTableName="FUHITO_REF_ITEM" referencedColumnNames="ID"
+                                 constraintName="FK_FUHITO_EMPLOYMENT_TERMS_TYPE"/>
+        <addForeignKeyConstraint baseTableName="FUHITO_EMPLOYMENT_TERMS" baseColumnNames="GRADE_ID"
+                                 referencedTableName="FUHITO_REF_ITEM" referencedColumnNames="ID"
+                                 constraintName="FK_FUHITO_EMPLOYMENT_TERMS_GRADE"/>
+        <addUniqueConstraint tableName="FUHITO_EMPLOYMENT_TERMS" columnNames="EMPLOYMENT_ID, VALID_FROM"
+                             constraintName="UK_FUHITO_EMPLOYMENT_TERMS_FROM"/>
+    </changeSet>
+
+    <changeSet id="0.1.0-employment-terms-no-overlap" author="keycloak-fuhito" dbms="postgresql">
+        <preConditions onFail="CONTINUE">
+            <sqlCheck expectedResult="1">SELECT count(*) FROM pg_extension WHERE extname = 'btree_gist'</sqlCheck>
+        </preConditions>
+        <sql>
+            ALTER TABLE FUHITO_EMPLOYMENT_TERMS ADD CONSTRAINT EX_FUHITO_EMPLOYMENT_TERMS_PERIOD
+            EXCLUDE USING gist (EMPLOYMENT_ID WITH =, daterange(VALID_FROM, VALID_TO) WITH &amp;&amp;)
+        </sql>
+    </changeSet>
 </databaseChangeLog>

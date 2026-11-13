@@ -1,0 +1,101 @@
+package net.exoego.keycloak.fuhito.jpa;
+
+import java.util.List;
+import java.util.Optional;
+
+import jakarta.persistence.EntityManager;
+import net.exoego.keycloak.fuhito.domain.Employment;
+import net.exoego.keycloak.fuhito.domain.EmploymentStatus;
+import net.exoego.keycloak.fuhito.domain.EmploymentTerms;
+import net.exoego.keycloak.fuhito.domain.ValidPeriod;
+import net.exoego.keycloak.fuhito.store.EmploymentStore;
+
+/**
+ * Stores the employments of one realm in the database of Keycloak.
+ */
+public class JpaEmploymentStore implements EmploymentStore {
+
+    private final EntityManager em;
+    private final String realmId;
+
+    /**
+     * Creates the store.
+     *
+     * @param em the entity manager of the request
+     * @param realmId the ID of the realm
+     */
+    public JpaEmploymentStore(EntityManager em, String realmId) {
+        this.em = em;
+        this.realmId = realmId;
+    }
+
+    @Override
+    public Optional<Employment> find(String id) {
+        EmploymentEntity entity = em.find(EmploymentEntity.class, id);
+        // The realm filter keeps one realm from reaching the rows of another by ID.
+        return entity != null && entity.realmId.equals(realmId) ? Optional.of(toDomain(entity)) : Optional.empty();
+    }
+
+    @Override
+    public List<Employment> findByStaffNumber(String staffNumber) {
+        return em.createQuery("select e from EmploymentEntity e where e.realmId = :realmId"
+                        + " and e.staffNumber = :staffNumber order by e.validFrom", EmploymentEntity.class)
+                .setParameter("realmId", realmId)
+                .setParameter("staffNumber", staffNumber)
+                .getResultStream()
+                .map(JpaEmploymentStore::toDomain)
+                .toList();
+    }
+
+    @Override
+    public void insert(Employment employment) {
+        EmploymentEntity entity = new EmploymentEntity();
+        entity.id = employment.id();
+        entity.realmId = realmId;
+        entity.userId = employment.userId();
+        entity.validFrom = employment.period().from();
+        entity.validTo = employment.period().to();
+        entity.staffNumber = employment.staffNumber();
+        entity.endReasonId = employment.endReasonId();
+        entity.externalId = employment.externalId();
+        entity.source = employment.source();
+        em.persist(entity);
+    }
+
+    @Override
+    public List<EmploymentTerms> terms(String employmentId) {
+        return em.createQuery("select t from EmploymentTermsEntity t where t.realmId = :realmId"
+                        + " and t.employmentId = :employmentId order by t.validFrom", EmploymentTermsEntity.class)
+                .setParameter("realmId", realmId)
+                .setParameter("employmentId", employmentId)
+                .getResultStream()
+                .map(JpaEmploymentStore::toDomain)
+                .toList();
+    }
+
+    @Override
+    public void insertTerms(EmploymentTerms terms) {
+        EmploymentTermsEntity entity = new EmploymentTermsEntity();
+        entity.id = terms.id();
+        entity.realmId = realmId;
+        entity.employmentId = terms.employmentId();
+        entity.validFrom = terms.period().from();
+        entity.validTo = terms.period().to();
+        entity.employmentTypeId = terms.employmentTypeId();
+        entity.gradeId = terms.gradeId();
+        entity.status = terms.status().name();
+        entity.workPercent = terms.workPercent();
+        entity.attributes = terms.attributes();
+        em.persist(entity);
+    }
+
+    private static Employment toDomain(EmploymentEntity e) {
+        return new Employment(e.id, e.userId, new ValidPeriod(e.validFrom, e.validTo), e.staffNumber, e.endReasonId,
+                e.externalId, e.source);
+    }
+
+    private static EmploymentTerms toDomain(EmploymentTermsEntity e) {
+        return new EmploymentTerms(e.id, e.employmentId, new ValidPeriod(e.validFrom, e.validTo), e.employmentTypeId,
+                e.gradeId, EmploymentStatus.valueOf(e.status), e.workPercent, e.attributes);
+    }
+}

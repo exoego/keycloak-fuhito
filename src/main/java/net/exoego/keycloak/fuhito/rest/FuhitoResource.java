@@ -13,10 +13,13 @@ import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
 import net.exoego.keycloak.fuhito.jpa.HierarchyEntity;
+import net.exoego.keycloak.fuhito.jpa.JpaEmploymentStore;
 import net.exoego.keycloak.fuhito.jpa.JpaOrgUnitStore;
 import net.exoego.keycloak.fuhito.jpa.JpaRefItemStore;
+import net.exoego.keycloak.fuhito.service.EmploymentService;
 import net.exoego.keycloak.fuhito.service.OrgUnitService;
 import net.exoego.keycloak.fuhito.service.RefItemService;
+import net.exoego.keycloak.fuhito.store.UserDirectory;
 
 /**
  * The root of the admin REST API for one realm.
@@ -28,6 +31,7 @@ public class FuhitoResource {
     private final String realmId;
     private final RequestContext context;
     private final EntityManager entityManager;
+    private final UserDirectory users;
 
     /**
      * Creates the resource for one request.
@@ -35,11 +39,24 @@ public class FuhitoResource {
      * @param realmId the ID of the realm of the request
      * @param context the request and its caller
      * @param entityManager the entity manager of the request
+     * @param users the users of the realm
      */
-    public FuhitoResource(String realmId, RequestContext context, EntityManager entityManager) {
+    public FuhitoResource(String realmId, RequestContext context, EntityManager entityManager, UserDirectory users) {
         this.realmId = realmId;
         this.context = context;
         this.entityManager = entityManager;
+        this.users = users;
+    }
+
+    /**
+     * Returns the employments of the realm.
+     *
+     * @return the sub-resource
+     */
+    @Path("employments")
+    public EmploymentsResource employments() {
+        return new EmploymentsResource(context, new EmploymentService(new JpaEmploymentStore(entityManager, realmId),
+                new JpaRefItemStore(entityManager, realmId), users));
     }
 
     /**
