@@ -45,6 +45,7 @@ Access control is out of scope. The caller decides who may do what with the data
 [docs/history.md](docs/history.md) explains how dated changes and the change log behave.
 [docs/import.md](docs/import.md) explains bulk import by JSON and CSV, and the export.
 [docs/scim.md](docs/scim.md) explains how data from SCIM reaches the org structure.
+[docs/personal-data.md](docs/personal-data.md) explains what is stored about a person, and how to keep, mask, or erase it.
 [docs/keycloak-integration.md](docs/keycloak-integration.md) explains how the extension plugs into Keycloak.
 
 ## Compatibility

@@ -23,6 +23,7 @@ import net.exoego.keycloak.fuhito.jpa.JpaOrgUnitStore;
 import net.exoego.keycloak.fuhito.jpa.JpaQualificationStore;
 import net.exoego.keycloak.fuhito.jpa.JpaRefItemStore;
 import net.exoego.keycloak.fuhito.jpa.JpaReportingLineStore;
+import net.exoego.keycloak.fuhito.jpa.JpaUserDataMasker;
 import net.exoego.keycloak.fuhito.service.AssignmentService;
 import net.exoego.keycloak.fuhito.service.AttributeSyncService;
 import net.exoego.keycloak.fuhito.service.ChangeLogService;
@@ -38,6 +39,7 @@ import net.exoego.keycloak.fuhito.service.QualificationService;
 import net.exoego.keycloak.fuhito.service.RefItemService;
 import net.exoego.keycloak.fuhito.service.ReorganizationService;
 import net.exoego.keycloak.fuhito.service.ReportingLineService;
+import net.exoego.keycloak.fuhito.service.UserMaskingService;
 import net.exoego.keycloak.fuhito.store.OrganizationDirectory;
 import net.exoego.keycloak.fuhito.store.OrganizationGroups;
 import net.exoego.keycloak.fuhito.store.UserAttributeSource;
@@ -295,7 +297,9 @@ public class FuhitoResource {
     @Path("users")
     public UsersResource users() {
         return new UsersResource(context, membershipService(), employmentService(), assignmentService(),
-                qualificationService(), reportingLineService(), users, eraseUser);
+                qualificationService(), reportingLineService(), users, eraseUser,
+                new UserMaskingService(new JpaUserDataMasker(entityManager, realmId),
+                        new JpaEmploymentStore(entityManager, realmId), users, Clock.systemDefaultZone()));
     }
 
     /**
