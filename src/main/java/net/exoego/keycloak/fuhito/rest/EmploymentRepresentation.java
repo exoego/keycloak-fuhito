@@ -52,7 +52,7 @@ public record EmploymentRepresentation(String id, String userId, String validFro
                 e.staffNumber(), view.endReason(), e.externalId(), e.source(), null, null, null, null, null,
                 view.terms().stream()
                         .map(t -> new Terms(t.terms().period().from().toString(), text(t.terms().period().to()),
-                                t.employmentType(), t.grade(), t.terms().status().name(), plain(t.terms().workPercent()),
+                                t.employmentType(), t.grade(), t.terms().status().name(), Numbers.plain(t.terms().workPercent()),
                                 t.terms().attributes()))
                         .toList());
     }
@@ -60,15 +60,6 @@ public record EmploymentRepresentation(String id, String userId, String validFro
     NewEmployment toNewEmployment() {
         return new NewEmployment(userId, validFrom, validTo, staffNumber, employmentType, grade, status, workPercent,
                 attributes, externalId, source);
-    }
-
-    // The database returns 100.00 where the request said 100. Both must look the same in a response.
-    private static BigDecimal plain(BigDecimal value) {
-        if (value == null) {
-            return null;
-        }
-        BigDecimal stripped = value.stripTrailingZeros();
-        return stripped.scale() < 0 ? stripped.setScale(0) : stripped;
     }
 
     private static String text(Object value) {

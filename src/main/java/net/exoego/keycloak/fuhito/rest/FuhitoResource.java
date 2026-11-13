@@ -13,9 +13,11 @@ import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
 import net.exoego.keycloak.fuhito.jpa.HierarchyEntity;
+import net.exoego.keycloak.fuhito.jpa.JpaAssignmentStore;
 import net.exoego.keycloak.fuhito.jpa.JpaEmploymentStore;
 import net.exoego.keycloak.fuhito.jpa.JpaOrgUnitStore;
 import net.exoego.keycloak.fuhito.jpa.JpaRefItemStore;
+import net.exoego.keycloak.fuhito.service.AssignmentService;
 import net.exoego.keycloak.fuhito.service.EmploymentService;
 import net.exoego.keycloak.fuhito.service.OrgUnitService;
 import net.exoego.keycloak.fuhito.service.RefItemService;
@@ -46,6 +48,18 @@ public class FuhitoResource {
         this.context = context;
         this.entityManager = entityManager;
         this.users = users;
+    }
+
+    /**
+     * Returns the assignments of the realm.
+     *
+     * @return the sub-resource
+     */
+    @Path("assignments")
+    public AssignmentsResource assignments() {
+        return new AssignmentsResource(context, new AssignmentService(new JpaAssignmentStore(entityManager, realmId),
+                new JpaEmploymentStore(entityManager, realmId), new JpaOrgUnitStore(entityManager, realmId),
+                new JpaRefItemStore(entityManager, realmId)));
     }
 
     /**

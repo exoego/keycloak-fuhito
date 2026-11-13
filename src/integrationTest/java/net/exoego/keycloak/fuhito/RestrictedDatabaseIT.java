@@ -58,7 +58,7 @@ class RestrictedDatabaseIT {
                             .withEnv("KC_DB_PASSWORD", "limited")) {
                 keycloak.start();
 
-                assertEquals("3", psql(postgres, "select count(*) from pg_constraint where conname like 'ex_fuhito_%'"));
+                assertEquals("4", psql(postgres, "select count(*) from pg_constraint where conname like 'ex_fuhito_%'"));
             }
         }
     }

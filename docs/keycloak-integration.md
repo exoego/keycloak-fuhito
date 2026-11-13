@@ -33,6 +33,7 @@ On PostgreSQL the database checks it again with exclusion constraints.
 - One org unit has no two sets of details on the same date.
 - One org unit has no two parents on the same date in one hierarchy.
 - One employment has no two sets of terms on the same date.
+- One assignment has no two sets of details on the same date.
 
 The constraints need the `btree_gist` extension, and the extension creates it when Keycloak starts.
 On PostgreSQL 13 or later, the owner of the database may create it.
@@ -96,6 +97,7 @@ The realm stores the events when admin events are turned on in its settings.
 | `FUHITO_REF_ITEM` | `CREATE`, `UPDATE`, `DELETE` | `fuhito/ref-items/{id}` |
 | `FUHITO_ORG_UNIT` | `CREATE`, `UPDATE` | `fuhito/org-units/{id}`, and the same with `/parent` or `/end` |
 | `FUHITO_EMPLOYMENT` | `CREATE`, `UPDATE` | `fuhito/employments/{id}`, and the same with `/terms` |
+| `FUHITO_ASSIGNMENT` | `CREATE`, `UPDATE` | `fuhito/assignments/{id}`, and the same with `/details` or `/end` |
 
 The event has the new state as its representation when the realm keeps representations.
 A failed request records no event.
