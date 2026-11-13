@@ -1,5 +1,7 @@
 package net.exoego.keycloak.fuhito.domain;
 
+import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 
 import org.junit.jupiter.api.Test;
@@ -23,6 +25,7 @@ class FuhitoExceptionTest {
     @Test
     void namesEveryReasonAndKind() {
         assertEquals(3, FuhitoException.Reason.values().length);
-        assertEquals(RefKind.UNIT_TYPE, RefKind.valueOf("UNIT_TYPE"));
+        assertEquals(List.of("UNIT_TYPE", "JOB_TITLE", "OCCUPATION", "EMPLOYMENT_TYPE", "GRADE", "END_REASON",
+                "ASSIGNMENT_KIND"), Arrays.stream(RefKind.values()).map(RefKind::name).toList());
     }
 }
