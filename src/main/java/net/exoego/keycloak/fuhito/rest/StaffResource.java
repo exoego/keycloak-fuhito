@@ -50,9 +50,9 @@ public class StaffResource {
             Checks.required("orgUnitId", body.orgUnitId());
             var employment = EmploymentRepresentation.of(employments.start(body.toNewEmployment()));
             var assignment = AssignmentRepresentation.of(assignments.add(body.toAssignment(employment.id())));
-            context.recordChange(Change.CREATE, EmploymentsResource.RESOURCE_TYPE,
+            context.recordChange(Change.CREATE, EmploymentsResource.RESOURCE_TYPE, employment.id(),
                     "fuhito/employments/" + employment.id(), employment);
-            context.recordChange(Change.CREATE, AssignmentsResource.RESOURCE_TYPE,
+            context.recordChange(Change.CREATE, AssignmentsResource.RESOURCE_TYPE, assignment.id(),
                     "fuhito/assignments/" + assignment.id(), assignment);
             return Response.status(Response.Status.CREATED)
                     .entity(StaffRepresentation.of(employment, assignment))

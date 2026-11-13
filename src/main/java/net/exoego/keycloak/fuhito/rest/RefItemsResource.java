@@ -88,7 +88,7 @@ public class RefItemsResource {
             Checks.required("body", body);
             var item = RefItemRepresentation.of(service.create(parseKind(body.kind()), body.code(), body.name(),
                     body.names(), body.displayOrder(), body.attributes()));
-            context.recordChange(Change.CREATE, RESOURCE_TYPE, path(item.id()), item);
+            context.recordChange(Change.CREATE, RESOURCE_TYPE, item.id(), path(item.id()), item);
             return Response.status(Response.Status.CREATED).entity(item).build();
         });
     }
@@ -108,7 +108,7 @@ public class RefItemsResource {
             Checks.required("body", body);
             var item = RefItemRepresentation.of(service.update(id, body.name(), body.names(), body.displayOrder(),
                     body.attributes(), body.active()));
-            context.recordChange(Change.UPDATE, RESOURCE_TYPE, path(id), item);
+            context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, path(id), item);
             return item;
         });
     }
@@ -125,7 +125,7 @@ public class RefItemsResource {
         context.requireWrite();
         return Calls.run(context, () -> {
             service.delete(id);
-            context.recordChange(Change.DELETE, RESOURCE_TYPE, path(id), null);
+            context.recordChange(Change.DELETE, RESOURCE_TYPE, id, path(id), null);
             return Response.noContent().build();
         });
     }

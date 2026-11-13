@@ -60,7 +60,7 @@ public class OrgUnitsResource {
         return Calls.run(context, () -> {
             Checks.required("body", body);
             var unit = OrgUnitRepresentation.of(service.create(body.toNewOrgUnit()));
-            context.recordChange(Change.CREATE, RESOURCE_TYPE, path(unit.id()), unit);
+            context.recordChange(Change.CREATE, RESOURCE_TYPE, unit.id(), path(unit.id()), unit);
             return Response.status(Response.Status.CREATED).entity(unit).build();
         });
     }
@@ -215,7 +215,7 @@ public class OrgUnitsResource {
 
     private OrgUnitRepresentation updated(String path, OrgUnitState state) {
         var unit = OrgUnitRepresentation.of(state);
-        context.recordChange(Change.UPDATE, RESOURCE_TYPE, path, unit);
+        context.recordChange(Change.UPDATE, RESOURCE_TYPE, unit.id(), path, unit);
         return unit;
     }
 

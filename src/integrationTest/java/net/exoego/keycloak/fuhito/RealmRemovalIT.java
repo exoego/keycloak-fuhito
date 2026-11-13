@@ -11,7 +11,7 @@ class RealmRemovalIT {
 
     private static final List<String> TABLES = List.of("fuhito_hierarchy", "fuhito_ref_item", "fuhito_org_unit",
             "fuhito_org_unit_version", "fuhito_org_unit_link", "fuhito_employment", "fuhito_employment_terms",
-            "fuhito_assignment", "fuhito_change_order");
+            "fuhito_assignment", "fuhito_change_order", "fuhito_change_log");
 
     // A new table must be added to this test and to the cleanup. This test fails until that is done.
     @Test

@@ -52,7 +52,7 @@ public class AssignmentsResource {
         return Calls.run(context, () -> {
             Checks.required("body", body);
             var assignment = AssignmentRepresentation.of(service.add(body.toValues()));
-            context.recordChange(Change.CREATE, RESOURCE_TYPE, path(assignment.id()), assignment);
+            context.recordChange(Change.CREATE, RESOURCE_TYPE, assignment.id(), path(assignment.id()), assignment);
             return Response.status(Response.Status.CREATED).entity(assignment).build();
         });
     }
@@ -86,7 +86,7 @@ public class AssignmentsResource {
         return Calls.run(context, () -> {
             Checks.required("body", body);
             var assignment = AssignmentRepresentation.of(service.changeDetails(id, body.toValues()));
-            context.recordChange(Change.UPDATE, RESOURCE_TYPE, path(id) + "/details", assignment);
+            context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, path(id) + "/details", assignment);
             return assignment;
         });
     }
@@ -105,7 +105,7 @@ public class AssignmentsResource {
         return Calls.run(context, () -> {
             Checks.required("body", body);
             var assignment = AssignmentRepresentation.of(service.end(id, body.validTo()));
-            context.recordChange(Change.UPDATE, RESOURCE_TYPE, path(id) + "/end", assignment);
+            context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, path(id) + "/end", assignment);
             return assignment;
         });
     }
@@ -122,7 +122,7 @@ public class AssignmentsResource {
         context.requireWrite();
         return Calls.run(context, () -> {
             var assignment = AssignmentRepresentation.of(service.removeEnd(id));
-            context.recordChange(Change.UPDATE, RESOURCE_TYPE, path(id) + "/end", assignment);
+            context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, path(id) + "/end", assignment);
             return assignment;
         });
     }

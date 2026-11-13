@@ -14,11 +14,13 @@ import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
 import net.exoego.keycloak.fuhito.jpa.HierarchyEntity;
 import net.exoego.keycloak.fuhito.jpa.JpaAssignmentStore;
+import net.exoego.keycloak.fuhito.jpa.JpaChangeLogStore;
 import net.exoego.keycloak.fuhito.jpa.JpaChangeOrderStore;
 import net.exoego.keycloak.fuhito.jpa.JpaEmploymentStore;
 import net.exoego.keycloak.fuhito.jpa.JpaOrgUnitStore;
 import net.exoego.keycloak.fuhito.jpa.JpaRefItemStore;
 import net.exoego.keycloak.fuhito.service.AssignmentService;
+import net.exoego.keycloak.fuhito.service.ChangeLogService;
 import net.exoego.keycloak.fuhito.service.ChangeOrderService;
 import net.exoego.keycloak.fuhito.service.EmploymentService;
 import net.exoego.keycloak.fuhito.service.MembershipService;
@@ -71,7 +73,23 @@ public class FuhitoResource {
     @Path("change-orders")
     public ChangeOrdersResource changeOrders() {
         return new ChangeOrdersResource(context, new ChangeOrderService(
-                new JpaChangeOrderStore(entityManager, realmId), users, Clock.systemUTC()));
+                new JpaChangeOrderStore(entityManager, realmId), new JpaChangeLogStore(entityManager, realmId),
+                users, Clock.systemUTC()), changeLogService());
+    }
+
+    /**
+     * Returns the change log of the realm.
+     *
+     * @return the sub-resource
+     */
+    @Path("change-log")
+    public ChangeLogResource changeLog() {
+        return new ChangeLogResource(context, changeLogService());
+    }
+
+    private ChangeLogService changeLogService() {
+        return new ChangeLogService(new JpaChangeLogStore(entityManager, realmId),
+                new JpaChangeOrderStore(entityManager, realmId));
     }
 
     /**

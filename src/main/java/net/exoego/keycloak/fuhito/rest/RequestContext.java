@@ -16,6 +16,7 @@ public interface RequestContext {
 
     /**
      * Requires the permission to change organization data. Throws when the caller lacks it.
+     * Also throws when the request names a change order that does not exist.
      */
     void requireWrite();
 
@@ -47,12 +48,14 @@ public interface RequestContext {
     }
 
     /**
-     * Records a successful change in the admin event log of the realm.
+     * Records a successful change in the admin event log of the realm and in the change log.
      *
      * @param change the kind of the change
      * @param resourceType the type of the changed resource, for example {@code FUHITO_ORG_UNIT}
-     * @param resourcePath the path of the changed resource below the realm
+     * @param resourceId the ID of the changed resource
+     * @param resourcePath the path of the request below the realm
      * @param representation the new state, or null
      */
-    void recordChange(Change change, String resourceType, String resourcePath, Object representation);
+    void recordChange(Change change, String resourceType, String resourceId, String resourcePath,
+            Object representation);
 }
