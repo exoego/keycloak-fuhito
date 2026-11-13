@@ -1,7 +1,8 @@
 # Keycloak integration
 
 This document explains how the extension plugs into Keycloak.
-The integration tests check every statement here against Keycloak 26.8.
+The integration tests check the tables, the entities, and the admin REST API against Keycloak 26.8.
+The notes on `kc.sh` come from the Keycloak documentation.
 
 ## Unsupported Keycloak APIs
 
@@ -22,7 +23,6 @@ When Keycloak changes one of them, only that package needs a change.
 - No table has a foreign key to a Keycloak table. Rows store Keycloak IDs as plain values.
 - Liquibase creates and updates the tables when Keycloak starts.
 - The changelog is `META-INF/fuhito/changelog.xml` in the jar.
-- Keycloak keeps the Liquibase history of the extension in its own table, apart from the history of Keycloak.
 
 ## Entities
 
