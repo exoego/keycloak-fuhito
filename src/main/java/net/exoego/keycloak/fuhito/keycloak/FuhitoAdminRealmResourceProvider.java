@@ -6,6 +6,7 @@ import jakarta.ws.rs.core.Response;
 import net.exoego.keycloak.fuhito.rest.FuhitoResource;
 import net.exoego.keycloak.fuhito.rest.RequestContext;
 import org.keycloak.connections.jpa.JpaConnectionProvider;
+import org.keycloak.events.admin.OperationType;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.RealmModel;
 import org.keycloak.services.ErrorResponseException;
@@ -49,6 +50,15 @@ public class FuhitoAdminRealmResourceProvider implements AdminRealmResourceProvi
             @Override
             public RuntimeException failure(Response response) {
                 return new ErrorResponseException(response);
+            }
+
+            @Override
+            public void recordChange(Change change, String resourceType, String resourcePath, Object representation) {
+                adminEvent.operation(OperationType.valueOf(change.name()))
+                        .resource(resourceType)
+                        .resourcePath(resourcePath)
+                        .representation(representation)
+                        .success();
             }
         };
         var entityManager = session.getProvider(JpaConnectionProvider.class).getEntityManager();

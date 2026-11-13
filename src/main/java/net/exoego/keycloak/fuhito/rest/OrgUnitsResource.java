@@ -13,6 +13,7 @@ import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import net.exoego.keycloak.fuhito.domain.Checks;
+import net.exoego.keycloak.fuhito.rest.RequestContext.Change;
 import net.exoego.keycloak.fuhito.service.OrgUnitService;
 import net.exoego.keycloak.fuhito.service.OrgUnitState;
 
@@ -22,6 +23,11 @@ import net.exoego.keycloak.fuhito.service.OrgUnitState;
 @Produces(MediaType.APPLICATION_JSON)
 @Consumes(MediaType.APPLICATION_JSON)
 public class OrgUnitsResource {
+
+    /**
+     * The resource type of org units in the admin event log.
+     */
+    public static final String RESOURCE_TYPE = "FUHITO_ORG_UNIT";
 
     private final RequestContext context;
     private final OrgUnitService service;
@@ -48,8 +54,9 @@ public class OrgUnitsResource {
         context.requireWrite();
         return Calls.run(context, () -> {
             Checks.required("body", body);
-            var state = service.create(body.toNewOrgUnit());
-            return Response.status(Response.Status.CREATED).entity(OrgUnitRepresentation.of(state)).build();
+            var unit = OrgUnitRepresentation.of(service.create(body.toNewOrgUnit()));
+            context.recordChange(Change.CREATE, RESOURCE_TYPE, path(unit.id()), unit);
+            return Response.status(Response.Status.CREATED).entity(unit).build();
         });
     }
 
@@ -68,7 +75,7 @@ public class OrgUnitsResource {
         context.requireWrite();
         return Calls.run(context, () -> {
             Checks.required("body", body);
-            return OrgUnitRepresentation.of(service.changeDetails(id, body.toChange()));
+            return updated(path(id), service.changeDetails(id, body.toChange()));
         });
     }
 
@@ -85,7 +92,7 @@ public class OrgUnitsResource {
         context.requireWrite();
         return Calls.run(context, () -> {
             Checks.required("body", body);
-            return OrgUnitRepresentation.of(service.move(id, body.parentId(), body.validFrom()));
+            return updated(path(id) + "/parent", service.move(id, body.parentId(), body.validFrom()));
         });
     }
 
@@ -102,7 +109,7 @@ public class OrgUnitsResource {
         context.requireWrite();
         return Calls.run(context, () -> {
             Checks.required("body", body);
-            return OrgUnitRepresentation.of(service.end(id, body.validTo()));
+            return updated(path(id) + "/end", service.end(id, body.validTo()));
         });
     }
 
@@ -172,6 +179,16 @@ public class OrgUnitsResource {
     public OrgUnitHistoryRepresentation history(@PathParam("id") String id) {
         context.requireRead();
         return Calls.run(context, () -> OrgUnitHistoryRepresentation.of(service.history(id)));
+    }
+
+    private OrgUnitRepresentation updated(String path, OrgUnitState state) {
+        var unit = OrgUnitRepresentation.of(state);
+        context.recordChange(Change.UPDATE, RESOURCE_TYPE, path, unit);
+        return unit;
+    }
+
+    private static String path(String id) {
+        return "fuhito/org-units/" + id;
     }
 
     private static List<OrgUnitRepresentation> represent(List<OrgUnitState> states) {
