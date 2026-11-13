@@ -91,6 +91,14 @@ public class JpaAssignmentStore implements AssignmentStore {
     }
 
     @Override
+    public List<String> allAssignmentIds() {
+        return em.createQuery("select a.assignmentId from AssignmentEntity a where a.realmId = :realmId"
+                        + " group by a.assignmentId order by min(a.validFrom), a.assignmentId", String.class)
+                .setParameter("realmId", realmId)
+                .getResultList();
+    }
+
+    @Override
     public void insert(Assignment row) {
         AssignmentEntity entity = new AssignmentEntity();
         entity.id = row.rowId();

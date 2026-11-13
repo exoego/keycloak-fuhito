@@ -169,6 +169,23 @@ public class FuhitoResource {
                         assignmentService(), new JpaAssignmentStore(entityManager, realmId), users)));
     }
 
+    /**
+     * Returns the export of the realm.
+     *
+     * @return the sub-resource
+     */
+    @Path("export")
+    public ExportResource export() {
+        return new ExportResource(context, () -> new ExportResource.Sources(
+                new RefItemService(new JpaRefItemStore(entityManager, realmId)), orgUnitService(),
+                new JpaOrgUnitStore(entityManager, realmId), employmentService(),
+                new JpaEmploymentStore(entityManager, realmId), assignmentService(),
+                new JpaAssignmentStore(entityManager, realmId),
+                new ChangeOrderService(new JpaChangeOrderStore(entityManager, realmId),
+                        new JpaChangeLogStore(entityManager, realmId), users, Clock.systemUTC())),
+                Clock.systemUTC());
+    }
+
     private OrgUnitService orgUnitService() {
         return new OrgUnitService(new JpaOrgUnitStore(entityManager, realmId),
                 new JpaAssignmentStore(entityManager, realmId), new JpaRefItemStore(entityManager, realmId),

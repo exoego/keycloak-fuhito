@@ -55,6 +55,13 @@ public interface AssignmentStore {
     Optional<String> findAssignmentIdByExternalId(String source, String externalId);
 
     /**
+     * Lists the IDs of all assignments of the realm, in the order of their first date.
+     *
+     * @return the assignment IDs
+     */
+    List<String> allAssignmentIds();
+
+    /**
      * Stores a new row.
      *
      * @param row the row
