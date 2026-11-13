@@ -17,6 +17,7 @@ import jakarta.ws.rs.core.Response;
 import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.RefKind;
+import net.exoego.keycloak.fuhito.rest.RequestContext.Change;
 import net.exoego.keycloak.fuhito.service.RefItemService;
 
 /**
@@ -25,6 +26,11 @@ import net.exoego.keycloak.fuhito.service.RefItemService;
 @Produces(MediaType.APPLICATION_JSON)
 @Consumes(MediaType.APPLICATION_JSON)
 public class RefItemsResource {
+
+    /**
+     * The resource type of reference items in the admin event log.
+     */
+    public static final String RESOURCE_TYPE = "FUHITO_REF_ITEM";
 
     private final RequestContext context;
     private final RefItemService service;
@@ -80,9 +86,10 @@ public class RefItemsResource {
         context.requireWrite();
         return Calls.run(context, () -> {
             Checks.required("body", body);
-            var item = service.create(parseKind(body.kind()), body.code(), body.name(), body.names(),
-                    body.displayOrder(), body.attributes());
-            return Response.status(Response.Status.CREATED).entity(RefItemRepresentation.of(item)).build();
+            var item = RefItemRepresentation.of(service.create(parseKind(body.kind()), body.code(), body.name(),
+                    body.names(), body.displayOrder(), body.attributes()));
+            context.recordChange(Change.CREATE, RESOURCE_TYPE, path(item.id()), item);
+            return Response.status(Response.Status.CREATED).entity(item).build();
         });
     }
 
@@ -99,8 +106,10 @@ public class RefItemsResource {
         context.requireWrite();
         return Calls.run(context, () -> {
             Checks.required("body", body);
-            return RefItemRepresentation.of(service.update(id, body.name(), body.names(), body.displayOrder(),
+            var item = RefItemRepresentation.of(service.update(id, body.name(), body.names(), body.displayOrder(),
                     body.attributes(), body.active()));
+            context.recordChange(Change.UPDATE, RESOURCE_TYPE, path(id), item);
+            return item;
         });
     }
 
@@ -116,8 +125,13 @@ public class RefItemsResource {
         context.requireWrite();
         return Calls.run(context, () -> {
             service.delete(id);
+            context.recordChange(Change.DELETE, RESOURCE_TYPE, path(id), null);
             return Response.noContent().build();
         });
+    }
+
+    private static String path(String id) {
+        return "fuhito/ref-items/" + id;
     }
 
     private static RefKind parseKind(String kind) {

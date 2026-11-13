@@ -84,6 +84,19 @@ Read endpoints take an `asOf` date.
 The default is today in the time zone of the server.
 Clients in another time zone should always send `asOf`.
 
+## Admin events
+
+Every successful write records an admin event, the same as the built-in admin endpoints do.
+The realm stores the events when admin events are turned on in its settings.
+
+| Resource type | Operations | Resource path |
+|---|---|---|
+| `FUHITO_REF_ITEM` | `CREATE`, `UPDATE`, `DELETE` | `fuhito/ref-items/{id}` |
+| `FUHITO_ORG_UNIT` | `CREATE`, `UPDATE` | `fuhito/org-units/{id}`, and the same with `/parent` or `/end` |
+
+The event has the new state as its representation when the realm keeps representations.
+A failed request records no event.
+
 ## Errors
 
 An error response has a stable code, the values that belong to it, and a message for people.

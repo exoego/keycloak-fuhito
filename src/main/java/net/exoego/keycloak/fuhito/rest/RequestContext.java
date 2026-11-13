@@ -33,4 +33,26 @@ public interface RequestContext {
      * @return the exception to throw
      */
     RuntimeException failure(Response response);
+
+    /**
+     * The kind of a change, for the event log.
+     */
+    enum Change {
+        /** Something new was stored. */
+        CREATE,
+        /** Something stored was changed. */
+        UPDATE,
+        /** Something stored was removed. */
+        DELETE
+    }
+
+    /**
+     * Records a successful change in the admin event log of the realm.
+     *
+     * @param change the kind of the change
+     * @param resourceType the type of the changed resource, for example {@code FUHITO_ORG_UNIT}
+     * @param resourcePath the path of the changed resource below the realm
+     * @param representation the new state, or null
+     */
+    void recordChange(Change change, String resourceType, String resourcePath, Object representation);
 }
