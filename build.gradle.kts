@@ -1,3 +1,5 @@
+import java.time.Duration
+
 plugins {
     `java-library`
     `maven-publish`
@@ -74,7 +76,7 @@ testing {
                     systemProperty("provider.jar", tasks.jar.get().archiveFile.get().asFile.absolutePath)
                     shouldRunAfter(tasks.test)
                     // A hung container call must fail the build, not block it.
-                    timeout.set(java.time.Duration.ofMinutes(15))
+                    timeout.set(Duration.ofMinutes(15))
                 }
             }
         }
