@@ -14,10 +14,12 @@ import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
 import net.exoego.keycloak.fuhito.jpa.HierarchyEntity;
 import net.exoego.keycloak.fuhito.jpa.JpaAssignmentStore;
+import net.exoego.keycloak.fuhito.jpa.JpaChangeOrderStore;
 import net.exoego.keycloak.fuhito.jpa.JpaEmploymentStore;
 import net.exoego.keycloak.fuhito.jpa.JpaOrgUnitStore;
 import net.exoego.keycloak.fuhito.jpa.JpaRefItemStore;
 import net.exoego.keycloak.fuhito.service.AssignmentService;
+import net.exoego.keycloak.fuhito.service.ChangeOrderService;
 import net.exoego.keycloak.fuhito.service.EmploymentService;
 import net.exoego.keycloak.fuhito.service.MembershipService;
 import net.exoego.keycloak.fuhito.service.OrgUnitService;
@@ -59,6 +61,17 @@ public class FuhitoResource {
     @Path("assignments")
     public AssignmentsResource assignments() {
         return new AssignmentsResource(context, assignmentService());
+    }
+
+    /**
+     * Returns the change orders of the realm.
+     *
+     * @return the sub-resource
+     */
+    @Path("change-orders")
+    public ChangeOrdersResource changeOrders() {
+        return new ChangeOrdersResource(context, new ChangeOrderService(
+                new JpaChangeOrderStore(entityManager, realmId), users, Clock.systemUTC()));
     }
 
     /**

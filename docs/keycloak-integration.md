@@ -105,6 +105,7 @@ Clients in another time zone should always send `asOf`.
 | `/org-units/{id}/members` | Who works in an org unit on a date, with or without the units below |
 | `/users/{userId}/assignments` | Where a user works on a date |
 | `/users/{userId}/history` | Every employment and assignment of a user |
+| `/change-orders` | Approved instructions that cause changes, with their approver |
 | `/hierarchies` | The hierarchies of the realm |
 
 ## Admin events
@@ -118,6 +119,7 @@ The realm stores the events when admin events are turned on in its settings.
 | `FUHITO_ORG_UNIT` | `CREATE`, `UPDATE` | `fuhito/org-units/{id}`, and the same with `/parent` or `/end` |
 | `FUHITO_EMPLOYMENT` | `CREATE`, `UPDATE` | `fuhito/employments/{id}`, and the same with `/terms` or `/end` |
 | `FUHITO_ASSIGNMENT` | `CREATE`, `UPDATE` | `fuhito/assignments/{id}`, and the same with `/details` or `/end` |
+| `FUHITO_CHANGE_ORDER` | `CREATE`, `UPDATE`, `DELETE` | `fuhito/change-orders/{id}` |
 
 The event has the new state as its representation when the realm keeps representations.
 A failed request records no event.
