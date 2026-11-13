@@ -57,6 +57,11 @@ final class MemoryAssignmentStore implements AssignmentStore {
     }
 
     @Override
+    public List<Assignment> rowsBySourceOn(String source, LocalDate date) {
+        return rows.stream().filter(r -> source.equals(r.source()) && r.period().contains(date)).toList();
+    }
+
+    @Override
     public void insert(Assignment row) {
         rows.add(row);
     }

@@ -199,6 +199,8 @@ Clients in another time zone should always send `asOf`.
 | `/imports` | Many rows in one request, with a dry run |
 | `/imports/csv/{list}` | The same from one CSV file |
 | `/export` | All data of the realm, with every period of every resource |
+| `/projection/rebuild` | Mirrors the org structure into the groups of Keycloak organizations |
+| `/attribute-sync/run` | Builds assignments from user attributes that an identity provider fills |
 | `/change-orders` | Approved instructions that cause changes, with their approver |
 | `/change-orders/{id}/changes` | The writes that belong to a change order |
 | `/change-log` | The writes to one resource |

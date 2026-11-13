@@ -15,15 +15,10 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
-import net.exoego.keycloak.fuhito.domain.RefItem;
-import net.exoego.keycloak.fuhito.rest.RequestContext.Change;
-import net.exoego.keycloak.fuhito.service.AssignmentView;
 import net.exoego.keycloak.fuhito.service.CsvImportService;
-import net.exoego.keycloak.fuhito.service.EmploymentView;
 import net.exoego.keycloak.fuhito.service.ImportDocument;
 import net.exoego.keycloak.fuhito.service.ImportReport;
 import net.exoego.keycloak.fuhito.service.ImportService;
-import net.exoego.keycloak.fuhito.service.OrgUnitState;
 
 /**
  * Imports into one realm.
@@ -126,24 +121,8 @@ public class ImportsResource {
             // The failure rolls back everything that the checks wrote. The response is still a success.
             throw context.failure(json(Response.Status.OK, representation));
         }
-        report.writes().forEach(this::record);
+        report.writes().forEach(write -> Writes.record(context, write));
         return representation;
-    }
-
-    private void record(ImportReport.Write write) {
-        Object state = write.state();
-        Object representation;
-        if (state instanceof RefItem item) {
-            representation = RefItemRepresentation.of(item);
-        } else if (state instanceof OrgUnitState unit) {
-            representation = OrgUnitRepresentation.of(unit);
-        } else if (state instanceof EmploymentView employment) {
-            representation = EmploymentRepresentation.of(employment);
-        } else {
-            representation = AssignmentRepresentation.of((AssignmentView) state);
-        }
-        context.recordChange(write.created() ? Change.CREATE : Change.UPDATE, write.resourceType(),
-                write.resourceId(), write.path(), representation);
     }
 
     private static Response json(Response.Status status, Object entity) {

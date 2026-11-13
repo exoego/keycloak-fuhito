@@ -41,7 +41,7 @@ public class FuhitoAdminRealmResourceProvider implements AdminRealmResourceProvi
                         return Optional.ofNullable(session.users().getUserByUsername(realm, username))
                                 .map(UserModel::getId);
                     }
-                }, organizations, organizations);
+                }, organizations, organizations, new KeycloakUserAttributes(session, realm));
     }
 
     @Override

@@ -63,6 +63,23 @@ So an administrator can add further assignments by hand, and the sync leaves the
 A department or a title that matches nothing is reported, and that user is skipped.
 The sync does not create org units or job titles. A typing mistake in the identity provider must not grow the tree.
 
+### How to run it
+
+`POST /attribute-sync/run` runs the sync. `?dryRun=true` reports what it would do and writes nothing.
+
+The response counts the employments that were started and the assignments that were added, moved, changed, and ended.
+It lists every value that matched nothing, with the user, the field, and the reason.
+The reason is `unknown` when nothing has the value, and `ambiguous` when more than one org unit has the name.
+
+Every write of the sync is in the change log, like any other write.
+
+A change that the sync makes and takes back on the same day leaves no trace.
+An assignment that started today is removed, not ended, because it never held.
+
+The user attributes must reach Keycloak first.
+With the default user profile, Keycloak drops attributes that the profile does not define.
+Define the attributes in the user profile of the realm, as the SCIM documentation of Keycloak describes.
+
 ### Settings of a realm
 
 | Realm attribute | Meaning | Default |

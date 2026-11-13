@@ -62,6 +62,15 @@ public interface AssignmentStore {
     List<String> allAssignmentIds();
 
     /**
+     * Lists the rows with a source that are valid on a date.
+     *
+     * @param source the name of the system that the rows came from
+     * @param date the date
+     * @return the rows
+     */
+    List<Assignment> rowsBySourceOn(String source, LocalDate date);
+
+    /**
      * Stores a new row.
      *
      * @param row the row
