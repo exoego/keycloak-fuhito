@@ -3,6 +3,7 @@ package net.exoego.keycloak.fuhito.rest;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.POST;
+import jakarta.ws.rs.PUT;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
@@ -46,6 +47,25 @@ public class OrgUnitsResource {
             Checks.required("body", body);
             var state = service.create(body.toNewOrgUnit());
             return Response.status(Response.Status.CREATED).entity(OrgUnitRepresentation.of(state)).build();
+        });
+    }
+
+    /**
+     * Replaces the details of an org unit from the {@code validFrom} date of the body.
+     * The details are the names, the unit type, the display order, and the attributes.
+     * The code, the parent, and the external ID do not change here.
+     *
+     * @param id the ID
+     * @param body the new details and their first date
+     * @return the unit as it is on that date
+     */
+    @PUT
+    @Path("{id}")
+    public OrgUnitRepresentation changeDetails(@PathParam("id") String id, OrgUnitRepresentation body) {
+        context.requireWrite();
+        return Calls.run(context, () -> {
+            Checks.required("body", body);
+            return OrgUnitRepresentation.of(service.changeDetails(id, body.toChange()));
         });
     }
 

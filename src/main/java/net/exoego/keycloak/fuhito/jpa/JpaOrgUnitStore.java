@@ -104,6 +104,22 @@ public class JpaOrgUnitStore implements OrgUnitStore {
         entity.id = version.id();
         entity.realmId = realmId;
         entity.orgUnitId = version.orgUnitId();
+        copy(version, entity);
+        em.persist(entity);
+    }
+
+    @Override
+    public void updateVersion(OrgUnitVersion version) {
+        OrgUnitVersionEntity entity = em.find(OrgUnitVersionEntity.class, version.id());
+        if (entity == null || !entity.realmId.equals(realmId)) {
+            throw new IllegalStateException("No such version in the realm: " + version.id());
+        }
+        copy(version, entity);
+        // A split shortens this row and then inserts the next one. The database must see the shorter row first.
+        em.flush();
+    }
+
+    private static void copy(OrgUnitVersion version, OrgUnitVersionEntity entity) {
         entity.validFrom = version.period().from();
         entity.validTo = version.period().to();
         entity.name = version.name();
@@ -114,7 +130,6 @@ public class JpaOrgUnitStore implements OrgUnitStore {
         entity.unitTypeId = version.unitTypeId();
         entity.displayOrder = version.displayOrder();
         entity.attributes = version.attributes();
-        em.persist(entity);
     }
 
     @Override
