@@ -52,6 +52,11 @@ final class MemoryAssignmentStore implements AssignmentStore {
     }
 
     @Override
+    public List<String> allAssignmentIds() {
+        return rows.stream().map(Assignment::assignmentId).distinct().toList();
+    }
+
+    @Override
     public void insert(Assignment row) {
         rows.add(row);
     }
