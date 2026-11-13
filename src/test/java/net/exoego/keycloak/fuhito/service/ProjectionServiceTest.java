@@ -20,6 +20,7 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * A hospital that is linked to a Keycloak organization, with a nursing department and a ward below it.
@@ -263,7 +264,9 @@ class ProjectionServiceTest {
 
         assertEquals(FuhitoException.Reason.CONFLICT, e.reason());
         assertEquals("projection.duplicate_name", e.code());
-        assertEquals(Map.of("orgUnitId", twin, "name", "Nursing"), e.params());
+        assertEquals("Nursing", e.params().get("name"));
+        // Siblings with one name are ordered by ID, so either of the two can be the one that is named.
+        assertTrue(Set.of(twin, nursing).contains(e.params().get("orgUnitId")));
     }
 
     @Test
