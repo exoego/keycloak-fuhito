@@ -12,6 +12,8 @@ import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
 import net.exoego.keycloak.fuhito.jpa.HierarchyEntity;
+import net.exoego.keycloak.fuhito.jpa.JpaRefItemStore;
+import net.exoego.keycloak.fuhito.service.RefItemService;
 
 /**
  * The root of the admin REST API for one realm.
@@ -21,20 +23,30 @@ public class FuhitoResource {
     private static final String VERSION = loadVersion();
 
     private final String realmId;
-    private final Access access;
+    private final RequestContext context;
     private final EntityManager entityManager;
 
     /**
      * Creates the resource for one request.
      *
      * @param realmId the ID of the realm of the request
-     * @param access the permission checks for the caller
+     * @param context the request and its caller
      * @param entityManager the entity manager of the request
      */
-    public FuhitoResource(String realmId, Access access, EntityManager entityManager) {
+    public FuhitoResource(String realmId, RequestContext context, EntityManager entityManager) {
         this.realmId = realmId;
-        this.access = access;
+        this.context = context;
         this.entityManager = entityManager;
+    }
+
+    /**
+     * Returns the reference items of the realm.
+     *
+     * @return the sub-resource
+     */
+    @Path("ref-items")
+    public RefItemsResource refItems() {
+        return new RefItemsResource(context, new RefItemService(new JpaRefItemStore(entityManager, realmId)));
     }
 
     /**
@@ -45,7 +57,7 @@ public class FuhitoResource {
     @GET
     @Produces(MediaType.APPLICATION_JSON)
     public VersionRepresentation version() {
-        access.requireRead();
+        context.requireRead();
         return new VersionRepresentation(VERSION);
     }
 
@@ -58,7 +70,7 @@ public class FuhitoResource {
     @Path("hierarchies")
     @Produces(MediaType.APPLICATION_JSON)
     public List<HierarchyRepresentation> hierarchies() {
-        access.requireRead();
+        context.requireRead();
         return entityManager
                 .createQuery("select h from HierarchyEntity h where h.realmId = :realmId order by h.code",
                         HierarchyEntity.class)

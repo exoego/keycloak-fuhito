@@ -47,3 +47,24 @@ The caller needs an access token for the admin API, the same as for the other ad
 
 A request with no token gets 401.
 A caller without the permission gets 403.
+
+## Errors
+
+An error response has a stable code, the values that belong to it, and a message for people.
+
+```json
+{
+  "error": "ref_item.code_taken",
+  "params": {"kind": "UNIT_TYPE", "code": "hospital"},
+  "message": "The code \"hospital\" is already used for the kind UNIT_TYPE."
+}
+```
+
+Clients should rely on `error` and `params`. The text of `message` can change.
+A failed request writes nothing.
+
+| Status | Meaning |
+|---|---|
+| 400 | A value in the request is bad |
+| 404 | The target does not exist in the realm |
+| 409 | The request conflicts with existing data |
