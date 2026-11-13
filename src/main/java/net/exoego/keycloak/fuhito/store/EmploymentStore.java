@@ -48,4 +48,11 @@ public interface EmploymentStore {
      * @param terms the terms
      */
     void insertTerms(EmploymentTerms terms);
+
+    /**
+     * Stores the new state of existing terms.
+     *
+     * @param terms the terms
+     */
+    void updateTerms(EmploymentTerms terms);
 }

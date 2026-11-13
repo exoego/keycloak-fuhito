@@ -2,6 +2,7 @@ package net.exoego.keycloak.fuhito.service;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -153,6 +154,132 @@ class EmploymentServiceTest {
                 null, new BigDecimal("120"), null, null, null)).code());
         assertTrue(store.employments.isEmpty());
         assertTrue(store.terms.isEmpty());
+    }
+
+    private static TermsChange status(String validFrom, String status) {
+        return new TermsChange(validFrom, null, null, status, null, null);
+    }
+
+    private static List<String> statuses(EmploymentView view) {
+        return view.terms().stream()
+                .map(t -> t.terms().period().from() + " " + t.terms().period().to() + " " + t.terms().status())
+                .toList();
+    }
+
+    @Test
+    void aLeaveAndAReturnSplitTheTerms() {
+        String id = service.start(minimal("alice", "2026-04-01")).employment().id();
+
+        service.changeTerms(id, status("2026-10-01", "ON_LEAVE"));
+        EmploymentView view = service.changeTerms(id, status("2027-04-01", "ACTIVE"));
+
+        assertEquals(List.of(
+                "2026-04-01 2026-10-01 ACTIVE",
+                "2026-10-01 2027-04-01 ON_LEAVE",
+                "2027-04-01 null ACTIVE"), statuses(view));
+        assertEquals(ValidPeriod.startingAt(LocalDate.of(2026, 4, 1)), view.employment().period());
+    }
+
+    @Test
+    void aChangeInsideOlderTermsKeepsTheLaterOnes() {
+        String id = service.start(minimal("alice", "2026-04-01")).employment().id();
+        service.changeTerms(id, status("2027-04-01", "SUSPENDED"));
+
+        EmploymentView view = service.changeTerms(id, status("2026-10-01", "ON_LEAVE"));
+
+        assertEquals(List.of(
+                "2026-04-01 2026-10-01 ACTIVE",
+                "2026-10-01 2027-04-01 ON_LEAVE",
+                "2027-04-01 null SUSPENDED"), statuses(view));
+    }
+
+    @Test
+    void aChangeOnTheFirstDateOfTermsCorrectsThem() {
+        String id = service.start(minimal("alice", "2026-04-01")).employment().id();
+        String termsId = store.terms(id).get(0).id();
+
+        EmploymentView view = service.changeTerms(id, status("2026-04-01", "ON_LEAVE"));
+
+        assertEquals(List.of("2026-04-01 null ON_LEAVE"), statuses(view));
+        assertEquals(termsId, view.terms().get(0).terms().id());
+    }
+
+    @Test
+    void aChangeReplacesAllTerms() {
+        item(RefKind.EMPLOYMENT_TYPE, "part-time", true);
+        RefItem fullTime = item(RefKind.EMPLOYMENT_TYPE, "full-time", true);
+        RefItem grade = item(RefKind.GRADE, "g4", true);
+        String id = service.start(new NewEmployment("alice", "2026-04-01", null, null, "part-time", null, null,
+                new BigDecimal("50"), Map.of("note", "x"), null, null)).employment().id();
+
+        EmploymentView view = service.changeTerms(id, new TermsChange("2026-10-01", "full-time", "g4", null,
+                new BigDecimal("100"), Map.of("union", true)));
+
+        EmploymentView.TermsView changed = view.terms().get(1);
+        assertEquals(fullTime.id(), changed.terms().employmentTypeId());
+        assertEquals("full-time", changed.employmentType());
+        assertEquals(grade.id(), changed.terms().gradeId());
+        assertEquals(EmploymentStatus.ACTIVE, changed.terms().status());
+        assertEquals(new BigDecimal("100"), changed.terms().workPercent());
+        assertEquals(Map.of("union", true), changed.terms().attributes());
+        assertEquals("part-time", view.terms().get(0).employmentType());
+
+        EmploymentView.TermsView cleared = service.changeTerms(id, status("2027-04-01", null)).terms().get(2);
+        assertNull(cleared.terms().employmentTypeId());
+        assertNull(cleared.terms().gradeId());
+        assertNull(cleared.terms().workPercent());
+        assertEquals(Map.of(), cleared.terms().attributes());
+    }
+
+    @Test
+    void termsOfAFixedTermEmploymentEndWithIt() {
+        String id = service.start(new NewEmployment("alice", "2026-04-01", "2027-04-01", null, null, null, null,
+                null, null, null, null)).employment().id();
+
+        EmploymentView view = service.changeTerms(id, status("2026-10-01", "ON_LEAVE"));
+
+        assertEquals(List.of("2026-04-01 2026-10-01 ACTIVE", "2026-10-01 2027-04-01 ON_LEAVE"), statuses(view));
+        for (String outside : new String[] {"2026-03-31", "2027-04-01"}) {
+            FuhitoException e = assertThrows(FuhitoException.class,
+                    () -> service.changeTerms(id, status(outside, "ACTIVE")));
+            assertEquals(FuhitoException.Reason.NOT_FOUND, e.reason());
+            assertEquals("employment.not_valid_on", e.code());
+            assertEquals(Map.of("id", id, "date", outside), e.params());
+        }
+    }
+
+    @Test
+    void termsMayKeepADeactivatedItemButNotTakeANewOne() {
+        RefItem old = item(RefKind.EMPLOYMENT_TYPE, "old-type", true);
+        item(RefKind.GRADE, "retired-grade", false);
+        String id = service.start(new NewEmployment("alice", "2026-04-01", null, null, "old-type", null, null, null,
+                null, null, null)).employment().id();
+        refItems.update(new RefItem(old.id(), RefKind.EMPLOYMENT_TYPE, "old-type", "old", Map.of(), 0, Map.of(),
+                false));
+
+        EmploymentView view = service.changeTerms(id, new TermsChange("2026-10-01", "old-type", null, "ON_LEAVE",
+                null, null));
+        assertEquals("old-type", view.terms().get(1).employmentType());
+
+        assertEquals("ref_item.unknown", assertThrows(FuhitoException.class, () -> service.changeTerms(id,
+                new TermsChange("2027-04-01", null, "retired-grade", null, null, null))).code());
+    }
+
+    @Test
+    void rejectsABadChangeOfTermsAndWritesNothing() {
+        String id = service.start(minimal("alice", "2026-04-01")).employment().id();
+
+        assertEquals("invalid.required",
+                assertThrows(FuhitoException.class, () -> service.changeTerms(id, null)).code());
+        assertEquals("invalid.required",
+                assertThrows(FuhitoException.class, () -> service.changeTerms(id, status(null, "ACTIVE"))).code());
+        assertEquals("employment.not_found", assertThrows(FuhitoException.class,
+                () -> service.changeTerms("nope", status("2026-10-01", "ACTIVE"))).code());
+        assertEquals("invalid.choice", assertThrows(FuhitoException.class,
+                () -> service.changeTerms(id, status("2026-10-01", "GONE"))).code());
+        assertEquals("invalid.percent", assertThrows(FuhitoException.class, () -> service.changeTerms(id,
+                new TermsChange("2026-10-01", null, null, null, new BigDecimal("0"), null))).code());
+        assertEquals(List.of("2026-04-01 null ACTIVE"), statuses(service.get(id)));
     }
 
     @Test
