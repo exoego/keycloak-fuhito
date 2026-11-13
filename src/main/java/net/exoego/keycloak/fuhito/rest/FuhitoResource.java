@@ -22,6 +22,7 @@ import net.exoego.keycloak.fuhito.jpa.JpaRefItemStore;
 import net.exoego.keycloak.fuhito.service.AssignmentService;
 import net.exoego.keycloak.fuhito.service.ChangeLogService;
 import net.exoego.keycloak.fuhito.service.ChangeOrderService;
+import net.exoego.keycloak.fuhito.service.CsvImportService;
 import net.exoego.keycloak.fuhito.service.EmploymentService;
 import net.exoego.keycloak.fuhito.service.ImportService;
 import net.exoego.keycloak.fuhito.service.MembershipService;
@@ -163,10 +164,13 @@ public class FuhitoResource {
     @Path("imports")
     public ImportsResource imports() {
         var refItemStore = new JpaRefItemStore(entityManager, realmId);
-        return new ImportsResource(context, new ImportService(new RefItemService(refItemStore), refItemStore,
-                orgUnitService(), new JpaOrgUnitStore(entityManager, realmId),
-                new ImportService.People(employmentService(), new JpaEmploymentStore(entityManager, realmId),
-                        assignmentService(), new JpaAssignmentStore(entityManager, realmId), users)));
+        var orgUnitStore = new JpaOrgUnitStore(entityManager, realmId);
+        var people = new ImportService.People(employmentService(), new JpaEmploymentStore(entityManager, realmId),
+                assignmentService(), new JpaAssignmentStore(entityManager, realmId), users);
+        var importService = new ImportService(new RefItemService(refItemStore), refItemStore, orgUnitService(),
+                orgUnitStore, people);
+        return new ImportsResource(context, importService,
+                new CsvImportService(importService, refItemStore, orgUnitStore, orgUnitService(), people));
     }
 
     /**
