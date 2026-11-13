@@ -68,4 +68,14 @@ final class MemoryOrgUnitStore implements OrgUnitStore {
     public void insertLink(OrgUnitLink link) {
         links.add(link);
     }
+
+    @Override
+    public void updateLink(OrgUnitLink link) {
+        links.replaceAll(l -> l.id().equals(link.id()) ? link : l);
+    }
+
+    @Override
+    public void deleteLink(String id) {
+        links.removeIf(l -> l.id().equals(id));
+    }
 }

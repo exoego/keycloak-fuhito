@@ -153,10 +153,35 @@ public class JpaOrgUnitStore implements OrgUnitStore {
         entity.realmId = realmId;
         entity.hierarchyId = link.hierarchyId();
         entity.childId = link.childId();
+        copy(link, entity);
+        em.persist(entity);
+    }
+
+    @Override
+    public void updateLink(OrgUnitLink link) {
+        copy(link, findLink(link.id()));
+        // A split shortens this row and then inserts the next one. The database must see the shorter row first.
+        em.flush();
+    }
+
+    @Override
+    public void deleteLink(String id) {
+        em.remove(findLink(id));
+        em.flush();
+    }
+
+    private OrgUnitLinkEntity findLink(String id) {
+        OrgUnitLinkEntity entity = em.find(OrgUnitLinkEntity.class, id);
+        if (entity == null || !entity.realmId.equals(realmId)) {
+            throw new IllegalStateException("No such link in the realm: " + id);
+        }
+        return entity;
+    }
+
+    private static void copy(OrgUnitLink link, OrgUnitLinkEntity entity) {
         entity.parentId = link.parentId();
         entity.validFrom = link.period().from();
         entity.validTo = link.period().to();
-        em.persist(entity);
     }
 
     private static OrgUnit toDomain(OrgUnitEntity e) {

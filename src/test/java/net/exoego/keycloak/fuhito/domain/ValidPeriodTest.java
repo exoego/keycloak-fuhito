@@ -2,6 +2,7 @@ package net.exoego.keycloak.fuhito.domain;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
 
@@ -100,6 +101,17 @@ class ValidPeriodTest {
         assertTrue(openFrom(5).encloses(period(5, 10)));
         assertTrue(openFrom(5).encloses(openFrom(6)));
         assertFalse(openFrom(5).encloses(openFrom(4)));
+    }
+
+    @Test
+    void intersectsOverlappingPeriods() {
+        assertEquals(Optional.of(period(7, 10)), period(5, 10).intersection(period(7, 15)));
+        assertEquals(Optional.of(period(7, 10)), period(7, 15).intersection(period(5, 10)));
+        assertEquals(Optional.of(period(6, 8)), period(5, 10).intersection(period(6, 8)));
+        assertEquals(Optional.of(period(7, 10)), period(5, 10).intersection(openFrom(7)));
+        assertEquals(Optional.of(period(7, 10)), openFrom(7).intersection(period(5, 10)));
+        assertEquals(Optional.of(openFrom(9)), openFrom(5).intersection(openFrom(9)));
+        assertEquals(Optional.empty(), period(5, 10).intersection(period(10, 15)));
     }
 
     @Test

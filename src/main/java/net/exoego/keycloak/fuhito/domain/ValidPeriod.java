@@ -3,6 +3,7 @@ package net.exoego.keycloak.fuhito.domain;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * The dates when a fact is true.
@@ -78,6 +79,28 @@ public record ValidPeriod(LocalDate from, LocalDate to) {
             return true;
         }
         return other.to != null && !other.to.isAfter(to);
+    }
+
+    /**
+     * Returns the dates that both periods share.
+     *
+     * @param other the other period
+     * @return the shared period, or empty when the periods do not overlap
+     */
+    public Optional<ValidPeriod> intersection(ValidPeriod other) {
+        if (!overlaps(other)) {
+            return Optional.empty();
+        }
+        LocalDate start = from.isAfter(other.from) ? from : other.from;
+        LocalDate end;
+        if (to == null) {
+            end = other.to;
+        } else if (other.to == null) {
+            end = to;
+        } else {
+            end = to.isBefore(other.to) ? to : other.to;
+        }
+        return Optional.of(new ValidPeriod(start, end));
     }
 
     /**
