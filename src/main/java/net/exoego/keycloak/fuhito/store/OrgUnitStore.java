@@ -1,5 +1,6 @@
 package net.exoego.keycloak.fuhito.store;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
@@ -34,6 +35,30 @@ public interface OrgUnitStore {
      * @return the unit, or empty when the realm has no such unit
      */
     Optional<OrgUnit> findUnitByCode(String code);
+
+    /**
+     * Lists all org units of the realm.
+     *
+     * @return the units
+     */
+    List<OrgUnit> units();
+
+    /**
+     * Lists the versions of all org units that are valid on a date.
+     *
+     * @param date the date
+     * @return one version for each unit that exists on the date
+     */
+    List<OrgUnitVersion> versionsOn(LocalDate date);
+
+    /**
+     * Lists the parent links of a hierarchy that are valid on a date.
+     *
+     * @param hierarchyId the ID of the hierarchy
+     * @param date the date
+     * @return one link for each unit that has a parent on the date
+     */
+    List<OrgUnitLink> linksOn(String hierarchyId, LocalDate date);
 
     /**
      * Stores a new org unit.

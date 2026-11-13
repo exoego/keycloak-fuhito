@@ -1,5 +1,6 @@
 package net.exoego.keycloak.fuhito.service;
 
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -31,6 +32,21 @@ final class MemoryOrgUnitStore implements OrgUnitStore {
     @Override
     public Optional<OrgUnit> findUnitByCode(String code) {
         return units.values().stream().filter(u -> code.equals(u.code())).findFirst();
+    }
+
+    @Override
+    public List<OrgUnit> units() {
+        return List.copyOf(units.values());
+    }
+
+    @Override
+    public List<OrgUnitVersion> versionsOn(LocalDate date) {
+        return versions.stream().filter(v -> v.period().contains(date)).toList();
+    }
+
+    @Override
+    public List<OrgUnitLink> linksOn(String hierarchyId, LocalDate date) {
+        return links.stream().filter(l -> l.hierarchyId().equals(hierarchyId) && l.period().contains(date)).toList();
     }
 
     @Override

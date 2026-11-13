@@ -4,6 +4,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.List;
 import java.util.Map;
 
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
@@ -527,6 +528,121 @@ class OrgUnitServiceTest {
 
         assertEquals("org_unit.parent_not_valid", failure(named("Child", a, "2026-10-01")).code());
         assertEquals("org_unit.parent_not_valid", moveFailure(unit, a, "2026-10-01").code());
+    }
+
+    private String unit(String name, String parentId, Integer displayOrder, String phoneticName) {
+        return service.create(new NewOrgUnit(null, name, null, null, null, phoneticName, null, parentId,
+                "2026-04-01", displayOrder, null, null, null)).unit().id();
+    }
+
+    private static List<String> names(List<OrgUnitState> states) {
+        return states.stream().map(s -> s.version().name()).toList();
+    }
+
+    @Test
+    void listsTheTreeWithParentsBeforeChildren() {
+        String x = unit("X Hospital", null, 1, null);
+        String y = unit("Y Hospital", null, 2, null);
+        String nursing = unit("Nursing", x, 2, null);
+        unit("Medicine", x, 1, null);
+        unit("Ward 2", nursing, 0, null);
+        unit("Ward 1", nursing, 0, null);
+        unit("Admin", y, 0, null);
+
+        assertEquals(List.of("X Hospital", "Medicine", "Nursing", "Ward 1", "Ward 2", "Y Hospital", "Admin"),
+                names(service.list("2026-04-01", false)));
+        assertEquals(List.of("X Hospital", "Y Hospital"), names(service.list("2026-04-01", true)));
+        assertEquals(List.of("Medicine", "Nursing"), names(service.children(x, "2026-04-01")));
+        assertEquals(List.of("Admin"), names(service.children(y, "2026-04-01")));
+        assertEquals(List.of("Nursing", "Ward 1", "Ward 2"), names(service.subtree(nursing, "2026-04-01")));
+        assertEquals(nursing, service.subtree(nursing, "2026-04-01").get(1).parentId());
+    }
+
+    @Test
+    void siblingsFollowDisplayOrderThenPhoneticNameThenName() {
+        String root = root("Root");
+        unit("外科", root, 1, "げか");
+        unit("内科", root, 1, "ないか");
+        unit("眼科", root, 1, "がんか");
+        unit("Zebra", root, 1, null);
+        unit("Alpha", root, 1, null);
+        unit("総務", root, 0, "そうむ");
+
+        assertEquals(List.of("総務", "眼科", "外科", "内科", "Alpha", "Zebra"),
+                names(service.children(root, "2026-04-01")));
+    }
+
+    @Test
+    void readsThePathFromTheRoot() {
+        String a = root("A");
+        String b = child("B", a);
+        String c = child("C", b);
+
+        assertEquals(List.of("A", "B", "C"), names(service.path(c, "2026-04-01")));
+        assertEquals(List.of("A"), names(service.path(a, "2026-04-01")));
+    }
+
+    @Test
+    void theTreeDependsOnTheDate() {
+        String a = root("A");
+        String b = root("B");
+        String moving = child("Moving", a);
+        String ending = child("Ending", a);
+        service.move(moving, b, "2027-04-01");
+        service.changeDetails(moving, rename("2027-04-01", "Moved"));
+        service.end(ending, "2027-04-01");
+        service.create(named("New", b, "2027-04-01"));
+
+        assertEquals(List.of("A", "Ending", "Moving", "B"), names(service.list("2027-03-31", false)));
+        assertEquals(List.of("A", "B", "Moved", "New"), names(service.list("2027-04-01", false)));
+        assertEquals(List.of(), names(service.list("2026-03-31", false)));
+        assertEquals(List.of("B", "Moved"), names(service.path(moving, "2027-04-01")));
+        assertEquals(4, service.list(null, false).size());
+    }
+
+    @Test
+    void treeReadsRejectAUnitThatIsNotThere() {
+        String a = root("A");
+
+        assertEquals("org_unit.not_found",
+                assertThrows(FuhitoException.class, () -> service.children("nope", "2026-04-01")).code());
+        assertEquals("org_unit.not_found",
+                assertThrows(FuhitoException.class, () -> service.subtree("nope", "2026-04-01")).code());
+        assertEquals("org_unit.not_found",
+                assertThrows(FuhitoException.class, () -> service.path("nope", "2026-04-01")).code());
+        assertEquals("org_unit.not_valid_on",
+                assertThrows(FuhitoException.class, () -> service.children(a, "2026-03-31")).code());
+        assertEquals("org_unit.not_valid_on",
+                assertThrows(FuhitoException.class, () -> service.subtree(a, "2026-03-31")).code());
+        FuhitoException e = assertThrows(FuhitoException.class, () -> service.path(a, "2026-03-31"));
+        assertEquals("org_unit.not_valid_on", e.code());
+        assertEquals(Map.of("id", a, "date", "2026-03-31"), e.params());
+        assertEquals("invalid.date", assertThrows(FuhitoException.class, () -> service.list("x", false)).code());
+    }
+
+    @Test
+    void readsTheHistoryOfAUnit() {
+        unitType("ward", true);
+        String a = root("A");
+        String b = root("B");
+        String id = service.create(new NewOrgUnit("w", "Ward", null, null, null, null, "ward", a, "2026-04-01", null,
+                null, "X-1", "hr")).unit().id();
+        service.changeDetails(id, rename("2026-10-01", "Ward 2"));
+        service.move(id, null, "2027-04-01");
+        service.move(id, b, "2028-04-01");
+
+        OrgUnitHistory history = service.history(id);
+
+        assertEquals("w", history.unit().code());
+        assertEquals(List.of("Ward", "Ward 2"), names(history.versions()));
+        assertEquals("ward", history.versions().get(0).unitType());
+        assertNull(history.versions().get(1).unitType());
+        assertNull(history.versions().get(0).parentId());
+        assertEquals(LocalDate.of(2026, 10, 1), history.versions().get(0).version().period().to());
+        assertEquals(List.of(a, b), history.parents().stream().map(OrgUnitLink::parentId).toList());
+        assertEquals(new ValidPeriod(LocalDate.of(2026, 4, 1), LocalDate.of(2027, 4, 1)), history.parents().get(0).period());
+        assertEquals("org_unit.not_found",
+                assertThrows(FuhitoException.class, () -> service.history("nope")).code());
     }
 
     @Test
