@@ -1,6 +1,9 @@
 plugins {
     `java-library`
+    `maven-publish`
+    signing
     jacoco
+    alias(libs.plugins.nexus.publish)
 }
 
 group = "net.exoego"
@@ -10,6 +13,8 @@ java {
     toolchain {
         languageVersion.set(JavaLanguageVersion.of(21))
     }
+    withJavadocJar()
+    withSourcesJar()
 }
 
 tasks.withType<JavaCompile>().configureEach {
@@ -76,6 +81,7 @@ tasks.check {
     dependsOn(testing.suites.named("integrationTest"))
 }
 
+// The javadoc jar goes to Maven Central, so a warning fails the build. check runs it, so a release does not find it first.
 tasks.javadoc {
     (options as StandardJavadocDocletOptions).addBooleanOption("Werror", true)
 }
@@ -94,5 +100,60 @@ tasks.withType<Test>().configureEach {
 tasks.jacocoTestReport {
     reports {
         xml.required.set(true)
+    }
+}
+
+nexusPublishing {
+    repositories {
+        sonatype {
+            nexusUrl.set(uri("https://ossrh-staging-api.central.sonatype.com/service/local/"))
+            snapshotRepositoryUrl.set(uri("https://central.sonatype.com/repository/maven-snapshots/"))
+            username.set(System.getenv("SONATYPE_USERNAME"))
+            password.set(System.getenv("SONATYPE_PASSWORD"))
+        }
+    }
+}
+
+publishing {
+    publications {
+        create<MavenPublication>("maven") {
+            from(components["java"])
+
+            pom {
+                name.set("keycloak-fuhito")
+                description.set("Keycloak extension that stores organization structure and its history for each realm")
+                url.set("https://github.com/exoego/keycloak-fuhito")
+
+                licenses {
+                    license {
+                        name.set("Apache License, Version 2.0")
+                        url.set("https://www.apache.org/licenses/LICENSE-2.0.txt")
+                    }
+                }
+
+                developers {
+                    developer {
+                        id.set("exoego")
+                        name.set("TATSUNO Yasuhiro")
+                        email.set("ytatsuno.jp@gmail.com")
+                    }
+                }
+
+                scm {
+                    connection.set("scm:git:git://github.com/exoego/keycloak-fuhito.git")
+                    developerConnection.set("scm:git:ssh://github.com:exoego/keycloak-fuhito.git")
+                    url.set("https://github.com/exoego/keycloak-fuhito")
+                }
+            }
+        }
+    }
+}
+
+signing {
+    val signingKey = System.getenv("GPG_PRIVATE_KEY")
+    val signingPassword = System.getenv("GPG_PASSPHRASE")
+    if (signingKey != null && signingPassword != null) {
+        useInMemoryPgpKeys(signingKey, signingPassword)
+        sign(publishing.publications["maven"])
     }
 }

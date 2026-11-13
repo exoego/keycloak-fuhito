@@ -21,3 +21,6 @@ slf4j-simple = { module = "org.slf4j:slf4j-simple", version = "2.0.20" }
 
 [bundles]
 keycloak-provided = ["keycloak-core", "keycloak-common", "keycloak-server-spi", "keycloak-server-spi-private", "keycloak-services", "keycloak-model-jpa", "jboss-logging"]
+
+[plugins]
+nexus-publish = { id = "io.github.gradle-nexus.publish-plugin", version = "2.0.0" }
