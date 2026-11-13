@@ -54,6 +54,10 @@ final class OrgUnitTree {
         children.values().forEach(list -> list.sort(SIBLING_ORDER));
     }
 
+    boolean exists(String id) {
+        return states.containsKey(id);
+    }
+
     List<OrgUnitState> roots() {
         return List.copyOf(roots);
     }

@@ -27,6 +27,7 @@ public class FuhitoAdminRealmResourceProvider implements AdminRealmResourceProvi
     public Object getResource(KeycloakSession session, RealmModel realm, AdminPermissionEvaluator auth,
             AdminEventBuilder adminEvent) {
         var entityManager = session.getProvider(JpaConnectionProvider.class).getEntityManager();
+        var organizations = new KeycloakOrganizations(session, realm);
         return new FuhitoResource(realm.getId(),
                 new KeycloakRequestContext(session, realm, auth, adminEvent, entityManager), entityManager,
                 new UserDirectory() {
@@ -40,7 +41,7 @@ public class FuhitoAdminRealmResourceProvider implements AdminRealmResourceProvi
                         return Optional.ofNullable(session.users().getUserByUsername(realm, username))
                                 .map(UserModel::getId);
                     }
-                }, new KeycloakOrganizations(session));
+                }, organizations, organizations);
     }
 
     @Override

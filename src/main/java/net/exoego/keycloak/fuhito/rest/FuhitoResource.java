@@ -30,11 +30,13 @@ import net.exoego.keycloak.fuhito.service.ImportService;
 import net.exoego.keycloak.fuhito.service.MembershipService;
 import net.exoego.keycloak.fuhito.service.OrgUnitService;
 import net.exoego.keycloak.fuhito.service.OrganizationLinkService;
+import net.exoego.keycloak.fuhito.service.ProjectionService;
 import net.exoego.keycloak.fuhito.service.QualificationService;
 import net.exoego.keycloak.fuhito.service.RefItemService;
 import net.exoego.keycloak.fuhito.service.ReorganizationService;
 import net.exoego.keycloak.fuhito.service.ReportingLineService;
 import net.exoego.keycloak.fuhito.store.OrganizationDirectory;
+import net.exoego.keycloak.fuhito.store.OrganizationGroups;
 import net.exoego.keycloak.fuhito.store.UserDirectory;
 
 /**
@@ -49,6 +51,7 @@ public class FuhitoResource {
     private final EntityManager entityManager;
     private final UserDirectory users;
     private final OrganizationDirectory organizations;
+    private final OrganizationGroups organizationGroups;
 
     /**
      * Creates the resource for one request.
@@ -58,9 +61,11 @@ public class FuhitoResource {
      * @param entityManager the entity manager of the request
      * @param users the users of the realm
      * @param organizations the Keycloak organizations of the realm
+     * @param organizationGroups the groups and members of the Keycloak organizations of the realm
      */
     public FuhitoResource(String realmId, RequestContext context, EntityManager entityManager, UserDirectory users,
-            OrganizationDirectory organizations) {
+            OrganizationDirectory organizations, OrganizationGroups organizationGroups) {
+        this.organizationGroups = organizationGroups;
         this.organizations = organizations;
         this.realmId = realmId;
         this.context = context;
@@ -184,6 +189,18 @@ public class FuhitoResource {
     @Path("reorganizations")
     public ReorganizationsResource reorganizations() {
         return new ReorganizationsResource(context, new ReorganizationService(orgUnitService()));
+    }
+
+    /**
+     * Returns the projection into the groups of Keycloak organizations.
+     *
+     * @return the sub-resource
+     */
+    @Path("projection")
+    public ProjectionResource projection() {
+        return new ProjectionResource(context, new ProjectionService(new JpaOrgUnitStore(entityManager, realmId),
+                new JpaAssignmentStore(entityManager, realmId), new JpaEmploymentStore(entityManager, realmId),
+                new JpaRefItemStore(entityManager, realmId), organizationGroups, Clock.systemDefaultZone()));
     }
 
     /**

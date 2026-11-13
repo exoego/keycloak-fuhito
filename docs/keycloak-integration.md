@@ -94,6 +94,42 @@ The link says that the unit, for example a hospital, stands for that organizatio
 The Organizations API of Keycloak changes between minor versions.
 Only the class `KeycloakOrganizations` calls it.
 
+### Projection into organization groups
+
+The projection mirrors the org structure of today into the groups of Keycloak organizations.
+Keycloak features that work on organization groups can then use it, for example role mappings on a group.
+
+For each org unit that is linked to a Keycloak organization, a rebuild does this.
+
+- Each unit below the linked unit becomes a group of the organization, with the same nesting.
+- Each assignment that holds today becomes a membership of the group of its unit.
+- Each user with an assignment in the linked unit or below becomes an unmanaged member of the organization. So one person can belong to several organizations.
+
+The linked unit itself has no group. The organization stands for it.
+
+#### How to turn it on and run it
+
+The projection is off unless the realm has the attribute `fuhito.projection.enabled` with the value `true`.
+
+`POST /projection/rebuild` runs it. The response counts what changed.
+A rebuild with no change in between changes nothing.
+
+Nothing else runs the projection. A write to the API does not, and no timer does.
+Run a rebuild after changes, and once a day. A dated change becomes true on its date with no write on that day, so only a daily rebuild picks it up.
+
+#### What the projection owns
+
+The projection goes one way. The tables of this extension stay the source of truth.
+
+- A group that the projection made has the attribute `fuhito.orgUnitId`. The projection renames, moves, and removes these groups to follow the org units.
+- A rename or a move keeps the group and its ID. So role mappings on the group stay.
+- A member that someone added by hand to such a group is taken out at the next rebuild.
+- A group that someone made by hand has no such attribute. The projection leaves it and its members alone, unless it sits below a group that the projection removes.
+- The projection never takes a user out of an organization. A person who left stays a member of the organization until an administrator removes them.
+- Two units below one parent must have different names, because Keycloak requires it for groups. A rebuild fails with `projection.duplicate_name` otherwise, and changes nothing.
+
+The projection records no admin events and no change log entries. It changes data of Keycloak, not data of the extension.
+
 ## Removal of a realm or a user
 
 When a realm is removed, the extension deletes every row of that realm in the same transaction.
