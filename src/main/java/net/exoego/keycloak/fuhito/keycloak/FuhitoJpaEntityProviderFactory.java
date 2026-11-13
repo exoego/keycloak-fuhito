@@ -1,5 +1,6 @@
 package net.exoego.keycloak.fuhito.keycloak;
 
+import jakarta.persistence.EntityManager;
 import net.exoego.keycloak.fuhito.jpa.RealmData;
 import org.keycloak.Config;
 import org.keycloak.connections.jpa.JpaConnectionProvider;
@@ -8,6 +9,7 @@ import org.keycloak.connections.jpa.entityprovider.JpaEntityProviderFactory;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.KeycloakSessionFactory;
 import org.keycloak.models.RealmModel;
+import org.keycloak.models.UserModel;
 
 /**
  * Registers the JPA entities and the Liquibase changelog of this extension.
@@ -36,14 +38,19 @@ public class FuhitoJpaEntityProviderFactory implements JpaEntityProviderFactory 
 
     @Override
     public void postInit(KeycloakSessionFactory factory) {
-        // The event runs in the transaction that removes the realm, so both happen or neither does.
+        // Each event runs in the transaction that removes the realm or the user, so both happen or neither does.
         factory.register(event -> {
             if (event instanceof RealmModel.RealmRemovedEvent removed) {
-                RealmData.delete(
-                        removed.getKeycloakSession().getProvider(JpaConnectionProvider.class).getEntityManager(),
-                        removed.getRealm().getId());
+                RealmData.delete(entityManager(removed.getKeycloakSession()), removed.getRealm().getId());
+            } else if (event instanceof UserModel.UserRemovedEvent removed) {
+                RealmData.deleteUser(entityManager(removed.getKeycloakSession()), removed.getRealm().getId(),
+                        removed.getUser().getId());
             }
         });
+    }
+
+    private static EntityManager entityManager(KeycloakSession session) {
+        return session.getProvider(JpaConnectionProvider.class).getEntityManager();
     }
 
     @Override
