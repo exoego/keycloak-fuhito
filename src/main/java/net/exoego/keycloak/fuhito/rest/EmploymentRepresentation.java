@@ -46,7 +46,13 @@ public record EmploymentRepresentation(String id, String userId, String validFro
             BigDecimal workPercent, Map<String, Object> attributes) {
     }
 
-    static EmploymentRepresentation of(EmploymentView view) {
+    /**
+     * Builds the representation of an employment.
+     *
+     * @param view the employment with its terms
+     * @return the representation
+     */
+    public static EmploymentRepresentation of(EmploymentView view) {
         var e = view.employment();
         return new EmploymentRepresentation(e.id(), e.userId(), e.period().from().toString(), text(e.period().to()),
                 e.staffNumber(), view.endReason(), e.externalId(), e.source(), null, null, null, null, null,

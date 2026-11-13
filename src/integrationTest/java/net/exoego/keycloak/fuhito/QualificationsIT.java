@@ -105,21 +105,28 @@ class QualificationsIT {
     }
 
     @Test
-    void removingAUserDeletesTheirQualifications() throws Exception {
+    void removingAUserKeepsTheirQualificationsAndErasingRemovesThem() throws Exception {
         TestRealm scratch = TestRealm.create("qualifications-removal");
         scratch.refItem("QUALIFICATION", "license", "免許");
         String removed = scratch.user("removed");
         String kept = scratch.user("kept");
         String removedId = created(scratch.api.post("/qualifications", "{\"userId\": \"" + removed
-                + "\", \"kind\": \"license\", \"validFrom\": \"2010-05-01\"}")).get("id").asText();
+                + "\", \"kind\": \"license\", \"number\": \"第1号\", \"validFrom\": \"2010-05-01\"}")).get("id").asText();
         String keptId = created(scratch.api.post("/qualifications", "{\"userId\": \"" + kept
                 + "\", \"kind\": \"license\", \"validFrom\": \"2010-05-01\"}")).get("id").asText();
+        String log = "/change-log?resourceType=FUHITO_QUALIFICATION&resourceId=";
 
         scratch.removeUser(removed);
 
+        assertEquals("第1号", Api.json(scratch.api.get("/qualifications/" + removedId)).get("number").asText());
+        assertEquals(1, Api.json(scratch.api.get("/users/" + removed + "/qualifications?all=true")).size());
+        assertEquals(1, Api.json(scratch.api.get(log + removedId)).size());
+
+        assertEquals(204, scratch.api.delete("/users/" + removed + "/data").statusCode());
+
         assertEquals(404, scratch.api.get("/qualifications/" + removedId).statusCode());
+        assertEquals(0, Api.json(scratch.api.get(log + removedId)).size());
         assertEquals(200, scratch.api.get("/qualifications/" + keptId).statusCode());
-        assertEquals(0, Api.json(scratch.api.get("/change-log?resourceType=FUHITO_QUALIFICATION&resourceId=" + removedId)).size());
-        assertFalse(Api.json(scratch.api.get("/change-log?resourceType=FUHITO_QUALIFICATION&resourceId=" + keptId)).isEmpty());
+        assertFalse(Api.json(scratch.api.get(log + keptId)).isEmpty());
     }
 }

@@ -89,6 +89,11 @@ final class MemoryEmploymentStore implements EmploymentStore {
     }
 
     @Override
+    public void delete(String id) {
+        employments.remove(id);
+    }
+
+    @Override
     public void deleteTerms(String termsId) {
         terms.removeIf(t -> t.id().equals(termsId));
     }

@@ -134,13 +134,26 @@ The projection records no admin events and no change log entries. It changes dat
 
 When a realm is removed, the extension deletes every row of that realm in the same transaction.
 
-When a user is removed, the extension deletes the employments of that user in the same transaction.
-The terms and the assignments of those employments go with them.
-The qualifications of the user are deleted too.
-So are the reporting lines where the user reports, and the reporting lines where the user is the manager.
-So do the change log entries about them.
-This removes the history of the person too.
-To keep the history of a person who left, end the employment and disable the user. Do not remove the user.
+When a user is removed from Keycloak, the extension keeps the history of that person.
+In the same transaction it ends only what would still hold.
+
+- An employment that is open on that day ends on that day, with its terms, its assignments, and their reporting lines.
+- An employment that would start on that day or later is removed, because it never held.
+- A reporting line where the user is the manager ends on that day.
+- Qualifications stay as they are.
+- The change log keeps every entry. It gets one more for each employment that ended. That entry has no acting user.
+
+So the person no longer shows up as a current member, in tokens, or in the projection.
+Every read about the user still works with the user ID, for example `GET /users/{userId}/history`.
+
+### Erasing the data of one user
+
+`DELETE /users/{userId}/data` erases everything about one user for good.
+It is the only way to erase. Use it for a request to delete personal data.
+
+It removes the employments with their terms and assignments, the qualifications, the reporting lines of the user as a report and as a manager, and the change log entries about them.
+It works for a user who is still in Keycloak and for one who was removed.
+The change log gets one entry that says who erased the data of which user ID. It has nothing else about the person.
 
 ## Entities
 
@@ -190,6 +203,7 @@ Clients in another time zone should always send `asOf`.
 | `/org-units/{id}/members` | Who works in an org unit on a date, with or without the units below |
 | `/users/{userId}/assignments` | Where a user works on a date |
 | `/users/{userId}/history` | Every employment and assignment of a user |
+| `/users/{userId}/data` | Erases everything about one user, for a request to delete personal data |
 | `/qualifications` | Licenses and certificates of users |
 | `/reporting-lines` | Links from an assignment to a manager |
 | `/users/{userId}/managers` | The managers of a user on a date |
@@ -239,8 +253,8 @@ A request that names an unknown change order gets 400 and writes nothing.
 The valid period of a row says when a fact is true.
 The change log says when the system learned it, from whom, and under which approval.
 
-When a user is removed, the log loses the entries about the employments and assignments of that user.
-It keeps the entries that the user wrote as an administrator.
+Removal of a user from Keycloak removes no entry.
+Only the erase endpoint removes the entries about one user.
 
 ## Errors
 

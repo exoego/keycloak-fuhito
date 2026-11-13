@@ -148,8 +148,9 @@ Checked by `ChangeLogIT.listsTheWritesOfAChangeOrderInTheOrderTheyHappened` and 
 ## What is removed for good
 
 - Removal of a realm removes all its rows and its change log.
-- Removal of a user removes the employments and assignments of that user, and the change log entries about them.
+- `DELETE /users/{userId}/data` erases everything about one user.
 
-To keep the history of a person who left, end the employment and disable the user.
+Removal of a user from Keycloak removes nothing that held.
+It ends the open employment of the user on that day, and the history stays readable.
 
-Checked by `RealmRemovalIT` and `UserRemovalIT`.
+Checked by `RealmRemovalIT`, `UserRemovalIT.removingAUserKeepsTheirHistoryAndEndsWhatIsOpen`, and `UserRemovalIT.erasingAUserRemovesEverythingAboutThemAndNothingElse`.

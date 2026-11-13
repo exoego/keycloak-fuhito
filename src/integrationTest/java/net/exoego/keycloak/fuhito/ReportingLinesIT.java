@@ -1,6 +1,8 @@
 package net.exoego.keycloak.fuhito;
 
 import java.net.http.HttpResponse;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.List;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -140,28 +142,34 @@ class ReportingLinesIT {
     }
 
     @Test
-    void removingAManagerOrAReportDeletesTheirLines() throws Exception {
+    void removingAManagerOrAReportEndsTheirLinesAndKeepsThem() throws Exception {
         TestRealm scratch = TestRealm.create("reporting-removal");
         Api scratchApi = scratch.api;
-        String unit = Api.json(scratchApi.post("/org-units", "{\"name\": \"課\", \"validFrom\": \"2026-04-01\"}")).get("id").asText();
+        String today = LocalDate.now(ZoneOffset.UTC).toString();
+        String unit = Api.json(scratchApi.post("/org-units", "{\"name\": \"課\", \"validFrom\": \"2025-04-01\"}")).get("id").asText();
         String manager = scratch.user("manager");
         String keptManager = scratch.user("kept-manager");
         String report = scratch.user("report");
         String kept = scratch.user("kept");
-        String start = "{\"orgUnitId\": \"" + unit + "\", \"validFrom\": \"2026-04-01\", \"userId\": \"";
+        String start = "{\"orgUnitId\": \"" + unit + "\", \"validFrom\": \"2025-04-01\", \"userId\": \"";
         String reportAssignment = Api.json(scratchApi.post("/staff", start + report + "\"}")).get("assignment").get("id").asText();
         String keptAssignment = Api.json(scratchApi.post("/staff", start + kept + "\"}")).get("assignment").get("id").asText();
-        String line = "{\"validFrom\": \"2026-04-01\", \"kind\": \"DOTTED\", \"assignmentId\": \"";
-        assertEquals(201, scratchApi.post("/reporting-lines", line + reportAssignment + "\", \"managerUserId\": \"" + keptManager + "\"}").statusCode());
-        assertEquals(201, scratchApi.post("/reporting-lines", line + keptAssignment + "\", \"managerUserId\": \"" + manager + "\"}").statusCode());
-        assertEquals(201, scratchApi.post("/reporting-lines", line + keptAssignment + "\", \"managerUserId\": \"" + keptManager + "\"}").statusCode());
+        String line = "{\"validFrom\": \"2025-04-01\", \"kind\": \"DOTTED\", \"assignmentId\": \"";
+        String ofReport = id(scratchApi.post("/reporting-lines", line + reportAssignment + "\", \"managerUserId\": \"" + keptManager + "\"}"));
+        String toManager = id(scratchApi.post("/reporting-lines", line + keptAssignment + "\", \"managerUserId\": \"" + manager + "\"}"));
+        String untouched = id(scratchApi.post("/reporting-lines", line + keptAssignment + "\", \"managerUserId\": \"" + keptManager + "\"}"));
         String count = "select count(*) from fuhito_reporting_line where realm_id = '" + scratch.id() + "'";
-        assertEquals("3", KeycloakEnvironment.sql(count));
 
         scratch.removeUser(manager);
-        assertEquals("2", KeycloakEnvironment.sql(count));
         scratch.removeUser(report);
-        assertEquals("1", KeycloakEnvironment.sql(count));
-        assertEquals(kept, Api.json(scratchApi.get("/users/" + keptManager + "/reports?asOf=2026-04-01")).get(0).get("userId").asText());
+
+        // Every line is still stored. The two that involved a removed user end today.
+        assertEquals("3", KeycloakEnvironment.sql(count));
+        assertEquals(today, Api.json(scratchApi.get("/reporting-lines/" + toManager)).get("validTo").asText());
+        assertEquals(today, Api.json(scratchApi.get("/reporting-lines/" + ofReport)).get("validTo").asText());
+        assertFalse(Api.json(scratchApi.get("/reporting-lines/" + untouched)).has("validTo"));
+        String tomorrow = LocalDate.now(ZoneOffset.UTC).plusDays(1).toString();
+        assertEquals(List.of(kept), Api.json(scratchApi.get("/users/" + keptManager + "/reports?asOf=" + tomorrow)).findValuesAsText("userId"));
+        assertEquals(List.of(keptManager), Api.json(scratchApi.get("/users/" + kept + "/managers?asOf=" + tomorrow)).findValuesAsText("userId"));
     }
 }
