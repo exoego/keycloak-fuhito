@@ -423,6 +423,112 @@ class OrgUnitServiceTest {
         assertEquals(new ValidPeriod(LocalDate.of(2026, 10, 1), LocalDate.of(2027, 4, 1)), store.links.get(0).period());
     }
 
+    private FuhitoException endFailure(String id, String validTo) {
+        return assertThrows(FuhitoException.class, () -> service.end(id, validTo));
+    }
+
+    @Test
+    void endsAUnitAndItsParentLink() {
+        String a = root("A");
+        String unit = child("Unit", a);
+
+        OrgUnitState last = service.end(unit, "2027-04-01");
+
+        assertEquals(new ValidPeriod(LocalDate.of(2026, 4, 1), LocalDate.of(2027, 4, 1)), last.version().period());
+        assertEquals(a, last.parentId());
+        assertEquals(last, service.get(unit, "2027-03-31"));
+        assertEquals("org_unit.not_valid_on",
+                assertThrows(FuhitoException.class, () -> service.get(unit, "2027-04-01")).code());
+        assertEquals(LocalDate.of(2027, 4, 1), store.links.get(0).period().to());
+    }
+
+    @Test
+    void endsARootAndKeepsEarlierDetails() {
+        String unit = root("Old name");
+        service.changeDetails(unit, rename("2026-10-01", "New name"));
+
+        service.end(unit, "2027-04-01");
+
+        assertEquals("Old name", service.get(unit, "2026-09-30").version().name());
+        assertEquals("New name", service.get(unit, "2027-03-31").version().name());
+    }
+
+    @Test
+    void keepsAParentLinkThatEndedEarlier() {
+        String a = root("A");
+        String unit = child("Unit", a);
+        service.move(unit, null, "2026-10-01");
+
+        service.end(unit, "2027-04-01");
+
+        assertEquals(LocalDate.of(2026, 10, 1), store.links.get(0).period().to());
+    }
+
+    @Test
+    void doesNotEndAUnitWithChildren() {
+        String a = root("A");
+        child("B", a);
+        String moving = child("C", a);
+        service.move(moving, null, "2027-04-01");
+
+        FuhitoException e = endFailure(a, "2027-01-01");
+        assertEquals(FuhitoException.Reason.CONFLICT, e.reason());
+        assertEquals("org_unit.has_children", e.code());
+        assertEquals(Map.of("id", a, "validTo", "2027-01-01", "count", "2"), e.params());
+        // C leaves on 2027-04-01, so only B is in the way on that date.
+        assertEquals("1", endFailure(a, "2027-04-01").params().get("count"));
+    }
+
+    @Test
+    void endsAParentOnTheDateItsLastChildLeaves() {
+        String a = root("A");
+        String b = child("B", a);
+        service.end(b, "2027-04-01");
+
+        assertEquals("org_unit.has_children", endFailure(a, "2027-03-31").code());
+        assertEquals(LocalDate.of(2027, 4, 1), service.end(a, "2027-04-01").version().period().to());
+    }
+
+    @Test
+    void doesNotEndAUnitTwiceOrBeforeLaterChanges() {
+        String a = root("A");
+        String unit = child("Unit", a);
+        service.changeDetails(unit, rename("2027-04-01", "Renamed"));
+        service.move(unit, null, "2028-04-01");
+
+        assertEquals("org_unit.later_changes_exist", endFailure(unit, "2027-01-01").code());
+        assertEquals("org_unit.later_changes_exist", endFailure(unit, "2027-04-01").code());
+        assertEquals("org_unit.later_changes_exist", endFailure(unit, "2028-01-01").code());
+        service.move(unit, a, "2028-04-01");
+        assertEquals("org_unit.later_changes_exist", endFailure(unit, "2028-04-01").code());
+
+        service.end(unit, "2029-04-01");
+        FuhitoException e = endFailure(unit, "2030-04-01");
+        assertEquals("org_unit.already_ended", e.code());
+        assertEquals(Map.of("id", unit, "validTo", "2029-04-01"), e.params());
+    }
+
+    @Test
+    void rejectsABadEnd() {
+        String unit = root("Unit");
+
+        assertEquals("invalid.required", endFailure(unit, null).code());
+        assertEquals("org_unit.not_found", endFailure("nope", "2027-04-01").code());
+        assertEquals("org_unit.not_valid_on", endFailure(unit, "2026-04-01").code());
+        assertEquals("org_unit.not_valid_on", endFailure(unit, "2026-01-01").code());
+        assertEquals(LocalDate.of(2026, 4, 2), service.end(unit, "2026-04-02").version().period().to());
+    }
+
+    @Test
+    void anEndedUnitCannotBeAParentAfterItsEnd() {
+        String a = root("A");
+        String unit = root("Unit");
+        service.end(a, "2027-04-01");
+
+        assertEquals("org_unit.parent_not_valid", failure(named("Child", a, "2026-10-01")).code());
+        assertEquals("org_unit.parent_not_valid", moveFailure(unit, a, "2026-10-01").code());
+    }
+
     @Test
     void readsAUnitAsOfADate() {
         unitType("ward", true);

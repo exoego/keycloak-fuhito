@@ -87,6 +87,23 @@ public class OrgUnitsResource {
     }
 
     /**
+     * Ends an org unit. Its history stays readable for earlier dates.
+     *
+     * @param id the ID
+     * @param body the first date on which the unit no longer exists
+     * @return the unit as it is on its last date
+     */
+    @PUT
+    @Path("{id}/end")
+    public OrgUnitRepresentation end(@PathParam("id") String id, EndRepresentation body) {
+        context.requireWrite();
+        return Calls.run(context, () -> {
+            Checks.required("body", body);
+            return OrgUnitRepresentation.of(service.end(id, body.validTo()));
+        });
+    }
+
+    /**
      * Returns an org unit as it is on a date.
      *
      * @param id the ID

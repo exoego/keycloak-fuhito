@@ -74,6 +74,14 @@ public interface OrgUnitStore {
     List<OrgUnitLink> parentLinks(String hierarchyId, String childId);
 
     /**
+     * Lists all links to the children of an org unit, in every hierarchy.
+     *
+     * @param parentId the ID of the unit
+     * @return the links
+     */
+    List<OrgUnitLink> childLinks(String parentId);
+
+    /**
      * Stores a new parent link.
      *
      * @param link the link

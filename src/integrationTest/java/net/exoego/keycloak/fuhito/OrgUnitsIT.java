@@ -13,6 +13,7 @@ import org.keycloak.representations.idm.RealmRepresentation;
 import static net.exoego.keycloak.fuhito.KeycloakEnvironment.KEYCLOAK;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class OrgUnitsIT {
 
@@ -207,6 +208,43 @@ class OrgUnitsIT {
         assertEquals("invalid.required", errorOf(400, api.put("/org-units/" + c + "/parent", "{\"parentId\": \"" + a + "\"}")));
         assertEquals("org_unit.not_found", errorOf(404, otherRealmApi.put("/org-units/" + c + "/parent", move(null, "2026-10-01"))));
         assertEquals(b, Api.json(api.get("/org-units/" + c + "?asOf=2030-01-01")).get("parentId").asText());
+    }
+
+    @Test
+    void endsALeafAndKeepsItsHistory() throws Exception {
+        String parent = newUnit("親", null);
+        String unit = newUnit("廃止予定", parent);
+
+        HttpResponse<String> response = api.put("/org-units/" + unit + "/end", "{\"validTo\": \"2027-04-01\"}");
+
+        assertEquals(200, response.statusCode(), response.body());
+        JsonNode last = Api.json(response);
+        assertEquals("2027-04-01", last.get("validTo").asText());
+        assertEquals(parent, last.get("parentId").asText());
+        assertEquals(last, Api.json(api.get("/org-units/" + unit + "?asOf=2027-03-31")));
+        assertEquals("org_unit.not_valid_on", errorOf(404, api.get("/org-units/" + unit + "?asOf=2027-04-01")));
+        assertEquals("org_unit.already_ended", errorOf(409, api.put("/org-units/" + unit + "/end", "{\"validTo\": \"2028-04-01\"}")));
+        // The parent can end once its last child is gone.
+        assertEquals("org_unit.has_children", errorOf(409, api.put("/org-units/" + parent + "/end", "{\"validTo\": \"2027-03-31\"}")));
+        assertEquals(200, api.put("/org-units/" + parent + "/end", "{\"validTo\": \"2027-04-01\"}").statusCode());
+    }
+
+    @Test
+    void rejectsABadEnd() throws Exception {
+        String parent = newUnit("P", null);
+        newUnit("C1", parent);
+        newUnit("C2", parent);
+        String renamed = newUnit("R", null);
+        assertEquals(200, api.put("/org-units/" + renamed, "{\"name\": \"R2\", \"validFrom\": \"2027-04-01\"}").statusCode());
+
+        HttpResponse<String> response = api.withAcceptLanguage("ja").put("/org-units/" + parent + "/end", "{\"validTo\": \"2027-04-01\"}");
+        assertEquals("org_unit.has_children", errorOf(409, response));
+        assertEquals("2", Api.json(response).get("params").get("count").asText());
+        assertTrue(Api.json(response).get("message").asText().contains("2 件の子の組織単位"));
+        assertEquals("org_unit.later_changes_exist", errorOf(409, api.put("/org-units/" + renamed + "/end", "{\"validTo\": \"2027-01-01\"}")));
+        assertEquals("org_unit.not_valid_on", errorOf(404, api.put("/org-units/" + renamed + "/end", "{\"validTo\": \"2026-04-01\"}")));
+        assertEquals("invalid.required", errorOf(400, api.put("/org-units/" + renamed + "/end", "{}")));
+        assertEquals("org_unit.not_found", errorOf(404, otherRealmApi.put("/org-units/" + renamed + "/end", "{\"validTo\": \"2028-04-01\"}")));
     }
 
     @Test
