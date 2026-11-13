@@ -11,6 +11,7 @@ public final class RealmData {
 
     // Children come before the rows they refer to.
     private static final List<String> ENTITIES = List.of(
+            "QualificationEntity",
             "ChangeLogEntity",
             "ChangeOrderEntity",
             "AssignmentEntity",
@@ -40,7 +41,8 @@ public final class RealmData {
     }
 
     /**
-     * Deletes every row about one user. These are the employments of the user with their terms and assignments.
+     * Deletes every row about one user. These are the employments of the user with their terms and assignments,
+     * and the qualifications of the user.
      *
      * @param em the entity manager
      * @param realmId the ID of the realm
@@ -66,6 +68,18 @@ public final class RealmData {
                     .setParameter("userId", userId)
                     .executeUpdate();
         }
+        // The change log keeps no entries about the qualifications of the user either.
+        em.createQuery("delete from ChangeLogEntity l where l.realmId = :realmId"
+                        + " and l.resourceType = 'FUHITO_QUALIFICATION' and l.resourceId in"
+                        + " (select q.id from QualificationEntity q where q.realmId = :realmId"
+                        + " and q.userId = :userId)")
+                .setParameter("realmId", realmId)
+                .setParameter("userId", userId)
+                .executeUpdate();
+        em.createQuery("delete from QualificationEntity q where q.realmId = :realmId and q.userId = :userId")
+                .setParameter("realmId", realmId)
+                .setParameter("userId", userId)
+                .executeUpdate();
         em.createQuery("delete from EmploymentEntity e where e.realmId = :realmId and e.userId = :userId")
                 .setParameter("realmId", realmId)
                 .setParameter("userId", userId)

@@ -65,7 +65,7 @@ The change log says when the system learned about it.
 
 ## Reference data
 
-Unit types, job titles, occupations, employment types, grades, end reasons, and assignment kinds are reference data.
+Unit types, job titles, occupations, employment types, grades, end reasons, assignment kinds, and qualification kinds are reference data.
 Each realm defines its own items.
 An item has a code, a name, and optional names in other languages.
 

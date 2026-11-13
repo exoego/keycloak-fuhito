@@ -18,6 +18,7 @@ import net.exoego.keycloak.fuhito.jpa.JpaChangeLogStore;
 import net.exoego.keycloak.fuhito.jpa.JpaChangeOrderStore;
 import net.exoego.keycloak.fuhito.jpa.JpaEmploymentStore;
 import net.exoego.keycloak.fuhito.jpa.JpaOrgUnitStore;
+import net.exoego.keycloak.fuhito.jpa.JpaQualificationStore;
 import net.exoego.keycloak.fuhito.jpa.JpaRefItemStore;
 import net.exoego.keycloak.fuhito.service.AssignmentService;
 import net.exoego.keycloak.fuhito.service.ChangeLogService;
@@ -27,6 +28,7 @@ import net.exoego.keycloak.fuhito.service.EmploymentService;
 import net.exoego.keycloak.fuhito.service.ImportService;
 import net.exoego.keycloak.fuhito.service.MembershipService;
 import net.exoego.keycloak.fuhito.service.OrgUnitService;
+import net.exoego.keycloak.fuhito.service.QualificationService;
 import net.exoego.keycloak.fuhito.service.RefItemService;
 import net.exoego.keycloak.fuhito.service.ReorganizationService;
 import net.exoego.keycloak.fuhito.store.UserDirectory;
@@ -203,7 +205,23 @@ public class FuhitoResource {
      */
     @Path("users")
     public UsersResource users() {
-        return new UsersResource(context, membershipService(), employmentService(), assignmentService());
+        return new UsersResource(context, membershipService(), employmentService(), assignmentService(),
+                qualificationService());
+    }
+
+    /**
+     * Returns the qualifications of the realm.
+     *
+     * @return the sub-resource
+     */
+    @Path("qualifications")
+    public QualificationsResource qualifications() {
+        return new QualificationsResource(context, qualificationService());
+    }
+
+    private QualificationService qualificationService() {
+        return new QualificationService(new JpaQualificationStore(entityManager, realmId),
+                new JpaRefItemStore(entityManager, realmId), users, Clock.systemDefaultZone());
     }
 
     private MembershipService membershipService() {
