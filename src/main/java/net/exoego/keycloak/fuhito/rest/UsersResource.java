@@ -125,7 +125,7 @@ public class UsersResource {
      * An assignment with no stored solid line takes the head of its org unit, or of the nearest unit above.
      *
      * @param userId the ID of the user
-     * @param asOf the date as {@code YYYY-MM-DD}. The default is today in the time zone of the server.
+     * @param asOf the date as {@code YYYY-MM-DD}. The default is today in the time zone of the realm.
      * @return the managers
      */
     @GET
@@ -142,7 +142,7 @@ public class UsersResource {
      * Lists the direct reports of a user on a date.
      *
      * @param userId the ID of the user
-     * @param asOf the date as {@code YYYY-MM-DD}. The default is today in the time zone of the server.
+     * @param asOf the date as {@code YYYY-MM-DD}. The default is today in the time zone of the realm.
      * @return the direct reports
      */
     @GET
@@ -159,7 +159,7 @@ public class UsersResource {
      * Lists the qualifications of a user, oldest first.
      *
      * @param userId the ID of the user
-     * @param asOf the date as {@code YYYY-MM-DD}. The default is today in the time zone of the server.
+     * @param asOf the date as {@code YYYY-MM-DD}. The default is today in the time zone of the realm.
      * @param all true to return every qualification, expired ones and future ones included
      * @return the qualifications
      */
@@ -177,7 +177,7 @@ public class UsersResource {
      * Lists the assignments of a user that hold on a date. The primary assignment comes first.
      *
      * @param userId the ID of the user
-     * @param asOf the date as {@code YYYY-MM-DD}. The default is today in the time zone of the server.
+     * @param asOf the date as {@code YYYY-MM-DD}. The default is today in the time zone of the realm.
      * @param includePath true to return each org unit with its path from the root
      * @return the assignments of the user on the date
      */

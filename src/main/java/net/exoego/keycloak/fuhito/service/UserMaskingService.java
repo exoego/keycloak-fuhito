@@ -22,6 +22,7 @@ public class UserMaskingService {
     private final EmploymentStore employments;
     private final UserDirectory users;
     private final Clock clock;
+    private final Clock timestamps;
 
     /**
      * Creates the service.
@@ -29,10 +30,12 @@ public class UserMaskingService {
      * @param masker the storage operation that masks
      * @param employments the storage of employments of the realm
      * @param users the users of the realm
-     * @param clock the clock for today and for the time of the masking
+     * @param clock the clock that decides what "today" is
+     * @param timestamps the clock for the time of the masking
      */
     public UserMaskingService(UserDataMasker masker, EmploymentStore employments, UserDirectory users,
-            Clock clock) {
+            Clock clock, Clock timestamps) {
+        this.timestamps = timestamps;
         this.masker = masker;
         this.employments = employments;
         this.users = users;
@@ -57,7 +60,7 @@ public class UserMaskingService {
         if (active) {
             throw FuhitoException.conflict("user.still_employed", Map.of("userId", userId));
         }
-        Instant first = masker.maskedAt(userId).orElse(Instant.now(clock).truncatedTo(ChronoUnit.MILLIS));
+        Instant first = masker.maskedAt(userId).orElse(Instant.now(timestamps).truncatedTo(ChronoUnit.MILLIS));
         masker.mask(userId, first);
         return first;
     }

@@ -56,6 +56,7 @@ class OrgUnitTreeIT {
         var realm = new RealmRepresentation();
         realm.setRealm("org-tree-" + UUID.randomUUID());
         realm.setEnabled(true);
+        TestRealm.withTimeZone(realm);
         admin.realms().create(realm);
         return realm.getRealm();
     }

@@ -37,6 +37,7 @@ class AttributeSyncIT {
         representation.setRealm(realm);
         representation.setEnabled(true);
         representation.setAttributes(attributes);
+        TestRealm.withTimeZone(representation);
         admin.realms().create(representation);
         // Without this, the user profile of Keycloak drops attributes that it does not know.
         UPConfig profile = admin.realm(realm).users().userProfile().getConfiguration();

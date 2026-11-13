@@ -44,6 +44,7 @@ class TokenMapperIT {
         realm = "token-mapper-" + UUID.randomUUID();
         realmRepresentation.setRealm(realm);
         realmRepresentation.setEnabled(true);
+        TestRealm.withTimeZone(realmRepresentation);
         admin.realms().create(realmRepresentation);
         api = new Api(realm, admin.tokenManager().getAccessTokenString());
 

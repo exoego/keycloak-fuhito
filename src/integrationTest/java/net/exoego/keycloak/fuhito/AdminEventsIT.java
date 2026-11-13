@@ -23,6 +23,7 @@ class AdminEventsIT {
         realm.setEnabled(true);
         realm.setAdminEventsEnabled(true);
         realm.setAdminEventsDetailsEnabled(true);
+        TestRealm.withTimeZone(realm);
         admin.realms().create(realm);
         Api api = new Api(realm.getRealm(), admin.tokenManager().getAccessTokenString());
 

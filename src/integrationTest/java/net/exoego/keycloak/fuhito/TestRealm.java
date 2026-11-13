@@ -1,5 +1,7 @@
 package net.exoego.keycloak.fuhito;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
 
 import jakarta.ws.rs.core.Response;
@@ -27,12 +29,32 @@ final class TestRealm {
     }
 
     static TestRealm create(String prefix) {
+        return create(prefix, Map.of());
+    }
+
+    static TestRealm create(String prefix, Map<String, String> attributes) {
         Keycloak admin = KEYCLOAK.getKeycloakAdminClient();
         var realm = new RealmRepresentation();
         realm.setRealm(prefix + "-" + UUID.randomUUID());
         realm.setEnabled(true);
+        realm.setAttributes(new HashMap<>(attributes));
+        withTimeZone(realm);
         admin.realms().create(realm);
         return new TestRealm(realm.getRealm(), admin);
+    }
+
+    /**
+     * Gives a realm the time zone that the extension requires, unless the test set one.
+     * UTC is the zone of the Keycloak container, so tests can compute the date of the realm.
+     */
+    static void withTimeZone(RealmRepresentation realm) {
+        Map<String, String> attributes = new HashMap<>();
+        if (realm.getAttributes() != null) {
+            attributes.putAll(realm.getAttributes());
+        }
+        attributes.putIfAbsent("fuhito.timeZone", "UTC");
+        attributes.values().removeIf(String::isEmpty);
+        realm.setAttributes(attributes);
     }
 
     String id() {

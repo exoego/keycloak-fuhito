@@ -32,6 +32,7 @@ class RefItemsIT {
         var realm = new RealmRepresentation();
         realm.setRealm("ref-items-" + UUID.randomUUID());
         realm.setEnabled(true);
+        TestRealm.withTimeZone(realm);
         admin.realms().create(realm);
         return realm.getRealm();
     }

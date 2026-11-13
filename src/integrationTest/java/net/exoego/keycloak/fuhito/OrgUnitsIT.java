@@ -34,6 +34,7 @@ class OrgUnitsIT {
         var realm = new RealmRepresentation();
         realm.setRealm("org-units-" + UUID.randomUUID());
         realm.setEnabled(true);
+        TestRealm.withTimeZone(realm);
         admin.realms().create(realm);
         return realm.getRealm();
     }

@@ -13,6 +13,7 @@ import jakarta.persistence.EntityManager;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import net.exoego.keycloak.fuhito.domain.ChangeLogEntry;
+import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.Messages;
 import net.exoego.keycloak.fuhito.jpa.JpaChangeLogStore;
 import net.exoego.keycloak.fuhito.jpa.JpaChangeOrderStore;
@@ -42,9 +43,11 @@ final class KeycloakRequestContext implements RequestContext {
     private final AdminPermissionEvaluator auth;
     private final AdminEventBuilder adminEvent;
     private final EntityManager entityManager;
+    private final FuhitoException timeSettingsError;
 
     KeycloakRequestContext(KeycloakSession session, RealmModel realm, AdminPermissionEvaluator auth,
-            AdminEventBuilder adminEvent, EntityManager entityManager) {
+            AdminEventBuilder adminEvent, EntityManager entityManager, FuhitoException timeSettingsError) {
+        this.timeSettingsError = timeSettingsError;
         this.session = session;
         this.realm = realm;
         this.auth = auth;
@@ -55,20 +58,32 @@ final class KeycloakRequestContext implements RequestContext {
     @Override
     public void requireRead() {
         auth.users().requireView();
+        requireTimeSettings();
+    }
+
+    // Every date in a response depends on what today is, so a realm must say where it is first.
+    private void requireTimeSettings() {
+        if (timeSettingsError != null) {
+            throw failure(error(Response.Status.CONFLICT, timeSettingsError.code(), timeSettingsError.params()));
+        }
+    }
+
+    private Response error(Response.Status status, String code, Map<String, String> params) {
+        return Response.status(status)
+                .type(MediaType.APPLICATION_JSON_TYPE)
+                .entity(new ErrorRepresentation(code, params, Messages.format(code, params, locale())))
+                .build();
     }
 
     @Override
     public void requireWrite() {
         auth.users().requireManage();
+        requireTimeSettings();
         String changeOrderId = changeOrderId();
         if (changeOrderId != null
                 && new JpaChangeOrderStore(entityManager, realm.getId()).find(changeOrderId).isEmpty()) {
-            String code = "change_order.not_found";
-            Map<String, String> params = Map.of("id", changeOrderId);
-            throw failure(Response.status(Response.Status.BAD_REQUEST)
-                    .type(MediaType.APPLICATION_JSON_TYPE)
-                    .entity(new ErrorRepresentation(code, params, Messages.format(code, params, locale())))
-                    .build());
+            throw failure(error(Response.Status.BAD_REQUEST, "change_order.not_found",
+                    Map.of("id", changeOrderId)));
         }
     }
 

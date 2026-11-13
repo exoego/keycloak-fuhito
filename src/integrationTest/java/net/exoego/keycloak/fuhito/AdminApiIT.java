@@ -36,6 +36,10 @@ class AdminApiIT {
     static void createTokens() {
         Keycloak admin = KEYCLOAK.getKeycloakAdminClient();
         adminToken = admin.tokenManager().getAccessTokenString();
+        // These tests use the master realm, which needs a time zone like any other realm.
+        var master = admin.realm(REALM).toRepresentation();
+        TestRealm.withTimeZone(master);
+        admin.realm(REALM).update(master);
 
         var credential = new CredentialRepresentation();
         credential.setType(CredentialRepresentation.PASSWORD);

@@ -30,7 +30,7 @@ Each resource keeps its ID through all changes.
 ## Reading
 
 - Every read of a tree or a list takes `asOf`. It returns what is true on that date.
-- The default of `asOf` is today in the time zone of the server. Send `asOf` when the client is in another time zone.
+- The default of `asOf` is today. The realm decides what today is with its time zone and its day start. See [keycloak-integration.md](keycloak-integration.md).
 - `GET /org-units/{id}/history` returns every period of an org unit.
 - `GET /employments/{id}` and `GET /assignments/{id}` return every period of their resource.
 - `GET /users/{userId}/history` returns every employment and assignment of a user.
