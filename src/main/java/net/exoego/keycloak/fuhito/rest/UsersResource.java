@@ -6,6 +6,7 @@ import java.util.function.Consumer;
 
 import jakarta.ws.rs.DELETE;
 import jakarta.ws.rs.GET;
+import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
@@ -19,6 +20,7 @@ import net.exoego.keycloak.fuhito.service.EmploymentService;
 import net.exoego.keycloak.fuhito.service.MembershipService;
 import net.exoego.keycloak.fuhito.service.QualificationService;
 import net.exoego.keycloak.fuhito.service.ReportingLineService;
+import net.exoego.keycloak.fuhito.service.UserMaskingService;
 import net.exoego.keycloak.fuhito.store.UserDirectory;
 
 /**
@@ -35,6 +37,7 @@ public class UsersResource {
     private final ReportingLineService reportingLines;
     private final UserDirectory users;
     private final Consumer<String> eraseUser;
+    private final UserMaskingService masking;
 
     /**
      * Creates the resource for one request.
@@ -47,10 +50,13 @@ public class UsersResource {
      * @param reportingLines the reads of managers and reports on the realm
      * @param users the users of the realm
      * @param eraseUser removes every row and every change log entry about one user
+     * @param masking the masking of personal data of the realm
      */
     public UsersResource(RequestContext context, MembershipService membership, EmploymentService employments,
             AssignmentService assignments, QualificationService qualifications,
-            ReportingLineService reportingLines, UserDirectory users, Consumer<String> eraseUser) {
+            ReportingLineService reportingLines, UserDirectory users, Consumer<String> eraseUser,
+            UserMaskingService masking) {
+        this.masking = masking;
         this.users = users;
         this.eraseUser = eraseUser;
         this.reportingLines = reportingLines;
@@ -59,6 +65,35 @@ public class UsersResource {
         this.employments = employments;
         this.assignments = assignments;
         this.qualifications = qualifications;
+    }
+
+    /**
+     * Masks the personal data of a user who left. It cannot be undone.
+     * It clears the staff number, the numbers of qualifications, the external IDs, and the free attributes,
+     * also in the change log. Every record keeps its ID, its org unit, its job title, its occupation, and its
+     * dates. So an application that refers to a record by ID still finds it.
+     *
+     * @param userId the ID of the user. The user may be removed from Keycloak already.
+     * @return the user ID and the time of the masking
+     */
+    @POST
+    @Path("{userId}/mask")
+    public MaskRepresentation mask(@PathParam("userId") String userId) {
+        context.requireWrite();
+        return Calls.run(context, () -> {
+            var mask = new MaskRepresentation(userId, masking.mask(userId).toString());
+            context.recordChange(Change.UPDATE, "FUHITO_USER_DATA", userId, "fuhito/users/" + userId + "/mask", mask);
+            return mask;
+        });
+    }
+
+    /**
+     * The result of a masking.
+     *
+     * @param userId the ID of the user
+     * @param maskedAt when the data was first masked, in UTC
+     */
+    public record MaskRepresentation(String userId, String maskedAt) {
     }
 
     /**
@@ -167,6 +202,7 @@ public class UsersResource {
     public UserHistoryRepresentation history(@PathParam("userId") String userId) {
         context.requireRead();
         return Calls.run(context,
-                () -> UserHistoryRepresentation.of(membership.historyOf(userId, employments, assignments)));
+                () -> UserHistoryRepresentation.of(membership.historyOf(userId, employments, assignments),
+                        masking.maskedAt(userId)));
     }
 }

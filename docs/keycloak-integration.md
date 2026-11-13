@@ -146,10 +146,15 @@ In the same transaction it ends only what would still hold.
 So the person no longer shows up as a current member, in tokens, or in the projection.
 Every read about the user still works with the user ID, for example `GET /users/{userId}/history`.
 
+### Masking the data of one user
+
+`POST /users/{userId}/mask` clears what identifies a person who left, and keeps every record.
+See [personal-data.md](personal-data.md) for what it clears, what it keeps, and what it does not do.
+
 ### Erasing the data of one user
 
 `DELETE /users/{userId}/data` erases everything about one user for good.
-It is the only way to erase. Use it for a request to delete personal data.
+It is the only way to erase. Applications that refer to a record by ID find nothing afterwards, so prefer masking when the records must stay.
 
 It removes the employments with their terms and assignments, the qualifications, the reporting lines of the user as a report and as a manager, and the change log entries about them.
 It works for a user who is still in Keycloak and for one who was removed.
@@ -203,6 +208,7 @@ Clients in another time zone should always send `asOf`.
 | `/org-units/{id}/members` | Who works in an org unit on a date, with or without the units below |
 | `/users/{userId}/assignments` | Where a user works on a date |
 | `/users/{userId}/history` | Every employment and assignment of a user |
+| `/users/{userId}/mask` | Clears what identifies a person who left, and keeps the records |
 | `/users/{userId}/data` | Erases everything about one user, for a request to delete personal data |
 | `/qualifications` | Licenses and certificates of users |
 | `/reporting-lines` | Links from an assignment to a manager |

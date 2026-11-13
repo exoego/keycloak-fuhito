@@ -11,6 +11,7 @@ public final class RealmData {
 
     // Children come before the rows they refer to.
     private static final List<String> ENTITIES = List.of(
+            "UserMaskEntity",
             "ReportingLineEntity",
             "QualificationEntity",
             "ChangeLogEntity",
@@ -87,6 +88,10 @@ public final class RealmData {
                 .setParameter("userId", userId)
                 .executeUpdate();
         em.createQuery("delete from QualificationEntity q where q.realmId = :realmId and q.userId = :userId")
+                .setParameter("realmId", realmId)
+                .setParameter("userId", userId)
+                .executeUpdate();
+        em.createQuery("delete from UserMaskEntity m where m.realmId = :realmId and m.userId = :userId")
                 .setParameter("realmId", realmId)
                 .setParameter("userId", userId)
                 .executeUpdate();

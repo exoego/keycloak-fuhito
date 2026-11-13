@@ -12,7 +12,7 @@ class RealmRemovalIT {
     private static final List<String> TABLES = List.of("fuhito_hierarchy", "fuhito_ref_item", "fuhito_org_unit",
             "fuhito_org_unit_version", "fuhito_org_unit_link", "fuhito_employment", "fuhito_employment_terms",
             "fuhito_assignment", "fuhito_change_order", "fuhito_change_log", "fuhito_qualification",
-            "fuhito_reporting_line");
+            "fuhito_reporting_line", "fuhito_user_mask");
 
     // A new table must be added to this test and to the cleanup. This test fails until that is done.
     @Test
@@ -58,6 +58,10 @@ class RealmRemovalIT {
         realm.refItem("QUALIFICATION", "license", "License");
         assertEquals(201, api.post("/qualifications", "{\"userId\": \"" + staff
                 + "\", \"kind\": \"license\", \"validFrom\": \"2020-04-01\"}").statusCode());
+        String former = realm.user("former");
+        assertEquals(201, api.post("/employments", "{\"userId\": \"" + former
+                + "\", \"validFrom\": \"2020-04-01\", \"validTo\": \"2021-04-01\"}").statusCode());
+        assertEquals(200, api.post("/users/" + former + "/mask", "").statusCode());
         var employment = api.post("/employments", "{\"userId\": \"" + staff
                 + "\", \"validFrom\": \"2026-04-01\"}");
         assertEquals(201, employment.statusCode(), employment.body());
