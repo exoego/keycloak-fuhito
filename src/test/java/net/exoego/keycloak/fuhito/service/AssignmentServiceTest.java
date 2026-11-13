@@ -27,7 +27,7 @@ class AssignmentServiceTest {
     private final MemoryOrgUnitStore orgUnits = new MemoryOrgUnitStore();
     private final MemoryRefItemStore refItems = new MemoryRefItemStore();
     private final AssignmentService service = new AssignmentService(store, employments, orgUnits, refItems);
-    private final EmploymentService employmentService = new EmploymentService(employments, refItems, id -> true);
+    private final EmploymentService employmentService = new EmploymentService(employments, store, refItems, id -> true);
     private final OrgUnitService orgUnitService = new OrgUnitService(orgUnits, refItems, Clock.systemUTC());
 
     private String employment;
@@ -288,16 +288,48 @@ class AssignmentServiceTest {
     }
 
     @Test
-    void endsAnAssignmentAndCanMoveTheEndEarlier() {
+    void movesTheEndOfAnAssignmentEarlierAndLaterAndRemovesIt() {
         String id = service.add(to(ward, "2026-04-01")).assignmentId();
 
         assertEquals(LocalDate.of(2027, 4, 1), service.end(id, "2027-04-01").period().to());
         assertEquals(LocalDate.of(2026, 10, 1), service.end(id, "2026-10-01").period().to());
+        assertEquals(LocalDate.of(2028, 4, 1), service.end(id, "2028-04-01").period().to());
+        assertNull(service.removeEnd(id).period().to());
+        assertEquals("assignment.not_found",
+                assertThrows(FuhitoException.class, () -> service.removeEnd("nope")).code());
+    }
 
-        FuhitoException e = assertThrows(FuhitoException.class, () -> service.end(id, "2027-04-01"));
-        assertEquals(FuhitoException.Reason.CONFLICT, e.reason());
-        assertEquals("assignment.already_ended", e.code());
-        assertEquals(Map.of("id", id, "validTo", "2026-10-01"), e.params());
+    @Test
+    void aLaterEndMustStayInsideTheEmploymentAndTheOrgUnit() {
+        String fixed = employmentService.start(new NewEmployment("bob", "2026-04-01", "2027-04-01", null, null, null,
+                null, null, null, null, null)).employment().id();
+        String ending = unit("Ending", null);
+        orgUnitService.end(ending, "2027-10-01");
+        String inFixed = service.add(new AssignmentValues(fixed, ward, "2026-04-01", "2026-10-01", null, null, null,
+                null, null, null, null, null, null, null, null)).assignmentId();
+        String inEnding = service.add(new AssignmentValues(employment, ending, "2026-04-01", "2026-10-01", null, null,
+                null, null, null, null, null, null, null, null, null)).assignmentId();
+
+        assertEquals("assignment.outside_employment",
+                assertThrows(FuhitoException.class, () -> service.end(inFixed, "2027-04-02")).code());
+        assertEquals(LocalDate.of(2027, 4, 1), service.end(inFixed, "2027-04-01").period().to());
+        assertEquals(LocalDate.of(2027, 4, 1), service.removeEnd(inFixed).period().to());
+
+        assertEquals("assignment.org_unit_not_valid",
+                assertThrows(FuhitoException.class, () -> service.end(inEnding, "2027-10-02")).code());
+        assertEquals("assignment.org_unit_not_valid",
+                assertThrows(FuhitoException.class, () -> service.removeEnd(inEnding)).code());
+        assertEquals(LocalDate.of(2027, 10, 1), service.end(inEnding, "2027-10-01").period().to());
+    }
+
+    @Test
+    void aLaterEndOfAPrimaryAssignmentMustNotMeetAnotherPrimary() {
+        String first = service.add(primary(ward, "2026-04-01", "2027-04-01", null)).assignmentId();
+        service.add(primary(xHospital, "2027-04-01", null, null));
+
+        assertEquals("assignment.primary_exists",
+                assertThrows(FuhitoException.class, () -> service.end(first, "2027-10-01")).code());
+        assertEquals(LocalDate.of(2027, 4, 1), store.rows(first).get(0).period().to());
     }
 
     @Test

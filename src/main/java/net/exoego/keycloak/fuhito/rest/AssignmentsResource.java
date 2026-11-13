@@ -1,6 +1,7 @@
 package net.exoego.keycloak.fuhito.rest;
 
 import jakarta.ws.rs.Consumes;
+import jakarta.ws.rs.DELETE;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.PUT;
@@ -91,7 +92,7 @@ public class AssignmentsResource {
     }
 
     /**
-     * Ends an assignment. Its history stays readable.
+     * Sets the end of an assignment. Its history stays readable. The end can move earlier or later.
      *
      * @param id the ID
      * @param body the first date on which the assignment no longer holds
@@ -104,6 +105,23 @@ public class AssignmentsResource {
         return Calls.run(context, () -> {
             Checks.required("body", body);
             var assignment = AssignmentRepresentation.of(service.end(id, body.validTo()));
+            context.recordChange(Change.UPDATE, RESOURCE_TYPE, path(id) + "/end", assignment);
+            return assignment;
+        });
+    }
+
+    /**
+     * Removes the end of an assignment. The assignment then lasts as long as its employment.
+     *
+     * @param id the ID
+     * @return the assignment with the details of every period
+     */
+    @DELETE
+    @Path("{id}/end")
+    public AssignmentRepresentation removeEnd(@PathParam("id") String id) {
+        context.requireWrite();
+        return Calls.run(context, () -> {
+            var assignment = AssignmentRepresentation.of(service.removeEnd(id));
             context.recordChange(Change.UPDATE, RESOURCE_TYPE, path(id) + "/end", assignment);
             return assignment;
         });

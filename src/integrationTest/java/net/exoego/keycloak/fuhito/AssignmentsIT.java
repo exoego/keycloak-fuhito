@@ -115,7 +115,11 @@ class AssignmentsIT {
         assertEquals("2028-04-01", ended.get("validTo").asText());
         assertEquals("2028-04-01", ended.get("periods").get(1).get("validTo").asText());
         assertEquals(ended, Api.json(api.get("/assignments/" + id)));
-        assertEquals("assignment.already_ended", errorOf(409, api.put("/assignments/" + id + "/end", "{\"validTo\": \"2029-04-01\"}")));
+        // The end can move later, and it can be removed.
+        assertEquals("2029-04-01", Api.json(api.put("/assignments/" + id + "/end", "{\"validTo\": \"2029-04-01\"}")).get("validTo").asText());
+        HttpResponse<String> reopened = api.delete("/assignments/" + id + "/end");
+        assertEquals(200, reopened.statusCode(), reopened.body());
+        assertFalse(Api.json(reopened).has("validTo"));
         assertEquals("assignment.later_changes_exist", errorOf(409, api.put("/assignments/" + id + "/end", "{\"validTo\": \"2027-01-01\"}")));
         assertEquals("ref_item.in_use", errorOf(409, api.delete("/ref-items/" + directorId)));
     }

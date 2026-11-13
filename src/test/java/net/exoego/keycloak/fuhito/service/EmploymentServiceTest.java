@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import net.exoego.keycloak.fuhito.domain.Assignment;
 import net.exoego.keycloak.fuhito.domain.EmploymentStatus;
 import net.exoego.keycloak.fuhito.domain.EmploymentTerms;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
@@ -22,9 +23,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class EmploymentServiceTest {
 
     private final MemoryEmploymentStore store = new MemoryEmploymentStore();
+    private final MemoryAssignmentStore assignments = new MemoryAssignmentStore();
     private final MemoryRefItemStore refItems = new MemoryRefItemStore();
     private final EmploymentService service =
-            new EmploymentService(store, refItems, Set.of("alice", "bob")::contains);
+            new EmploymentService(store, assignments, refItems, Set.of("alice", "bob")::contains);
 
     private static NewEmployment minimal(String userId, String validFrom) {
         return new NewEmployment(userId, validFrom, null, null, null, null, null, null, null, null, null);
@@ -280,6 +282,116 @@ class EmploymentServiceTest {
         assertEquals("invalid.percent", assertThrows(FuhitoException.class, () -> service.changeTerms(id,
                 new TermsChange("2026-10-01", null, null, null, new BigDecimal("0"), null))).code());
         assertEquals(List.of("2026-04-01 null ACTIVE"), statuses(service.get(id)));
+    }
+
+    private Assignment assignment(String rowId, String assignmentId, String employmentId, String from, String to) {
+        Assignment row = new Assignment(rowId, assignmentId, employmentId, "unit", new ValidPeriod(
+                LocalDate.parse(from), to == null ? null : LocalDate.parse(to)), null, null, null, false, false, null,
+                0, Map.of(), null, null);
+        assignments.insert(row);
+        return row;
+    }
+
+    private List<String> assignmentPeriods() {
+        return assignments.rows.stream()
+                .map(r -> r.rowId() + " " + r.period().from() + " " + r.period().to())
+                .sorted()
+                .toList();
+    }
+
+    @Test
+    void leavingEndsTheEmploymentItsTermsAndItsAssignments() {
+        RefItem resignation = item(RefKind.END_REASON, "resignation", true);
+        String id = service.start(minimal("alice", "2026-04-01")).employment().id();
+        service.changeTerms(id, status("2026-10-01", "ON_LEAVE"));
+        service.changeTerms(id, status("2028-04-01", "ACTIVE"));
+        assignment("open", "a1", id, "2026-04-01", null);
+        assignment("ended-before", "a2", id, "2026-04-01", "2026-10-01");
+        assignment("ends-later", "a3", id, "2026-04-01", "2029-04-01");
+        assignment("changed-1", "a4", id, "2026-04-01", "2027-10-01");
+        assignment("changed-2", "a4", id, "2027-10-01", null);
+        assignment("future", "a5", id, "2028-04-01", null);
+        String other = service.start(minimal("bob", "2026-04-01")).employment().id();
+        assignment("other", "a6", other, "2026-04-01", null);
+
+        EmploymentView view = service.end(id, "2027-04-01", "resignation");
+
+        assertEquals(new ValidPeriod(LocalDate.of(2026, 4, 1), LocalDate.of(2027, 4, 1)), view.employment().period());
+        assertEquals(resignation.id(), view.employment().endReasonId());
+        assertEquals("resignation", view.endReason());
+        assertEquals(List.of("2026-04-01 2026-10-01 ACTIVE", "2026-10-01 2027-04-01 ON_LEAVE"), statuses(view));
+        assertEquals(List.of(
+                "changed-1 2026-04-01 2027-04-01",
+                "ended-before 2026-04-01 2026-10-01",
+                "ends-later 2026-04-01 2027-04-01",
+                "open 2026-04-01 2027-04-01",
+                "other 2026-04-01 null"), assignmentPeriods());
+    }
+
+    @Test
+    void aLaterEndExtendsAFixedTermEmploymentAndItsLastTerms() {
+        String id = service.start(new NewEmployment("alice", "2026-04-01", "2027-04-01", null, null, null, null,
+                null, null, null, null)).employment().id();
+        service.changeTerms(id, status("2026-10-01", "ON_LEAVE"));
+        assignment("bound", "a1", id, "2026-04-01", "2027-04-01");
+
+        EmploymentView view = service.end(id, "2028-04-01", null);
+
+        assertEquals(LocalDate.of(2028, 4, 1), view.employment().period().to());
+        assertNull(view.endReason());
+        assertEquals(List.of("2026-04-01 2026-10-01 ACTIVE", "2026-10-01 2028-04-01 ON_LEAVE"), statuses(view));
+        // Assignments are not extended.
+        assertEquals(List.of("bound 2026-04-01 2027-04-01"), assignmentPeriods());
+    }
+
+    @Test
+    void removingTheEndTakesBackAResignation() {
+        item(RefKind.END_REASON, "resignation", true);
+        String id = service.start(minimal("alice", "2026-04-01")).employment().id();
+        assignment("open", "a1", id, "2026-04-01", null);
+        service.end(id, "2027-04-01", "resignation");
+
+        EmploymentView view = service.removeEnd(id);
+
+        assertNull(view.employment().period().to());
+        assertNull(view.employment().endReasonId());
+        assertEquals(List.of("2026-04-01 null ACTIVE"), statuses(view));
+        assertEquals(List.of("open 2026-04-01 2027-04-01"), assignmentPeriods());
+        assertEquals("employment.not_found",
+                assertThrows(FuhitoException.class, () -> service.removeEnd("nope")).code());
+    }
+
+    @Test
+    void aSecondEndMayKeepADeactivatedReason() {
+        RefItem reason = item(RefKind.END_REASON, "old-reason", true);
+        String id = service.start(minimal("alice", "2026-04-01")).employment().id();
+        service.end(id, "2027-04-01", "old-reason");
+        refItems.update(new RefItem(reason.id(), RefKind.END_REASON, "old-reason", "old", Map.of(), 0, Map.of(),
+                false));
+
+        assertEquals("old-reason", service.end(id, "2027-03-01", "old-reason").endReason());
+        assertNull(service.end(id, "2027-02-01", null).endReason());
+    }
+
+    @Test
+    void rejectsABadEnd() {
+        item(RefKind.END_REASON, "retired-reason", false);
+        String id = service.start(minimal("alice", "2026-04-01")).employment().id();
+
+        assertEquals("invalid.required",
+                assertThrows(FuhitoException.class, () -> service.end(id, null, null)).code());
+        assertEquals("employment.not_found",
+                assertThrows(FuhitoException.class, () -> service.end("nope", "2027-04-01", null)).code());
+        for (String date : new String[] {"2026-04-01", "2026-03-01"}) {
+            FuhitoException e = assertThrows(FuhitoException.class, () -> service.end(id, date, null));
+            assertEquals(FuhitoException.Reason.NOT_FOUND, e.reason());
+            assertEquals("employment.not_valid_on", e.code());
+        }
+        for (String reason : new String[] {"nope", "retired-reason"}) {
+            assertEquals("ref_item.unknown",
+                    assertThrows(FuhitoException.class, () -> service.end(id, "2027-04-01", reason)).code());
+        }
+        assertNull(service.get(id).employment().period().to());
     }
 
     @Test

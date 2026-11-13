@@ -48,4 +48,14 @@ final class MemoryEmploymentStore implements EmploymentStore {
     public void updateTerms(EmploymentTerms changed) {
         terms.replaceAll(t -> t.id().equals(changed.id()) ? changed : t);
     }
+
+    @Override
+    public void update(Employment employment) {
+        employments.put(employment.id(), employment);
+    }
+
+    @Override
+    public void deleteTerms(String termsId) {
+        terms.removeIf(t -> t.id().equals(termsId));
+    }
 }

@@ -36,4 +36,9 @@ final class MemoryAssignmentStore implements AssignmentStore {
     public void update(Assignment row) {
         rows.replaceAll(r -> r.rowId().equals(row.rowId()) ? row : r);
     }
+
+    @Override
+    public void delete(String rowId) {
+        rows.removeIf(r -> r.rowId().equals(rowId));
+    }
 }

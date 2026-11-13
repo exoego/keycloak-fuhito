@@ -55,4 +55,18 @@ public interface EmploymentStore {
      * @param terms the terms
      */
     void updateTerms(EmploymentTerms terms);
+
+    /**
+     * Stores the new state of an existing employment.
+     *
+     * @param employment the employment
+     */
+    void update(Employment employment);
+
+    /**
+     * Removes terms.
+     *
+     * @param termsId the ID of the terms
+     */
+    void deleteTerms(String termsId);
 }

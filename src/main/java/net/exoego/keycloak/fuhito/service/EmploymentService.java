@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import net.exoego.keycloak.fuhito.domain.Assignment;
 import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.Employment;
 import net.exoego.keycloak.fuhito.domain.EmploymentStatus;
@@ -13,6 +14,7 @@ import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.RefItem;
 import net.exoego.keycloak.fuhito.domain.RefKind;
 import net.exoego.keycloak.fuhito.domain.ValidPeriod;
+import net.exoego.keycloak.fuhito.store.AssignmentStore;
 import net.exoego.keycloak.fuhito.store.EmploymentStore;
 import net.exoego.keycloak.fuhito.store.RefItemStore;
 import net.exoego.keycloak.fuhito.store.UserDirectory;
@@ -23,6 +25,7 @@ import net.exoego.keycloak.fuhito.store.UserDirectory;
 public class EmploymentService {
 
     private final EmploymentStore store;
+    private final AssignmentStore assignments;
     private final RefItemStore refItems;
     private final UserDirectory users;
 
@@ -30,11 +33,14 @@ public class EmploymentService {
      * Creates the service.
      *
      * @param store the storage of employments of the realm
+     * @param assignments the storage of assignments of the realm
      * @param refItems the storage of reference items of the realm
      * @param users the users of the realm
      */
-    public EmploymentService(EmploymentStore store, RefItemStore refItems, UserDirectory users) {
+    public EmploymentService(EmploymentStore store, AssignmentStore assignments, RefItemStore refItems,
+            UserDirectory users) {
         this.store = store;
+        this.assignments = assignments;
         this.refItems = refItems;
         this.users = users;
     }
@@ -118,6 +124,70 @@ public class EmploymentService {
         return new EmploymentTerms(termsId, employmentId, period, idOf(employmentType), idOf(grade), status,
                 Checks.optionalPercent("workPercent", values.workPercent()),
                 values.attributes() == null ? Map.of() : values.attributes());
+    }
+
+    /**
+     * Sets the end of an employment.
+     * An earlier end is how a person leaves. It also ends the terms and the assignments on that date,
+     * and removes stored changes that would start on or after it.
+     * A later end extends a fixed-term employment and its last terms. It does not extend assignments.
+     *
+     * @param id the ID of the employment
+     * @param validTo the first date on which the employment no longer holds, as {@code YYYY-MM-DD}
+     * @param endReason the code of the end reason, or null
+     * @return the employment with all its terms
+     * @throws FuhitoException when the date is not after the start of the employment or a value is bad
+     */
+    public EmploymentView end(String id, String validTo, String endReason) {
+        LocalDate to = Checks.date("validTo", validTo);
+        Employment employment = get(id).employment();
+        if (!to.isAfter(employment.period().from())) {
+            throw FuhitoException.notFound("employment.not_valid_on", Map.of("id", id, "date", validTo));
+        }
+        RefItem reason = usableItem(RefKind.END_REASON, endReason, employment.endReasonId());
+        setEnd(employment, to, idOf(reason));
+        return get(id);
+    }
+
+    /**
+     * Removes the end of an employment, for example to take back a resignation.
+     * The last terms get no end either. Assignments stay as they are.
+     *
+     * @param id the ID of the employment
+     * @return the employment with all its terms
+     * @throws FuhitoException when the employment does not exist
+     */
+    public EmploymentView removeEnd(String id) {
+        setEnd(get(id).employment(), null, null);
+        return get(id);
+    }
+
+    private void setEnd(Employment employment, LocalDate to, String endReasonId) {
+        String id = employment.id();
+        store.update(new Employment(id, employment.userId(), employment.period().endingAt(to),
+                employment.staffNumber(), endReasonId, employment.externalId(), employment.source()));
+
+        List<EmploymentTerms> terms = store.terms(id);
+        if (to != null) {
+            terms.stream().filter(t -> !t.period().from().isBefore(to)).forEach(t -> store.deleteTerms(t.id()));
+        }
+        EmploymentTerms last = terms.stream()
+                .filter(t -> to == null || t.period().from().isBefore(to))
+                .reduce((first, second) -> second)
+                .orElseThrow();
+        store.updateTerms(new EmploymentTerms(last.id(), id, last.period().endingAt(to), last.employmentTypeId(),
+                last.gradeId(), last.status(), last.workPercent(), last.attributes()));
+
+        if (to == null) {
+            return;
+        }
+        for (Assignment row : assignments.rowsOfEmployment(id)) {
+            if (!row.period().from().isBefore(to)) {
+                assignments.delete(row.rowId());
+            } else if (row.period().to() == null || row.period().to().isAfter(to)) {
+                assignments.update(row.withPeriod(row.period().endingAt(to)));
+            }
+        }
     }
 
     /**

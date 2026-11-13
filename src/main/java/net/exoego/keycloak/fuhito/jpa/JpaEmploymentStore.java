@@ -63,6 +63,27 @@ public class JpaEmploymentStore implements EmploymentStore {
     }
 
     @Override
+    public void update(Employment employment) {
+        EmploymentEntity entity = em.find(EmploymentEntity.class, employment.id());
+        if (entity == null || !entity.realmId.equals(realmId)) {
+            throw new IllegalStateException("No such employment in the realm: " + employment.id());
+        }
+        entity.validFrom = employment.period().from();
+        entity.validTo = employment.period().to();
+        entity.staffNumber = employment.staffNumber();
+        entity.endReasonId = employment.endReasonId();
+    }
+
+    @Override
+    public void deleteTerms(String termsId) {
+        EmploymentTermsEntity entity = em.find(EmploymentTermsEntity.class, termsId);
+        if (entity != null && entity.realmId.equals(realmId)) {
+            em.remove(entity);
+            em.flush();
+        }
+    }
+
+    @Override
     public List<EmploymentTerms> terms(String employmentId) {
         return em.createQuery("select t from EmploymentTermsEntity t where t.realmId = :realmId"
                         + " and t.employmentId = :employmentId order by t.validFrom", EmploymentTermsEntity.class)

@@ -70,7 +70,7 @@ public class FuhitoResource {
     @Path("employments")
     public EmploymentsResource employments() {
         return new EmploymentsResource(context, new EmploymentService(new JpaEmploymentStore(entityManager, realmId),
-                new JpaRefItemStore(entityManager, realmId), users));
+                new JpaAssignmentStore(entityManager, realmId), new JpaRefItemStore(entityManager, realmId), users));
     }
 
     /**

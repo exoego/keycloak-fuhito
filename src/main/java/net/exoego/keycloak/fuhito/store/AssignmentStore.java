@@ -38,4 +38,11 @@ public interface AssignmentStore {
      * @param row the row
      */
     void update(Assignment row);
+
+    /**
+     * Removes a row.
+     *
+     * @param rowId the ID of the row
+     */
+    void delete(String rowId);
 }
