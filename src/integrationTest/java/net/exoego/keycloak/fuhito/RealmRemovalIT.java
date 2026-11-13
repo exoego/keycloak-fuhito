@@ -10,7 +10,8 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 class RealmRemovalIT {
 
     private static final List<String> TABLES = List.of("fuhito_hierarchy", "fuhito_ref_item", "fuhito_org_unit",
-            "fuhito_org_unit_version", "fuhito_org_unit_link", "fuhito_employment", "fuhito_employment_terms");
+            "fuhito_org_unit_version", "fuhito_org_unit_link", "fuhito_employment", "fuhito_employment_terms",
+            "fuhito_assignment");
 
     // A new table must be added to this test and to the cleanup. This test fails until that is done.
     @Test
@@ -50,7 +51,11 @@ class RealmRemovalIT {
         assertEquals(201, parent.statusCode(), parent.body());
         assertEquals(201, api.post("/org-units", "{\"name\": \"C\", \"parentId\": \""
                 + Api.json(parent).get("id").asText() + "\", \"validFrom\": \"2026-04-01\"}").statusCode());
-        assertEquals(201, api.post("/employments", "{\"userId\": \"" + realm.user("staff")
+        var employment = api.post("/employments", "{\"userId\": \"" + realm.user("staff")
+                + "\", \"validFrom\": \"2026-04-01\"}");
+        assertEquals(201, employment.statusCode(), employment.body());
+        assertEquals(201, api.post("/assignments", "{\"employmentId\": \"" + Api.json(employment).get("id").asText()
+                + "\", \"orgUnitId\": \"" + Api.json(parent).get("id").asText()
                 + "\", \"validFrom\": \"2026-04-01\"}").statusCode());
     }
 
