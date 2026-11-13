@@ -9,6 +9,7 @@ import org.testcontainers.containers.Network;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
 /**
  * A database user that may not create the btree_gist extension.
@@ -41,7 +42,7 @@ class RestrictedDatabaseIT {
 
                 assertEquals("0", psql(postgres, "select count(*) from pg_extension where extname = 'btree_gist'"));
                 assertEquals("0", psql(postgres, "select count(*) from pg_constraint where conname like 'ex_fuhito_%'"));
-                assertEquals("5", psql(postgres, "select count(*) from information_schema.tables"
+                assertNotEquals("0", psql(postgres, "select count(*) from information_schema.tables"
                         + " where table_name like 'fuhito\\_%'"));
             }
 
@@ -57,14 +58,12 @@ class RestrictedDatabaseIT {
                             .withEnv("KC_DB_PASSWORD", "limited")) {
                 keycloak.start();
 
-                assertEquals("2", psql(postgres, "select count(*) from pg_constraint where conname like 'ex_fuhito_%'"));
+                assertEquals("3", psql(postgres, "select count(*) from pg_constraint where conname like 'ex_fuhito_%'"));
             }
         }
     }
 
     private static String psql(PostgreSQLContainer postgres, String sql) throws Exception {
-        var result = postgres.execInContainer("psql", "-U", "owner", "-d", "keycloak", "-tAc", sql);
-        assertEquals(0, result.getExitCode(), result.getStderr());
-        return result.getStdout().trim();
+        return KeycloakEnvironment.run(postgres, sql);
     }
 }

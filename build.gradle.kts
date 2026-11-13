@@ -63,6 +63,8 @@ testing {
             dependencies {
                 implementation(libs.testcontainers.keycloak)
                 implementation(libs.testcontainers.postgresql)
+                implementation(platform(libs.keycloak.parent))
+                runtimeOnly(libs.postgresql)
                 runtimeOnly(libs.slf4j.simple)
             }
             targets.all {
@@ -71,6 +73,8 @@ testing {
                     systemProperty("keycloak.version", testKeycloakVersion.get())
                     systemProperty("provider.jar", tasks.jar.get().archiveFile.get().asFile.absolutePath)
                     shouldRunAfter(tasks.test)
+                    // A hung container call must fail the build, not block it.
+                    timeout.set(java.time.Duration.ofMinutes(15))
                 }
             }
         }

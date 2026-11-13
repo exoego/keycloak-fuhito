@@ -1,5 +1,6 @@
 package net.exoego.keycloak.fuhito.domain;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
 import java.util.IllformedLocaleException;
@@ -22,6 +23,8 @@ public final class Checks {
      * The longest name, in characters.
      */
     public static final int MAX_NAME_LENGTH = 255;
+
+    private static final BigDecimal HUNDRED = BigDecimal.valueOf(100);
 
     private static final Pattern CODE = Pattern.compile("[A-Za-z0-9][A-Za-z0-9_.-]*");
 
@@ -130,6 +133,62 @@ public final class Checks {
      */
     public static LocalDate date(String field, String value) {
         return optionalDate(field, required(field, value));
+    }
+
+    /**
+     * Builds a period from two dates.
+     *
+     * @param from the first date
+     * @param to the first date after the period, or null for no end
+     * @return the period
+     * @throws FuhitoException when the end is not after the start
+     */
+    public static ValidPeriod period(LocalDate from, LocalDate to) {
+        if (to != null && !to.isAfter(from)) {
+            throw FuhitoException.invalid("invalid.period", Map.of("validFrom", from.toString(), "validTo",
+                    to.toString()));
+        }
+        return new ValidPeriod(from, to);
+    }
+
+    /**
+     * Checks a share of full-time work in percent.
+     *
+     * @param field the name of the field, for the error
+     * @param value the percentage, or null
+     * @return the percentage, or null
+     * @throws FuhitoException when the value is not above 0, is above 100, or has more than 2 decimals
+     */
+    public static BigDecimal optionalPercent(String field, BigDecimal value) {
+        if (value == null) {
+            return null;
+        }
+        if (value.signum() <= 0 || value.compareTo(HUNDRED) > 0 || value.stripTrailingZeros().scale() > 2) {
+            throw FuhitoException.invalid("invalid.percent", Map.of("field", field, "value", value.toPlainString()));
+        }
+        return value;
+    }
+
+    /**
+     * Reads the name of an enum constant.
+     *
+     * @param <E> the enum type
+     * @param field the name of the field, for the error
+     * @param type the enum type
+     * @param value the name, or null
+     * @param fallback the result when the name is null
+     * @return the constant
+     * @throws FuhitoException when the enum has no such constant
+     */
+    public static <E extends Enum<E>> E optionalEnum(String field, Class<E> type, String value, E fallback) {
+        if (value == null) {
+            return fallback;
+        }
+        try {
+            return Enum.valueOf(type, value);
+        } catch (IllegalArgumentException e) {
+            throw FuhitoException.invalid("invalid.choice", Map.of("field", field, "value", value));
+        }
     }
 
     /**

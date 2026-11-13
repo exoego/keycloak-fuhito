@@ -11,6 +11,8 @@ public final class RealmData {
 
     // Children come before the rows they refer to.
     private static final List<String> ENTITIES = List.of(
+            "EmploymentTermsEntity",
+            "EmploymentEntity",
             "OrgUnitLinkEntity",
             "OrgUnitVersionEntity",
             "OrgUnitEntity",
