@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import net.exoego.keycloak.fuhito.domain.Assignment;
 import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.OrgUnit;
@@ -15,6 +16,7 @@ import net.exoego.keycloak.fuhito.domain.OrgUnitVersion;
 import net.exoego.keycloak.fuhito.domain.RefItem;
 import net.exoego.keycloak.fuhito.domain.RefKind;
 import net.exoego.keycloak.fuhito.domain.ValidPeriod;
+import net.exoego.keycloak.fuhito.store.AssignmentStore;
 import net.exoego.keycloak.fuhito.store.OrgUnitStore;
 import net.exoego.keycloak.fuhito.store.RefItemStore;
 
@@ -24,6 +26,7 @@ import net.exoego.keycloak.fuhito.store.RefItemStore;
 public class OrgUnitService {
 
     private final OrgUnitStore store;
+    private final AssignmentStore assignments;
     private final RefItemStore refItems;
     private final Clock clock;
 
@@ -31,11 +34,13 @@ public class OrgUnitService {
      * Creates the service.
      *
      * @param store the storage of org units of the realm
+     * @param assignments the storage of assignments of the realm
      * @param refItems the storage of reference items of the realm
      * @param clock the clock that decides what "today" is
      */
-    public OrgUnitService(OrgUnitStore store, RefItemStore refItems, Clock clock) {
+    public OrgUnitService(OrgUnitStore store, AssignmentStore assignments, RefItemStore refItems, Clock clock) {
         this.store = store;
+        this.assignments = assignments;
         this.refItems = refItems;
         this.clock = clock;
     }
@@ -156,8 +161,8 @@ public class OrgUnitService {
      * @param id the ID
      * @param validTo the first date on which the unit no longer exists, as {@code YYYY-MM-DD}
      * @return the unit as it is on its last date
-     * @throws FuhitoException when the unit has an end already, has changes or children on or after the date,
-     *         or does not exist before the date
+     * @throws FuhitoException when the unit has an end already, has changes, children, or assignments on or after
+     *         the date, or does not exist before the date
      */
     public OrgUnitState end(String id, String validTo) {
         LocalDate to = Checks.date("validTo", validTo);
@@ -187,6 +192,16 @@ public class OrgUnitService {
         if (children > 0) {
             throw FuhitoException.conflict("org_unit.has_children",
                     Map.of("id", id, "validTo", validTo, "count", Long.toString(children)));
+        }
+
+        long staffed = assignments.rowsOfOrgUnit(id).stream()
+                .filter(row -> row.period().to() == null || row.period().to().isAfter(to))
+                .map(Assignment::assignmentId)
+                .distinct()
+                .count();
+        if (staffed > 0) {
+            throw FuhitoException.conflict("org_unit.has_assignments",
+                    Map.of("id", id, "validTo", validTo, "count", Long.toString(staffed)));
         }
 
         store.updateVersion(withPeriod(last, last.period().endingAt(to)));

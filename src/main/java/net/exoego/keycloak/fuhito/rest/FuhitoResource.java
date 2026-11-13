@@ -91,7 +91,8 @@ public class FuhitoResource {
     @Path("org-units")
     public OrgUnitsResource orgUnits() {
         return new OrgUnitsResource(context, new OrgUnitService(new JpaOrgUnitStore(entityManager, realmId),
-                new JpaRefItemStore(entityManager, realmId), Clock.systemDefaultZone()));
+                new JpaAssignmentStore(entityManager, realmId), new JpaRefItemStore(entityManager, realmId),
+                Clock.systemDefaultZone()));
     }
 
     /**

@@ -49,6 +49,17 @@ public class JpaAssignmentStore implements AssignmentStore {
     }
 
     @Override
+    public List<Assignment> rowsOfOrgUnit(String orgUnitId) {
+        return em.createQuery("select a from AssignmentEntity a where a.realmId = :realmId"
+                        + " and a.orgUnitId = :orgUnitId order by a.validFrom, a.id", AssignmentEntity.class)
+                .setParameter("realmId", realmId)
+                .setParameter("orgUnitId", orgUnitId)
+                .getResultStream()
+                .map(JpaAssignmentStore::toDomain)
+                .toList();
+    }
+
+    @Override
     public void insert(Assignment row) {
         AssignmentEntity entity = new AssignmentEntity();
         entity.id = row.rowId();
