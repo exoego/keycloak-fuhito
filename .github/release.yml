@@ -1,0 +1,16 @@
+# Categories for the release notes that GitHub generates, keyed on pull request labels.
+# https://docs.github.com/en/repositories/releasing-projects-on-github/automatically-generated-release-notes
+changelog:
+  categories:
+    - title: New features
+      labels:
+        - feature
+    - title: Bug fixes
+      labels:
+        - bug
+    - title: Chores
+      labels:
+        - chore
+    - title: Other changes
+      labels:
+        - "*"

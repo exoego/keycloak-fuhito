@@ -1,0 +1,31 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended"
+  ],
+  "minimumReleaseAge": "7 days",
+  "osvVulnerabilityAlerts": true,
+  "automerge": true,
+  "labels": [
+    "chore"
+  ],
+  "packageRules": [
+    {
+      "description": "Pick a new Java major by hand",
+      "matchDatasources": [
+        "java-version"
+      ],
+      "matchUpdateTypes": [
+        "major"
+      ],
+      "enabled": false
+    },
+    {
+      "description": "Keycloak changes its internal APIs between minor versions, so check each update by hand",
+      "matchPackageNames": [
+        "org.keycloak:**"
+      ],
+      "automerge": false
+    }
+  ]
+}
