@@ -53,7 +53,8 @@ public class EmploymentsResource {
         return Calls.run(context, () -> {
             Checks.required("body", body);
             var employment = EmploymentRepresentation.of(service.start(body.toNewEmployment()));
-            context.recordChange(Change.CREATE, RESOURCE_TYPE, "fuhito/employments/" + employment.id(), employment);
+            context.recordChange(Change.CREATE, RESOURCE_TYPE, employment.id(), "fuhito/employments/" + employment.id(),
+                    employment);
             return Response.status(Response.Status.CREATED).entity(employment).build();
         });
     }
@@ -74,7 +75,7 @@ public class EmploymentsResource {
             Checks.required("body", body);
             var employment = EmploymentRepresentation.of(service.changeTerms(id, new TermsChange(body.validFrom(),
                     body.employmentType(), body.grade(), body.status(), body.workPercent(), body.attributes())));
-            context.recordChange(Change.UPDATE, RESOURCE_TYPE, "fuhito/employments/" + id + "/terms", employment);
+            context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, "fuhito/employments/" + id + "/terms", employment);
             return employment;
         });
     }
@@ -95,7 +96,7 @@ public class EmploymentsResource {
         return Calls.run(context, () -> {
             Checks.required("body", body);
             var employment = EmploymentRepresentation.of(service.end(id, body.validTo(), body.endReason()));
-            context.recordChange(Change.UPDATE, RESOURCE_TYPE, "fuhito/employments/" + id + "/end", employment);
+            context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, "fuhito/employments/" + id + "/end", employment);
             return employment;
         });
     }
@@ -112,7 +113,7 @@ public class EmploymentsResource {
         context.requireWrite();
         return Calls.run(context, () -> {
             var employment = EmploymentRepresentation.of(service.removeEnd(id));
-            context.recordChange(Change.UPDATE, RESOURCE_TYPE, "fuhito/employments/" + id + "/end", employment);
+            context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, "fuhito/employments/" + id + "/end", employment);
             return employment;
         });
     }

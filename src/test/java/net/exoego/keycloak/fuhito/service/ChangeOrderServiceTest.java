@@ -4,12 +4,15 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import net.exoego.keycloak.fuhito.domain.ChangeLogEntry;
 import net.exoego.keycloak.fuhito.domain.ChangeOrder;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
+import net.exoego.keycloak.fuhito.store.ChangeLogStore;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -22,8 +25,30 @@ class ChangeOrderServiceTest {
     private static final Instant NOW = Instant.parse("2026-03-20T01:02:03.123456789Z");
 
     private final MemoryChangeOrderStore store = new MemoryChangeOrderStore();
-    private final ChangeOrderService service = new ChangeOrderService(store, Set.of("director", "hr")::contains,
-            Clock.fixed(NOW, ZoneOffset.UTC));
+    private final Set<String> ordersWithWrites = new HashSet<>();
+    private final ChangeLogStore changeLog = new ChangeLogStore() {
+        @Override
+        public void append(ChangeLogEntry entry) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public List<ChangeLogEntry> listByResource(String resourceType, String resourceId, int first, int max) {
+            return List.of();
+        }
+
+        @Override
+        public List<ChangeLogEntry> listByChangeOrder(String changeOrderId, int first, int max) {
+            return List.of();
+        }
+
+        @Override
+        public boolean existsForChangeOrder(String changeOrderId) {
+            return ordersWithWrites.contains(changeOrderId);
+        }
+    };
+    private final ChangeOrderService service = new ChangeOrderService(store, changeLog,
+            Set.of("director", "hr")::contains, Clock.fixed(NOW, ZoneOffset.UTC));
 
     private static ChangeOrderValues titled(String title, String effectiveDate) {
         return new ChangeOrderValues(null, null, title, null, null, effectiveDate, null, null, null);
@@ -130,6 +155,18 @@ class ChangeOrderServiceTest {
                 assertThrows(FuhitoException.class, () -> service.delete(order.id())).code());
         assertEquals("change_order.not_found", assertThrows(FuhitoException.class,
                 () -> service.update(order.id(), titled("x", "2026-04-01"))).code());
+    }
+
+    @Test
+    void doesNotDeleteAnOrderWithWrites() {
+        ChangeOrder order = service.create(titled("Used", "2026-04-01"));
+        ordersWithWrites.add(order.id());
+
+        FuhitoException e = assertThrows(FuhitoException.class, () -> service.delete(order.id()));
+
+        assertEquals(FuhitoException.Reason.CONFLICT, e.reason());
+        assertEquals("change_order.in_use", e.code());
+        assertEquals(order, service.get(order.id()));
     }
 
     @Test

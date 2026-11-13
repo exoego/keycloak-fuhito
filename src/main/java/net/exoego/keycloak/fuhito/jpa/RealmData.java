@@ -11,6 +11,7 @@ public final class RealmData {
 
     // Children come before the rows they refer to.
     private static final List<String> ENTITIES = List.of(
+            "ChangeLogEntity",
             "ChangeOrderEntity",
             "AssignmentEntity",
             "EmploymentTermsEntity",
@@ -48,6 +49,16 @@ public final class RealmData {
     public static void deleteUser(EntityManager em, String realmId, String userId) {
         String employmentsOfUser = "(select e.id from EmploymentEntity e where e.realmId = :realmId"
                 + " and e.userId = :userId)";
+        // The change log keeps the ID of a removed user as the actor of a write.
+        // It does not keep the entries about the employments and assignments of that user.
+        em.createQuery("delete from ChangeLogEntity l where l.realmId = :realmId"
+                        + " and ((l.resourceType = 'FUHITO_EMPLOYMENT' and l.resourceId in " + employmentsOfUser + ")"
+                        + " or (l.resourceType = 'FUHITO_ASSIGNMENT' and l.resourceId in"
+                        + " (select a.assignmentId from AssignmentEntity a where a.realmId = :realmId"
+                        + " and a.employmentId in " + employmentsOfUser + ")))")
+                .setParameter("realmId", realmId)
+                .setParameter("userId", userId)
+                .executeUpdate();
         for (String entity : List.of("AssignmentEntity", "EmploymentTermsEntity")) {
             em.createQuery("delete from " + entity + " x where x.realmId = :realmId and x.employmentId in "
                             + employmentsOfUser)

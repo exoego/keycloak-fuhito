@@ -10,6 +10,7 @@ import java.util.UUID;
 import net.exoego.keycloak.fuhito.domain.ChangeOrder;
 import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
+import net.exoego.keycloak.fuhito.store.ChangeLogStore;
 import net.exoego.keycloak.fuhito.store.ChangeOrderStore;
 import net.exoego.keycloak.fuhito.store.UserDirectory;
 
@@ -19,6 +20,7 @@ import net.exoego.keycloak.fuhito.store.UserDirectory;
 public class ChangeOrderService {
 
     private final ChangeOrderStore store;
+    private final ChangeLogStore changeLog;
     private final UserDirectory users;
     private final Clock clock;
 
@@ -26,11 +28,13 @@ public class ChangeOrderService {
      * Creates the service.
      *
      * @param store the storage of change orders of the realm
+     * @param changeLog the storage of the change log of the realm
      * @param users the users of the realm
      * @param clock the clock for the time of creation
      */
-    public ChangeOrderService(ChangeOrderStore store, UserDirectory users, Clock clock) {
+    public ChangeOrderService(ChangeOrderStore store, ChangeLogStore changeLog, UserDirectory users, Clock clock) {
         this.store = store;
+        this.changeLog = changeLog;
         this.users = users;
         this.clock = clock;
     }
@@ -88,13 +92,16 @@ public class ChangeOrderService {
     }
 
     /**
-     * Deletes a change order.
+     * Deletes a change order. A change order with writes in the change log cannot be deleted.
      *
      * @param id the ID
-     * @throws FuhitoException when the order does not exist
+     * @throws FuhitoException when the order does not exist or has writes
      */
     public void delete(String id) {
         get(id);
+        if (changeLog.existsForChangeOrder(id)) {
+            throw FuhitoException.conflict("change_order.in_use", Map.of("id", id));
+        }
         store.delete(id);
     }
 

@@ -54,6 +54,7 @@ When a realm is removed, the extension deletes every row of that realm in the sa
 
 When a user is removed, the extension deletes the employments of that user in the same transaction.
 The terms and the assignments of those employments go with them.
+So do the change log entries about them.
 This removes the history of the person too.
 To keep the history of a person who left, end the employment and disable the user. Do not remove the user.
 
@@ -106,6 +107,8 @@ Clients in another time zone should always send `asOf`.
 | `/users/{userId}/assignments` | Where a user works on a date |
 | `/users/{userId}/history` | Every employment and assignment of a user |
 | `/change-orders` | Approved instructions that cause changes, with their approver |
+| `/change-orders/{id}/changes` | The writes that belong to a change order |
+| `/change-log` | The writes to one resource |
 | `/hierarchies` | The hierarchies of the realm |
 
 ## Admin events
@@ -123,6 +126,24 @@ The realm stores the events when admin events are turned on in its settings.
 
 The event has the new state as its representation when the realm keeps representations.
 A failed request records no event.
+
+## Change log
+
+Every successful write also adds an entry to the change log of the extension.
+The log is kept whether or not the realm stores admin events.
+
+An entry has the time, the user who did the write, the resource type, the resource ID, the operation, the path, and the state of the resource after the write.
+Entries are only added. No endpoint changes or removes one.
+
+A write belongs to a change order when its request has the query parameter `changeOrder` with the ID of the order.
+For example, `PUT /org-units/{id}/end?changeOrder={orderId}`.
+A request that names an unknown change order gets 400 and writes nothing.
+
+The valid period of a row says when a fact is true.
+The change log says when the system learned it, from whom, and under which approval.
+
+When a user is removed, the log loses the entries about the employments and assignments of that user.
+It keeps the entries that the user wrote as an administrator.
 
 ## Errors
 

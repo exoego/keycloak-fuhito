@@ -371,4 +371,46 @@
             <column name="EFFECTIVE_DATE"/>
         </createIndex>
     </changeSet>
+    <changeSet id="0.1.0-change-log" author="keycloak-fuhito">
+        <createTable tableName="FUHITO_CHANGE_LOG">
+            <column name="ID" type="VARCHAR(36)">
+                <constraints primaryKey="true" primaryKeyName="PK_FUHITO_CHANGE_LOG" nullable="false"/>
+            </column>
+            <column name="REALM_ID" type="VARCHAR(36)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="SEQUENCE_NUMBER" type="BIGINT" autoIncrement="true">
+                <constraints nullable="false" unique="true" uniqueConstraintName="UK_FUHITO_CHANGE_LOG_SEQUENCE"/>
+            </column>
+            <column name="RECORDED_AT" type="TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="ACTOR_USER_ID" type="VARCHAR(255)"/>
+            <column name="RESOURCE_TYPE" type="VARCHAR(64)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="RESOURCE_ID" type="VARCHAR(36)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="OPERATION" type="VARCHAR(16)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="RESOURCE_PATH" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="CHANGE_ORDER_ID" type="VARCHAR(36)"/>
+            <column name="REPRESENTATION" type="CLOB"/>
+        </createTable>
+        <addForeignKeyConstraint baseTableName="FUHITO_CHANGE_LOG" baseColumnNames="CHANGE_ORDER_ID"
+                                 referencedTableName="FUHITO_CHANGE_ORDER" referencedColumnNames="ID"
+                                 constraintName="FK_FUHITO_CHANGE_LOG_ORDER"/>
+        <createIndex tableName="FUHITO_CHANGE_LOG" indexName="IDX_FUHITO_CHANGE_LOG_RESOURCE">
+            <column name="REALM_ID"/>
+            <column name="RESOURCE_TYPE"/>
+            <column name="RESOURCE_ID"/>
+        </createIndex>
+        <createIndex tableName="FUHITO_CHANGE_LOG" indexName="IDX_FUHITO_CHANGE_LOG_ORDER">
+            <column name="CHANGE_ORDER_ID"/>
+        </createIndex>
+    </changeSet>
 </databaseChangeLog>

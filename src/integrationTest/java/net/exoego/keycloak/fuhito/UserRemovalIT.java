@@ -22,7 +22,21 @@ class UserRemovalIT {
         assertEquals("6", rows("fuhito_employment_terms", realmId));
         assertEquals("6", rows("fuhito_assignment", realmId));
 
+        String logOfRemoved = "/change-log?resourceType=FUHITO_EMPLOYMENT&resourceId=" + removedIds.get(0);
+        String logOfKept = "/change-log?resourceType=FUHITO_EMPLOYMENT&resourceId=" + keptIds.get(0);
+        assertEquals(2, Api.json(api.get(logOfRemoved)).size());
+        String logRows = "select count(*) from fuhito_change_log where realm_id = '" + realmId + "'";
+        String rowsBefore = KeycloakEnvironment.sql(logRows);
+
         realm.removeUser(removed);
+
+        // The log loses the entries about the removed user and keeps the others.
+        assertEquals(0, Api.json(api.get(logOfRemoved)).size());
+        assertEquals(2, Api.json(api.get(logOfKept)).size());
+        assertEquals(1, Api.json(api.get("/change-log?resourceType=FUHITO_ORG_UNIT&resourceId=" + unit)).size());
+        // Each user had 3 employment entries and 3 assignment entries. The org unit has 1.
+        assertEquals("13", rowsBefore);
+        assertEquals("7", KeycloakEnvironment.sql(logRows));
 
         assertEquals("2", rows("fuhito_employment", realmId));
         assertEquals("3", rows("fuhito_employment_terms", realmId));

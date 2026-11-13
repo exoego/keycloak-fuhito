@@ -15,6 +15,7 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.rest.RequestContext.Change;
+import net.exoego.keycloak.fuhito.service.ChangeLogService;
 import net.exoego.keycloak.fuhito.service.ChangeOrderService;
 
 /**
@@ -31,16 +32,38 @@ public class ChangeOrdersResource {
 
     private final RequestContext context;
     private final ChangeOrderService service;
+    private final ChangeLogService changeLog;
 
     /**
      * Creates the resource for one request.
      *
      * @param context the request and its caller
      * @param service the operations on the realm of the request
+     * @param changeLog the reads of the change log of the realm
      */
-    public ChangeOrdersResource(RequestContext context, ChangeOrderService service) {
+    public ChangeOrdersResource(RequestContext context, ChangeOrderService service, ChangeLogService changeLog) {
         this.context = context;
         this.service = service;
+        this.changeLog = changeLog;
+    }
+
+    /**
+     * Lists the writes that belong to a change order, oldest first.
+     * A write belongs to a change order when its request had the query parameter {@code changeOrder}.
+     *
+     * @param id the ID of the change order
+     * @param first the number of entries to skip. The default is 0.
+     * @param max the largest number of entries to return. The default is 100.
+     * @return the entries
+     */
+    @GET
+    @Path("{id}/changes")
+    public List<ChangeLogRepresentation> changes(@PathParam("id") String id, @QueryParam("first") Integer first,
+            @QueryParam("max") Integer max) {
+        context.requireRead();
+        return Calls.run(context, () -> changeLog.ofChangeOrder(id, first, max).stream()
+                .map(ChangeLogRepresentation::of)
+                .toList());
     }
 
     /**
@@ -82,7 +105,7 @@ public class ChangeOrdersResource {
         return Calls.run(context, () -> {
             Checks.required("body", body);
             var order = ChangeOrderRepresentation.of(service.create(body.toValues()));
-            context.recordChange(Change.CREATE, RESOURCE_TYPE, path(order.id()), order);
+            context.recordChange(Change.CREATE, RESOURCE_TYPE, order.id(), path(order.id()), order);
             return Response.status(Response.Status.CREATED).entity(order).build();
         });
     }
@@ -101,13 +124,13 @@ public class ChangeOrdersResource {
         return Calls.run(context, () -> {
             Checks.required("body", body);
             var order = ChangeOrderRepresentation.of(service.update(id, body.toValues()));
-            context.recordChange(Change.UPDATE, RESOURCE_TYPE, path(id), order);
+            context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, path(id), order);
             return order;
         });
     }
 
     /**
-     * Deletes a change order.
+     * Deletes a change order. A change order with writes cannot be deleted.
      *
      * @param id the ID
      * @return 204
@@ -118,7 +141,7 @@ public class ChangeOrdersResource {
         context.requireWrite();
         return Calls.run(context, () -> {
             service.delete(id);
-            context.recordChange(Change.DELETE, RESOURCE_TYPE, path(id), null);
+            context.recordChange(Change.DELETE, RESOURCE_TYPE, id, path(id), null);
             return Response.noContent().build();
         });
     }
