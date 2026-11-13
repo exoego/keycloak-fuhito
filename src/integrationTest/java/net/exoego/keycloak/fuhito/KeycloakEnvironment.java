@@ -8,6 +8,7 @@ import org.testcontainers.containers.Network;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
 /**
  * One Keycloak with the provider jar and one PostgreSQL, shared by all integration tests of a run.
@@ -45,5 +46,12 @@ final class KeycloakEnvironment {
         var result = POSTGRES.execInContainer("psql", "-U", "keycloak", "-d", "keycloak", "-tAc", sql);
         assertEquals(0, result.getExitCode(), result.getStderr());
         return result.getStdout().trim();
+    }
+
+    /** Runs a statement that must fail, and returns the error of the database. */
+    static String sqlError(String sql) throws Exception {
+        var result = POSTGRES.execInContainer("psql", "-U", "keycloak", "-d", "keycloak", "-tAc", sql);
+        assertNotEquals(0, result.getExitCode(), result.getStdout());
+        return result.getStderr();
     }
 }

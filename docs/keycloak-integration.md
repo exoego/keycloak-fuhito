@@ -24,6 +24,26 @@ When Keycloak changes one of them, only that package needs a change.
 - Liquibase creates and updates the tables when Keycloak starts.
 - The changelog is `META-INF/fuhito/changelog.xml` in the jar.
 
+## Overlap rules in PostgreSQL
+
+The application checks that periods do not overlap.
+On PostgreSQL the database checks it again with exclusion constraints.
+
+- One org unit has no two sets of details on the same date.
+- One org unit has no two parents on the same date in one hierarchy.
+
+The constraints need the `btree_gist` extension, and the extension creates it when Keycloak starts.
+On PostgreSQL 13 or later, the owner of the database may create it.
+
+When the database user may not create the extension, Keycloak still starts.
+The log has one error from Liquibase that says `permission denied to create extension "btree_gist"`.
+The constraints are then missing, and only the application checks the rules.
+
+To get the constraints, an administrator runs `CREATE EXTENSION btree_gist` in the database.
+The next start of Keycloak adds them.
+
+Other databases have only the checks of the application.
+
 ## Removal of a realm
 
 When a realm is removed, the extension deletes every row of that realm in the same transaction.

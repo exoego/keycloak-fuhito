@@ -155,4 +155,23 @@
             <column name="PARENT_ID"/>
         </createIndex>
     </changeSet>
+    <!-- The exclusion constraints below need btree_gist. A database user that may not create it keeps working.
+         The application checks the same rules, and these two change sets run again at the next start. -->
+    <changeSet id="0.1.0-btree-gist" author="keycloak-fuhito" dbms="postgresql" failOnError="false">
+        <sql>CREATE EXTENSION IF NOT EXISTS btree_gist</sql>
+    </changeSet>
+
+    <changeSet id="0.1.0-org-unit-no-overlap" author="keycloak-fuhito" dbms="postgresql">
+        <preConditions onFail="CONTINUE">
+            <sqlCheck expectedResult="1">SELECT count(*) FROM pg_extension WHERE extname = 'btree_gist'</sqlCheck>
+        </preConditions>
+        <sql>
+            ALTER TABLE FUHITO_ORG_UNIT_VERSION ADD CONSTRAINT EX_FUHITO_ORG_UNIT_VERSION_PERIOD
+            EXCLUDE USING gist (ORG_UNIT_ID WITH =, daterange(VALID_FROM, VALID_TO) WITH &amp;&amp;)
+        </sql>
+        <sql>
+            ALTER TABLE FUHITO_ORG_UNIT_LINK ADD CONSTRAINT EX_FUHITO_ORG_UNIT_LINK_PERIOD
+            EXCLUDE USING gist (HIERARCHY_ID WITH =, CHILD_ID WITH =, daterange(VALID_FROM, VALID_TO) WITH &amp;&amp;)
+        </sql>
+    </changeSet>
 </databaseChangeLog>
