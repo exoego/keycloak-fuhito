@@ -6,13 +6,14 @@ The notes on `kc.sh` come from the Keycloak documentation.
 
 ## Unsupported Keycloak APIs
 
-The extension uses three Keycloak APIs that Keycloak does not promise to keep stable.
+The extension uses four Keycloak APIs that Keycloak does not promise to keep stable.
 
 | API | Use |
 |---|---|
 | `JpaEntityProvider` | Own tables in the Keycloak database |
 | `AdminRealmResourceProvider` | Own endpoints in the admin REST API |
 | `AdminPermissionEvaluator` | Permission checks for the caller |
+| `AbstractOIDCProtocolMapper` | The protocol mapper for tokens |
 
 All code that touches these APIs is in the package `net.exoego.keycloak.fuhito.keycloak`.
 When Keycloak changes one of them, only that package needs a change.
@@ -47,6 +48,36 @@ To get the constraints, an administrator runs `CREATE EXTENSION btree_gist` in t
 The next start of Keycloak adds them.
 
 Other databases have only the checks of the application.
+
+## Assignments in tokens
+
+The protocol mapper "Org assignments" adds the assignments of the user that hold today to tokens.
+Its provider ID is `fuhito-assignments-mapper`.
+Add it to a client or to a client scope, the same as any other mapper.
+
+- The claim name can be set on the mapper. The default is `assignments`.
+- The mapper can add the claim to the access token, the ID token, and the user info response.
+- The primary assignment comes first.
+- A user with no assignment gets an empty list.
+- "Today" is the date in the time zone of the server.
+
+Each entry has these fields. A field with no value is left out.
+
+| Field | Meaning |
+|---|---|
+| `assignmentId` | The ID of the assignment |
+| `orgUnitId`, `orgUnitName`, `orgUnitCode` | The org unit |
+| `orgUnitPath` | The units from the root down to the org unit, each with `id` and `name` |
+| `jobTitle`, `occupation`, `kind` | The codes of the reference items |
+| `head`, `primary` | The flags of the assignment |
+| `staffNumber` | The staff number of the employment |
+| `status` | The employment status today |
+
+The claim grows with the number of assignments and the depth of the tree.
+Add the mapper only to clients that need it.
+The claim is as old as the token. An application that needs the state of this minute should call the API.
+
+The mapper does not need Keycloak Organizations.
 
 ## Keycloak Organizations
 
