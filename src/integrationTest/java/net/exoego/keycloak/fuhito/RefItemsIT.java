@@ -78,6 +78,20 @@ class RefItemsIT {
     }
 
     @Test
+    void everyKindHasItsOwnCodes() throws Exception {
+        for (String kind : List.of("UNIT_TYPE", "JOB_TITLE", "OCCUPATION", "EMPLOYMENT_TYPE", "GRADE", "END_REASON",
+                "ASSIGNMENT_KIND")) {
+            JsonNode item = created(api.post("/ref-items",
+                    "{\"kind\": \"" + kind + "\", \"code\": \"same-code\", \"name\": \"" + kind + "\"}"));
+            assertEquals(kind, item.get("kind").asText());
+            assertEquals(List.of(kind), Api.json(api.get("/ref-items?kind=" + kind)).findValuesAsText("name").stream()
+                    .filter(kind::equals).toList());
+        }
+        assertEquals(List.of("OCCUPATION"),
+                Api.json(api.get("/ref-items?kind=OCCUPATION")).findValuesAsText("kind").stream().distinct().toList());
+    }
+
+    @Test
     void rejectsACodeThatIsTaken() throws Exception {
         String body = "{\"kind\": \"UNIT_TYPE\", \"code\": \"taken\", \"name\": \"Taken\"}";
         created(api.post("/ref-items", body));
