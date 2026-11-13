@@ -79,6 +79,22 @@ public class JpaEmploymentStore implements EmploymentStore {
         entity.id = terms.id();
         entity.realmId = realmId;
         entity.employmentId = terms.employmentId();
+        copy(terms, entity);
+        em.persist(entity);
+    }
+
+    @Override
+    public void updateTerms(EmploymentTerms terms) {
+        EmploymentTermsEntity entity = em.find(EmploymentTermsEntity.class, terms.id());
+        if (entity == null || !entity.realmId.equals(realmId)) {
+            throw new IllegalStateException("No such terms in the realm: " + terms.id());
+        }
+        copy(terms, entity);
+        // A split shortens this row and then inserts the next one. The database must see the shorter row first.
+        em.flush();
+    }
+
+    private static void copy(EmploymentTerms terms, EmploymentTermsEntity entity) {
         entity.validFrom = terms.period().from();
         entity.validTo = terms.period().to();
         entity.employmentTypeId = terms.employmentTypeId();
@@ -86,7 +102,6 @@ public class JpaEmploymentStore implements EmploymentStore {
         entity.status = terms.status().name();
         entity.workPercent = terms.workPercent();
         entity.attributes = terms.attributes();
-        em.persist(entity);
     }
 
     private static Employment toDomain(EmploymentEntity e) {

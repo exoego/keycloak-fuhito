@@ -43,4 +43,9 @@ final class MemoryEmploymentStore implements EmploymentStore {
     public void insertTerms(EmploymentTerms terms) {
         this.terms.add(terms);
     }
+
+    @Override
+    public void updateTerms(EmploymentTerms changed) {
+        terms.replaceAll(t -> t.id().equals(changed.id()) ? changed : t);
+    }
 }

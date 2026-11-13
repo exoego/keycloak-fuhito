@@ -3,6 +3,7 @@ package net.exoego.keycloak.fuhito.rest;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.POST;
+import jakarta.ws.rs.PUT;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
@@ -11,6 +12,7 @@ import jakarta.ws.rs.core.Response;
 import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.rest.RequestContext.Change;
 import net.exoego.keycloak.fuhito.service.EmploymentService;
+import net.exoego.keycloak.fuhito.service.TermsChange;
 
 /**
  * The employments of one realm.
@@ -52,6 +54,27 @@ public class EmploymentsResource {
             var employment = EmploymentRepresentation.of(service.start(body.toNewEmployment()));
             context.recordChange(Change.CREATE, RESOURCE_TYPE, "fuhito/employments/" + employment.id(), employment);
             return Response.status(Response.Status.CREATED).entity(employment).build();
+        });
+    }
+
+    /**
+     * Replaces the terms of an employment from the {@code validFrom} date of the body.
+     * The terms are the employment type, the grade, the status, the work percentage, and the attributes.
+     *
+     * @param id the ID
+     * @param body the new terms and their first date
+     * @return the employment with the terms of every period
+     */
+    @PUT
+    @Path("{id}/terms")
+    public EmploymentRepresentation changeTerms(@PathParam("id") String id, EmploymentRepresentation.Terms body) {
+        context.requireWrite();
+        return Calls.run(context, () -> {
+            Checks.required("body", body);
+            var employment = EmploymentRepresentation.of(service.changeTerms(id, new TermsChange(body.validFrom(),
+                    body.employmentType(), body.grade(), body.status(), body.workPercent(), body.attributes())));
+            context.recordChange(Change.UPDATE, RESOURCE_TYPE, "fuhito/employments/" + id + "/terms", employment);
+            return employment;
         });
     }
 

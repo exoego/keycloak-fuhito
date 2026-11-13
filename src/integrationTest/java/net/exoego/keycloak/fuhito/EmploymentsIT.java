@@ -82,6 +82,55 @@ class EmploymentsIT {
     }
 
     @Test
+    void changesTermsForALeaveAReturnAndANewEmploymentType() throws Exception {
+        String id = created(api.post("/employments", "{\"userId\": \"" + nurse
+                + "\", \"validFrom\": \"2026-04-01\", \"employmentType\": \"temporary\", \"workPercent\": 50}"))
+                .get("id").asText();
+
+        // Parental leave from October, back in April as full-time staff.
+        HttpResponse<String> leave = api.put("/employments/" + id + "/terms",
+                "{\"validFrom\": \"2026-10-01\", \"employmentType\": \"temporary\", \"status\": \"ON_LEAVE\", \"workPercent\": 50}");
+        assertEquals(200, leave.statusCode(), leave.body());
+        JsonNode employment = Api.json(api.put("/employments/" + id + "/terms",
+                "{\"validFrom\": \"2027-04-01\", \"employmentType\": \"full-time\", \"grade\": \"g3\", \"workPercent\": 100}"));
+
+        JsonNode terms = employment.get("terms");
+        assertEquals(3, terms.size());
+        assertEquals("ACTIVE", terms.get(0).get("status").asText());
+        assertEquals("2026-10-01", terms.get(0).get("validTo").asText());
+        assertEquals("ON_LEAVE", terms.get(1).get("status").asText());
+        assertEquals("temporary", terms.get(1).get("employmentType").asText());
+        assertEquals("2027-04-01", terms.get(1).get("validTo").asText());
+        assertEquals("ACTIVE", terms.get(2).get("status").asText());
+        assertEquals("full-time", terms.get(2).get("employmentType").asText());
+        assertEquals("g3", terms.get(2).get("grade").asText());
+        assertFalse(terms.get(2).has("validTo"));
+        assertFalse(employment.has("validTo"));
+        assertEquals(employment, Api.json(api.get("/employments/" + id)));
+
+        // A change on the first date of stored terms corrects them.
+        JsonNode corrected = Api.json(api.put("/employments/" + id + "/terms",
+                "{\"validFrom\": \"2026-10-01\", \"status\": \"SUSPENDED\"}"));
+        assertEquals(3, corrected.get("terms").size());
+        assertEquals("SUSPENDED", corrected.get("terms").get(1).get("status").asText());
+        assertFalse(corrected.get("terms").get(1).has("employmentType"));
+    }
+
+    @Test
+    void rejectsABadChangeOfTerms() throws Exception {
+        String id = created(api.post("/employments", "{\"userId\": \"" + nurse
+                + "\", \"validFrom\": \"2026-04-01\", \"validTo\": \"2027-04-01\"}")).get("id").asText();
+
+        assertEquals("employment.not_valid_on", errorOf(404, api.put("/employments/" + id + "/terms", "{\"validFrom\": \"2027-04-01\"}")));
+        assertEquals("employment.not_valid_on", errorOf(404, api.put("/employments/" + id + "/terms", "{\"validFrom\": \"2026-03-31\"}")));
+        assertEquals("invalid.required", errorOf(400, api.put("/employments/" + id + "/terms", "{}")));
+        assertEquals("invalid.choice", errorOf(400, api.put("/employments/" + id + "/terms", "{\"validFrom\": \"2026-10-01\", \"status\": \"x\"}")));
+        assertEquals("employment.not_found", errorOf(404, api.put("/employments/nope/terms", "{\"validFrom\": \"2026-10-01\"}")));
+        assertEquals("employment.not_found", errorOf(404, otherRealm.api.put("/employments/" + id + "/terms", "{\"validFrom\": \"2026-10-01\"}")));
+        assertEquals(1, Api.json(api.get("/employments/" + id)).get("terms").size());
+    }
+
+    @Test
     void rejectsBadRequests() throws Exception {
         String user = "\"userId\": \"" + nurse + "\"";
         assertEquals("employment.user_unknown", errorOf(400, api.post("/employments",

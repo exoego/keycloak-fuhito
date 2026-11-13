@@ -1,6 +1,7 @@
 package net.exoego.keycloak.fuhito.service;
 
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -53,10 +54,9 @@ public class EmploymentService {
         LocalDate from = Checks.date("validFrom", request.validFrom());
         ValidPeriod period = Checks.period(from, Checks.optionalDate("validTo", request.validTo()));
         String staffNumber = Checks.optionalCode("staffNumber", request.staffNumber());
-        EmploymentStatus status = Checks.optionalEnum("status", EmploymentStatus.class, request.status(),
-                EmploymentStatus.ACTIVE);
-        RefItem employmentType = activeItem(RefKind.EMPLOYMENT_TYPE, request.employmentType());
-        RefItem grade = activeItem(RefKind.GRADE, request.grade());
+        TermsChange firstTerms = new TermsChange(request.validFrom(), request.employmentType(), request.grade(),
+                request.status(), request.workPercent(), request.attributes());
+        EmploymentTerms terms = terms(newId(), null, period, firstTerms, null);
         if (!users.exists(userId)) {
             throw FuhitoException.invalid("employment.user_unknown", Map.of("userId", userId));
         }
@@ -67,12 +67,57 @@ public class EmploymentService {
 
         Employment employment = new Employment(newId(), userId, period, staffNumber, null, request.externalId(),
                 request.source());
-        EmploymentTerms terms = new EmploymentTerms(newId(), employment.id(), period, idOf(employmentType),
-                idOf(grade), status, Checks.optionalPercent("workPercent", request.workPercent()),
-                request.attributes() == null ? Map.of() : request.attributes());
         store.insert(employment);
-        store.insertTerms(terms);
+        store.insertTerms(new EmploymentTerms(terms.id(), employment.id(), terms.period(), terms.employmentTypeId(),
+                terms.gradeId(), terms.status(), terms.workPercent(), terms.attributes()));
         return get(employment.id());
+    }
+
+    /**
+     * Replaces the terms of an employment from a date. The employment itself does not change.
+     * The change lasts until the next change that is already stored, or until the employment ends.
+     * A change on the first date of stored terms corrects those terms.
+     * A leave of absence is a change of the status to {@code ON_LEAVE}, and the return is a change back.
+     *
+     * @param id the ID of the employment
+     * @param request the new terms and their first date
+     * @return the employment with all its terms
+     * @throws FuhitoException when the employment does not exist on the date or a value is bad
+     */
+    public EmploymentView changeTerms(String id, TermsChange request) {
+        Checks.required("body", request);
+        LocalDate from = Checks.date("validFrom", request.validFrom());
+        get(id);
+        EmploymentTerms current = store.terms(id).stream()
+                .filter(t -> t.period().contains(from))
+                .findFirst()
+                .orElseThrow(() -> FuhitoException.notFound("employment.not_valid_on",
+                        Map.of("id", id, "date", from.toString())));
+
+        if (current.period().from().equals(from)) {
+            store.updateTerms(terms(current.id(), id, current.period(), request, current));
+        } else {
+            List<ValidPeriod> parts = current.period().splitAt(from);
+            // Build the new terms first, so that a bad value fails before anything is written.
+            EmploymentTerms next = terms(newId(), id, parts.get(1), request, current);
+            store.updateTerms(new EmploymentTerms(current.id(), id, parts.get(0), current.employmentTypeId(),
+                    current.gradeId(), current.status(), current.workPercent(), current.attributes()));
+            store.insertTerms(next);
+        }
+        return get(id);
+    }
+
+    // Terms may keep a reference item that was deactivated after they got it.
+    private EmploymentTerms terms(String termsId, String employmentId, ValidPeriod period, TermsChange values,
+            EmploymentTerms current) {
+        EmploymentStatus status = Checks.optionalEnum("status", EmploymentStatus.class, values.status(),
+                EmploymentStatus.ACTIVE);
+        RefItem employmentType = usableItem(RefKind.EMPLOYMENT_TYPE, values.employmentType(),
+                current == null ? null : current.employmentTypeId());
+        RefItem grade = usableItem(RefKind.GRADE, values.grade(), current == null ? null : current.gradeId());
+        return new EmploymentTerms(termsId, employmentId, period, idOf(employmentType), idOf(grade), status,
+                Checks.optionalPercent("workPercent", values.workPercent()),
+                values.attributes() == null ? Map.of() : values.attributes());
     }
 
     /**
@@ -90,12 +135,12 @@ public class EmploymentService {
                 .toList());
     }
 
-    private RefItem activeItem(RefKind kind, String code) {
+    private RefItem usableItem(RefKind kind, String code, String currentId) {
         if (code == null) {
             return null;
         }
         return refItems.findByCode(kind, code)
-                .filter(RefItem::active)
+                .filter(item -> item.active() || item.id().equals(currentId))
                 .orElseThrow(() -> FuhitoException.invalid("ref_item.unknown",
                         Map.of("kind", kind.name(), "code", code)));
     }

@@ -95,7 +95,7 @@ The realm stores the events when admin events are turned on in its settings.
 |---|---|---|
 | `FUHITO_REF_ITEM` | `CREATE`, `UPDATE`, `DELETE` | `fuhito/ref-items/{id}` |
 | `FUHITO_ORG_UNIT` | `CREATE`, `UPDATE` | `fuhito/org-units/{id}`, and the same with `/parent` or `/end` |
-| `FUHITO_EMPLOYMENT` | `CREATE` | `fuhito/employments/{id}` |
+| `FUHITO_EMPLOYMENT` | `CREATE`, `UPDATE` | `fuhito/employments/{id}`, and the same with `/terms` |
 
 The event has the new state as its representation when the realm keeps representations.
 A failed request records no event.
