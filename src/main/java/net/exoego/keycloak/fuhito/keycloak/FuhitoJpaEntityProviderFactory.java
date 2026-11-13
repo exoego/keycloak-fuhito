@@ -1,10 +1,13 @@
 package net.exoego.keycloak.fuhito.keycloak;
 
+import net.exoego.keycloak.fuhito.jpa.RealmData;
 import org.keycloak.Config;
+import org.keycloak.connections.jpa.JpaConnectionProvider;
 import org.keycloak.connections.jpa.entityprovider.JpaEntityProvider;
 import org.keycloak.connections.jpa.entityprovider.JpaEntityProviderFactory;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.KeycloakSessionFactory;
+import org.keycloak.models.RealmModel;
 
 /**
  * Registers the JPA entities and the Liquibase changelog of this extension.
@@ -33,6 +36,14 @@ public class FuhitoJpaEntityProviderFactory implements JpaEntityProviderFactory 
 
     @Override
     public void postInit(KeycloakSessionFactory factory) {
+        // The event runs in the transaction that removes the realm, so both happen or neither does.
+        factory.register(event -> {
+            if (event instanceof RealmModel.RealmRemovedEvent removed) {
+                RealmData.delete(
+                        removed.getKeycloakSession().getProvider(JpaConnectionProvider.class).getEntityManager(),
+                        removed.getRealm().getId());
+            }
+        });
     }
 
     @Override
