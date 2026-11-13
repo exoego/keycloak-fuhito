@@ -29,13 +29,21 @@ public interface RefItemStore {
     Optional<RefItem> find(String id);
 
     /**
-     * Tells whether the realm has an item with the kind and the code.
+     * Finds an item by kind and code.
      *
      * @param kind the kind
      * @param code the code
-     * @return true when such an item exists
+     * @return the item, or empty when the realm has no such item
      */
-    boolean exists(RefKind kind, String code);
+    Optional<RefItem> findByCode(RefKind kind, String code);
+
+    /**
+     * Tells whether other data refers to the item.
+     *
+     * @param id the ID
+     * @return true when the item is in use
+     */
+    boolean isInUse(String id);
 
     /**
      * Stores a new item.

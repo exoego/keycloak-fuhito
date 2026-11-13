@@ -46,12 +46,23 @@ public class JpaRefItemStore implements RefItemStore {
     }
 
     @Override
-    public boolean exists(RefKind kind, String code) {
-        return em.createQuery("select count(r) from RefItemEntity r where r.realmId = :realmId and r.kind = :kind"
-                        + " and r.code = :code", Long.class)
+    public Optional<RefItem> findByCode(RefKind kind, String code) {
+        return em.createQuery("select r from RefItemEntity r where r.realmId = :realmId and r.kind = :kind"
+                        + " and r.code = :code", RefItemEntity.class)
                 .setParameter("realmId", realmId)
                 .setParameter("kind", kind.name())
                 .setParameter("code", code)
+                .getResultStream()
+                .findFirst()
+                .map(JpaRefItemStore::toDomain);
+    }
+
+    @Override
+    public boolean isInUse(String id) {
+        return em.createQuery("select count(v) from OrgUnitVersionEntity v where v.realmId = :realmId"
+                        + " and v.unitTypeId = :id", Long.class)
+                .setParameter("realmId", realmId)
+                .setParameter("id", id)
                 .getSingleResult() > 0;
     }
 

@@ -64,7 +64,7 @@ public class RefItemService {
             Map<String, Object> attributes) {
         Checks.required("kind", kind);
         Checks.code("code", code);
-        if (store.exists(kind, code)) {
+        if (store.findByCode(kind, code).isPresent()) {
             throw FuhitoException.conflict("ref_item.code_taken", Map.of("kind", kind.name(), "code", code));
         }
         RefItem item = new RefItem(UUID.randomUUID().toString(), kind, code, Checks.name("name", name),
@@ -97,13 +97,16 @@ public class RefItemService {
     }
 
     /**
-     * Deletes an item.
+     * Deletes an item. An item that other data refers to cannot be deleted. Deactivate it instead.
      *
      * @param id the ID
-     * @throws FuhitoException when the item does not exist
+     * @throws FuhitoException when the item does not exist or is in use
      */
     public void delete(String id) {
         get(id);
+        if (store.isInUse(id)) {
+            throw FuhitoException.conflict("ref_item.in_use", Map.of("id", id));
+        }
         store.delete(id);
     }
 }

@@ -3,6 +3,7 @@ package net.exoego.keycloak.fuhito.rest;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
+import java.time.Clock;
 import java.util.List;
 import java.util.Properties;
 
@@ -12,7 +13,9 @@ import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
 import net.exoego.keycloak.fuhito.jpa.HierarchyEntity;
+import net.exoego.keycloak.fuhito.jpa.JpaOrgUnitStore;
 import net.exoego.keycloak.fuhito.jpa.JpaRefItemStore;
+import net.exoego.keycloak.fuhito.service.OrgUnitService;
 import net.exoego.keycloak.fuhito.service.RefItemService;
 
 /**
@@ -47,6 +50,17 @@ public class FuhitoResource {
     @Path("ref-items")
     public RefItemsResource refItems() {
         return new RefItemsResource(context, new RefItemService(new JpaRefItemStore(entityManager, realmId)));
+    }
+
+    /**
+     * Returns the org units of the realm.
+     *
+     * @return the sub-resource
+     */
+    @Path("org-units")
+    public OrgUnitsResource orgUnits() {
+        return new OrgUnitsResource(context, new OrgUnitService(new JpaOrgUnitStore(entityManager, realmId),
+                new JpaRefItemStore(entityManager, realmId), Clock.systemDefaultZone()));
     }
 
     /**
