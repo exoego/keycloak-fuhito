@@ -5,6 +5,7 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -36,7 +37,7 @@ public class MembershipService {
     private final OrgUnitStore orgUnits;
     private final RefItemStore refItems;
     private final UserDirectory users;
-    private final Clock clock;
+    private final Today today;
 
     /**
      * Creates the service.
@@ -50,12 +51,27 @@ public class MembershipService {
      */
     public MembershipService(AssignmentStore assignments, EmploymentStore employments, OrgUnitStore orgUnits,
             RefItemStore refItems, UserDirectory users, Clock clock) {
+        this(assignments, employments, orgUnits, refItems, users, Today.of(clock));
+    }
+
+    /**
+     * Creates the service for a realm where an org unit can have its own time settings.
+     *
+     * @param assignments the storage of assignments of the realm
+     * @param employments the storage of employments of the realm
+     * @param orgUnits the storage of org units of the realm
+     * @param refItems the storage of reference items of the realm
+     * @param users the users of the realm
+     * @param today what today is for the realm and for each org unit
+     */
+    public MembershipService(AssignmentStore assignments, EmploymentStore employments, OrgUnitStore orgUnits,
+            RefItemStore refItems, UserDirectory users, Today today) {
         this.assignments = assignments;
         this.employments = employments;
         this.orgUnits = orgUnits;
         this.refItems = refItems;
         this.users = users;
-        this.clock = clock;
+        this.today = today;
     }
 
     /**
@@ -69,7 +85,8 @@ public class MembershipService {
      * @throws FuhitoException when the unit does not exist on the date or a filter is bad
      */
     public List<Member> members(String orgUnitId, MemberQuery query) {
-        LocalDate date = dateOrToday(query.asOf());
+        LocalDate date = query.asOf() == null ? today.ofUnit(orgUnitId)
+                : Checks.optionalDate("asOf", query.asOf());
         if (orgUnits.findUnit(orgUnitId).isEmpty()) {
             throw FuhitoException.notFound("org_unit.not_found", Map.of("id", orgUnitId));
         }
@@ -110,16 +127,25 @@ public class MembershipService {
      * @throws FuhitoException when the user does not exist
      */
     public List<Member> assignmentsOf(String userId, String asOf, boolean includePath) {
-        LocalDate date = dateOrToday(asOf);
+        LocalDate asked = Checks.optionalDate("asOf", asOf);
         requireUser(userId);
-        List<Assignment> rows = employments.findByUser(userId).stream()
+        // With no date, each assignment is judged on the date of its own org unit.
+        Map<LocalDate, List<Assignment>> rowsByDate = new LinkedHashMap<>();
+        employments.findByUser(userId).stream()
                 .flatMap(employment -> assignments.rowsOfEmployment(employment.id()).stream())
-                .filter(row -> row.period().contains(date))
-                .sorted(Comparator.comparing((Assignment row) -> !row.primary())
-                        .thenComparing(row -> row.period().from())
-                        .thenComparing(Assignment::assignmentId))
-                .toList();
-        return toMembers(rows, date, new OrgUnitTree(orgUnits, refItems, date), includePath);
+                .forEach(row -> {
+                    LocalDate date = asked == null ? today.ofUnit(row.orgUnitId()) : asked;
+                    if (row.period().contains(date)) {
+                        rowsByDate.computeIfAbsent(date, d -> new ArrayList<>()).add(row);
+                    }
+                });
+        List<Member> members = new ArrayList<>();
+        rowsByDate.forEach((date, rows) ->
+                members.addAll(toMembers(rows, date, new OrgUnitTree(orgUnits, refItems, date), includePath)));
+        members.sort(Comparator.comparing((Member member) -> !member.assignment().primary())
+                .thenComparing(member -> member.assignment().period().from())
+                .thenComparing(member -> member.assignment().assignmentId()));
+        return members;
     }
 
     /**
@@ -189,9 +215,5 @@ public class MembershipService {
         if (!users.isKnown(userId)) {
             throw FuhitoException.notFound("user.not_found", Map.of("userId", userId));
         }
-    }
-
-    private LocalDate dateOrToday(String asOf) {
-        return asOf == null ? LocalDate.now(clock) : Checks.optionalDate("asOf", asOf);
     }
 }

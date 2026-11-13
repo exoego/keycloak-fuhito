@@ -1,6 +1,8 @@
 package net.exoego.keycloak.fuhito.keycloak;
 
 import java.time.Clock;
+import java.time.LocalTime;
+import java.time.ZoneOffset;
 
 import net.exoego.keycloak.fuhito.domain.BusinessDay;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
@@ -27,25 +29,30 @@ final class RealmTime {
     private RealmTime() {
     }
 
+    static final BusinessDay.Rule UTC = new BusinessDay.Rule(ZoneOffset.UTC, LocalTime.MIDNIGHT);
+
     /**
-     * Returns the clock whose date is the date of the realm.
+     * Returns the time zone and the day start of the realm.
      *
      * @throws FuhitoException when the realm has no time zone, or a setting is bad
      */
-    static Clock clock(RealmModel realm) {
-        return BusinessDay.clock(realm.getAttribute(TIME_ZONE_ATTRIBUTE), realm.getAttribute(DAY_START_ATTRIBUTE),
-                Clock.systemUTC());
+    static BusinessDay.Rule rule(RealmModel realm) {
+        return BusinessDay.rule(realm.getAttribute(TIME_ZONE_ATTRIBUTE), realm.getAttribute(DAY_START_ATTRIBUTE));
     }
 
     // A login and the removal of a user must not fail because of a setting.
     // UTC is used then. It is a fixed zone, not the zone of the server.
-    static Clock clockOrUtc(RealmModel realm) {
+    static BusinessDay.Rule ruleOrUtc(RealmModel realm) {
         try {
-            return clock(realm);
+            return rule(realm);
         } catch (FuhitoException e) {
             LOG.warnf("Realm %s has no usable time zone (%s). UTC is used to decide what today is.",
                     realm.getName(), e.code());
-            return Clock.systemUTC();
+            return UTC;
         }
+    }
+
+    static Clock clockOrUtc(RealmModel realm) {
+        return ruleOrUtc(realm).clock(Clock.systemUTC());
     }
 }

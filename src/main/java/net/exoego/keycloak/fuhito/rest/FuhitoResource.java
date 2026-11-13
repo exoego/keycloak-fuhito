@@ -14,6 +14,7 @@ import jakarta.ws.rs.GET;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
+import net.exoego.keycloak.fuhito.domain.BusinessDay;
 import net.exoego.keycloak.fuhito.jpa.HierarchyEntity;
 import net.exoego.keycloak.fuhito.jpa.JpaAssignmentStore;
 import net.exoego.keycloak.fuhito.jpa.JpaChangeLogStore;
@@ -39,6 +40,8 @@ import net.exoego.keycloak.fuhito.service.QualificationService;
 import net.exoego.keycloak.fuhito.service.RefItemService;
 import net.exoego.keycloak.fuhito.service.ReorganizationService;
 import net.exoego.keycloak.fuhito.service.ReportingLineService;
+import net.exoego.keycloak.fuhito.service.Today;
+import net.exoego.keycloak.fuhito.service.UnitDays;
 import net.exoego.keycloak.fuhito.service.UserMaskingService;
 import net.exoego.keycloak.fuhito.store.OrganizationDirectory;
 import net.exoego.keycloak.fuhito.store.OrganizationGroups;
@@ -56,6 +59,7 @@ public class FuhitoResource {
     private final RequestContext context;
     private final EntityManager entityManager;
     private final Clock clock;
+    private final BusinessDay.Rule rule;
     private final UserDirectory users;
     private final OrganizationDirectory organizations;
     private final OrganizationGroups organizationGroups;
@@ -68,14 +72,14 @@ public class FuhitoResource {
      * @param realmId the ID of the realm of the request
      * @param context the request and its caller
      * @param entityManager the entity manager of the request
-     * @param clock the clock whose date is the date of the realm. Its instant is not a time stamp.
+     * @param rule the time zone and the day start of the realm
      * @param users the users of the realm
      * @param organizations the Keycloak organizations of the realm
      * @param organizationGroups the groups and members of the Keycloak organizations of the realm
      * @param userAttributes the user attributes that an identity provider fills
      * @param eraseUser removes every row and every change log entry about one user
      */
-    public FuhitoResource(String realmId, RequestContext context, EntityManager entityManager, Clock clock,
+    public FuhitoResource(String realmId, RequestContext context, EntityManager entityManager, BusinessDay.Rule rule,
             UserDirectory users,
             OrganizationDirectory organizations, OrganizationGroups organizationGroups,
             UserAttributeSource userAttributes, Consumer<String> eraseUser) {
@@ -86,7 +90,9 @@ public class FuhitoResource {
         this.realmId = realmId;
         this.context = context;
         this.entityManager = entityManager;
-        this.clock = clock;
+        this.rule = rule;
+        // The date of this clock is the date of the realm. Its instant is not a time stamp.
+        this.clock = rule.clock(Clock.systemUTC());
         // A removed user who left data behind is still known to the reads.
         this.users = new UserDirectory() {
             @Override
@@ -235,7 +241,7 @@ public class FuhitoResource {
     public ProjectionResource projection() {
         return new ProjectionResource(context, new ProjectionService(new JpaOrgUnitStore(entityManager, realmId),
                 new JpaAssignmentStore(entityManager, realmId), new JpaEmploymentStore(entityManager, realmId),
-                new JpaRefItemStore(entityManager, realmId), organizationGroups, clock));
+                new JpaRefItemStore(entityManager, realmId), organizationGroups, today()));
     }
 
     /**
@@ -250,7 +256,7 @@ public class FuhitoResource {
                 new JpaRefItemStore(entityManager, realmId), new JpaEmploymentStore(entityManager, realmId),
                 employmentService(), new JpaAssignmentStore(entityManager, realmId), assignmentService(),
                 new JpaReportingLineStore(entityManager, realmId), reportingLineService()),
-                clock));
+                today()));
     }
 
     /**
@@ -290,7 +296,12 @@ public class FuhitoResource {
     private OrgUnitService orgUnitService() {
         return new OrgUnitService(new JpaOrgUnitStore(entityManager, realmId),
                 new JpaAssignmentStore(entityManager, realmId), new JpaRefItemStore(entityManager, realmId),
-                clock);
+                today());
+    }
+
+    // A new one for each service, so that none of them sees the tree as another one loaded it.
+    private Today today() {
+        return new UnitDays(new JpaOrgUnitStore(entityManager, realmId), rule, Clock.systemUTC());
     }
 
     /**
@@ -325,7 +336,7 @@ public class FuhitoResource {
     private MembershipService membershipService() {
         return new MembershipService(new JpaAssignmentStore(entityManager, realmId),
                 new JpaEmploymentStore(entityManager, realmId), new JpaOrgUnitStore(entityManager, realmId),
-                new JpaRefItemStore(entityManager, realmId), users, clock);
+                new JpaRefItemStore(entityManager, realmId), users, today());
     }
 
     /**

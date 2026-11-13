@@ -22,7 +22,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class RealmTimeIT {
 
     // At any moment, at least one of these two zones is on another date than UTC.
-    private static String zoneOnAnotherDate() {
+    static String zoneOnAnotherDate() {
         for (String zone : List.of("Pacific/Kiritimati", "Etc/GMT+12")) {
             if (!LocalDate.now(ZoneId.of(zone)).equals(LocalDate.now(ZoneOffset.UTC))) {
                 return zone;

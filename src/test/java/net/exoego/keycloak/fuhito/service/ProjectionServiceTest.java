@@ -12,6 +12,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
+import net.exoego.keycloak.fuhito.domain.BusinessDay;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.OrgUnit;
 import net.exoego.keycloak.fuhito.store.OrganizationGroups;
@@ -278,5 +279,22 @@ class ProjectionServiceTest {
         assertEquals(FuhitoException.Reason.CONFLICT, e.reason());
         assertEquals("projection.disabled", e.code());
         assertEquals(0, keycloak.groups.size());
+    }
+
+    @Test
+    void mirrorsEachLinkedUnitAsItIsOnItsOwnDate() {
+        String clinic = unit("Clinic", null);
+        String lab = orgUnits.create(new NewOrgUnit(null, "Lab", null, null, null, null, null, clinic, "2026-06-15",
+                null, null, null, null)).unit().id();
+        links.link(clinic, "org-y");
+        assign("technician", lab, "2026-06-15");
+        // 23:00 on June 14 in New York, where the realm is. The clinic is in Tokyo, where it is already June 15.
+        orgUnits.setTime(clinic, "Asia/Tokyo", null);
+        Today today = new UnitDays(orgUnitStore, BusinessDay.rule("America/New_York", null), CLOCK);
+
+        new ProjectionService(orgUnitStore, assignmentStore, employmentStore, refItems, keycloak, today).rebuild();
+
+        assertEquals(List.of("Lab [technician]"), keycloak.describe("org-y"));
+        assertEquals(List.of("Nursing [head-nurse]", "Ward < Nursing [nurse]"), keycloak.describe("org-x"));
     }
 }

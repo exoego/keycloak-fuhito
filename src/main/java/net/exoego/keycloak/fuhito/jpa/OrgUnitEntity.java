@@ -31,6 +31,12 @@ public class OrgUnitEntity {
     @Column(name = "KC_ORG_ID", length = 36)
     String keycloakOrganizationId;
 
+    @Column(name = "TIME_ZONE", length = 64)
+    String timeZone;
+
+    @Column(name = "DAY_START", length = 5)
+    String dayStart;
+
     /**
      * Creates an empty entity for JPA.
      */

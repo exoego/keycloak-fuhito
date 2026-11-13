@@ -2,12 +2,15 @@ package net.exoego.keycloak.fuhito.service;
 
 import java.time.Clock;
 import java.time.LocalDate;
+import java.time.LocalTime;
+import java.time.ZoneOffset;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
 import net.exoego.keycloak.fuhito.domain.Assignment;
+import net.exoego.keycloak.fuhito.domain.BusinessDay;
 import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.OrgUnit;
@@ -28,7 +31,7 @@ public class OrgUnitService {
     private final OrgUnitStore store;
     private final AssignmentStore assignments;
     private final RefItemStore refItems;
-    private final Clock clock;
+    private final Today today;
 
     /**
      * Creates the service.
@@ -39,10 +42,22 @@ public class OrgUnitService {
      * @param clock the clock that decides what "today" is
      */
     public OrgUnitService(OrgUnitStore store, AssignmentStore assignments, RefItemStore refItems, Clock clock) {
+        this(store, assignments, refItems, Today.of(clock));
+    }
+
+    /**
+     * Creates the service for a realm where an org unit can have its own time settings.
+     *
+     * @param store the storage of org units of the realm
+     * @param assignments the storage of assignments of the realm
+     * @param refItems the storage of reference items of the realm
+     * @param today what today is for the realm and for each org unit
+     */
+    public OrgUnitService(OrgUnitStore store, AssignmentStore assignments, RefItemStore refItems, Today today) {
         this.store = store;
         this.assignments = assignments;
         this.refItems = refItems;
-        this.clock = clock;
+        this.today = today;
     }
 
     /**
@@ -224,6 +239,32 @@ public class OrgUnitService {
     }
 
     /**
+     * Sets the time zone and the day start of an org unit. The units below it use the same, unless one of them
+     * has its own. A missing value means that the unit uses the value from above, or from the realm.
+     *
+     * @param id the ID
+     * @param timeZone the time zone, for example {@code America/New_York}, or null or blank for none
+     * @param dayStart the time of day when the date changes, as {@code HH:mm}, or null or blank for none
+     * @return the unit with the new settings
+     * @throws FuhitoException when the unit does not exist, the time zone is unknown, or the day start is bad
+     */
+    public OrgUnit setTime(String id, String timeZone, String dayStart) {
+        OrgUnit unit = requireUnit(id);
+        String zone = timeZone == null || timeZone.isBlank() ? null : timeZone.strip();
+        String start = dayStart == null || dayStart.isBlank() ? null : dayStart.strip();
+        try {
+            // Any rule will do for the check. Only the two new values are parsed.
+            new BusinessDay.Rule(ZoneOffset.UTC, LocalTime.MIDNIGHT).with(zone, start);
+        } catch (FuhitoException e) {
+            throw FuhitoException.invalid(e.code(), e.params());
+        }
+        OrgUnit changed = new OrgUnit(unit.id(), unit.code(), unit.externalId(), unit.source(),
+                unit.keycloakOrganizationId(), zone, start);
+        store.updateUnit(changed);
+        return changed;
+    }
+
+    /**
      * Returns an org unit as it is on a date.
      *
      * @param id the ID
@@ -232,7 +273,7 @@ public class OrgUnitService {
      * @throws FuhitoException when the unit does not exist, or does not exist on the date
      */
     public OrgUnitState get(String id, String asOf) {
-        LocalDate date = dateOrToday(asOf);
+        LocalDate date = dateOrToday(asOf, id);
         OrgUnit unit = requireUnit(id);
         OrgUnitVersion version = versionOn(id, date);
         String unitType = version.unitTypeId() == null ? null
@@ -255,7 +296,7 @@ public class OrgUnitService {
      * @return the units on the date
      */
     public List<OrgUnitState> list(String asOf, boolean rootsOnly) {
-        OrgUnitTree tree = tree(asOf);
+        OrgUnitTree tree = tree(asOf, null);
         return rootsOnly ? tree.roots() : tree.all();
     }
 
@@ -269,7 +310,7 @@ public class OrgUnitService {
      */
     public List<OrgUnitState> children(String id, String asOf) {
         requireUnit(id);
-        return tree(asOf).children(id);
+        return tree(asOf, id).children(id);
     }
 
     /**
@@ -282,7 +323,7 @@ public class OrgUnitService {
      */
     public List<OrgUnitState> subtree(String id, String asOf) {
         requireUnit(id);
-        return tree(asOf).subtree(id);
+        return tree(asOf, id).subtree(id);
     }
 
     /**
@@ -295,7 +336,7 @@ public class OrgUnitService {
      */
     public List<OrgUnitState> path(String id, String asOf) {
         requireUnit(id);
-        return tree(asOf).path(id);
+        return tree(asOf, id).path(id);
     }
 
     /**
@@ -315,12 +356,16 @@ public class OrgUnitService {
         return new OrgUnitHistory(unit, versions, store.parentLinks(store.defaultHierarchyId(), id));
     }
 
-    private OrgUnitTree tree(String asOf) {
-        return new OrgUnitTree(store, refItems, dateOrToday(asOf));
+    private OrgUnitTree tree(String asOf, String orgUnitId) {
+        return new OrgUnitTree(store, refItems, dateOrToday(asOf, orgUnitId));
     }
 
-    private LocalDate dateOrToday(String asOf) {
-        return asOf == null ? LocalDate.now(clock) : Checks.optionalDate("asOf", asOf);
+    // A read about one org unit uses the date of that unit. A read about the whole realm uses the date of the realm.
+    private LocalDate dateOrToday(String asOf, String orgUnitId) {
+        if (asOf != null) {
+            return Checks.optionalDate("asOf", asOf);
+        }
+        return orgUnitId == null ? today.ofRealm() : today.ofUnit(orgUnitId);
     }
 
     private OrgUnit requireUnit(String id) {

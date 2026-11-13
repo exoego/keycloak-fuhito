@@ -35,7 +35,7 @@ public class ProjectionService {
     private final EmploymentStore employments;
     private final RefItemStore refItems;
     private final OrganizationGroups keycloak;
-    private final Clock clock;
+    private final Today today;
 
     private int groupsCreated;
     private int groupsRenamed;
@@ -57,12 +57,27 @@ public class ProjectionService {
      */
     public ProjectionService(OrgUnitStore orgUnits, AssignmentStore assignments, EmploymentStore employments,
             RefItemStore refItems, OrganizationGroups keycloak, Clock clock) {
+        this(orgUnits, assignments, employments, refItems, keycloak, Today.of(clock));
+    }
+
+    /**
+     * Creates the service for a realm where an org unit can have its own time settings.
+     *
+     * @param orgUnits the storage of org units of the realm
+     * @param assignments the storage of assignments of the realm
+     * @param employments the storage of employments of the realm
+     * @param refItems the storage of reference items of the realm
+     * @param keycloak the groups and members of the Keycloak organizations of the realm
+     * @param today what today is for the realm and for each org unit
+     */
+    public ProjectionService(OrgUnitStore orgUnits, AssignmentStore assignments, EmploymentStore employments,
+            RefItemStore refItems, OrganizationGroups keycloak, Today today) {
         this.orgUnits = orgUnits;
         this.assignments = assignments;
         this.employments = employments;
         this.refItems = refItems;
         this.keycloak = keycloak;
-        this.clock = clock;
+        this.today = today;
     }
 
     /**
@@ -76,13 +91,18 @@ public class ProjectionService {
         if (!keycloak.projectionEnabled()) {
             throw FuhitoException.conflict("projection.disabled", Map.of());
         }
-        LocalDate today = LocalDate.now(clock);
-        OrgUnitTree tree = new OrgUnitTree(orgUnits, refItems, today);
+        // Each linked unit is mirrored as it is on its own date.
+        Map<LocalDate, OrgUnitTree> trees = new HashMap<>();
         int organizations = 0;
         for (OrgUnit unit : orgUnits.units()) {
+            if (unit.keycloakOrganizationId() == null) {
+                continue;
+            }
+            LocalDate date = today.ofUnit(unit.id());
+            OrgUnitTree tree = trees.computeIfAbsent(date, d -> new OrgUnitTree(orgUnits, refItems, d));
             // A linked unit that does not exist today has nothing to mirror.
-            if (unit.keycloakOrganizationId() != null && tree.exists(unit.id())) {
-                project(unit, tree, today);
+            if (tree.exists(unit.id())) {
+                project(unit, tree, date);
                 organizations++;
             }
         }

@@ -60,6 +60,7 @@ Access control is out of scope. The caller decides who may do what with the data
 
 A realm must say where it is before it uses the API. Set the realm attribute `fuhito.timeZone`, for example to `Asia/Tokyo`.
 The extension never uses the time zone of the server to decide what today is.
+An org unit in another time zone can set its own, for example a branch in another country.
 See [docs/keycloak-integration.md](docs/keycloak-integration.md).
 
 ## Build

@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Map;
 
 import net.exoego.keycloak.fuhito.domain.Assignment;
+import net.exoego.keycloak.fuhito.domain.BusinessDay;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.RefItem;
 import net.exoego.keycloak.fuhito.domain.RefKind;
@@ -79,12 +80,15 @@ class AttributeSyncServiceTest {
         return new AssignmentService(assignmentStore, employmentStore, orgUnitStore, refItems, lineStore);
     }
 
+    private BusinessDay.Rule rule;
+
     private SyncReport run() {
+        Today today = rule == null ? Today.of(clock) : new UnitDays(orgUnitStore, rule, clock);
         ReportingLineService lineService = new ReportingLineService(lineStore, new ReportingLineService.Sources(
                 assignmentStore, employmentStore, orgUnitStore, refItems, attributes::containsKey), clock);
         return new AttributeSyncService(new AttributeSyncService.Sources(source, attributes::containsKey,
                 orgUnitStore, refItems, employmentStore, employments(), assignmentStore, assignments(), lineStore,
-                lineService), clock).run();
+                lineService), today).run();
     }
 
     private void nextDay() {
@@ -285,5 +289,58 @@ class AttributeSyncServiceTest {
         assertEquals("sync.disabled", e.code());
         assertTrue(employmentStore.employments.isEmpty());
         assertEquals(LocalDate.of(2026, 6, 15), LocalDate.now(clock));
+    }
+
+    // 23:00 on June 14 in New York, where the realm is. Surgery is in Tokyo, where it is already June 15.
+    private void putSurgeryOnTheNextDate() {
+        rule = BusinessDay.rule("America/New_York", null);
+        new OrgUnitService(orgUnitStore, assignmentStore, refItems, clock).setTime(surgery, "Asia/Tokyo", null);
+    }
+
+    @Test
+    void aChangeTakesEffectOnTheDateOfTheMatchedOrgUnit() {
+        putSurgeryOnTheNextDate();
+        set("boss", "med", null, null, null);
+        set("alice", "Surgery", "staff", "boss", null);
+
+        SyncReport report = run();
+
+        assertEquals(2, report.assignmentsAdded());
+        assertEquals(List.of("Internal Medicine 2026-06-14 null - primary"), assignmentsOf("boss"));
+        assertEquals(List.of("Surgery 2026-06-15 null staff primary"), assignmentsOf("alice"));
+        assertEquals(List.of("boss 2026-06-15 null"), managersOf("alice"));
+        assertEquals(LocalDate.of(2026, 6, 15), employmentStore.findByUser("alice").get(0).period().from());
+        assertEquals(new SyncReport(2, 0, 0, 0, 0, 0, 0, List.of(), List.of()), run());
+    }
+
+    @Test
+    void aMoveBetweenUnitsOnDifferentDatesKeepsOneEmploymentAndOneAssignment() {
+        putSurgeryOnTheNextDate();
+        set("alice", "Surgery", null, null, null);
+        set("bob", "med", null, null, null);
+        run();
+
+        // Alice goes to a unit where it is still the day before her employment starts.
+        set("alice", "med", "staff", null, null);
+        set("bob", "Surgery", null, null, null);
+        SyncReport moved = run();
+
+        assertEquals(2, moved.assignmentsMoved());
+        assertEquals(0, moved.employmentsStarted());
+        assertEquals(1, employmentStore.findByUser("alice").size());
+        assertEquals(List.of("Internal Medicine 2026-06-15 null staff primary"), assignmentsOf("alice"));
+        assertEquals(List.of("Internal Medicine 2026-06-14 2026-06-15 - primary", "Surgery 2026-06-15 null - primary"),
+                assignmentsOf("bob"));
+        assertEquals(new SyncReport(2, 0, 0, 0, 0, 0, 0, List.of(), List.of()), run());
+
+        set("alice", "med", "director", null, null);
+        assertEquals(1, run().assignmentsChanged());
+        assertEquals(List.of("Internal Medicine 2026-06-15 null director primary"), assignmentsOf("alice"));
+
+        attributes.remove("alice");
+        attributes.remove("bob");
+        assertEquals(2, run().assignmentsEnded());
+        assertEquals(List.of(), assignmentsOf("alice"));
+        assertEquals(List.of("Internal Medicine 2026-06-14 2026-06-15 - primary"), assignmentsOf("bob"));
     }
 }
