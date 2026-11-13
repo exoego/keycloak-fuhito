@@ -26,6 +26,7 @@ import net.exoego.keycloak.fuhito.service.EmploymentService;
 import net.exoego.keycloak.fuhito.service.MembershipService;
 import net.exoego.keycloak.fuhito.service.OrgUnitService;
 import net.exoego.keycloak.fuhito.service.RefItemService;
+import net.exoego.keycloak.fuhito.service.ReorganizationService;
 import net.exoego.keycloak.fuhito.store.UserDirectory;
 
 /**
@@ -140,9 +141,23 @@ public class FuhitoResource {
      */
     @Path("org-units")
     public OrgUnitsResource orgUnits() {
-        return new OrgUnitsResource(context, new OrgUnitService(new JpaOrgUnitStore(entityManager, realmId),
+        return new OrgUnitsResource(context, orgUnitService(), membershipService());
+    }
+
+    /**
+     * Returns the endpoint that changes many org units on one date.
+     *
+     * @return the sub-resource
+     */
+    @Path("reorganizations")
+    public ReorganizationsResource reorganizations() {
+        return new ReorganizationsResource(context, new ReorganizationService(orgUnitService()));
+    }
+
+    private OrgUnitService orgUnitService() {
+        return new OrgUnitService(new JpaOrgUnitStore(entityManager, realmId),
                 new JpaAssignmentStore(entityManager, realmId), new JpaRefItemStore(entityManager, realmId),
-                Clock.systemDefaultZone()), membershipService());
+                Clock.systemDefaultZone());
     }
 
     /**
