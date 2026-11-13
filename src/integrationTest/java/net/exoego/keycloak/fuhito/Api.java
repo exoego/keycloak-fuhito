@@ -22,10 +22,20 @@ final class Api {
 
     private final String realm;
     private final String token;
+    private final String acceptLanguage;
 
     Api(String realm, String token) {
+        this(realm, token, null);
+    }
+
+    private Api(String realm, String token, String acceptLanguage) {
         this.realm = realm;
         this.token = token;
+        this.acceptLanguage = acceptLanguage;
+    }
+
+    Api withAcceptLanguage(String value) {
+        return new Api(realm, token, value);
     }
 
     HttpResponse<String> get(String path) throws Exception {
@@ -54,6 +64,9 @@ final class Api {
                 .method(method, json == null ? BodyPublishers.noBody() : BodyPublishers.ofString(json, StandardCharsets.UTF_8));
         if (json != null) {
             request.header("Content-Type", "application/json");
+        }
+        if (acceptLanguage != null) {
+            request.header("Accept-Language", acceptLanguage);
         }
         if (token != null) {
             request.header("Authorization", "Bearer " + token);
