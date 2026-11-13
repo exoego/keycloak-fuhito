@@ -3,6 +3,7 @@ package net.exoego.keycloak.fuhito.rest;
 import java.util.List;
 
 import jakarta.ws.rs.Consumes;
+import jakarta.ws.rs.DELETE;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.PUT;
@@ -17,6 +18,7 @@ import net.exoego.keycloak.fuhito.rest.RequestContext.Change;
 import net.exoego.keycloak.fuhito.service.MemberQuery;
 import net.exoego.keycloak.fuhito.service.MembershipService;
 import net.exoego.keycloak.fuhito.service.OrgUnitService;
+import net.exoego.keycloak.fuhito.service.OrganizationLinkService;
 import net.exoego.keycloak.fuhito.service.OrgUnitState;
 
 /**
@@ -34,6 +36,7 @@ public class OrgUnitsResource {
     private final RequestContext context;
     private final OrgUnitService service;
     private final MembershipService membership;
+    private final OrganizationLinkService organizationLinks;
 
     /**
      * Creates the resource for one request.
@@ -41,8 +44,11 @@ public class OrgUnitsResource {
      * @param context the request and its caller
      * @param service the operations on the realm of the request
      * @param membership the reads of members on the realm of the request
+     * @param organizationLinks the links to Keycloak organizations of the realm
      */
-    public OrgUnitsResource(RequestContext context, OrgUnitService service, MembershipService membership) {
+    public OrgUnitsResource(RequestContext context, OrgUnitService service, MembershipService membership,
+            OrganizationLinkService organizationLinks) {
+        this.organizationLinks = organizationLinks;
         this.context = context;
         this.service = service;
         this.membership = membership;
@@ -171,6 +177,45 @@ public class OrgUnitsResource {
     public List<OrgUnitRepresentation> path(@PathParam("id") String id, @QueryParam("asOf") String asOf) {
         context.requireRead();
         return Calls.run(context, () -> represent(service.path(id, asOf)));
+    }
+
+    /**
+     * Links an org unit to a Keycloak organization. The link says that the unit stands for the organization.
+     *
+     * @param id the ID of the org unit
+     * @param body the ID of the Keycloak organization
+     * @return the link
+     */
+    @PUT
+    @Path("{id}/organization")
+    public OrganizationLinkRepresentation linkOrganization(@PathParam("id") String id,
+            OrganizationLinkRepresentation body) {
+        context.requireWrite();
+        return Calls.run(context, () -> {
+            Checks.required("body", body);
+            var unit = organizationLinks.link(id, body.organizationId());
+            var link = new OrganizationLinkRepresentation(unit.id(), unit.keycloakOrganizationId());
+            context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, path(id) + "/organization", link);
+            return link;
+        });
+    }
+
+    /**
+     * Removes the link of an org unit to a Keycloak organization.
+     *
+     * @param id the ID of the org unit
+     * @return the org unit with no link
+     */
+    @DELETE
+    @Path("{id}/organization")
+    public OrganizationLinkRepresentation unlinkOrganization(@PathParam("id") String id) {
+        context.requireWrite();
+        return Calls.run(context, () -> {
+            var unit = organizationLinks.unlink(id);
+            var link = new OrganizationLinkRepresentation(unit.id(), null);
+            context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, path(id) + "/organization", link);
+            return link;
+        });
     }
 
     /**

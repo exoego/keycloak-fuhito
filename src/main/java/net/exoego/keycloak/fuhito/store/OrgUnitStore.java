@@ -46,6 +46,21 @@ public interface OrgUnitStore {
     Optional<OrgUnit> findUnitByExternalId(String source, String externalId);
 
     /**
+     * Finds the org unit that is linked to a Keycloak organization.
+     *
+     * @param organizationId the ID of the organization
+     * @return the unit, or empty when no unit is linked to it
+     */
+    Optional<OrgUnit> findUnitByOrganizationId(String organizationId);
+
+    /**
+     * Stores the new state of an existing org unit.
+     *
+     * @param unit the unit
+     */
+    void updateUnit(OrgUnit unit);
+
+    /**
      * Lists all org units of the realm.
      *
      * @return the units
