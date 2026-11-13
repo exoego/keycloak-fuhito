@@ -13,8 +13,25 @@ The name comes from "fuhito", an old Japanese word for a scribe who keeps record
 
 ## Status
 
-This project is at an early stage. It has no release yet, and nothing is stable.
-The [milestones](https://github.com/exoego/keycloak-fuhito/milestones) show the plan.
+This project has no release yet, and its API can still change.
+
+What works today:
+
+- Org units with a tree, dated changes, moves, and ends.
+- Employments with terms that change over time, such as employment type, grade, leave, and work percentage.
+- Assignments of a person to any number of org units at once, with job title, occupation, and a primary flag.
+- Reporting lines, and managers derived from the heads of org units.
+- Qualifications of users.
+- Reads of the state on any date, and of the full history.
+- Change orders with an approver, and a change log of every write.
+- Reorganizations of many org units in one transaction.
+- Bulk import by JSON and CSV with a dry run, and a full export.
+- A protocol mapper that adds current assignments to tokens.
+- An optional projection into the groups of Keycloak organizations.
+- A sync from user attributes that an identity provider fills over SCIM.
+- Messages in English and Japanese.
+
+The [open issues](https://github.com/exoego/keycloak-fuhito/issues) show what is planned next.
 
 ## Scope
 
