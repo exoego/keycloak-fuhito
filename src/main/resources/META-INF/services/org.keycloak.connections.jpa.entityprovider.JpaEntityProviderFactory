@@ -1,1 +1,1 @@
-net.exoego.keycloak.fuhito.jpa.FuhitoJpaEntityProviderFactory
+net.exoego.keycloak.fuhito.keycloak.FuhitoJpaEntityProviderFactory

@@ -1,4 +1,4 @@
-package net.exoego.keycloak.fuhito.jpa;
+package net.exoego.keycloak.fuhito.keycloak;
 
 import org.keycloak.Config;
 import org.keycloak.connections.jpa.entityprovider.JpaEntityProvider;

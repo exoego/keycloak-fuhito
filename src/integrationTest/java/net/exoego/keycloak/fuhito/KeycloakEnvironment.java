@@ -4,18 +4,16 @@ import java.io.File;
 import java.util.List;
 
 import dasniko.testcontainers.keycloak.KeycloakContainer;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Test;
 import org.testcontainers.containers.Network;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-class KeycloakStartIT {
-
-    private static final String KEYCLOAK_VERSION = System.getProperty("keycloak.version");
-    private static final File PROVIDER_JAR = new File(System.getProperty("provider.jar"));
+/**
+ * One Keycloak with the provider jar and one PostgreSQL, shared by all integration tests of a run.
+ * Testcontainers removes the containers when the JVM exits.
+ */
+final class KeycloakEnvironment {
 
     private static final Network NETWORK = Network.newNetwork();
 
@@ -26,34 +24,24 @@ class KeycloakStartIT {
             .withUsername("keycloak")
             .withPassword("keycloak");
 
-    private static final KeycloakContainer KEYCLOAK =
-            new KeycloakContainer("quay.io/keycloak/keycloak:" + KEYCLOAK_VERSION)
+    static final KeycloakContainer KEYCLOAK =
+            new KeycloakContainer("quay.io/keycloak/keycloak:" + System.getProperty("keycloak.version"))
                     .withNetwork(NETWORK)
-                    .withProviderLibsFrom(List.of(PROVIDER_JAR))
+                    .withProviderLibsFrom(List.of(new File(System.getProperty("provider.jar"))))
                     .withEnv("KC_DB", "postgres")
                     .withEnv("KC_DB_URL", "jdbc:postgresql://postgres:5432/keycloak")
                     .withEnv("KC_DB_USERNAME", "keycloak")
                     .withEnv("KC_DB_PASSWORD", "keycloak");
 
-    @BeforeAll
-    static void start() {
+    static {
         POSTGRES.start();
         KEYCLOAK.start();
     }
 
-    @AfterAll
-    static void stop() {
-        KEYCLOAK.stop();
-        POSTGRES.stop();
-        NETWORK.close();
+    private KeycloakEnvironment() {
     }
 
-    @Test
-    void liquibaseCreatesTheTable() throws Exception {
-        assertEquals("1", query("select count(*) from information_schema.tables where table_name = 'fuhito_hierarchy'"));
-    }
-
-    private static String query(String sql) throws Exception {
+    static String sql(String sql) throws Exception {
         var result = POSTGRES.execInContainer("psql", "-U", "keycloak", "-d", "keycloak", "-tAc", sql);
         assertEquals(0, result.getExitCode(), result.getStderr());
         return result.getStdout().trim();

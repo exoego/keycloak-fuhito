@@ -1,4 +1,4 @@
-package net.exoego.keycloak.fuhito.jpa;
+package net.exoego.keycloak.fuhito.keycloak;
 
 import java.util.List;
 
@@ -17,11 +17,11 @@ public class FuhitoJpaEntityProvider implements JpaEntityProvider {
     public FuhitoJpaEntityProvider() {
     }
 
-    // Keycloak ignores this in production and finds entities at build time. The interface still requires it.
+    // Keycloak finds entities at build time and ignores this list. The interface still requires the method.
     @Override
     @SuppressWarnings("removal")
     public List<Class<?>> getEntities() {
-        return List.of(HierarchyEntity.class);
+        return List.of();
     }
 
     @Override

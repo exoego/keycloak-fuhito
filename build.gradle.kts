@@ -27,6 +27,14 @@ dependencies {
     testImplementation(libs.bundles.keycloak.provided)
 }
 
+tasks.processResources {
+    val version = project.version.toString()
+    inputs.property("version", version)
+    filesMatching("META-INF/fuhito/version.properties") {
+        expand("version" to version)
+    }
+}
+
 tasks.withType<Jar>().configureEach {
     from(files("LICENSE", "NOTICE")) {
         into("META-INF")
