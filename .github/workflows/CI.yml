@@ -13,7 +13,7 @@ concurrency:
 
 jobs:
   test:
-    name: Test (Java ${{ matrix.java }})
+    name: Test (Java ${{ matrix.java }}${{ matrix.keycloak && format(', Keycloak {0}', matrix.keycloak) || '' }})
     timeout-minutes: 30
     runs-on: ubuntu-latest
     permissions:
@@ -24,6 +24,13 @@ jobs:
         java:
           - 21
           - 25
+        # Empty means the Keycloak version of the catalog. It keeps the row below from merging into the Java 21 row.
+        keycloak:
+          - ''
+        # The oldest supported Keycloak. The provider runs in the JDK of the Keycloak image, so one test JDK is enough.
+        include:
+          - java: 21
+            keycloak: 26.8.0
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -43,8 +50,11 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
 
+      # The integration tests start Keycloak and PostgreSQL with Testcontainers, using the Docker of the runner.
       - name: Run Tests
-        run: ./gradlew check -PtestJavaVersion=${{ matrix.java }}
+        env:
+          KEYCLOAK_VERSION: ${{ matrix.keycloak }}
+        run: ./gradlew check -PtestJavaVersion=${{ matrix.java }} -PtestKeycloakVersion="$KEYCLOAK_VERSION"
 
   # A skipped required job counts as passed, so fail instead of skipping.
   result:

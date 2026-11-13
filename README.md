@@ -42,6 +42,15 @@ Access control is out of scope. The caller decides who may do what with the data
 
 The build needs JDK 21.
 
+## Test
+
+```sh
+./gradlew check
+```
+
+The integration tests start Keycloak and PostgreSQL in containers, so they need Docker.
+To test another Keycloak version, pass `-PtestKeycloakVersion=26.8.0`.
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md).
