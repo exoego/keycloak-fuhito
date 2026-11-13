@@ -84,4 +84,36 @@ class BusinessDayTest {
         assertEquals("realm.day_start_invalid", e.code());
         assertEquals(Map.of("value", dayStart), e.params());
     }
+
+    private static final Clock NOON_UTC = Clock.fixed(Instant.parse("2026-03-31T16:00:00Z"), ZoneOffset.UTC);
+
+    private static LocalDate dateOf(BusinessDay.Rule rule) {
+        return LocalDate.now(rule.clock(NOON_UTC));
+    }
+
+    @Test
+    void anOrgUnitCanReplaceTheTimeZoneOrTheDayStartOrBoth() {
+        // 01:00 on April 1 in Tokyo, and 12:00 on March 31 in New York.
+        BusinessDay.Rule realm = BusinessDay.rule("Asia/Tokyo", "00:30");
+
+        assertEquals(LocalDate.of(2026, 4, 1), dateOf(realm));
+        assertEquals(realm, realm.with(null, null));
+        assertEquals(realm, realm.with(" ", ""));
+        assertEquals(LocalDate.of(2026, 3, 31), dateOf(realm.with("America/New_York", null)));
+        assertEquals(LocalDate.of(2026, 3, 31), dateOf(realm.with(null, "04:00")));
+        assertEquals(LocalDate.of(2026, 3, 30), dateOf(realm.with(" America/New_York ", " 13:00 ")));
+        assertEquals(new BusinessDay.Rule(ZoneId.of("Asia/Tokyo"), java.time.LocalTime.of(0, 30)), realm);
+    }
+
+    @Test
+    void rejectsBadSettingsOfAnOrgUnit() {
+        BusinessDay.Rule realm = BusinessDay.rule("Asia/Tokyo", null);
+
+        FuhitoException zone = assertThrows(FuhitoException.class, () -> realm.with("Tokyo", null));
+        assertEquals("org_unit.time_zone_invalid", zone.code());
+        assertEquals(Map.of("value", "Tokyo"), zone.params());
+        FuhitoException start = assertThrows(FuhitoException.class, () -> realm.with(null, "24:00"));
+        assertEquals("org_unit.day_start_invalid", start.code());
+        assertEquals(Map.of("value", "24:00"), start.params());
+    }
 }

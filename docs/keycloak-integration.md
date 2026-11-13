@@ -59,7 +59,7 @@ Add it to a client or to a client scope, the same as any other mapper.
 - The mapper can add the claim to the access token, the ID token, and the user info response.
 - The primary assignment comes first.
 - A user with no assignment gets an empty list.
-- "Today" is the date of the realm. See "What today is" below.
+- Each assignment is judged on the date of its own org unit. That is the date of the realm unless a unit sets its own time zone. See "What today is" below.
 
 Each entry has these fields. A field with no value is left out.
 
@@ -195,6 +195,39 @@ When the time zone is missing or bad there, UTC decides what today is, and the l
 Stored dates are plain calendar dates. They are never converted between time zones.
 The time zone matters only to decide which date it is now.
 
+### An org unit in another time zone
+
+A realm can have org units in more than one time zone, for example a branch in another country.
+Any org unit can set its own time zone, its own day start, or both.
+
+- `PUT /org-units/{id}/time-settings` with `{"timeZone": "America/New_York", "dayStart": "04:00"}` sets them.
+- A value that is left out is removed. An empty body removes both.
+- An unknown time zone gets 400 with `org_unit.time_zone_invalid`, and a bad day start gets `org_unit.day_start_invalid`.
+- `GET /org-units/{id}` shows the two values that the unit itself sets.
+
+The units below use the same settings.
+The nearest setting at the unit or above it wins, and the realm decides the rest.
+The time zone and the day start are looked up one by one. So a unit can set only a day start and keep the time zone from above.
+The parents of today, as the realm sees it, are used for this.
+
+The date of the org unit decides these.
+
+| What | Which date |
+|---|---|
+| A read about one org unit with no `asOf`. They are the unit itself, its children, its subtree, its path, and its members. | The date of that unit |
+| `GET /users/{userId}/assignments` with no `asOf`, and the assignments in tokens | Each assignment is judged on the date of its own unit |
+| The projection into organization groups | The date of the linked unit, for everything below it |
+| The sync from user attributes | The date of the org unit that the department matches |
+
+The date of the realm decides everything else.
+That is `GET /org-units` with no `asOf`, the employments, the qualifications, the managers and the reports, the end date that the removal of a user writes, and the check before masking.
+
+A person can work in two time zones.
+A change on April 1 then shows in one of them some hours before the other.
+That is on purpose. Each place sees the change when its own April 1 starts.
+
+A read with `asOf` never depends on a time zone.
+
 On a day when the clocks change for summer time, the date can change up to one hour early or late when the day start is not `00:00`.
 
 ## Admin REST API
@@ -259,7 +292,7 @@ The realm stores the events when admin events are turned on in its settings.
 | Resource type | Operations | Resource path |
 |---|---|---|
 | `FUHITO_REF_ITEM` | `CREATE`, `UPDATE`, `DELETE` | `fuhito/ref-items/{id}` |
-| `FUHITO_ORG_UNIT` | `CREATE`, `UPDATE` | `fuhito/org-units/{id}`, and the same with `/parent` or `/end` |
+| `FUHITO_ORG_UNIT` | `CREATE`, `UPDATE` | `fuhito/org-units/{id}`, and the same with `/parent`, `/end`, `/organization`, or `/time-settings` |
 | `FUHITO_EMPLOYMENT` | `CREATE`, `UPDATE` | `fuhito/employments/{id}`, and the same with `/terms` or `/end` |
 | `FUHITO_ASSIGNMENT` | `CREATE`, `UPDATE` | `fuhito/assignments/{id}`, and the same with `/details` or `/end` |
 | `FUHITO_CHANGE_ORDER` | `CREATE`, `UPDATE`, `DELETE` | `fuhito/change-orders/{id}` |

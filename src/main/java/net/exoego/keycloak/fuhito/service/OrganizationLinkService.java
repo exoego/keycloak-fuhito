@@ -69,7 +69,8 @@ public class OrganizationLinkService {
     }
 
     private OrgUnit store(OrgUnit unit, String organizationId) {
-        OrgUnit changed = new OrgUnit(unit.id(), unit.code(), unit.externalId(), unit.source(), organizationId);
+        OrgUnit changed = new OrgUnit(unit.id(), unit.code(), unit.externalId(), unit.source(), organizationId,
+                unit.timeZone(), unit.dayStart());
         orgUnits.updateUnit(changed);
         return changed;
     }

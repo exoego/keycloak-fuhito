@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import net.exoego.keycloak.fuhito.domain.BusinessDay;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.RefItem;
 import net.exoego.keycloak.fuhito.domain.RefKind;
@@ -244,5 +245,31 @@ class MembershipServiceTest {
         refItems.delete("OCCUPATION-physician");
 
         assertNull(service.members(ward, on("2026-04-01")).get(0).occupation());
+    }
+
+    @Test
+    void withNoDateEachAssignmentIsJudgedOnTheDateOfItsOwnUnit() {
+        // 01:00 on July 1 in Tokyo. It is still June 30 in New York.
+        Clock base = Clock.fixed(Instant.parse("2026-06-30T16:00:00Z"), ZoneId.of("UTC"));
+        orgUnits.setTime(otherHospital, "America/New_York", null);
+        String endsInJune = assign(doctorEmployment, otherHospital, "2026-04-01", "physician", null, false, 0);
+        assignments.end(endsInJune, "2026-07-01");
+        String startsInJuly = assign(doctorEmployment, hospital, "2026-07-01", "physician", null, true, 0);
+        assign(nurseEmployment, otherHospital, "2026-07-01", "nurse", null, false, 0);
+        MembershipService zoned = new MembershipService(assignmentStore, employmentStore, orgUnitStore, refItems,
+                knownUsers::contains, new UnitDays(orgUnitStore, BusinessDay.rule("Asia/Tokyo", null), base));
+
+        List<Member> today = zoned.assignmentsOf("doctor", null, true);
+
+        // The one in New York holds until its June 30 ends. The one in Tokyo started on its July 1.
+        assertEquals(List.of(startsInJuly, endsInJune),
+                today.stream().map(m -> m.assignment().assignmentId()).toList());
+        assertEquals(List.of("Hospital"), today.get(0).orgUnitPath().stream().map(s -> s.version().name()).toList());
+        assertEquals(List.of(startsInJuly),
+                zoned.assignmentsOf("doctor", "2026-07-01", false).stream()
+                        .map(m -> m.assignment().assignmentId()).toList());
+        assertEquals(List.of("doctor"), userIds(zoned.members(otherHospital, on(null))));
+        assertEquals(List.of("nurse"), userIds(zoned.members(otherHospital, on("2026-07-01"))));
+        assertEquals(List.of("doctor"), userIds(zoned.members(hospital, on(null))));
     }
 }

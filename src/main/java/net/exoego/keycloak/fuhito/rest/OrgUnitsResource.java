@@ -141,7 +141,7 @@ public class OrgUnitsResource {
      * Lists the direct children of an org unit on a date.
      *
      * @param id the ID
-     * @param asOf the date as {@code YYYY-MM-DD}. The default is today in the time zone of the realm.
+     * @param asOf the date as {@code YYYY-MM-DD}. The default is today for the org unit. It is the date of the realm unless a unit sets its own time zone.
      * @return the children on the date
      */
     @GET
@@ -155,7 +155,7 @@ public class OrgUnitsResource {
      * Lists an org unit and everything below it on a date. Each parent comes before its children.
      *
      * @param id the ID
-     * @param asOf the date as {@code YYYY-MM-DD}. The default is today in the time zone of the realm.
+     * @param asOf the date as {@code YYYY-MM-DD}. The default is today for the org unit. It is the date of the realm unless a unit sets its own time zone.
      * @return the unit and its descendants on the date
      */
     @GET
@@ -169,7 +169,7 @@ public class OrgUnitsResource {
      * Lists the units from the root down to an org unit on a date.
      *
      * @param id the ID
-     * @param asOf the date as {@code YYYY-MM-DD}. The default is today in the time zone of the realm.
+     * @param asOf the date as {@code YYYY-MM-DD}. The default is today for the org unit. It is the date of the realm unless a unit sets its own time zone.
      * @return the path, with the root first and the unit last
      */
     @GET
@@ -219,10 +219,31 @@ public class OrgUnitsResource {
     }
 
     /**
+     * Sets the time zone and the day start of an org unit. They decide what today is for the unit and for the
+     * units below it. A value that is left out is removed, and the unit then uses the value from above.
+     *
+     * @param id the ID of the org unit
+     * @param body the time zone and the day start
+     * @return the settings of the org unit
+     */
+    @PUT
+    @Path("{id}/time-settings")
+    public TimeSettingsRepresentation setTime(@PathParam("id") String id, TimeSettingsRepresentation body) {
+        context.requireWrite();
+        return Calls.run(context, () -> {
+            Checks.required("body", body);
+            var unit = service.setTime(id, body.timeZone(), body.dayStart());
+            var settings = new TimeSettingsRepresentation(unit.id(), unit.timeZone(), unit.dayStart());
+            context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, path(id) + "/time-settings", settings);
+            return settings;
+        });
+    }
+
+    /**
      * Lists the assignments to an org unit that hold on a date.
      *
      * @param id the ID
-     * @param asOf the date as {@code YYYY-MM-DD}. The default is today in the time zone of the realm.
+     * @param asOf the date as {@code YYYY-MM-DD}. The default is today for the org unit. It is the date of the realm unless a unit sets its own time zone.
      * @param includeDescendants true to also list the members of every unit below
      * @param occupation the code of an occupation to keep
      * @param jobTitle the code of a job title to keep
@@ -276,7 +297,7 @@ public class OrgUnitsResource {
      * Returns an org unit as it is on a date.
      *
      * @param id the ID
-     * @param asOf the date as {@code YYYY-MM-DD}. The default is today in the time zone of the realm.
+     * @param asOf the date as {@code YYYY-MM-DD}. The default is today for the org unit. It is the date of the realm unless a unit sets its own time zone.
      * @return the unit on the date
      */
     @GET

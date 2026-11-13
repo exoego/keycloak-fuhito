@@ -498,4 +498,10 @@
         <addUniqueConstraint tableName="FUHITO_USER_MASK" columnNames="REALM_ID, USER_ID"
                              constraintName="UK_FUHITO_USER_MASK_USER"/>
     </changeSet>
+    <changeSet id="0.1.0-org-unit-time-settings" author="keycloak-fuhito">
+        <addColumn tableName="FUHITO_ORG_UNIT">
+            <column name="TIME_ZONE" type="VARCHAR(64)"/>
+            <column name="DAY_START" type="VARCHAR(5)"/>
+        </addColumn>
+    </changeSet>
 </databaseChangeLog>

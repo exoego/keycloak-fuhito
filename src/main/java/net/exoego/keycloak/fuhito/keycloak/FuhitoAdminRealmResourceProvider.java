@@ -1,8 +1,8 @@
 package net.exoego.keycloak.fuhito.keycloak;
 
-import java.time.Clock;
 import java.util.Optional;
 
+import net.exoego.keycloak.fuhito.domain.BusinessDay;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.jpa.RealmData;
 import net.exoego.keycloak.fuhito.rest.FuhitoResource;
@@ -31,17 +31,17 @@ public class FuhitoAdminRealmResourceProvider implements AdminRealmResourceProvi
             AdminEventBuilder adminEvent) {
         var entityManager = session.getProvider(JpaConnectionProvider.class).getEntityManager();
         var organizations = new KeycloakOrganizations(session, realm);
-        // With a bad setting, the request context rejects every call before the clock is used.
-        Clock clock = Clock.systemUTC();
+        // With a bad setting, the request context rejects every call before the rule is used.
+        BusinessDay.Rule rule = RealmTime.UTC;
         FuhitoException timeSettingsError = null;
         try {
-            clock = RealmTime.clock(realm);
+            rule = RealmTime.rule(realm);
         } catch (FuhitoException e) {
             timeSettingsError = e;
         }
         return new FuhitoResource(realm.getId(),
                 new KeycloakRequestContext(session, realm, auth, adminEvent, entityManager, timeSettingsError),
-                entityManager, clock,
+                entityManager, rule,
                 new UserDirectory() {
                     @Override
                     public boolean exists(String userId) {

@@ -1,5 +1,6 @@
 package net.exoego.keycloak.fuhito.keycloak;
 
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -12,6 +13,7 @@ import net.exoego.keycloak.fuhito.jpa.JpaOrgUnitStore;
 import net.exoego.keycloak.fuhito.jpa.JpaRefItemStore;
 import net.exoego.keycloak.fuhito.service.Member;
 import net.exoego.keycloak.fuhito.service.MembershipService;
+import net.exoego.keycloak.fuhito.service.UnitDays;
 import org.keycloak.connections.jpa.JpaConnectionProvider;
 import org.keycloak.models.ClientSessionContext;
 import org.keycloak.models.KeycloakSession;
@@ -92,9 +94,10 @@ public class AssignmentsProtocolMapper extends AbstractOIDCProtocolMapper
     private static List<Map<String, Object>> assignments(KeycloakSession session, UserSessionModel userSession) {
         EntityManager em = session.getProvider(JpaConnectionProvider.class).getEntityManager();
         String realmId = userSession.getRealm().getId();
+        var orgUnits = new JpaOrgUnitStore(em, realmId);
         MembershipService membership = new MembershipService(new JpaAssignmentStore(em, realmId),
-                new JpaEmploymentStore(em, realmId), new JpaOrgUnitStore(em, realmId),
-                new JpaRefItemStore(em, realmId), userId -> true, RealmTime.clockOrUtc(userSession.getRealm()));
+                new JpaEmploymentStore(em, realmId), orgUnits, new JpaRefItemStore(em, realmId), userId -> true,
+                new UnitDays(orgUnits, RealmTime.ruleOrUtc(userSession.getRealm()), Clock.systemUTC()));
         return membership.assignmentsOf(userSession.getUser().getId(), null, true).stream()
                 .map(AssignmentsProtocolMapper::entry)
                 .toList();

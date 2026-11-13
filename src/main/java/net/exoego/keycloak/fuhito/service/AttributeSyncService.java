@@ -5,6 +5,7 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -64,7 +65,7 @@ public class AttributeSyncService {
     }
 
     private final Sources from;
-    private final Clock clock;
+    private final Today today;
 
     private final List<Unmatched> unmatched = new ArrayList<>();
     private final List<Write> writes = new ArrayList<>();
@@ -82,8 +83,18 @@ public class AttributeSyncService {
      * @param clock the clock that decides what "today" is
      */
     public AttributeSyncService(Sources from, Clock clock) {
+        this(from, Today.of(clock));
+    }
+
+    /**
+     * Creates the service for one run in a realm where an org unit can have its own time settings.
+     *
+     * @param from what the sync reads and writes
+     * @param today what today is for the realm and for each org unit
+     */
+    public AttributeSyncService(Sources from, Today today) {
         this.from = from;
-        this.clock = clock;
+        this.today = today;
     }
 
     /**
@@ -98,22 +109,23 @@ public class AttributeSyncService {
         if (!settings.enabled()) {
             throw FuhitoException.conflict("sync.disabled", Map.of());
         }
-        LocalDate today = LocalDate.now(clock);
-        Matcher matcher = new Matcher(today);
-        Map<String, Assignment> owned = ownedByUser(today);
+        Matcher matcher = new Matcher(today.ofRealm());
+        Map<String, Assignment> owned = ownedByUser();
         List<Values> users = from.attributes().usersWithDepartment(settings);
         Set<String> withDepartment = new HashSet<>();
         for (Values user : users) {
             withDepartment.add(user.userId());
             Optional<String> orgUnitId = matcher.orgUnit(user);
             if (orgUnitId.isPresent()) {
-                sync(user, orgUnitId.get(), matcher.jobTitle(user), owned.get(user.userId()), today);
+                // Every change for this user takes effect on the date of the matched org unit.
+                sync(user, orgUnitId.get(), matcher.jobTitle(user), owned.get(user.userId()),
+                        today.ofUnit(orgUnitId.get()));
             }
         }
         // A user whose department was removed keeps no assignment from the sync.
         owned.forEach((userId, row) -> {
             if (!withDepartment.contains(userId)) {
-                retire(row, today);
+                retire(row, today.ofUnit(row.orgUnitId()));
                 assignmentsEnded++;
             }
         });
@@ -122,8 +134,23 @@ public class AttributeSyncService {
                 List.copyOf(writes));
     }
 
-    private Map<String, Assignment> ownedByUser(LocalDate today) {
-        List<Assignment> rows = from.assignments().rowsBySourceOn(SOURCE, today);
+    // An assignment counts when it holds somewhere in the realm today, and did not end on the date of its own
+    // org unit. So one that the sync wrote from the date of another unit is found again.
+    private Map<String, Assignment> ownedByUser() {
+        Map<String, Assignment> byAssignment = new LinkedHashMap<>();
+        for (LocalDate date : today.everywhere()) {
+            for (Assignment row : from.assignments().rowsBySourceOn(SOURCE, date)) {
+                LocalDate unitDate = today.ofUnit(row.orgUnitId());
+                if (row.period().to() != null && !row.period().to().isAfter(unitDate)) {
+                    continue;
+                }
+                // The row of the date of the unit wins. Without one, the earliest row wins.
+                byAssignment.merge(row.assignmentId(), row, (kept, next) -> kept.period().contains(unitDate)
+                        || !next.period().contains(unitDate) && !next.period().from().isBefore(kept.period().from())
+                        ? kept : next);
+            }
+        }
+        List<Assignment> rows = List.copyOf(byAssignment.values());
         Map<String, String> userByEmployment = from.employments()
                 .findAll(rows.stream().map(Assignment::employmentId).distinct().toList()).stream()
                 .collect(Collectors.toMap(Employment::id, Employment::userId));
@@ -132,8 +159,12 @@ public class AttributeSyncService {
         return result;
     }
 
-    private void sync(Values user, String orgUnitId, String jobTitle, Assignment current, LocalDate today) {
-        String employmentId = employmentOf(user, today);
+    private void sync(Values user, String orgUnitId, String jobTitle, Assignment current, LocalDate unitDate) {
+        Employment employment = employmentOf(user, unitDate);
+        String employmentId = employment.id();
+        // An employment that started on the date of another org unit can start after the date of this one.
+        // Nothing can be assigned before the employment starts.
+        LocalDate today = later(unitDate, employment.period().from());
         String assignmentId;
         if (current == null) {
             assignmentId = add(employmentId, orgUnitId, jobTitle, today);
@@ -144,6 +175,7 @@ public class AttributeSyncService {
             assignmentsMoved++;
         } else {
             assignmentId = current.assignmentId();
+            today = later(today, current.period().from());
             if (!Objects.equals(jobTitle, codeOf(current.jobTitleId()))) {
                 written(from.assignmentService().changeDetails(assignmentId, new AssignmentValues(null, null,
                         today.toString(), null, jobTitle, codeOf(current.occupationId()), codeOf(current.kindId()),
@@ -155,12 +187,21 @@ public class AttributeSyncService {
         syncManager(user, assignmentId, today);
     }
 
-    private String employmentOf(Values user, LocalDate today) {
-        Optional<Employment> active = from.employments().findByUser(user.userId()).stream()
+    private static LocalDate later(LocalDate a, LocalDate b) {
+        return a.isBefore(b) ? b : a;
+    }
+
+    private Employment employmentOf(Values user, LocalDate today) {
+        List<Employment> all = from.employments().findByUser(user.userId());
+        Optional<Employment> active = all.stream()
                 .filter(employment -> employment.period().contains(today))
-                .findFirst();
+                .findFirst()
+                // One that holds today for another org unit is the same employment, a few hours early.
+                .or(() -> all.stream()
+                        .filter(employment -> this.today.everywhere().stream().anyMatch(employment.period()::contains))
+                        .findFirst());
         if (active.isPresent()) {
-            return active.get().id();
+            return active.get();
         }
         EmploymentView started;
         try {
@@ -172,7 +213,7 @@ public class AttributeSyncService {
         employmentsStarted++;
         writes.add(new Write("FUHITO_EMPLOYMENT", started.employment().id(), true,
                 "fuhito/employments/" + started.employment().id(), started));
-        return started.employment().id();
+        return started.employment();
     }
 
     private EmploymentView start(Values user, String staffNumber, LocalDate today) {
@@ -194,7 +235,7 @@ public class AttributeSyncService {
     // An assignment that started today never held, so it is removed. Any other ends today.
     private void retire(Assignment row, LocalDate today) {
         List<Assignment> rows = from.assignments().rows(row.assignmentId());
-        if (rows.get(0).period().from().equals(today)) {
+        if (!rows.get(0).period().from().isBefore(today)) {
             from.lines().findByAssignment(row.assignmentId()).forEach(line -> from.lines().delete(line.id()));
             rows.forEach(each -> from.assignments().delete(each.rowId()));
             return;

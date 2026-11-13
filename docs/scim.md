@@ -57,6 +57,11 @@ When the attributes change:
 - A new manager ends the reporting line today and adds a new one.
 - A removed department ends the assignment.
 
+"Today" is the date of the org unit that the department matches.
+It is the date of the realm unless the unit, or one above it, sets its own time zone.
+When a user moves to another unit, the date of the new unit is used.
+See "What today is" in [keycloak-integration.md](keycloak-integration.md).
+
 The sync never touches an assignment that it does not own.
 So an administrator can add further assignments by hand, and the sync leaves them alone.
 

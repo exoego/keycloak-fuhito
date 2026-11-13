@@ -109,6 +109,8 @@ public class JpaOrgUnitStore implements OrgUnitStore {
         entity.externalId = unit.externalId();
         entity.source = unit.source();
         entity.keycloakOrganizationId = unit.keycloakOrganizationId();
+        entity.timeZone = unit.timeZone();
+        entity.dayStart = unit.dayStart();
     }
 
     @Override
@@ -155,6 +157,8 @@ public class JpaOrgUnitStore implements OrgUnitStore {
         entity.externalId = unit.externalId();
         entity.source = unit.source();
         entity.keycloakOrganizationId = unit.keycloakOrganizationId();
+        entity.timeZone = unit.timeZone();
+        entity.dayStart = unit.dayStart();
         em.persist(entity);
         // Other rows refer to this one. Hibernate groups inserts by entity type, so this row goes to the
         // database now, before a row that needs it.
@@ -273,7 +277,8 @@ public class JpaOrgUnitStore implements OrgUnitStore {
     }
 
     private static OrgUnit toDomain(OrgUnitEntity e) {
-        return new OrgUnit(e.id, e.code, e.externalId, e.source, e.keycloakOrganizationId);
+        return new OrgUnit(e.id, e.code, e.externalId, e.source, e.keycloakOrganizationId, e.timeZone,
+                e.dayStart);
     }
 
     private static OrgUnitVersion toDomain(OrgUnitVersionEntity e) {
