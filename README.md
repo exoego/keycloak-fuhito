@@ -56,6 +56,12 @@ Access control is out of scope. The caller decides who may do what with the data
 | Java | 21 or later |
 | Database | PostgreSQL |
 
+## Set up a realm
+
+A realm must say where it is before it uses the API. Set the realm attribute `fuhito.timeZone`, for example to `Asia/Tokyo`.
+The extension never uses the time zone of the server to decide what today is.
+See [docs/keycloak-integration.md](docs/keycloak-integration.md).
+
 ## Build
 
 ```sh

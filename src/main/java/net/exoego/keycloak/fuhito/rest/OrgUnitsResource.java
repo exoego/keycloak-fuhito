@@ -127,7 +127,7 @@ public class OrgUnitsResource {
     /**
      * Lists the org units that exist on a date. Each parent comes before its children.
      *
-     * @param asOf the date as {@code YYYY-MM-DD}. The default is today in the time zone of the server.
+     * @param asOf the date as {@code YYYY-MM-DD}. The default is today in the time zone of the realm.
      * @param roots true to return only the units with no parent
      * @return the units on the date
      */
@@ -141,7 +141,7 @@ public class OrgUnitsResource {
      * Lists the direct children of an org unit on a date.
      *
      * @param id the ID
-     * @param asOf the date as {@code YYYY-MM-DD}. The default is today in the time zone of the server.
+     * @param asOf the date as {@code YYYY-MM-DD}. The default is today in the time zone of the realm.
      * @return the children on the date
      */
     @GET
@@ -155,7 +155,7 @@ public class OrgUnitsResource {
      * Lists an org unit and everything below it on a date. Each parent comes before its children.
      *
      * @param id the ID
-     * @param asOf the date as {@code YYYY-MM-DD}. The default is today in the time zone of the server.
+     * @param asOf the date as {@code YYYY-MM-DD}. The default is today in the time zone of the realm.
      * @return the unit and its descendants on the date
      */
     @GET
@@ -169,7 +169,7 @@ public class OrgUnitsResource {
      * Lists the units from the root down to an org unit on a date.
      *
      * @param id the ID
-     * @param asOf the date as {@code YYYY-MM-DD}. The default is today in the time zone of the server.
+     * @param asOf the date as {@code YYYY-MM-DD}. The default is today in the time zone of the realm.
      * @return the path, with the root first and the unit last
      */
     @GET
@@ -222,7 +222,7 @@ public class OrgUnitsResource {
      * Lists the assignments to an org unit that hold on a date.
      *
      * @param id the ID
-     * @param asOf the date as {@code YYYY-MM-DD}. The default is today in the time zone of the server.
+     * @param asOf the date as {@code YYYY-MM-DD}. The default is today in the time zone of the realm.
      * @param includeDescendants true to also list the members of every unit below
      * @param occupation the code of an occupation to keep
      * @param jobTitle the code of a job title to keep
@@ -276,7 +276,7 @@ public class OrgUnitsResource {
      * Returns an org unit as it is on a date.
      *
      * @param id the ID
-     * @param asOf the date as {@code YYYY-MM-DD}. The default is today in the time zone of the server.
+     * @param asOf the date as {@code YYYY-MM-DD}. The default is today in the time zone of the realm.
      * @return the unit on the date
      */
     @GET

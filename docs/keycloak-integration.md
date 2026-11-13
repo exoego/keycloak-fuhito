@@ -59,7 +59,7 @@ Add it to a client or to a client scope, the same as any other mapper.
 - The mapper can add the claim to the access token, the ID token, and the user info response.
 - The primary assignment comes first.
 - A user with no assignment gets an empty list.
-- "Today" is the date in the time zone of the server.
+- "Today" is the date of the realm. See "What today is" below.
 
 Each entry has these fields. A field with no value is left out.
 
@@ -171,6 +171,32 @@ For this reason the server must be built again after the jar is added or updated
 - `kc.sh start-dev` and `kc.sh start` build the server when needed.
 - `kc.sh start --optimized` does not. Run `kc.sh build` first.
 
+## What today is
+
+Several things depend on what today is. They are the default of `asOf`, the assignments in tokens, the projection, the sync from user attributes, the end date that the removal of a user writes, and the check before masking.
+
+The date never comes from the time zone of the server.
+Each realm says where it is with two realm attributes.
+
+| Realm attribute | Meaning | Default |
+|---|---|---|
+| `fuhito.timeZone` | The time zone of the realm, for example `Asia/Tokyo` | None. A realm must set it. |
+| `fuhito.dayStart` | The time of day when the date changes, as `HH:mm` | `00:00` |
+
+With a day start of `04:00`, the date changes at 04:00 in the time zone of the realm.
+At 03:59 on April 1, today is still March 31.
+
+A realm with no time zone gets 409 with `realm.time_zone_missing` from every endpoint.
+An unknown time zone gets `realm.time_zone_invalid`, and a bad day start gets `realm.day_start_invalid`.
+
+Two paths must not fail because of a setting. They are a login with the token mapper and the removal of a user.
+When the time zone is missing or bad there, UTC decides what today is, and the log has a warning.
+
+Stored dates are plain calendar dates. They are never converted between time zones.
+The time zone matters only to decide which date it is now.
+
+On a day when the clocks change for summer time, the date can change up to one hour early or late when the day start is not `00:00`.
+
 ## Admin REST API
 
 The endpoints are under `/admin/realms/{realm}/fuhito`.
@@ -193,8 +219,7 @@ Dates have the form `YYYY-MM-DD`.
 A period includes its `validFrom` date and does not include its `validTo` date.
 
 Read endpoints take an `asOf` date.
-The default is today in the time zone of the server.
-Clients in another time zone should always send `asOf`.
+The default is today, as the realm defines it. See "What today is" below.
 
 ## Endpoints
 

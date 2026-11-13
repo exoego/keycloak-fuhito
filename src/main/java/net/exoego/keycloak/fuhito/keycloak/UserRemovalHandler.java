@@ -1,6 +1,5 @@
 package net.exoego.keycloak.fuhito.keycloak;
 
-import java.time.Clock;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.UUID;
@@ -16,6 +15,7 @@ import net.exoego.keycloak.fuhito.rest.EmploymentRepresentation;
 import net.exoego.keycloak.fuhito.service.EmploymentService;
 import net.exoego.keycloak.fuhito.service.EmploymentView;
 import net.exoego.keycloak.fuhito.service.UserRetirement;
+import org.keycloak.models.RealmModel;
 
 /**
  * Keeps the history of a user who is removed from Keycloak, and ends what would still hold.
@@ -25,7 +25,8 @@ final class UserRemovalHandler {
     private UserRemovalHandler() {
     }
 
-    static void retire(EntityManager em, String realmId, String userId) {
+    static void retire(EntityManager em, RealmModel realm, String userId) {
+        String realmId = realm.getId();
         var employments = new JpaEmploymentStore(em, realmId);
         var assignments = new JpaAssignmentStore(em, realmId);
         var lines = new JpaReportingLineStore(em, realmId);
@@ -34,7 +35,7 @@ final class UserRemovalHandler {
                 id -> false, lines);
         var changeLog = new JpaChangeLogStore(em, realmId);
         for (EmploymentView ended : new UserRetirement(employments, employmentService, assignments, lines,
-                Clock.systemDefaultZone()).retire(userId)) {
+                RealmTime.clockOrUtc(realm)).retire(userId)) {
             String id = ended.employment().id();
             // No administrator did this write. The removal of the user did.
             changeLog.append(new ChangeLogEntry(UUID.randomUUID().toString(), 0,

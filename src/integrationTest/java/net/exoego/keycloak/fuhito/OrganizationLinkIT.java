@@ -24,6 +24,7 @@ class OrganizationLinkIT {
         realm.setRealm("org-link-" + UUID.randomUUID());
         realm.setEnabled(true);
         realm.setOrganizationsEnabled(organizations);
+        TestRealm.withTimeZone(realm);
         admin.realms().create(realm);
         return realm.getRealm();
     }

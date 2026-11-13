@@ -1,6 +1,5 @@
 package net.exoego.keycloak.fuhito.keycloak;
 
-import java.time.Clock;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -95,7 +94,7 @@ public class AssignmentsProtocolMapper extends AbstractOIDCProtocolMapper
         String realmId = userSession.getRealm().getId();
         MembershipService membership = new MembershipService(new JpaAssignmentStore(em, realmId),
                 new JpaEmploymentStore(em, realmId), new JpaOrgUnitStore(em, realmId),
-                new JpaRefItemStore(em, realmId), userId -> true, Clock.systemDefaultZone());
+                new JpaRefItemStore(em, realmId), userId -> true, RealmTime.clockOrUtc(userSession.getRealm()));
         return membership.assignmentsOf(userSession.getUser().getId(), null, true).stream()
                 .map(AssignmentsProtocolMapper::entry)
                 .toList();

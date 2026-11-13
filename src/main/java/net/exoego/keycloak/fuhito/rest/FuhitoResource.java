@@ -55,6 +55,7 @@ public class FuhitoResource {
     private final String realmId;
     private final RequestContext context;
     private final EntityManager entityManager;
+    private final Clock clock;
     private final UserDirectory users;
     private final OrganizationDirectory organizations;
     private final OrganizationGroups organizationGroups;
@@ -67,13 +68,15 @@ public class FuhitoResource {
      * @param realmId the ID of the realm of the request
      * @param context the request and its caller
      * @param entityManager the entity manager of the request
+     * @param clock the clock whose date is the date of the realm. Its instant is not a time stamp.
      * @param users the users of the realm
      * @param organizations the Keycloak organizations of the realm
      * @param organizationGroups the groups and members of the Keycloak organizations of the realm
      * @param userAttributes the user attributes that an identity provider fills
      * @param eraseUser removes every row and every change log entry about one user
      */
-    public FuhitoResource(String realmId, RequestContext context, EntityManager entityManager, UserDirectory users,
+    public FuhitoResource(String realmId, RequestContext context, EntityManager entityManager, Clock clock,
+            UserDirectory users,
             OrganizationDirectory organizations, OrganizationGroups organizationGroups,
             UserAttributeSource userAttributes, Consumer<String> eraseUser) {
         this.userAttributes = userAttributes;
@@ -83,6 +86,7 @@ public class FuhitoResource {
         this.realmId = realmId;
         this.context = context;
         this.entityManager = entityManager;
+        this.clock = clock;
         // A removed user who left data behind is still known to the reads.
         this.users = new UserDirectory() {
             @Override
@@ -198,7 +202,7 @@ public class FuhitoResource {
                 new ReportingLineService.Sources(new JpaAssignmentStore(entityManager, realmId),
                         new JpaEmploymentStore(entityManager, realmId), new JpaOrgUnitStore(entityManager, realmId),
                         new JpaRefItemStore(entityManager, realmId), users),
-                Clock.systemDefaultZone());
+                clock);
     }
 
     /**
@@ -231,7 +235,7 @@ public class FuhitoResource {
     public ProjectionResource projection() {
         return new ProjectionResource(context, new ProjectionService(new JpaOrgUnitStore(entityManager, realmId),
                 new JpaAssignmentStore(entityManager, realmId), new JpaEmploymentStore(entityManager, realmId),
-                new JpaRefItemStore(entityManager, realmId), organizationGroups, Clock.systemDefaultZone()));
+                new JpaRefItemStore(entityManager, realmId), organizationGroups, clock));
     }
 
     /**
@@ -246,7 +250,7 @@ public class FuhitoResource {
                 new JpaRefItemStore(entityManager, realmId), new JpaEmploymentStore(entityManager, realmId),
                 employmentService(), new JpaAssignmentStore(entityManager, realmId), assignmentService(),
                 new JpaReportingLineStore(entityManager, realmId), reportingLineService()),
-                Clock.systemDefaultZone()));
+                clock));
     }
 
     /**
@@ -286,7 +290,7 @@ public class FuhitoResource {
     private OrgUnitService orgUnitService() {
         return new OrgUnitService(new JpaOrgUnitStore(entityManager, realmId),
                 new JpaAssignmentStore(entityManager, realmId), new JpaRefItemStore(entityManager, realmId),
-                Clock.systemDefaultZone());
+                clock);
     }
 
     /**
@@ -299,7 +303,8 @@ public class FuhitoResource {
         return new UsersResource(context, membershipService(), employmentService(), assignmentService(),
                 qualificationService(), reportingLineService(), users, eraseUser,
                 new UserMaskingService(new JpaUserDataMasker(entityManager, realmId),
-                        new JpaEmploymentStore(entityManager, realmId), users, Clock.systemDefaultZone()));
+                        new JpaEmploymentStore(entityManager, realmId), users, clock,
+                        Clock.systemUTC()));
     }
 
     /**
@@ -314,13 +319,13 @@ public class FuhitoResource {
 
     private QualificationService qualificationService() {
         return new QualificationService(new JpaQualificationStore(entityManager, realmId),
-                new JpaRefItemStore(entityManager, realmId), users, Clock.systemDefaultZone());
+                new JpaRefItemStore(entityManager, realmId), users, clock);
     }
 
     private MembershipService membershipService() {
         return new MembershipService(new JpaAssignmentStore(entityManager, realmId),
                 new JpaEmploymentStore(entityManager, realmId), new JpaOrgUnitStore(entityManager, realmId),
-                new JpaRefItemStore(entityManager, realmId), users, Clock.systemDefaultZone());
+                new JpaRefItemStore(entityManager, realmId), users, clock);
     }
 
     /**

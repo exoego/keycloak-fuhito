@@ -52,7 +52,7 @@ class UserMaskingServiceTest {
     };
 
     private UserMaskingService service() {
-        return new UserMaskingService(masker, employmentStore, users, clock);
+        return new UserMaskingService(masker, employmentStore, users, clock, clock);
     }
 
     private void employ(String userId, String from, String to) {
