@@ -28,6 +28,14 @@ final class MemoryAssignmentStore implements AssignmentStore {
     }
 
     @Override
+    public List<Assignment> rowsOfOrgUnit(String orgUnitId) {
+        return rows.stream()
+                .filter(r -> r.orgUnitId().equals(orgUnitId))
+                .sorted(Comparator.comparing(r -> r.period().from()))
+                .toList();
+    }
+
+    @Override
     public void insert(Assignment row) {
         rows.add(row);
     }

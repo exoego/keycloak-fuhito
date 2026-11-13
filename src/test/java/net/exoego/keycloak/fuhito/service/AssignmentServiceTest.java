@@ -28,7 +28,7 @@ class AssignmentServiceTest {
     private final MemoryRefItemStore refItems = new MemoryRefItemStore();
     private final AssignmentService service = new AssignmentService(store, employments, orgUnits, refItems);
     private final EmploymentService employmentService = new EmploymentService(employments, store, refItems, id -> true);
-    private final OrgUnitService orgUnitService = new OrgUnitService(orgUnits, refItems, Clock.systemUTC());
+    private final OrgUnitService orgUnitService = new OrgUnitService(orgUnits, store, refItems, Clock.systemUTC());
 
     private String employment;
     private String xHospital;

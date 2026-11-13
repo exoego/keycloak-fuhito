@@ -7,6 +7,7 @@ import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
 
+import net.exoego.keycloak.fuhito.domain.Assignment;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.OrgUnit;
 import net.exoego.keycloak.fuhito.domain.OrgUnitLink;
@@ -28,8 +29,9 @@ class OrgUnitServiceTest {
             Clock.fixed(Instant.parse("2026-06-14T16:00:00Z"), ZoneId.of("Asia/Tokyo"));
 
     private final MemoryOrgUnitStore store = new MemoryOrgUnitStore();
+    private final MemoryAssignmentStore assignments = new MemoryAssignmentStore();
     private final MemoryRefItemStore refItems = new MemoryRefItemStore();
-    private final OrgUnitService service = new OrgUnitService(store, refItems, CLOCK);
+    private final OrgUnitService service = new OrgUnitService(store, assignments, refItems, CLOCK);
 
     private static NewOrgUnit named(String name, String parentId, String validFrom) {
         return new NewOrgUnit(null, name, null, null, null, null, null, parentId, validFrom, null, null, null, null);
@@ -507,6 +509,34 @@ class OrgUnitServiceTest {
         FuhitoException e = endFailure(unit, "2030-04-01");
         assertEquals("org_unit.already_ended", e.code());
         assertEquals(Map.of("id", unit, "validTo", "2029-04-01"), e.params());
+    }
+
+    private void assign(String assignmentId, String orgUnitId, String from, String to) {
+        assignments.insert(new Assignment(assignmentId + "-" + from, assignmentId, "employment", orgUnitId,
+                new ValidPeriod(LocalDate.parse(from), to == null ? null : LocalDate.parse(to)), null, null, null,
+                false, false, null, 0, Map.of(), null, null));
+    }
+
+    @Test
+    void doesNotEndAUnitWithAssignmentsOnOrAfterTheDate() {
+        String unit = root("Unit");
+        String other = root("Other");
+        assign("open", unit, "2026-04-01", null);
+        assign("changed", unit, "2026-04-01", "2026-10-01");
+        assign("changed", unit, "2026-10-01", "2027-10-01");
+        assign("ended", unit, "2026-04-01", "2027-04-01");
+        assign("elsewhere", other, "2026-04-01", null);
+
+        FuhitoException e = endFailure(unit, "2027-04-01");
+
+        assertEquals(FuhitoException.Reason.CONFLICT, e.reason());
+        assertEquals("org_unit.has_assignments", e.code());
+        assertEquals(Map.of("id", unit, "validTo", "2027-04-01", "count", "2"), e.params());
+        assertEquals("3", endFailure(unit, "2027-01-01").params().get("count"));
+
+        assignments.rows.removeIf(row -> row.assignmentId().equals("open"));
+        assertEquals("1", endFailure(unit, "2027-04-01").params().get("count"));
+        assertEquals(LocalDate.of(2027, 10, 1), service.end(unit, "2027-10-01").version().period().to());
     }
 
     @Test

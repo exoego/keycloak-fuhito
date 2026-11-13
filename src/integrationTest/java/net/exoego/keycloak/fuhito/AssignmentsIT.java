@@ -171,6 +171,23 @@ class AssignmentsIT {
     }
 
     @Test
+    void anOrgUnitWithAssignmentsCannotEndBeforeThem() throws Exception {
+        String unit = unit("統合予定の課", null);
+        String first = id(api.post("/assignments", assign(unit, "")));
+        id(api.post("/assignments", assign(unit, ", \"validTo\": \"2027-04-01\"")));
+
+        HttpResponse<String> rejected = api.put("/org-units/" + unit + "/end", "{\"validTo\": \"2027-01-01\"}");
+        assertEquals("org_unit.has_assignments", errorOf(409, rejected));
+        assertEquals("2", Api.json(rejected).get("params").get("count").asText());
+        assertEquals("1", Api.json(api.put("/org-units/" + unit + "/end", "{\"validTo\": \"2027-04-01\"}"))
+                .get("params").get("count").asText());
+
+        // Once the last assignment ends on the date, the unit can end on it.
+        assertEquals(200, api.put("/assignments/" + first + "/end", "{\"validTo\": \"2027-04-01\"}").statusCode());
+        assertEquals(200, api.put("/org-units/" + unit + "/end", "{\"validTo\": \"2027-04-01\"}").statusCode());
+    }
+
+    @Test
     void rejectsBadRequests() throws Exception {
         String id = id(api.post("/assignments", assign(xMedicine, "")));
         String closing = unit("閉鎖予定", null);

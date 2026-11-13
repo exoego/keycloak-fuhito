@@ -26,6 +26,14 @@ public interface AssignmentStore {
     List<Assignment> rowsOfEmployment(String employmentId);
 
     /**
+     * Lists all rows of all assignments to an org unit, oldest first.
+     *
+     * @param orgUnitId the ID of the org unit
+     * @return the rows
+     */
+    List<Assignment> rowsOfOrgUnit(String orgUnitId);
+
+    /**
      * Stores a new row.
      *
      * @param row the row
