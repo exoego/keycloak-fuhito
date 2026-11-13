@@ -106,6 +106,26 @@ class RefItemsIT {
     }
 
     @Test
+    void theMessageFollowsTheLanguageOfTheRequest() throws Exception {
+        String path = "/ref-items/no-such-id";
+        String english = "The reference item \"no-such-id\" does not exist.";
+        String japanese = "参照データ「no-such-id」は存在しません。";
+
+        assertEquals(english, messageOf(api.get(path)));
+        assertEquals(japanese, messageOf(api.withAcceptLanguage("ja").get(path)));
+        assertEquals(japanese, messageOf(api.withAcceptLanguage("ja-JP,ja;q=0.9,en;q=0.8").get(path)));
+        assertEquals(english, messageOf(api.withAcceptLanguage("en-US,ja;q=0.5").get(path)));
+        assertEquals(english, messageOf(api.withAcceptLanguage("fr").get(path)));
+        assertEquals(english, messageOf(api.withAcceptLanguage("*").get(path)));
+    }
+
+    private static String messageOf(HttpResponse<String> response) throws Exception {
+        JsonNode error = Api.json(response);
+        assertEquals("ref_item.not_found", error.get("error").asText());
+        return error.get("message").asText();
+    }
+
+    @Test
     void aFailedRequestWritesNothing() throws Exception {
         assertEquals(400, api.post("/ref-items",
                 "{\"kind\": \"UNIT_TYPE\", \"code\": \"rolled-back\", \"name\": \"x\", \"names\": {\"??\": \"x\"}}").statusCode());

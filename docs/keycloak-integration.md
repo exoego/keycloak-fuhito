@@ -61,6 +61,9 @@ An error response has a stable code, the values that belong to it, and a message
 ```
 
 Clients should rely on `error` and `params`. The text of `message` can change.
+The language of `message` follows the `Accept-Language` header of the request.
+English and Japanese exist. Any other language gets English.
+To add a language, add a `messages_xx.properties` file next to the others.
 A failed request writes nothing.
 
 | Status | Meaning |

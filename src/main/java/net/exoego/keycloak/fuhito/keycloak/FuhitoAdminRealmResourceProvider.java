@@ -40,7 +40,10 @@ public class FuhitoAdminRealmResourceProvider implements AdminRealmResourceProvi
 
             @Override
             public Locale locale() {
-                return Locale.ENGLISH;
+                return session.getContext().getRequestHeaders().getAcceptableLanguages().stream()
+                        .filter(locale -> !"*".equals(locale.getLanguage()))
+                        .findFirst()
+                        .orElse(Locale.ENGLISH);
             }
 
             @Override

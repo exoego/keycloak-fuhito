@@ -12,6 +12,10 @@ public final class Messages {
 
     static final String BUNDLE = "net.exoego.keycloak.fuhito.messages";
 
+    // Without this, a language with no bundle would get the language of the server, not English.
+    private static final ResourceBundle.Control NO_JVM_DEFAULT =
+            ResourceBundle.Control.getNoFallbackControl(ResourceBundle.Control.FORMAT_PROPERTIES);
+
     private Messages() {
     }
 
@@ -20,13 +24,14 @@ public final class Messages {
      *
      * @param code the error code
      * @param params the values that the message refers to as {@code {name}}
-     * @param locale the language to use when the bundle has it
+     * @param locale the language. English is used when no bundle exists for it.
      * @return the message, or the code when no message exists
      */
     public static String format(String code, Map<String, String> params, Locale locale) {
         String text;
         try {
-            text = ResourceBundle.getBundle(BUNDLE, locale, Messages.class.getClassLoader()).getString(code);
+            text = ResourceBundle.getBundle(BUNDLE, locale, Messages.class.getClassLoader(), NO_JVM_DEFAULT)
+                    .getString(code);
         } catch (MissingResourceException e) {
             return code;
         }
