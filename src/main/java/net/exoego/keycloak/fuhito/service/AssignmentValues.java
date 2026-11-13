@@ -16,6 +16,8 @@ import java.util.Map;
  * @param kind the code of the assignment kind, or null
  * @param head true when the person leads the org unit, or null for false
  * @param primary true when this is the main assignment of the employment, or null for false
+ * @param switchPrimary true to take the primary flag away from other assignments of the employment for the
+ *        same dates, or null for false. It matters only when {@code primary} is true.
  * @param allocationPercent the share of the person's work in percent, or null
  * @param displayOrder the position among the members of the org unit, or null for 0
  * @param attributes free values, or null
@@ -23,7 +25,7 @@ import java.util.Map;
  * @param source the name of that system, or null. Only a new assignment uses it.
  */
 public record AssignmentValues(String employmentId, String orgUnitId, String validFrom, String validTo,
-        String jobTitle, String occupation, String kind, Boolean head, Boolean primary,
+        String jobTitle, String occupation, String kind, Boolean head, Boolean primary, Boolean switchPrimary,
         BigDecimal allocationPercent, Integer displayOrder, Map<String, Object> attributes, String externalId,
         String source) {
 }

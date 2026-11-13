@@ -69,8 +69,10 @@ public class AssignmentService {
         requireOrgUnitCovers(orgUnitId, period);
 
         String assignmentId = newId();
-        store.insert(row(newId(), assignmentId, employmentId, orgUnitId, period, request, null,
-                request.externalId(), request.source()));
+        Assignment row = row(newId(), assignmentId, employmentId, orgUnitId, period, request, null,
+                request.externalId(), request.source());
+        claimPrimary(row, request);
+        store.insert(row);
         return get(assignmentId);
     }
 
@@ -95,13 +97,16 @@ public class AssignmentService {
                         Map.of("id", id, "date", from.toString())));
 
         if (current.period().from().equals(from)) {
-            store.update(row(current.rowId(), id, current.employmentId(), current.orgUnitId(), current.period(),
-                    request, current, current.externalId(), current.source()));
+            Assignment corrected = row(current.rowId(), id, current.employmentId(), current.orgUnitId(),
+                    current.period(), request, current, current.externalId(), current.source());
+            claimPrimary(corrected, request);
+            store.update(corrected);
         } else {
             List<ValidPeriod> parts = current.period().splitAt(from);
             // Build the new row first, so that a bad value fails before anything is written.
             Assignment next = row(newId(), id, current.employmentId(), current.orgUnitId(), parts.get(1), request,
                     current, current.externalId(), current.source());
+            claimPrimary(next, request);
             store.update(current.withPeriod(parts.get(0)));
             store.insert(next);
         }
@@ -149,6 +154,43 @@ public class AssignmentService {
                 .map(r -> new AssignmentView.Row(r, codeOf(r.jobTitleId()), codeOf(r.occupationId()),
                         codeOf(r.kindId())))
                 .toList());
+    }
+
+    // An employment has at most one primary assignment on any date.
+    private void claimPrimary(Assignment claimant, AssignmentValues request) {
+        if (!claimant.primary()) {
+            return;
+        }
+        List<Assignment> holders = store.rowsOfEmployment(claimant.employmentId()).stream()
+                .filter(other -> other.primary() && !other.assignmentId().equals(claimant.assignmentId())
+                        && other.period().overlaps(claimant.period()))
+                .toList();
+        if (holders.isEmpty()) {
+            return;
+        }
+        if (!Boolean.TRUE.equals(request.switchPrimary())) {
+            throw FuhitoException.conflict("assignment.primary_exists", Map.of("employmentId",
+                    claimant.employmentId(), "assignmentId", holders.get(0).assignmentId(), "validFrom",
+                    claimant.period().from().toString()));
+        }
+        holders.forEach(holder -> releasePrimary(holder, claimant.period()));
+    }
+
+    // Splits the holder so that it stays primary before and after the period, and is not primary inside it.
+    private void releasePrimary(Assignment holder, ValidPeriod period) {
+        ValidPeriod shared = holder.period().intersection(period).orElseThrow();
+        boolean startsBefore = holder.period().from().isBefore(shared.from());
+        boolean endsAfter = shared.to() != null
+                && (holder.period().to() == null || holder.period().to().isAfter(shared.to()));
+        if (startsBefore) {
+            store.update(holder.withPeriod(new ValidPeriod(holder.period().from(), shared.from())));
+            store.insert(holder.part(newId(), shared, false));
+        } else {
+            store.update(holder.part(holder.rowId(), shared, false));
+        }
+        if (endsAfter) {
+            store.insert(holder.part(newId(), new ValidPeriod(shared.to(), holder.period().to()), true));
+        }
     }
 
     private List<Assignment> requireRows(String id) {

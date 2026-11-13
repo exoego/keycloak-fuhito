@@ -30,6 +30,19 @@ public record Assignment(String rowId, String assignmentId, String employmentId,
         String source) {
 
     /**
+     * Returns a copy of this row for another period, with another row ID and another primary flag.
+     *
+     * @param newRowId the ID of the new row
+     * @param newPeriod the period of the new row
+     * @param newPrimary the primary flag of the new row
+     * @return the new row
+     */
+    public Assignment part(String newRowId, ValidPeriod newPeriod, boolean newPrimary) {
+        return new Assignment(newRowId, assignmentId, employmentId, orgUnitId, newPeriod, jobTitleId, occupationId,
+                kindId, head, newPrimary, allocationPercent, displayOrder, attributes, externalId, source);
+    }
+
+    /**
      * Returns this row with another period.
      *
      * @param newPeriod the new period

@@ -329,4 +329,14 @@
             EXCLUDE USING gist (ASSIGNMENT_ID WITH =, daterange(VALID_FROM, VALID_TO) WITH &amp;&amp;)
         </sql>
     </changeSet>
+    <changeSet id="0.1.0-assignment-one-primary" author="keycloak-fuhito" dbms="postgresql">
+        <preConditions onFail="CONTINUE">
+            <sqlCheck expectedResult="1">SELECT count(*) FROM pg_extension WHERE extname = 'btree_gist'</sqlCheck>
+        </preConditions>
+        <sql>
+            ALTER TABLE FUHITO_ASSIGNMENT ADD CONSTRAINT EX_FUHITO_ASSIGNMENT_PRIMARY
+            EXCLUDE USING gist (EMPLOYMENT_ID WITH =, daterange(VALID_FROM, VALID_TO) WITH &amp;&amp;)
+            WHERE (IS_PRIMARY)
+        </sql>
+    </changeSet>
 </databaseChangeLog>
