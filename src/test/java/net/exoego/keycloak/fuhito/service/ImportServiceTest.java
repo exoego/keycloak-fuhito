@@ -1,17 +1,22 @@
 package net.exoego.keycloak.fuhito.service;
 
+import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.RefItem;
 import net.exoego.keycloak.fuhito.domain.RefKind;
+import net.exoego.keycloak.fuhito.service.ImportDocument.AssignmentRow;
+import net.exoego.keycloak.fuhito.service.ImportDocument.EmploymentRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.OrgUnitRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.RefItemRow;
 import net.exoego.keycloak.fuhito.service.ImportReport.Counts;
+import net.exoego.keycloak.fuhito.store.UserDirectory;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -24,10 +29,33 @@ class ImportServiceTest {
 
     private final MemoryRefItemStore refItems = new MemoryRefItemStore();
     private final MemoryOrgUnitStore orgUnitStore = new MemoryOrgUnitStore();
-    private final OrgUnitService orgUnits = new OrgUnitService(orgUnitStore, new MemoryAssignmentStore(), refItems,
+    private final MemoryAssignmentStore assignmentStore = new MemoryAssignmentStore();
+    private final OrgUnitService orgUnits = new OrgUnitService(orgUnitStore, assignmentStore, refItems,
             Clock.systemUTC());
+    private final MemoryEmploymentStore employmentStore = new MemoryEmploymentStore();
+    private final Map<String, String> usernames = Map.of("nurse", "user-nurse", "doctor", "user-doctor");
+    private final UserDirectory users = new UserDirectory() {
+        @Override
+        public boolean exists(String userId) {
+            return usernames.containsValue(userId);
+        }
+
+        @Override
+        public Optional<String> findIdByUsername(String username) {
+            return Optional.ofNullable(usernames.get(username));
+        }
+    };
+    private final EmploymentService employments =
+            new EmploymentService(employmentStore, assignmentStore, refItems, users);
+    private final AssignmentService assignments =
+            new AssignmentService(assignmentStore, employmentStore, orgUnitStore, refItems);
     private final ImportService service = new ImportService(new RefItemService(refItems), refItems, orgUnits,
-            orgUnitStore);
+            orgUnitStore, new ImportService.People(employments, employmentStore, assignments, assignmentStore, users));
+
+    private static ImportDocument doc(String effectiveDate, boolean dryRun, String source, List<RefItemRow> refItems,
+            List<OrgUnitRow> orgUnits) {
+        return new ImportDocument(effectiveDate, dryRun, source, refItems, orgUnits, null, null);
+    }
 
     private static OrgUnitRow unit(String externalId, String name, String parentExternalId) {
         return new OrgUnitRow(null, externalId, null, name, null, null, null, null, null, parentExternalId, null,
@@ -35,7 +63,7 @@ class ImportServiceTest {
     }
 
     private ImportReport importUnits(String effectiveDate, OrgUnitRow... rows) {
-        return service.apply(new ImportDocument(effectiveDate, false, null, null, List.of(rows)));
+        return service.apply(doc(effectiveDate, false, null, null, List.of(rows)));
     }
 
     private List<String> tree(String asOf) {
@@ -55,8 +83,8 @@ class ImportServiceTest {
                 new RefItemRow("UNIT_TYPE", "hospital", " 病院 ", Map.of("en", "Hospital"), 1, Map.of("k", "v"), null),
                 new RefItemRow("OCCUPATION", "nurse", "看護師", null, null, null, false));
 
-        ImportReport first = service.apply(new ImportDocument("2026-04-01", false, null, rows, null));
-        ImportReport second = service.apply(new ImportDocument("2026-04-01", false, null, rows, null));
+        ImportReport first = service.apply(doc("2026-04-01", false, null, rows, null));
+        ImportReport second = service.apply(doc("2026-04-01", false, null, rows, null));
 
         assertEquals(Map.of("refItems", new Counts(2, 0, 0)), first.counts());
         assertEquals(Map.of("refItems", new Counts(0, 0, 2)), second.counts());
@@ -74,10 +102,10 @@ class ImportServiceTest {
 
     @Test
     void changesAReferenceItemThatDiffers() {
-        service.apply(new ImportDocument("2026-04-01", false, null,
+        service.apply(doc("2026-04-01", false, null,
                 List.of(new RefItemRow("UNIT_TYPE", "hospital", "病院", null, null, null, null)), null));
 
-        ImportReport report = service.apply(new ImportDocument("2026-04-01", false, null,
+        ImportReport report = service.apply(doc("2026-04-01", false, null,
                 List.of(new RefItemRow("UNIT_TYPE", "hospital", "総合病院", null, 3, null, false)), null));
 
         assertEquals(Map.of("refItems", new Counts(0, 1, 0)), report.counts());
@@ -98,7 +126,7 @@ class ImportServiceTest {
         rows.add(new RefItemRow("UNIT_TYPE", "bad code", "x", null, null, null, null));
         rows.add(new RefItemRow("UNIT_TYPE", "blank", " ", null, null, null, null));
 
-        ImportReport report = service.apply(new ImportDocument("2026-04-01", false, null, rows, null));
+        ImportReport report = service.apply(doc("2026-04-01", false, null, rows, null));
 
         assertEquals(List.of("refItems[1] invalid.choice", "refItems[2] invalid.required",
                 "refItems[3] invalid.required", "refItems[4] invalid.code", "refItems[5] invalid.name"),
@@ -179,7 +207,7 @@ class ImportServiceTest {
 
     @Test
     void theSourceSeparatesExternalIds() {
-        ImportReport report = service.apply(new ImportDocument("2026-04-01", false, "hr-a", null, List.of(
+        ImportReport report = service.apply(doc("2026-04-01", false, "hr-a", null, List.of(
                 unit("1", "From A", null),
                 new OrgUnitRow("hr-b", "1", null, "From B", null, null, null, null, null, null, null, null, null,
                         null),
@@ -216,7 +244,7 @@ class ImportServiceTest {
         rows.add(new OrgUnitRow(null, "TYPE", null, "T", null, null, null, null, "nope", null, null, null, null,
                 null));
 
-        ImportReport report = service.apply(new ImportDocument("2026-04-01", false, null, null, rows));
+        ImportReport report = service.apply(doc("2026-04-01", false, null, null, rows));
 
         assertEquals(List.of(
                 "orgUnits[1] invalid.required",
@@ -241,19 +269,196 @@ class ImportServiceTest {
                 errors(importUnits("2026-03-01", unit("H", "Renamed", null))));
     }
 
+    private static EmploymentRow employment(String externalId, String username, String status, String validTo,
+            String endReason) {
+        return new EmploymentRow(null, externalId, username, null, null, null, null, status, null, null, null,
+                validTo, endReason);
+    }
+
+    private static AssignmentRow assignment(String externalId, String employment, String orgUnit, boolean primary,
+            String validTo) {
+        return new AssignmentRow(null, externalId, employment, orgUnit, null, null, null, null, primary, null, null,
+                null, null, validTo);
+    }
+
+    private ImportReport importPeople(String effectiveDate, List<EmploymentRow> employmentRows,
+            List<AssignmentRow> assignmentRows) {
+        return service.apply(new ImportDocument(effectiveDate, false, null, null, null, employmentRows,
+                assignmentRows));
+    }
+
+    private void importTwoUnits() {
+        importUnits("2026-04-01", unit("H", "Hospital", null), unit("W", "Ward", "H"));
+    }
+
+    private List<String> assignmentsOf(String employmentExternalId) {
+        String id = employmentStore.findByExternalId("import", employmentExternalId).orElseThrow().id();
+        return assignmentStore.rowsOfEmployment(id).stream()
+                .map(r -> r.externalId() + " " + r.period().from() + " " + r.period().to() + " " + r.primary())
+                .sorted()
+                .toList();
+    }
+
+    @Test
+    void importsStaffInOneDocumentAndIsIdempotent() {
+        refItems.insert(new RefItem("t", RefKind.EMPLOYMENT_TYPE, "part-time", "x", Map.of(), 0, Map.of(), true));
+        refItems.insert(new RefItem("o", RefKind.OCCUPATION, "nurse", "x", Map.of(), 0, Map.of(), true));
+        ImportDocument document = new ImportDocument("2026-04-01", false, "hr", null,
+                List.of(unit("H", "Hospital", null), unit("W", "Ward", "H")),
+                List.of(new EmploymentRow(null, "E1", "nurse", null, "N-1", "part-time", null, null,
+                                new BigDecimal("50"), Map.of("k", "v"), "2020-04-01", null, null),
+                        new EmploymentRow(null, "E2", null, "user-doctor", null, null, null, null, null, null, null,
+                                null, null)),
+                List.of(new AssignmentRow(null, "A1", "E1", "W", null, "nurse", null, true, true,
+                                new BigDecimal("100"), 2, Map.of("a", 1), "2026-04-01", null),
+                        new AssignmentRow(null, "A2", "E2", "H", null, null, null, null, null, null, null, null,
+                                null, null)));
+
+        ImportReport first = service.apply(document);
+        ImportReport second = service.apply(document);
+
+        assertEquals(List.of(), errors(first));
+        assertEquals(new Counts(2, 0, 0), first.counts().get("employments"));
+        assertEquals(new Counts(2, 0, 0), first.counts().get("assignments"));
+        assertEquals(List.of(), errors(second));
+        assertEquals(new Counts(0, 0, 2), second.counts().get("employments"));
+        assertEquals(new Counts(0, 0, 2), second.counts().get("assignments"));
+        assertEquals(List.of(), second.writes());
+        var nurse = employmentStore.findByExternalId("hr", "E1").orElseThrow();
+        assertEquals("user-nurse", nurse.userId());
+        assertEquals("N-1", nurse.staffNumber());
+        assertEquals(LocalDate.of(2020, 4, 1), nurse.period().from());
+        assertEquals(List.of("FUHITO_ORG_UNIT", "FUHITO_ORG_UNIT", "FUHITO_EMPLOYMENT", "FUHITO_EMPLOYMENT",
+                "FUHITO_ASSIGNMENT", "FUHITO_ASSIGNMENT"),
+                first.writes().stream().map(ImportReport.Write::resourceType).toList());
+        assertTrue(first.writes().get(2).state() instanceof EmploymentView);
+        assertTrue(first.writes().get(4).state() instanceof AssignmentView);
+    }
+
+    @Test
+    void aSecondDocumentTransfersOnePersonAndEndsAnother() {
+        importTwoUnits();
+        refItems.insert(new RefItem("r", RefKind.END_REASON, "resignation", "x", Map.of(), 0, Map.of(), true));
+        importPeople("2026-04-01",
+                List.of(employment("E1", "nurse", null, null, null), employment("E2", "doctor", null, null, null)),
+                List.of(assignment("A1", "E1", "W", true, null), assignment("A2", "E2", "H", true, null)));
+
+        // The new primary assignment comes first in the list. The ending one is still applied before it.
+        ImportReport report = importPeople("2027-04-01",
+                List.of(employment("E1", "nurse", "ON_LEAVE", null, null),
+                        employment("E2", "doctor", null, "2027-04-01", "resignation")),
+                List.of(assignment("A3", "E1", "H", true, null), assignment("A1", "E1", "W", true, "2027-04-01")));
+
+        assertEquals(List.of(), errors(report));
+        assertEquals(new Counts(0, 2, 0), report.counts().get("employments"));
+        assertEquals(new Counts(1, 1, 0), report.counts().get("assignments"));
+        assertEquals(List.of("A1 2026-04-01 2027-04-01 true", "A3 2027-04-01 null true"), assignmentsOf("E1"));
+        assertEquals(List.of("A2 2026-04-01 2027-04-01 true"), assignmentsOf("E2"));
+        var doctor = employments.get(employmentStore.findByExternalId("import", "E2").orElseThrow().id());
+        assertEquals("resignation", doctor.endReason());
+        var nurse = employments.get(employmentStore.findByExternalId("import", "E1").orElseThrow().id());
+        assertEquals(List.of("ACTIVE", "ON_LEAVE"),
+                nurse.terms().stream().map(t -> t.terms().status().name()).toList());
+        assertEquals(List.of("/terms", "/end", "/end", ""), report.writes().stream()
+                .map(w -> w.path().substring(w.path().indexOf('/', 7) + 37)).toList());
+
+        // The same second document again changes nothing, the ended rows included.
+        ImportReport again = importPeople("2027-04-01",
+                List.of(employment("E1", "nurse", "ON_LEAVE", null, null),
+                        employment("E2", "doctor", null, "2027-04-01", "resignation")),
+                List.of(assignment("A3", "E1", "H", true, null), assignment("A1", "E1", "W", true, "2027-04-01")));
+        assertEquals(List.of(), errors(again));
+        assertEquals(List.of(), again.writes());
+    }
+
+    @Test
+    void aChangeOfAssignmentDetailsTakesEffectOnTheDate() {
+        importTwoUnits();
+        refItems.insert(new RefItem("j", RefKind.JOB_TITLE, "chief", "x", Map.of(), 0, Map.of(), true));
+        importPeople("2026-04-01", List.of(employment("E1", "nurse", null, null, null)),
+                List.of(assignment("A1", "E1", "W", false, null)));
+
+        ImportReport report = importPeople("2027-04-01", List.of(),
+                List.of(new AssignmentRow(null, "A1", "E1", "W", "chief", null, null, true, false, null, null, null,
+                        null, null)));
+
+        assertEquals(new Counts(0, 1, 0), report.counts().get("assignments"));
+        String id = assignmentStore.findAssignmentIdByExternalId("import", "A1").orElseThrow();
+        assertEquals(List.of("null", "chief"),
+                assignments.get(id).rows().stream().map(r -> String.valueOf(r.jobTitle())).toList());
+    }
+
+    @Test
+    void reportsEveryBadPeopleRow() {
+        importTwoUnits();
+        importPeople("2026-04-01", List.of(employment("E1", "nurse", null, null, null)),
+                List.of(assignment("A1", "E1", "W", false, null)));
+        List<EmploymentRow> employmentRows = new ArrayList<>();
+        employmentRows.add(employment("E1", "doctor", null, null, null));
+        employmentRows.add(employment("E9", "nobody", null, null, null));
+        employmentRows.add(employment("E8", null, null, null, null));
+        employmentRows.add(employment(null, "nurse", null, null, null));
+        employmentRows.add(null);
+        employmentRows.add(employment("E7", "doctor", "GONE", null, null));
+        employmentRows.add(employment("E7", "doctor", null, null, null));
+        List<AssignmentRow> assignmentRows = new ArrayList<>();
+        assignmentRows.add(assignment("A1", "E1", "H", false, null));
+        assignmentRows.add(assignment("A9", "NOPE", "W", false, null));
+        assignmentRows.add(assignment("A8", "E1", "NOPE", false, null));
+        assignmentRows.add(assignment("A7", null, "W", false, null));
+        assignmentRows.add(assignment("A6", "E1", null, false, null));
+        assignmentRows.add(assignment(null, "E1", "W", false, null));
+        assignmentRows.add(null);
+        assignmentRows.add(assignment("A5", "E1", "W", false, null));
+        assignmentRows.add(assignment("A5", "E1", "W", false, null));
+
+        ImportReport report = importPeople("2026-04-01", employmentRows, assignmentRows);
+
+        assertEquals(List.of(
+                "employments[0] import.user_mismatch",
+                "employments[1] import.username_unknown",
+                "employments[2] invalid.required",
+                "employments[3] invalid.required",
+                "employments[4] invalid.required",
+                "employments[5] invalid.choice",
+                "employments[6] import.duplicate_row",
+                "assignments[0] import.assignment_mismatch",
+                "assignments[1] import.employment_unknown",
+                "assignments[2] import.org_unit_unknown",
+                "assignments[3] invalid.required",
+                "assignments[4] invalid.required",
+                "assignments[5] invalid.required",
+                "assignments[6] invalid.required",
+                "assignments[8] import.duplicate_row"), errors(report));
+        assertEquals(new Counts(1, 0, 0), report.counts().get("assignments"));
+    }
+
+    @Test
+    void anExistingRowMustExistOnTheEffectiveDate() {
+        importTwoUnits();
+        importPeople("2026-04-01", List.of(employment("E1", "nurse", null, null, null)),
+                List.of(assignment("A1", "E1", "W", false, null)));
+
+        ImportReport report = importPeople("2026-03-01", List.of(employment("E1", "nurse", "ON_LEAVE", null, null)),
+                List.of(assignment("A1", "E1", "W", true, null)));
+
+        assertEquals(List.of("employments[0] employment.not_valid_on", "assignments[0] assignment.not_valid_on"),
+                errors(report));
+    }
+
     @Test
     void rejectsABadDocument() {
         assertEquals("invalid.required", assertThrows(FuhitoException.class, () -> service.apply(null)).code());
         assertEquals("invalid.required", assertThrows(FuhitoException.class,
-                () -> service.apply(new ImportDocument(null, false, null, null, null))).code());
+                () -> service.apply(doc(null, false, null, null, null))).code());
         assertEquals("invalid.date", assertThrows(FuhitoException.class,
-                () -> service.apply(new ImportDocument("April", false, null, null, null))).code());
+                () -> service.apply(doc("April", false, null, null, null))).code());
         assertEquals("invalid.code", assertThrows(FuhitoException.class,
-                () -> service.apply(new ImportDocument("2026-04-01", false, "bad source", null, null))).code());
-        ImportReport empty = service.apply(new ImportDocument("2026-04-01", true, null, null, null));
+                () -> service.apply(doc("2026-04-01", false, "bad source", null, null))).code());
+        ImportReport empty = service.apply(doc("2026-04-01", true, null, null, null));
         assertEquals(Map.of(), empty.counts());
         assertNull(empty.counts().get("orgUnits"));
         assertEquals(Map.of("refItems", new Counts(0, 0, 0), "orgUnits", new Counts(0, 0, 0)),
-                service.apply(new ImportDocument("2026-04-01", false, null, List.of(), List.of())).counts());
+                service.apply(doc("2026-04-01", false, null, List.of(), List.of())).counts());
     }
 }

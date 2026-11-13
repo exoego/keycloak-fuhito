@@ -51,7 +51,8 @@ public final class ImportReport {
      * @param resourceId the ID of the written resource
      * @param created true for a new resource, false for a change
      * @param path the path that the same write has in its own endpoint
-     * @param state the state after the write. It is a {@code RefItem} or an {@code OrgUnitState}.
+     * @param state the state after the write. It is a {@code RefItem}, an {@code OrgUnitState}, an
+     *        {@code EmploymentView}, or an {@code AssignmentView}.
      */
     public record Write(String resourceType, String resourceId, boolean created, String path, Object state) {
     }

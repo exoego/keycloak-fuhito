@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 
 import net.exoego.keycloak.fuhito.domain.Assignment;
 import net.exoego.keycloak.fuhito.store.AssignmentStore;
@@ -40,6 +41,14 @@ final class MemoryAssignmentStore implements AssignmentStore {
     @Override
     public List<Assignment> rowsOn(Collection<String> orgUnitIds, LocalDate date) {
         return rows.stream().filter(r -> orgUnitIds.contains(r.orgUnitId()) && r.period().contains(date)).toList();
+    }
+
+    @Override
+    public Optional<String> findAssignmentIdByExternalId(String source, String externalId) {
+        return rows.stream()
+                .filter(r -> source.equals(r.source()) && externalId.equals(r.externalId()))
+                .map(Assignment::assignmentId)
+                .findFirst();
     }
 
     @Override

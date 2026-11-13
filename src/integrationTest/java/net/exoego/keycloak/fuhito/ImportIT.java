@@ -150,6 +150,104 @@ class ImportIT {
     }
 
     @Test
+    void loadsASmallHospitalWithStaffThenATransferAndAResignation() throws Exception {
+        TestRealm realm = TestRealm.create("import-people");
+        Api api = realm.api;
+        String nurse = realm.user("nurse");
+        String clerk = realm.user("clerk");
+
+        JsonNode first = ok(api.post("/imports", """
+                {"effectiveDate": "2026-04-01", "source": "sheet",
+                 "refItems": [
+                   {"kind": "OCCUPATION", "code": "nurse", "name": "看護師"},
+                   {"kind": "EMPLOYMENT_TYPE", "code": "part-time", "name": "非常勤"},
+                   {"kind": "END_REASON", "code": "resignation", "name": "退職"}
+                 ],
+                 "orgUnits": [
+                   {"externalId": "H", "name": "X病院"},
+                   {"externalId": "W1", "name": "1病棟", "parentExternalId": "H"},
+                   {"externalId": "W2", "name": "2病棟", "parentExternalId": "H"}
+                 ],
+                 "employments": [
+                   {"externalId": "E-nurse", "username": "nurse", "staffNumber": "N-001", "validFrom": "2020-04-01",
+                    "employmentType": "part-time", "workPercent": 50},
+                   {"externalId": "E-clerk", "username": "clerk"}
+                 ],
+                 "assignments": [
+                   {"externalId": "A1", "employmentExternalId": "E-nurse", "orgUnitExternalId": "W1",
+                    "occupation": "nurse", "primary": true},
+                   {"externalId": "A2", "employmentExternalId": "E-clerk", "orgUnitExternalId": "H", "primary": true}
+                 ]}
+                """));
+        assertTrue(first.get("applied").asBoolean());
+        assertEquals(2, first.get("counts").get("employments").get("created").asInt());
+        assertEquals(2, first.get("counts").get("assignments").get("created").asInt());
+
+        JsonNode ofNurse = Api.json(api.get("/users/" + nurse + "/assignments?asOf=2026-04-01"));
+        assertEquals("1病棟", ofNurse.get(0).get("orgUnitName").asText());
+        assertEquals("N-001", ofNurse.get(0).get("staffNumber").asText());
+        assertEquals("part-time", ofNurse.get(0).get("employmentType").asText());
+        assertEquals("2020-04-01", Api.json(api.get("/users/" + nurse + "/history")).get("employments").get(0).get("validFrom").asText());
+
+        // In April 2027 the nurse moves to ward 2, and the clerk resigns.
+        String second = """
+                {"effectiveDate": "2027-04-01", "source": "sheet",
+                 "employments": [
+                   {"externalId": "E-clerk", "username": "clerk", "validTo": "2027-04-01", "endReason": "resignation"}
+                 ],
+                 "assignments": [
+                   {"externalId": "A3", "employmentExternalId": "E-nurse", "orgUnitExternalId": "W2",
+                    "occupation": "nurse", "primary": true},
+                   {"externalId": "A1", "employmentExternalId": "E-nurse", "orgUnitExternalId": "W1",
+                    "occupation": "nurse", "primary": true, "validTo": "2027-04-01"}
+                 ]}
+                """;
+        JsonNode moved = ok(api.post("/imports", second));
+        assertEquals(1, moved.get("counts").get("employments").get("changed").asInt());
+        assertEquals(1, moved.get("counts").get("assignments").get("created").asInt());
+        assertEquals(1, moved.get("counts").get("assignments").get("changed").asInt());
+
+        assertEquals("1病棟", Api.json(api.get("/users/" + nurse + "/assignments?asOf=2027-03-31")).get(0).get("orgUnitName").asText());
+        assertEquals("2病棟", Api.json(api.get("/users/" + nurse + "/assignments?asOf=2027-04-01")).get(0).get("orgUnitName").asText());
+        assertEquals(0, Api.json(api.get("/users/" + clerk + "/assignments?asOf=2027-04-01")).size());
+        JsonNode clerkEmployment = Api.json(api.get("/users/" + clerk + "/history")).get("employments").get(0);
+        assertEquals("2027-04-01", clerkEmployment.get("validTo").asText());
+        assertEquals("resignation", clerkEmployment.get("endReason").asText());
+
+        JsonNode again = ok(api.post("/imports", second));
+        assertEquals(1, again.get("counts").get("employments").get("unchanged").asInt());
+        assertEquals(2, again.get("counts").get("assignments").get("unchanged").asInt());
+    }
+
+    @Test
+    void badPeopleRowsAreReportedAndNothingIsWritten() throws Exception {
+        TestRealm realm = TestRealm.create("import-people-errors");
+        realm.user("nurse");
+
+        HttpResponse<String> response = realm.api.post("/imports", """
+                {"effectiveDate": "2026-04-01",
+                 "orgUnits": [{"externalId": "H", "name": "X病院"}],
+                 "employments": [
+                   {"externalId": "E1", "username": "nurse"},
+                   {"externalId": "E2", "username": "nobody"}
+                 ],
+                 "assignments": [
+                   {"externalId": "A1", "employmentExternalId": "E2", "orgUnitExternalId": "H"},
+                   {"externalId": "A2", "employmentExternalId": "E1", "orgUnitExternalId": "NOPE"}
+                 ]}
+                """);
+
+        assertEquals(400, response.statusCode(), response.body());
+        JsonNode report = Api.json(response);
+        assertEquals(List.of("import.username_unknown", "import.employment_unknown", "import.org_unit_unknown"),
+                report.get("errors").findValuesAsText("error"));
+        assertEquals(List.of("employments", "assignments", "assignments"), report.get("errors").findValuesAsText("list"));
+        for (String table : List.of("fuhito_org_unit", "fuhito_employment", "fuhito_assignment", "fuhito_change_log")) {
+            assertEquals("0", rows(realm, table), table);
+        }
+    }
+
+    @Test
     void rejectsABadDocument() throws Exception {
         TestRealm realm = TestRealm.create("import-bad");
 

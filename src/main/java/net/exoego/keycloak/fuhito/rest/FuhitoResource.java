@@ -164,7 +164,9 @@ public class FuhitoResource {
     public ImportsResource imports() {
         var refItemStore = new JpaRefItemStore(entityManager, realmId);
         return new ImportsResource(context, new ImportService(new RefItemService(refItemStore), refItemStore,
-                orgUnitService(), new JpaOrgUnitStore(entityManager, realmId)));
+                orgUnitService(), new JpaOrgUnitStore(entityManager, realmId),
+                new ImportService.People(employmentService(), new JpaEmploymentStore(entityManager, realmId),
+                        assignmentService(), new JpaAssignmentStore(entityManager, realmId), users)));
     }
 
     private OrgUnitService orgUnitService() {

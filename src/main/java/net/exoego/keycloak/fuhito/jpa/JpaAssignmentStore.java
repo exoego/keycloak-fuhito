@@ -3,6 +3,7 @@ package net.exoego.keycloak.fuhito.jpa;
 import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 
 import jakarta.persistence.EntityManager;
 import net.exoego.keycloak.fuhito.domain.Assignment;
@@ -76,6 +77,17 @@ public class JpaAssignmentStore implements AssignmentStore {
                 .getResultStream()
                 .map(JpaAssignmentStore::toDomain)
                 .toList();
+    }
+
+    @Override
+    public Optional<String> findAssignmentIdByExternalId(String source, String externalId) {
+        return em.createQuery("select distinct a.assignmentId from AssignmentEntity a where a.realmId = :realmId"
+                        + " and a.source = :source and a.externalId = :externalId", String.class)
+                .setParameter("realmId", realmId)
+                .setParameter("source", source)
+                .setParameter("externalId", externalId)
+                .getResultStream()
+                .findFirst();
     }
 
     @Override

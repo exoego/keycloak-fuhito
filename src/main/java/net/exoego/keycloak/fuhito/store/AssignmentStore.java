@@ -3,6 +3,7 @@ package net.exoego.keycloak.fuhito.store;
 import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 
 import net.exoego.keycloak.fuhito.domain.Assignment;
 
@@ -43,6 +44,15 @@ public interface AssignmentStore {
      * @return the rows
      */
     List<Assignment> rowsOn(Collection<String> orgUnitIds, LocalDate date);
+
+    /**
+     * Finds the ID of an assignment by the ID it has in the system it came from.
+     *
+     * @param source the name of that system
+     * @param externalId the ID in that system
+     * @return the assignment ID, or empty when the realm has no such assignment
+     */
+    Optional<String> findAssignmentIdByExternalId(String source, String externalId);
 
     /**
      * Stores a new row.
