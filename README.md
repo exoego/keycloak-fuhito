@@ -24,6 +24,8 @@ Each of them has its own tree of org units.
 
 Access control is out of scope. The caller decides who may do what with the data.
 
+[docs/concepts.md](docs/concepts.md) defines the terms.
+
 ## Compatibility
 
 | Item | Version |
