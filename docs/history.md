@@ -76,6 +76,7 @@ The rules differ by resource, because the right answer to "what about the stored
 | Org unit | The end is rejected | The end is rejected while child units or assignments hold on or after the date |
 | Assignment | The end is rejected | Nothing depends on an assignment yet |
 | Employment | They are removed | Its terms and its assignments end on the date. Assignments that would start later are removed |
+| Reporting line | A line has no changes | It ends when its assignment or its employment ends |
 
 An org unit and an assignment reject the end, so that a planned change is not lost by accident.
 An employment removes the stored future, because a person who leaves has no future terms.
@@ -85,6 +86,24 @@ The end of an assignment or an employment can move earlier or later.
 An org unit cannot change its end yet.
 
 Checked by `OrgUnitsIT.endsALeafAndKeepsItsHistory`, `OrgUnitsIT.rejectsABadEnd`, `AssignmentsIT.anOrgUnitWithAssignmentsCannotEndBeforeThem`, `AssignmentsIT.changesAJobTitleOnADateAndEndsTheAssignment`, and `EmploymentsIT.leavingEndsTheTermsAndTheAssignments`.
+
+## Managers and reports
+
+A reporting line links an assignment to a manager for a period.
+A solid line is the main manager. An assignment has at most one at a time.
+A dotted line is a further manager, for example of a project.
+
+When an assignment has no solid line on a date, the manager is derived from the tree.
+
+- A member reports to the head of the org unit.
+- A head reports to the head of the nearest unit above that has one.
+- A member of a unit with no head does the same.
+- Two heads of one unit are not each other's managers.
+
+`GET /users/{userId}/managers` and `GET /users/{userId}/reports` use these rules.
+Each entry says whether it is stored or derived.
+
+Checked by `ReportingLinesIT.derivesManagersAndReportsFromTheHeadsOfTheTree` and `ReportingLinesIT.storedLinesChangeTheAnswerFromTheirDate`.
 
 ## Rules that hold on every date
 

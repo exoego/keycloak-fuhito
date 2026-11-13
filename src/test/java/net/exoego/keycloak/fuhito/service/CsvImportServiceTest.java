@@ -39,9 +39,11 @@ class CsvImportServiceTest {
     private final OrgUnitService orgUnits = new OrgUnitService(orgUnitStore, assignmentStore, refItems,
             Clock.systemUTC());
     private final EmploymentService employments =
-            new EmploymentService(employmentStore, assignmentStore, refItems, users);
+            new EmploymentService(employmentStore, assignmentStore, refItems, users,
+            new MemoryReportingLineStore());
     private final AssignmentService assignments =
-            new AssignmentService(assignmentStore, employmentStore, orgUnitStore, refItems);
+            new AssignmentService(assignmentStore, employmentStore, orgUnitStore, refItems,
+            new MemoryReportingLineStore());
     private final ImportService.People people =
             new ImportService.People(employments, employmentStore, assignments, assignmentStore, users);
     private final CsvImportService service = new CsvImportService(

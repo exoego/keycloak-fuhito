@@ -20,6 +20,7 @@ import net.exoego.keycloak.fuhito.jpa.JpaEmploymentStore;
 import net.exoego.keycloak.fuhito.jpa.JpaOrgUnitStore;
 import net.exoego.keycloak.fuhito.jpa.JpaQualificationStore;
 import net.exoego.keycloak.fuhito.jpa.JpaRefItemStore;
+import net.exoego.keycloak.fuhito.jpa.JpaReportingLineStore;
 import net.exoego.keycloak.fuhito.service.AssignmentService;
 import net.exoego.keycloak.fuhito.service.ChangeLogService;
 import net.exoego.keycloak.fuhito.service.ChangeOrderService;
@@ -31,6 +32,7 @@ import net.exoego.keycloak.fuhito.service.OrgUnitService;
 import net.exoego.keycloak.fuhito.service.QualificationService;
 import net.exoego.keycloak.fuhito.service.RefItemService;
 import net.exoego.keycloak.fuhito.service.ReorganizationService;
+import net.exoego.keycloak.fuhito.service.ReportingLineService;
 import net.exoego.keycloak.fuhito.store.UserDirectory;
 
 /**
@@ -130,12 +132,31 @@ public class FuhitoResource {
     private AssignmentService assignmentService() {
         return new AssignmentService(new JpaAssignmentStore(entityManager, realmId),
                 new JpaEmploymentStore(entityManager, realmId), new JpaOrgUnitStore(entityManager, realmId),
-                new JpaRefItemStore(entityManager, realmId));
+                new JpaRefItemStore(entityManager, realmId), new JpaReportingLineStore(entityManager, realmId));
     }
 
     private EmploymentService employmentService() {
         return new EmploymentService(new JpaEmploymentStore(entityManager, realmId),
-                new JpaAssignmentStore(entityManager, realmId), new JpaRefItemStore(entityManager, realmId), users);
+                new JpaAssignmentStore(entityManager, realmId), new JpaRefItemStore(entityManager, realmId), users,
+                new JpaReportingLineStore(entityManager, realmId));
+    }
+
+    /**
+     * Returns the reporting lines of the realm.
+     *
+     * @return the sub-resource
+     */
+    @Path("reporting-lines")
+    public ReportingLinesResource reportingLines() {
+        return new ReportingLinesResource(context, reportingLineService());
+    }
+
+    private ReportingLineService reportingLineService() {
+        return new ReportingLineService(new JpaReportingLineStore(entityManager, realmId),
+                new ReportingLineService.Sources(new JpaAssignmentStore(entityManager, realmId),
+                        new JpaEmploymentStore(entityManager, realmId), new JpaOrgUnitStore(entityManager, realmId),
+                        new JpaRefItemStore(entityManager, realmId), users),
+                Clock.systemDefaultZone());
     }
 
     /**
@@ -206,7 +227,7 @@ public class FuhitoResource {
     @Path("users")
     public UsersResource users() {
         return new UsersResource(context, membershipService(), employmentService(), assignmentService(),
-                qualificationService());
+                qualificationService(), reportingLineService());
     }
 
     /**

@@ -17,6 +17,7 @@ import net.exoego.keycloak.fuhito.store.AssignmentStore;
 import net.exoego.keycloak.fuhito.store.EmploymentStore;
 import net.exoego.keycloak.fuhito.store.OrgUnitStore;
 import net.exoego.keycloak.fuhito.store.RefItemStore;
+import net.exoego.keycloak.fuhito.store.ReportingLineStore;
 
 /**
  * Operations on the assignments of one realm.
@@ -27,6 +28,7 @@ public class AssignmentService {
     private final EmploymentStore employments;
     private final OrgUnitStore orgUnits;
     private final RefItemStore refItems;
+    private final ReportingLineStore reportingLines;
 
     /**
      * Creates the service.
@@ -35,9 +37,11 @@ public class AssignmentService {
      * @param employments the storage of employments of the realm
      * @param orgUnits the storage of org units of the realm
      * @param refItems the storage of reference items of the realm
+     * @param reportingLines the storage of reporting lines of the realm
      */
     public AssignmentService(AssignmentStore store, EmploymentStore employments, OrgUnitStore orgUnits,
-            RefItemStore refItems) {
+            RefItemStore refItems, ReportingLineStore reportingLines) {
+        this.reportingLines = reportingLines;
         this.store = store;
         this.employments = employments;
         this.orgUnits = orgUnits;
@@ -167,6 +171,10 @@ public class AssignmentService {
             }
         }
         store.update(changed);
+        if (to != null) {
+            // A reporting line cannot outlast its assignment.
+            reportingLines.truncate(last.assignmentId(), to);
+        }
     }
 
     /**

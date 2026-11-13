@@ -26,7 +26,8 @@ class EmploymentServiceTest {
     private final MemoryAssignmentStore assignments = new MemoryAssignmentStore();
     private final MemoryRefItemStore refItems = new MemoryRefItemStore();
     private final EmploymentService service =
-            new EmploymentService(store, assignments, refItems, Set.of("alice", "bob")::contains);
+            new EmploymentService(store, assignments, refItems, Set.of("alice", "bob")::contains,
+            new MemoryReportingLineStore());
 
     private static NewEmployment minimal(String userId, String validFrom) {
         return new NewEmployment(userId, validFrom, null, null, null, null, null, null, null, null, null);

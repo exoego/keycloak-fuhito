@@ -1,0 +1,113 @@
+package net.exoego.keycloak.fuhito.rest;
+
+import jakarta.ws.rs.Consumes;
+import jakarta.ws.rs.DELETE;
+import jakarta.ws.rs.GET;
+import jakarta.ws.rs.POST;
+import jakarta.ws.rs.PUT;
+import jakarta.ws.rs.Path;
+import jakarta.ws.rs.PathParam;
+import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.core.MediaType;
+import jakarta.ws.rs.core.Response;
+import net.exoego.keycloak.fuhito.domain.Checks;
+import net.exoego.keycloak.fuhito.rest.RequestContext.Change;
+import net.exoego.keycloak.fuhito.service.ReportingLineService;
+
+/**
+ * The reporting lines of one realm.
+ */
+@Produces(MediaType.APPLICATION_JSON)
+@Consumes(MediaType.APPLICATION_JSON)
+public class ReportingLinesResource {
+
+    /**
+     * The resource type of reporting lines in the admin event log.
+     */
+    public static final String RESOURCE_TYPE = "FUHITO_REPORTING_LINE";
+
+    private final RequestContext context;
+    private final ReportingLineService service;
+
+    /**
+     * Creates the resource for one request.
+     *
+     * @param context the request and its caller
+     * @param service the operations on the realm of the request
+     */
+    public ReportingLinesResource(RequestContext context, ReportingLineService service) {
+        this.context = context;
+        this.service = service;
+    }
+
+    /**
+     * Adds a reporting line from an assignment to a manager.
+     *
+     * @param body the assignment, the manager, the kind, and the dates
+     * @return 201 with the new line
+     */
+    @POST
+    public Response add(ReportingLineRepresentation body) {
+        context.requireWrite();
+        return Calls.run(context, () -> {
+            Checks.required("body", body);
+            var line = ReportingLineRepresentation.of(service.add(body.assignmentId(), body.managerUserId(),
+                    body.kind(), body.validFrom(), body.validTo()));
+            context.recordChange(Change.CREATE, RESOURCE_TYPE, line.id(), path(line.id()), line);
+            return Response.status(Response.Status.CREATED).entity(line).build();
+        });
+    }
+
+    /**
+     * Returns one reporting line.
+     *
+     * @param id the ID
+     * @return the line
+     */
+    @GET
+    @Path("{id}")
+    public ReportingLineRepresentation get(@PathParam("id") String id) {
+        context.requireRead();
+        return Calls.run(context, () -> ReportingLineRepresentation.of(service.get(id)));
+    }
+
+    /**
+     * Ends a reporting line earlier.
+     *
+     * @param id the ID
+     * @param body the first date on which the line no longer holds
+     * @return the changed line
+     */
+    @PUT
+    @Path("{id}/end")
+    public ReportingLineRepresentation end(@PathParam("id") String id, EndRepresentation body) {
+        context.requireWrite();
+        return Calls.run(context, () -> {
+            Checks.required("body", body);
+            var line = ReportingLineRepresentation.of(service.end(id, body.validTo()));
+            context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, path(id) + "/end", line);
+            return line;
+        });
+    }
+
+    /**
+     * Deletes a reporting line, as if it had never been stored.
+     *
+     * @param id the ID
+     * @return 204
+     */
+    @DELETE
+    @Path("{id}")
+    public Response delete(@PathParam("id") String id) {
+        context.requireWrite();
+        return Calls.run(context, () -> {
+            service.delete(id);
+            context.recordChange(Change.DELETE, RESOURCE_TYPE, id, path(id), null);
+            return Response.noContent().build();
+        });
+    }
+
+    private static String path(String id) {
+        return "fuhito/reporting-lines/" + id;
+    }
+}
