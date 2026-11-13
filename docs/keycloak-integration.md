@@ -93,6 +93,17 @@ Read endpoints take an `asOf` date.
 The default is today in the time zone of the server.
 Clients in another time zone should always send `asOf`.
 
+## Endpoints
+
+| Path | Purpose |
+|---|---|
+| `/ref-items` | The lists that a realm defines, such as unit types and occupations |
+| `/org-units` | Org units, their tree on a date, and their history |
+| `/employments` | Employments of users, with their terms over time |
+| `/assignments` | Assignments of employments to org units |
+| `/staff` | A shortcut that starts an employment and adds its first assignment in one call |
+| `/hierarchies` | The hierarchies of the realm |
+
 ## Admin events
 
 Every successful write records an admin event, the same as the built-in admin endpoints do.

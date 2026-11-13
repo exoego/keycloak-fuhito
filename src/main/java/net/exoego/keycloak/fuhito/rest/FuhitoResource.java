@@ -57,9 +57,7 @@ public class FuhitoResource {
      */
     @Path("assignments")
     public AssignmentsResource assignments() {
-        return new AssignmentsResource(context, new AssignmentService(new JpaAssignmentStore(entityManager, realmId),
-                new JpaEmploymentStore(entityManager, realmId), new JpaOrgUnitStore(entityManager, realmId),
-                new JpaRefItemStore(entityManager, realmId)));
+        return new AssignmentsResource(context, assignmentService());
     }
 
     /**
@@ -69,8 +67,17 @@ public class FuhitoResource {
      */
     @Path("employments")
     public EmploymentsResource employments() {
-        return new EmploymentsResource(context, new EmploymentService(new JpaEmploymentStore(entityManager, realmId),
-                new JpaAssignmentStore(entityManager, realmId), new JpaRefItemStore(entityManager, realmId), users));
+        return new EmploymentsResource(context, employmentService());
+    }
+
+    /**
+     * Returns the shortcut that adds a person to an org unit in one call.
+     *
+     * @return the sub-resource
+     */
+    @Path("staff")
+    public StaffResource staff() {
+        return new StaffResource(context, employmentService(), assignmentService());
     }
 
     /**
@@ -81,6 +88,17 @@ public class FuhitoResource {
     @Path("ref-items")
     public RefItemsResource refItems() {
         return new RefItemsResource(context, new RefItemService(new JpaRefItemStore(entityManager, realmId)));
+    }
+
+    private AssignmentService assignmentService() {
+        return new AssignmentService(new JpaAssignmentStore(entityManager, realmId),
+                new JpaEmploymentStore(entityManager, realmId), new JpaOrgUnitStore(entityManager, realmId),
+                new JpaRefItemStore(entityManager, realmId));
+    }
+
+    private EmploymentService employmentService() {
+        return new EmploymentService(new JpaEmploymentStore(entityManager, realmId),
+                new JpaAssignmentStore(entityManager, realmId), new JpaRefItemStore(entityManager, realmId), users);
     }
 
     /**
