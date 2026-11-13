@@ -141,9 +141,23 @@ public class JpaOrgUnitStore implements OrgUnitStore {
                 .setParameter("hierarchyId", hierarchyId)
                 .setParameter("childId", childId)
                 .getResultStream()
-                .map(e -> new OrgUnitLink(e.id, e.hierarchyId, e.childId, e.parentId,
-                        new ValidPeriod(e.validFrom, e.validTo)))
+                .map(JpaOrgUnitStore::toDomain)
                 .toList();
+    }
+
+    @Override
+    public List<OrgUnitLink> childLinks(String parentId) {
+        return em.createQuery("select l from OrgUnitLinkEntity l where l.realmId = :realmId"
+                        + " and l.parentId = :parentId order by l.validFrom", OrgUnitLinkEntity.class)
+                .setParameter("realmId", realmId)
+                .setParameter("parentId", parentId)
+                .getResultStream()
+                .map(JpaOrgUnitStore::toDomain)
+                .toList();
+    }
+
+    private static OrgUnitLink toDomain(OrgUnitLinkEntity e) {
+        return new OrgUnitLink(e.id, e.hierarchyId, e.childId, e.parentId, new ValidPeriod(e.validFrom, e.validTo));
     }
 
     @Override

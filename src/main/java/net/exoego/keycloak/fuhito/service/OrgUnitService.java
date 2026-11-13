@@ -149,6 +149,53 @@ public class OrgUnitService {
         return get(id, validFrom);
     }
 
+    /**
+     * Ends an org unit. Its history stays readable for earlier dates.
+     *
+     * @param id the ID
+     * @param validTo the first date on which the unit no longer exists, as {@code YYYY-MM-DD}
+     * @return the unit as it is on its last date
+     * @throws FuhitoException when the unit has an end already, has changes or children on or after the date,
+     *         or does not exist before the date
+     */
+    public OrgUnitState end(String id, String validTo) {
+        LocalDate to = Checks.date("validTo", validTo);
+        requireUnit(id);
+        List<OrgUnitVersion> versions = store.versions(id);
+        OrgUnitVersion last = versions.get(versions.size() - 1);
+        if (last.period().to() != null) {
+            throw FuhitoException.conflict("org_unit.already_ended",
+                    Map.of("id", id, "validTo", last.period().to().toString()));
+        }
+        if (!to.isAfter(versions.get(0).period().from())) {
+            throw FuhitoException.notFound("org_unit.not_valid_on", Map.of("id", id, "date", to.toString()));
+        }
+        List<OrgUnitLink> parentLinks = store.parentLinks(store.defaultHierarchyId(), id);
+        // A parent link that ends later means the unit becomes a root on that date. That is a later change too.
+        boolean laterChange = !to.isAfter(last.period().from())
+                || parentLinks.stream().anyMatch(l -> !l.period().from().isBefore(to)
+                        || (l.period().to() != null && l.period().to().isAfter(to)));
+        if (laterChange) {
+            throw FuhitoException.conflict("org_unit.later_changes_exist", Map.of("id", id, "validTo", validTo));
+        }
+        long children = store.childLinks(id).stream()
+                .filter(l -> l.period().to() == null || l.period().to().isAfter(to))
+                .map(OrgUnitLink::childId)
+                .distinct()
+                .count();
+        if (children > 0) {
+            throw FuhitoException.conflict("org_unit.has_children",
+                    Map.of("id", id, "validTo", validTo, "count", Long.toString(children)));
+        }
+
+        store.updateVersion(withPeriod(last, last.period().endingAt(to)));
+        parentLinks.stream()
+                .filter(l -> l.period().isOpenEnded())
+                .forEach(l -> store.updateLink(new OrgUnitLink(l.id(), l.hierarchyId(), l.childId(), l.parentId(),
+                        l.period().endingAt(to))));
+        return get(id, to.minusDays(1).toString());
+    }
+
     // Walks up from the new parent on every date of the period. Meeting the moved unit means a cycle.
     private void requireNoCycle(String hierarchyId, String movedId, String ancestorId, ValidPeriod period) {
         if (ancestorId.equals(movedId)) {

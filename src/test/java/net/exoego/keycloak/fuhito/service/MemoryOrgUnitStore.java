@@ -65,6 +65,11 @@ final class MemoryOrgUnitStore implements OrgUnitStore {
     }
 
     @Override
+    public List<OrgUnitLink> childLinks(String parentId) {
+        return links.stream().filter(l -> l.parentId().equals(parentId)).toList();
+    }
+
+    @Override
     public void insertLink(OrgUnitLink link) {
         links.add(link);
     }
