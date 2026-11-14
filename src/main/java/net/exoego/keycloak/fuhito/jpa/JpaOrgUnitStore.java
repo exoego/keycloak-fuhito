@@ -68,6 +68,25 @@ public class JpaOrgUnitStore implements OrgUnitStore {
             )
             select a.unitId, a.ancestorId from Above a""".formatted(TreeQuery.onDate("v"), TreeQuery.onDate("l"));
 
+    private static final String PATH = """
+            with Above as (
+                select v.orgUnitId as id, v.id as versionId, 0 as depth
+                from OrgUnitVersionEntity v
+                where v.realmId = :realmId and v.orgUnitId = :id and v.%1$s
+                union all
+                select p.orgUnitId as id, p.id as versionId, a.depth + 1 as depth
+                from Above a
+                join OrgUnitLinkEntity l on l.childId = a.id and l.realmId = :realmId
+                    and l.hierarchyId = :hierarchyId and l.%2$s
+                join OrgUnitVersionEntity p on p.orgUnitId = l.parentId and p.realmId = :realmId and p.%3$s
+            )
+            select u, v, (select l.parentId from OrgUnitLinkEntity l where l.realmId = :realmId
+                and l.hierarchyId = :hierarchyId and l.childId = v.orgUnitId and l.%2$s)
+            from Above a
+            join OrgUnitVersionEntity v on v.id = a.versionId
+            join OrgUnitEntity u on u.id = a.id
+            order by a.depth desc""".formatted(TreeQuery.onDate("v"), TreeQuery.onDate("l"), TreeQuery.onDate("p"));
+
     private static final String WHOLE_TREE = TreeQuery.from(NO_PARENT) + UNITS_OF_TREE;
     private static final String LINKED_TREE = TreeQuery.from(LINKED_ROOT) + UNITS_OF_TREE;
     private static final String SUBTREE = TreeQuery.SUBTREE + UNITS_OF_TREE;
@@ -268,6 +287,19 @@ public class JpaOrgUnitStore implements OrgUnitStore {
                 .getResultStream()
                 .forEach(row -> result.computeIfAbsent((String) row[0], id -> new HashSet<>()).add((String) row[1]));
         return result;
+    }
+
+    @Override
+    public List<PlacedOrgUnit> pathOn(String hierarchyId, String id, LocalDate date) {
+        return em.createQuery(PATH, Object[].class)
+                .setParameter("realmId", realmId)
+                .setParameter("hierarchyId", hierarchyId)
+                .setParameter("id", id)
+                .setParameter("date", date)
+                .getResultStream()
+                .map(row -> new PlacedOrgUnit(toDomain((OrgUnitEntity) row[0]),
+                        toDomain((OrgUnitVersionEntity) row[1]), (String) row[2]))
+                .toList();
     }
 
     @Override

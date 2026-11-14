@@ -158,8 +158,12 @@ public class MembershipService {
         List<Member> members = new ArrayList<>();
         rowsByDate.forEach((date, rows) ->
         {
-            OrgUnitTree tree = new OrgUnitTree(orgUnits, refItems, date);
-            members.addAll(toMembers(rows, date, id -> tree.path(id).getLast(), includePath ? tree::path : null));
+            // A person has few assignments, so the way up from each org unit is read by itself.
+            String hierarchy = orgUnits.defaultHierarchyId();
+            Map<String, List<OrgUnitState>> paths = new HashMap<>();
+            Function<String, List<OrgUnitState>> pathOf = id -> paths.computeIfAbsent(id,
+                    unit -> OrgUnitPaths.on(orgUnits, refItems, hierarchy, unit, date));
+            members.addAll(toMembers(rows, date, id -> pathOf.apply(id).getLast(), includePath ? pathOf : null));
         });
         members.sort(Comparator.comparing((Member member) -> !member.assignment().primary())
                 .thenComparing(member -> member.assignment().period().from())

@@ -404,12 +404,7 @@ public class OrgUnitService {
     }
 
     private List<OrgUnitState> states(List<PlacedOrgUnit> placed) {
-        Map<String, Optional<RefItem>> unitTypes = new HashMap<>();
-        return placed.stream()
-                .map(row -> OrgUnitState.of(row.unit(), row.version(), row.version().unitTypeId() == null ? null
-                        : unitTypes.computeIfAbsent(row.version().unitTypeId(), refItems::find).orElse(null),
-                        row.parentId()))
-                .toList();
+        return OrgUnitPaths.states(placed, refItems);
     }
 
     /**
@@ -435,7 +430,7 @@ public class OrgUnitService {
      */
     public List<OrgUnitState> path(String id, String asOf, String hierarchy) {
         requireUnit(id);
-        return new OrgUnitTree(store, refItems, dateOrToday(asOf, id), hierarchyId(hierarchy)).path(id);
+        return OrgUnitPaths.on(store, refItems, hierarchyId(hierarchy), id, dateOrToday(asOf, id));
     }
 
     /**

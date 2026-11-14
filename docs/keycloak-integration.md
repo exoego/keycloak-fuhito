@@ -293,6 +293,7 @@ The lists of org units come in tree order. Each parent comes before its children
 Siblings follow the display order, then the phonetic name, then the name. A unit with no phonetic name comes after the ones that have it.
 The database orders the names, so the order of two names follows the collation of the database.
 The database also walks the tree, so a read of one page does not load the whole tree.
+The path of an org unit is read with a walk upward from the unit. The assignments of a person and the managers of a person use the same walk.
 
 ### Hierarchies
 
