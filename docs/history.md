@@ -162,6 +162,26 @@ A reader that already read those entries keeps what it read, so it must act on t
 
 Checked by `ChangeLogIT.followsEveryWriteOfTheRealmAfterASequenceNumber` and `ChangeLogIT.eachRealmCountsItsOwnWritesFromOneWithoutGapsUnderParallelWrites`.
 
+### Learning when a dated change takes effect
+
+A change with a future date is in the change log on the day it is stored.
+Nothing is written on the day it takes effect. So the change log alone does not tell that a person moves today.
+
+`GET /effective-changes?from=&to=` lists the resources with a period that starts or ends in a range of dates.
+An entry has the date, the type of the resource, its ID, and its path. It says that something about the resource starts, changes, or ends on that date.
+Read the resource with `asOf` to see what.
+
+- `from` is today by default, in the time zone of the realm. `to` is the day after `from` by default. The range does not include `to`.
+- The resources are org units, employments, assignments, reporting lines, and qualifications. A new parent of an org unit counts as a change of the org unit.
+- The entries come from the rows as they are now. A change that was removed before its date is not listed, and a change that was moved is listed on its new date.
+- A resource comes once for each date, also when several of its details change on that date.
+- The list is read in pages with `first` and `max`.
+
+So a system can ask once a day what takes effect today. After a stop, it asks for the days that it missed.
+An org unit with its own time zone starts its day at another moment than the realm. A system that needs that moment asks for the date of that unit.
+
+Checked by `EffectiveChangesIT`.
+
 Entries are only added. A correction of a mistake adds a new entry and keeps the old one.
 So the log shows what the system said at any earlier time, even after the rows were corrected.
 

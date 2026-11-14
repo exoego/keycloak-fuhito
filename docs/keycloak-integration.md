@@ -275,7 +275,7 @@ A list that grows with the realm is read in pages.
 `first` is the number of entries to skip. `max` is the largest number of entries to return.
 `max` is 100 by default and 1000 at most. A larger value counts as 1000.
 A read with fewer entries than `max` has reached the end.
-These are the lists of org units, children, subtrees, members, people, reference items, change orders, and the change log.
+These are the lists of org units, children, subtrees, members, people, reference items, change orders, the change log, and the effective changes.
 
 The lists of one person and the history of one resource are returned whole.
 
@@ -317,6 +317,7 @@ The database applies the filters, the order, and the page.
 | `/change-orders` | Approved instructions that cause changes, with their approver |
 | `/change-orders/{id}/changes` | The writes that belong to a change order |
 | `/change-log` | The writes to the realm, to follow from a sequence number or to narrow to one resource |
+| `/effective-changes` | The resources with a period that starts or ends in a range of dates |
 | `/hierarchies` | The hierarchies of the realm |
 
 [openapi.yaml](openapi.yaml) lists every endpoint with its request and its response, as OpenAPI 3.2.
