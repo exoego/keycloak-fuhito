@@ -38,7 +38,7 @@ class UserMaskingServiceTest {
     };
     private final MemoryEmploymentStore employmentStore = new MemoryEmploymentStore();
     private final EmploymentService employments = new EmploymentService(employmentStore, new MemoryAssignmentStore(),
-            new MemoryRefItemStore(), id -> true, new MemoryReportingLineStore());
+            new MemoryRefItemStore(), MemoryPersonStore.anyUser(), new MemoryReportingLineStore());
     private final UserDirectory users = new UserDirectory() {
         @Override
         public boolean exists(String userId) {

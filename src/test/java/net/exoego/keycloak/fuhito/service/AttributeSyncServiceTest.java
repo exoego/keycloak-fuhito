@@ -74,8 +74,10 @@ class AttributeSyncServiceTest {
         attributes.put(userId, new UserAttributeSource.Values(userId, department, title, manager, employeeNumber));
     }
 
+    private final MemoryPersonStore people = MemoryPersonStore.anyUser();
+
     private EmploymentService employments() {
-        return new EmploymentService(employmentStore, assignmentStore, refItems, attributes::containsKey, lineStore);
+        return new EmploymentService(employmentStore, assignmentStore, refItems, people, lineStore);
     }
 
     private AssignmentService assignments() {
@@ -90,7 +92,7 @@ class AttributeSyncServiceTest {
                 assignmentStore, employmentStore, orgUnitStore, refItems, attributes::containsKey), clock);
         return new AttributeSyncService(new AttributeSyncService.Sources(source, attributes::containsKey,
                 orgUnitStore, refItems, employmentStore, employments(), assignmentStore, assignments(), lineStore,
-                lineService), today).run();
+                lineService, new PersonService(people, attributes::containsKey, employmentStore)), today).run();
     }
 
     private void nextDay() {
@@ -141,7 +143,8 @@ class AttributeSyncServiceTest {
         assertEquals("E-002", employment.staffNumber());
         assertEquals("scim", employment.source());
         assertEquals("alice", employment.externalId());
-        assertEquals(List.of("FUHITO_EMPLOYMENT", "FUHITO_ASSIGNMENT", "FUHITO_EMPLOYMENT", "FUHITO_ASSIGNMENT"),
+        assertEquals(List.of("FUHITO_PERSON", "FUHITO_EMPLOYMENT", "FUHITO_ASSIGNMENT", "FUHITO_PERSON",
+                        "FUHITO_EMPLOYMENT", "FUHITO_ASSIGNMENT"),
                 report.writes().stream().map(ImportReport.Write::resourceType).toList());
     }
 

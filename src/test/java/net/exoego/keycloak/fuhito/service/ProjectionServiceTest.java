@@ -137,7 +137,7 @@ class ProjectionServiceTest {
     private final MemoryReportingLineStore lines = new MemoryReportingLineStore();
     private final OrgUnitService orgUnits = new OrgUnitService(orgUnitStore, assignmentStore, refItems, CLOCK);
     private final EmploymentService employments =
-            new EmploymentService(employmentStore, assignmentStore, refItems, id -> true, lines);
+            new EmploymentService(employmentStore, assignmentStore, refItems, MemoryPersonStore.anyUser(), lines);
     private final AssignmentService assignments =
             new AssignmentService(assignmentStore, employmentStore, orgUnitStore, refItems, lines);
     private final OrganizationLinkService links = new OrganizationLinkService(orgUnitStore, id -> true);

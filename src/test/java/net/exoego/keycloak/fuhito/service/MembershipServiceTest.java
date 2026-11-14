@@ -30,7 +30,7 @@ class MembershipServiceTest {
     private final MemoryRefItemStore refItems = new MemoryRefItemStore();
     private final Set<String> knownUsers = Set.of("doctor", "nurse", "clerk", "idle");
     private final EmploymentService employments =
-            new EmploymentService(employmentStore, assignmentStore, refItems, knownUsers::contains,
+            new EmploymentService(employmentStore, assignmentStore, refItems, MemoryPersonStore.linked(knownUsers),
             new MemoryReportingLineStore());
     private final AssignmentService assignments =
             new AssignmentService(assignmentStore, employmentStore, orgUnitStore, refItems,

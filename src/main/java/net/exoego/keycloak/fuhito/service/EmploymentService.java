@@ -12,14 +12,15 @@ import net.exoego.keycloak.fuhito.domain.Employment;
 import net.exoego.keycloak.fuhito.domain.EmploymentStatus;
 import net.exoego.keycloak.fuhito.domain.EmploymentTerms;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
+import net.exoego.keycloak.fuhito.domain.Person;
 import net.exoego.keycloak.fuhito.domain.RefItem;
 import net.exoego.keycloak.fuhito.domain.RefKind;
 import net.exoego.keycloak.fuhito.domain.ValidPeriod;
 import net.exoego.keycloak.fuhito.store.AssignmentStore;
 import net.exoego.keycloak.fuhito.store.EmploymentStore;
+import net.exoego.keycloak.fuhito.store.PersonStore;
 import net.exoego.keycloak.fuhito.store.RefItemStore;
 import net.exoego.keycloak.fuhito.store.ReportingLineStore;
-import net.exoego.keycloak.fuhito.store.UserDirectory;
 
 /**
  * Operations on the employments of one realm.
@@ -29,7 +30,7 @@ public class EmploymentService {
     private final EmploymentStore store;
     private final AssignmentStore assignments;
     private final RefItemStore refItems;
-    private final UserDirectory users;
+    private final PersonStore people;
     private final ReportingLineStore reportingLines;
 
     /**
@@ -38,45 +39,44 @@ public class EmploymentService {
      * @param store the storage of employments of the realm
      * @param assignments the storage of assignments of the realm
      * @param refItems the storage of reference items of the realm
-     * @param users the users of the realm
+     * @param people the storage of people of the realm
      * @param reportingLines the storage of reporting lines of the realm
      */
     public EmploymentService(EmploymentStore store, AssignmentStore assignments, RefItemStore refItems,
-            UserDirectory users, ReportingLineStore reportingLines) {
+            PersonStore people, ReportingLineStore reportingLines) {
         this.reportingLines = reportingLines;
         this.store = store;
         this.assignments = assignments;
         this.refItems = refItems;
-        this.users = users;
+        this.people = people;
     }
 
     /**
-     * Starts an employment of a user.
-     * A user can have several employments. A new one after an old one ended is a rehire.
-     * Two employments of one user may overlap, for a person with two contracts.
+     * Starts an employment of a person.
+     * A person can have several employments. A new one after an old one ended is a rehire.
+     * Two employments of one person may overlap, for a person with two contracts.
      *
      * @param request the values of the request
      * @return the new employment with its first terms
-     * @throws FuhitoException when a value is bad, the user does not exist, or another user has the staff number
+     * @throws FuhitoException when a value is bad, the person does not exist, or another person has the staff number
      */
     public EmploymentView start(NewEmployment request) {
         Checks.required("body", request);
-        String userId = Checks.required("userId", request.userId());
+        String personId = Checks.required("personId", request.personId());
         LocalDate from = Checks.date("validFrom", request.validFrom());
         ValidPeriod period = Checks.period(from, Checks.optionalDate("validTo", request.validTo()));
         String staffNumber = Checks.optionalCode("staffNumber", request.staffNumber());
         TermsChange firstTerms = new TermsChange(request.validFrom(), request.employmentType(), request.grade(),
                 request.status(), request.workPercent(), request.attributes());
         EmploymentTerms terms = terms(newId(), null, period, firstTerms, null);
-        if (!users.exists(userId)) {
-            throw FuhitoException.invalid("employment.user_unknown", Map.of("userId", userId));
-        }
+        Person person = people.find(personId).orElseThrow(
+                () -> FuhitoException.invalid("employment.person_unknown", Map.of("personId", personId)));
         if (staffNumber != null
-                && store.findByStaffNumber(staffNumber).stream().anyMatch(e -> !e.userId().equals(userId))) {
+                && store.findByStaffNumber(staffNumber).stream().anyMatch(e -> !e.personId().equals(personId))) {
             throw FuhitoException.conflict("employment.staff_number_taken", Map.of("staffNumber", staffNumber));
         }
 
-        Employment employment = new Employment(newId(), userId, period, staffNumber, null, request.externalId(),
+        Employment employment = new Employment(newId(), personId, person.userId(), period, staffNumber, null, request.externalId(),
                 request.source());
         store.insert(employment);
         store.insertTerms(new EmploymentTerms(terms.id(), employment.id(), terms.period(), terms.employmentTypeId(),
@@ -169,7 +169,8 @@ public class EmploymentService {
 
     private void setEnd(Employment employment, LocalDate to, String endReasonId) {
         String id = employment.id();
-        store.update(new Employment(id, employment.userId(), employment.period().endingAt(to),
+        store.update(new Employment(id, employment.personId(), employment.userId(),
+                employment.period().endingAt(to),
                 employment.staffNumber(), endReasonId, employment.externalId(), employment.source()));
 
         List<EmploymentTerms> terms = store.terms(id);

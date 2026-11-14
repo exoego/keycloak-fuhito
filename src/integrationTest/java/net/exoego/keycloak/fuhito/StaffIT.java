@@ -73,7 +73,8 @@ class StaffIT {
     @Test
     void aFailedAssignmentWritesNoEmployment() throws Exception {
         String user = realm.user("nobody");
-        String count = "select count(*) from fuhito_employment where user_id = '" + user + "'";
+        String count = "select count(*) from fuhito_employment e join fuhito_person p on p.id = e.person_id"
+                + " where p.user_id = '" + user + "'";
         String start = "{\"userId\": \"" + user + "\", \"validFrom\": \"2026-04-01\"";
 
         assertEquals(400, api.post("/staff", start + ", \"orgUnitId\": \"no-such-unit\"}").statusCode());

@@ -7,6 +7,7 @@ import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -198,13 +199,15 @@ public class ProjectionService {
     private Map<String, Set<String>> usersByUnit(List<OrgUnitState> subtree, LocalDate today) {
         List<String> unitIds = subtree.stream().map(unit -> unit.unit().id()).toList();
         List<Assignment> rows = assignments.rowsOn(unitIds, today);
+        // A person with no Keycloak user cannot be a member of a group.
         Map<String, String> userByEmployment = employments
                 .findAll(rows.stream().map(Assignment::employmentId).distinct().toList()).stream()
+                .filter(employment -> employment.userId() != null)
                 .collect(Collectors.toMap(Employment::id, Employment::userId));
         Map<String, Set<String>> result = new HashMap<>();
         for (Assignment row : rows) {
-            result.computeIfAbsent(row.orgUnitId(), id -> new LinkedHashSet<>())
-                    .add(userByEmployment.get(row.employmentId()));
+            Set<String> users = result.computeIfAbsent(row.orgUnitId(), id -> new LinkedHashSet<>());
+            Optional.ofNullable(userByEmployment.get(row.employmentId())).ifPresent(users::add);
         }
         return result;
     }

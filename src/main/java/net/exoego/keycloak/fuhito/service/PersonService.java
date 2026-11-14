@@ -9,6 +9,7 @@ import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.Person;
 import net.exoego.keycloak.fuhito.service.PersonView.NameSource;
+import net.exoego.keycloak.fuhito.store.EmploymentStore;
 import net.exoego.keycloak.fuhito.store.PersonStore;
 import net.exoego.keycloak.fuhito.store.UserDirectory;
 
@@ -19,18 +20,48 @@ public class PersonService {
 
     private static final int DEFAULT_MAX = 100;
 
+    /**
+     * The person of a user, and whether this call created it.
+     *
+     * @param person the person
+     * @param created the new person, or null when the person was there already
+     */
+    public record Resolved(Person person, PersonView created) {
+    }
+
     private final PersonStore store;
     private final UserDirectory users;
+    private final EmploymentStore employments;
 
     /**
      * Creates the service.
      *
      * @param store the storage of people of the realm
      * @param users the users of the realm
+     * @param employments the storage of employments of the realm
      */
-    public PersonService(PersonStore store, UserDirectory users) {
+    public PersonService(PersonStore store, UserDirectory users, EmploymentStore employments) {
         this.store = store;
         this.users = users;
+        this.employments = employments;
+    }
+
+    /**
+     * Returns the person that is linked to a Keycloak user. Creates one when the user has none yet.
+     * A write that names a user by ID uses this.
+     *
+     * @param userId the ID of the user
+     * @return the person
+     * @throws FuhitoException when no person is linked to the user and the user does not exist
+     */
+    public Resolved forUser(String userId) {
+        Checks.required("userId", userId);
+        Optional<Person> linked = store.findByUser(userId);
+        if (linked.isPresent()) {
+            return new Resolved(linked.get(), null);
+        }
+        PersonView created = create(new PersonValues(userId, null, null, null, null, null, null));
+        return new Resolved(created.person(), created);
     }
 
     /**
@@ -85,10 +116,13 @@ public class PersonService {
      * Deletes a person.
      *
      * @param id the ID
-     * @throws FuhitoException when the person does not exist
+     * @throws FuhitoException when the person does not exist or has an employment
      */
     public void delete(String id) {
         get(id);
+        if (!employments.findByPerson(id).isEmpty()) {
+            throw FuhitoException.conflict("person.in_use", Map.of("id", id));
+        }
         store.delete(id);
     }
 

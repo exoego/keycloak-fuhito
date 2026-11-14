@@ -62,7 +62,7 @@ public class AttributeSyncService {
     public record Sources(UserAttributeSource attributes, UserDirectory users, OrgUnitStore orgUnits,
             RefItemStore refItems, EmploymentStore employments, EmploymentService employmentService,
             AssignmentStore assignments, AssignmentService assignmentService, ReportingLineStore lines,
-            ReportingLineService lineService) {
+            ReportingLineService lineService, PersonService personService) {
     }
 
     private final Sources from;
@@ -195,20 +195,25 @@ public class AttributeSyncService {
         if (active.isPresent()) {
             return active.get();
         }
+        PersonService.Resolved person = from.personService().forUser(user.userId());
+        if (person.created() != null) {
+            writes.add(new Write.OfPerson(person.created()));
+        }
+        String personId = person.person().id();
         EmploymentView started;
         try {
-            started = start(user, user.employeeNumber(), today);
+            started = start(user, personId, user.employeeNumber(), today);
         } catch (FuhitoException e) {
             // A staff number with a bad form, or one that another user has, must not stop the user.
-            started = start(user, null, today);
+            started = start(user, personId, null, today);
         }
         employmentsStarted++;
         writes.add(new Write.OfEmployment(true, "", started));
         return started.employment();
     }
 
-    private EmploymentView start(Values user, String staffNumber, LocalDate today) {
-        return from.employmentService().start(new NewEmployment(user.userId(), today.toString(), null, staffNumber,
+    private EmploymentView start(Values user, String personId, String staffNumber, LocalDate today) {
+        return from.employmentService().start(new NewEmployment(personId, today.toString(), null, staffNumber,
                 null, null, null, null, null, user.userId(), SOURCE));
     }
 

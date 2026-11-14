@@ -108,6 +108,34 @@ public final class ImportReport {
         }
 
         /**
+         * A person that was created for a Keycloak user that a row named.
+         *
+         * @param state the new person
+         */
+        record OfPerson(PersonView state) implements Write {
+
+            @Override
+            public boolean created() {
+                return true;
+            }
+
+            @Override
+            public String resourceType() {
+                return "FUHITO_PERSON";
+            }
+
+            @Override
+            public String resourceId() {
+                return state.person().id();
+            }
+
+            @Override
+            public String path() {
+                return "fuhito/people/" + resourceId();
+            }
+        }
+
+        /**
          * A write of an org unit.
          *
          * @param created true for a new unit, false for a change

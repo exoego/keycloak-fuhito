@@ -77,10 +77,22 @@ public class JpaEmploymentStore implements EmploymentStore {
     @Override
     public List<Employment> findByUser(String userId) {
         return em.createQuery("""
-                        select e from EmploymentEntity e where e.realmId = :realmId and e.userId = :userId
-                        order by e.validFrom, e.id""", EmploymentEntity.class)
+                        select e from EmploymentEntity e where e.realmId = :realmId
+                        and e.person.userId = :userId order by e.validFrom, e.id""", EmploymentEntity.class)
                 .setParameter("realmId", realmId)
                 .setParameter("userId", userId)
+                .getResultStream()
+                .map(JpaEmploymentStore::toDomain)
+                .toList();
+    }
+
+    @Override
+    public List<Employment> findByPerson(String personId) {
+        return em.createQuery("""
+                        select e from EmploymentEntity e where e.realmId = :realmId
+                        and e.personId = :personId order by e.validFrom, e.id""", EmploymentEntity.class)
+                .setParameter("realmId", realmId)
+                .setParameter("personId", personId)
                 .getResultStream()
                 .map(JpaEmploymentStore::toDomain)
                 .toList();
@@ -123,7 +135,9 @@ public class JpaEmploymentStore implements EmploymentStore {
         EmploymentEntity entity = new EmploymentEntity();
         entity.id = employment.id();
         entity.realmId = realmId;
-        entity.userId = employment.userId();
+        entity.personId = employment.personId();
+        // The same session reads the row back, and it then needs the person.
+        entity.person = em.getReference(PersonEntity.class, employment.personId());
         entity.validFrom = employment.period().from();
         entity.validTo = employment.period().to();
         entity.staffNumber = employment.staffNumber();
@@ -198,7 +212,7 @@ public class JpaEmploymentStore implements EmploymentStore {
     }
 
     private static Employment toDomain(EmploymentEntity e) {
-        return new Employment(e.id, e.userId, new ValidPeriod(e.validFrom, e.validTo), e.staffNumber, e.endReasonId,
+        return new Employment(e.id, e.personId, e.person.userId, new ValidPeriod(e.validFrom, e.validTo), e.staffNumber, e.endReasonId,
                 e.externalId, e.source);
     }
 

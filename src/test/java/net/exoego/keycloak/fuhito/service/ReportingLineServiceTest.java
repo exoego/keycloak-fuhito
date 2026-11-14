@@ -33,7 +33,7 @@ class ReportingLineServiceTest {
     private final MemoryRefItemStore refItems = new MemoryRefItemStore();
     private final Set<String> users = Set.of("director", "head-nurse", "nurse-a", "nurse-b", "project-lead", "idle");
     private final EmploymentService employments =
-            new EmploymentService(employmentStore, assignmentStore, refItems, users::contains, store);
+            new EmploymentService(employmentStore, assignmentStore, refItems, MemoryPersonStore.linked(users), store);
     private final AssignmentService assignments =
             new AssignmentService(assignmentStore, employmentStore, orgUnitStore, refItems, store);
     private final OrgUnitService orgUnits = new OrgUnitService(orgUnitStore, assignmentStore, refItems, CLOCK);

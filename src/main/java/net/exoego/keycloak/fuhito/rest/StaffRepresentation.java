@@ -10,9 +10,14 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
         name = "Staff",
         description = "A request to add a person to an org unit in one call, and its response. The request starts "
                 + "an employment and adds its first assignment.",
-        requiredProperties = {"userId", "orgUnitId", "validFrom"})
+        requiredProperties = {"orgUnitId", "validFrom"})
 public record StaffRepresentation(
-        @Schema(description = "The ID of the Keycloak user.", writeOnly = true)
+        @Schema(description = "The ID of the person.", writeOnly = true)
+        String personId,
+        @Schema(
+                description = "The ID of the Keycloak user, in place of `personId`. The person of the user is used, "
+                        + "and created when the user has none.",
+                writeOnly = true)
         String userId,
         @Schema(writeOnly = true)
         String orgUnitId,
@@ -53,8 +58,8 @@ public record StaffRepresentation(
         @Schema(readOnly = true)
         AssignmentRepresentation assignment) {
 
-    NewEmployment toNewEmployment() {
-        return new NewEmployment(userId, validFrom, validTo, staffNumber, employmentType, grade, null, workPercent,
+    NewEmployment toNewEmployment(String person) {
+        return new NewEmployment(person, validFrom, validTo, staffNumber, employmentType, grade, null, workPercent,
                 null, null, null);
     }
 
@@ -65,7 +70,7 @@ public record StaffRepresentation(
     }
 
     static StaffRepresentation of(EmploymentRepresentation employment, AssignmentRepresentation assignment) {
-        return new StaffRepresentation(null, null, null, null, null, null, null, null, null, null, null, null,
+        return new StaffRepresentation(null, null, null, null, null, null, null, null, null, null, null, null, null,
                 employment, assignment);
     }
 }

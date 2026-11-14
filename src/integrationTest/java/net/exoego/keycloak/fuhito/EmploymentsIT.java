@@ -191,7 +191,7 @@ class EmploymentsIT {
     @Test
     void rejectsBadRequests() throws Exception {
         String user = "\"userId\": \"" + nurse + "\"";
-        assertEquals("employment.user_unknown", errorOf(400, api.post("/employments",
+        assertEquals("person.user_unknown", errorOf(400, api.post("/employments",
                 "{\"userId\": \"no-such-user\", \"validFrom\": \"2026-04-01\"}")));
         assertEquals("invalid.required", errorOf(400, api.post("/employments", "{" + user + "}")));
         assertEquals("invalid.period", errorOf(400, api.post("/employments",
@@ -212,7 +212,7 @@ class EmploymentsIT {
                 "{\"userId\": \"" + nurse + "\", \"validFrom\": \"2026-04-01\"}")).get("id").asText();
 
         assertEquals("employment.not_found", errorOf(404, otherRealm.api.get("/employments/" + id)));
-        assertEquals("employment.user_unknown", errorOf(400, otherRealm.api.post("/employments",
+        assertEquals("person.user_unknown", errorOf(400, otherRealm.api.post("/employments",
                 "{\"userId\": \"" + nurse + "\", \"validFrom\": \"2026-04-01\"}")));
     }
 

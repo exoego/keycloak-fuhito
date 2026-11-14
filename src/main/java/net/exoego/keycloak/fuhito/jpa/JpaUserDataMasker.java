@@ -54,7 +54,7 @@ public class JpaUserDataMasker implements UserDataMasker {
     public void mask(String userId, Instant now) {
         List<EmploymentEntity> employments = em.createQuery("""
                         select e from EmploymentEntity e
-                        where e.realmId = :realmId and e.userId = :userId""", EmploymentEntity.class)
+                        where e.realmId = :realmId and e.person.userId = :userId""", EmploymentEntity.class)
                 .setParameter("realmId", realmId).setParameter("userId", userId).getResultList();
         List<String> employmentIds = new ArrayList<>();
         for (EmploymentEntity employment : employments) {

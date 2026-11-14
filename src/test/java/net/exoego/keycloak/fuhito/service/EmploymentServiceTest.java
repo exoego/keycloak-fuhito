@@ -26,7 +26,8 @@ class EmploymentServiceTest {
     private final MemoryAssignmentStore assignments = new MemoryAssignmentStore();
     private final MemoryRefItemStore refItems = new MemoryRefItemStore();
     private final EmploymentService service =
-            new EmploymentService(store, assignments, refItems, Set.of("alice", "bob")::contains,
+            new EmploymentService(store, assignments, refItems,
+            MemoryPersonStore.linked(Set.of("alice", "bob")),
             new MemoryReportingLineStore());
 
     private static NewEmployment minimal(String userId, String validFrom) {
@@ -117,12 +118,12 @@ class EmploymentServiceTest {
     }
 
     @Test
-    void rejectsAnUnknownUser() {
+    void rejectsAnUnknownPerson() {
         FuhitoException e = failure(minimal("mallory", "2026-04-01"));
 
         assertEquals(FuhitoException.Reason.INVALID, e.reason());
-        assertEquals("employment.user_unknown", e.code());
-        assertEquals(Map.of("userId", "mallory"), e.params());
+        assertEquals("employment.person_unknown", e.code());
+        assertEquals(Map.of("personId", "mallory"), e.params());
     }
 
     @Test

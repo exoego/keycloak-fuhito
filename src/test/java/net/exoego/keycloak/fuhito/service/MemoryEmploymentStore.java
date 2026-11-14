@@ -43,9 +43,14 @@ final class MemoryEmploymentStore implements EmploymentStore {
     @Override
     public List<Employment> findByUser(String userId) {
         return employments.values().stream()
-                .filter(e -> e.userId().equals(userId))
+                .filter(e -> userId.equals(e.userId()))
                 .sorted(Comparator.comparing(e -> e.period().from()))
                 .toList();
+    }
+
+    @Override
+    public List<Employment> findByPerson(String personId) {
+        return employments.values().stream().filter(e -> e.personId().equals(personId)).toList();
     }
 
     @Override

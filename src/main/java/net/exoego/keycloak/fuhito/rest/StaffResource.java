@@ -9,6 +9,7 @@ import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.rest.RequestContext.Change;
 import net.exoego.keycloak.fuhito.service.AssignmentService;
 import net.exoego.keycloak.fuhito.service.EmploymentService;
+import net.exoego.keycloak.fuhito.service.PersonService;
 import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.media.Content;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
@@ -27,6 +28,7 @@ public class StaffResource {
     private final RequestContext context;
     private final EmploymentService employments;
     private final AssignmentService assignments;
+    private final PersonService people;
 
     /**
      * Creates the resource for one request.
@@ -34,8 +36,11 @@ public class StaffResource {
      * @param context the request and its caller
      * @param employments the operations on employments of the realm
      * @param assignments the operations on assignments of the realm
+     * @param people the operations on people of the realm
      */
-    public StaffResource(RequestContext context, EmploymentService employments, AssignmentService assignments) {
+    public StaffResource(RequestContext context, EmploymentService employments, AssignmentService assignments,
+            PersonService people) {
+        this.people = people;
         this.context = context;
         this.employments = employments;
         this.assignments = assignments;
@@ -58,7 +63,8 @@ public class StaffResource {
             Checks.required("body", body);
             // The org unit is checked first, so that a request without it does not get as far as the employment.
             Checks.required("orgUnitId", body.orgUnitId());
-            var employment = EmploymentRepresentation.of(employments.start(body.toNewEmployment()));
+            var employment = EmploymentRepresentation.of(employments.start(
+                    body.toNewEmployment(Writes.personId(context, people, body.personId(), body.userId()))));
             var assignment = AssignmentRepresentation.of(assignments.add(body.toAssignment(employment.id())));
             context.recordChange(Change.CREATE, EmploymentsResource.RESOURCE_TYPE, employment.id(),
                     "fuhito/employments/" + employment.id(), employment);

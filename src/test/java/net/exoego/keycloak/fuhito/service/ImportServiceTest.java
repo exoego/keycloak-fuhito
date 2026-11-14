@@ -45,14 +45,16 @@ class ImportServiceTest {
             return Optional.ofNullable(usernames.get(username));
         }
     };
+    private final MemoryPersonStore personStore = new MemoryPersonStore();
     private final EmploymentService employments =
-            new EmploymentService(employmentStore, assignmentStore, refItems, users,
+            new EmploymentService(employmentStore, assignmentStore, refItems, personStore,
             new MemoryReportingLineStore());
     private final AssignmentService assignments =
             new AssignmentService(assignmentStore, employmentStore, orgUnitStore, refItems,
             new MemoryReportingLineStore());
     private final ImportService service = new ImportService(new RefItemService(refItems), refItems, orgUnits,
-            orgUnitStore, new ImportService.People(employments, employmentStore, assignments, assignmentStore, users));
+            orgUnitStore, new ImportService.People(employments, employmentStore, assignments, assignmentStore, users,
+                    new PersonService(personStore, users, employmentStore)));
 
     private static ImportDocument doc(String effectiveDate, boolean dryRun, String source, List<RefItemRow> refItems,
             List<OrgUnitRow> orgUnits) {
@@ -330,11 +332,14 @@ class ImportServiceTest {
         assertEquals("user-nurse", nurse.userId());
         assertEquals("N-1", nurse.staffNumber());
         assertEquals(LocalDate.of(2020, 4, 1), nurse.period().from());
-        assertEquals(List.of("FUHITO_ORG_UNIT", "FUHITO_ORG_UNIT", "FUHITO_EMPLOYMENT", "FUHITO_EMPLOYMENT",
-                "FUHITO_ASSIGNMENT", "FUHITO_ASSIGNMENT"),
+        assertEquals(List.of("FUHITO_ORG_UNIT", "FUHITO_ORG_UNIT", "FUHITO_PERSON", "FUHITO_EMPLOYMENT",
+                "FUHITO_PERSON", "FUHITO_EMPLOYMENT", "FUHITO_ASSIGNMENT", "FUHITO_ASSIGNMENT"),
                 first.writes().stream().map(ImportReport.Write::resourceType).toList());
-        assertTrue(first.writes().get(2) instanceof ImportReport.Write.OfEmployment);
-        assertTrue(first.writes().get(4) instanceof ImportReport.Write.OfAssignment);
+        assertTrue(first.writes().get(2) instanceof ImportReport.Write.OfPerson);
+        assertEquals("fuhito/people/" + nurse.personId(), first.writes().get(2).path());
+        assertTrue(first.writes().get(2).created());
+        assertTrue(first.writes().get(3) instanceof ImportReport.Write.OfEmployment);
+        assertTrue(first.writes().get(6) instanceof ImportReport.Write.OfAssignment);
     }
 
     @Test
@@ -475,8 +480,8 @@ class ImportServiceTest {
 
         assertEquals(List.of(), errors(report));
         assertEquals(new Counts(1, 0, 0), report.counts().get("employments"));
-        assertEquals(List.of("fuhito/employments/", "/end"), report.writes().stream()
-                .map(w -> w.path().endsWith("/end") ? "/end" : "fuhito/employments/").toList());
+        assertEquals(List.of("FUHITO_PERSON", "FUHITO_EMPLOYMENT", "FUHITO_EMPLOYMENT/end"), report.writes().stream()
+                .map(w -> w.resourceType() + (w.path().endsWith("/end") ? "/end" : "")).toList());
         var stored = employmentStore.findByExternalId("hr", "E9").orElseThrow();
         assertEquals(LocalDate.of(2026, 4, 1), stored.period().to());
         assertEquals("r", stored.endReasonId());
@@ -614,7 +619,8 @@ class ImportServiceTest {
 
         // A new row with an end date and no reason is created with that end. Nothing ends it a second time.
         ImportReport created = importPeople("2026-04-01", List.of(open), null);
-        assertEquals(1, created.writes().size());
+        assertEquals(List.of("FUHITO_PERSON", "FUHITO_EMPLOYMENT"),
+                created.writes().stream().map(ImportReport.Write::resourceType).toList());
         // The employment still runs on the effective date, so its terms are compared.
         assertEquals(new Counts(0, 0, 1), changed(importPeople("2026-04-01", List.of(open), null), "employments"));
 
