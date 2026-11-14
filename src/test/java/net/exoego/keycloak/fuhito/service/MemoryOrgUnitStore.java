@@ -134,6 +134,31 @@ final class MemoryOrgUnitStore implements OrgUnitStore {
         return tree.exists(id) ? placed(tree.path(id), 0, Integer.MAX_VALUE) : List.of();
     }
 
+    @Override
+    public List<OrgUnit> unitsWithOwnTime() {
+        return units.values().stream().filter(unit -> unit.timeZone() != null || unit.dayStart() != null).toList();
+    }
+
+    /** How often the units above a unit were read. */
+    int lineReads;
+
+    @Override
+    public List<String> lineOn(String hierarchyId, String id, LocalDate date) {
+        lineReads++;
+        List<String> line = new ArrayList<>();
+        for (String next = units.containsKey(id) ? id : null; next != null && !line.contains(next);) {
+            line.add(next);
+            String child = next;
+            next = links.stream()
+                    .filter(l -> l.hierarchyId().equals(hierarchyId) && l.childId().equals(child)
+                            && l.period().contains(date))
+                    .map(OrgUnitLink::parentId)
+                    .findFirst()
+                    .orElse(null);
+        }
+        return line;
+    }
+
     private static List<PlacedOrgUnit> placed(List<OrgUnitState> states, int first, int max) {
         return states.stream().skip(first).limit(max)
                 .map(state -> new PlacedOrgUnit(state.unit(), state.version(), state.parentId()))
