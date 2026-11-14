@@ -18,6 +18,7 @@ import net.exoego.keycloak.fuhito.jpa.Hierarchies;
 import net.exoego.keycloak.fuhito.jpa.JpaAssignmentStore;
 import net.exoego.keycloak.fuhito.jpa.JpaChangeLogStore;
 import net.exoego.keycloak.fuhito.jpa.JpaChangeOrderStore;
+import net.exoego.keycloak.fuhito.jpa.JpaEffectiveChangeStore;
 import net.exoego.keycloak.fuhito.jpa.JpaEmploymentStore;
 import net.exoego.keycloak.fuhito.jpa.JpaOrgUnitStore;
 import net.exoego.keycloak.fuhito.jpa.JpaPersonStore;
@@ -29,6 +30,7 @@ import net.exoego.keycloak.fuhito.service.AssignmentService;
 import net.exoego.keycloak.fuhito.service.AttributeSyncService;
 import net.exoego.keycloak.fuhito.service.ChangeLogService;
 import net.exoego.keycloak.fuhito.service.ChangeOrderService;
+import net.exoego.keycloak.fuhito.service.EffectiveChangeService;
 import net.exoego.keycloak.fuhito.service.CsvImportService;
 import net.exoego.keycloak.fuhito.service.EmploymentService;
 import net.exoego.keycloak.fuhito.service.ImportService;
@@ -161,6 +163,17 @@ public class FuhitoResource {
     @Path("change-log")
     public ChangeLogResource changeLog() {
         return new ChangeLogResource(context, changeLogService());
+    }
+
+    /**
+     * Returns what takes effect on which date in the realm.
+     *
+     * @return the sub-resource
+     */
+    @Path("effective-changes")
+    public EffectiveChangesResource effectiveChanges() {
+        return new EffectiveChangesResource(context,
+                new EffectiveChangeService(new JpaEffectiveChangeStore(entityManager, realmId), clock));
     }
 
     private ChangeLogService changeLogService() {

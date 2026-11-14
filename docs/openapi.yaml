@@ -280,6 +280,35 @@ components:
           description: "When the order was stored, in UTC."
           format: date-time
           readOnly: true
+    EffectiveChange:
+      required:
+      - effectiveDate
+      - resourceType
+      - resourceId
+      - resourcePath
+      description: "The fact that something about a resource starts, changes, or ends\
+        \ on a date."
+      type: object
+      properties:
+        effectiveDate:
+          type: string
+          description: The date that a period of the resource starts or ends on.
+          format: date
+        resourceType:
+          type: string
+          enum:
+          - FUHITO_ORG_UNIT
+          - FUHITO_EMPLOYMENT
+          - FUHITO_ASSIGNMENT
+          - FUHITO_REPORTING_LINE
+          - FUHITO_QUALIFICATION
+        resourceId:
+          type: string
+        resourcePath:
+          type: string
+          description: The path of the resource below the realm.
+          examples:
+          - fuhito/org-units/123
     Employment:
       required:
       - validFrom
@@ -2219,6 +2248,68 @@ paths:
                   $ref: "#/components/schemas/ChangeLogEntry"
         "404":
           $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /effective-changes:
+    get:
+      summary: Lists the resources with a period that starts or ends in a range of
+        dates.
+      description: "A change with a future date is in the change log on the day it\
+        \ is stored. This read tells when it takes effect. An entry says that something\
+        \ about the resource starts, changes, or ends on the date. Read the resource\
+        \ with `asOf` to see what. The entries come from the rows as they are now,\
+        \ so a change that was removed before its date is not listed. The order is\
+        \ the date, then the type, then the ID."
+      operationId: listEffectiveChanges
+      tags:
+      - change-orders
+      parameters:
+      - description: The number of entries to skip.
+        schema:
+          type: integer
+          format: int32
+          minimum: 0
+          default: 0
+        name: first
+        in: query
+      - description: The first date of the range. The default is today in the time
+          zone of the realm.
+        schema:
+          type: string
+          format: date
+        name: from
+        in: query
+      - description: The largest number of entries to return.
+        schema:
+          type: integer
+          format: int32
+          maximum: 1000
+          minimum: 0
+          default: 100
+        name: max
+        in: query
+      - description: The first date after the range. The default is the day after
+          `from`.
+        schema:
+          type: string
+          format: date
+        name: to
+        in: query
+      responses:
+        "200":
+          description: The entries.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EffectiveChange"
+        "400":
+          $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
