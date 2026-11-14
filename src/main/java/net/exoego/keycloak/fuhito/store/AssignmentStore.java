@@ -30,12 +30,13 @@ public interface AssignmentStore {
     List<Assignment> rowsOfEmployment(String employmentId);
 
     /**
-     * Lists all rows of all assignments to an org unit, oldest first.
+     * Counts the assignments to an org unit that hold on a date or after it.
      *
      * @param orgUnitId the ID of the org unit
-     * @return the rows
+     * @param date the date
+     * @return the number of assignments
      */
-    List<Assignment> rowsOfOrgUnit(String orgUnitId);
+    long assignmentsHoldingFrom(String orgUnitId, LocalDate date);
 
     /**
      * Lists the rows that are valid on a date in any of the given org units.

@@ -58,11 +58,12 @@ final class MemoryAssignmentStore implements AssignmentStore {
     }
 
     @Override
-    public List<Assignment> rowsOfOrgUnit(String orgUnitId) {
+    public long assignmentsHoldingFrom(String orgUnitId, LocalDate date) {
         return rows.stream()
-                .filter(r -> r.orgUnitId().equals(orgUnitId))
-                .sorted(Comparator.comparing(r -> r.period().from()))
-                .toList();
+                .filter(r -> r.orgUnitId().equals(orgUnitId) && r.period().endsAfter(date))
+                .map(Assignment::assignmentId)
+                .distinct()
+                .count();
     }
 
     @Override

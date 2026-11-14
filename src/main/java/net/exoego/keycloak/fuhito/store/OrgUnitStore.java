@@ -256,12 +256,13 @@ public interface OrgUnitStore {
     List<OrgUnitLink> parentLinks(String childId);
 
     /**
-     * Lists all links to the children of an org unit, in every hierarchy.
+     * Counts the units that have a unit as their parent on a date or after it, in any hierarchy.
      *
-     * @param parentId the ID of the unit
-     * @return the links
+     * @param parentId the ID of the parent
+     * @param date the date
+     * @return the number of children
      */
-    List<OrgUnitLink> childLinks(String parentId);
+    long childrenHoldingFrom(String parentId, LocalDate date);
 
     /**
      * Stores a new parent link.
