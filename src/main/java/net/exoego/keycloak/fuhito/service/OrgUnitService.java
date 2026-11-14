@@ -125,7 +125,6 @@ public class OrgUnitService {
 
     /**
      * Gives an org unit a new parent in the default hierarchy from a date, or makes it a root.
-     * The change lasts until the next parent change that is already stored, or has no end.
      *
      * @param id the ID
      * @param parentId the ID of the new parent, or null to make the unit a root
@@ -134,10 +133,26 @@ public class OrgUnitService {
      * @throws FuhitoException when the unit or the parent is not valid, or the move would make a cycle
      */
     public OrgUnitState move(String id, String parentId, String validFrom) {
+        return move(id, parentId, validFrom, null);
+    }
+
+    /**
+     * Gives an org unit a new parent in a hierarchy from a date, or takes its parent away.
+     * The change lasts until the next parent change that is already stored, or has no end.
+     *
+     * @param id the ID
+     * @param parentId the ID of the new parent, or null for no parent
+     * @param validFrom the first date under the new parent, as {@code YYYY-MM-DD}
+     * @param hierarchy the code of the hierarchy, or null for the default one
+     * @return the unit as it is on that date, with its parent in that hierarchy
+     * @throws FuhitoException when the unit, the parent, or the hierarchy is not valid, or the move would make a
+     *         cycle
+     */
+    public OrgUnitState move(String id, String parentId, String validFrom, String hierarchy) {
         LocalDate from = Checks.date("validFrom", validFrom);
         requireUnit(id);
         versionOn(id, from);
-        String hierarchyId = store.defaultHierarchyId();
+        String hierarchyId = hierarchyId(hierarchy);
         List<OrgUnitLink> links = store.parentLinks(hierarchyId, id);
         OrgUnitLink current = links.stream().filter(l -> l.period().contains(from)).findFirst().orElse(null);
         List<OrgUnitVersion> versions = store.versions(id);
@@ -159,7 +174,7 @@ public class OrgUnitService {
             } else {
                 store.updateLink(new OrgUnitLink(current.id(), hierarchyId, id, parentId, period));
             }
-            return get(id, validFrom);
+            return state(id, from, hierarchyId);
         }
         if (current != null) {
             store.updateLink(new OrgUnitLink(current.id(), hierarchyId, id, current.parentId(),
@@ -168,7 +183,7 @@ public class OrgUnitService {
         if (parentId != null) {
             store.insertLink(new OrgUnitLink(newId(), hierarchyId, id, parentId, period));
         }
-        return get(id, validFrom);
+        return state(id, from, hierarchyId);
     }
 
     /**
@@ -192,7 +207,7 @@ public class OrgUnitService {
         if (!to.isAfter(versions.getFirst().period().from())) {
             throw FuhitoException.notFound("org_unit.not_valid_on", Map.of("id", id, "date", to.toString()));
         }
-        List<OrgUnitLink> parentLinks = store.parentLinks(store.defaultHierarchyId(), id);
+        List<OrgUnitLink> parentLinks = store.parentLinks(id);
         // A parent link that ends later means the unit becomes a root on that date. That is a later change too.
         boolean laterChange = !to.isAfter(last.period().from())
                 || parentLinks.stream().anyMatch(l -> !l.period().from().isBefore(to)
@@ -274,12 +289,15 @@ public class OrgUnitService {
      * @throws FuhitoException when the unit does not exist, or does not exist on the date
      */
     public OrgUnitState get(String id, String asOf) {
-        LocalDate date = dateOrToday(asOf, id);
+        return state(id, dateOrToday(asOf, id), store.defaultHierarchyId());
+    }
+
+    private OrgUnitState state(String id, LocalDate date, String hierarchyId) {
         OrgUnit unit = requireUnit(id);
         OrgUnitVersion version = versionOn(id, date);
         String unitType = version.unitTypeId() == null ? null
                 : refItems.find(version.unitTypeId()).map(RefItem::code).orElse(null);
-        String parentId = store.parentLinks(store.defaultHierarchyId(), id).stream()
+        String parentId = store.parentLinks(hierarchyId, id).stream()
                 .filter(link -> link.period().contains(date))
                 .map(OrgUnitLink::parentId)
                 .findFirst()
@@ -375,7 +393,20 @@ public class OrgUnitService {
         List<OrgUnitState> versions = store.versions(id).stream()
                 .map(version -> new OrgUnitState(unit, version, unitTypeCodes.get(version.unitTypeId()), null))
                 .toList();
-        return new OrgUnitHistory(unit, versions, store.parentLinks(store.defaultHierarchyId(), id));
+        store.defaultHierarchyId();
+        return new OrgUnitHistory(unit, versions, store.parentLinks(id), store.hierarchyCodes());
+    }
+
+    private String hierarchyId(String code) {
+        String defaultId = store.defaultHierarchyId();
+        if (code == null) {
+            return defaultId;
+        }
+        return store.hierarchyCodes().entrySet().stream()
+                .filter(entry -> entry.getValue().equals(code))
+                .map(Map.Entry::getKey)
+                .findFirst()
+                .orElseThrow(() -> FuhitoException.invalid("hierarchy.unknown", Map.of("code", code)));
     }
 
     private OrgUnitTree tree(String asOf, String orgUnitId) {

@@ -110,7 +110,8 @@ public class OrgUnitsResource {
     @Path("{id}/parent")
     @Operation(
             operationId = "moveOrgUnit",
-            summary = "Gives an org unit a new parent in the default hierarchy from a date.")
+            summary = "Gives an org unit a new parent in a hierarchy from a date.",
+            description = "The response has the parent in that hierarchy.")
     @Parameter(ref = "changeOrder")
     @APIResponse(responseCode = "200", description = "The unit as it is on that date.")
     @BadRequest
@@ -119,11 +120,13 @@ public class OrgUnitsResource {
     public OrgUnitRepresentation move(
             @Parameter(description = "The ID of the resource.")
             @PathParam("id") String id,
+            @Parameter(description = "The code of the hierarchy. The default is the hierarchy `default`.")
+            @QueryParam("hierarchy") String hierarchy,
             ParentChangeRepresentation body) {
         context.requireWrite();
         return Calls.run(context, () -> {
             Checks.required("body", body);
-            return updated(path(id) + "/parent", service.move(id, body.parentId(), body.validFrom()));
+            return updated(path(id) + "/parent", service.move(id, body.parentId(), body.validFrom(), hierarchy));
         });
     }
 

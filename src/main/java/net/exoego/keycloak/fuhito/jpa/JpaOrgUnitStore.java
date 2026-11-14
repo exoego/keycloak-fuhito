@@ -3,10 +3,12 @@ package net.exoego.keycloak.fuhito.jpa;
 import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
-import java.util.UUID;
+import java.util.stream.Collectors;
 
 import jakarta.persistence.EntityManager;
+import net.exoego.keycloak.fuhito.domain.Hierarchy;
 import net.exoego.keycloak.fuhito.domain.OrgUnit;
 import net.exoego.keycloak.fuhito.domain.OrgUnitLink;
 import net.exoego.keycloak.fuhito.domain.OrgUnitVersion;
@@ -67,6 +69,12 @@ public class JpaOrgUnitStore implements OrgUnitStore {
     @Override
     public String defaultHierarchyId() {
         return new JpaHierarchyStore(em, realmId).defaultId();
+    }
+
+    @Override
+    public Map<String, String> hierarchyCodes() {
+        return new JpaHierarchyStore(em, realmId).list(0, Integer.MAX_VALUE).stream()
+                .collect(Collectors.toMap(Hierarchy::id, Hierarchy::code));
     }
 
     @Override
@@ -275,6 +283,18 @@ public class JpaOrgUnitStore implements OrgUnitStore {
                         OrgUnitLinkEntity.class)
                 .setParameter("realmId", realmId)
                 .setParameter("hierarchyId", hierarchyId)
+                .setParameter("childId", childId)
+                .getResultStream()
+                .map(JpaOrgUnitStore::toDomain)
+                .toList();
+    }
+
+    @Override
+    public List<OrgUnitLink> parentLinks(String childId) {
+        return em.createQuery("""
+                        select l from OrgUnitLinkEntity l where l.realmId = :realmId
+                        and l.childId = :childId order by l.validFrom, l.hierarchyId""", OrgUnitLinkEntity.class)
+                .setParameter("realmId", realmId)
                 .setParameter("childId", childId)
                 .getResultStream()
                 .map(JpaOrgUnitStore::toDomain)

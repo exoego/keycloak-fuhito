@@ -655,6 +655,43 @@ class OrgUnitServiceTest {
     }
 
     @Test
+    void aSecondHierarchyHasItsOwnParentsCyclesAndEnds() {
+        store.hierarchyCodes.put("matrix-id", "matrix");
+        String a = root("A");
+        String b = root("B");
+        String ward = service.create(named("Ward", a, "2026-04-01")).unit().id();
+
+        // B is the parent of the ward in the matrix, and A stays its parent in the default hierarchy.
+        assertEquals(b, service.move(ward, b, "2026-04-01", "matrix").parentId());
+        assertEquals(a, service.get(ward, "2026-04-01").parentId());
+        assertEquals(List.of("default-hierarchy", "matrix-id"),
+                store.links.stream().map(OrgUnitLink::hierarchyId).toList());
+
+        // A cycle is judged inside one hierarchy. B under the ward is a cycle only in the matrix.
+        assertEquals("org_unit.cycle", assertThrows(FuhitoException.class,
+                () -> service.move(b, ward, "2026-04-01", "matrix")).code());
+        assertEquals(ward, service.move(b, ward, "2026-04-01").parentId());
+        service.move(b, null, "2026-04-01");
+
+        OrgUnitHistory history = service.history(ward);
+        assertEquals(List.of("default " + a, "matrix " + b), history.parents().stream()
+                .map(link -> history.hierarchyCodes().get(link.hierarchyId()) + " " + link.parentId()).toList());
+
+        // A child in any hierarchy keeps its parent from ending. The end of a unit ends its links everywhere.
+        assertEquals("org_unit.has_children", assertThrows(FuhitoException.class,
+                () -> service.end(b, "2027-04-01")).code());
+        service.end(ward, "2027-04-01");
+        assertEquals(List.of(LocalDate.of(2027, 4, 1), LocalDate.of(2027, 4, 1)),
+                store.links.stream().map(link -> link.period().to()).toList());
+
+        assertEquals(b, service.move(ward, b, "2026-10-01", "matrix").parentId());
+        FuhitoException unknown = assertThrows(FuhitoException.class,
+                () -> service.move(ward, b, "2026-04-01", "nope"));
+        assertEquals(FuhitoException.Reason.INVALID, unknown.reason());
+        assertEquals("hierarchy.unknown", unknown.code());
+    }
+
+    @Test
     void readsTheHistoryOfAUnit() {
         unitType("ward", true);
         String a = root("A");
