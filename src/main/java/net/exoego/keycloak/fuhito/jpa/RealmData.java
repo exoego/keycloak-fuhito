@@ -64,7 +64,9 @@ public final class RealmData {
                 // Lines where the user reports, and lines where the user is the manager.
                 """
                 delete from ReportingLineEntity r where r.realmId = :realmId
-                and (r.managerUserId = :userId or r.assignmentId in
+                and (r.managerPersonId in
+                (select p.id from PersonEntity p where p.realmId = :realmId and p.userId = :userId)
+                or r.assignmentId in
                 (select a.assignmentId from AssignmentEntity a where a.realmId = :realmId
                 and a.employmentId in
                 (select e.id from EmploymentEntity e where e.realmId = :realmId and e.personId in
@@ -92,8 +94,11 @@ public final class RealmData {
                 """
                 delete from ChangeLogEntity l where l.realmId = :realmId
                 and l.resourceType = 'FUHITO_QUALIFICATION' and l.resourceId in
-                (select q.id from QualificationEntity q where q.realmId = :realmId and q.userId = :userId)""",
-                "delete from QualificationEntity q where q.realmId = :realmId and q.userId = :userId",
+                (select q.id from QualificationEntity q where q.realmId = :realmId and q.personId in
+                (select p.id from PersonEntity p where p.realmId = :realmId and p.userId = :userId))""",
+                """
+                delete from QualificationEntity q where q.realmId = :realmId and q.personId in
+                (select p.id from PersonEntity p where p.realmId = :realmId and p.userId = :userId)""",
                 "delete from UserMaskEntity m where m.realmId = :realmId and m.userId = :userId",
                 """
                 delete from EmploymentEntity e where e.realmId = :realmId and e.personId in

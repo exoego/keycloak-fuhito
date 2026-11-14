@@ -4,12 +4,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Predicate;
 
 import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.Person;
 import net.exoego.keycloak.fuhito.service.PersonView.NameSource;
-import net.exoego.keycloak.fuhito.store.EmploymentStore;
 import net.exoego.keycloak.fuhito.store.PersonStore;
 import net.exoego.keycloak.fuhito.store.UserDirectory;
 
@@ -31,19 +31,19 @@ public class PersonService {
 
     private final PersonStore store;
     private final UserDirectory users;
-    private final EmploymentStore employments;
+    private final Predicate<String> inUse;
 
     /**
      * Creates the service.
      *
      * @param store the storage of people of the realm
      * @param users the users of the realm
-     * @param employments the storage of employments of the realm
+     * @param inUse tells whether an employment, a qualification, or a reporting line names the person with an ID
      */
-    public PersonService(PersonStore store, UserDirectory users, EmploymentStore employments) {
+    public PersonService(PersonStore store, UserDirectory users, Predicate<String> inUse) {
         this.store = store;
         this.users = users;
-        this.employments = employments;
+        this.inUse = inUse;
     }
 
     /**
@@ -116,11 +116,11 @@ public class PersonService {
      * Deletes a person.
      *
      * @param id the ID
-     * @throws FuhitoException when the person does not exist or has an employment
+     * @throws FuhitoException when the person does not exist or something still names the person
      */
     public void delete(String id) {
         get(id);
-        if (!employments.findByPerson(id).isEmpty()) {
+        if (inUse.test(id)) {
             throw FuhitoException.conflict("person.in_use", Map.of("id", id));
         }
         store.delete(id);

@@ -5,11 +5,14 @@ package net.exoego.keycloak.fuhito.domain;
  *
  * @param id the ID
  * @param assignmentId the ID of the assignment of the person who reports
- * @param managerUserId the ID of the Keycloak user who is the manager
+ * @param managerPersonId the ID of the person who is the manager
+ * @param managerUserId the ID of the Keycloak user that the manager is linked to, or null. It is read from the
+ *        person.
  * @param kind solid or dotted
  * @param period the dates when the link holds
  */
-public record ReportingLine(String id, String assignmentId, String managerUserId, Kind kind, ValidPeriod period) {
+public record ReportingLine(String id, String assignmentId, String managerPersonId, String managerUserId, Kind kind,
+        ValidPeriod period) {
 
     /**
      * The kind of a reporting line.
@@ -28,6 +31,6 @@ public record ReportingLine(String id, String assignmentId, String managerUserId
      * @return the line with the new period
      */
     public ReportingLine withPeriod(ValidPeriod newPeriod) {
-        return new ReportingLine(id, assignmentId, managerUserId, kind, newPeriod);
+        return new ReportingLine(id, assignmentId, managerPersonId, managerUserId, kind, newPeriod);
     }
 }

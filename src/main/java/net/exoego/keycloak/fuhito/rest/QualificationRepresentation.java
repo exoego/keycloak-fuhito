@@ -14,7 +14,12 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
 public record QualificationRepresentation(
         @Schema(readOnly = true)
         String id,
-        @Schema(description = "The ID of the Keycloak user. Only a request to add reads it.")
+        @Schema(description = "The ID of the person. Only a request to add reads it.")
+        String personId,
+        @Schema(
+                description = "The ID of the Keycloak user that the person is linked to. A request to add can give "
+                        + "it in place of `personId`. The person of the user is then used, and created when the "
+                        + "user has none.")
         String userId,
         @Schema(description = "The code of the qualification kind.")
         String kind,
@@ -35,12 +40,12 @@ public record QualificationRepresentation(
 
     static QualificationRepresentation of(QualificationView view) {
         var q = view.qualification();
-        return new QualificationRepresentation(q.id(), q.userId(), view.kind(), q.number(),
+        return new QualificationRepresentation(q.id(), q.personId(), q.userId(), view.kind(), q.number(),
                 q.period().from().toString(), Objects.toString(q.period().to(), null),
                 q.attributes(), q.externalId(), q.source());
     }
 
-    QualificationValues toValues() {
-        return new QualificationValues(userId, kind, number, validFrom, validTo, attributes, externalId, source);
+    QualificationValues toValues(String person) {
+        return new QualificationValues(person, kind, number, validFrom, validTo, attributes, externalId, source);
     }
 }

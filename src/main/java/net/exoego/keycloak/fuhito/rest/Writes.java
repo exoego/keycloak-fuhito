@@ -16,12 +16,13 @@ final class Writes {
     }
 
     // A write may name a person by the ID of a Keycloak user. The person is created when the user has none.
-    static String personId(RequestContext context, PersonService people, String personId, String userId) {
+    static String personId(RequestContext context, PersonService people, String field, String personId,
+            String userId) {
         if (personId != null) {
             return personId;
         }
         if (userId == null) {
-            throw FuhitoException.invalid("invalid.required", Map.of("field", "personId"));
+            throw FuhitoException.invalid("invalid.required", Map.of("field", field));
         }
         PersonService.Resolved resolved = people.forUser(userId);
         if (resolved.created() != null) {

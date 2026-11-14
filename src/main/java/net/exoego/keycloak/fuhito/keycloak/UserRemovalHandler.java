@@ -35,7 +35,7 @@ final class UserRemovalHandler {
                 new JpaPersonStore(em, realmId), lines);
         var changeLog = new JpaChangeLogStore(em, realmId);
         for (EmploymentView ended : new UserRetirement(employments, employmentService, assignments, lines,
-                RealmTime.clockOrUtc(realm)).retire(userId)) {
+                new JpaPersonStore(em, realmId), RealmTime.clockOrUtc(realm)).retire(userId)) {
             String id = ended.employment().id();
             // No administrator did this write. The removal of the user did.
             changeLog.append(new ChangeLogEntry(UUID.randomUUID().toString(), 0,

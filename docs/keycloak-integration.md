@@ -318,8 +318,9 @@ Keycloak keeps a first name and a last name. The extension joins them with a spa
 
 A person with no linked user must have a name in the record.
 
-An employment has `personId`. It also has `userId` when the person is linked to a user.
-`POST /employments` and `POST /staff` take either one. With `userId`, the person of the user is used, and created when the user has none.
+An employment and a qualification have `personId`. They also have `userId` when the person is linked to a user.
+A reporting line has `managerPersonId`, and `managerUserId` in the same way.
+A request to create one of them takes either ID. With the ID of a user, the person of the user is used, and created when the user has none.
 A person with no linked user gets no token claim and no group in the projection.
 
 ## Admin events

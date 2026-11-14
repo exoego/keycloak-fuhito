@@ -195,11 +195,7 @@ public class AttributeSyncService {
         if (active.isPresent()) {
             return active.get();
         }
-        PersonService.Resolved person = from.personService().forUser(user.userId());
-        if (person.created() != null) {
-            writes.add(new Write.OfPerson(person.created()));
-        }
-        String personId = person.person().id();
+        String personId = personOf(user.userId());
         EmploymentView started;
         try {
             started = start(user, personId, user.employeeNumber(), today);
@@ -210,6 +206,15 @@ public class AttributeSyncService {
         employmentsStarted++;
         writes.add(new Write.OfEmployment(true, "", started));
         return started.employment();
+    }
+
+    // The person of a user. It is created when the user has none.
+    private String personOf(String userId) {
+        PersonService.Resolved person = from.personService().forUser(userId);
+        if (person.created() != null) {
+            writes.add(new Write.OfPerson(person.created()));
+        }
+        return person.person().id();
     }
 
     private EmploymentView start(Values user, String personId, String staffNumber, LocalDate today) {
@@ -251,6 +256,7 @@ public class AttributeSyncService {
         if (Objects.equals(wanted, current.map(ReportingLine::managerUserId).orElse(null))) {
             return;
         }
+        String managerPersonId = wanted == null ? null : personOf(wanted);
         if (current.isPresent()) {
             if (current.get().period().from().equals(today)) {
                 from.lineService().delete(current.get().id());
@@ -259,7 +265,7 @@ public class AttributeSyncService {
             }
         }
         if (wanted != null) {
-            from.lineService().add(assignmentId, wanted, "SOLID", today.toString(), null);
+            from.lineService().add(assignmentId, managerPersonId, "SOLID", today.toString(), null);
         }
         reportingLinesChanged++;
     }

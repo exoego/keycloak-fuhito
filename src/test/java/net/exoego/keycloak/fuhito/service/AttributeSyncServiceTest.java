@@ -89,10 +89,10 @@ class AttributeSyncServiceTest {
     private SyncReport run() {
         Today today = rule == null ? Today.of(clock) : new UnitDays(orgUnitStore, rule, clock);
         ReportingLineService lineService = new ReportingLineService(lineStore, new ReportingLineService.Sources(
-                assignmentStore, employmentStore, orgUnitStore, refItems, attributes::containsKey), clock);
+                assignmentStore, employmentStore, orgUnitStore, refItems, attributes::containsKey, people), clock);
         return new AttributeSyncService(new AttributeSyncService.Sources(source, attributes::containsKey,
                 orgUnitStore, refItems, employmentStore, employments(), assignmentStore, assignments(), lineStore,
-                lineService, new PersonService(people, attributes::containsKey, employmentStore)), today).run();
+                lineService, new PersonService(people, attributes::containsKey, id -> false)), today).run();
     }
 
     private void nextDay() {
@@ -447,7 +447,7 @@ class AttributeSyncServiceTest {
                 .map(Assignment::assignmentId)
                 .filter(id -> !lineStore.findByAssignment(id).isEmpty())
                 .findFirst().orElseThrow();
-        lineStore.insert(new ReportingLine("dotted", assignment, "boss", ReportingLine.Kind.DOTTED,
+        lineStore.insert(new ReportingLine("dotted", assignment, "boss", "boss", ReportingLine.Kind.DOTTED,
                 ValidPeriod.startingAt(LocalDate.of(2026, 6, 15))));
         nextDay();
         set("alice", "med", null, null, null);

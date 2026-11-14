@@ -8,10 +8,12 @@ import java.util.UUID;
 
 import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
+import net.exoego.keycloak.fuhito.domain.Person;
 import net.exoego.keycloak.fuhito.domain.Qualification;
 import net.exoego.keycloak.fuhito.domain.RefItem;
 import net.exoego.keycloak.fuhito.domain.RefKind;
 import net.exoego.keycloak.fuhito.domain.ValidPeriod;
+import net.exoego.keycloak.fuhito.store.PersonStore;
 import net.exoego.keycloak.fuhito.store.QualificationStore;
 import net.exoego.keycloak.fuhito.store.RefItemStore;
 import net.exoego.keycloak.fuhito.store.UserDirectory;
@@ -23,6 +25,7 @@ public class QualificationService {
 
     private final QualificationStore store;
     private final RefItemStore refItems;
+    private final PersonStore people;
     private final UserDirectory users;
     private final Clock clock;
 
@@ -31,10 +34,13 @@ public class QualificationService {
      *
      * @param store the storage of qualifications of the realm
      * @param refItems the storage of reference items of the realm
+     * @param people the storage of people of the realm
      * @param users the users of the realm
      * @param clock the clock that decides what "today" is
      */
-    public QualificationService(QualificationStore store, RefItemStore refItems, UserDirectory users, Clock clock) {
+    public QualificationService(QualificationStore store, RefItemStore refItems, PersonStore people,
+            UserDirectory users, Clock clock) {
+        this.people = people;
         this.store = store;
         this.refItems = refItems;
         this.users = users;
@@ -42,18 +48,19 @@ public class QualificationService {
     }
 
     /**
-     * Adds a qualification of a user. A user can hold many, and the same kind more than once.
+     * Adds a qualification of a person. A person can hold many, and the same kind more than once.
      *
      * @param request the values of the request
      * @return the new qualification
-     * @throws FuhitoException when a value is bad or the user does not exist
+     * @throws FuhitoException when a value is bad or the person does not exist
      */
     public QualificationView add(QualificationValues request) {
         Checks.required("body", request);
-        String userId = Checks.required("userId", request.userId());
-        Qualification qualification = checked(UUID.randomUUID().toString(), userId, request, null,
+        String personId = Checks.required("personId", request.personId());
+        Person person = people.find(personId).orElseThrow(
+                () -> FuhitoException.invalid("qualification.person_unknown", Map.of("personId", personId)));
+        Qualification qualification = checked(UUID.randomUUID().toString(), person, request, null,
                 request.externalId(), request.source());
-        requireUser(userId);
         store.insert(qualification);
         return view(qualification);
     }
@@ -69,8 +76,9 @@ public class QualificationService {
     public QualificationView replace(String id, QualificationValues request) {
         Checks.required("body", request);
         Qualification current = get(id).qualification();
-        Qualification changed = checked(id, current.userId(), request, current.kindId(), current.externalId(),
-                current.source());
+        Qualification changed = checked(id,
+                new Person(current.personId(), current.userId(), null, Map.of(), null, Map.of(), null, null),
+                request, current.kindId(), current.externalId(), current.source());
         store.update(changed);
         return view(changed);
     }
@@ -118,7 +126,7 @@ public class QualificationService {
                 .toList();
     }
 
-    private Qualification checked(String id, String userId, QualificationValues request, String currentKindId,
+    private Qualification checked(String id, Person person, QualificationValues request, String currentKindId,
             String externalId, String source) {
         String kind = Checks.required("kind", request.kind());
         // A qualification may keep a kind that was deactivated after it got it.
@@ -129,14 +137,8 @@ public class QualificationService {
                         Map.of("kind", RefKind.QUALIFICATION.name(), "code", kind)));
         ValidPeriod period = Checks.period(Checks.date("validFrom", request.validFrom()),
                 Checks.optionalDate("validTo", request.validTo()));
-        return new Qualification(id, userId, kindId, Checks.optionalName("number", request.number()), period,
+        return new Qualification(id, person.id(), person.userId(), kindId, Checks.optionalName("number", request.number()), period,
                 request.attributes() == null ? Map.of() : request.attributes(), externalId, source);
-    }
-
-    private void requireUser(String userId) {
-        if (!users.exists(userId)) {
-            throw FuhitoException.invalid("qualification.user_unknown", Map.of("userId", userId));
-        }
     }
 
     private QualificationView view(Qualification qualification) {

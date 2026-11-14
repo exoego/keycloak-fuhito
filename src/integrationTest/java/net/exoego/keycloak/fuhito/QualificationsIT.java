@@ -88,7 +88,7 @@ class QualificationsIT {
         String id = created(api.post("/qualifications", "{\"userId\": \"" + physician
                 + "\", \"kind\": \"physician-license\", \"validFrom\": \"2010-05-01\"}")).get("id").asText();
 
-        assertEquals("qualification.user_unknown", errorOf(400, api.post("/qualifications",
+        assertEquals("person.user_unknown", errorOf(400, api.post("/qualifications",
                 "{\"userId\": \"nobody\", \"kind\": \"physician-license\", \"validFrom\": \"2010-05-01\"}")));
         assertEquals("ref_item.unknown", errorOf(400, api.post("/qualifications",
                 "{\"userId\": \"" + physician + "\", \"kind\": \"nope\", \"validFrom\": \"2010-05-01\"}")));

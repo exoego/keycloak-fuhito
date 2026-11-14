@@ -27,6 +27,14 @@ public interface QualificationStore {
     List<Qualification> findByUser(String userId);
 
     /**
+     * Lists the qualifications of a person, oldest first.
+     *
+     * @param personId the ID of the person
+     * @return the qualifications
+     */
+    List<Qualification> findByPerson(String personId);
+
+    /**
      * Stores a new qualification.
      *
      * @param qualification the qualification

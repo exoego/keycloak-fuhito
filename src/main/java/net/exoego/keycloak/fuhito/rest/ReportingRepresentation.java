@@ -6,11 +6,13 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
 @Schema(
         name = "Reporting",
         description = "One manager of a person, or one direct report of a person, on a date.",
-        requiredProperties = {"userId", "kind", "derived", "assignmentId", "orgUnitId"})
+        requiredProperties = {"personId", "kind", "derived", "assignmentId", "orgUnitId"})
 public record ReportingRepresentation(
         @Schema(
-                description = "The ID of the other user. It is the manager in a list of managers, and the report in "
-                        + "a list of reports.")
+                description = "The ID of the other person. It is the manager in a list of managers, and the report "
+                        + "in a list of reports.")
+        String personId,
+        @Schema(description = "The ID of the Keycloak user that the other person is linked to.")
         String userId,
         @Schema(ref = "ReportingKind")
         String kind,
@@ -26,7 +28,7 @@ public record ReportingRepresentation(
         String orgUnitId) {
 
     static ReportingRepresentation of(Reporting reporting) {
-        return new ReportingRepresentation(reporting.userId(), reporting.kind().name(), reporting.derived(),
+        return new ReportingRepresentation(reporting.personId(), reporting.userId(), reporting.kind().name(), reporting.derived(),
                 reporting.lineId(), reporting.assignmentId(), reporting.orgUnitId());
     }
 }

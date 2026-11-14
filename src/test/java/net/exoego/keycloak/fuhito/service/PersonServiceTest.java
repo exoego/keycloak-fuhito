@@ -38,7 +38,8 @@ class PersonServiceTest {
 
     private final MemoryPersonStore store = new MemoryPersonStore();
     private final MemoryEmploymentStore employments = new MemoryEmploymentStore();
-    private final PersonService service = new PersonService(store, USERS, employments);
+    private final PersonService service = new PersonService(store, USERS,
+            id -> !employments.findByPerson(id).isEmpty());
 
     private static PersonValues named(String name) {
         return new PersonValues(null, name, null, null, null, null, null);

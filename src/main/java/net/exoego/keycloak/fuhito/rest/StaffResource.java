@@ -64,7 +64,7 @@ public class StaffResource {
             // The org unit is checked first, so that a request without it does not get as far as the employment.
             Checks.required("orgUnitId", body.orgUnitId());
             var employment = EmploymentRepresentation.of(employments.start(
-                    body.toNewEmployment(Writes.personId(context, people, body.personId(), body.userId()))));
+                    body.toNewEmployment(Writes.personId(context, people, "personId", body.personId(), body.userId()))));
             var assignment = AssignmentRepresentation.of(assignments.add(body.toAssignment(employment.id())));
             context.recordChange(Change.CREATE, EmploymentsResource.RESOURCE_TYPE, employment.id(),
                     "fuhito/employments/" + employment.id(), employment);

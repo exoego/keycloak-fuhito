@@ -12,6 +12,7 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.rest.RequestContext.Change;
+import net.exoego.keycloak.fuhito.service.PersonService;
 import net.exoego.keycloak.fuhito.service.ReportingLineService;
 import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.media.Content;
@@ -35,16 +36,19 @@ public class ReportingLinesResource {
 
     private final RequestContext context;
     private final ReportingLineService service;
+    private final PersonService people;
 
     /**
      * Creates the resource for one request.
      *
      * @param context the request and its caller
      * @param service the operations on the realm of the request
+     * @param people the operations on people of the realm
      */
-    public ReportingLinesResource(RequestContext context, ReportingLineService service) {
+    public ReportingLinesResource(RequestContext context, ReportingLineService service, PersonService people) {
         this.context = context;
         this.service = service;
+        this.people = people;
     }
 
     @POST
@@ -62,7 +66,9 @@ public class ReportingLinesResource {
         context.requireWrite();
         return Calls.run(context, () -> {
             Checks.required("body", body);
-            var line = ReportingLineRepresentation.of(service.add(body.assignmentId(), body.managerUserId(),
+            var line = ReportingLineRepresentation.of(service.add(body.assignmentId(),
+                    Writes.personId(context, people, "managerPersonId", body.managerPersonId(),
+                            body.managerUserId()),
                     body.kind(), body.validFrom(), body.validTo()));
             context.recordChange(Change.CREATE, RESOURCE_TYPE, line.id(), path(line.id()), line);
             return Response.status(Response.Status.CREATED).entity(line).build();

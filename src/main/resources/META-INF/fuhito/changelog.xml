@@ -555,4 +555,58 @@
         <dropIndex tableName="FUHITO_EMPLOYMENT" indexName="IDX_FUHITO_EMPLOYMENT_USER"/>
         <dropColumn tableName="FUHITO_EMPLOYMENT" columnName="USER_ID"/>
     </changeSet>
+    <changeSet id="0.1.0-qualification-person" author="keycloak-fuhito">
+        <addColumn tableName="FUHITO_QUALIFICATION">
+            <column name="PERSON_ID" type="VARCHAR(36)"/>
+        </addColumn>
+        <!-- Every user with a qualification gets a person, unless the user has one. -->
+        <sql dbms="postgresql">
+            INSERT INTO FUHITO_PERSON (ID, REALM_ID, USER_ID, NAMES_I18N, ATTRIBUTES)
+            SELECT gen_random_uuid(), t.REALM_ID, t.USER_ID, '{}', '{}'
+            FROM (SELECT DISTINCT REALM_ID, USER_ID FROM FUHITO_QUALIFICATION) t
+            WHERE NOT EXISTS (SELECT 1 FROM FUHITO_PERSON p
+                              WHERE p.REALM_ID = t.REALM_ID AND p.USER_ID = t.USER_ID)
+        </sql>
+        <sql>
+            UPDATE FUHITO_QUALIFICATION SET PERSON_ID = (SELECT p.ID FROM FUHITO_PERSON p
+                WHERE p.REALM_ID = FUHITO_QUALIFICATION.REALM_ID AND p.USER_ID = FUHITO_QUALIFICATION.USER_ID)
+        </sql>
+        <addNotNullConstraint tableName="FUHITO_QUALIFICATION" columnName="PERSON_ID" columnDataType="VARCHAR(36)"/>
+        <addForeignKeyConstraint baseTableName="FUHITO_QUALIFICATION" baseColumnNames="PERSON_ID"
+                                 referencedTableName="FUHITO_PERSON" referencedColumnNames="ID"
+                                 constraintName="FK_FUHITO_QUALIFICATION_PERSON"/>
+        <createIndex tableName="FUHITO_QUALIFICATION" indexName="IDX_FUHITO_QUALIFICATION_PERSON">
+            <column name="PERSON_ID"/>
+        </createIndex>
+        <dropIndex tableName="FUHITO_QUALIFICATION" indexName="IDX_FUHITO_QUALIFICATION_USER"/>
+        <dropColumn tableName="FUHITO_QUALIFICATION" columnName="USER_ID"/>
+    </changeSet>
+    <changeSet id="0.1.0-reporting-line-manager-person" author="keycloak-fuhito">
+        <addColumn tableName="FUHITO_REPORTING_LINE">
+            <column name="MANAGER_PERSON_ID" type="VARCHAR(36)"/>
+        </addColumn>
+        <!-- Every user who is a manager gets a person, unless the user has one. -->
+        <sql dbms="postgresql">
+            INSERT INTO FUHITO_PERSON (ID, REALM_ID, USER_ID, NAMES_I18N, ATTRIBUTES)
+            SELECT gen_random_uuid(), t.REALM_ID, t.MANAGER_USER_ID, '{}', '{}'
+            FROM (SELECT DISTINCT REALM_ID, MANAGER_USER_ID FROM FUHITO_REPORTING_LINE) t
+            WHERE NOT EXISTS (SELECT 1 FROM FUHITO_PERSON p
+                              WHERE p.REALM_ID = t.REALM_ID AND p.USER_ID = t.MANAGER_USER_ID)
+        </sql>
+        <sql>
+            UPDATE FUHITO_REPORTING_LINE SET MANAGER_PERSON_ID = (SELECT p.ID FROM FUHITO_PERSON p
+                WHERE p.REALM_ID = FUHITO_REPORTING_LINE.REALM_ID
+                AND p.USER_ID = FUHITO_REPORTING_LINE.MANAGER_USER_ID)
+        </sql>
+        <addNotNullConstraint tableName="FUHITO_REPORTING_LINE" columnName="MANAGER_PERSON_ID"
+                              columnDataType="VARCHAR(36)"/>
+        <addForeignKeyConstraint baseTableName="FUHITO_REPORTING_LINE" baseColumnNames="MANAGER_PERSON_ID"
+                                 referencedTableName="FUHITO_PERSON" referencedColumnNames="ID"
+                                 constraintName="FK_FUHITO_REPORTING_LINE_MANAGER"/>
+        <createIndex tableName="FUHITO_REPORTING_LINE" indexName="IDX_FUHITO_REPORTING_LINE_MANAGER_PERSON">
+            <column name="MANAGER_PERSON_ID"/>
+        </createIndex>
+        <dropIndex tableName="FUHITO_REPORTING_LINE" indexName="IDX_FUHITO_REPORTING_LINE_MANAGER"/>
+        <dropColumn tableName="FUHITO_REPORTING_LINE" columnName="MANAGER_USER_ID"/>
+    </changeSet>
 </databaseChangeLog>

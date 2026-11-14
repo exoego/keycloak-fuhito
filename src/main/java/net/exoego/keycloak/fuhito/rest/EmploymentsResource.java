@@ -68,7 +68,7 @@ public class EmploymentsResource {
         return Calls.run(context, () -> {
             Checks.required("body", body);
             var employment = EmploymentRepresentation.of(service.start(
-                    body.toNewEmployment(Writes.personId(context, people, body.personId(), body.userId()))));
+                    body.toNewEmployment(Writes.personId(context, people, "personId", body.personId(), body.userId()))));
             context.recordChange(Change.CREATE, RESOURCE_TYPE, employment.id(), "fuhito/employments/" + employment.id(),
                     employment);
             return Response.status(Response.Status.CREATED).entity(employment).build();
