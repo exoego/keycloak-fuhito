@@ -4163,6 +4163,23 @@ paths:
           format: date
         name: asOf
         in: query
+      - description: The number of entries to skip.
+        schema:
+          type: integer
+          format: int32
+          minimum: 0
+          default: 0
+        name: first
+        in: query
+      - description: The largest number of entries to return.
+        schema:
+          type: integer
+          format: int32
+          maximum: 1000
+          minimum: 0
+          default: 100
+        name: max
+        in: query
       responses:
         "200":
           description: The direct reports.
@@ -4940,6 +4957,23 @@ paths:
           type: string
           format: date
         name: asOf
+        in: query
+      - description: The number of entries to skip.
+        schema:
+          type: integer
+          format: int32
+          minimum: 0
+          default: 0
+        name: first
+        in: query
+      - description: The largest number of entries to return.
+        schema:
+          type: integer
+          format: int32
+          maximum: 1000
+          minimum: 0
+          default: 100
+        name: max
         in: query
       responses:
         "200":

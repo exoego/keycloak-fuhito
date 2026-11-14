@@ -200,47 +200,41 @@ public class ReportingLineService {
     }
 
     /**
-     * Lists the direct reports of a user on a date, by the same rules as {@link #managersOf}.
+     * Lists a page of the direct reports of a user on a date, by the same rules as {@link #managersOf}.
+     * The stored lines come first. Then the order is the distance from the org unit of the manager, the org
+     * unit, and the assignment.
      *
      * @param userId the ID of the user
      * @param asOf the date as {@code YYYY-MM-DD}, or null for today
-     * @return the direct reports
+     * @param page the part of the list to return
+     * @return the direct reports of the page
      * @throws FuhitoException when the user does not exist
      */
-    public List<Reporting> reportsOf(String userId, String asOf) {
+    public List<Reporting> reportsOf(String userId, String asOf, Page page) {
         LocalDate date = dateOrToday(asOf);
         requireUser(userId);
-        return personOf(userId).map(personId -> reports(personId, date)).orElse(List.of());
+        return personOf(userId).map(personId -> reports(personId, date, page)).orElse(List.of());
     }
 
     /**
-     * Lists the direct reports of a person on a date.
+     * Lists a page of the direct reports of a person on a date.
      *
      * @param personId the ID of the person
      * @param asOf the date as {@code YYYY-MM-DD}, or null for today
-     * @return the direct reports
+     * @param page the part of the list to return
+     * @return the direct reports of the page
      * @throws FuhitoException when the date is bad
      */
-    public List<Reporting> reportsOfPerson(String personId, String asOf) {
-        return reports(personId, dateOrToday(asOf));
+    public List<Reporting> reportsOfPerson(String personId, String asOf, Page page) {
+        return reports(personId, dateOrToday(asOf), page);
     }
 
-    private List<Reporting> reports(String personId, LocalDate date) {
-        Snapshot snapshot = new Snapshot(date);
-        List<Reporting> result = new ArrayList<>();
-        for (ReportingLine line : store.findByManager(personId)) {
-            if (line.period().contains(date)) {
-                snapshot.rowOf(line.assignmentId()).ifPresent(row -> result.add(new Reporting(
-                        snapshot.personOf(row), snapshot.userOf(row), line.kind(), false, line.id(),
-                        row.assignmentId(), row.orgUnitId())));
-            }
-        }
-        for (Assignment own : snapshot.rowsOfPerson(personId)) {
-            if (own.head()) {
-                snapshot.collectReports(own.orgUnitId(), true, personId, result);
-            }
-        }
-        return result;
+    private List<Reporting> reports(String personId, LocalDate date, Page page) {
+        return store.reportsOn(sources.orgUnits().defaultHierarchyId(), personId, date, page.first(), page.max())
+                .stream()
+                .map(report -> new Reporting(report.personId(), report.userId(), report.kind(), report.derived(),
+                        report.lineId(), report.assignmentId(), report.orgUnitId()))
+                .toList();
     }
 
     private Optional<Employment> employmentOf(Assignment row) {
@@ -269,18 +263,9 @@ public class ReportingLineService {
 
         private final LocalDate date;
         private final Map<String, Optional<Employment>> employments = new HashMap<>();
-        // Only the reads that go down from a unit need the whole tree.
-        private OrgUnitTree tree;
 
         Snapshot(LocalDate date) {
             this.date = date;
-        }
-
-        private OrgUnitTree tree() {
-            if (tree == null) {
-                tree = new OrgUnitTree(sources.orgUnits(), sources.refItems(), date);
-            }
-            return tree;
         }
 
         private Optional<Employment> employment(Assignment row) {
@@ -300,12 +285,6 @@ public class ReportingLineService {
                     .flatMap(employment -> sources.assignments().rowsOfEmployment(employment.id()).stream())
                     .filter(row -> row.period().contains(date))
                     .toList();
-        }
-
-        Optional<Assignment> rowOf(String assignmentId) {
-            return sources.assignments().rows(assignmentId).stream()
-                    .filter(row -> row.period().contains(date))
-                    .findFirst();
         }
 
         List<ReportingLine> linesOf(String assignmentId) {
@@ -341,29 +320,6 @@ public class ReportingLineService {
                 }
             }
             return List.of();
-        }
-
-        // In the unit of the manager and in units below with no head, the members report to the manager.
-        // In a unit below that has a head, only its heads do.
-        void collectReports(String orgUnitId, boolean top, String managerPersonId, List<Reporting> result) {
-            List<Assignment> rows = sources.assignments().rowsOn(List.of(orgUnitId), date).stream()
-                    .filter(row -> !managerPersonId.equals(personOf(row)))
-                    .toList();
-            List<Assignment> heads = rows.stream().filter(Assignment::head).toList();
-            if (!top && !heads.isEmpty()) {
-                heads.forEach(head -> addDerived(head, result));
-                return;
-            }
-            rows.stream().filter(row -> !row.head()).forEach(row -> addDerived(row, result));
-            tree().children(orgUnitId).forEach(child -> collectReports(child.unit().id(), false, managerPersonId,
-                    result));
-        }
-
-        private void addDerived(Assignment row, List<Reporting> result) {
-            if (linesOf(row.assignmentId()).stream().noneMatch(line -> line.kind() == Kind.SOLID)) {
-                result.add(new Reporting(personOf(row), userOf(row), Kind.SOLID, true, null,
-                        row.assignmentId(), row.orgUnitId()));
-            }
         }
     }
 }

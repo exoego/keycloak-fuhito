@@ -15,6 +15,7 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.rest.RequestContext.Change;
+import net.exoego.keycloak.fuhito.service.Page;
 import net.exoego.keycloak.fuhito.service.PersonService;
 import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.media.Content;
@@ -231,10 +232,18 @@ public class PeopleResource {
             @Parameter(
                     description = "The date to read. The default is today in the time zone of the realm.",
                     schema = @Schema(format = "date"))
-            @QueryParam("asOf") String asOf) {
+            @QueryParam("asOf") String asOf,
+            @Parameter(
+                    description = "The number of entries to skip.",
+                    schema = @Schema(minimum = "0", defaultValue = "0"))
+            @QueryParam("first") Integer first,
+            @Parameter(
+                    description = "The largest number of entries to return.",
+                    schema = @Schema(minimum = "0", maximum = "1000", defaultValue = "100"))
+            @QueryParam("max") Integer max) {
         context.requireRead();
         return Calls.run(context, () -> reads.reportingLines()
-                .reportsOfPerson(service.get(id).person().id(), asOf).stream()
+                .reportsOfPerson(service.get(id).person().id(), asOf, Page.of(first, max)).stream()
                 .map(ReportingRepresentation::of)
                 .toList());
     }
