@@ -1,4 +1,4 @@
-name: CI
+name: Test
 
 permissions: {}
 
@@ -67,31 +67,17 @@ jobs:
           disable_search: true
           fail_ci_if_error: false
 
-  # aislop is a third-party tool from npm. The script builds an image with it and runs it with no network.
-  # The job token has no permission at all. A public repository can be checked out without one.
-  quality:
-    name: Quality scan
-    timeout-minutes: 10
+  # The one check of this workflow that branch protection requires. Its name does not change
+  # when the matrix above changes. A new job of this workflow must be added to "needs".
+  gate:
+    name: Test gate
+    timeout-minutes: 5
+    # A skipped required job counts as passed, so run always and fail by hand.
+    if: always()
+    needs: [test]
     runs-on: ubuntu-latest
     permissions: {}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
-      - name: Run aislop
-        run: scripts/aislop.sh
-
-  # A skipped required job counts as passed, so fail instead of skipping.
-  result:
-    name: CI result
-    timeout-minutes: 5
-    if: always()
-    needs: [test, quality]
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
       - name: Check the results
-        if: needs.test.result != 'success' || needs.quality.result != 'success'
+        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') || contains(needs.*.result, 'skipped')
         run: exit 1

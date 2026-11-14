@@ -1,10 +1,14 @@
-name: Lint workflows
+name: Lint
+
+permissions: {}
+
 on:
   push:
     branches: [ main ]
   pull_request:
-
-permissions: {}
+  # New CodeQL queries find problems in code that did not change.
+  schedule:
+    - cron: '23 3 * * 1'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -24,3 +28,63 @@ jobs:
 
       # The release of jactionlint is immutable, so pinning the action also pins the binary it downloads.
       - uses: jdx/jactionlint@9e87e8f34edfc00b849a27807e26eff9d00b936d # v2.5.0
+
+  # aislop is a third-party tool from npm. The script builds an image with it and runs it with no network.
+  # The job token has no permission at all. A public repository can be checked out without one.
+  quality:
+    name: Quality scan
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Run aislop
+        run: scripts/aislop.sh
+
+  codeql:
+    name: CodeQL (${{ matrix.language }})
+    timeout-minutes: 30
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # To upload the results to code scanning.
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        language:
+          - java-kotlin
+          - actions
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Without a build, no code of this repository runs in the job.
+      - uses: github/codeql-action/init@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: none
+          queries: security-extended
+
+      - uses: github/codeql-action/analyze@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        with:
+          category: /language:${{ matrix.language }}
+
+  # The one check of this workflow that branch protection requires. Its name does not change
+  # when a job above changes. A new job of this workflow must be added to "needs".
+  gate:
+    name: Lint gate
+    timeout-minutes: 5
+    # A skipped required job counts as passed, so run always and fail by hand.
+    if: always()
+    needs: [jactionlint, quality, codeql]
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - name: Check the results
+        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') || contains(needs.*.result, 'skipped')
+        run: exit 1

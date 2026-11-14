@@ -23,7 +23,7 @@ Use short sentences.
 ### Make every change through a pull request
 
 Do not push to `main`.
-Open a pull request and wait for the `CI result` check to pass.
+Open a pull request and wait for the `Test gate` and `Lint gate` checks to pass.
 
 ### Keep comments short
 
