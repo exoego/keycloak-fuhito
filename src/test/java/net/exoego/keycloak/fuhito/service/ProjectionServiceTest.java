@@ -297,4 +297,27 @@ class ProjectionServiceTest {
         assertEquals(List.of("Lab [technician]"), keycloak.describe("org-y"));
         assertEquals(List.of("Nursing [head-nurse]", "Ward < Nursing [nurse]"), keycloak.describe("org-x"));
     }
+
+    @Test
+    void removesAGroupBelowAGroupThatStays() {
+        rebuild();
+        assignmentStore.rows.removeIf(row -> row.orgUnitId().equals(ward));
+        orgUnits.end(ward, "2026-06-01");
+
+        ProjectionReport report = rebuild();
+
+        assertEquals(1, report.groupsRemoved());
+        assertEquals(List.of("Nursing [head-nurse]"), keycloak.describe("org-x"));
+    }
+
+    @Test
+    void whenTwoGroupsNameOneUnitTheFirstMirrorsItAndTheOtherGoes() {
+        rebuild();
+        keycloak.createGroup("org-x", "Copy of nursing", null, nursing);
+
+        ProjectionReport report = rebuild();
+
+        assertEquals(1, report.groupsRemoved());
+        assertEquals(List.of("Nursing [head-nurse]", "Ward < Nursing [nurse]"), keycloak.describe("org-x"));
+    }
 }

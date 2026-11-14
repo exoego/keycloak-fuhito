@@ -8,6 +8,8 @@ import java.util.Set;
 
 import net.exoego.keycloak.fuhito.domain.BusinessDay;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
+import net.exoego.keycloak.fuhito.domain.ValidPeriod;
+import net.exoego.keycloak.fuhito.domain.OrgUnitLink;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -135,5 +137,29 @@ class UnitDaysTest {
         assertEquals(2, reads.list(null, false).size());
         assertEquals("org_unit.not_valid_on",
                 assertThrows(FuhitoException.class, () -> reads.get(opensInApril, null)).code());
+    }
+
+    @Test
+    void aBlankTimeZoneMeansNone() {
+        String america = unit("America", null);
+
+        orgUnits.setTime(america, "  ", "13:00");
+
+        assertNull(store.units.get(america).timeZone());
+        assertEquals("13:00", store.units.get(america).dayStart());
+        // 01:00 on April 1 in Tokyo, the zone of the realm, is before the day start of the unit.
+        assertEquals(MARCH_31, days().ofUnit(america));
+    }
+
+    // The service refuses a cycle. This is the tree as only broken data could make it.
+    @Test
+    void aCycleOfParentsDoesNotHangTheLookup() {
+        String a = unit("A", null);
+        String b = unit("B", a);
+        orgUnits.setTime(b, "America/New_York", null);
+        store.links.add(new OrgUnitLink("loop", store.defaultHierarchyId(), a, b,
+                ValidPeriod.startingAt(LocalDate.of(2020, 4, 1))));
+
+        assertEquals(MARCH_31, days().ofUnit(a));
     }
 }

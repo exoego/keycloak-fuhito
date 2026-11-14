@@ -139,4 +139,11 @@ class RefItemServiceTest {
         assertEquals("ref_item.not_found",
                 assertThrows(FuhitoException.class, () -> service.delete("nope")).code());
     }
+
+    @Test
+    void anUpdateCanSayThatTheItemStaysActive() {
+        RefItem item = create("dept", 5);
+
+        assertTrue(service.update(item.id(), "Department", null, null, Map.of("k", "v"), true).active());
+    }
 }

@@ -216,4 +216,27 @@ class ProjectionIT {
         String xGroup = idOf(keycloak("/organizations/" + xOrganization + "/groups"), "内科");
         assertEquals(List.of("physician"), sorted(keycloak("/organizations/" + xOrganization + "/groups/" + xGroup + "/members"), "username"));
     }
+
+    @Test
+    void aUnitThatMovesBelowAnotherUnitMovesItsGroupThere() throws Exception {
+        createRealm(true);
+        String organization = OrganizationLinkIT.createOrganization(admin, realm, "y-hospital");
+        String hospital = unit("Y病院", null);
+        String nursing = unit("看護部", hospital);
+        String office = unit("事務室", hospital);
+        assertEquals(200, api.put("/org-units/" + hospital + "/organization",
+                "{\"organizationId\": \"" + organization + "\"}").statusCode());
+        rebuild();
+        String groups = "/organizations/" + organization + "/groups";
+        assertEquals(List.of("事務室", "看護部"), sorted(keycloak(groups), "name"));
+
+        assertEquals(200, api.put("/org-units/" + office + "/parent",
+                "{\"parentId\": \"" + nursing + "\", \"validFrom\": \"2021-04-01\"}").statusCode());
+        JsonNode moved = rebuild();
+
+        assertEquals(1, moved.get("groupsMoved").asInt());
+        JsonNode top = keycloak(groups);
+        assertEquals(List.of("看護部"), sorted(top, "name"));
+        assertEquals(List.of("事務室"), sorted(keycloak(groups + "/" + idOf(top, "看護部") + "/children"), "name"));
+    }
 }

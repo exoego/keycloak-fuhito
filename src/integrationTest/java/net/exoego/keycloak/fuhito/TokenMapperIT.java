@@ -54,11 +54,17 @@ class TokenMapperIT {
         mapper.setProtocolMapper("fuhito-assignments-mapper");
         mapper.setConfig(Map.of("claim.name", "org", "access.token.claim", "true", "id.token.claim", "true",
                 "userinfo.token.claim", "true"));
+        // A mapper with no claim name uses the default name.
+        var unnamed = new ProtocolMapperRepresentation();
+        unnamed.setName("org assignments with the default name");
+        unnamed.setProtocol("openid-connect");
+        unnamed.setProtocolMapper("fuhito-assignments-mapper");
+        unnamed.setConfig(Map.of("access.token.claim", "true"));
         var client = new ClientRepresentation();
         client.setClientId("app");
         client.setPublicClient(true);
         client.setDirectAccessGrantsEnabled(true);
-        client.setProtocolMappers(List.of(mapper));
+        client.setProtocolMappers(List.of(mapper, unnamed));
         admin.realm(realm).clients().create(client).close();
     }
 
@@ -137,6 +143,7 @@ class TokenMapperIT {
         assertEquals("chair", chair.get("jobTitle").asText());
         assertTrue(chair.get("head").asBoolean());
         assertEquals(org, claims(tokens.get("id_token").asText()).get("org"));
+        assertEquals(org, claims(tokens.get("access_token").asText()).get("assignments"));
     }
 
     @Test

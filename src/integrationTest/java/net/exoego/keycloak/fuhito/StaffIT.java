@@ -86,4 +86,18 @@ class StaffIT {
         assertEquals("0", KeycloakEnvironment.sql(count));
         assertEquals(401, new Api(realm.name, null).post("/staff", "{}").statusCode());
     }
+
+    @Test
+    void theFirstAssignmentNeedNotBeThePrimaryOne() throws Exception {
+        String user = realm.user("helper");
+
+        HttpResponse<String> response = api.post("/staff", "{\"userId\": \"" + user + "\", \"orgUnitId\": \"" + clinic
+                + "\", \"validFrom\": \"2026-04-01\", \"primary\": false}");
+
+        assertEquals(201, response.statusCode(), response.body());
+        assertFalse(Api.json(response).get("assignment").get("periods").get(0).get("primary").asBoolean());
+        HttpResponse<String> said = api.post("/staff", "{\"userId\": \"" + realm.user("main-helper")
+                + "\", \"orgUnitId\": \"" + clinic + "\", \"validFrom\": \"2026-04-01\", \"primary\": true}");
+        assertTrue(Api.json(said).get("assignment").get("periods").get(0).get("primary").asBoolean());
+    }
 }

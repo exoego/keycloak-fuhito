@@ -101,7 +101,8 @@ public class ImportsResource {
     }
 
     private static Charset charset(String contentType) {
-        String name = contentType == null ? null : MediaType.valueOf(contentType).getParameters().get("charset");
+        // The endpoint takes only text/csv, so the header is always there.
+        String name = MediaType.valueOf(contentType).getParameters().get("charset");
         if (name == null) {
             return StandardCharsets.UTF_8;
         }

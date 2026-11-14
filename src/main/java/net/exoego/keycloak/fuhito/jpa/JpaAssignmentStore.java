@@ -142,11 +142,8 @@ public class JpaAssignmentStore implements AssignmentStore {
 
     @Override
     public void delete(String rowId) {
-        AssignmentEntity entity = em.find(AssignmentEntity.class, rowId);
-        if (entity != null && entity.realmId.equals(realmId)) {
-            em.remove(entity);
-            em.flush();
-        }
+        em.remove(Rows.require(em, AssignmentEntity.class, rowId, realmId, found -> found.realmId));
+        em.flush();
     }
 
     private static void copy(Assignment row, AssignmentEntity entity) {

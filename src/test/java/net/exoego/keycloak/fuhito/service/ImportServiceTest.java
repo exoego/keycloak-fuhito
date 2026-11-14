@@ -482,4 +482,188 @@ class ImportServiceTest {
         assertEquals("r", stored.endReasonId());
         assertEquals(new Counts(0, 0, 1), service.apply(document).counts().get("employments"));
     }
+
+    private static Counts changed(ImportReport report, String list) {
+        assertEquals(List.of(), errors(report));
+        return report.counts().get(list);
+    }
+
+    // Each step changes one more field. So every field is the one that differs in one step.
+    @Test
+    void eachDetailOfAnOrgUnitAloneMakesTheRowAChange() {
+        refItems.insert(new RefItem("w", RefKind.UNIT_TYPE, "ward", "x", Map.of(), 0, Map.of(), true));
+        List<OrgUnitRow> steps = List.of(
+                new OrgUnitRow(null, "U", null, "Unit", null, null, null, null, null, null, null, null, null, null),
+                new OrgUnitRow(null, "U", null, "Unit", null, "U1", null, null, null, null, null, null, null, null),
+                new OrgUnitRow(null, "U", null, "Unit", null, "U1", Map.of("en", "U-1"), null, null, null, null,
+                        null, null, null),
+                new OrgUnitRow(null, "U", null, "Unit", null, "U1", Map.of("en", "U-1"), "ゆにっと", null, null, null,
+                        null, null, null),
+                new OrgUnitRow(null, "U", null, "Unit", null, "U1", Map.of("en", "U-1"), "ゆにっと", "ward", null,
+                        null, null, null, null),
+                new OrgUnitRow(null, "U", null, "Unit", null, "U1", Map.of("en", "U-1"), "ゆにっと", "ward", null, 7,
+                        null, null, null),
+                new OrgUnitRow(null, "U", null, "Unit", null, "U1", Map.of("en", "U-1"), "ゆにっと", "ward", null, 7,
+                        Map.of("beds", 40), null, null));
+
+        assertEquals(new Counts(1, 0, 0), changed(importUnits("2026-04-01", steps.getFirst()), "orgUnits"));
+        for (OrgUnitRow step : steps.subList(1, steps.size())) {
+            assertEquals(new Counts(0, 1, 0), changed(importUnits("2026-04-01", step), "orgUnits"), step.toString());
+            assertEquals(new Counts(0, 0, 1), changed(importUnits("2026-04-01", step), "orgUnits"), step.toString());
+        }
+    }
+
+    @Test
+    void eachTermOfAnEmploymentAloneMakesTheRowAChange() {
+        refItems.insert(new RefItem("t", RefKind.EMPLOYMENT_TYPE, "part-time", "x", Map.of(), 0, Map.of(), true));
+        refItems.insert(new RefItem("g", RefKind.GRADE, "g2", "x", Map.of(), 0, Map.of(), true));
+        BigDecimal half = new BigDecimal("50");
+        List<EmploymentRow> steps = List.of(
+                new EmploymentRow(null, "E", "nurse", null, null, null, null, null, null, null, "2020-04-01", null,
+                        null),
+                new EmploymentRow(null, "E", "nurse", null, null, "part-time", null, null, null, null, null, null,
+                        null),
+                new EmploymentRow(null, "E", "nurse", null, null, "part-time", "g2", null, null, null, null, null,
+                        null),
+                new EmploymentRow(null, "E", "nurse", null, null, "part-time", "g2", "ON_LEAVE", null, null, null,
+                        null, null),
+                new EmploymentRow(null, "E", "nurse", null, null, "part-time", "g2", "ON_LEAVE", half, null, null,
+                        null, null),
+                new EmploymentRow(null, "E", "nurse", null, null, "part-time", "g2", "ON_LEAVE",
+                        new BigDecimal("60"), null, null, null, null),
+                new EmploymentRow(null, "E", "nurse", null, null, "part-time", "g2", "ON_LEAVE",
+                        new BigDecimal("60"), Map.of("shift", "night"), null, null, null),
+                // A row with no work percent removes the stored one.
+                new EmploymentRow(null, "E", "nurse", null, null, "part-time", "g2", "ON_LEAVE", null,
+                        Map.of("shift", "night"), null, null, null));
+
+        assertEquals(new Counts(1, 0, 0),
+                changed(importPeople("2026-04-01", List.of(steps.getFirst()), null), "employments"));
+        for (EmploymentRow step : steps.subList(1, steps.size())) {
+            assertEquals(new Counts(0, 1, 0),
+                    changed(importPeople("2026-04-01", List.of(step), null), "employments"), step.toString());
+            assertEquals(new Counts(0, 0, 1),
+                    changed(importPeople("2026-04-01", List.of(step), null), "employments"), step.toString());
+        }
+    }
+
+    @Test
+    void eachDetailOfAnAssignmentAloneMakesTheRowAChange() {
+        importTwoUnits();
+        refItems.insert(new RefItem("j", RefKind.JOB_TITLE, "director", "x", Map.of(), 0, Map.of(), true));
+        refItems.insert(new RefItem("o", RefKind.OCCUPATION, "nurse", "x", Map.of(), 0, Map.of(), true));
+        refItems.insert(new RefItem("k", RefKind.ASSIGNMENT_KIND, "support", "x", Map.of(), 0, Map.of(), true));
+        importPeople("2026-04-01", List.of(employment("E", "nurse", null, null, null)), null);
+        BigDecimal all = new BigDecimal("100");
+        List<AssignmentRow> steps = List.of(
+                new AssignmentRow(null, "A", "E", "W", null, null, null, null, null, null, null, null, null, null),
+                new AssignmentRow(null, "A", "E", "W", "director", null, null, null, null, null, null, null, null,
+                        null),
+                new AssignmentRow(null, "A", "E", "W", "director", "nurse", null, null, null, null, null, null, null,
+                        null),
+                new AssignmentRow(null, "A", "E", "W", "director", "nurse", "support", null, null, null, null, null,
+                        null, null),
+                new AssignmentRow(null, "A", "E", "W", "director", "nurse", "support", true, null, null, null, null,
+                        null, null),
+                new AssignmentRow(null, "A", "E", "W", "director", "nurse", "support", true, true, null, null, null,
+                        null, null),
+                new AssignmentRow(null, "A", "E", "W", "director", "nurse", "support", true, true, all, null, null,
+                        null, null),
+                new AssignmentRow(null, "A", "E", "W", "director", "nurse", "support", true, true, all, 4, null,
+                        null, null),
+                new AssignmentRow(null, "A", "E", "W", "director", "nurse", "support", true, true, all, 4,
+                        Map.of("room", "3"), null, null));
+
+        assertEquals(new Counts(1, 0, 0),
+                changed(importPeople("2026-04-01", null, List.of(steps.getFirst())), "assignments"));
+        for (AssignmentRow step : steps.subList(1, steps.size())) {
+            assertEquals(new Counts(0, 1, 0),
+                    changed(importPeople("2026-04-01", null, List.of(step)), "assignments"), step.toString());
+            assertEquals(new Counts(0, 0, 1),
+                    changed(importPeople("2026-04-01", null, List.of(step)), "assignments"), step.toString());
+        }
+    }
+
+    @Test
+    void aRowCanNameItsOwnSource() {
+        ImportDocument document = new ImportDocument("2026-04-01", false, null, null,
+                List.of(new OrgUnitRow("hr-2", "U", null, "Unit", null, null, null, null, null, null, null, null,
+                        null, null)),
+                List.of(new EmploymentRow("hr-2", "E", "nurse", null, null, null, null, null, null, null, null, null,
+                                null),
+                        new EmploymentRow("hr-2", "E", "nurse", null, null, null, null, null, null, null, null, null,
+                                null)),
+                List.of(new AssignmentRow("hr-2", "A", "E", "U", null, null, null, null, null, null, null, null,
+                        null, null)));
+
+        ImportReport report = service.apply(document);
+
+        // The second employment row repeats the first one of the same source.
+        assertEquals(List.of("employments[1] import.duplicate_row"), errors(report));
+        assertTrue(employmentStore.findByExternalId("hr-2", "E").isPresent());
+        assertTrue(assignmentStore.findAssignmentIdByExternalId("hr-2", "A").isPresent());
+        assertTrue(employmentStore.findByExternalId("import", "E").isEmpty());
+    }
+
+    @Test
+    void theEndOfAnEmploymentIsComparedByDateAndByReason() {
+        refItems.insert(new RefItem("r1", RefKind.END_REASON, "resignation", "x", Map.of(), 0, Map.of(), true));
+        refItems.insert(new RefItem("r2", RefKind.END_REASON, "retirement", "x", Map.of(), 0, Map.of(), true));
+        EmploymentRow open = new EmploymentRow(null, "E", "nurse", null, null, null, null, null, null, null,
+                "2020-04-01", "2027-04-01", null);
+
+        // A new row with an end date and no reason is created with that end. Nothing ends it a second time.
+        ImportReport created = importPeople("2026-04-01", List.of(open), null);
+        assertEquals(1, created.writes().size());
+        // The employment still runs on the effective date, so its terms are compared.
+        assertEquals(new Counts(0, 0, 1), changed(importPeople("2026-04-01", List.of(open), null), "employments"));
+
+        EmploymentRow resigned = employment("E", "nurse", null, "2027-04-01", "resignation");
+        assertEquals(new Counts(0, 1, 0),
+                changed(importPeople("2026-04-01", List.of(resigned), null), "employments"));
+        assertEquals(new Counts(0, 0, 1),
+                changed(importPeople("2026-04-01", List.of(resigned), null), "employments"));
+        EmploymentRow retired = employment("E", "nurse", null, "2027-04-01", "retirement");
+        assertEquals(new Counts(0, 1, 0), changed(importPeople("2026-04-01", List.of(retired), null), "employments"));
+        // After the end, there are no terms to compare.
+        assertEquals(new Counts(0, 0, 1), changed(importPeople("2028-04-01", List.of(retired), null), "employments"));
+    }
+
+    @Test
+    void anAssignmentCannotGoToAnotherOrgUnit() {
+        importTwoUnits();
+        importPeople("2026-04-01", List.of(employment("E", "nurse", null, null, null)),
+                List.of(assignment("A", "E", "W", true, null)));
+
+        ImportReport report = importPeople("2026-04-01", null, List.of(assignment("A", "E", "H", true, null)));
+
+        assertEquals(List.of("assignments[0] import.assignment_mismatch"), errors(report));
+    }
+
+    @Test
+    void aReferenceItemIsComparedByItsAttributesAndByWhetherItIsActive() {
+        RefItemRow base = new RefItemRow("UNIT_TYPE", "ward", "Ward", null, null, Map.of("k", "v"), true);
+        service.apply(doc("2026-04-01", false, null, List.of(base), null));
+
+        assertEquals(new Counts(0, 0, 1),
+                service.apply(doc("2026-04-01", false, null, List.of(base), null)).counts().get("refItems"));
+        assertEquals(new Counts(0, 1, 0), service.apply(doc("2026-04-01", false, null,
+                List.of(new RefItemRow("UNIT_TYPE", "ward", "Ward", null, null, Map.of("k", "w"), true)), null))
+                .counts().get("refItems"));
+        assertEquals(new Counts(0, 1, 0), service.apply(doc("2026-04-01", false, null,
+                List.of(new RefItemRow("UNIT_TYPE", "ward", "Ward", null, null, Map.of("k", "w"), false)), null))
+                .counts().get("refItems"));
+    }
+
+    @Test
+    void anAssignmentCannotGoToAnotherEmployment() {
+        importTwoUnits();
+        importPeople("2026-04-01", List.of(employment("E1", "nurse", null, null, null),
+                        employment("E2", "doctor", null, null, null)),
+                List.of(assignment("A", "E1", "W", true, null)));
+
+        ImportReport report = importPeople("2026-04-01", null, List.of(assignment("A", "E2", "W", true, null)));
+
+        assertEquals(List.of("assignments[0] import.assignment_mismatch"), errors(report));
+    }
 }
