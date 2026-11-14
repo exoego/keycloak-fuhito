@@ -127,6 +127,45 @@ class UserMaskIT {
     }
 
     @Test
+    void aMaskClearsTheNameInKeycloakOnlyOnRequest() throws Exception {
+        TestRealm realm = realm();
+        Api api = realm.api;
+        String kept = realm.user("kept", "Hanako", "Yamada");
+        String cleared = realm.user("cleared", "Taro", "Sato");
+        String removed = realm.user("gone", "Jiro", "Suzuki");
+        String removedPerson = created(api.post("/people", "{\"userId\": \"" + removed + "\"}")).get("id").asText();
+        realm.removeUser(removed);
+        String unlinked = created(api.post("/people", "{\"name\": \"田中 三郎\"}")).get("id").asText();
+
+        JsonNode plain = Api.json(api.post("/users/" + kept + "/mask", ""));
+        assertFalse(plain.get("keycloakNameCleared").asBoolean());
+        assertEquals(List.of("Hanako", "Yamada"), realm.nameOfUser(kept));
+        String keptPerson = plain.get("personId").asText();
+        assertEquals("Hanako Yamada", Api.json(api.get("/people/" + keptPerson)).get("name").asText());
+
+        // A later mask with the request clears the name, and the person then shows none.
+        JsonNode again = Api.json(api.post("/people/" + keptPerson + "/mask?clearKeycloakName=true", ""));
+        assertTrue(again.get("keycloakNameCleared").asBoolean());
+        assertEquals(plain.get("maskedAt"), again.get("maskedAt"));
+        assertEquals(List.of("", ""), realm.nameOfUser(kept));
+        assertFalse(Api.json(api.get("/people/" + keptPerson)).has("name"));
+
+        JsonNode byUser = Api.json(api.post("/users/" + cleared + "/mask?clearKeycloakName=true", ""));
+        assertTrue(byUser.get("keycloakNameCleared").asBoolean());
+        assertEquals(List.of("", ""), realm.nameOfUser(cleared));
+        JsonNode logged = Api.json(api.get("/change-log?resourceType=FUHITO_PERSON_DATA&resourceId="
+                + byUser.get("personId").asText()));
+        assertTrue(logged.get(0).get("representation").get("keycloakNameCleared").asBoolean());
+
+        // There is no name to clear for a person whose user is gone, or who never had one.
+        for (String person : List.of(removedPerson, unlinked)) {
+            HttpResponse<String> response = api.post("/people/" + person + "/mask?clearKeycloakName=true", "");
+            assertEquals(200, response.statusCode(), response.body());
+            assertFalse(Api.json(response).get("keycloakNameCleared").asBoolean());
+        }
+    }
+
+    @Test
     void aRemovedUserCanBeMaskedAndAnEmployedUserCannot() throws Exception {
         TestRealm realm = realm();
         Api api = realm.api;

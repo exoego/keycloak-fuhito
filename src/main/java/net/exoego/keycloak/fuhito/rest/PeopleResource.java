@@ -281,9 +281,14 @@ public class PeopleResource {
     @ApiErrors
     public UsersResource.MaskRepresentation mask(
             @Parameter(description = "The ID of the resource.")
-            @PathParam("id") String id) {
+            @PathParam("id") String id,
+            @Parameter(
+                    description = "True to also empty the first and the last name of the linked Keycloak user. "
+                            + "The username, the email, and the attributes stay.",
+                    schema = @Schema(defaultValue = "false"))
+            @QueryParam("clearKeycloakName") boolean clearKeycloakName) {
         context.requireWrite();
-        return Calls.run(context, () -> data.mask(service.get(id).person()));
+        return Calls.run(context, () -> data.mask(service.get(id).person(), clearKeycloakName));
     }
 
     @DELETE
