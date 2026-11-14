@@ -71,7 +71,7 @@ public class ChangeOrdersResource {
             @QueryParam("first") Integer first,
             @Parameter(
                     description = "The largest number of entries to return.",
-                    schema = @Schema(minimum = "0", defaultValue = "100"))
+                    schema = @Schema(minimum = "0", maximum = "1000", defaultValue = "100"))
             @QueryParam("max") Integer max) {
         context.requireRead();
         return Calls.run(context, () -> changeLog.ofChangeOrder(id, first, max).stream()

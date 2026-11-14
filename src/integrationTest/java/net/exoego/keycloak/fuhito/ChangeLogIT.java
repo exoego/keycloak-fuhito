@@ -1,7 +1,11 @@
 package net.exoego.keycloak.fuhito;
 
 import java.net.http.HttpResponse;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.stream.LongStream;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import org.junit.jupiter.api.BeforeAll;
@@ -93,6 +97,51 @@ class ChangeLogIT {
         assertEquals("2026年4月異動", ofOrder.get(0).get("representation").get("title").asText());
     }
 
+    private static List<Long> sequences(JsonNode entries) {
+        List<Long> numbers = new ArrayList<>();
+        entries.forEach(entry -> numbers.add(entry.get("sequence").asLong()));
+        return numbers;
+    }
+
+    @Test
+    void followsEveryWriteOfTheRealmAfterASequenceNumber() throws Exception {
+        JsonNode firstPage = ok(api.get("/change-log?max=3"));
+
+        assertEquals(List.of(1L, 2L, 3L), sequences(firstPage));
+        assertEquals("FUHITO_ORG_UNIT", firstPage.get(0).get("resourceType").asText());
+        assertEquals(unit, firstPage.get(0).get("resourceId").asText());
+        assertEquals(List.of(4L, 5L, 6L), sequences(ok(api.get("/change-log?after=3&max=3"))));
+        assertEquals(List.of(5L), sequences(ok(api.get("/change-log?after=3&first=1&max=1"))));
+        assertEquals(0, ok(api.get("/change-log?after=100000")).size());
+
+        JsonNode orders = ok(api.get("/change-log?resourceType=FUHITO_CHANGE_ORDER"));
+        assertTrue(orders.findValuesAsText("resourceId").contains(order));
+        assertEquals(List.of("FUHITO_CHANGE_ORDER"), orders.findValuesAsText("resourceType").stream().distinct().toList());
+        JsonNode ofAssignment = ok(api.get("/change-log?resourceId=" + oldAssignment));
+        assertEquals(List.of("CREATE", "UPDATE"), ofAssignment.findValuesAsText("operation"));
+        assertEquals(List.of("UPDATE"),
+                ok(api.get("/change-log?after=" + ofAssignment.get(0).get("sequence").asLong() + "&resourceId=" + oldAssignment))
+                        .findValuesAsText("operation"));
+    }
+
+    @Test
+    void eachRealmCountsItsOwnWritesFromOneWithoutGapsUnderParallelWrites() throws Exception {
+        TestRealm busy = TestRealm.create("change-log");
+        int writes = 24;
+        try (var executor = Executors.newFixedThreadPool(8)) {
+            List<Future<Integer>> results = new ArrayList<>();
+            for (int i = 0; i < writes; i++) {
+                String body = "{\"kind\": \"UNIT_TYPE\", \"code\": \"c" + i + "\", \"name\": \"x\"}";
+                results.add(executor.submit(() -> busy.api.post("/ref-items", body).statusCode()));
+            }
+            for (Future<Integer> result : results) {
+                assertEquals(201, result.get());
+            }
+        }
+
+        assertEquals(LongStream.rangeClosed(1, writes).boxed().toList(), sequences(ok(busy.api.get("/change-log"))));
+    }
+
     @Test
     void aDeleteIsLoggedWithoutAState() throws Exception {
         String item = realm.refItem("UNIT_TYPE", "to-delete", "x");
@@ -130,8 +179,6 @@ class ChangeLogIT {
 
     @Test
     void rejectsBadReads() throws Exception {
-        assertEquals(400, api.get("/change-log").statusCode());
-        assertEquals(400, api.get("/change-log?resourceType=FUHITO_ORG_UNIT").statusCode());
         assertEquals(404, api.get("/change-orders/nope/changes").statusCode());
         assertEquals(404, otherRealm.api.get("/change-orders/" + order + "/changes").statusCode());
         assertEquals(0, ok(otherRealm.api.get("/change-log?resourceType=FUHITO_ORG_UNIT&resourceId=" + newUnit)).size());

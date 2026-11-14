@@ -17,6 +17,7 @@ public final class RealmData {
             ReportingLineEntity.class,
             QualificationEntity.class,
             ChangeLogEntity.class,
+            ChangeLogCounterEntity.class,
             ChangeOrderEntity.class,
             AssignmentEntity.class,
             EmploymentTermsEntity.class,

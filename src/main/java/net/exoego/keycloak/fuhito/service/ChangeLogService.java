@@ -4,7 +4,6 @@ import java.util.List;
 import java.util.Map;
 
 import net.exoego.keycloak.fuhito.domain.ChangeLogEntry;
-import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.store.ChangeLogStore;
 import net.exoego.keycloak.fuhito.store.ChangeOrderStore;
@@ -15,6 +14,7 @@ import net.exoego.keycloak.fuhito.store.ChangeOrderStore;
 public class ChangeLogService {
 
     private static final int DEFAULT_MAX = 100;
+    private static final int LARGEST_MAX = 1000;
 
     private final ChangeLogStore store;
     private final ChangeOrderStore changeOrders;
@@ -31,18 +31,18 @@ public class ChangeLogService {
     }
 
     /**
-     * Lists the writes to one resource, oldest first.
+     * Lists the writes to the realm, oldest first.
      *
-     * @param resourceType the type of the resource, for example {@code FUHITO_ORG_UNIT}
-     * @param resourceId the ID of the resource
+     * @param after the sequence number that the entries come after, or null for all
+     * @param resourceType the type of the resource, for example {@code FUHITO_ORG_UNIT}, or null for every type
+     * @param resourceId the ID of the resource, or null for every resource
      * @param first the number of entries to skip, or null for 0
-     * @param max the largest number of entries to return, or null for 100
+     * @param max the largest number of entries to return, or null for 100. At most 1000 are returned.
      * @return the entries
-     * @throws FuhitoException when the type or the ID is missing
      */
-    public List<ChangeLogEntry> ofResource(String resourceType, String resourceId, Integer first, Integer max) {
-        return store.listByResource(Checks.required("resourceType", resourceType),
-                Checks.required("resourceId", resourceId), skip(first), limit(max));
+    public List<ChangeLogEntry> list(Long after, String resourceType, String resourceId, Integer first,
+            Integer max) {
+        return store.list(after == null ? 0 : after, resourceType, resourceId, skip(first), limit(max));
     }
 
     /**
@@ -50,7 +50,7 @@ public class ChangeLogService {
      *
      * @param changeOrderId the ID of the change order
      * @param first the number of entries to skip, or null for 0
-     * @param max the largest number of entries to return, or null for 100
+     * @param max the largest number of entries to return, or null for 100. At most 1000 are returned.
      * @return the entries
      * @throws FuhitoException when the realm has no such change order
      */
@@ -66,6 +66,6 @@ public class ChangeLogService {
     }
 
     private static int limit(Integer max) {
-        return max == null ? DEFAULT_MAX : Math.max(0, max);
+        return max == null ? DEFAULT_MAX : Math.clamp(max, 0, LARGEST_MAX);
     }
 }

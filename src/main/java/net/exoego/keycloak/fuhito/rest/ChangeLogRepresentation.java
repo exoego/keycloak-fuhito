@@ -10,9 +10,11 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
 @Schema(
         name = "ChangeLogEntry",
         description = "One successful write.",
-        requiredProperties = {"id", "recordedAt", "actorUserId", "resourceType", "resourceId", "operation", "resourcePath"})
+        requiredProperties = {"id", "sequence", "recordedAt", "actorUserId", "resourceType", "resourceId", "operation", "resourcePath"})
 public record ChangeLogRepresentation(
         String id,
+        @Schema(description = "The position of the entry in the change log of the realm, counted from 1.")
+        long sequence,
         @Schema(description = "When the write happened, in UTC.", format = "date-time")
         String recordedAt,
         @Schema(description = "The ID of the user who did the write.")
@@ -35,7 +37,7 @@ public record ChangeLogRepresentation(
     private static final ObjectMapper JSON = new ObjectMapper();
 
     static ChangeLogRepresentation of(ChangeLogEntry entry) {
-        return new ChangeLogRepresentation(entry.id(), entry.recordedAt().toString(), entry.actorUserId(),
+        return new ChangeLogRepresentation(entry.id(), entry.sequence(), entry.recordedAt().toString(), entry.actorUserId(),
                 entry.resourceType(), entry.resourceId(), entry.operation(), entry.resourcePath(),
                 entry.changeOrderId(), parse(entry.representation()));
     }

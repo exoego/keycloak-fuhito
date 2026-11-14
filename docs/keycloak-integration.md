@@ -300,7 +300,7 @@ The default is today, as the realm defines it. See "What today is" below.
 | `/attribute-sync/run` | Builds assignments from user attributes that an identity provider fills |
 | `/change-orders` | Approved instructions that cause changes, with their approver |
 | `/change-orders/{id}/changes` | The writes that belong to a change order |
-| `/change-log` | The writes to one resource |
+| `/change-log` | The writes to the realm, to follow from a sequence number or to narrow to one resource |
 | `/hierarchies` | The hierarchies of the realm |
 
 [openapi.yaml](openapi.yaml) lists every endpoint with its request and its response, as OpenAPI 3.2.
@@ -360,8 +360,9 @@ A failed request records no event.
 Every successful write also adds an entry to the change log of the extension.
 The log is kept whether or not the realm stores admin events.
 
-An entry has the time, the user who did the write, the resource type, the resource ID, the operation, the path, and the state of the resource after the write.
+An entry has its sequence number in the realm, the time, the user who did the write, the resource type, the resource ID, the operation, the path, and the state of the resource after the write.
 Entries are only added. No endpoint changes or removes one.
+Another system can follow the log from a sequence number. See [history.md](history.md).
 
 A write belongs to a change order when its request has the query parameter `changeOrder` with the ID of the order.
 For example, `PUT /org-units/{id}/end?changeOrder={orderId}`.

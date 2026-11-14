@@ -10,22 +10,23 @@ import net.exoego.keycloak.fuhito.domain.ChangeLogEntry;
 public interface ChangeLogStore {
 
     /**
-     * Adds an entry. The store gives it the next sequence number.
+     * Adds an entry. The store gives it the next sequence number of the realm.
      *
      * @param entry the entry. Its sequence number is ignored.
      */
     void append(ChangeLogEntry entry);
 
     /**
-     * Lists the entries of one resource, oldest first.
+     * Lists the entries of the realm, oldest first.
      *
-     * @param resourceType the type of the resource
-     * @param resourceId the ID of the resource
+     * @param after the sequence number that the entries come after, or 0 for all
+     * @param resourceType the type of the resource, or null for every type
+     * @param resourceId the ID of the resource, or null for every resource
      * @param first the number of entries to skip
      * @param max the largest number of entries to return
      * @return the entries
      */
-    List<ChangeLogEntry> listByResource(String resourceType, String resourceId, int first, int max);
+    List<ChangeLogEntry> list(long after, String resourceType, String resourceId, int first, int max);
 
     /**
      * Lists the entries of one change order, oldest first.

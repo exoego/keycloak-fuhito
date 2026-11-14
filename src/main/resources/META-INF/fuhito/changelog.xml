@@ -631,4 +631,34 @@
         <addUniqueConstraint tableName="FUHITO_USER_MASK" columnNames="REALM_ID, PERSON_ID"
                              constraintName="UK_FUHITO_USER_MASK_PERSON"/>
     </changeSet>
+    <changeSet id="0.1.0-change-log-realm-sequence" author="keycloak-fuhito">
+        <createTable tableName="FUHITO_CHANGE_LOG_COUNTER">
+            <column name="REALM_ID" type="VARCHAR(36)">
+                <constraints primaryKey="true" primaryKeyName="PK_FUHITO_CHANGE_LOG_COUNTER" nullable="false"/>
+            </column>
+            <column name="LAST_SEQUENCE" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        <addColumn tableName="FUHITO_CHANGE_LOG">
+            <column name="REALM_SEQUENCE" type="BIGINT"/>
+        </addColumn>
+        <!-- The entries of each realm keep their order and get the numbers from 1. -->
+        <sql>
+            UPDATE FUHITO_CHANGE_LOG SET REALM_SEQUENCE = (SELECT COUNT(*) FROM FUHITO_CHANGE_LOG o
+                WHERE o.REALM_ID = FUHITO_CHANGE_LOG.REALM_ID
+                AND o.SEQUENCE_NUMBER &lt;= FUHITO_CHANGE_LOG.SEQUENCE_NUMBER)
+        </sql>
+        <sql>
+            INSERT INTO FUHITO_CHANGE_LOG_COUNTER (REALM_ID, LAST_SEQUENCE)
+            SELECT REALM_ID, MAX(REALM_SEQUENCE) FROM FUHITO_CHANGE_LOG GROUP BY REALM_ID
+        </sql>
+        <dropUniqueConstraint tableName="FUHITO_CHANGE_LOG" constraintName="UK_FUHITO_CHANGE_LOG_SEQUENCE"/>
+        <dropColumn tableName="FUHITO_CHANGE_LOG" columnName="SEQUENCE_NUMBER"/>
+        <renameColumn tableName="FUHITO_CHANGE_LOG" oldColumnName="REALM_SEQUENCE" newColumnName="SEQUENCE_NUMBER"
+                      columnDataType="BIGINT"/>
+        <addNotNullConstraint tableName="FUHITO_CHANGE_LOG" columnName="SEQUENCE_NUMBER" columnDataType="BIGINT"/>
+        <addUniqueConstraint tableName="FUHITO_CHANGE_LOG" columnNames="REALM_ID, SEQUENCE_NUMBER"
+                             constraintName="UK_FUHITO_CHANGE_LOG_REALM_SEQUENCE"/>
+    </changeSet>
 </databaseChangeLog>

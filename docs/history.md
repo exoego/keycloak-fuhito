@@ -137,6 +137,31 @@ So these two reads answer who approved a change.
 - `GET /change-log?resourceType=&resourceId=` lists the writes to one resource. Each entry has the ID of its change order.
 - `GET /change-orders/{id}/changes` lists the writes of one change order.
 
+### Following the changes
+
+Each entry has a `sequence`. It is the position of the entry in the change log of its realm, counted from 1.
+
+`GET /change-log?after={sequence}&max=` lists the writes to every resource after that number, oldest first.
+So another system can ask what changed since its last read.
+
+1. Read with `after=0`, or with no `after`.
+2. Apply the entries, and keep the `sequence` of the last one.
+3. Read again with `after` set to that number. A read with fewer entries than `max` has reached the end.
+
+`max` is 100 by default and 1000 at most. `resourceType` and `resourceId` narrow the list, each alone or both.
+
+The entries of a realm become readable in the order of their numbers.
+So a reader that goes on after the last number it saw misses no entry.
+For this, the writes to one realm record their entries one after another.
+
+The numbers have no gaps, with one exception.
+An erase of the data of a person removes the entries about that person, and their numbers stay unused.
+The erase adds one entry of the type `FUHITO_PERSON_DATA` with the operation `DELETE`. A reader can use it to remove its own copy.
+A mask adds an entry of the same type with the operation `UPDATE`, and clears the personal fields in the earlier entries.
+A reader that already read those entries keeps what it read, so it must act on the mask entry too.
+
+Checked by `ChangeLogIT.followsEveryWriteOfTheRealmAfterASequenceNumber` and `ChangeLogIT.eachRealmCountsItsOwnWritesFromOneWithoutGapsUnderParallelWrites`.
+
 Entries are only added. A correction of a mistake adds a new entry and keeps the old one.
 So the log shows what the system said at any earlier time, even after the rows were corrected.
 

@@ -21,8 +21,7 @@ public class ChangeLogEntity {
     @Column(name = "REALM_ID", nullable = false, length = 36)
     String realmId;
 
-    // The database gives the number, so that entries written at the same moment still have an order.
-    @Column(name = "SEQUENCE_NUMBER", insertable = false, updatable = false)
+    @Column(name = "SEQUENCE_NUMBER", nullable = false, updatable = false)
     long sequence;
 
     @Column(name = "RECORDED_AT", nullable = false)

@@ -27,9 +27,11 @@ class ChangeLogServiceTest {
         }
 
         @Override
-        public List<ChangeLogEntry> listByResource(String resourceType, String resourceId, int first, int max) {
+        public List<ChangeLogEntry> list(long after, String resourceType, String resourceId, int first, int max) {
             return entries.stream()
-                    .filter(e -> e.resourceType().equals(resourceType) && e.resourceId().equals(resourceId))
+                    .filter(e -> e.sequence() > after)
+                    .filter(e -> resourceType == null || e.resourceType().equals(resourceType))
+                    .filter(e -> resourceId == null || e.resourceId().equals(resourceId))
                     .skip(first).limit(max).toList();
         }
 
@@ -65,7 +67,7 @@ class ChangeLogServiceTest {
         write("u2", "CREATE", null);
         write("u1", "UPDATE", "order");
 
-        List<ChangeLogEntry> entries = service.ofResource("FUHITO_ORG_UNIT", "u1", null, null);
+        List<ChangeLogEntry> entries = service.list(null, "FUHITO_ORG_UNIT", "u1", null, null);
 
         assertEquals(List.of("1 u1 CREATE", "3 u1 UPDATE"), summary(entries));
         ChangeLogEntry update = entries.get(1);
@@ -76,7 +78,7 @@ class ChangeLogServiceTest {
         assertEquals("fuhito/org-units/u1", update.resourcePath());
         assertEquals("order", update.changeOrderId());
         assertEquals("{\"id\":\"u1\"}", update.representation());
-        assertEquals(List.of(), service.ofResource("FUHITO_REF_ITEM", "u1", null, null));
+        assertEquals(List.of(), service.list(null, "FUHITO_REF_ITEM", "u1", null, null));
     }
 
     @Test
@@ -85,9 +87,9 @@ class ChangeLogServiceTest {
             write("u1", "UPDATE", null);
         }
 
-        assertEquals(List.of("2 u1 UPDATE"), summary(service.ofResource("FUHITO_ORG_UNIT", "u1", 1, 1)));
-        assertEquals(3, service.ofResource("FUHITO_ORG_UNIT", "u1", -5, null).size());
-        assertEquals(0, service.ofResource("FUHITO_ORG_UNIT", "u1", null, -1).size());
+        assertEquals(List.of("2 u1 UPDATE"), summary(service.list(null, "FUHITO_ORG_UNIT", "u1", 1, 1)));
+        assertEquals(3, service.list(null, "FUHITO_ORG_UNIT", "u1", -5, null).size());
+        assertEquals(0, service.list(null, "FUHITO_ORG_UNIT", "u1", null, -1).size());
     }
 
     @Test
@@ -106,10 +108,26 @@ class ChangeLogServiceTest {
     }
 
     @Test
-    void requiresTheResource() {
-        assertEquals("invalid.required",
-                assertThrows(FuhitoException.class, () -> service.ofResource(null, "u1", null, null)).code());
-        assertEquals("invalid.required", assertThrows(FuhitoException.class,
-                () -> service.ofResource("FUHITO_ORG_UNIT", null, null, null)).code());
+    void followsEveryWriteAfterASequenceNumber() {
+        write("u1", "CREATE", null);
+        write("u2", "CREATE", null);
+        write("u1", "UPDATE", null);
+
+        assertEquals(List.of("1 u1 CREATE", "2 u2 CREATE", "3 u1 UPDATE"),
+                summary(service.list(null, null, null, null, null)));
+        assertEquals(List.of("2 u2 CREATE", "3 u1 UPDATE"), summary(service.list(1L, null, null, null, null)));
+        assertEquals(List.of("3 u1 UPDATE"), summary(service.list(1L, null, "u1", null, null)));
+        assertEquals(List.of("2 u2 CREATE"), summary(service.list(1L, "FUHITO_ORG_UNIT", null, null, 1)));
+        assertEquals(List.of(), service.list(3L, null, null, null, null));
+    }
+
+    @Test
+    void returnsAtMostAThousandEntries() {
+        for (int i = 0; i < 1001; i++) {
+            write("u1", "UPDATE", null);
+        }
+
+        assertEquals(100, service.list(null, null, null, null, null).size());
+        assertEquals(1000, service.list(null, null, null, null, 5000).size());
     }
 }

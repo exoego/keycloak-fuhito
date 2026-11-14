@@ -7,7 +7,7 @@ import java.time.Instant;
  * The valid period of a row says when a fact is true. An entry says when the system learned it, and from whom.
  *
  * @param id the ID
- * @param sequence a number that grows with every entry. The store sets it.
+ * @param sequence the position of the entry in the change log of its realm, counted from 1. The store sets it.
  * @param recordedAt when the write happened
  * @param actorUserId the ID of the user who did the write
  * @param resourceType the type of the changed resource, for example {@code FUHITO_ORG_UNIT}
