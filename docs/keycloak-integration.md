@@ -71,8 +71,11 @@ Each entry has these fields. A field with no value is left out.
 | `orgUnitPath` | The units from the root down to the org unit, each with `id` and `name` |
 | `jobTitle`, `occupation`, `kind` | The codes of the reference items |
 | `head`, `primary` | The flags of the assignment |
-| `staffNumber` | The staff number of the employment |
-| `status` | The employment status today |
+| `staffNumber` | The staff number of the employment. Only with the setting "Add staff number" |
+| `status` | The employment status today. Only with the setting "Add employment status" |
+
+Every client that gets the token can read the claim. So the staff number and the status are off by default.
+The status tells, for example, that a person is on leave.
 
 The claim grows with the number of assignments and the depth of the tree.
 Add the mapper only to clients that need it.
