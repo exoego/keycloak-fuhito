@@ -67,7 +67,7 @@ public interface ReportingLineStore {
         for (ReportingLine line : findByAssignment(assignmentId)) {
             if (!line.period().from().isBefore(to)) {
                 delete(line.id());
-            } else if (line.period().to() == null || line.period().to().isAfter(to)) {
+            } else if (line.period().endsAfter(to)) {
                 update(line.withPeriod(line.period().endingAt(to)));
             }
         }

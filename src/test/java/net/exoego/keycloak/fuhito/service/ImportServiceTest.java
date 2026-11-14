@@ -92,13 +92,13 @@ class ImportServiceTest {
         assertEquals(Map.of("refItems", new Counts(0, 0, 2)), second.counts());
         assertEquals(List.of(), first.errors());
         assertEquals(2, first.writes().size());
-        assertTrue(first.writes().get(0).created());
-        assertEquals("FUHITO_REF_ITEM", first.writes().get(0).resourceType());
-        assertEquals("fuhito/ref-items/" + first.writes().get(0).resourceId(), first.writes().get(0).path());
+        assertTrue(first.writes().getFirst().created());
+        assertEquals("FUHITO_REF_ITEM", first.writes().getFirst().resourceType());
+        assertEquals("fuhito/ref-items/" + first.writes().getFirst().resourceId(), first.writes().getFirst().path());
         assertEquals(List.of(), second.writes());
         RefItem hospital = refItems.findByCode(RefKind.UNIT_TYPE, "hospital").orElseThrow();
         assertEquals("病院", hospital.name());
-        assertEquals(hospital, first.writes().get(0).state());
+        assertEquals(hospital, first.writes().getFirst().state());
         assertFalse(refItems.findByCode(RefKind.OCCUPATION, "nurse").orElseThrow().active());
     }
 
@@ -111,7 +111,7 @@ class ImportServiceTest {
                 List.of(new RefItemRow("UNIT_TYPE", "hospital", "総合病院", null, 3, null, false)), null));
 
         assertEquals(Map.of("refItems", new Counts(0, 1, 0)), report.counts());
-        assertFalse(report.writes().get(0).created());
+        assertFalse(report.writes().getFirst().created());
         RefItem item = refItems.findByCode(RefKind.UNIT_TYPE, "hospital").orElseThrow();
         assertEquals("総合病院", item.name());
         assertEquals(3, item.displayOrder());
@@ -202,8 +202,8 @@ class ImportServiceTest {
 
         assertEquals(List.of(), errors(report));
         var versions = orgUnitStore.versions(orgUnitStore.findUnitByExternalId("import", "OLD").orElseThrow().id());
-        assertEquals(LocalDate.of(2001, 4, 1), versions.get(0).period().from());
-        assertEquals(LocalDate.of(2027, 4, 1), versions.get(0).period().to());
+        assertEquals(LocalDate.of(2001, 4, 1), versions.getFirst().period().from());
+        assertEquals(LocalDate.of(2027, 4, 1), versions.getFirst().period().to());
         assertEquals(2, report.writes().size());
     }
 

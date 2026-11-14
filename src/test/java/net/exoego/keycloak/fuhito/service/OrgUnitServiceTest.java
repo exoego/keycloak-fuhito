@@ -94,7 +94,7 @@ class OrgUnitServiceTest {
         assertEquals(3, version.displayOrder());
         assertEquals(Map.of("floor", 2), version.attributes());
 
-        OrgUnitLink link = store.links.get(0);
+        OrgUnitLink link = store.links.getFirst();
         assertEquals(36, link.id().length());
         assertEquals("default-hierarchy", link.hierarchyId());
         assertEquals(state.unit().id(), link.childId());
@@ -209,7 +209,7 @@ class OrgUnitServiceTest {
     @Test
     void aChangeOnTheFirstDateOfDetailsCorrectsThem() {
         String id = service.create(named("Typo", null, "2026-04-01")).unit().id();
-        String versionId = store.versions(id).get(0).id();
+        String versionId = store.versions(id).getFirst().id();
 
         OrgUnitState changed = service.changeDetails(id, rename("2026-04-01", "Fixed"));
 
@@ -423,7 +423,7 @@ class OrgUnitServiceTest {
 
         service.move("ending", a, "2026-10-01");
 
-        assertEquals(new ValidPeriod(LocalDate.of(2026, 10, 1), LocalDate.of(2027, 4, 1)), store.links.get(0).period());
+        assertEquals(new ValidPeriod(LocalDate.of(2026, 10, 1), LocalDate.of(2027, 4, 1)), store.links.getFirst().period());
     }
 
     private FuhitoException endFailure(String id, String validTo) {
@@ -442,7 +442,7 @@ class OrgUnitServiceTest {
         assertEquals(last, service.get(unit, "2027-03-31"));
         assertEquals("org_unit.not_valid_on",
                 assertThrows(FuhitoException.class, () -> service.get(unit, "2027-04-01")).code());
-        assertEquals(LocalDate.of(2027, 4, 1), store.links.get(0).period().to());
+        assertEquals(LocalDate.of(2027, 4, 1), store.links.getFirst().period().to());
     }
 
     @Test
@@ -464,7 +464,7 @@ class OrgUnitServiceTest {
 
         service.end(unit, "2027-04-01");
 
-        assertEquals(LocalDate.of(2026, 10, 1), store.links.get(0).period().to());
+        assertEquals(LocalDate.of(2026, 10, 1), store.links.getFirst().period().to());
     }
 
     @Test
@@ -665,12 +665,12 @@ class OrgUnitServiceTest {
 
         assertEquals("w", history.unit().code());
         assertEquals(List.of("Ward", "Ward 2"), names(history.versions()));
-        assertEquals("ward", history.versions().get(0).unitType());
+        assertEquals("ward", history.versions().getFirst().unitType());
         assertNull(history.versions().get(1).unitType());
-        assertNull(history.versions().get(0).parentId());
-        assertEquals(LocalDate.of(2026, 10, 1), history.versions().get(0).version().period().to());
+        assertNull(history.versions().getFirst().parentId());
+        assertEquals(LocalDate.of(2026, 10, 1), history.versions().getFirst().version().period().to());
         assertEquals(List.of(a, b), history.parents().stream().map(OrgUnitLink::parentId).toList());
-        assertEquals(new ValidPeriod(LocalDate.of(2026, 4, 1), LocalDate.of(2027, 4, 1)), history.parents().get(0).period());
+        assertEquals(new ValidPeriod(LocalDate.of(2026, 4, 1), LocalDate.of(2027, 4, 1)), history.parents().getFirst().period());
         assertEquals("org_unit.not_found",
                 assertThrows(FuhitoException.class, () -> service.history("nope")).code());
     }

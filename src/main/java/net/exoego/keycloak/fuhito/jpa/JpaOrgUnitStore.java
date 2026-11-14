@@ -78,8 +78,9 @@ public class JpaOrgUnitStore implements OrgUnitStore {
 
     @Override
     public Optional<OrgUnit> findUnitByExternalId(String source, String externalId) {
-        return em.createQuery("select u from OrgUnitEntity u where u.realmId = :realmId and u.source = :source"
-                        + " and u.externalId = :externalId", OrgUnitEntity.class)
+        return em.createQuery("""
+                        select u from OrgUnitEntity u where u.realmId = :realmId and u.source = :source
+                        and u.externalId = :externalId""", OrgUnitEntity.class)
                 .setParameter("realmId", realmId)
                 .setParameter("source", source)
                 .setParameter("externalId", externalId)
@@ -90,8 +91,9 @@ public class JpaOrgUnitStore implements OrgUnitStore {
 
     @Override
     public Optional<OrgUnit> findUnitByOrganizationId(String organizationId) {
-        return em.createQuery("select u from OrgUnitEntity u where u.realmId = :realmId"
-                        + " and u.keycloakOrganizationId = :organizationId", OrgUnitEntity.class)
+        return em.createQuery("""
+                        select u from OrgUnitEntity u where u.realmId = :realmId
+                        and u.keycloakOrganizationId = :organizationId""", OrgUnitEntity.class)
                 .setParameter("realmId", realmId)
                 .setParameter("organizationId", organizationId)
                 .getResultStream()
@@ -124,8 +126,9 @@ public class JpaOrgUnitStore implements OrgUnitStore {
 
     @Override
     public List<OrgUnitVersion> versionsOn(LocalDate date) {
-        return em.createQuery("select v from OrgUnitVersionEntity v where v.realmId = :realmId"
-                        + " and v.validFrom <= :date and (v.validTo is null or v.validTo > :date)",
+        return em.createQuery("""
+                        select v from OrgUnitVersionEntity v where v.realmId = :realmId
+                        and v.validFrom <= :date and (v.validTo is null or v.validTo > :date)""",
                         OrgUnitVersionEntity.class)
                 .setParameter("realmId", realmId)
                 .setParameter("date", date)
@@ -136,9 +139,10 @@ public class JpaOrgUnitStore implements OrgUnitStore {
 
     @Override
     public List<OrgUnitLink> linksOn(String hierarchyId, LocalDate date) {
-        return em.createQuery("select l from OrgUnitLinkEntity l where l.realmId = :realmId"
-                        + " and l.hierarchyId = :hierarchyId"
-                        + " and l.validFrom <= :date and (l.validTo is null or l.validTo > :date)",
+        return em.createQuery("""
+                        select l from OrgUnitLinkEntity l where l.realmId = :realmId
+                        and l.hierarchyId = :hierarchyId
+                        and l.validFrom <= :date and (l.validTo is null or l.validTo > :date)""",
                         OrgUnitLinkEntity.class)
                 .setParameter("realmId", realmId)
                 .setParameter("hierarchyId", hierarchyId)
@@ -167,8 +171,9 @@ public class JpaOrgUnitStore implements OrgUnitStore {
 
     @Override
     public List<OrgUnitVersion> versions(String orgUnitId) {
-        return em.createQuery("select v from OrgUnitVersionEntity v where v.realmId = :realmId"
-                        + " and v.orgUnitId = :orgUnitId order by v.validFrom", OrgUnitVersionEntity.class)
+        return em.createQuery("""
+                        select v from OrgUnitVersionEntity v where v.realmId = :realmId
+                        and v.orgUnitId = :orgUnitId order by v.validFrom""", OrgUnitVersionEntity.class)
                 .setParameter("realmId", realmId)
                 .setParameter("orgUnitId", orgUnitId)
                 .getResultStream()
@@ -212,8 +217,9 @@ public class JpaOrgUnitStore implements OrgUnitStore {
 
     @Override
     public List<OrgUnitLink> parentLinks(String hierarchyId, String childId) {
-        return em.createQuery("select l from OrgUnitLinkEntity l where l.realmId = :realmId"
-                        + " and l.hierarchyId = :hierarchyId and l.childId = :childId order by l.validFrom",
+        return em.createQuery("""
+                        select l from OrgUnitLinkEntity l where l.realmId = :realmId
+                        and l.hierarchyId = :hierarchyId and l.childId = :childId order by l.validFrom""",
                         OrgUnitLinkEntity.class)
                 .setParameter("realmId", realmId)
                 .setParameter("hierarchyId", hierarchyId)
@@ -225,8 +231,9 @@ public class JpaOrgUnitStore implements OrgUnitStore {
 
     @Override
     public List<OrgUnitLink> childLinks(String parentId) {
-        return em.createQuery("select l from OrgUnitLinkEntity l where l.realmId = :realmId"
-                        + " and l.parentId = :parentId order by l.validFrom", OrgUnitLinkEntity.class)
+        return em.createQuery("""
+                        select l from OrgUnitLinkEntity l where l.realmId = :realmId
+                        and l.parentId = :parentId order by l.validFrom""", OrgUnitLinkEntity.class)
                 .setParameter("realmId", realmId)
                 .setParameter("parentId", parentId)
                 .getResultStream()

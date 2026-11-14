@@ -136,4 +136,14 @@ class ValidPeriodTest {
         assertThrows(IllegalArgumentException.class, () -> p.splitAt(day(10)));
         assertThrows(IllegalArgumentException.class, () -> p.splitAt(day(11)));
     }
+
+    @Test
+    void tellsWhetherItStillRunsAfterADate() {
+        ValidPeriod closed = new ValidPeriod(LocalDate.of(2026, 4, 1), LocalDate.of(2026, 5, 1));
+
+        assertTrue(closed.endsAfter(LocalDate.of(2026, 4, 30)));
+        assertFalse(closed.endsAfter(LocalDate.of(2026, 5, 1)));
+        assertTrue(closed.endsAfter(LocalDate.of(2026, 3, 1)));
+        assertTrue(ValidPeriod.startingAt(LocalDate.of(2026, 4, 1)).endsAfter(LocalDate.of(2099, 1, 1)));
+    }
 }

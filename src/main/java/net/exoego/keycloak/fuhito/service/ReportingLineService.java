@@ -82,7 +82,7 @@ public class ReportingLineService {
         if (rows.isEmpty()) {
             throw FuhitoException.invalid("reporting_line.assignment_unknown", Map.of("assignmentId", assignmentId));
         }
-        ValidPeriod life = new ValidPeriod(rows.get(0).period().from(), rows.get(rows.size() - 1).period().to());
+        ValidPeriod life = new ValidPeriod(rows.getFirst().period().from(), rows.getLast().period().to());
         ValidPeriod period = Checks.period(from, to == null ? life.to() : to);
         if (!life.encloses(period)) {
             throw FuhitoException.conflict("reporting_line.outside_assignment",
@@ -91,7 +91,7 @@ public class ReportingLineService {
         if (!sources.users().exists(managerUserId)) {
             throw FuhitoException.invalid("reporting_line.manager_unknown", Map.of("managerUserId", managerUserId));
         }
-        if (managerUserId.equals(userOf(rows.get(0)))) {
+        if (managerUserId.equals(userOf(rows.getFirst()))) {
             throw FuhitoException.invalid("reporting_line.self", Map.of("managerUserId", managerUserId));
         }
         if (lineKind == Kind.SOLID) {

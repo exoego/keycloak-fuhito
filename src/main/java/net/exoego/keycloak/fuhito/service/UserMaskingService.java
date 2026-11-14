@@ -56,7 +56,7 @@ public class UserMaskingService {
         }
         LocalDate today = LocalDate.now(clock);
         boolean active = employments.findByUser(userId).stream()
-                .anyMatch(employment -> employment.period().to() == null || employment.period().to().isAfter(today));
+                .anyMatch(employment -> employment.period().endsAfter(today));
         if (active) {
             throw FuhitoException.conflict("user.still_employed", Map.of("userId", userId));
         }

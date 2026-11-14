@@ -105,7 +105,7 @@ class AttributeSyncServiceTest {
     }
 
     private String unitName(Assignment row) {
-        return orgUnitStore.versions(row.orgUnitId()).get(0).name();
+        return orgUnitStore.versions(row.orgUnitId()).getFirst().name();
     }
 
     private List<String> managersOf(String userId) {
@@ -135,7 +135,7 @@ class AttributeSyncServiceTest {
         assertEquals(List.of("Internal Medicine 2026-06-15 null director primary"), assignmentsOf("boss"));
         assertEquals(List.of("Internal Medicine 2026-06-15 null staff primary"), assignmentsOf("alice"));
         assertEquals(List.of("boss 2026-06-15 null"), managersOf("alice"));
-        var employment = employmentStore.findByUser("alice").get(0);
+        var employment = employmentStore.findByUser("alice").getFirst();
         assertEquals("E-002", employment.staffNumber());
         assertEquals("scim", employment.source());
         assertEquals("alice", employment.externalId());
@@ -273,9 +273,9 @@ class AttributeSyncServiceTest {
         SyncReport report = run();
 
         assertEquals(3, report.employmentsStarted());
-        assertEquals("E-1", employmentStore.findByUser("alice").get(0).staffNumber());
-        assertEquals(null, employmentStore.findByUser("bob").get(0).staffNumber());
-        assertEquals(null, employmentStore.findByUser("carol").get(0).staffNumber());
+        assertEquals("E-1", employmentStore.findByUser("alice").getFirst().staffNumber());
+        assertEquals(null, employmentStore.findByUser("bob").getFirst().staffNumber());
+        assertEquals(null, employmentStore.findByUser("carol").getFirst().staffNumber());
     }
 
     @Test
@@ -309,7 +309,7 @@ class AttributeSyncServiceTest {
         assertEquals(List.of("Internal Medicine 2026-06-14 null - primary"), assignmentsOf("boss"));
         assertEquals(List.of("Surgery 2026-06-15 null staff primary"), assignmentsOf("alice"));
         assertEquals(List.of("boss 2026-06-15 null"), managersOf("alice"));
-        assertEquals(LocalDate.of(2026, 6, 15), employmentStore.findByUser("alice").get(0).period().from());
+        assertEquals(LocalDate.of(2026, 6, 15), employmentStore.findByUser("alice").getFirst().period().from());
         assertEquals(new SyncReport(2, 0, 0, 0, 0, 0, 0, List.of(), List.of()), run());
     }
 

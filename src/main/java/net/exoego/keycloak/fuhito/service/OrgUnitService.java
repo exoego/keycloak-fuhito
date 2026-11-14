@@ -116,7 +116,7 @@ public class OrgUnitService {
             List<ValidPeriod> parts = current.period().splitAt(from);
             // Build the new version first, so that a bad value fails before anything is written.
             OrgUnitVersion next = version(newId(), id, parts.get(1), request, unitType);
-            store.updateVersion(withPeriod(current, parts.get(0)));
+            store.updateVersion(withPeriod(current, parts.getFirst()));
             store.insertVersion(next);
         }
         return get(id, request.validFrom());
@@ -145,7 +145,7 @@ public class OrgUnitService {
                 .map(l -> l.period().from())
                 .filter(start -> start.isAfter(from))
                 .findFirst()
-                .orElse(versions.get(versions.size() - 1).period().to());
+                .orElse(versions.getLast().period().to());
         ValidPeriod period = new ValidPeriod(from, until);
 
         if (parentId != null) {
@@ -183,12 +183,12 @@ public class OrgUnitService {
         LocalDate to = Checks.date("validTo", validTo);
         requireUnit(id);
         List<OrgUnitVersion> versions = store.versions(id);
-        OrgUnitVersion last = versions.get(versions.size() - 1);
+        OrgUnitVersion last = versions.getLast();
         if (last.period().to() != null) {
             throw FuhitoException.conflict("org_unit.already_ended",
                     Map.of("id", id, "validTo", last.period().to().toString()));
         }
-        if (!to.isAfter(versions.get(0).period().from())) {
+        if (!to.isAfter(versions.getFirst().period().from())) {
             throw FuhitoException.notFound("org_unit.not_valid_on", Map.of("id", id, "date", to.toString()));
         }
         List<OrgUnitLink> parentLinks = store.parentLinks(store.defaultHierarchyId(), id);
@@ -200,7 +200,7 @@ public class OrgUnitService {
             throw FuhitoException.conflict("org_unit.later_changes_exist", Map.of("id", id, "validTo", validTo));
         }
         long children = store.childLinks(id).stream()
-                .filter(l -> l.period().to() == null || l.period().to().isAfter(to))
+                .filter(l -> l.period().endsAfter(to))
                 .map(OrgUnitLink::childId)
                 .distinct()
                 .count();
@@ -210,7 +210,7 @@ public class OrgUnitService {
         }
 
         long staffed = assignments.rowsOfOrgUnit(id).stream()
-                .filter(row -> row.period().to() == null || row.period().to().isAfter(to))
+                .filter(row -> row.period().endsAfter(to))
                 .map(Assignment::assignmentId)
                 .distinct()
                 .count();
@@ -418,8 +418,8 @@ public class OrgUnitService {
         if (versions.isEmpty()) {
             throw FuhitoException.invalid("org_unit.parent_unknown", Map.of("parentId", parentId));
         }
-        ValidPeriod life = new ValidPeriod(versions.get(0).period().from(),
-                versions.get(versions.size() - 1).period().to());
+        ValidPeriod life = new ValidPeriod(versions.getFirst().period().from(),
+                versions.getLast().period().to());
         if (!life.encloses(period)) {
             throw FuhitoException.conflict("org_unit.parent_not_valid",
                     Map.of("parentId", parentId, "validFrom", period.from().toString()));

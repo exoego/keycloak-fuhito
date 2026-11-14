@@ -54,7 +54,7 @@ class EmploymentServiceTest {
         assertNull(view.employment().endReasonId());
         assertNull(view.endReason());
         assertEquals(1, view.terms().size());
-        EmploymentTerms terms = view.terms().get(0).terms();
+        EmploymentTerms terms = view.terms().getFirst().terms();
         assertEquals(view.employment().id(), terms.employmentId());
         assertEquals(view.employment().period(), terms.period());
         assertEquals(EmploymentStatus.ACTIVE, terms.status());
@@ -62,8 +62,8 @@ class EmploymentServiceTest {
         assertNull(terms.gradeId());
         assertNull(terms.workPercent());
         assertEquals(Map.of(), terms.attributes());
-        assertNull(view.terms().get(0).employmentType());
-        assertNull(view.terms().get(0).grade());
+        assertNull(view.terms().getFirst().employmentType());
+        assertNull(view.terms().getFirst().grade());
         assertEquals(view, service.get(view.employment().id()));
     }
 
@@ -79,7 +79,7 @@ class EmploymentServiceTest {
         assertEquals("000123", view.employment().staffNumber());
         assertEquals("E-1", view.employment().externalId());
         assertEquals("hr", view.employment().source());
-        EmploymentView.TermsView terms = view.terms().get(0);
+        EmploymentView.TermsView terms = view.terms().getFirst();
         assertEquals(temporary.id(), terms.terms().employmentTypeId());
         assertEquals("temporary", terms.employmentType());
         assertEquals(grade.id(), terms.terms().gradeId());
@@ -199,12 +199,12 @@ class EmploymentServiceTest {
     @Test
     void aChangeOnTheFirstDateOfTermsCorrectsThem() {
         String id = service.start(minimal("alice", "2026-04-01")).employment().id();
-        String termsId = store.terms(id).get(0).id();
+        String termsId = store.terms(id).getFirst().id();
 
         EmploymentView view = service.changeTerms(id, status("2026-04-01", "ON_LEAVE"));
 
         assertEquals(List.of("2026-04-01 null ON_LEAVE"), statuses(view));
-        assertEquals(termsId, view.terms().get(0).terms().id());
+        assertEquals(termsId, view.terms().getFirst().terms().id());
     }
 
     @Test
@@ -225,7 +225,7 @@ class EmploymentServiceTest {
         assertEquals(EmploymentStatus.ACTIVE, changed.terms().status());
         assertEquals(new BigDecimal("100"), changed.terms().workPercent());
         assertEquals(Map.of("union", true), changed.terms().attributes());
-        assertEquals("part-time", view.terms().get(0).employmentType());
+        assertEquals("part-time", view.terms().getFirst().employmentType());
 
         EmploymentView.TermsView cleared = service.changeTerms(id, status("2027-04-01", null)).terms().get(2);
         assertNull(cleared.terms().employmentTypeId());
@@ -410,6 +410,6 @@ class EmploymentServiceTest {
                 null, null, null)).employment().id();
         refItems.delete(type.id());
 
-        assertNull(service.get(id).terms().get(0).employmentType());
+        assertNull(service.get(id).terms().getFirst().employmentType());
     }
 }

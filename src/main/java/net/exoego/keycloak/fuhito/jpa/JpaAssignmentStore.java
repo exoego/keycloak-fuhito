@@ -31,8 +31,9 @@ public class JpaAssignmentStore implements AssignmentStore {
 
     @Override
     public List<Assignment> rows(String assignmentId) {
-        return em.createQuery("select a from AssignmentEntity a where a.realmId = :realmId"
-                        + " and a.assignmentId = :assignmentId order by a.validFrom", AssignmentEntity.class)
+        return em.createQuery("""
+                        select a from AssignmentEntity a where a.realmId = :realmId
+                        and a.assignmentId = :assignmentId order by a.validFrom""", AssignmentEntity.class)
                 .setParameter("realmId", realmId)
                 .setParameter("assignmentId", assignmentId)
                 .getResultStream()
@@ -42,8 +43,9 @@ public class JpaAssignmentStore implements AssignmentStore {
 
     @Override
     public List<Assignment> rowsOfEmployment(String employmentId) {
-        return em.createQuery("select a from AssignmentEntity a where a.realmId = :realmId"
-                        + " and a.employmentId = :employmentId order by a.validFrom, a.id", AssignmentEntity.class)
+        return em.createQuery("""
+                        select a from AssignmentEntity a where a.realmId = :realmId
+                        and a.employmentId = :employmentId order by a.validFrom, a.id""", AssignmentEntity.class)
                 .setParameter("realmId", realmId)
                 .setParameter("employmentId", employmentId)
                 .getResultStream()
@@ -53,8 +55,9 @@ public class JpaAssignmentStore implements AssignmentStore {
 
     @Override
     public List<Assignment> rowsOfOrgUnit(String orgUnitId) {
-        return em.createQuery("select a from AssignmentEntity a where a.realmId = :realmId"
-                        + " and a.orgUnitId = :orgUnitId order by a.validFrom, a.id", AssignmentEntity.class)
+        return em.createQuery("""
+                        select a from AssignmentEntity a where a.realmId = :realmId
+                        and a.orgUnitId = :orgUnitId order by a.validFrom, a.id""", AssignmentEntity.class)
                 .setParameter("realmId", realmId)
                 .setParameter("orgUnitId", orgUnitId)
                 .getResultStream()
@@ -67,9 +70,10 @@ public class JpaAssignmentStore implements AssignmentStore {
         if (orgUnitIds.isEmpty()) {
             return List.of();
         }
-        return em.createQuery("select a from AssignmentEntity a where a.realmId = :realmId"
-                        + " and a.orgUnitId in :orgUnitIds"
-                        + " and a.validFrom <= :date and (a.validTo is null or a.validTo > :date)",
+        return em.createQuery("""
+                        select a from AssignmentEntity a where a.realmId = :realmId
+                        and a.orgUnitId in :orgUnitIds
+                        and a.validFrom <= :date and (a.validTo is null or a.validTo > :date)""",
                         AssignmentEntity.class)
                 .setParameter("realmId", realmId)
                 .setParameter("orgUnitIds", orgUnitIds)
@@ -81,8 +85,9 @@ public class JpaAssignmentStore implements AssignmentStore {
 
     @Override
     public Optional<String> findAssignmentIdByExternalId(String source, String externalId) {
-        return em.createQuery("select distinct a.assignmentId from AssignmentEntity a where a.realmId = :realmId"
-                        + " and a.source = :source and a.externalId = :externalId", String.class)
+        return em.createQuery("""
+                        select distinct a.assignmentId from AssignmentEntity a where a.realmId = :realmId
+                        and a.source = :source and a.externalId = :externalId""", String.class)
                 .setParameter("realmId", realmId)
                 .setParameter("source", source)
                 .setParameter("externalId", externalId)
@@ -92,16 +97,18 @@ public class JpaAssignmentStore implements AssignmentStore {
 
     @Override
     public List<String> allAssignmentIds() {
-        return em.createQuery("select a.assignmentId from AssignmentEntity a where a.realmId = :realmId"
-                        + " group by a.assignmentId order by min(a.validFrom), a.assignmentId", String.class)
+        return em.createQuery("""
+                        select a.assignmentId from AssignmentEntity a where a.realmId = :realmId
+                        group by a.assignmentId order by min(a.validFrom), a.assignmentId""", String.class)
                 .setParameter("realmId", realmId)
                 .getResultList();
     }
 
     @Override
     public List<Assignment> rowsBySourceOn(String source, LocalDate date) {
-        return em.createQuery("select a from AssignmentEntity a where a.realmId = :realmId and a.source = :source"
-                        + " and a.validFrom <= :date and (a.validTo is null or a.validTo > :date) order by a.id",
+        return em.createQuery("""
+                        select a from AssignmentEntity a where a.realmId = :realmId and a.source = :source
+                        and a.validFrom <= :date and (a.validTo is null or a.validTo > :date) order by a.id""",
                         AssignmentEntity.class)
                 .setParameter("realmId", realmId)
                 .setParameter("source", source)

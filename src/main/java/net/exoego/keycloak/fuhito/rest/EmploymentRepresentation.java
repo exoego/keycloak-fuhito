@@ -3,6 +3,7 @@ package net.exoego.keycloak.fuhito.rest;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import net.exoego.keycloak.fuhito.service.EmploymentView;
 import net.exoego.keycloak.fuhito.service.NewEmployment;
@@ -69,6 +70,6 @@ public record EmploymentRepresentation(String id, String userId, String validFro
     }
 
     private static String text(Object value) {
-        return value == null ? null : value.toString();
+        return Objects.toString(value, null);
     }
 }

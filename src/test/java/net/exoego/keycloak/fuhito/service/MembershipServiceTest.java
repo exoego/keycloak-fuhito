@@ -103,7 +103,7 @@ class MembershipServiceTest {
         assertEquals(List.of("clerk", "doctor", "nurse"), userIds(service.members(ward, on("2026-10-01"))));
         assertEquals(List.of(), userIds(service.members(nursing, on("2026-10-01"))));
 
-        Member doctor = spring.get(0);
+        Member doctor = spring.getFirst();
         assertEquals("physician", doctor.occupation());
         assertEquals("director", doctor.jobTitle());
         assertEquals("regular", doctor.kind());
@@ -201,12 +201,12 @@ class MembershipServiceTest {
         List<Member> today = service.assignmentsOf("doctor", null, true);
 
         assertEquals(List.of(ward, otherHospital), today.stream().map(m -> m.assignment().orgUnitId()).toList());
-        assertEquals(primary, today.get(0).assignment().assignmentId());
+        assertEquals(primary, today.getFirst().assignment().assignmentId());
         assertEquals(List.of("Hospital", "Nursing", "Ward"),
-                today.get(0).orgUnitPath().stream().map(s -> s.version().name()).toList());
+                today.getFirst().orgUnitPath().stream().map(s -> s.version().name()).toList());
         assertEquals(List.of("Other Hospital"),
                 today.get(1).orgUnitPath().stream().map(s -> s.version().name()).toList());
-        assertNull(service.assignmentsOf("doctor", "2026-06-15", false).get(0).orgUnitPath());
+        assertNull(service.assignmentsOf("doctor", "2026-06-15", false).getFirst().orgUnitPath());
         assertEquals(1, service.assignmentsOf("doctor", "2026-04-15", false).size());
         assertEquals(3, service.assignmentsOf("doctor", "2027-04-01", false).size());
         assertEquals(List.of(), service.assignmentsOf("idle", null, false));
@@ -233,7 +233,7 @@ class MembershipServiceTest {
                 history.employments().stream().map(v -> v.employment().id()).toList());
         assertEquals(List.of(first, second, third),
                 history.assignments().stream().map(AssignmentView::assignmentId).toList());
-        assertEquals(2, history.assignments().get(0).rows().size());
+        assertEquals(2, history.assignments().getFirst().rows().size());
         assertEquals(List.of(), service.historyOf("idle", employments, assignments).employments());
         assertEquals("user.not_found", assertThrows(FuhitoException.class,
                 () -> service.historyOf("nope", employments, assignments)).code());
@@ -244,7 +244,7 @@ class MembershipServiceTest {
         assign(doctorEmployment, ward, "2026-04-01", "physician", null, true, 0);
         refItems.delete("OCCUPATION-physician");
 
-        assertNull(service.members(ward, on("2026-04-01")).get(0).occupation());
+        assertNull(service.members(ward, on("2026-04-01")).getFirst().occupation());
     }
 
     @Test
@@ -264,7 +264,7 @@ class MembershipServiceTest {
         // The one in New York holds until its June 30 ends. The one in Tokyo started on its July 1.
         assertEquals(List.of(startsInJuly, endsInJune),
                 today.stream().map(m -> m.assignment().assignmentId()).toList());
-        assertEquals(List.of("Hospital"), today.get(0).orgUnitPath().stream().map(s -> s.version().name()).toList());
+        assertEquals(List.of("Hospital"), today.getFirst().orgUnitPath().stream().map(s -> s.version().name()).toList());
         assertEquals(List.of(startsInJuly),
                 zoned.assignmentsOf("doctor", "2026-07-01", false).stream()
                         .map(m -> m.assignment().assignmentId()).toList());

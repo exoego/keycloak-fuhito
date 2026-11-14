@@ -40,8 +40,9 @@ public class JpaEmploymentStore implements EmploymentStore {
 
     @Override
     public Optional<Employment> findByExternalId(String source, String externalId) {
-        return em.createQuery("select e from EmploymentEntity e where e.realmId = :realmId and e.source = :source"
-                        + " and e.externalId = :externalId", EmploymentEntity.class)
+        return em.createQuery("""
+                        select e from EmploymentEntity e where e.realmId = :realmId and e.source = :source
+                        and e.externalId = :externalId""", EmploymentEntity.class)
                 .setParameter("realmId", realmId)
                 .setParameter("source", source)
                 .setParameter("externalId", externalId)
@@ -52,8 +53,9 @@ public class JpaEmploymentStore implements EmploymentStore {
 
     @Override
     public List<Employment> all() {
-        return em.createQuery("select e from EmploymentEntity e where e.realmId = :realmId"
-                        + " order by e.validFrom, e.id", EmploymentEntity.class)
+        return em.createQuery("""
+                        select e from EmploymentEntity e where e.realmId = :realmId
+                        order by e.validFrom, e.id""", EmploymentEntity.class)
                 .setParameter("realmId", realmId)
                 .getResultStream()
                 .map(JpaEmploymentStore::toDomain)
@@ -62,8 +64,9 @@ public class JpaEmploymentStore implements EmploymentStore {
 
     @Override
     public List<Employment> findByStaffNumber(String staffNumber) {
-        return em.createQuery("select e from EmploymentEntity e where e.realmId = :realmId"
-                        + " and e.staffNumber = :staffNumber order by e.validFrom", EmploymentEntity.class)
+        return em.createQuery("""
+                        select e from EmploymentEntity e where e.realmId = :realmId
+                        and e.staffNumber = :staffNumber order by e.validFrom""", EmploymentEntity.class)
                 .setParameter("realmId", realmId)
                 .setParameter("staffNumber", staffNumber)
                 .getResultStream()
@@ -73,8 +76,9 @@ public class JpaEmploymentStore implements EmploymentStore {
 
     @Override
     public List<Employment> findByUser(String userId) {
-        return em.createQuery("select e from EmploymentEntity e where e.realmId = :realmId and e.userId = :userId"
-                        + " order by e.validFrom, e.id", EmploymentEntity.class)
+        return em.createQuery("""
+                        select e from EmploymentEntity e where e.realmId = :realmId and e.userId = :userId
+                        order by e.validFrom, e.id""", EmploymentEntity.class)
                 .setParameter("realmId", realmId)
                 .setParameter("userId", userId)
                 .getResultStream()
@@ -101,9 +105,10 @@ public class JpaEmploymentStore implements EmploymentStore {
         if (employmentIds.isEmpty()) {
             return List.of();
         }
-        return em.createQuery("select t from EmploymentTermsEntity t where t.realmId = :realmId"
-                        + " and t.employmentId in :employmentIds"
-                        + " and t.validFrom <= :date and (t.validTo is null or t.validTo > :date)",
+        return em.createQuery("""
+                        select t from EmploymentTermsEntity t where t.realmId = :realmId
+                        and t.employmentId in :employmentIds
+                        and t.validFrom <= :date and (t.validTo is null or t.validTo > :date)""",
                         EmploymentTermsEntity.class)
                 .setParameter("realmId", realmId)
                 .setParameter("employmentIds", employmentIds)
@@ -163,8 +168,9 @@ public class JpaEmploymentStore implements EmploymentStore {
 
     @Override
     public List<EmploymentTerms> terms(String employmentId) {
-        return em.createQuery("select t from EmploymentTermsEntity t where t.realmId = :realmId"
-                        + " and t.employmentId = :employmentId order by t.validFrom", EmploymentTermsEntity.class)
+        return em.createQuery("""
+                        select t from EmploymentTermsEntity t where t.realmId = :realmId
+                        and t.employmentId = :employmentId order by t.validFrom""", EmploymentTermsEntity.class)
                 .setParameter("realmId", realmId)
                 .setParameter("employmentId", employmentId)
                 .getResultStream()

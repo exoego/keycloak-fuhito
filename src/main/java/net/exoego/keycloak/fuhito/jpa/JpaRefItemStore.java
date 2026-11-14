@@ -40,8 +40,9 @@ public class JpaRefItemStore implements RefItemStore {
 
     @Override
     public List<RefItem> list(RefKind kind, boolean includeInactive) {
-        return em.createQuery("select r from RefItemEntity r where r.realmId = :realmId and r.kind = :kind"
-                        + " and (r.active = true or :includeInactive = true) order by r.displayOrder, r.code",
+        return em.createQuery("""
+                        select r from RefItemEntity r where r.realmId = :realmId and r.kind = :kind
+                        and (r.active = true or :includeInactive = true) order by r.displayOrder, r.code""",
                         RefItemEntity.class)
                 .setParameter("realmId", realmId)
                 .setParameter("kind", kind.name())
@@ -58,8 +59,9 @@ public class JpaRefItemStore implements RefItemStore {
 
     @Override
     public Optional<RefItem> findByCode(RefKind kind, String code) {
-        return em.createQuery("select r from RefItemEntity r where r.realmId = :realmId and r.kind = :kind"
-                        + " and r.code = :code", RefItemEntity.class)
+        return em.createQuery("""
+                        select r from RefItemEntity r where r.realmId = :realmId and r.kind = :kind
+                        and r.code = :code""", RefItemEntity.class)
                 .setParameter("realmId", realmId)
                 .setParameter("kind", kind.name())
                 .setParameter("code", code)

@@ -38,21 +38,29 @@ public interface Today {
      * @return the rule
      */
     static Today of(Clock clock) {
-        return new Today() {
-            @Override
-            public LocalDate ofRealm() {
-                return LocalDate.now(clock);
-            }
+        return new OneClock(clock);
+    }
 
-            @Override
-            public LocalDate ofUnit(String orgUnitId) {
-                return LocalDate.now(clock);
-            }
+    /**
+     * A rule where every org unit is on the date of one clock.
+     *
+     * @param clock the clock whose date is the date of the realm
+     */
+    record OneClock(Clock clock) implements Today {
 
-            @Override
-            public Set<LocalDate> everywhere() {
-                return Set.of(LocalDate.now(clock));
-            }
-        };
+        @Override
+        public LocalDate ofRealm() {
+            return LocalDate.now(clock);
+        }
+
+        @Override
+        public LocalDate ofUnit(String orgUnitId) {
+            return ofRealm();
+        }
+
+        @Override
+        public Set<LocalDate> everywhere() {
+            return Set.of(ofRealm());
+        }
     }
 }

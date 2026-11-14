@@ -16,17 +16,13 @@ final class Writes {
     }
 
     static void record(RequestContext context, ImportReport.Write write) {
-        Object state = write.state();
-        Object representation;
-        if (state instanceof RefItem item) {
-            representation = RefItemRepresentation.of(item);
-        } else if (state instanceof OrgUnitState unit) {
-            representation = OrgUnitRepresentation.of(unit);
-        } else if (state instanceof EmploymentView employment) {
-            representation = EmploymentRepresentation.of(employment);
-        } else {
-            representation = AssignmentRepresentation.of((AssignmentView) state);
-        }
+        Object representation = switch (write.state()) {
+            case RefItem item -> RefItemRepresentation.of(item);
+            case OrgUnitState unit -> OrgUnitRepresentation.of(unit);
+            case EmploymentView employment -> EmploymentRepresentation.of(employment);
+            case AssignmentView assignment -> AssignmentRepresentation.of(assignment);
+            default -> throw new IllegalStateException("No representation for " + write.state().getClass());
+        };
         context.recordChange(write.created() ? Change.CREATE : Change.UPDATE, write.resourceType(),
                 write.resourceId(), write.path(), representation);
     }

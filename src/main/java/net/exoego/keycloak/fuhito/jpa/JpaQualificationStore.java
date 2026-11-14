@@ -34,8 +34,9 @@ public class JpaQualificationStore implements QualificationStore {
 
     @Override
     public List<Qualification> findByUser(String userId) {
-        return em.createQuery("select q from QualificationEntity q where q.realmId = :realmId"
-                        + " and q.userId = :userId order by q.validFrom, q.id", QualificationEntity.class)
+        return em.createQuery("""
+                        select q from QualificationEntity q where q.realmId = :realmId
+                        and q.userId = :userId order by q.validFrom, q.id""", QualificationEntity.class)
                 .setParameter("realmId", realmId)
                 .setParameter("userId", userId)
                 .getResultStream()

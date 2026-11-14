@@ -1,6 +1,7 @@
 package net.exoego.keycloak.fuhito.rest;
 
 import java.util.Map;
+import java.util.Objects;
 
 import net.exoego.keycloak.fuhito.service.QualificationValues;
 import net.exoego.keycloak.fuhito.service.QualificationView;
@@ -24,7 +25,7 @@ public record QualificationRepresentation(String id, String userId, String kind,
     static QualificationRepresentation of(QualificationView view) {
         var q = view.qualification();
         return new QualificationRepresentation(q.id(), q.userId(), view.kind(), q.number(),
-                q.period().from().toString(), q.period().to() == null ? null : q.period().to().toString(),
+                q.period().from().toString(), Objects.toString(q.period().to(), null),
                 q.attributes(), q.externalId(), q.source());
     }
 

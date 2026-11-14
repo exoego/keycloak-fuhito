@@ -3,6 +3,7 @@ package net.exoego.keycloak.fuhito.rest;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import net.exoego.keycloak.fuhito.service.AssignmentValues;
 import net.exoego.keycloak.fuhito.service.AssignmentView;
@@ -64,7 +65,7 @@ public record AssignmentRepresentation(String id, String employmentId, String us
     }
 
     static AssignmentRepresentation of(AssignmentView view) {
-        var first = view.rows().get(0).row();
+        var first = view.rows().getFirst().row();
         return new AssignmentRepresentation(view.assignmentId(), first.employmentId(), view.userId(),
                 first.orgUnitId(), view.period().from().toString(), text(view.period().to()), first.externalId(),
                 first.source(), null, null, null, null, null, null, null, null, null,
@@ -82,6 +83,6 @@ public record AssignmentRepresentation(String id, String employmentId, String us
     }
 
     private static String text(Object value) {
-        return value == null ? null : value.toString();
+        return Objects.toString(value, null);
     }
 }

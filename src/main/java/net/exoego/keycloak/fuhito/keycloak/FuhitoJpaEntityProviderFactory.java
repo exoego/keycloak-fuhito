@@ -41,15 +41,18 @@ public class FuhitoJpaEntityProviderFactory implements JpaEntityProviderFactory 
     public void postInit(KeycloakSessionFactory factory) {
         // Each event runs in the transaction that removes the realm or the user, so both happen or neither does.
         factory.register(event -> {
-            if (event instanceof RealmModel.RealmRemovedEvent removed) {
-                RealmData.delete(entityManager(removed.getKeycloakSession()), removed.getRealm().getId());
-            } else if (event instanceof UserModel.UserRemovedEvent removed) {
-                UserRemovalHandler.retire(entityManager(removed.getKeycloakSession()), removed.getRealm(),
-                        removed.getUser().getId());
-            } else if (event instanceof OrganizationModel.OrganizationRemovedEvent removed) {
-                KeycloakSession session = removed.getKeycloakSession();
-                RealmData.unlinkOrganization(entityManager(session), session.getContext().getRealm().getId(),
-                        removed.getOrganization().getId());
+            switch (event) {
+                case RealmModel.RealmRemovedEvent removed ->
+                        RealmData.delete(entityManager(removed.getKeycloakSession()), removed.getRealm().getId());
+                case UserModel.UserRemovedEvent removed ->
+                        UserRemovalHandler.retire(entityManager(removed.getKeycloakSession()), removed.getRealm(),
+                                removed.getUser().getId());
+                case OrganizationModel.OrganizationRemovedEvent removed -> {
+                    KeycloakSession session = removed.getKeycloakSession();
+                    RealmData.unlinkOrganization(entityManager(session), session.getContext().getRealm().getId(),
+                            removed.getOrganization().getId());
+                }
+                default -> { }
             }
         });
     }

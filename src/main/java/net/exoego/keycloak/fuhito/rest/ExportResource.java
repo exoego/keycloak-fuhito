@@ -80,7 +80,7 @@ public class ExportResource {
                     from.orgUnitStore().units().stream()
                             .map(unit -> from.orgUnits().history(unit.id()))
                             .sorted(Comparator
-                                    .comparing((OrgUnitHistory h) -> h.versions().get(0).version().period().from())
+                                    .comparing((OrgUnitHistory h) -> h.versions().getFirst().version().period().from())
                                     .thenComparing(h -> h.unit().id()))
                             .map(OrgUnitHistoryRepresentation::of)
                             .toList(),
