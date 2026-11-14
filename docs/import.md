@@ -1,6 +1,6 @@
 # Import
 
-This document explains how to load data in bulk and how to read all of it.
+This document explains how to load data in bulk.
 All paths are below `/admin/realms/{realm}/fuhito`.
 
 ## The idea
