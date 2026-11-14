@@ -102,7 +102,7 @@ It is not a translation.
 
 - One root for the company, with divisions, departments, and sections below it.
 - Each employee has a grade.
-- A matrix organization uses a second hierarchy for the other view.
+- A matrix organization uses a second hierarchy for the other view. `POST /hierarchies` creates it, and `PUT /org-units/{id}/parent?hierarchy=` gives a unit a parent in it.
 - A project team is an org unit with its own unit type. Its members hold concurrent assignments.
 - A dotted reporting line links a member to a project manager.
 

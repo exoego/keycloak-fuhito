@@ -351,4 +351,56 @@ class OrgUnitsIT {
         assertEquals(List.of("2027-04-01", "2027-04-01"),
                 Api.json(matrixApi.get("/org-units/" + team + "/history")).get("parents").findValuesAsText("validTo"));
     }
+
+    private static List<String> namesOf(HttpResponse<String> response) throws Exception {
+        assertEquals(200, response.statusCode(), response.body());
+        return Api.json(response).findValuesAsText("name");
+    }
+
+    @Test
+    void readsTheTreeAndTheMembersOfASecondHierarchy() throws Exception {
+        TestRealm realm = TestRealm.create("org-units-matrix-reads");
+        Api matrixApi = realm.api;
+        created(matrixApi.post("/hierarchies", "{\"code\": \"matrix\", \"name\": \"Matrix\"}"));
+        String line = created(matrixApi.post("/org-units", "{\"name\": \"Line\", \"validFrom\": \"2026-04-01\"}")).get("id").asText();
+        String project = created(matrixApi.post("/org-units", "{\"name\": \"Project\", \"validFrom\": \"2026-04-01\"}")).get("id").asText();
+        created(matrixApi.post("/org-units", "{\"name\": \"Alone\", \"validFrom\": \"2026-04-01\"}"));
+        String team = created(matrixApi.post("/org-units", "{\"name\": \"Team\", \"parentId\": \"" + line
+                + "\", \"validFrom\": \"2026-04-01\"}")).get("id").asText();
+        created(matrixApi.post("/org-units", "{\"name\": \"Squad\", \"parentId\": \"" + team
+                + "\", \"validFrom\": \"2026-04-01\"}"));
+        assertEquals(200, matrixApi.put("/org-units/" + team + "/parent?hierarchy=matrix",
+                "{\"parentId\": \"" + project + "\", \"validFrom\": \"2026-04-01\"}").statusCode());
+        String member = realm.user("member");
+        created(matrixApi.post("/staff", "{\"userId\": \"" + member + "\", \"orgUnitId\": \"" + team
+                + "\", \"validFrom\": \"2026-04-01\"}"));
+        String on = "asOf=2026-04-01";
+
+        // Only the units with a parent or a child in the matrix are in it.
+        assertEquals(List.of("Project", "Team"), namesOf(matrixApi.get("/org-units?hierarchy=matrix&" + on)));
+        assertEquals(List.of("Team"), namesOf(matrixApi.get("/org-units?hierarchy=matrix&first=1&max=1&" + on)));
+        assertEquals(List.of("Project"), namesOf(matrixApi.get("/org-units?hierarchy=matrix&roots=true&" + on)));
+        assertEquals(List.of("Alone", "Line", "Team", "Squad", "Project"), namesOf(matrixApi.get("/org-units?" + on)));
+        assertEquals(List.of("Alone", "Line", "Project"), namesOf(matrixApi.get("/org-units?roots=true&hierarchy=default&" + on)));
+
+        assertEquals(List.of("Team"), namesOf(matrixApi.get("/org-units/" + project + "/children?hierarchy=matrix&" + on)));
+        assertEquals(List.of(), namesOf(matrixApi.get("/org-units/" + project + "/children?" + on)));
+        assertEquals(List.of("Project", "Team"), namesOf(matrixApi.get("/org-units/" + project + "/subtree?hierarchy=matrix&" + on)));
+        assertEquals(List.of("Project", "Team"), namesOf(matrixApi.get("/org-units/" + team + "/path?hierarchy=matrix&" + on)));
+        assertEquals(List.of("Line", "Team"), namesOf(matrixApi.get("/org-units/" + team + "/path?" + on)));
+        assertEquals(project, Api.json(matrixApi.get("/org-units/" + team + "?hierarchy=matrix&" + on)).get("parentId").asText());
+        assertEquals(line, Api.json(matrixApi.get("/org-units/" + team + "?" + on)).get("parentId").asText());
+
+        // The member of the team is below the project only in the matrix.
+        String members = "/org-units/" + project + "/members?includeDescendants=true&" + on;
+        assertEquals(List.of(member), Api.json(matrixApi.get(members + "&hierarchy=matrix")).findValuesAsText("userId"));
+        assertEquals(List.of(), Api.json(matrixApi.get(members)).findValuesAsText("userId"));
+
+        for (String path : List.of("/org-units?", "/org-units/" + team + "?", "/org-units/" + team + "/children?",
+                "/org-units/" + team + "/subtree?", "/org-units/" + team + "/path?", "/org-units/" + team + "/members?")) {
+            HttpResponse<String> unknown = matrixApi.get(path + "hierarchy=nope&" + on);
+            assertEquals(400, unknown.statusCode(), path + " " + unknown.body());
+            assertEquals("hierarchy.unknown", Api.json(unknown).get("error").asText());
+        }
+    }
 }

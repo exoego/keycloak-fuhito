@@ -91,7 +91,7 @@ public class MembershipService {
         if (orgUnits.findUnit(orgUnitId).isEmpty()) {
             throw FuhitoException.notFound("org_unit.not_found", Map.of("id", orgUnitId));
         }
-        String hierarchy = orgUnits.defaultHierarchyId();
+        String hierarchy = HierarchyCodes.idOf(orgUnits, query.hierarchy());
         if (orgUnits.placedOn(hierarchy, List.of(orgUnitId), date).isEmpty()) {
             throw FuhitoException.notFound("org_unit.not_valid_on",
                     Map.of("id", orgUnitId, "date", date.toString()));
