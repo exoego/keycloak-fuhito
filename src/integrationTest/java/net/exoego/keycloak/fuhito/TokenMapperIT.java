@@ -148,4 +148,18 @@ class TokenMapperIT {
         assertTrue(org.isArray());
         assertEquals(0, org.size());
     }
+
+    // The admin console reads this to offer the mapper and to show its help.
+    @Test
+    void theServerInfoDescribesTheMapper() {
+        var mapper = admin.serverInfo().getInfo().getProtocolMapperTypes().get("openid-connect").stream()
+                .filter(type -> type.getId().equals("fuhito-assignments-mapper"))
+                .findFirst()
+                .orElseThrow();
+
+        assertEquals("Org assignments", mapper.getName());
+        assertEquals("Token mapper", mapper.getCategory());
+        assertTrue(mapper.getHelpText().contains("org unit assignments"), mapper.getHelpText());
+        assertFalse(mapper.getProperties().isEmpty());
+    }
 }

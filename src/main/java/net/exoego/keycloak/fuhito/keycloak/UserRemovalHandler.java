@@ -2,6 +2,7 @@ package net.exoego.keycloak.fuhito.keycloak;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.Set;
 import java.util.UUID;
 
 import jakarta.persistence.EntityManager;
@@ -32,7 +33,7 @@ final class UserRemovalHandler {
         var lines = new JpaReportingLineStore(em, realmId);
         // The user is gone already, so no check of the user can pass. The end of an employment needs none.
         var employmentService = new EmploymentService(employments, assignments, new JpaRefItemStore(em, realmId),
-                id -> false, lines);
+                Set.<String>of()::contains, lines);
         var changeLog = new JpaChangeLogStore(em, realmId);
         for (EmploymentView ended : new UserRetirement(employments, employmentService, assignments, lines,
                 RealmTime.clockOrUtc(realm)).retire(userId)) {

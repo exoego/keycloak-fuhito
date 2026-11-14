@@ -1,8 +1,6 @@
 package net.exoego.keycloak.fuhito.rest;
 
-import java.io.IOException;
 import java.io.InputStream;
-import java.io.UncheckedIOException;
 import java.time.Clock;
 import java.util.List;
 import java.util.Optional;
@@ -15,6 +13,7 @@ import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
 import net.exoego.keycloak.fuhito.domain.BusinessDay;
+import net.exoego.keycloak.fuhito.domain.Unchecked;
 import net.exoego.keycloak.fuhito.jpa.Hierarchies;
 import net.exoego.keycloak.fuhito.jpa.JpaAssignmentStore;
 import net.exoego.keycloak.fuhito.jpa.JpaChangeLogStore;
@@ -367,12 +366,12 @@ public class FuhitoResource {
     }
 
     private static String loadVersion() {
-        Properties properties = new Properties();
-        try (InputStream in = FuhitoResource.class.getResourceAsStream("/META-INF/fuhito/version.properties")) {
-            properties.load(in);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
-        return properties.getProperty("version");
+        return Unchecked.io(() -> {
+            Properties properties = new Properties();
+            try (InputStream in = FuhitoResource.class.getResourceAsStream("/META-INF/fuhito/version.properties")) {
+                properties.load(in);
+            }
+            return properties.getProperty("version");
+        });
     }
 }

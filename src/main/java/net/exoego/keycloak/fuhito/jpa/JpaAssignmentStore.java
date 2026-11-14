@@ -134,10 +134,7 @@ public class JpaAssignmentStore implements AssignmentStore {
 
     @Override
     public void update(Assignment row) {
-        AssignmentEntity entity = em.find(AssignmentEntity.class, row.rowId());
-        if (entity == null || !entity.realmId.equals(realmId)) {
-            throw new IllegalStateException("No such assignment row in the realm: " + row.rowId());
-        }
+        AssignmentEntity entity = Rows.require(em, AssignmentEntity.class, row.rowId(), realmId, found -> found.realmId);
         copy(row, entity);
         // A split shortens this row and then inserts the next one. The database must see the shorter row first.
         em.flush();

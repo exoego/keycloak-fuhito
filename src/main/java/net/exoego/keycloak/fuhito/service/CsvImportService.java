@@ -74,13 +74,32 @@ public class CsvImportService {
             Map.entry("jobTitle", "役職"), Map.entry("occupation", "職種"), Map.entry("assignmentKind", "所属区分"),
             Map.entry("head", "長"), Map.entry("primary", "主務"), Map.entry("allocationPercent", "配分割合"));
 
-    private static final Map<String, Set<String>> FIELDS = Map.of(
-            "refItems", Set.of("kind", "code", "name", "displayOrder", "active"),
-            "orgUnits", Set.of("externalId", "source", "code", "name", "shortName", "phoneticName", "unitType",
+    // The lists that a file can hold.
+    private enum Kind {
+        REF_ITEMS("refItems"), ORG_UNITS("orgUnits"), EMPLOYMENTS("employments"), ASSIGNMENTS("assignments");
+
+        private final String list;
+
+        Kind(String list) {
+            this.list = list;
+        }
+
+        static Kind of(String list) {
+            return Arrays.stream(values())
+                    .filter(kind -> kind.list.equals(list))
+                    .findFirst()
+                    .orElseThrow(() -> FuhitoException.invalid("invalid.choice",
+                            Map.of("field", "list", "value", list)));
+        }
+    }
+
+    private static final Map<Kind, Set<String>> FIELDS = Map.of(
+            Kind.REF_ITEMS, Set.of("kind", "code", "name", "displayOrder", "active"),
+            Kind.ORG_UNITS, Set.of("externalId", "source", "code", "name", "shortName", "phoneticName", "unitType",
                     "parentExternalId", "displayOrder", "validFrom", "validTo"),
-            "employments", Set.of("externalId", "source", "username", "userId", "staffNumber", "employmentType",
+            Kind.EMPLOYMENTS, Set.of("externalId", "source", "username", "userId", "staffNumber", "employmentType",
                     "grade", "status", "workPercent", "validFrom", "validTo", "endReason"),
-            "assignments", Set.of("externalId", "source", "employmentExternalId", "orgUnitExternalId", "jobTitle",
+            Kind.ASSIGNMENTS, Set.of("externalId", "source", "employmentExternalId", "orgUnitExternalId", "jobTitle",
                     "occupation", "assignmentKind", "head", "primary", "allocationPercent", "displayOrder",
                     "validFrom", "validTo"));
 
@@ -125,30 +144,26 @@ public class CsvImportService {
      * @throws FuhitoException when the file as a whole is bad, for example with an unknown column
      */
     public Result apply(String list, String csv, String effectiveDate, boolean dryRun, String source) {
-        Set<String> fields = FIELDS.get(Checks.required("list", list));
-        if (fields == null) {
-            throw FuhitoException.invalid("invalid.choice", Map.of("field", "list", "value", list));
-        }
+        Kind kind = Kind.of(Checks.required("list", list));
         LocalDate date = Checks.date("effectiveDate", effectiveDate);
         String defaultSource = Checks.optionalCode("source", source) == null ? ImportService.DEFAULT_SOURCE : source;
         List<Csv.Row> rows = Csv.parse(Checks.required("body", csv));
         if (rows.isEmpty()) {
             throw FuhitoException.invalid("csv.no_header", Map.of());
         }
-        List<String> columns = columns(rows.getFirst().cells(), fields);
+        List<String> columns = columns(rows.getFirst().cells(), FIELDS.get(kind));
         List<Csv.Row> data = rows.subList(1, rows.size());
 
         // Each list has its own type of row, so the rows keep that type from the cells to the import.
-        return switch (list) {
-            case "refItems" -> run(data, columns, this::refItem,
+        return switch (kind) {
+            case REF_ITEMS -> run(data, columns, this::refItem,
                     typed -> new ImportDocument(effectiveDate, dryRun, defaultSource, typed, null, null, null));
-            case "orgUnits" -> run(data, columns, cells -> orgUnit(cells, date, defaultSource),
+            case ORG_UNITS -> run(data, columns, cells -> orgUnit(cells, date, defaultSource),
                     typed -> new ImportDocument(effectiveDate, dryRun, defaultSource, null, typed, null, null));
-            case "employments" -> run(data, columns, cells -> employment(cells, date, defaultSource),
+            case EMPLOYMENTS -> run(data, columns, cells -> employment(cells, date, defaultSource),
                     typed -> new ImportDocument(effectiveDate, dryRun, defaultSource, null, null, typed, null));
-            case "assignments" -> run(data, columns, cells -> assignment(cells, date, defaultSource),
+            case ASSIGNMENTS -> run(data, columns, cells -> assignment(cells, date, defaultSource),
                     typed -> new ImportDocument(effectiveDate, dryRun, defaultSource, null, null, null, typed));
-            default -> throw new IllegalStateException("A list with fields and no parser: " + list);
         };
     }
 

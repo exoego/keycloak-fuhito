@@ -7,7 +7,6 @@ import java.util.Map;
 import java.util.UUID;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.persistence.EntityManager;
 import jakarta.ws.rs.core.MediaType;
@@ -15,6 +14,7 @@ import jakarta.ws.rs.core.Response;
 import net.exoego.keycloak.fuhito.domain.ChangeLogEntry;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.Messages;
+import net.exoego.keycloak.fuhito.domain.Unchecked;
 import net.exoego.keycloak.fuhito.jpa.JpaChangeLogStore;
 import net.exoego.keycloak.fuhito.jpa.JpaChangeOrderStore;
 import net.exoego.keycloak.fuhito.rest.ErrorRepresentation;
@@ -118,13 +118,6 @@ final class KeycloakRequestContext implements RequestContext {
     }
 
     static String toJson(Object representation) {
-        if (representation == null) {
-            return null;
-        }
-        try {
-            return JSON.writeValueAsString(representation);
-        } catch (JsonProcessingException e) {
-            throw new IllegalStateException(e);
-        }
+        return representation == null ? null : Unchecked.io(() -> JSON.writeValueAsString(representation));
     }
 }

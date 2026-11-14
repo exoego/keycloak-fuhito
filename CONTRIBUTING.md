@@ -47,6 +47,9 @@ Write a comment only for something the code cannot say, such as a reason.
 `check` also writes one coverage report for the unit tests and the integration tests, in `build/reports/jacoco/test`.
 The provider runs in the JVM of Keycloak, so the integration tests put the JaCoCo agent into their Keycloak containers and read its data out.
 
+`check` fails when the tests run less than 99% of the lines. A line that no test runs is a case that cannot happen, or dead code.
+Write a test for it, or remove it. The domain package must be covered in full by unit tests alone.
+
 The compiler runs with every warning turned on, and with [Error Prone](https://errorprone.info/).
 A warning fails the build. Fix the cause. When a warning is wrong, use `@SuppressWarnings` with the name of the check, and say why in a comment.
 

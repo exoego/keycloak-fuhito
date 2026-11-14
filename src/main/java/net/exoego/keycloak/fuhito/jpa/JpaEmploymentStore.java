@@ -138,10 +138,7 @@ public class JpaEmploymentStore implements EmploymentStore {
 
     @Override
     public void update(Employment employment) {
-        EmploymentEntity entity = em.find(EmploymentEntity.class, employment.id());
-        if (entity == null || !entity.realmId.equals(realmId)) {
-            throw new IllegalStateException("No such employment in the realm: " + employment.id());
-        }
+        EmploymentEntity entity = Rows.require(em, EmploymentEntity.class, employment.id(), realmId, found -> found.realmId);
         entity.validFrom = employment.period().from();
         entity.validTo = employment.period().to();
         entity.staffNumber = employment.staffNumber();
@@ -190,10 +187,7 @@ public class JpaEmploymentStore implements EmploymentStore {
 
     @Override
     public void updateTerms(EmploymentTerms terms) {
-        EmploymentTermsEntity entity = em.find(EmploymentTermsEntity.class, terms.id());
-        if (entity == null || !entity.realmId.equals(realmId)) {
-            throw new IllegalStateException("No such terms in the realm: " + terms.id());
-        }
+        EmploymentTermsEntity entity = Rows.require(em, EmploymentTermsEntity.class, terms.id(), realmId, found -> found.realmId);
         copy(terms, entity);
         // A split shortens this row and then inserts the next one. The database must see the shorter row first.
         em.flush();

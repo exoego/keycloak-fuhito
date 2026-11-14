@@ -1,11 +1,9 @@
 package net.exoego.keycloak.fuhito.rest;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
-
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import net.exoego.keycloak.fuhito.domain.ChangeLogEntry;
+import net.exoego.keycloak.fuhito.domain.Unchecked;
 
 /**
  * One successful write.
@@ -32,13 +30,6 @@ public record ChangeLogRepresentation(String id, String recordedAt, String actor
     }
 
     private static JsonNode parse(String json) {
-        if (json == null) {
-            return null;
-        }
-        try {
-            return JSON.readTree(json);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
+        return json == null ? null : Unchecked.io(() -> JSON.readTree(json));
     }
 }

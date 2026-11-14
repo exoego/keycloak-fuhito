@@ -132,4 +132,23 @@ class UserRemovalIT {
     private static String rows(String table, String realmId) throws Exception {
         return KeycloakEnvironment.sql("select count(*) from " + table + " where realm_id = '" + realmId + "'");
     }
+
+    @Test
+    void removingAUserDeletesAnEmploymentThatNeverStarted() throws Exception {
+        TestRealm realm = TestRealm.create("user-removal-future");
+        Api api = realm.api;
+        String unit = Api.json(api.post("/org-units", "{\"name\": \"課\", \"validFrom\": \"2020-04-01\"}")).get("id").asText();
+        String user = realm.user("joins-later");
+        assertEquals(201, api.post("/staff", "{\"userId\": \"" + user + "\", \"orgUnitId\": \"" + unit
+                + "\", \"validFrom\": \"" + TOMORROW + "\"}").statusCode());
+        String realmId = realm.id();
+        assertEquals("1", rows("fuhito_employment", realmId));
+
+        realm.removeUser(user);
+
+        // The person never worked here, so there is no history to keep.
+        assertEquals("0", rows("fuhito_employment", realmId));
+        assertEquals("0", rows("fuhito_employment_terms", realmId));
+        assertEquals("0", rows("fuhito_assignment", realmId));
+    }
 }

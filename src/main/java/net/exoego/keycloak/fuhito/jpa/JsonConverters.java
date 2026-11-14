@@ -1,7 +1,5 @@
 package net.exoego.keycloak.fuhito.jpa;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -9,6 +7,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.persistence.AttributeConverter;
 import jakarta.persistence.Converter;
+import net.exoego.keycloak.fuhito.domain.Unchecked;
 
 /**
  * Stores maps as JSON text, so that the columns work on every database.
@@ -21,22 +20,14 @@ public final class JsonConverters {
     }
 
     private static String write(Map<String, ?> map) {
-        try {
-            return MAPPER.writeValueAsString(map == null ? Map.of() : map);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
+        return Unchecked.io(() -> MAPPER.writeValueAsString(map == null ? Map.of() : map));
     }
 
     private static <T> Map<String, T> read(String json, TypeReference<Map<String, T>> type) {
         if (json == null) {
             return new LinkedHashMap<>();
         }
-        try {
-            return MAPPER.readValue(json, type);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
+        return Unchecked.io(() -> MAPPER.readValue(json, type));
     }
 
     /**

@@ -183,6 +183,29 @@ tasks.check {
     dependsOn(tasks.jacocoTestReport)
 }
 
+// A line that no test runs is a case that cannot happen, or dead code. Look at it before it is merged.
+// The rule counts lines. The classes that Keycloak rewrites hold generated methods with no source line,
+// so the counts of instructions and branches say little.
+val coverageGate = tasks.register<JacocoCoverageVerification>("coverageGate") {
+    mustRunAfter(tasks.test, tasks.named("integrationTest"))
+    dependsOn(coverageClasses)
+    executionData.setFrom(coverageData)
+    classDirectories.setFrom(layout.buildDirectory.dir("jacoco-classes/report"))
+    sourceDirectories.setFrom(sourceSets.main.get().allJava.srcDirs)
+    violationRules {
+        rule {
+            limit {
+                counter = "LINE"
+                minimum = "0.99".toBigDecimal()
+            }
+        }
+    }
+}
+
+tasks.check {
+    dependsOn(coverageGate)
+}
+
 // The domain package has no Keycloak and no database, so unit tests must cover all of it.
 tasks.jacocoTestCoverageVerification {
     violationRules {
