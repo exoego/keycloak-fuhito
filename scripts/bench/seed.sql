@@ -1,22 +1,23 @@
--- Fills one realm with a large organization. psql sets :realm to the ID of the realm.
--- 1 company, 50 divisions, 500 departments, 4,450 teams, 50,000 people, and one move for 30% of the people.
+-- Fills one realm with a large organization. psql sets :realm to the ID of the realm, :units to the number of
+-- org units below the company, and :people to the number of people.
+-- 1 company, 50 divisions, 500 departments, and teams for the rest. One move for 30% of the people.
 
 INSERT INTO fuhito_hierarchy (id, realm_id, code, name) VALUES ('bench-h', :'realm', 'default', 'Default');
-INSERT INTO fuhito_change_log_counter (realm_id, last_sequence) VALUES (:'realm', 200000);
+INSERT INTO fuhito_change_log_counter (realm_id, last_sequence) VALUES (:'realm', :people * 4);
 INSERT INTO fuhito_ref_item (id, realm_id, kind, code, name, names_i18n, display_order, attributes, active, legal_entity) VALUES
   ('bench-company', :'realm', 'UNIT_TYPE', 'company', 'Company', '{}', 0, '{}', true, true),
   ('bench-unit', :'realm', 'UNIT_TYPE', 'unit', 'Unit', '{}', 0, '{}', true, false),
   ('bench-nurse', :'realm', 'OCCUPATION', 'nurse', 'Nurse', '{}', 0, '{}', true, false),
   ('bench-full', :'realm', 'EMPLOYMENT_TYPE', 'full-time', 'Full time', '{}', 0, '{}', true, false);
 
--- n = 0 is the company. 1 to 50 are divisions, 51 to 550 departments, and 551 to 5000 teams.
+-- n = 0 is the company. 1 to 50 are divisions, 51 to 550 departments, and the rest are teams.
 CREATE TEMP TABLE bench_unit AS
 SELECT n, 'u-' || n AS id,
        CASE WHEN n = 0 THEN NULL
             WHEN n <= 50 THEN 'u-0'
             WHEN n <= 550 THEN 'u-' || (1 + (n - 51) / 10)
             ELSE 'u-' || (51 + (n - 551) % 500) END AS parent
-FROM generate_series(0, 5000) n;
+FROM generate_series(0, :units) n;
 
 INSERT INTO fuhito_org_unit (id, realm_id, code) SELECT id, :'realm', 'c' || n FROM bench_unit;
 -- One unit in five got a new name in 2023, so it has two versions.
@@ -33,27 +34,27 @@ INSERT INTO fuhito_org_unit_link (id, realm_id, hierarchy_id, child_id, parent_i
 SELECT 'l-' || n, :'realm', 'bench-h', id, parent, DATE '2020-04-01', NULL FROM bench_unit WHERE parent IS NOT NULL;
 
 INSERT INTO fuhito_person (id, realm_id, name, names_i18n, attributes)
-SELECT 'p-' || n, :'realm', 'Person ' || n, '{}', '{}' FROM generate_series(0, 49999) n;
+SELECT 'p-' || n, :'realm', 'Person ' || n, '{}', '{}' FROM generate_series(0, :people - 1) n;
 INSERT INTO fuhito_employment (id, realm_id, valid_from, staff_number, person_id, employer_id)
-SELECT 'e-' || n, :'realm', DATE '2020-04-01', 'S' || n, 'p-' || n, 'u-0' FROM generate_series(0, 49999) n;
+SELECT 'e-' || n, :'realm', DATE '2020-04-01', 'S' || n, 'p-' || n, 'u-0' FROM generate_series(0, :people - 1) n;
 INSERT INTO fuhito_employment_terms (id, realm_id, employment_id, valid_from, employment_type_id, status, work_percent, attributes)
-SELECT 't-' || n, :'realm', 'e-' || n, DATE '2020-04-01', 'bench-full', 'ACTIVE', 100, '{}' FROM generate_series(0, 49999) n;
+SELECT 't-' || n, :'realm', 'e-' || n, DATE '2020-04-01', 'bench-full', 'ACTIVE', 100, '{}' FROM generate_series(0, :people - 1) n;
 
--- Person n works in unit n % 5001 today. The first 5001 people are the heads of their units.
+-- Person n works in unit n % (units + 1) today. The first people are the heads of their units.
 -- Three in ten were in another unit until 2024.
 INSERT INTO fuhito_assignment (id, realm_id, assignment_id, employment_id, org_unit_id, valid_from, valid_to, occupation_id, is_head, is_primary, display_order, attributes)
-SELECT 'a-' || n, :'realm', 'a-' || n, 'e-' || n, 'u-' || (n % 5001),
+SELECT 'a-' || n, :'realm', 'a-' || n, 'e-' || n, 'u-' || (n % (:units + 1)),
        CASE WHEN n % 10 < 3 THEN DATE '2024-04-01' ELSE DATE '2020-04-01' END, NULL,
-       'bench-nurse', n < 5001, true, n % 20, '{}'
-FROM generate_series(0, 49999) n;
+       'bench-nurse', n <= :units, true, n % 20, '{}'
+FROM generate_series(0, :people - 1) n;
 INSERT INTO fuhito_assignment (id, realm_id, assignment_id, employment_id, org_unit_id, valid_from, valid_to, occupation_id, is_head, is_primary, display_order, attributes)
-SELECT 'b-' || n, :'realm', 'b-' || n, 'e-' || n, 'u-' || ((n * 7) % 5001), DATE '2020-04-01', DATE '2024-04-01',
+SELECT 'b-' || n, :'realm', 'b-' || n, 'e-' || n, 'u-' || ((n * 7) % (:units + 1)), DATE '2020-04-01', DATE '2024-04-01',
        'bench-nurse', false, true, 0, '{}'
-FROM generate_series(0, 49999) n WHERE n % 10 < 3;
+FROM generate_series(0, :people - 1) n WHERE n % 10 < 3;
 
 INSERT INTO fuhito_change_log (id, realm_id, recorded_at, resource_type, resource_id, operation, resource_path, representation, sequence_number)
-SELECT 'c-' || n, :'realm', TIMESTAMP '2020-04-01' + n * INTERVAL '10 minutes', 'FUHITO_ASSIGNMENT', 'a-' || (n % 50000),
-       'UPDATE', 'fuhito/assignments/a-' || (n % 50000), '{"id":"a-' || (n % 50000) || '"}', n
-FROM generate_series(1, 200000) n;
+SELECT 'c-' || n, :'realm', TIMESTAMP '2020-04-01' + n * INTERVAL '10 minutes', 'FUHITO_ASSIGNMENT', 'a-' || (n % :people),
+       'UPDATE', 'fuhito/assignments/a-' || (n % :people), '{"id":"a-' || (n % :people) || '"}', n
+FROM generate_series(1, :people * 4) n;
 
 ANALYZE;

@@ -9,6 +9,7 @@ The numbers show which reads grow with the size of a realm. They are not a promi
 It needs Docker, curl, and jq. Run it from the root of the project. It is not a check of CI.
 
 `scripts/bench/seed.sql` fills the realm with SQL, because the API would take too long for this many rows.
+`PEOPLE` and `UNITS` set the size. The defaults are the size of the table below.
 
 | What | Rows |
 |---|---|
@@ -64,13 +65,41 @@ The same run then gave these numbers. The other reads did not change.
 | Effective changes of one day | 18 | 11 |
 | Effective changes of five years, first 1,000 | 234 | 46 |
 
+## A realm ten times as large
+
+`PEOPLE=500000 UNITS=50000 scripts/bench/run.sh` fills a realm with 50,001 org units, 500,000 people, 650,000 assignment rows, and 2,000,000 entries of the change log.
+Run on 2026-11-15 at commit `cd203c4`, on the same machine.
+
+The reads about one org unit, one person, one team, or one page of the change log stayed between 3 and 10 ms. These grew.
+
+| Read | ms | ms with the two indexes below |
+|---|---|---|
+| Org units, first page | 1,255 | 333 |
+| Subtree of the company, first page | 1,245 | 342 |
+| Subtree of a division, 1,000 units | 28 | 17 |
+| Members below the company, first page | 1,525 | 595 |
+| Members below the company, page 4,000 | 3,060 | 3,006 |
+| Members below a division, 1,000 people | 126 | 82 |
+| People, page 4,990 | 60 | not measured again |
+| Effective changes of a day on which 150,000 people moved | 202 | 67 |
+
+The plan of the tree walk showed where the time went. For each org unit, the walk looked up the version of the date through the exclusion constraint, which is a GiST index. That took about a second for 50,000 org units.
+So the versions got a plain index on the org unit and `VALID_FROM`, and the parent links got one on the hierarchy, the child, and `VALID_FROM`. The second one is also the only index from a child to its parent in a database without `btree_gist`.
+
+What is still slow at this size, and why.
+
+- The whole tree costs about 330 ms for each page. The database walks all 50,000 org units and orders them before it cuts the page.
+- The members below the whole company cost about 600 ms for the first page, and 3 seconds for a late page. The database orders all 500,000 assignments by the place of their org unit in the tree, and then counts past the skipped rows.
+
+A reader of a late page pays for all pages before it. A cursor that says "go on after this row" would make every page cost as much as the first one.
+
 ## What the numbers say
 
 - A read about one org unit, one person, or one page of people does not grow with the realm.
 - A read of the whole tree costs about 80 ms for 5,000 org units, also for the first page. The database walks the whole tree and orders it before it cuts the page. A subtree costs as much as its own size.
 - The members below the whole company cost more on a late page. The database counts past the skipped rows. A reader that goes through all people pays that on every page.
 - The effective changes scanned the tables of employments, terms, and assignments in the first run, because no index started with the realm and a date. The indexes above fixed that.
-- The tree does not need another table design at this size. A walk over 5,000 org units stays below 100 ms.
+- The tree does not need another table design for 5,000 org units. A walk over them stays below 100 ms. For 50,000 org units see the section above.
 
 ## Not measured
 

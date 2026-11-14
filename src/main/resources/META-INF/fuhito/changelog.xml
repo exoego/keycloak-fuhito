@@ -747,4 +747,17 @@
             <column name="VALID_TO"/>
         </createIndex>
     </changeSet>
+    <changeSet id="0.1.0-tree-walk-indexes" author="keycloak-fuhito">
+        <!-- A walk in the tree looks up one version and one link for each org unit. The exclusion constraints
+             can serve as indexes for that, but they are slow for it, and they are missing without btree_gist. -->
+        <createIndex tableName="FUHITO_ORG_UNIT_VERSION" indexName="IDX_FUHITO_ORG_UNIT_VERSION_UNIT">
+            <column name="ORG_UNIT_ID"/>
+            <column name="VALID_FROM"/>
+        </createIndex>
+        <createIndex tableName="FUHITO_ORG_UNIT_LINK" indexName="IDX_FUHITO_ORG_UNIT_LINK_CHILD">
+            <column name="HIERARCHY_ID"/>
+            <column name="CHILD_ID"/>
+            <column name="VALID_FROM"/>
+        </createIndex>
+    </changeSet>
 </databaseChangeLog>
