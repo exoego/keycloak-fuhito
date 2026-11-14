@@ -126,6 +126,20 @@ When one step fails, nothing is written.
 
 Checked by `ReorganizationIT.appliesAReorganizationUnderAChangeOrder` and `ReorganizationIT.aFailedStepWritesNothing`.
 
+## A move to another org unit
+
+An assignment never changes its org unit. A move is the end of one assignment and the start of another.
+`POST /assignments/{id}/move` does both in one write.
+
+- The new assignment starts on the date that the old one ends on, so the person is in one place on every date.
+- It lasts as long as the old one would have, and names the old one in `continuesAssignmentId`.
+- It keeps the occupation, the kind, the primary flag, the allocation, and the attributes. It keeps the job title unless the request gives one.
+- The head flag and the display order belong to the old org unit, so they are not kept.
+- The reporting lines of the old assignment end with it. The new assignment gets its manager from the head of its org unit, until a line is stored.
+- A change of the old assignment that is stored for the date or later rejects the move.
+
+Checked by `AssignmentsIT.aMoveTakesAPersonToAnotherOrgUnitInOneWrite`.
+
 ## The change log and change orders
 
 Every successful write adds one entry to the change log.

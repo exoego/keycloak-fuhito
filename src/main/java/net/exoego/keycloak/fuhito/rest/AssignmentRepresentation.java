@@ -29,6 +29,11 @@ public record AssignmentRepresentation(
         String externalId,
         @Schema(description = "The name of that system.")
         String source,
+        @Schema(
+                description = "The ID of the assignment that this one continues, after a move to another org unit "
+                        + "or a transfer to another employer.",
+                readOnly = true)
+        String continuesAssignmentId,
         @Schema(description = "The code of the first job title.", writeOnly = true)
         String jobTitle,
         @Schema(description = "The code of the first occupation.", writeOnly = true)
@@ -106,7 +111,7 @@ public record AssignmentRepresentation(
         var first = view.rows().getFirst().row();
         return new AssignmentRepresentation(view.assignmentId(), first.employmentId(), view.userId(),
                 first.orgUnitId(), view.period().from().toString(), text(view.period().to()), first.externalId(),
-                first.source(), null, null, null, null, null, null, null, null, null,
+                first.source(), view.continuesAssignmentId(), null, null, null, null, null, null, null, null, null,
                 view.rows().stream()
                         .map(r -> new Details(r.row().period().from().toString(), text(r.row().period().to()),
                                 r.jobTitle(), r.occupation(), r.kind(), r.row().head(), r.row().primary(), null,

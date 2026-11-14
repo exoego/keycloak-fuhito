@@ -10,6 +10,7 @@ import net.exoego.keycloak.fuhito.domain.Assignment;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.RefItem;
 import net.exoego.keycloak.fuhito.domain.RefKind;
+import net.exoego.keycloak.fuhito.domain.ReportingLine;
 import net.exoego.keycloak.fuhito.domain.ValidPeriod;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -26,8 +27,8 @@ class AssignmentServiceTest {
     private final MemoryEmploymentStore employments = new MemoryEmploymentStore();
     private final MemoryOrgUnitStore orgUnits = new MemoryOrgUnitStore();
     private final MemoryRefItemStore refItems = new MemoryRefItemStore();
-    private final AssignmentService service = new AssignmentService(store, employments, orgUnits, refItems,
-            new MemoryReportingLineStore());
+    private final MemoryReportingLineStore lines = new MemoryReportingLineStore();
+    private final AssignmentService service = new AssignmentService(store, employments, orgUnits, refItems, lines);
     private final EmploymentService employmentService = new EmploymentService(employments, store, refItems,
             MemoryPersonStore.anyUser(),
             new MemoryReportingLineStore(), new AnyEmployer());
@@ -101,6 +102,81 @@ class AssignmentServiceTest {
         assertEquals(Map.of(), row.attributes());
         assertNull(view.rows().getFirst().jobTitle());
         assertEquals(view, service.get(view.assignmentId()));
+    }
+
+    @Test
+    void aMoveEndsOneAssignmentAndStartsTheNextInAnotherOrgUnit() {
+        item(RefKind.JOB_TITLE, "head-nurse", true);
+        item(RefKind.JOB_TITLE, "staff", true);
+        RefItem occupation = item(RefKind.OCCUPATION, "nurse", true);
+        String old = service.add(new AssignmentValues(employment, ward, "2026-04-01", "2030-04-01", "head-nurse",
+                "nurse", null, true, true, null, new BigDecimal("60"), 3, Map.of("shift", "night"), "A-1", "hr"))
+                .assignmentId();
+        lines.insert(new ReportingLine("line", old, "boss", "boss", ReportingLine.Kind.SOLID,
+                ValidPeriod.startingAt(LocalDate.of(2026, 4, 1))));
+
+        AssignmentService.Move move = service.move(old, new MoveRequest(yHospital, "2027-04-01", null, null, null));
+
+        assertEquals(old, move.ended().assignmentId());
+        assertEquals(LocalDate.of(2027, 4, 1), move.ended().period().to());
+        AssignmentView started = move.started();
+        Assignment row = started.rows().getFirst().row();
+        assertEquals(old, started.continuesAssignmentId());
+        assertEquals(employment, row.employmentId());
+        assertEquals(yHospital, row.orgUnitId());
+        // The new assignment lasts as long as the old one would have.
+        assertEquals(new ValidPeriod(LocalDate.of(2027, 4, 1), LocalDate.of(2030, 4, 1)), row.period());
+        // What belongs to the person is kept. What belongs to the old org unit is not.
+        assertEquals("head-nurse", started.rows().getFirst().jobTitle());
+        assertEquals(occupation.id(), row.occupationId());
+        assertTrue(row.primary());
+        assertEquals(new BigDecimal("60"), row.allocationPercent());
+        assertEquals(Map.of("shift", "night"), row.attributes());
+        assertFalse(row.head());
+        assertEquals(0, row.displayOrder());
+        assertNull(row.externalId());
+        // The line to the old manager ends with the old assignment.
+        assertEquals(LocalDate.of(2027, 4, 1), lines.find("line").orElseThrow().period().to());
+        assertEquals(List.of(), lines.findByAssignment(started.assignmentId()));
+
+        // A second move gives a new job title, and the person leads the new org unit.
+        AssignmentService.Move back = service.move(started.assignmentId(),
+                new MoveRequest(ward, "2028-04-01", "staff", true, 7));
+        Assignment again = back.started().rows().getFirst().row();
+        assertEquals("staff", back.started().rows().getFirst().jobTitle());
+        assertTrue(again.head());
+        assertEquals(7, again.displayOrder());
+        assertEquals(started.assignmentId(), back.started().continuesAssignmentId());
+    }
+
+    @Test
+    void aMoveIsRejectedWhenItCannotHappen() {
+        String old = service.add(new AssignmentValues(employment, ward, "2026-04-01", "2030-04-01", null, null, null,
+                null, null, null, null, null, null, null, null)).assignmentId();
+        String late = orgUnitService.create(new NewOrgUnit(null, "Late", null, null, null, null, null, null,
+                "2029-04-01", null, null, null, null)).unit().id();
+
+        assertEquals("assignment.same_org_unit", assertThrows(FuhitoException.class,
+                () -> service.move(old, new MoveRequest(ward, "2027-04-01", null, null, null))).code());
+        for (String date : List.of("2026-04-01", "2025-04-01", "2030-04-01")) {
+            assertEquals("assignment.not_valid_on", assertThrows(FuhitoException.class,
+                    () -> service.move(old, new MoveRequest(yHospital, date, null, null, null))).code(), date);
+        }
+        assertEquals("assignment.org_unit_not_valid", assertThrows(FuhitoException.class,
+                () -> service.move(old, new MoveRequest(late, "2027-04-01", null, null, null))).code());
+        assertEquals("assignment.org_unit_unknown", assertThrows(FuhitoException.class,
+                () -> service.move(old, new MoveRequest("nope", "2027-04-01", null, null, null))).code());
+        assertEquals("ref_item.unknown", assertThrows(FuhitoException.class,
+                () -> service.move(old, new MoveRequest(yHospital, "2027-04-01", "nope", null, null))).code());
+        assertEquals("invalid.required", assertThrows(FuhitoException.class,
+                () -> service.move(old, new MoveRequest(null, "2027-04-01", null, null, null))).code());
+        assertEquals("assignment.not_found", assertThrows(FuhitoException.class,
+                () -> service.move("nope", new MoveRequest(yHospital, "2027-04-01", null, null, null))).code());
+        // A change that is stored for a later date would be cut off.
+        service.changeDetails(old, details("2028-04-01", null, true));
+        assertEquals("assignment.later_changes_exist", assertThrows(FuhitoException.class,
+                () -> service.move(old, new MoveRequest(yHospital, "2027-04-01", null, null, null))).code());
+        assertEquals(1, store.rows.stream().map(Assignment::assignmentId).distinct().count());
     }
 
     @Test

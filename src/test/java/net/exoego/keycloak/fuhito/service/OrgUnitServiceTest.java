@@ -516,7 +516,7 @@ class OrgUnitServiceTest {
     private void assign(String assignmentId, String orgUnitId, String from, String to) {
         assignments.insert(new Assignment(assignmentId + "-" + from, assignmentId, "employment", orgUnitId,
                 new ValidPeriod(LocalDate.parse(from), to == null ? null : LocalDate.parse(to)), null, null, null,
-                false, false, null, 0, Map.of(), null, null));
+                false, false, null, 0, Map.of(), null, null, null));
     }
 
     @Test

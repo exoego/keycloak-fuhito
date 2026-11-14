@@ -339,6 +339,7 @@ The database applies the filters, the order, and the page.
 | `/change-orders` | Approved instructions that cause changes, with their approver |
 | `/change-orders/{id}/changes` | The writes that belong to a change order |
 | `/change-log` | The writes to the realm, to follow from a sequence number or to narrow to one resource |
+| `/assignments/{id}/move` | Moves a person to another org unit on a date, in one write |
 | `/employments/{id}/transfer` | Moves a person to another employer on a date, in one write |
 | `/employments/transfers` | Moves every person of one employer to another, for a merger. It can end the old employer |
 | `/effective-changes` | The resources with a period that starts or ends in a range of dates |
