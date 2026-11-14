@@ -1,10 +1,14 @@
 package net.exoego.keycloak.fuhito.service;
 
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 
+import net.exoego.keycloak.fuhito.domain.Assignment;
+import net.exoego.keycloak.fuhito.domain.DirectReport;
+import net.exoego.keycloak.fuhito.domain.Employment;
 import net.exoego.keycloak.fuhito.domain.ReportingLine;
 import net.exoego.keycloak.fuhito.store.ReportingLineStore;
 
@@ -42,5 +46,80 @@ final class MemoryReportingLineStore implements ReportingLineStore {
     @Override
     public void delete(String id) {
         lines.removeIf(l -> l.id().equals(id));
+    }
+
+    /** The other stores that the reports of a manager come from. A test of reports sets them. */
+    MemoryAssignmentStore assignments;
+    MemoryEmploymentStore employments;
+    MemoryOrgUnitStore orgUnits;
+
+    private record Found(int depth, DirectReport report) {
+    }
+
+    @Override
+    public List<DirectReport> reportsOn(String hierarchyId, String managerPersonId, LocalDate date, int first,
+            int max) {
+        if (assignments == null) {
+            return List.of();
+        }
+        List<Found> found = new ArrayList<>();
+        for (ReportingLine line : findByManager(managerPersonId)) {
+            if (line.period().contains(date)) {
+                rowOn(line.assignmentId(), date).ifPresent(row -> found.add(new Found(0, report(row, line.kind(),
+                        false, line.id()))));
+            }
+        }
+        OrgUnitTree tree = new OrgUnitTree(orgUnits, new MemoryRefItemStore(), date, hierarchyId);
+        assignments.rows.stream()
+                .filter(row -> row.head() && row.period().contains(date) && managerPersonId.equals(personOf(row)))
+                .forEach(own -> collect(tree, own.orgUnitId(), 0, managerPersonId, date, found));
+        return found.stream()
+                .sorted(Comparator.comparing((Found f) -> f.report().derived())
+                        .thenComparingInt(Found::depth)
+                        .thenComparing(f -> f.report().orgUnitId())
+                        .thenComparing(f -> f.report().assignmentId()))
+                .map(Found::report)
+                .skip(first)
+                .limit(max)
+                .toList();
+    }
+
+    // In the unit of the manager and in units below with no head, the members report to the manager.
+    // In a unit below that has a head, only its heads do.
+    private void collect(OrgUnitTree tree, String orgUnitId, int depth, String managerPersonId, LocalDate date,
+            List<Found> found) {
+        List<Assignment> rows = assignments.rowsOn(List.of(orgUnitId), date).stream()
+                .filter(row -> !managerPersonId.equals(personOf(row)))
+                .toList();
+        List<Assignment> heads = rows.stream().filter(Assignment::head).toList();
+        if (depth > 0 && !heads.isEmpty()) {
+            heads.forEach(head -> addDerived(head, depth, date, found));
+            return;
+        }
+        rows.stream().filter(row -> !row.head()).forEach(row -> addDerived(row, depth, date, found));
+        tree.children(orgUnitId).forEach(child -> collect(tree, child.unit().id(), depth + 1, managerPersonId, date,
+                found));
+    }
+
+    private void addDerived(Assignment row, int depth, LocalDate date, List<Found> found) {
+        boolean solid = findByAssignment(row.assignmentId()).stream()
+                .anyMatch(line -> line.kind() == ReportingLine.Kind.SOLID && line.period().contains(date));
+        if (!solid) {
+            found.add(new Found(depth, report(row, ReportingLine.Kind.SOLID, true, null)));
+        }
+    }
+
+    private DirectReport report(Assignment row, ReportingLine.Kind kind, boolean derived, String lineId) {
+        Employment employment = employments.find(row.employmentId()).orElseThrow();
+        return new DirectReport(employment.personId(), employment.userId(), kind, derived, lineId,
+                row.assignmentId(), row.orgUnitId());
+    }
+
+    private String personOf(Assignment row) {
+        return employments.find(row.employmentId()).map(Employment::personId).orElse(null);
+    }
+
+    private Optional<Assignment> rowOn(String assignmentId, LocalDate date) {
+        return assignments.rows(assignmentId).stream().filter(row -> row.period().contains(date)).findFirst();
     }
 }

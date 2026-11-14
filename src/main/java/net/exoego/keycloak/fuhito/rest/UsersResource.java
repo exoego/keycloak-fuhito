@@ -17,6 +17,7 @@ import net.exoego.keycloak.fuhito.service.AssignmentService;
 import net.exoego.keycloak.fuhito.service.EmploymentService;
 import net.exoego.keycloak.fuhito.service.ImportReport.Write;
 import net.exoego.keycloak.fuhito.service.MembershipService;
+import net.exoego.keycloak.fuhito.service.Page;
 import net.exoego.keycloak.fuhito.service.PersonService;
 import net.exoego.keycloak.fuhito.service.QualificationService;
 import net.exoego.keycloak.fuhito.service.ReportingLineService;
@@ -178,9 +179,17 @@ public class UsersResource {
             @Parameter(
                     description = "The date to read. The default is today in the time zone of the realm.",
                     schema = @Schema(format = "date"))
-            @QueryParam("asOf") String asOf) {
+            @QueryParam("asOf") String asOf,
+            @Parameter(
+                    description = "The number of entries to skip.",
+                    schema = @Schema(minimum = "0", defaultValue = "0"))
+            @QueryParam("first") Integer first,
+            @Parameter(
+                    description = "The largest number of entries to return.",
+                    schema = @Schema(minimum = "0", maximum = "1000", defaultValue = "100"))
+            @QueryParam("max") Integer max) {
         context.requireRead();
-        return Calls.run(context, () -> reportingLines.reportsOf(userId, asOf).stream()
+        return Calls.run(context, () -> reportingLines.reportsOf(userId, asOf, Page.of(first, max)).stream()
                 .map(ReportingRepresentation::of)
                 .toList());
     }

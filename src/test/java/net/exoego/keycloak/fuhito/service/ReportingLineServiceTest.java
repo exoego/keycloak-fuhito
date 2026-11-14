@@ -50,6 +50,9 @@ class ReportingLineServiceTest {
 
     @BeforeEach
     void createTheHospital() {
+        store.assignments = assignmentStore;
+        store.employments = employmentStore;
+        store.orgUnits = orgUnitStore;
         hospital = unit("Hospital", null);
         nursing = unit("Nursing", hospital);
         ward = unit("Ward", nursing);
@@ -102,13 +105,13 @@ class ReportingLineServiceTest {
     @Test
     void theReportsFollowTheSameRule() {
         assertEquals(List.of("nurse-a SOLID derived", "nurse-b SOLID derived"),
-                summary(service.reportsOf("head-nurse", null)));
-        assertEquals(List.of("head-nurse SOLID derived"), summary(service.reportsOf("director", null)));
-        assertEquals(List.of(), summary(service.reportsOf("nurse-a", null)));
+                summary(service.reportsOf("head-nurse", null, Page.of(null, null))));
+        assertEquals(List.of("head-nurse SOLID derived"), summary(service.reportsOf("director", null, Page.of(null, null))));
+        assertEquals(List.of(), summary(service.reportsOf("nurse-a", null, Page.of(null, null))));
         // The same lists are read by person.
         assertEquals(service.managersOf("nurse-a", null), service.managersOfPerson("nurse-a", null));
-        assertEquals(service.reportsOf("head-nurse", null), service.reportsOfPerson("head-nurse", null));
-        assertEquals(List.of(), summary(service.reportsOf("idle", null)));
+        assertEquals(service.reportsOf("head-nurse", null, Page.of(null, null)), service.reportsOfPerson("head-nurse", null, Page.of(null, null)));
+        assertEquals(List.of(), summary(service.reportsOf("idle", null, Page.of(null, null))));
     }
 
     @Test
@@ -121,9 +124,9 @@ class ReportingLineServiceTest {
         assertEquals(line, service.get(line.id()));
         assertEquals(List.of("head-nurse SOLID derived"), summary(service.managersOf("nurse-a", "2026-09-30")));
         assertEquals(List.of("director SOLID stored"), summary(service.managersOf("nurse-a", "2026-10-01")));
-        assertEquals(List.of("nurse-b SOLID derived"), summary(service.reportsOf("head-nurse", "2026-10-01")));
+        assertEquals(List.of("nurse-b SOLID derived"), summary(service.reportsOf("head-nurse", "2026-10-01", Page.of(null, null))));
         assertEquals(List.of("head-nurse SOLID derived", "nurse-a SOLID stored"),
-                summary(service.reportsOf("director", "2026-10-01")));
+                summary(service.reportsOf("director", "2026-10-01", Page.of(null, null))));
         assertEquals(line.id(), service.managersOf("nurse-a", "2026-10-01").getFirst().lineId());
     }
 
@@ -136,9 +139,9 @@ class ReportingLineServiceTest {
                 summary(service.managersOf("nurse-a", null)));
         assertEquals(List.of("director DOTTED stored", "head-nurse SOLID derived"),
                 summary(service.managersOf("nurse-a", "2027-04-01")));
-        assertEquals(List.of("nurse-a DOTTED stored"), summary(service.reportsOf("project-lead", null)));
+        assertEquals(List.of("nurse-a DOTTED stored"), summary(service.reportsOf("project-lead", null, Page.of(null, null))));
         assertEquals(List.of("nurse-a SOLID derived", "nurse-b SOLID derived"),
-                summary(service.reportsOf("head-nurse", null)));
+                summary(service.reportsOf("head-nurse", null, Page.of(null, null))));
     }
 
     @Test
@@ -148,9 +151,9 @@ class ReportingLineServiceTest {
 
         assertEquals(List.of("idle SOLID derived"), summary(service.managersOf("nurse-a", null)));
         assertEquals(List.of("head-nurse SOLID derived"), summary(service.managersOf("idle", null)));
-        assertEquals(List.of("idle SOLID derived"), summary(service.reportsOf("head-nurse", null)));
+        assertEquals(List.of("idle SOLID derived"), summary(service.reportsOf("head-nurse", null, Page.of(null, null))));
         assertEquals(List.of("nurse-a SOLID derived", "nurse-b SOLID derived"),
-                summary(service.reportsOf("idle", null)));
+                summary(service.reportsOf("idle", null, Page.of(null, null))));
     }
 
     @Test
@@ -161,9 +164,9 @@ class ReportingLineServiceTest {
         assertEquals(List.of("head-nurse SOLID derived", "idle SOLID derived"),
                 summary(service.managersOf("nurse-a", null)));
         assertEquals(List.of("nurse-a SOLID derived", "nurse-b SOLID derived"),
-                summary(service.reportsOf("idle", null)));
+                summary(service.reportsOf("idle", null, Page.of(null, null))));
         assertEquals(List.of("head-nurse SOLID derived", "idle SOLID derived"),
-                summary(service.reportsOf("director", null)));
+                summary(service.reportsOf("director", null, Page.of(null, null))));
     }
 
     @Test
@@ -198,7 +201,7 @@ class ReportingLineServiceTest {
         assertEquals("user.not_found",
                 assertThrows(FuhitoException.class, () -> service.managersOf("nobody", null)).code());
         assertEquals("user.not_found",
-                assertThrows(FuhitoException.class, () -> service.reportsOf("nobody", null)).code());
+                assertThrows(FuhitoException.class, () -> service.reportsOf("nobody", null, Page.of(null, null))).code());
         assertEquals("invalid.date",
                 assertThrows(FuhitoException.class, () -> service.managersOf("nurse-a", "x")).code());
     }

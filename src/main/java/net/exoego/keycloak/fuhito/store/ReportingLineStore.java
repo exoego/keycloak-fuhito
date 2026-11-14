@@ -4,6 +4,7 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
+import net.exoego.keycloak.fuhito.domain.DirectReport;
 import net.exoego.keycloak.fuhito.domain.ReportingLine;
 
 /**
@@ -55,6 +56,23 @@ public interface ReportingLineStore {
      * @param id the ID
      */
     void delete(String id);
+
+    /**
+     * Lists a page of the assignments whose person reports to a manager on a date.
+     * A stored line says so. For an assignment with no solid line, the manager is the head of its org unit, or
+     * of the nearest org unit above that has a head. So the people of an org unit that the manager leads report
+     * to the manager, and so do the people below it down to the next head, and that head.
+     * The stored lines come first. Then the order is the distance from the org unit of the manager, the org
+     * unit, and the assignment.
+     *
+     * @param hierarchyId the ID of the hierarchy that says what is below an org unit
+     * @param managerPersonId the ID of the manager
+     * @param date the date
+     * @param first the number of entries to skip
+     * @param max the largest number of entries to return
+     * @return the entries of the page
+     */
+    List<DirectReport> reportsOn(String hierarchyId, String managerPersonId, LocalDate date, int first, int max);
 
     /**
      * Ends the reporting lines of an assignment that hold on or after a date.
