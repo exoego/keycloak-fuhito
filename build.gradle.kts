@@ -131,7 +131,8 @@ testing {
             }
             targets.all {
                 testTask.configure {
-                    dependsOn(tasks.jar)
+                    // The tests run the jar, so a new jar must run them again.
+                    inputs.files(tasks.jar)
                     systemProperty("keycloak.version", testKeycloakVersion.get())
                     systemProperty("provider.jar", tasks.jar.get().archiveFile.get().asFile.absolutePath)
                     // The provider runs in the JVM of Keycloak, so the JaCoCo agent goes into that container.
