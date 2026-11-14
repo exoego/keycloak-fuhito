@@ -30,7 +30,7 @@ final class KeycloakEnvironment {
             .withPassword("keycloak");
 
     static final KeycloakContainer KEYCLOAK =
-            new KeycloakContainer("quay.io/keycloak/keycloak:" + System.getProperty("keycloak.version"))
+            Coverage.keycloak()
                     .withNetwork(NETWORK)
                     .withProviderLibsFrom(List.of(new File(System.getProperty("provider.jar"))))
                     .withEnv("KC_DB", "postgres")
@@ -41,6 +41,8 @@ final class KeycloakEnvironment {
     static {
         POSTGRES.start();
         KEYCLOAK.start();
+        // Testcontainers kills the container after the JVM exits, so the data is read before that.
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> Coverage.save(KEYCLOAK)));
     }
 
     private KeycloakEnvironment() {

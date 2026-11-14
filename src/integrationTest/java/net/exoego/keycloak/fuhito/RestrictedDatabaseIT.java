@@ -31,7 +31,7 @@ class RestrictedDatabaseIT {
             psql(postgres, "grant all on schema public to limited");
 
             try (KeycloakContainer keycloak =
-                    new KeycloakContainer("quay.io/keycloak/keycloak:" + System.getProperty("keycloak.version"))
+                    Coverage.keycloak()
                             .withNetwork(network)
                             .withProviderLibsFrom(List.of(new File(System.getProperty("provider.jar"))))
                             .withEnv("KC_DB", "postgres")
@@ -44,12 +44,13 @@ class RestrictedDatabaseIT {
                 assertEquals("0", psql(postgres, "select count(*) from pg_constraint where conname like 'ex_fuhito_%'"));
                 assertNotEquals("0", psql(postgres, "select count(*) from information_schema.tables"
                         + " where table_name like 'fuhito\\_%'"));
+                Coverage.save(keycloak);
             }
 
             // After an administrator creates the extension, the next start adds the constraints.
             psql(postgres, "create extension btree_gist");
             try (KeycloakContainer keycloak =
-                    new KeycloakContainer("quay.io/keycloak/keycloak:" + System.getProperty("keycloak.version"))
+                    Coverage.keycloak()
                             .withNetwork(network)
                             .withProviderLibsFrom(List.of(new File(System.getProperty("provider.jar"))))
                             .withEnv("KC_DB", "postgres")
@@ -59,6 +60,7 @@ class RestrictedDatabaseIT {
                 keycloak.start();
 
                 assertEquals("5", psql(postgres, "select count(*) from pg_constraint where conname like 'ex_fuhito_%'"));
+                Coverage.save(keycloak);
             }
         }
     }

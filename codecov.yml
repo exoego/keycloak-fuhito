@@ -1,6 +1,5 @@
-# The report holds only the unit tests. The integration tests run the jar in a Keycloak container,
-# where JaCoCo does not see them. So the numbers are low for the code that needs Keycloak or a database.
-# The build itself requires full coverage of the domain package.
+# The report holds the unit tests and the integration tests. The second part is measured in the
+# Keycloak containers of the tests. The build itself requires full coverage of the domain package.
 coverage:
   status:
     project:
