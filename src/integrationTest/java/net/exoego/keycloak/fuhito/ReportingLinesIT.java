@@ -3,7 +3,9 @@ package net.exoego.keycloak.fuhito;
 import java.net.http.HttpResponse;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import org.junit.jupiter.api.BeforeAll;
@@ -184,5 +186,68 @@ class ReportingLinesIT {
         assertEquals(404, other.delete("/reporting-lines/" + line).statusCode());
         assertEquals(200, api.get("/reporting-lines/" + line).statusCode());
         assertEquals(204, api.delete("/reporting-lines/" + line).statusCode());
+    }
+
+    @Test
+    void theDatabaseFindsTheReportsDownToTheNextHeadAndPagesThem() throws Exception {
+        TestRealm scratch = TestRealm.withEmployer("reporting-down");
+        Api scratchApi = scratch.api;
+        Map<String, String> units = new LinkedHashMap<>();
+        for (String[] unit : new String[][] {{"病院", null}, {"看護部", "病院"}, {"病棟", "看護部"}, {"事務部", "病院"},
+                {"受付", "事務部"}}) {
+            String parent = unit[1] == null ? "" : ", \"parentId\": \"" + units.get(unit[1]) + "\"";
+            units.put(unit[0], id(scratchApi.post("/org-units",
+                    "{\"name\": \"" + unit[0] + "\"" + parent + ", \"validFrom\": \"2026-04-01\"}")));
+        }
+        Map<String, String> users = new LinkedHashMap<>();
+        Map<String, String> assignments = new LinkedHashMap<>();
+        // The hospital and the nursing department have heads. The ward, the office, and the desk have none.
+        for (String[] person : new String[][] {{"director", "病院", "true"}, {"secretary", "病院", "false"},
+                {"head-nurse", "看護部", "true"}, {"co-head", "看護部", "true"}, {"aide", "看護部", "false"},
+                {"nurse-a", "病棟", "false"}, {"nurse-b", "病棟", "false"}, {"clerk", "事務部", "false"},
+                {"temp", "受付", "false"}}) {
+            users.put(person[0], scratch.user(person[0]));
+            HttpResponse<String> response = scratchApi.post("/staff", "{\"userId\": \"" + users.get(person[0])
+                    + "\", \"orgUnitId\": \"" + units.get(person[1]) + "\", \"validFrom\": \"2026-04-01\", \"head\": "
+                    + person[2] + "}");
+            assertEquals(201, response.statusCode(), response.body());
+            assignments.put(person[0], Api.json(response).get("assignment").get("id").asText());
+        }
+        Map<String, String> names = new LinkedHashMap<>();
+        users.forEach((name, userId) -> names.put(userId, name));
+        String on = "asOf=2026-04-01";
+
+        // The director gets the own unit, the heads of the nursing department, and the units with no head.
+        JsonNode ofDirector = Api.json(scratchApi.get("/users/" + users.get("director") + "/reports?" + on));
+        assertEquals(List.of("clerk", "co-head", "head-nurse", "secretary", "temp"),
+                ofDirector.findValuesAsText("userId").stream().map(names::get).sorted().toList());
+        // The nearest come first.
+        assertEquals("secretary", names.get(ofDirector.get(0).get("userId").asText()));
+        assertEquals("temp", names.get(ofDirector.get(4).get("userId").asText()));
+        assertEquals(List.of("true"), ofDirector.findValuesAsText("derived").stream().distinct().toList());
+
+        // A head gets the members of the own unit and the ward below, and not the other head.
+        String ofHeadNurse = "/users/" + users.get("head-nurse") + "/reports?" + on;
+        assertEquals(List.of("aide", "nurse-a", "nurse-b"), Api.json(scratchApi.get(ofHeadNurse))
+                .findValuesAsText("userId").stream().map(names::get).sorted().toList());
+        assertEquals(List.of(), Api.json(scratchApi.get("/users/" + users.get("aide") + "/reports?" + on))
+                .findValuesAsText("userId"));
+
+        // A stored solid line takes nurse A away from the heads. The stored line comes first for the director.
+        assertEquals(201, scratchApi.post("/reporting-lines", "{\"assignmentId\": \"" + assignments.get("nurse-a")
+                + "\", \"managerUserId\": \"" + users.get("director") + "\", \"validFrom\": \"2026-04-01\"}").statusCode());
+        assertEquals(List.of("aide", "nurse-b"), Api.json(scratchApi.get(ofHeadNurse))
+                .findValuesAsText("userId").stream().map(names::get).sorted().toList());
+        JsonNode withStored = Api.json(scratchApi.get("/users/" + users.get("director") + "/reports?" + on));
+        assertEquals(6, withStored.size());
+        assertEquals("nurse-a", names.get(withStored.get(0).get("userId").asText()));
+        assertEquals("false", withStored.get(0).get("derived").asText());
+
+        // The pages follow the same order.
+        JsonNode page = Api.json(scratchApi.get("/users/" + users.get("director") + "/reports?first=1&max=2&" + on));
+        assertEquals(List.of(withStored.get(1).get("assignmentId").asText(), withStored.get(2).get("assignmentId").asText()),
+                page.findValuesAsText("assignmentId"));
+        String person = Api.json(scratchApi.get("/people?userId=" + users.get("director"))).get(0).get("id").asText();
+        assertEquals(1, Api.json(scratchApi.get("/people/" + person + "/reports?max=1&" + on)).size());
     }
 }

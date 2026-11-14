@@ -287,7 +287,7 @@ A list that grows with the realm is read in pages.
 A read with fewer entries than `max` has reached the end.
 These are the lists of org units, children, subtrees, members, people, reference items, change orders, the change log, and the effective changes.
 
-The lists of one person and the history of one resource are returned whole.
+The lists of one person and the history of one resource are returned whole. The reports of a person are the exception. They are read in pages, because the head of a large org unit has many.
 
 The lists of org units come in tree order. Each parent comes before its children.
 Siblings follow the display order, then the phonetic name, then the name. A unit with no phonetic name comes after the ones that have it.
