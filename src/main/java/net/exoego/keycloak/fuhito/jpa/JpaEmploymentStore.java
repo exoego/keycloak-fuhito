@@ -52,17 +52,6 @@ public class JpaEmploymentStore implements EmploymentStore {
     }
 
     @Override
-    public List<Employment> all() {
-        return em.createQuery("""
-                        select e from EmploymentEntity e where e.realmId = :realmId
-                        order by e.validFrom, e.id""", EmploymentEntity.class)
-                .setParameter("realmId", realmId)
-                .getResultStream()
-                .map(JpaEmploymentStore::toDomain)
-                .toList();
-    }
-
-    @Override
     public List<Employment> findByStaffNumber(String staffNumber) {
         return em.createQuery("""
                         select e from EmploymentEntity e where e.realmId = :realmId

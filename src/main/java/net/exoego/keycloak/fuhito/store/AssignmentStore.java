@@ -55,13 +55,6 @@ public interface AssignmentStore {
     Optional<String> findAssignmentIdByExternalId(String source, String externalId);
 
     /**
-     * Lists the IDs of all assignments of the realm, in the order of their first date.
-     *
-     * @return the assignment IDs
-     */
-    List<String> allAssignmentIds();
-
-    /**
      * Lists the rows with a source that are valid on a date.
      *
      * @param source the name of the system that the rows came from

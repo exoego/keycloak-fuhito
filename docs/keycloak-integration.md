@@ -295,7 +295,6 @@ The default is today, as the realm defines it. See "What today is" below.
 | `/reorganizations` | Many org unit changes on one date, in one transaction |
 | `/imports` | Many rows in one request, with a dry run |
 | `/imports/csv/{list}` | The same from one CSV file |
-| `/export` | All data of the realm, with every period of every resource |
 | `/projection/rebuild` | Mirrors the org structure into the groups of Keycloak organizations |
 | `/attribute-sync/run` | Builds assignments from user attributes that an identity provider fills |
 | `/change-orders` | Approved instructions that cause changes, with their approver |

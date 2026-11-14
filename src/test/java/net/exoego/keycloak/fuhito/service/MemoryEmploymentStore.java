@@ -31,11 +31,6 @@ final class MemoryEmploymentStore implements EmploymentStore {
     }
 
     @Override
-    public List<Employment> all() {
-        return List.copyOf(employments.values());
-    }
-
-    @Override
     public List<Employment> findByStaffNumber(String staffNumber) {
         return employments.values().stream().filter(e -> staffNumber.equals(e.staffNumber())).toList();
     }
