@@ -13,12 +13,19 @@ import jakarta.ws.rs.core.Response;
 import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.rest.RequestContext.Change;
 import net.exoego.keycloak.fuhito.service.QualificationService;
+import org.eclipse.microprofile.openapi.annotations.Operation;
+import org.eclipse.microprofile.openapi.annotations.media.Content;
+import org.eclipse.microprofile.openapi.annotations.media.Schema;
+import org.eclipse.microprofile.openapi.annotations.parameters.Parameter;
+import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
+import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 
 /**
  * The qualifications of one realm.
  */
 @Produces(MediaType.APPLICATION_JSON)
 @Consumes(MediaType.APPLICATION_JSON)
+@Tag(ref = Tags.QUALIFICATIONS)
 public class QualificationsResource {
 
     /**
@@ -40,13 +47,20 @@ public class QualificationsResource {
         this.service = service;
     }
 
-    /**
-     * Adds a qualification of a user.
-     *
-     * @param body the user, the kind, the number, and the dates
-     * @return 201 with the new qualification
-     */
     @POST
+    @Operation(
+            operationId = "addQualification",
+            summary = "Adds a qualification of a user.",
+            description = "The body needs `userId`.")
+    @Parameter(ref = "changeOrder")
+    @APIResponse(
+            responseCode = "201",
+            description = "The new qualification.",
+            content = @Content(mediaType = "application/json",
+                    schema = @Schema(implementation = QualificationRepresentation.class)))
+    @BadRequest
+    @NotFound
+    @ApiErrors
     public Response add(QualificationRepresentation body) {
         context.requireWrite();
         return Calls.run(context, () -> {
@@ -58,29 +72,33 @@ public class QualificationsResource {
         });
     }
 
-    /**
-     * Returns one qualification.
-     *
-     * @param id the ID
-     * @return the qualification
-     */
     @GET
     @Path("{id}")
-    public QualificationRepresentation get(@PathParam("id") String id) {
+    @Operation(operationId = "getQualification", summary = "Returns one qualification.")
+    @APIResponse(responseCode = "200", description = "The qualification.")
+    @NotFound
+    @ApiErrors
+    public QualificationRepresentation get(
+            @Parameter(description = "The ID of the resource.")
+            @PathParam("id") String id) {
         context.requireRead();
         return Calls.run(context, () -> QualificationRepresentation.of(service.get(id)));
     }
 
-    /**
-     * Replaces the kind, the number, the dates, and the attributes of a qualification.
-     *
-     * @param id the ID
-     * @param body the new values
-     * @return the changed qualification
-     */
     @PUT
     @Path("{id}")
-    public QualificationRepresentation replace(@PathParam("id") String id, QualificationRepresentation body) {
+    @Operation(
+            operationId = "replaceQualification",
+            summary = "Replaces the kind, the number, the dates, and the attributes of a qualification.")
+    @Parameter(ref = "changeOrder")
+    @APIResponse(responseCode = "200", description = "The changed qualification.")
+    @BadRequest
+    @NotFound
+    @ApiErrors
+    public QualificationRepresentation replace(
+            @Parameter(description = "The ID of the resource.")
+            @PathParam("id") String id,
+            QualificationRepresentation body) {
         context.requireWrite();
         return Calls.run(context, () -> {
             Checks.required("body", body);
@@ -90,15 +108,17 @@ public class QualificationsResource {
         });
     }
 
-    /**
-     * Deletes a qualification.
-     *
-     * @param id the ID
-     * @return 204
-     */
     @DELETE
     @Path("{id}")
-    public Response delete(@PathParam("id") String id) {
+    @Operation(operationId = "deleteQualification", summary = "Deletes a qualification.")
+    @Parameter(ref = "changeOrder")
+    @APIResponse(responseCode = "204", description = "The qualification was deleted.")
+    @BadRequest
+    @NotFound
+    @ApiErrors
+    public Response delete(
+            @Parameter(description = "The ID of the resource.")
+            @PathParam("id") String id) {
         context.requireWrite();
         return Calls.run(context, () -> {
             service.delete(id);

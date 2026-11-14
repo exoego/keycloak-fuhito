@@ -13,12 +13,19 @@ import jakarta.ws.rs.core.Response;
 import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.rest.RequestContext.Change;
 import net.exoego.keycloak.fuhito.service.ReportingLineService;
+import org.eclipse.microprofile.openapi.annotations.Operation;
+import org.eclipse.microprofile.openapi.annotations.media.Content;
+import org.eclipse.microprofile.openapi.annotations.media.Schema;
+import org.eclipse.microprofile.openapi.annotations.parameters.Parameter;
+import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
+import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 
 /**
  * The reporting lines of one realm.
  */
 @Produces(MediaType.APPLICATION_JSON)
 @Consumes(MediaType.APPLICATION_JSON)
+@Tag(ref = Tags.REPORTING_LINES)
 public class ReportingLinesResource {
 
     /**
@@ -40,13 +47,17 @@ public class ReportingLinesResource {
         this.service = service;
     }
 
-    /**
-     * Adds a reporting line from an assignment to a manager.
-     *
-     * @param body the assignment, the manager, the kind, and the dates
-     * @return 201 with the new line
-     */
     @POST
+    @Operation(operationId = "addReportingLine", summary = "Adds a reporting line from an assignment to a manager.")
+    @Parameter(ref = "changeOrder")
+    @APIResponse(
+            responseCode = "201",
+            description = "The new line.",
+            content = @Content(mediaType = "application/json",
+                    schema = @Schema(implementation = ReportingLineRepresentation.class)))
+    @BadRequest
+    @NotFound
+    @ApiErrors
     public Response add(ReportingLineRepresentation body) {
         context.requireWrite();
         return Calls.run(context, () -> {
@@ -58,29 +69,31 @@ public class ReportingLinesResource {
         });
     }
 
-    /**
-     * Returns one reporting line.
-     *
-     * @param id the ID
-     * @return the line
-     */
     @GET
     @Path("{id}")
-    public ReportingLineRepresentation get(@PathParam("id") String id) {
+    @Operation(operationId = "getReportingLine", summary = "Returns one reporting line.")
+    @APIResponse(responseCode = "200", description = "The line.")
+    @NotFound
+    @ApiErrors
+    public ReportingLineRepresentation get(
+            @Parameter(description = "The ID of the resource.")
+            @PathParam("id") String id) {
         context.requireRead();
         return Calls.run(context, () -> ReportingLineRepresentation.of(service.get(id)));
     }
 
-    /**
-     * Ends a reporting line earlier.
-     *
-     * @param id the ID
-     * @param body the first date on which the line no longer holds
-     * @return the changed line
-     */
     @PUT
     @Path("{id}/end")
-    public ReportingLineRepresentation end(@PathParam("id") String id, EndRepresentation body) {
+    @Operation(operationId = "endReportingLine", summary = "Ends a reporting line earlier.")
+    @Parameter(ref = "changeOrder")
+    @APIResponse(responseCode = "200", description = "The changed line.")
+    @BadRequest
+    @NotFound
+    @ApiErrors
+    public ReportingLineRepresentation end(
+            @Parameter(description = "The ID of the resource.")
+            @PathParam("id") String id,
+            EndRepresentation body) {
         context.requireWrite();
         return Calls.run(context, () -> {
             Checks.required("body", body);
@@ -90,15 +103,19 @@ public class ReportingLinesResource {
         });
     }
 
-    /**
-     * Deletes a reporting line, as if it had never been stored.
-     *
-     * @param id the ID
-     * @return 204
-     */
     @DELETE
     @Path("{id}")
-    public Response delete(@PathParam("id") String id) {
+    @Operation(
+            operationId = "deleteReportingLine",
+            summary = "Deletes a reporting line, as if it had never been stored.")
+    @Parameter(ref = "changeOrder")
+    @APIResponse(responseCode = "204", description = "The line was deleted.")
+    @BadRequest
+    @NotFound
+    @ApiErrors
+    public Response delete(
+            @Parameter(description = "The ID of the resource.")
+            @PathParam("id") String id) {
         context.requireWrite();
         return Calls.run(context, () -> {
             service.delete(id);

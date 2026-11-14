@@ -44,6 +44,26 @@ jobs:
       - name: Run aislop
         run: scripts/aislop.sh
 
+  # The build writes docs/openapi.yaml, and the Test workflow fails when the committed file is out of date.
+  # This job checks that the committed file is a valid OpenAPI document. The rules are in redocly.yaml.
+  openapi:
+    name: Validate OpenAPI
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '26'
+
+      # renovate: datasource=npm depName=@redocly/cli
+      - run: npx --yes @redocly/cli@2.76.0 lint
+
   codeql:
     name: CodeQL (${{ matrix.language }})
     timeout-minutes: 30
@@ -81,7 +101,7 @@ jobs:
     timeout-minutes: 5
     # A skipped required job counts as passed, so run always and fail by hand.
     if: always()
-    needs: [jactionlint, quality, codeql]
+    needs: [jactionlint, quality, openapi, codeql]
     runs-on: ubuntu-latest
     permissions: {}
     steps:

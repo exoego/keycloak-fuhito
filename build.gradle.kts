@@ -7,6 +7,7 @@ plugins {
     jacoco
     alias(libs.plugins.nexus.publish)
     alias(libs.plugins.errorprone)
+    alias(libs.plugins.smallrye.openapi)
 }
 
 group = "net.exoego"
@@ -41,16 +42,59 @@ dependencies {
     errorprone(libs.errorprone.core)
     compileOnly(platform(libs.keycloak.parent))
     compileOnly(libs.bundles.keycloak.provided)
+    compileOnly(libs.microprofile.openapi)
+    compileOnly(libs.osgi.versioning)
     testImplementation(platform(libs.keycloak.parent))
     testImplementation(libs.bundles.keycloak.provided)
+}
+
+smallryeOpenApi {
+    openApiVersion.set("3.2.0")
+    outputFileTypeFilter.set("YAML")
+    scanPackages.set(listOf("net.exoego.keycloak.fuhito"))
+    // The root resource has no path of its own. Keycloak mounts it.
+    scanResourceClasses.set(mapOf("net.exoego.keycloak.fuhito.rest.FuhitoResource" to "/"))
+}
+
+val generatedOpenApi = tasks.named("generateOpenApiSpec").map {
+    layout.buildDirectory.file("generated/openapi/openapi.yaml").get().asFile
+}
+
+// docs/openapi.yaml is generated from the annotations of the REST resources. Run this after a change to the API.
+tasks.register<Copy>("updateOpenApi") {
+    from(generatedOpenApi)
+    into("docs")
+}
+
+val checkOpenApi = tasks.register("checkOpenApi") {
+    val generated = generatedOpenApi
+    val committed = layout.projectDirectory.file("docs/openapi.yaml").asFile
+    inputs.file(generated)
+    inputs.file(committed)
+    doLast {
+        if (generated.get().readText() != committed.readText()) {
+            throw GradleException("docs/openapi.yaml is out of date. Run ./gradlew updateOpenApi and commit the result.")
+        }
+    }
+}
+
+tasks.check {
+    dependsOn(checkOpenApi)
 }
 
 tasks.processResources {
     val version = project.version.toString()
     inputs.property("version", version)
+    // The generator merges this file into docs/openapi.yaml. In the jar, Keycloak could take it for a part of its own API.
+    exclude("META-INF/openapi.yaml")
     filesMatching("META-INF/fuhito/version.properties") {
         expand("version" to version)
     }
+}
+
+// The plugin adds the generated document to the jar. It belongs in docs, not in the provider.
+tasks.jar {
+    exclude("openapi.yaml")
 }
 
 tasks.withType<Jar>().configureEach {
@@ -121,7 +165,10 @@ tasks.check {
 
 // The javadoc jar goes to Maven Central, so a warning fails the build. check runs it, so a release does not find it first.
 tasks.javadoc {
-    (options as StandardJavadocDocletOptions).addBooleanOption("Werror", true)
+    val doclet = options as StandardJavadocDocletOptions
+    doclet.addBooleanOption("Werror", true)
+    // The REST resources and their records are described by OpenAPI annotations, not by Javadoc.
+    doclet.addBooleanOption("Xdoclint:all,-missing", true)
 }
 
 tasks.check {

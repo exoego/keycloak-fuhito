@@ -19,12 +19,18 @@ import net.exoego.keycloak.fuhito.service.CsvImportService;
 import net.exoego.keycloak.fuhito.service.ImportDocument;
 import net.exoego.keycloak.fuhito.service.ImportReport;
 import net.exoego.keycloak.fuhito.service.ImportService;
+import org.eclipse.microprofile.openapi.annotations.Operation;
+import org.eclipse.microprofile.openapi.annotations.media.Schema;
+import org.eclipse.microprofile.openapi.annotations.parameters.Parameter;
+import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
+import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 
 /**
  * Imports into one realm.
  */
 @Produces(MediaType.APPLICATION_JSON)
 @Consumes(MediaType.APPLICATION_JSON)
+@Tag(ref = Tags.BULK)
 public class ImportsResource {
 
     private static final Map<String, String> CSV_LISTS = Map.of("ref-items", "refItems", "org-units", "orgUnits",
@@ -47,27 +53,38 @@ public class ImportsResource {
         this.csvService = csvService;
     }
 
-    /**
-     * Loads one CSV file in one transaction.
-     * The first row has the column names, in English or in Japanese.
-     * A blank cell keeps the stored value. The cell {@code #CLEAR} removes it.
-     *
-     * @param list the kind of rows. It is {@code ref-items}, {@code org-units}, {@code employments}, or
-     *        {@code assignments}.
-     * @param effectiveDate the date of the state, as {@code YYYY-MM-DD}
-     * @param dryRun true to do all checks and write nothing
-     * @param source the name of the system that the rows come from. The default is "import".
-     * @param contentType the content type of the request. Its {@code charset} says how the file is encoded.
-     *        The default is UTF-8. A file saved by a spreadsheet in Japan is often {@code Shift_JIS}.
-     * @param file the bytes of the file
-     * @return 200 with the report, or 400 with the report when a row failed
-     */
     @POST
     @Path("csv/{list}")
     @Consumes("text/csv")
-    public ImportReportRepresentation applyCsv(@PathParam("list") String list,
-            @QueryParam("effectiveDate") String effectiveDate, @QueryParam("dryRun") boolean dryRun,
-            @QueryParam("source") String source, @HeaderParam("Content-Type") String contentType, byte[] file) {
+    @Operation(
+            operationId = "applyCsvImport",
+            summary = "Loads one CSV file in one transaction.",
+            description = "The first row has the column names, in English or in Japanese. A blank cell keeps the "
+                    + "stored value. The cell `#CLEAR` removes it. The `charset` of the content type says how the "
+                    + "file is encoded. The default is UTF-8.")
+    @Parameter(ref = "changeOrder")
+    @APIResponse(
+            responseCode = "200",
+            description = "The rows were written, or the request was a dry run without errors.")
+    @APIResponse(responseCode = "400", ref = "ImportFailed")
+    @ApiErrors
+    public ImportReportRepresentation applyCsv(
+            @Parameter(
+                    description = "The kind of rows.",
+                    schema = @Schema(enumeration = {"ref-items", "org-units", "employments", "assignments"}))
+            @PathParam("list") String list,
+            @Parameter(description = "The date of the state.", required = true, schema = @Schema(format = "date"))
+            @QueryParam("effectiveDate") String effectiveDate,
+            @Parameter(
+                    description = "True to do all checks and write nothing.",
+                    schema = @Schema(defaultValue = "false"))
+            @QueryParam("dryRun") boolean dryRun,
+            @Parameter(
+                    description = "The name of the system that the rows come from.",
+                    schema = @Schema(defaultValue = "import"))
+            @QueryParam("source") String source,
+            @HeaderParam("Content-Type") String contentType,
+            byte[] file) {
         context.requireWrite();
         return Calls.run(context, () -> {
             String name = CSV_LISTS.get(list);
@@ -81,15 +98,18 @@ public class ImportsResource {
         });
     }
 
-    /**
-     * Loads many rows in one transaction.
-     * All rows are written, or none. A dry run does all checks and writes nothing.
-     *
-     * @param body the effective date, the dry run flag, and the rows
-     * @return 200 with the report when the rows were written or the request was a dry run without errors.
-     *         400 with the report when a row failed.
-     */
     @POST
+    @Operation(
+            operationId = "applyImport",
+            summary = "Loads many rows in one transaction.",
+            description = "All rows are written, or none. A dry run does all checks and writes nothing. The lists "
+                    + "are applied in the order reference items, org units, employments, assignments.")
+    @Parameter(ref = "changeOrder")
+    @APIResponse(
+            responseCode = "200",
+            description = "The rows were written, or the request was a dry run without errors.")
+    @APIResponse(responseCode = "400", ref = "ImportFailed")
+    @ApiErrors
     public ImportReportRepresentation apply(ImportDocument body) {
         context.requireWrite();
         return Calls.run(context, () -> {

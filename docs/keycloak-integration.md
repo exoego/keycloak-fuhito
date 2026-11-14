@@ -299,6 +299,9 @@ The default is today, as the realm defines it. See "What today is" below.
 | `/change-log` | The writes to one resource |
 | `/hierarchies` | The hierarchies of the realm |
 
+[openapi.yaml](openapi.yaml) lists every endpoint with its request and its response, as OpenAPI 3.2.
+The build generates it from the annotations of the REST resources.
+
 ## Admin events
 
 Every successful write records an admin event, the same as the built-in admin endpoints do.

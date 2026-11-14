@@ -1,0 +1,6 @@
+# Config for `redocly lint`, which the Lint workflow runs on the generated API document.
+extends:
+  - minimal
+apis:
+  admin:
+    root: docs/openapi.yaml

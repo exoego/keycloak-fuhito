@@ -4,25 +4,41 @@ import java.util.Objects;
 
 import net.exoego.keycloak.fuhito.domain.ChangeOrder;
 import net.exoego.keycloak.fuhito.service.ChangeOrderValues;
+import org.eclipse.microprofile.openapi.annotations.media.Schema;
 
 /**
  * A change order in requests and responses.
- *
- * @param id the ID. Requests ignore it.
- * @param number the number that the legal entity gives to the order, or null
- * @param kind a code for the kind of order that the realm chooses, or null
- * @param title the title
- * @param note a longer text, or null
- * @param orderDate the date when the order was issued, as {@code YYYY-MM-DD}, or null
- * @param effectiveDate the date from which the changes are true, as {@code YYYY-MM-DD}
- * @param approverUserId the ID of the Keycloak user who approved the order, or null
- * @param requesterUserId the ID of the Keycloak user who asked for the order, or null
- * @param externalReference a reference to the order in another system, or null
- * @param createdAt when the order was stored, in UTC. Requests ignore it.
  */
-public record ChangeOrderRepresentation(String id, String number, String kind, String title, String note,
-        String orderDate, String effectiveDate, String approverUserId, String requesterUserId,
-        String externalReference, String createdAt) {
+@Schema(name = "ChangeOrder", requiredProperties = {"title", "effectiveDate"})
+public record ChangeOrderRepresentation(
+        @Schema(readOnly = true)
+        String id,
+        @Schema(
+                description = "The number that the legal entity gives to the order.",
+                maxLength = 64,
+                pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$")
+        String number,
+        @Schema(
+                description = "A code for the kind of order that the realm chooses.",
+                maxLength = 64,
+                pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$")
+        String kind,
+        @Schema(maxLength = 255)
+        String title,
+        @Schema(description = "A longer text.")
+        String note,
+        @Schema(description = "The date when the order was issued.", format = "date")
+        String orderDate,
+        @Schema(description = "The date from which the changes are true.", format = "date")
+        String effectiveDate,
+        @Schema(description = "The ID of the Keycloak user who approved the order.")
+        String approverUserId,
+        @Schema(description = "The ID of the Keycloak user who asked for the order.")
+        String requesterUserId,
+        @Schema(description = "A reference to the order in another system.")
+        String externalReference,
+        @Schema(description = "When the order was stored, in UTC.", format = "date-time", readOnly = true)
+        String createdAt) {
 
     static ChangeOrderRepresentation of(ChangeOrder order) {
         return new ChangeOrderRepresentation(order.id(), order.number(), order.kind(), order.title(), order.note(),

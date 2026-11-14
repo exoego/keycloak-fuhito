@@ -8,20 +8,24 @@ import java.util.Map;
 
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.RefItem;
+import org.eclipse.microprofile.openapi.annotations.media.Schema;
 
 /**
  * What an import did, or would do.
  */
 public final class ImportReport {
 
-    /**
-     * The number of rows of one list by outcome.
-     *
-     * @param created rows that made a new thing
-     * @param changed rows that changed an existing thing
-     * @param unchanged rows that matched what was stored
-     */
-    public record Counts(int created, int changed, int unchanged) {
+    @Schema(
+            name = "ImportCounts",
+            description = "The number of rows of one list by outcome.",
+            requiredProperties = {"created", "changed", "unchanged"})
+    public record Counts(
+            @Schema(description = "Rows that made a new thing.")
+            int created,
+            @Schema(description = "Rows that changed an existing thing.")
+            int changed,
+            @Schema(description = "Rows that matched what was stored.")
+            int unchanged) {
     }
 
     /**

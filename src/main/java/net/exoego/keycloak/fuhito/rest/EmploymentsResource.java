@@ -14,12 +14,19 @@ import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.rest.RequestContext.Change;
 import net.exoego.keycloak.fuhito.service.EmploymentService;
 import net.exoego.keycloak.fuhito.service.TermsChange;
+import org.eclipse.microprofile.openapi.annotations.Operation;
+import org.eclipse.microprofile.openapi.annotations.media.Content;
+import org.eclipse.microprofile.openapi.annotations.media.Schema;
+import org.eclipse.microprofile.openapi.annotations.parameters.Parameter;
+import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
+import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 
 /**
  * The employments of one realm.
  */
 @Produces(MediaType.APPLICATION_JSON)
 @Consumes(MediaType.APPLICATION_JSON)
+@Tag(ref = Tags.EMPLOYMENTS)
 public class EmploymentsResource {
 
     /**
@@ -41,13 +48,17 @@ public class EmploymentsResource {
         this.service = service;
     }
 
-    /**
-     * Starts an employment of a user.
-     *
-     * @param body the user, the dates, and the first terms
-     * @return 201 with the new employment
-     */
     @POST
+    @Operation(operationId = "startEmployment", summary = "Starts an employment of a user.")
+    @Parameter(ref = "changeOrder")
+    @APIResponse(
+            responseCode = "201",
+            description = "The new employment.",
+            content = @Content(mediaType = "application/json",
+                    schema = @Schema(implementation = EmploymentRepresentation.class)))
+    @BadRequest
+    @NotFound
+    @ApiErrors
     public Response start(EmploymentRepresentation body) {
         context.requireWrite();
         return Calls.run(context, () -> {
@@ -59,17 +70,22 @@ public class EmploymentsResource {
         });
     }
 
-    /**
-     * Replaces the terms of an employment from the {@code validFrom} date of the body.
-     * The terms are the employment type, the grade, the status, the work percentage, and the attributes.
-     *
-     * @param id the ID
-     * @param body the new terms and their first date
-     * @return the employment with the terms of every period
-     */
     @PUT
     @Path("{id}/terms")
-    public EmploymentRepresentation changeTerms(@PathParam("id") String id, EmploymentRepresentation.Terms body) {
+    @Operation(
+            operationId = "changeEmploymentTerms",
+            summary = "Replaces the terms of an employment from the `validFrom` date of the body.",
+            description = "The terms are the employment type, the grade, the status, the work percentage, and the "
+                    + "attributes.")
+    @Parameter(ref = "changeOrder")
+    @APIResponse(responseCode = "200", description = "The employment with the terms of every period.")
+    @BadRequest
+    @NotFound
+    @ApiErrors
+    public EmploymentRepresentation changeTerms(
+            @Parameter(description = "The ID of the resource.")
+            @PathParam("id") String id,
+            EmploymentRepresentation.Terms body) {
         context.requireWrite();
         return Calls.run(context, () -> {
             Checks.required("body", body);
@@ -80,18 +96,22 @@ public class EmploymentsResource {
         });
     }
 
-    /**
-     * Sets the end of an employment.
-     * An earlier end is how a person leaves. It also ends the terms and the assignments on that date.
-     * A later end extends a fixed-term employment.
-     *
-     * @param id the ID
-     * @param body the first date on which the employment no longer holds, and the end reason
-     * @return the employment with the terms of every period
-     */
     @PUT
     @Path("{id}/end")
-    public EmploymentRepresentation end(@PathParam("id") String id, EndRepresentation body) {
+    @Operation(
+            operationId = "endEmployment",
+            summary = "Sets the end of an employment.",
+            description = "An earlier end is how a person leaves. It also ends the terms and the assignments on "
+                    + "that date. A later end extends a fixed-term employment.")
+    @Parameter(ref = "changeOrder")
+    @APIResponse(responseCode = "200", description = "The employment with the terms of every period.")
+    @BadRequest
+    @NotFound
+    @ApiErrors
+    public EmploymentRepresentation end(
+            @Parameter(description = "The ID of the resource.")
+            @PathParam("id") String id,
+            EndRepresentation body) {
         context.requireWrite();
         return Calls.run(context, () -> {
             Checks.required("body", body);
@@ -101,15 +121,19 @@ public class EmploymentsResource {
         });
     }
 
-    /**
-     * Removes the end of an employment, for example to take back a resignation.
-     *
-     * @param id the ID
-     * @return the employment with the terms of every period
-     */
     @DELETE
     @Path("{id}/end")
-    public EmploymentRepresentation removeEnd(@PathParam("id") String id) {
+    @Operation(
+            operationId = "removeEmploymentEnd",
+            summary = "Removes the end of an employment, for example to take back a resignation.")
+    @Parameter(ref = "changeOrder")
+    @APIResponse(responseCode = "200", description = "The employment with the terms of every period.")
+    @BadRequest
+    @NotFound
+    @ApiErrors
+    public EmploymentRepresentation removeEnd(
+            @Parameter(description = "The ID of the resource.")
+            @PathParam("id") String id) {
         context.requireWrite();
         return Calls.run(context, () -> {
             var employment = EmploymentRepresentation.of(service.removeEnd(id));
@@ -118,15 +142,15 @@ public class EmploymentsResource {
         });
     }
 
-    /**
-     * Returns an employment with the terms of every period.
-     *
-     * @param id the ID
-     * @return the employment
-     */
     @GET
     @Path("{id}")
-    public EmploymentRepresentation get(@PathParam("id") String id) {
+    @Operation(operationId = "getEmployment", summary = "Returns an employment with the terms of every period.")
+    @APIResponse(responseCode = "200", description = "The employment.")
+    @NotFound
+    @ApiErrors
+    public EmploymentRepresentation get(
+            @Parameter(description = "The ID of the resource.")
+            @PathParam("id") String id) {
         context.requireRead();
         return Calls.run(context, () -> EmploymentRepresentation.of(service.get(id)));
     }

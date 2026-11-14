@@ -1,11 +1,11 @@
 package net.exoego.keycloak.fuhito.rest;
 
-/**
- * A named tree of org units.
- *
- * @param id the ID
- * @param code the code, which is unique in the realm
- * @param name the name
- */
-public record HierarchyRepresentation(String id, String code, String name) {
+import org.eclipse.microprofile.openapi.annotations.media.Schema;
+
+@Schema(name = "Hierarchy", description = "A named tree of org units.", requiredProperties = {"id", "code", "name"})
+public record HierarchyRepresentation(
+        String id,
+        @Schema(description = "The code")
+        String code,
+        String name) {
 }

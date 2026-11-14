@@ -53,6 +53,24 @@ Write a test for it, or remove it. The domain package must be covered in full by
 The compiler runs with every warning turned on, and with [Error Prone](https://errorprone.info/).
 A warning fails the build. Fix the cause. When a warning is wrong, use `@SuppressWarnings` with the name of the check, and say why in a comment.
 
+## API document
+
+`docs/openapi.yaml` is generated from the annotations of the REST resources. Do not edit it.
+After a change to the API, run this and commit the result.
+
+```sh
+./gradlew updateOpenApi
+```
+
+`check` fails when the file is out of date.
+CI also checks the file with [Redocly CLI](https://redocly.com/docs/cli). The rules are in `redocly.yaml`.
+
+Describe an endpoint, a parameter, or a field of a request or a response in its annotation.
+Do not repeat it in Javadoc.
+
+The generator writes OpenAPI 3.1 content under the version 3.2.0. OpenAPI 3.2 only adds to 3.1.
+The annotations cannot say the 3.2 fields of the tags, so `src/main/resources/META-INF/openapi.yaml` adds them.
+
 ## Quality scan
 
 CI also runs [aislop](https://github.com/scanaislop/aislop), a scanner for common code problems. Run the same gate before you open a pull request.

@@ -46,10 +46,17 @@ import net.exoego.keycloak.fuhito.store.OrganizationDirectory;
 import net.exoego.keycloak.fuhito.store.OrganizationGroups;
 import net.exoego.keycloak.fuhito.store.UserAttributeSource;
 import net.exoego.keycloak.fuhito.store.UserDirectory;
+import org.eclipse.microprofile.openapi.annotations.Operation;
+import org.eclipse.microprofile.openapi.annotations.enums.SecuritySchemeType;
+import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
+import org.eclipse.microprofile.openapi.annotations.security.SecurityScheme;
+import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 
 /**
  * The root of the admin REST API for one realm.
  */
+@SecurityScheme(securitySchemeName = "bearer", type = SecuritySchemeType.HTTP, scheme = "bearer",
+        bearerFormat = "JWT", description = "An access token for the admin API of Keycloak.")
 public class FuhitoResource {
 
     private static final String VERSION = loadVersion();
@@ -338,26 +345,24 @@ public class FuhitoResource {
                 new JpaRefItemStore(entityManager, realmId), users, today());
     }
 
-    /**
-     * Returns the version of this extension.
-     *
-     * @return the version
-     */
     @GET
     @Produces(MediaType.APPLICATION_JSON)
+    @Operation(operationId = "getVersion", summary = "Returns the version of this extension.")
+    @Tag(ref = Tags.GENERAL)
+    @APIResponse(responseCode = "200", description = "The version.")
+    @ApiErrors
     public VersionRepresentation version() {
         context.requireRead();
         return new VersionRepresentation(VERSION);
     }
 
-    /**
-     * Lists the hierarchies of the realm.
-     *
-     * @return the hierarchies, ordered by code
-     */
     @GET
     @Path("hierarchies")
     @Produces(MediaType.APPLICATION_JSON)
+    @Operation(operationId = "listHierarchies", summary = "Lists the hierarchies of the realm, ordered by code.")
+    @Tag(ref = Tags.GENERAL)
+    @APIResponse(responseCode = "200", description = "The hierarchies.")
+    @ApiErrors
     public List<HierarchyRepresentation> hierarchies() {
         context.requireRead();
         return Hierarchies.list(entityManager, realmId).stream()
