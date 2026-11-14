@@ -8,11 +8,17 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import net.exoego.keycloak.fuhito.service.AttributeSyncService;
 import net.exoego.keycloak.fuhito.service.SyncReport;
+import org.eclipse.microprofile.openapi.annotations.Operation;
+import org.eclipse.microprofile.openapi.annotations.media.Schema;
+import org.eclipse.microprofile.openapi.annotations.parameters.Parameter;
+import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
+import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 
 /**
  * The sync from user attributes that an identity provider fills, for example over SCIM.
  */
 @Produces(MediaType.APPLICATION_JSON)
+@Tag(ref = Tags.KEYCLOAK)
 public class AttributeSyncResource {
 
     private final RequestContext context;
@@ -38,7 +44,19 @@ public class AttributeSyncResource {
      */
     @POST
     @Path("run")
-    public SyncReportRepresentation run(@QueryParam("dryRun") boolean dryRun) {
+    @Operation(
+            operationId = "runAttributeSync",
+            summary = "Makes the assignments and reporting lines of the sync match the user attributes of now.",
+            description = "Running it again with no change in between changes nothing.")
+    @Parameter(ref = "changeOrder")
+    @APIResponse(responseCode = "200", description = "What the run did.")
+    @BadRequest
+    @ApiErrors
+    public SyncReportRepresentation run(
+            @Parameter(
+                    description = "True to report what the sync would do and write nothing.",
+                    schema = @Schema(defaultValue = "false"))
+            @QueryParam("dryRun") boolean dryRun) {
         context.requireWrite();
         return Calls.run(context, () -> {
             SyncReport report = service.run();

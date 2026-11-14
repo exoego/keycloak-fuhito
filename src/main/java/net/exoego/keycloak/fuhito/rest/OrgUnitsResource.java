@@ -18,14 +18,21 @@ import net.exoego.keycloak.fuhito.rest.RequestContext.Change;
 import net.exoego.keycloak.fuhito.service.MemberQuery;
 import net.exoego.keycloak.fuhito.service.MembershipService;
 import net.exoego.keycloak.fuhito.service.OrgUnitService;
-import net.exoego.keycloak.fuhito.service.OrganizationLinkService;
 import net.exoego.keycloak.fuhito.service.OrgUnitState;
+import net.exoego.keycloak.fuhito.service.OrganizationLinkService;
+import org.eclipse.microprofile.openapi.annotations.Operation;
+import org.eclipse.microprofile.openapi.annotations.media.Content;
+import org.eclipse.microprofile.openapi.annotations.media.Schema;
+import org.eclipse.microprofile.openapi.annotations.parameters.Parameter;
+import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
+import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 
 /**
  * The org units of one realm.
  */
 @Produces(MediaType.APPLICATION_JSON)
 @Consumes(MediaType.APPLICATION_JSON)
+@Tag(ref = Tags.ORG_UNITS)
 public class OrgUnitsResource {
 
     /**
@@ -61,6 +68,16 @@ public class OrgUnitsResource {
      * @return 201 with the unit as it is on its first date
      */
     @POST
+    @Operation(operationId = "createOrgUnit", summary = "Creates an org unit that starts on a date.")
+    @Parameter(ref = "changeOrder")
+    @APIResponse(
+            responseCode = "201",
+            description = "The unit as it is on its first date.",
+            content = @Content(mediaType = "application/json",
+                    schema = @Schema(implementation = OrgUnitRepresentation.class)))
+    @BadRequest
+    @NotFound
+    @ApiErrors
     public Response create(OrgUnitRepresentation body) {
         context.requireWrite();
         return Calls.run(context, () -> {
@@ -82,7 +99,20 @@ public class OrgUnitsResource {
      */
     @PUT
     @Path("{id}")
-    public OrgUnitRepresentation changeDetails(@PathParam("id") String id, OrgUnitRepresentation body) {
+    @Operation(
+            operationId = "changeOrgUnitDetails",
+            summary = "Replaces the details of an org unit from the `validFrom` date of the body.",
+            description = "The details are the names, the unit type, the display order, and the attributes. The "
+                    + "code, the parent, and the external ID do not change here.")
+    @Parameter(ref = "changeOrder")
+    @APIResponse(responseCode = "200", description = "The unit as it is on that date.")
+    @BadRequest
+    @NotFound
+    @ApiErrors
+    public OrgUnitRepresentation changeDetails(
+            @Parameter(description = "The ID of the resource.")
+            @PathParam("id") String id,
+            OrgUnitRepresentation body) {
         context.requireWrite();
         return Calls.run(context, () -> {
             Checks.required("body", body);
@@ -99,7 +129,18 @@ public class OrgUnitsResource {
      */
     @PUT
     @Path("{id}/parent")
-    public OrgUnitRepresentation move(@PathParam("id") String id, ParentChangeRepresentation body) {
+    @Operation(
+            operationId = "moveOrgUnit",
+            summary = "Gives an org unit a new parent in the default hierarchy from a date.")
+    @Parameter(ref = "changeOrder")
+    @APIResponse(responseCode = "200", description = "The unit as it is on that date.")
+    @BadRequest
+    @NotFound
+    @ApiErrors
+    public OrgUnitRepresentation move(
+            @Parameter(description = "The ID of the resource.")
+            @PathParam("id") String id,
+            ParentChangeRepresentation body) {
         context.requireWrite();
         return Calls.run(context, () -> {
             Checks.required("body", body);
@@ -116,7 +157,19 @@ public class OrgUnitsResource {
      */
     @PUT
     @Path("{id}/end")
-    public OrgUnitRepresentation end(@PathParam("id") String id, EndRepresentation body) {
+    @Operation(
+            operationId = "endOrgUnit",
+            summary = "Ends an org unit.",
+            description = "Its history stays readable for earlier dates.")
+    @Parameter(ref = "changeOrder")
+    @APIResponse(responseCode = "200", description = "The unit as it is on its last date.")
+    @BadRequest
+    @NotFound
+    @ApiErrors
+    public OrgUnitRepresentation end(
+            @Parameter(description = "The ID of the resource.")
+            @PathParam("id") String id,
+            EndRepresentation body) {
         context.requireWrite();
         return Calls.run(context, () -> {
             Checks.required("body", body);
@@ -132,7 +185,22 @@ public class OrgUnitsResource {
      * @return the units on the date
      */
     @GET
-    public List<OrgUnitRepresentation> list(@QueryParam("asOf") String asOf, @QueryParam("roots") boolean roots) {
+    @Operation(
+            operationId = "listOrgUnits",
+            summary = "Lists the org units that exist on a date.",
+            description = "Each parent comes before its children.")
+    @APIResponse(responseCode = "200", description = "The units on the date.")
+    @BadRequest
+    @ApiErrors
+    public List<OrgUnitRepresentation> list(
+            @Parameter(
+                    description = "The date to read. The default is today in the time zone of the realm.",
+                    schema = @Schema(format = "date"))
+            @QueryParam("asOf") String asOf,
+            @Parameter(
+                    description = "True to return only the units with no parent.",
+                    schema = @Schema(defaultValue = "false"))
+            @QueryParam("roots") boolean roots) {
         context.requireRead();
         return Calls.run(context, () -> represent(service.list(asOf, roots)));
     }
@@ -146,7 +214,19 @@ public class OrgUnitsResource {
      */
     @GET
     @Path("{id}/children")
-    public List<OrgUnitRepresentation> children(@PathParam("id") String id, @QueryParam("asOf") String asOf) {
+    @Operation(operationId = "listOrgUnitChildren", summary = "Lists the direct children of an org unit on a date.")
+    @APIResponse(responseCode = "200", description = "The children on the date.")
+    @BadRequest
+    @NotFound
+    @ApiErrors
+    public List<OrgUnitRepresentation> children(
+            @Parameter(description = "The ID of the resource.")
+            @PathParam("id") String id,
+            @Parameter(
+                    description = "The date to read. The default is today for the org unit. It is the date of the "
+                            + "realm unless a unit sets its own time zone.",
+                    schema = @Schema(format = "date"))
+            @QueryParam("asOf") String asOf) {
         context.requireRead();
         return Calls.run(context, () -> represent(service.children(id, asOf)));
     }
@@ -160,7 +240,22 @@ public class OrgUnitsResource {
      */
     @GET
     @Path("{id}/subtree")
-    public List<OrgUnitRepresentation> subtree(@PathParam("id") String id, @QueryParam("asOf") String asOf) {
+    @Operation(
+            operationId = "listOrgUnitSubtree",
+            summary = "Lists an org unit and everything below it on a date.",
+            description = "Each parent comes before its children.")
+    @APIResponse(responseCode = "200", description = "The unit and its descendants on the date.")
+    @BadRequest
+    @NotFound
+    @ApiErrors
+    public List<OrgUnitRepresentation> subtree(
+            @Parameter(description = "The ID of the resource.")
+            @PathParam("id") String id,
+            @Parameter(
+                    description = "The date to read. The default is today for the org unit. It is the date of the "
+                            + "realm unless a unit sets its own time zone.",
+                    schema = @Schema(format = "date"))
+            @QueryParam("asOf") String asOf) {
         context.requireRead();
         return Calls.run(context, () -> represent(service.subtree(id, asOf)));
     }
@@ -174,7 +269,21 @@ public class OrgUnitsResource {
      */
     @GET
     @Path("{id}/path")
-    public List<OrgUnitRepresentation> path(@PathParam("id") String id, @QueryParam("asOf") String asOf) {
+    @Operation(
+            operationId = "getOrgUnitPath",
+            summary = "Lists the units from the root down to an org unit on a date.")
+    @APIResponse(responseCode = "200", description = "The path, with the root first and the unit last.")
+    @BadRequest
+    @NotFound
+    @ApiErrors
+    public List<OrgUnitRepresentation> path(
+            @Parameter(description = "The ID of the resource.")
+            @PathParam("id") String id,
+            @Parameter(
+                    description = "The date to read. The default is today for the org unit. It is the date of the "
+                            + "realm unless a unit sets its own time zone.",
+                    schema = @Schema(format = "date"))
+            @QueryParam("asOf") String asOf) {
         context.requireRead();
         return Calls.run(context, () -> represent(service.path(id, asOf)));
     }
@@ -188,7 +297,19 @@ public class OrgUnitsResource {
      */
     @PUT
     @Path("{id}/organization")
-    public OrganizationLinkRepresentation linkOrganization(@PathParam("id") String id,
+    @Operation(
+            operationId = "linkOrgUnitOrganization",
+            summary = "Links an org unit to a Keycloak organization.",
+            description = "The link says that the unit stands for the organization. One organization is linked to "
+                    + "at most one org unit.")
+    @Parameter(ref = "changeOrder")
+    @APIResponse(responseCode = "200", description = "The link.")
+    @BadRequest
+    @NotFound
+    @ApiErrors
+    public OrganizationLinkRepresentation linkOrganization(
+            @Parameter(description = "The ID of the resource.")
+            @PathParam("id") String id,
             OrganizationLinkRepresentation body) {
         context.requireWrite();
         return Calls.run(context, () -> {
@@ -208,7 +329,17 @@ public class OrgUnitsResource {
      */
     @DELETE
     @Path("{id}/organization")
-    public OrganizationLinkRepresentation unlinkOrganization(@PathParam("id") String id) {
+    @Operation(
+            operationId = "unlinkOrgUnitOrganization",
+            summary = "Removes the link of an org unit to a Keycloak organization.")
+    @Parameter(ref = "changeOrder")
+    @APIResponse(responseCode = "200", description = "The org unit with no link.")
+    @BadRequest
+    @NotFound
+    @ApiErrors
+    public OrganizationLinkRepresentation unlinkOrganization(
+            @Parameter(description = "The ID of the resource.")
+            @PathParam("id") String id) {
         context.requireWrite();
         return Calls.run(context, () -> {
             var unit = organizationLinks.unlink(id);
@@ -228,7 +359,20 @@ public class OrgUnitsResource {
      */
     @PUT
     @Path("{id}/time-settings")
-    public TimeSettingsRepresentation setTime(@PathParam("id") String id, TimeSettingsRepresentation body) {
+    @Operation(
+            operationId = "setOrgUnitTimeSettings",
+            summary = "Sets the time zone and the day start of an org unit.",
+            description = "They decide what today is for the unit and for the units below it. A value that is left "
+                    + "out is removed, and the unit then uses the value from above.")
+    @Parameter(ref = "changeOrder")
+    @APIResponse(responseCode = "200", description = "The settings of the org unit.")
+    @BadRequest
+    @NotFound
+    @ApiErrors
+    public TimeSettingsRepresentation setTime(
+            @Parameter(description = "The ID of the resource.")
+            @PathParam("id") String id,
+            TimeSettingsRepresentation body) {
         context.requireWrite();
         return Calls.run(context, () -> {
             Checks.required("body", body);
@@ -254,10 +398,40 @@ public class OrgUnitsResource {
      */
     @GET
     @Path("{id}/members")
-    public List<MemberRepresentation> members(@PathParam("id") String id, @QueryParam("asOf") String asOf,
+    @Operation(
+            operationId = "listOrgUnitMembers",
+            summary = "Lists the assignments to an org unit that hold on a date.")
+    @APIResponse(responseCode = "200", description = "The members on the date.")
+    @BadRequest
+    @NotFound
+    @ApiErrors
+    public List<MemberRepresentation> members(
+            @Parameter(description = "The ID of the resource.")
+            @PathParam("id") String id,
+            @Parameter(
+                    description = "The date to read. The default is today for the org unit. It is the date of the "
+                            + "realm unless a unit sets its own time zone.",
+                    schema = @Schema(format = "date"))
+            @QueryParam("asOf") String asOf,
+            @Parameter(
+                    description = "True to also list the members of every unit below.",
+                    schema = @Schema(defaultValue = "false"))
             @QueryParam("includeDescendants") boolean includeDescendants,
-            @QueryParam("occupation") String occupation, @QueryParam("jobTitle") String jobTitle,
-            @QueryParam("status") String status, @QueryParam("first") Integer first,
+            @Parameter(description = "The code of an occupation to keep.")
+            @QueryParam("occupation") String occupation,
+            @Parameter(description = "The code of a job title to keep.")
+            @QueryParam("jobTitle") String jobTitle,
+            @Parameter(
+                    description = "An employment status to keep.",
+                    schema = @Schema(ref = "EmploymentStatus"))
+            @QueryParam("status") String status,
+            @Parameter(
+                    description = "The number of entries to skip.",
+                    schema = @Schema(minimum = "0", defaultValue = "0"))
+            @QueryParam("first") Integer first,
+            @Parameter(
+                    description = "The largest number of entries to return.",
+                    schema = @Schema(minimum = "0", defaultValue = "100"))
             @QueryParam("max") Integer max) {
         context.requireRead();
         return Calls.run(context, () -> membership.members(id,
@@ -274,7 +448,15 @@ public class OrgUnitsResource {
      */
     @GET
     @Path("{id}/history")
-    public OrgUnitHistoryRepresentation history(@PathParam("id") String id) {
+    @Operation(
+            operationId = "getOrgUnitHistory",
+            summary = "Returns everything that is stored about an org unit over time.")
+    @APIResponse(responseCode = "200", description = "The details of every period and the parent of every period.")
+    @NotFound
+    @ApiErrors
+    public OrgUnitHistoryRepresentation history(
+            @Parameter(description = "The ID of the resource.")
+            @PathParam("id") String id) {
         context.requireRead();
         return Calls.run(context, () -> OrgUnitHistoryRepresentation.of(service.history(id)));
     }
@@ -302,7 +484,18 @@ public class OrgUnitsResource {
      */
     @GET
     @Path("{id}")
-    public OrgUnitRepresentation get(@PathParam("id") String id, @QueryParam("asOf") String asOf) {
+    @Operation(operationId = "getOrgUnit", summary = "Returns an org unit as it is on a date.")
+    @APIResponse(responseCode = "200", description = "The unit on the date.")
+    @BadRequest
+    @NotFound
+    @ApiErrors
+    public OrgUnitRepresentation get(
+            @Parameter(description = "The ID of the resource.")
+            @PathParam("id") String id,
+            @Parameter(
+                    description = "The date to read. The default is today in the time zone of the realm.",
+                    schema = @Schema(format = "date"))
+            @QueryParam("asOf") String asOf) {
         context.requireRead();
         return Calls.run(context, () -> OrgUnitRepresentation.of(service.get(id, asOf)));
     }

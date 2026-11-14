@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Objects;
 
 import net.exoego.keycloak.fuhito.service.OrgUnitHistory;
+import org.eclipse.microprofile.openapi.annotations.media.Schema;
 
 /**
  * Everything that is stored about an org unit over time.
@@ -15,8 +16,21 @@ import net.exoego.keycloak.fuhito.service.OrgUnitHistory;
  * @param versions the details of each period, oldest first. They have no parent.
  * @param parents the parents in the default hierarchy, oldest first. A gap means the unit was a root.
  */
-public record OrgUnitHistoryRepresentation(String id, String code, String externalId, String source,
-        List<OrgUnitRepresentation> versions, List<ParentPeriod> parents) {
+@Schema(
+        name = "OrgUnitHistory",
+        description = "Everything that is stored about an org unit over time.",
+        requiredProperties = {"id", "versions", "parents"})
+public record OrgUnitHistoryRepresentation(
+        String id,
+        String code,
+        @Schema(description = "The ID of the unit in the system it came from.")
+        String externalId,
+        @Schema(description = "The name of that system.")
+        String source,
+        @Schema(description = "The details of each period, oldest first. They have no parent.")
+        List<OrgUnitRepresentation> versions,
+        @Schema(description = "The parents in the default hierarchy, oldest first. A gap means the unit was a root.")
+        List<ParentPeriod> parents) {
 
     /**
      * The parent of an org unit for a period.
@@ -25,7 +39,16 @@ public record OrgUnitHistoryRepresentation(String id, String code, String extern
      * @param validFrom the first date under the parent
      * @param validTo the first date after the period, or null for no end
      */
-    public record ParentPeriod(String parentId, String validFrom, String validTo) {
+    @Schema(
+            name = "ParentPeriod",
+            description = "The parent of an org unit for a period.",
+            requiredProperties = {"parentId", "validFrom"})
+    public record ParentPeriod(
+            String parentId,
+            @Schema(format = "date")
+            String validFrom,
+            @Schema(description = "The first date after the period. It is missing for no end.", format = "date")
+            String validTo) {
     }
 
     static OrgUnitHistoryRepresentation of(OrgUnitHistory history) {

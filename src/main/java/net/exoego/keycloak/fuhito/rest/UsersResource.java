@@ -22,11 +22,17 @@ import net.exoego.keycloak.fuhito.service.QualificationService;
 import net.exoego.keycloak.fuhito.service.ReportingLineService;
 import net.exoego.keycloak.fuhito.service.UserMaskingService;
 import net.exoego.keycloak.fuhito.store.UserDirectory;
+import org.eclipse.microprofile.openapi.annotations.Operation;
+import org.eclipse.microprofile.openapi.annotations.media.Schema;
+import org.eclipse.microprofile.openapi.annotations.parameters.Parameter;
+import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
+import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 
 /**
  * What is stored about the users of one realm.
  */
 @Produces(MediaType.APPLICATION_JSON)
+@Tag(ref = Tags.USERS)
 public class UsersResource {
 
     private final RequestContext context;
@@ -78,7 +84,20 @@ public class UsersResource {
      */
     @POST
     @Path("{userId}/mask")
-    public MaskRepresentation mask(@PathParam("userId") String userId) {
+    @Operation(
+            operationId = "maskUser",
+            summary = "Masks the personal data of a user who left. It cannot be undone.",
+            description = "It clears the staff number, the numbers of qualifications, the external IDs, and the "
+                    + "free attributes, also in the change log. Every record keeps its ID, its org unit, its job "
+                    + "title, its occupation, and its dates.")
+    @Parameter(ref = "changeOrder")
+    @APIResponse(responseCode = "200", description = "The user ID and the time of the masking.")
+    @BadRequest
+    @NotFound
+    @ApiErrors
+    public MaskRepresentation mask(
+            @Parameter(description = "The ID of the Keycloak user.")
+            @PathParam("userId") String userId) {
         context.requireWrite();
         return Calls.run(context, () -> {
             var mask = new MaskRepresentation(userId, masking.mask(userId).toString());
@@ -93,7 +112,11 @@ public class UsersResource {
      * @param userId the ID of the user
      * @param maskedAt when the data was first masked, in UTC
      */
-    public record MaskRepresentation(String userId, String maskedAt) {
+    @Schema(name = "Mask", description = "The result of a masking.", requiredProperties = {"userId", "maskedAt"})
+    public record MaskRepresentation(
+            String userId,
+            @Schema(description = "When the data was first masked, in UTC.", format = "date-time")
+            String maskedAt) {
     }
 
     /**
@@ -107,7 +130,21 @@ public class UsersResource {
      */
     @DELETE
     @Path("{userId}/data")
-    public Response erase(@PathParam("userId") String userId) {
+    @Operation(
+            operationId = "eraseUserData",
+            summary = "Erases everything about one user for good.",
+            description = "These are the employments with their terms and assignments, the qualifications, the "
+                    + "reporting lines of the user as a report and as a manager, and the change log entries about "
+                    + "them. Removal of a user from Keycloak does not do this. This endpoint is for a request to "
+                    + "delete personal data.")
+    @Parameter(ref = "changeOrder")
+    @APIResponse(responseCode = "204", description = "The data was erased.")
+    @BadRequest
+    @NotFound
+    @ApiErrors
+    public Response erase(
+            @Parameter(description = "The ID of the Keycloak user.")
+            @PathParam("userId") String userId) {
         context.requireWrite();
         return Calls.run(context, () -> {
             if (!users.isKnown(userId)) {
@@ -130,7 +167,21 @@ public class UsersResource {
      */
     @GET
     @Path("{userId}/managers")
-    public List<ReportingRepresentation> managers(@PathParam("userId") String userId,
+    @Operation(
+            operationId = "listUserManagers",
+            summary = "Lists the managers of a user on a date, for each assignment of the user.",
+            description = "An assignment with no stored solid line takes the head of its org unit, or of the "
+                    + "nearest unit above.")
+    @APIResponse(responseCode = "200", description = "The managers.")
+    @BadRequest
+    @NotFound
+    @ApiErrors
+    public List<ReportingRepresentation> managers(
+            @Parameter(description = "The ID of the Keycloak user.")
+            @PathParam("userId") String userId,
+            @Parameter(
+                    description = "The date to read. The default is today in the time zone of the realm.",
+                    schema = @Schema(format = "date"))
             @QueryParam("asOf") String asOf) {
         context.requireRead();
         return Calls.run(context, () -> reportingLines.managersOf(userId, asOf).stream()
@@ -147,7 +198,17 @@ public class UsersResource {
      */
     @GET
     @Path("{userId}/reports")
-    public List<ReportingRepresentation> reports(@PathParam("userId") String userId,
+    @Operation(operationId = "listUserReports", summary = "Lists the direct reports of a user on a date.")
+    @APIResponse(responseCode = "200", description = "The direct reports.")
+    @BadRequest
+    @NotFound
+    @ApiErrors
+    public List<ReportingRepresentation> reports(
+            @Parameter(description = "The ID of the Keycloak user.")
+            @PathParam("userId") String userId,
+            @Parameter(
+                    description = "The date to read. The default is today in the time zone of the realm.",
+                    schema = @Schema(format = "date"))
             @QueryParam("asOf") String asOf) {
         context.requireRead();
         return Calls.run(context, () -> reportingLines.reportsOf(userId, asOf).stream()
@@ -165,8 +226,22 @@ public class UsersResource {
      */
     @GET
     @Path("{userId}/qualifications")
-    public List<QualificationRepresentation> qualifications(@PathParam("userId") String userId,
-            @QueryParam("asOf") String asOf, @QueryParam("all") boolean all) {
+    @Operation(operationId = "listUserQualifications", summary = "Lists the qualifications of a user, oldest first.")
+    @APIResponse(responseCode = "200", description = "The qualifications.")
+    @BadRequest
+    @NotFound
+    @ApiErrors
+    public List<QualificationRepresentation> qualifications(
+            @Parameter(description = "The ID of the Keycloak user.")
+            @PathParam("userId") String userId,
+            @Parameter(
+                    description = "The date to read. The default is today in the time zone of the realm.",
+                    schema = @Schema(format = "date"))
+            @QueryParam("asOf") String asOf,
+            @Parameter(
+                    description = "True to return every qualification, expired ones and future ones included.",
+                    schema = @Schema(defaultValue = "false"))
+            @QueryParam("all") boolean all) {
         context.requireRead();
         return Calls.run(context, () -> qualifications.ofUser(userId, asOf, all).stream()
                 .map(QualificationRepresentation::of)
@@ -183,8 +258,25 @@ public class UsersResource {
      */
     @GET
     @Path("{userId}/assignments")
-    public List<MemberRepresentation> assignments(@PathParam("userId") String userId,
-            @QueryParam("asOf") String asOf, @QueryParam("includePath") boolean includePath) {
+    @Operation(
+            operationId = "listUserAssignments",
+            summary = "Lists the assignments of a user that hold on a date.",
+            description = "The primary assignment comes first.")
+    @APIResponse(responseCode = "200", description = "The assignments of the user on the date.")
+    @BadRequest
+    @NotFound
+    @ApiErrors
+    public List<MemberRepresentation> assignments(
+            @Parameter(description = "The ID of the Keycloak user.")
+            @PathParam("userId") String userId,
+            @Parameter(
+                    description = "The date to read. The default is today in the time zone of the realm.",
+                    schema = @Schema(format = "date"))
+            @QueryParam("asOf") String asOf,
+            @Parameter(
+                    description = "True to return each org unit with its path from the root.",
+                    schema = @Schema(defaultValue = "false"))
+            @QueryParam("includePath") boolean includePath) {
         context.requireRead();
         return Calls.run(context, () -> membership.assignmentsOf(userId, asOf, includePath).stream()
                 .map(MemberRepresentation::of)
@@ -199,7 +291,15 @@ public class UsersResource {
      */
     @GET
     @Path("{userId}/history")
-    public UserHistoryRepresentation history(@PathParam("userId") String userId) {
+    @Operation(
+            operationId = "getUserHistory",
+            summary = "Returns every employment and every assignment of a user, with all their periods.")
+    @APIResponse(responseCode = "200", description = "The history of the user.")
+    @NotFound
+    @ApiErrors
+    public UserHistoryRepresentation history(
+            @Parameter(description = "The ID of the Keycloak user.")
+            @PathParam("userId") String userId) {
         context.requireRead();
         return Calls.run(context,
                 () -> UserHistoryRepresentation.of(membership.historyOf(userId, employments, assignments),

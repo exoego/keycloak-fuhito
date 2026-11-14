@@ -20,11 +20,15 @@ import net.exoego.keycloak.fuhito.service.RefItemService;
 import net.exoego.keycloak.fuhito.store.AssignmentStore;
 import net.exoego.keycloak.fuhito.store.EmploymentStore;
 import net.exoego.keycloak.fuhito.store.OrgUnitStore;
+import org.eclipse.microprofile.openapi.annotations.Operation;
+import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
+import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 
 /**
  * The export of one realm.
  */
 @Produces(MediaType.APPLICATION_JSON)
+@Tag(ref = Tags.BULK)
 public class ExportResource {
 
     /**
@@ -67,6 +71,11 @@ public class ExportResource {
      * @return the export
      */
     @GET
+    @Operation(
+            operationId = "exportRealm",
+            summary = "Returns all organization data of the realm, with every period of every resource.")
+    @APIResponse(responseCode = "200", description = "The export.")
+    @ApiErrors
     public ExportRepresentation export() {
         context.requireRead();
         return Calls.run(context, () -> {

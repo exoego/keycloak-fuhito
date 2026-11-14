@@ -1,0 +1,3752 @@
+---
+tags:
+- name: general
+  summary: General
+  kind: nav
+  description: The version and the hierarchies.
+- name: ref-items
+  summary: Reference items
+  kind: nav
+  description: "The lists that a realm defines, such as unit types and occupations."
+- name: org-units
+  summary: Org units
+  kind: nav
+  description: "Org units, their tree on a date, and their history."
+- name: employments
+  summary: Employments
+  kind: nav
+  description: "Employments of users, with their terms over time."
+- name: assignments
+  summary: Assignments
+  kind: nav
+  description: Assignments of employments to org units.
+- name: reporting-lines
+  summary: Reporting lines
+  kind: nav
+  description: Links from an assignment to a manager.
+- name: qualifications
+  summary: Qualifications
+  kind: nav
+  description: Licenses and certificates of users.
+- name: users
+  summary: Users
+  kind: nav
+  description: What is stored about one user.
+- name: change-orders
+  summary: Change orders and change log
+  kind: nav
+  description: "Approved instructions that cause changes, and the log of every write."
+- name: bulk
+  summary: Import and export
+  kind: nav
+  description: "Many rows in one request, and all data of the realm."
+- name: keycloak
+  summary: Keycloak sync
+  kind: nav
+  description: "The projection into organization groups, and the sync from user attributes."
+openapi: 3.2.0
+components:
+  schemas:
+    Assignment:
+      required:
+      - employmentId
+      - orgUnitId
+      - validFrom
+      description: A request to add an assignment gives the first details in the fields
+        of the assignment itself. A response gives the details of every period in
+        `periods`.
+      type: object
+      properties:
+        id:
+          type: string
+          readOnly: true
+        employmentId:
+          type: string
+        userId:
+          type: string
+          description: The ID of the Keycloak user of the employment.
+          readOnly: true
+        orgUnitId:
+          type: string
+        validFrom:
+          type: string
+          description: The first date of the assignment.
+          format: date
+        validTo:
+          type: string
+          description: The first date after the assignment. It is missing for no end.
+          format: date
+        externalId:
+          type: string
+          description: The ID of the assignment in the system it came from.
+        source:
+          type: string
+          description: The name of that system.
+        jobTitle:
+          type: string
+          description: The code of the first job title.
+          writeOnly: true
+        occupation:
+          type: string
+          description: The code of the first occupation.
+          writeOnly: true
+        kind:
+          type: string
+          description: The code of the first assignment kind.
+          writeOnly: true
+        head:
+          type: boolean
+          description: Whether the person leads the org unit at first.
+          writeOnly: true
+        primary:
+          type: boolean
+          description: Whether this is the main assignment at first.
+          writeOnly: true
+        switchPrimary:
+          type: boolean
+          description: True to take the primary flag away from other assignments of
+            the employment for the same dates.
+          writeOnly: true
+        allocationPercent:
+          type: number
+          maximum: 100
+          exclusiveMinimum: 0
+          description: The first share of the person's work in percent.
+          writeOnly: true
+        displayOrder:
+          type: integer
+          format: int32
+          description: The first position among the members of the org unit.
+          writeOnly: true
+        attributes:
+          type: object
+          additionalProperties: {}
+          description: The first free values.
+          writeOnly: true
+        periods:
+          type: array
+          items:
+            $ref: "#/components/schemas/AssignmentDetails"
+          description: "The details of each period, oldest first."
+          readOnly: true
+    AssignmentDetails:
+      type: object
+      required:
+      - validFrom
+      description: The details of an assignment for a period.
+      properties:
+        validFrom:
+          type: string
+          description: The first date of these details.
+          format: date
+        validTo:
+          type: string
+          description: The first date after these details. It is missing for no end.
+          format: date
+          readOnly: true
+        jobTitle:
+          type: string
+          description: The code of the job title.
+        occupation:
+          type: string
+          description: The code of the occupation.
+        kind:
+          type: string
+          description: The code of the assignment kind.
+        head:
+          type: boolean
+          description: True when the person leads the org unit.
+        primary:
+          type: boolean
+          description: True when this is the main assignment of the employment.
+        switchPrimary:
+          type: boolean
+          description: True to take the primary flag away from other assignments of
+            the employment for the same dates.
+          writeOnly: true
+        allocationPercent:
+          type: number
+          maximum: 100
+          exclusiveMinimum: 0
+          description: The share of the person's work in percent.
+        displayOrder:
+          type: integer
+          format: int32
+          description: "The position among the members of the org unit, lowest first."
+        attributes:
+          type: object
+          additionalProperties: {}
+          description: Free values that the realm defines.
+    ChangeLogEntry:
+      required:
+      - id
+      - recordedAt
+      - actorUserId
+      - resourceType
+      - resourceId
+      - operation
+      - resourcePath
+      description: One successful write.
+      type: object
+      properties:
+        id:
+          type: string
+        recordedAt:
+          type: string
+          description: "When the write happened, in UTC."
+          format: date-time
+        actorUserId:
+          type: string
+          description: The ID of the user who did the write.
+        resourceType:
+          type: string
+          examples:
+          - FUHITO_ORG_UNIT
+        resourceId:
+          type: string
+        operation:
+          type: string
+          enum:
+          - CREATE
+          - UPDATE
+          - DELETE
+        resourcePath:
+          type: string
+          description: The path of the request below the realm.
+          examples:
+          - fuhito/org-units/123/end
+        changeOrderId:
+          type: string
+          description: The ID of the change order that the write belongs to.
+        representation:
+          description: The state of the resource after the write. It is missing after
+            a delete.
+          type: object
+          additionalProperties: true
+    ChangeOrder:
+      required:
+      - title
+      - effectiveDate
+      type: object
+      properties:
+        id:
+          type: string
+          readOnly: true
+        number:
+          type: string
+          maxLength: 64
+          pattern: "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
+          description: The number that the legal entity gives to the order.
+        kind:
+          type: string
+          maxLength: 64
+          pattern: "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
+          description: A code for the kind of order that the realm chooses.
+        title:
+          type: string
+          maxLength: 255
+        note:
+          type: string
+          description: A longer text.
+        orderDate:
+          type: string
+          description: The date when the order was issued.
+          format: date
+        effectiveDate:
+          type: string
+          description: The date from which the changes are true.
+          format: date
+        approverUserId:
+          type: string
+          description: The ID of the Keycloak user who approved the order.
+        requesterUserId:
+          type: string
+          description: The ID of the Keycloak user who asked for the order.
+        externalReference:
+          type: string
+          description: A reference to the order in another system.
+        createdAt:
+          type: string
+          description: "When the order was stored, in UTC."
+          format: date-time
+          readOnly: true
+    Employment:
+      required:
+      - userId
+      - validFrom
+      description: A request to start an employment gives the first terms in the fields
+        of the employment itself. A response gives the terms of every period in `terms`.
+      type: object
+      properties:
+        id:
+          type: string
+          readOnly: true
+        userId:
+          type: string
+          description: The ID of the Keycloak user.
+        validFrom:
+          type: string
+          description: The first date of the employment.
+          format: date
+        validTo:
+          type: string
+          description: The first date after the employment. It is missing for no end.
+          format: date
+        staffNumber:
+          type: string
+          maxLength: 64
+          pattern: "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
+          description: The number that the legal entity gives to the person.
+        endReason:
+          type: string
+          description: The code of the end reason.
+          readOnly: true
+        externalId:
+          type: string
+          description: The ID of the employment in the system it came from.
+        source:
+          type: string
+          description: The name of that system.
+        employmentType:
+          type: string
+          description: The code of the first employment type.
+          writeOnly: true
+        grade:
+          type: string
+          description: The code of the first grade.
+          writeOnly: true
+        status:
+          $ref: "#/components/schemas/EmploymentStatus"
+          description: The first status.
+          writeOnly: true
+          default: ACTIVE
+        workPercent:
+          type: number
+          maximum: 100
+          exclusiveMinimum: 0
+          description: The first share of full-time work in percent.
+          writeOnly: true
+        attributes:
+          type: object
+          additionalProperties: {}
+          description: The first free values.
+          writeOnly: true
+        terms:
+          type: array
+          items:
+            $ref: "#/components/schemas/EmploymentTerms"
+          description: "The terms of each period, oldest first."
+          readOnly: true
+    EmploymentStatus:
+      type: string
+      enum:
+      - ACTIVE
+      - ON_LEAVE
+      - SUSPENDED
+      description: Whether a person works during a period of an employment.
+    EmploymentTerms:
+      type: object
+      required:
+      - validFrom
+      description: The conditions of an employment for a period.
+      properties:
+        validFrom:
+          type: string
+          description: The first date of these conditions.
+          format: date
+        validTo:
+          type: string
+          description: The first date after these conditions. It is missing for no
+            end.
+          format: date
+          readOnly: true
+        employmentType:
+          type: string
+          description: The code of the employment type.
+        grade:
+          type: string
+          description: The code of the grade.
+        status:
+          $ref: "#/components/schemas/EmploymentStatus"
+          default: ACTIVE
+        workPercent:
+          type: number
+          maximum: 100
+          exclusiveMinimum: 0
+          description: The share of full-time work in percent.
+        attributes:
+          type: object
+          additionalProperties: {}
+          description: Free values that the realm defines.
+    End:
+      required:
+      - validTo
+      description: A request to end something on a date.
+      type: object
+      properties:
+        validTo:
+          type: string
+          description: The first date on which it no longer exists.
+          format: date
+        endReason:
+          type: string
+          description: The code of the end reason. Only the end of an employment uses
+            it.
+    Error:
+      required:
+      - error
+      - message
+      type: object
+      properties:
+        error:
+          type: string
+          description: The stable error code.
+        params:
+          type: object
+          additionalProperties:
+            type: string
+          description: The values that the message refers to.
+        message:
+          type: string
+          description: The message for people. Its text can change. Its language follows
+            the `Accept-Language` header.
+    Export:
+      required:
+      - exportedAt
+      - refItems
+      - orgUnits
+      - employments
+      - assignments
+      - changeOrders
+      description: "All organization data of one realm, with every period of every\
+        \ resource."
+      type: object
+      properties:
+        exportedAt:
+          type: string
+          description: "When the export was made, in UTC."
+          format: date-time
+        refItems:
+          type: array
+          items:
+            $ref: "#/components/schemas/RefItem"
+          description: "The reference items of every kind, inactive ones included."
+        orgUnits:
+          type: array
+          items:
+            $ref: "#/components/schemas/OrgUnitHistory"
+          description: The org units with every period of their details and their
+            parents.
+        employments:
+          type: array
+          items:
+            $ref: "#/components/schemas/Employment"
+          description: The employments with every period of their terms.
+        assignments:
+          type: array
+          items:
+            $ref: "#/components/schemas/Assignment"
+          description: The assignments with every period of their details.
+        changeOrders:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChangeOrder"
+    Hierarchy:
+      required:
+      - id
+      - code
+      - name
+      description: A named tree of org units.
+      type: object
+      properties:
+        id:
+          type: string
+        code:
+          type: string
+          description: The code
+        name:
+          type: string
+    ImportAssignmentRow:
+      type: object
+      required:
+      - externalId
+      - employmentExternalId
+      - orgUnitExternalId
+      description: An assignment. It is matched by source and external ID.
+      properties:
+        source:
+          type: string
+          maxLength: 64
+          pattern: "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
+          description: The name of the system that the row comes from. The default
+            is the source of the document.
+        externalId:
+          type: string
+          description: The ID of the assignment in that system.
+        employmentExternalId:
+          type: string
+          description: The external ID of the employment with the same source.
+        orgUnitExternalId:
+          type: string
+          description: The external ID of the org unit with the same source.
+        jobTitle:
+          type: string
+          description: The code of the job title.
+        occupation:
+          type: string
+          description: The code of the occupation.
+        kind:
+          type: string
+          description: The code of the assignment kind.
+        head:
+          type: boolean
+          description: True when the person leads the org unit.
+          default: false
+        primary:
+          type: boolean
+          description: True when this is the main assignment of the employment.
+          default: false
+        allocationPercent:
+          type: number
+          maximum: 100
+          exclusiveMinimum: 0
+          description: The share of the person's work in percent.
+        displayOrder:
+          type: integer
+          format: int32
+          description: The position among the members of the org unit.
+          default: 0
+        attributes:
+          type: object
+          additionalProperties: {}
+          description: Free values that the realm defines.
+        validFrom:
+          type: string
+          description: The first date of a new assignment. The default is the effective
+            date. An existing assignment ignores it.
+          format: date
+        validTo:
+          type: string
+          description: The first date on which the assignment no longer holds. The
+            default is the end of the employment.
+          format: date
+    ImportCounts:
+      type: object
+      required:
+      - created
+      - changed
+      - unchanged
+      description: The number of rows of one list by outcome.
+      properties:
+        created:
+          type: integer
+          format: int32
+          description: Rows that made a new thing.
+        changed:
+          type: integer
+          format: int32
+          description: Rows that changed an existing thing.
+        unchanged:
+          type: integer
+          format: int32
+          description: Rows that matched what was stored.
+    ImportDocument:
+      required:
+      - effectiveDate
+      description: "The data of one import. The document describes the state from\
+        \ the effective date. A new thing starts on that date, and a change to an\
+        \ existing thing takes effect on that date."
+      type: object
+      properties:
+        effectiveDate:
+          type: string
+          description: The date of the state.
+          format: date
+        dryRun:
+          type: boolean
+          description: True to do all checks and write nothing.
+          default: false
+        source:
+          type: string
+          maxLength: 64
+          pattern: "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
+          description: The name of the system that the rows come from. Rows can override
+            it.
+          default: import
+        refItems:
+          type: array
+          items:
+            $ref: "#/components/schemas/ImportRefItemRow"
+        orgUnits:
+          type: array
+          items:
+            $ref: "#/components/schemas/ImportOrgUnitRow"
+        employments:
+          type: array
+          items:
+            $ref: "#/components/schemas/ImportEmploymentRow"
+        assignments:
+          type: array
+          items:
+            $ref: "#/components/schemas/ImportAssignmentRow"
+    ImportEmploymentRow:
+      type: object
+      required:
+      - externalId
+      description: An employment. It is matched by source and external ID.
+      properties:
+        source:
+          type: string
+          maxLength: 64
+          pattern: "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
+          description: The name of the system that the row comes from. The default
+            is the source of the document.
+        externalId:
+          type: string
+          description: The ID of the employment in that system.
+        username:
+          type: string
+          description: The username of the Keycloak user. Either this or `userId`
+            is required.
+        userId:
+          type: string
+          description: The ID of the Keycloak user.
+        staffNumber:
+          type: string
+          maxLength: 64
+          pattern: "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
+          description: The number that the legal entity gives to the person. It is
+            used only when the employment is created.
+        employmentType:
+          type: string
+          description: The code of the employment type.
+        grade:
+          type: string
+          description: The code of the grade.
+        status:
+          $ref: "#/components/schemas/EmploymentStatus"
+          default: ACTIVE
+        workPercent:
+          type: number
+          maximum: 100
+          exclusiveMinimum: 0
+          description: The share of full-time work in percent.
+        attributes:
+          type: object
+          additionalProperties: {}
+          description: Free values of the terms.
+        validFrom:
+          type: string
+          description: The first date of a new employment. The default is the effective
+            date. An existing employment ignores it.
+          format: date
+        validTo:
+          type: string
+          description: The first date on which the employment no longer holds.
+          format: date
+        endReason:
+          type: string
+          description: The code of the end reason. It is used only with `validTo`.
+    ImportOrgUnitRow:
+      type: object
+      required:
+      - externalId
+      - name
+      description: An org unit. It is matched by source and external ID.
+      properties:
+        source:
+          type: string
+          maxLength: 64
+          pattern: "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
+          description: The name of the system that the row comes from. The default
+            is the source of the document.
+        externalId:
+          type: string
+          description: The ID of the unit in that system.
+        code:
+          type: string
+          maxLength: 64
+          pattern: "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
+          description: A code that is unique in the realm. It is used only when the
+            unit is created.
+        name:
+          type: string
+          maxLength: 255
+          description: The default name.
+        names:
+          type: object
+          additionalProperties:
+            type: string
+          description: "Names in other languages, by language tag."
+        shortName:
+          type: string
+          maxLength: 255
+          description: The default short name.
+        shortNames:
+          type: object
+          additionalProperties:
+            type: string
+          description: "The short names in other languages, by language tag."
+        phoneticName:
+          type: string
+          maxLength: 255
+          description: The reading of the name for sorting.
+        unitType:
+          type: string
+          description: The code of the unit type.
+        parentExternalId:
+          type: string
+          description: The external ID of the parent with the same source. A root
+            has none.
+        displayOrder:
+          type: integer
+          format: int32
+          description: The position among siblings.
+          default: 0
+        attributes:
+          type: object
+          additionalProperties: {}
+          description: Free values that the realm defines.
+        validFrom:
+          type: string
+          description: The first date of a new unit. The default is the effective
+            date. An existing unit ignores it.
+          format: date
+        validTo:
+          type: string
+          description: The first date on which the unit no longer exists.
+          format: date
+    ImportRefItemRow:
+      type: object
+      required:
+      - kind
+      - code
+      - name
+      description: A reference item. It is matched by kind and code.
+      properties:
+        kind:
+          $ref: "#/components/schemas/RefKind"
+        code:
+          type: string
+          maxLength: 64
+          pattern: "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
+        name:
+          type: string
+          maxLength: 255
+          description: The default name.
+        names:
+          type: object
+          additionalProperties:
+            type: string
+          description: "Names in other languages, by language tag."
+        displayOrder:
+          type: integer
+          format: int32
+          description: The position in lists.
+          default: 0
+        attributes:
+          type: object
+          additionalProperties: {}
+          description: Free values that the realm defines.
+        active:
+          type: boolean
+          description: False to stop the use of the item for new data.
+          default: true
+    ImportReport:
+      required:
+      - dryRun
+      - applied
+      - counts
+      - errors
+      description: "What an import did, or would do."
+      type: object
+      properties:
+        dryRun:
+          type: boolean
+          description: True when the request asked for a dry run.
+        applied:
+          type: boolean
+          description: True when the rows were written. It is false for a dry run
+            and when a row failed.
+        counts:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/ImportCounts"
+          description: The number of rows by outcome for each list of the document.
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ImportRowError"
+          description: "The rows that could not be applied. When this is not empty,\
+            \ nothing was written."
+    ImportRowError:
+      type: object
+      required:
+      - list
+      - row
+      - error
+      - message
+      description: A row that could not be applied.
+      properties:
+        list:
+          type: string
+          description: The name of the list in the document.
+        row:
+          type: integer
+          format: int32
+          description: "The position of the row in its list, counted from 0."
+        line:
+          type: integer
+          format: int32
+          description: "The line number in the CSV file, counted from 1. Only a CSV\
+            \ import has it."
+        error:
+          type: string
+          description: The stable error code.
+        params:
+          type: object
+          additionalProperties:
+            type: string
+          description: The values that the message refers to.
+        message:
+          type: string
+          description: The message for people.
+    Mask:
+      required:
+      - userId
+      - maskedAt
+      description: The result of a masking.
+      type: object
+      properties:
+        userId:
+          type: string
+        maskedAt:
+          type: string
+          description: "When the data was first masked, in UTC."
+          format: date-time
+    Member:
+      required:
+      - assignmentId
+      - employmentId
+      - userId
+      - orgUnitId
+      - orgUnitName
+      - validFrom
+      - head
+      - primary
+      - displayOrder
+      - status
+      description: One assignment of one person on one date.
+      type: object
+      properties:
+        assignmentId:
+          type: string
+        employmentId:
+          type: string
+        userId:
+          type: string
+          description: The ID of the Keycloak user.
+        staffNumber:
+          type: string
+          description: The number that the legal entity gives to the person.
+        orgUnitId:
+          type: string
+        orgUnitName:
+          type: string
+          description: The name of the org unit on the date.
+        orgUnitPath:
+          type: array
+          items:
+            $ref: "#/components/schemas/PathEntry"
+          description: The units from the root down to the org unit. Only present
+            when asked for.
+        validFrom:
+          type: string
+          description: The first date of these details of the assignment.
+          format: date
+        validTo:
+          type: string
+          description: The first date after these details. It is missing for no end.
+          format: date
+        jobTitle:
+          type: string
+          description: The code of the job title.
+        occupation:
+          type: string
+          description: The code of the occupation.
+        kind:
+          type: string
+          description: The code of the assignment kind.
+        head:
+          type: boolean
+          description: True when the person leads the org unit.
+        primary:
+          type: boolean
+          description: True when this is the main assignment of the employment.
+        allocationPercent:
+          type: number
+          maximum: 100
+          exclusiveMinimum: 0
+          description: The share of the person's work in percent.
+        displayOrder:
+          type: integer
+          format: int32
+          description: "The position among the members of the org unit, lowest first."
+        attributes:
+          type: object
+          additionalProperties: {}
+          description: Free values that the realm defines.
+        employmentType:
+          type: string
+          description: The code of the employment type on the date.
+        grade:
+          type: string
+          description: The code of the grade on the date.
+        status:
+          $ref: "#/components/schemas/EmploymentStatus"
+        workPercent:
+          type: number
+          maximum: 100
+          exclusiveMinimum: 0
+          description: The share of full-time work on the date in percent.
+    OrgUnit:
+      type: object
+      required:
+      - name
+      - validFrom
+      description: An org unit as it is on one date.
+      properties:
+        id:
+          type: string
+          readOnly: true
+        code:
+          type: string
+          maxLength: 64
+          pattern: "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
+          description: A code that is unique in the realm.
+        name:
+          type: string
+          maxLength: 255
+          description: The default name.
+        names:
+          type: object
+          additionalProperties:
+            type: string
+          description: "Names in other languages, by language tag."
+        shortName:
+          type: string
+          maxLength: 255
+          description: The default short name.
+        shortNames:
+          type: object
+          additionalProperties:
+            type: string
+          description: "The short names in other languages, by language tag."
+        phoneticName:
+          type: string
+          maxLength: 255
+          description: The reading of the name for sorting.
+        unitType:
+          type: string
+          description: The code of the unit type.
+        parentId:
+          type: string
+          description: The ID of the parent in the default hierarchy. A root has none.
+        validFrom:
+          type: string
+          description: The first date of these details.
+          format: date
+        validTo:
+          type: string
+          description: The first date after these details. It is missing for no end.
+          format: date
+          readOnly: true
+        displayOrder:
+          type: integer
+          format: int32
+          description: "The position among siblings, lowest first."
+          default: 0
+        attributes:
+          type: object
+          additionalProperties: {}
+          description: Free values that the realm defines.
+        externalId:
+          type: string
+          description: The ID of the unit in the system it came from.
+        source:
+          type: string
+          description: The name of that system.
+        keycloakOrganizationId:
+          type: string
+          description: The ID of the linked Keycloak organization.
+          readOnly: true
+        timeZone:
+          type: string
+          description: The time zone that the unit sets for itself and the units below
+            it.
+          readOnly: true
+        dayStart:
+          type: string
+          description: The day start that the unit sets for itself and the units below
+            it.
+          readOnly: true
+    OrgUnitHistory:
+      type: object
+      required:
+      - id
+      - versions
+      - parents
+      description: Everything that is stored about an org unit over time.
+      properties:
+        id:
+          type: string
+        code:
+          type: string
+        externalId:
+          type: string
+          description: The ID of the unit in the system it came from.
+        source:
+          type: string
+          description: The name of that system.
+        versions:
+          type: array
+          items:
+            $ref: "#/components/schemas/OrgUnit"
+          description: "The details of each period, oldest first. They have no parent."
+        parents:
+          type: array
+          items:
+            $ref: "#/components/schemas/ParentPeriod"
+          description: "The parents in the default hierarchy, oldest first. A gap\
+            \ means the unit was a root."
+    OrganizationLink:
+      description: The link of an org unit to a Keycloak organization.
+      type: object
+      properties:
+        orgUnitId:
+          type: string
+          readOnly: true
+        organizationId:
+          type: string
+          description: The ID of the Keycloak organization. A request to link needs
+            it. A response has none after the link was removed.
+    ParentChange:
+      required:
+      - validFrom
+      type: object
+      properties:
+        parentId:
+          type: string
+          description: The ID of the new parent. Leave it out to make the unit a root.
+        validFrom:
+          type: string
+          description: The first date under the new parent.
+          format: date
+    ParentPeriod:
+      type: object
+      required:
+      - parentId
+      - validFrom
+      description: The parent of an org unit for a period.
+      properties:
+        parentId:
+          type: string
+        validFrom:
+          type: string
+          format: date
+        validTo:
+          type: string
+          description: The first date after the period. It is missing for no end.
+          format: date
+    PathEntry:
+      type: object
+      required:
+      - id
+      - name
+      description: One org unit on the way from the root.
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+          description: The name of the org unit on the date.
+    ProjectionReport:
+      required:
+      - organizations
+      - groupsCreated
+      - groupsRenamed
+      - groupsMoved
+      - groupsRemoved
+      - membersJoined
+      - membersLeft
+      - organizationMembersAdded
+      description: What a rebuild of the projection changed in Keycloak.
+      type: object
+      properties:
+        organizations:
+          type: integer
+          format: int32
+          description: The number of linked organizations that were projected.
+        groupsCreated:
+          type: integer
+          format: int32
+          description: The number of groups that were created.
+        groupsRenamed:
+          type: integer
+          format: int32
+          description: The number of groups that got a new name.
+        groupsMoved:
+          type: integer
+          format: int32
+          description: The number of groups that got a new parent.
+        groupsRemoved:
+          type: integer
+          format: int32
+          description: The number of groups that were removed.
+        membersJoined:
+          type: integer
+          format: int32
+          description: The number of group memberships that were added.
+        membersLeft:
+          type: integer
+          format: int32
+          description: The number of group memberships that were removed.
+        organizationMembersAdded:
+          type: integer
+          format: int32
+          description: The number of users who became members of an organization.
+    Qualification:
+      required:
+      - kind
+      - validFrom
+      type: object
+      properties:
+        id:
+          type: string
+          readOnly: true
+        userId:
+          type: string
+          description: The ID of the Keycloak user. Only a request to add reads it.
+        kind:
+          type: string
+          description: The code of the qualification kind.
+        number:
+          type: string
+          maxLength: 255
+          description: The number of the license or certificate.
+        validFrom:
+          type: string
+          description: The first date on which the qualification is valid.
+          format: date
+        validTo:
+          type: string
+          description: The first date on which it is no longer valid. It is missing
+            for no end.
+          format: date
+        attributes:
+          type: object
+          additionalProperties: {}
+          description: Free values that the realm defines.
+        externalId:
+          type: string
+          description: The ID of the qualification in the system it came from.
+        source:
+          type: string
+          description: The name of that system.
+    RefItem:
+      type: object
+      required:
+      - name
+      properties:
+        id:
+          type: string
+          readOnly: true
+        kind:
+          $ref: "#/components/schemas/RefKind"
+          description: Only a create request reads it.
+        code:
+          type: string
+          maxLength: 64
+          pattern: "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
+          description: Only a create request reads it.
+        name:
+          type: string
+          maxLength: 255
+          description: The default name.
+        names:
+          type: object
+          additionalProperties:
+            type: string
+          description: "Names in other languages, by language tag."
+        displayOrder:
+          type: integer
+          format: int32
+          description: "The position in lists, lowest first."
+          default: 0
+        attributes:
+          type: object
+          additionalProperties: {}
+          description: Free values that the realm defines.
+        active:
+          type: boolean
+          description: False when the item must not be used for new data.
+    RefKind:
+      type: string
+      enum:
+      - UNIT_TYPE
+      - JOB_TITLE
+      - OCCUPATION
+      - EMPLOYMENT_TYPE
+      - GRADE
+      - END_REASON
+      - ASSIGNMENT_KIND
+      - QUALIFICATION
+      description: The kinds of reference items. Each realm defines its own items
+        for each kind.
+    Reorganization:
+      required:
+      - effectiveDate
+      - steps
+      description: "A request to change many org units on one date, and its response."
+      type: object
+      properties:
+        effectiveDate:
+          type: string
+          description: The date of every step.
+          format: date
+          writeOnly: true
+        steps:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReorganizationStep"
+          description: "The steps, in the order to apply them."
+          writeOnly: true
+        results:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReorganizationResult"
+          description: "What each step did, in the same order."
+          readOnly: true
+    ReorganizationResult:
+      type: object
+      required:
+      - op
+      - unit
+      description: What one step did.
+      properties:
+        op:
+          type: string
+          enum:
+          - create
+          - change
+          - move
+          - end
+        unit:
+          description: "The unit after the step. For an end, it is the unit on its\
+            \ last date."
+          type: object
+          $ref: "#/components/schemas/OrgUnit"
+    ReorganizationStep:
+      type: object
+      required:
+      - op
+      description: One operation of a reorganization.
+      properties:
+        op:
+          type: string
+          enum:
+          - create
+          - change
+          - move
+          - end
+        ref:
+          type: string
+          description: A name that later steps of the same request can use for the
+            unit that a create step makes.
+        id:
+          type: string
+          description: "The ID of the unit to change, move, or end."
+        unitRef:
+          type: string
+          description: "The `ref` of an earlier create step, in place of `id`."
+        parentId:
+          type: string
+          description: The ID of the parent for a create or a move.
+        parentRef:
+          type: string
+          description: "The `ref` of an earlier create step, in place of `parentId`."
+        code:
+          type: string
+          maxLength: 64
+          pattern: "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
+          description: The code of a new unit.
+        name:
+          type: string
+          maxLength: 255
+          description: "The default name, for a create or a change."
+        names:
+          type: object
+          additionalProperties:
+            type: string
+          description: "Names in other languages, by language tag."
+        shortName:
+          type: string
+          maxLength: 255
+          description: The default short name.
+        shortNames:
+          type: object
+          additionalProperties:
+            type: string
+          description: "The short names in other languages, by language tag."
+        phoneticName:
+          type: string
+          maxLength: 255
+          description: The reading of the name for sorting.
+        unitType:
+          type: string
+          description: The code of the unit type.
+        displayOrder:
+          type: integer
+          format: int32
+          description: The position among siblings.
+          default: 0
+        attributes:
+          type: object
+          additionalProperties: {}
+          description: Free values that the realm defines.
+    Reporting:
+      required:
+      - userId
+      - kind
+      - derived
+      - assignmentId
+      - orgUnitId
+      description: "One manager of a person, or one direct report of a person, on\
+        \ a date."
+      type: object
+      properties:
+        userId:
+          type: string
+          description: "The ID of the other user. It is the manager in a list of managers,\
+            \ and the report in a list of reports."
+        kind:
+          $ref: "#/components/schemas/ReportingKind"
+        derived:
+          type: boolean
+          description: True when no reporting line is stored and the head of the org
+            unit is taken as the manager.
+        lineId:
+          type: string
+          description: The ID of the stored reporting line. A derived entry has none.
+        assignmentId:
+          type: string
+          description: The ID of the assignment of the person who reports.
+        orgUnitId:
+          type: string
+          description: The ID of the org unit of that assignment.
+    ReportingKind:
+      type: string
+      enum:
+      - SOLID
+      - DOTTED
+      description: |
+        `SOLID` is the main manager. An assignment has at most one at a time.
+        `DOTTED` is a further manager, for example of a project.
+    ReportingLine:
+      required:
+      - assignmentId
+      - managerUserId
+      - validFrom
+      type: object
+      properties:
+        id:
+          type: string
+          readOnly: true
+        assignmentId:
+          type: string
+          description: The ID of the assignment of the person who reports.
+        managerUserId:
+          type: string
+          description: The ID of the Keycloak user who is the manager.
+        kind:
+          $ref: "#/components/schemas/ReportingKind"
+          default: SOLID
+        validFrom:
+          type: string
+          description: The first date of the line.
+          format: date
+        validTo:
+          type: string
+          description: The first date after the line. Leave it out to last as long
+            as the assignment.
+          format: date
+    Staff:
+      required:
+      - userId
+      - orgUnitId
+      - validFrom
+      description: "A request to add a person to an org unit in one call, and its\
+        \ response. The request starts an employment and adds its first assignment."
+      type: object
+      properties:
+        userId:
+          type: string
+          description: The ID of the Keycloak user.
+          writeOnly: true
+        orgUnitId:
+          type: string
+          writeOnly: true
+        validFrom:
+          type: string
+          description: The first date of the employment and of the assignment.
+          format: date
+          writeOnly: true
+        validTo:
+          type: string
+          description: The first date after both.
+          format: date
+          writeOnly: true
+        staffNumber:
+          type: string
+          maxLength: 64
+          pattern: "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
+          description: The number that the legal entity gives to the person.
+          writeOnly: true
+        employmentType:
+          type: string
+          description: The code of the employment type.
+          writeOnly: true
+        grade:
+          type: string
+          description: The code of the grade.
+          writeOnly: true
+        workPercent:
+          type: number
+          maximum: 100
+          exclusiveMinimum: 0
+          description: The share of full-time work in percent.
+          writeOnly: true
+        jobTitle:
+          type: string
+          description: The code of the job title.
+          writeOnly: true
+        occupation:
+          type: string
+          description: The code of the occupation.
+          writeOnly: true
+        head:
+          type: boolean
+          description: True when the person leads the org unit.
+          writeOnly: true
+          default: false
+        primary:
+          type: boolean
+          description: False when this is not the main assignment.
+          writeOnly: true
+          default: true
+        employment:
+          readOnly: true
+          type: object
+          $ref: "#/components/schemas/Employment"
+        assignment:
+          readOnly: true
+          type: object
+          $ref: "#/components/schemas/Assignment"
+    SyncReport:
+      required:
+      - dryRun
+      - users
+      - employmentsStarted
+      - assignmentsAdded
+      - assignmentsMoved
+      - assignmentsChanged
+      - assignmentsEnded
+      - reportingLinesChanged
+      - unmatched
+      description: "What a sync from user attributes did, or would do."
+      type: object
+      properties:
+        dryRun:
+          type: boolean
+          description: True when the request asked for a dry run.
+        users:
+          type: integer
+          format: int32
+          description: The number of users with a department.
+        employmentsStarted:
+          type: integer
+          format: int32
+          description: The number of employments that were started.
+        assignmentsAdded:
+          type: integer
+          format: int32
+          description: The number of assignments that were added.
+        assignmentsMoved:
+          type: integer
+          format: int32
+          description: The number of users whose assignment moved to another org unit.
+        assignmentsChanged:
+          type: integer
+          format: int32
+          description: The number of assignments that got a new job title.
+        assignmentsEnded:
+          type: integer
+          format: int32
+          description: The number of assignments that ended because the department
+            was removed.
+        reportingLinesChanged:
+          type: integer
+          format: int32
+          description: The number of users whose reporting line changed.
+        unmatched:
+          type: array
+          items:
+            $ref: "#/components/schemas/SyncUnmatched"
+          description: The values of user attributes that matched nothing.
+    SyncUnmatched:
+      type: object
+      required:
+      - userId
+      - field
+      - value
+      - reason
+      description: A value of a user attribute that matched nothing.
+      properties:
+        userId:
+          type: string
+        field:
+          type: string
+          enum:
+          - department
+          - title
+          - manager
+        value:
+          type: string
+        reason:
+          type: string
+          description: '`unknown` when nothing has the value. `ambiguous` when more
+            than one org unit has the name.'
+          enum:
+          - unknown
+          - ambiguous
+    TimeSettings:
+      description: "The time settings of an org unit. They also hold for the units\
+        \ below it, unless one of them has its own."
+      type: object
+      properties:
+        orgUnitId:
+          type: string
+          readOnly: true
+        timeZone:
+          type: string
+          description: The time zone. Leave it out to use the one from above.
+          examples:
+          - America/New_York
+        dayStart:
+          type: string
+          description: "The time of day when the date changes, as `HH:mm`. Leave it\
+            \ out to use the one from above."
+          examples:
+          - 05:00
+    UserHistory:
+      required:
+      - userId
+      - employments
+      - assignments
+      description: Everything that is stored about one user over time.
+      type: object
+      properties:
+        userId:
+          type: string
+        maskedAt:
+          type: string
+          description: "When the personal data of the user was masked, in UTC. It\
+            \ is missing when it never was."
+          format: date-time
+        employments:
+          type: array
+          items:
+            $ref: "#/components/schemas/Employment"
+          description: "The employments with their terms, oldest first."
+        assignments:
+          type: array
+          items:
+            $ref: "#/components/schemas/Assignment"
+          description: "The assignments with their details, oldest first."
+    Version:
+      required:
+      - version
+      type: object
+      properties:
+        version:
+          type: string
+  parameters:
+    changeOrder:
+      description: |
+        The ID of the change order that the write belongs to.
+        A request that names an unknown change order gets 400 and writes nothing.
+      in: query
+      name: changeOrder
+      schema:
+        type: string
+  responses:
+    BadRequest:
+      description: A value in the request is bad.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Conflict:
+      description: |
+        The request conflicts with existing data.
+        A realm with no usable time zone also gets this status on every request.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Forbidden:
+      description: The caller lacks the permission.
+    ImportFailed:
+      description: |
+        A row failed, and the body is the report with every bad row.
+        Or the request itself is bad, and the body is an error.
+      content:
+        application/json:
+          schema:
+            oneOf:
+            - $ref: "#/components/schemas/ImportReport"
+            - $ref: "#/components/schemas/Error"
+    NotFound:
+      description: The target does not exist in the realm.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Unauthorized:
+      description: The request has no valid token.
+  securitySchemes:
+    bearer:
+      type: http
+      description: An access token for the admin API of Keycloak.
+      scheme: bearer
+      bearerFormat: JWT
+info:
+  description: |
+    The API has no release yet and can still change.
+
+    Dates have the form `YYYY-MM-DD`.
+    A period includes its `validFrom` date and does not include its `validTo` date.
+
+    A response leaves out every field that has no value.
+    For example, an org unit with no end date has no `validTo` field.
+
+    A read needs the permission to view users. A write needs the permission to manage users.
+
+    A write belongs to a change order when its request has the query parameter `changeOrder`.
+
+    A failed request writes nothing.
+  license:
+    identifier: Apache-2.0
+    name: "Apache License, Version 2.0"
+  summary: Organization structure and its history for each Keycloak realm.
+  title: keycloak-fuhito admin REST API
+  version: 0.1.0
+servers:
+- url: "{baseUrl}/admin/realms/{realm}/fuhito"
+  variables:
+    baseUrl:
+      description: The base URL of Keycloak.
+      default: http://localhost:8080
+    realm:
+      description: The name of the realm.
+      default: master
+security:
+- bearer: []
+externalDocs:
+  description: How the extension plugs into Keycloak
+  url: https://github.com/exoego/keycloak-fuhito/blob/main/docs/keycloak-integration.md
+paths:
+  /:
+    get:
+      summary: Returns the version of this extension.
+      operationId: getVersion
+      tags:
+      - general
+      responses:
+        "200":
+          description: The version.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Version"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /assignments:
+    post:
+      summary: Adds an assignment of an employment to an org unit.
+      operationId: addAssignment
+      tags:
+      - assignments
+      parameters:
+      - $ref: "#/components/parameters/changeOrder"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Assignment"
+        required: true
+      responses:
+        "201":
+          description: The new assignment.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Assignment"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /assignments/{id}:
+    get:
+      summary: Returns an assignment with the details of every period.
+      operationId: getAssignment
+      tags:
+      - assignments
+      parameters:
+      - description: The ID of the resource.
+        name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: The assignment.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Assignment"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /assignments/{id}/details:
+    put:
+      summary: Replaces the details of an assignment from the `validFrom` date of
+        the body.
+      description: The employment and the org unit do not change.
+      operationId: changeAssignmentDetails
+      tags:
+      - assignments
+      parameters:
+      - description: The ID of the resource.
+        name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      - $ref: "#/components/parameters/changeOrder"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AssignmentDetails"
+        required: true
+      responses:
+        "200":
+          description: The assignment with the details of every period.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Assignment"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /assignments/{id}/end:
+    delete:
+      summary: Removes the end of an assignment.
+      description: The assignment then lasts as long as its employment.
+      operationId: removeAssignmentEnd
+      tags:
+      - assignments
+      parameters:
+      - description: The ID of the resource.
+        name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      - $ref: "#/components/parameters/changeOrder"
+      responses:
+        "200":
+          description: The assignment with the details of every period.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Assignment"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+    put:
+      summary: Sets the end of an assignment.
+      description: Its history stays readable. The end can move earlier or later.
+      operationId: endAssignment
+      tags:
+      - assignments
+      parameters:
+      - description: The ID of the resource.
+        name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      - $ref: "#/components/parameters/changeOrder"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/End"
+        required: true
+      responses:
+        "200":
+          description: The assignment with the details of every period.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Assignment"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /attribute-sync/run:
+    post:
+      summary: Makes the assignments and reporting lines of the sync match the user
+        attributes of now.
+      description: Running it again with no change in between changes nothing.
+      operationId: runAttributeSync
+      tags:
+      - keycloak
+      parameters:
+      - description: True to report what the sync would do and write nothing.
+        schema:
+          type: boolean
+          default: false
+        name: dryRun
+        in: query
+      - $ref: "#/components/parameters/changeOrder"
+      responses:
+        "200":
+          description: What the run did.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SyncReport"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /change-log:
+    get:
+      summary: "Lists the writes to one resource, oldest first."
+      operationId: listChangeLog
+      tags:
+      - change-orders
+      parameters:
+      - description: The number of entries to skip.
+        schema:
+          type: integer
+          format: int32
+          minimum: 0
+          default: 0
+        name: first
+        in: query
+      - description: The largest number of entries to return.
+        schema:
+          type: integer
+          format: int32
+          minimum: 0
+          default: 100
+        name: max
+        in: query
+      - description: The ID of the resource.
+        required: true
+        name: resourceId
+        in: query
+        schema:
+          type: string
+      - description: The type of the resource.
+        required: true
+        schema:
+          type: string
+          examples:
+          - FUHITO_ORG_UNIT
+        name: resourceType
+        in: query
+      responses:
+        "200":
+          description: The entries.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ChangeLogEntry"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /change-orders:
+    get:
+      summary: "Lists the change orders with an effective date in a range, newest\
+        \ effective date first."
+      operationId: listChangeOrders
+      tags:
+      - change-orders
+      parameters:
+      - description: The first effective date to return.
+        schema:
+          type: string
+          format: date
+        name: from
+        in: query
+      - description: The first effective date not to return.
+        schema:
+          type: string
+          format: date
+        name: to
+        in: query
+      responses:
+        "200":
+          description: The orders.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ChangeOrder"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+    post:
+      summary: Creates a change order.
+      operationId: createChangeOrder
+      tags:
+      - change-orders
+      parameters:
+      - $ref: "#/components/parameters/changeOrder"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChangeOrder"
+        required: true
+      responses:
+        "201":
+          description: The new order.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChangeOrder"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /change-orders/{id}:
+    put:
+      summary: Replaces the values of a change order.
+      operationId: updateChangeOrder
+      tags:
+      - change-orders
+      parameters:
+      - description: The ID of the resource.
+        name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      - $ref: "#/components/parameters/changeOrder"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChangeOrder"
+        required: true
+      responses:
+        "200":
+          description: The changed order.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChangeOrder"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+    get:
+      summary: Returns one change order.
+      operationId: getChangeOrder
+      tags:
+      - change-orders
+      parameters:
+      - description: The ID of the resource.
+        name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: The order.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChangeOrder"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+    delete:
+      summary: Deletes a change order.
+      description: A change order with writes cannot be deleted.
+      operationId: deleteChangeOrder
+      tags:
+      - change-orders
+      parameters:
+      - description: The ID of the resource.
+        name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      - $ref: "#/components/parameters/changeOrder"
+      responses:
+        "204":
+          description: The order was deleted.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /change-orders/{id}/changes:
+    get:
+      summary: "Lists the writes that belong to a change order, oldest first."
+      operationId: listChangeOrderChanges
+      tags:
+      - change-orders
+      parameters:
+      - description: The ID of the resource.
+        name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      - description: The number of entries to skip.
+        schema:
+          type: integer
+          format: int32
+          minimum: 0
+          default: 0
+        name: first
+        in: query
+      - description: The largest number of entries to return.
+        schema:
+          type: integer
+          format: int32
+          minimum: 0
+          default: 100
+        name: max
+        in: query
+      responses:
+        "200":
+          description: The entries.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ChangeLogEntry"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /employments:
+    post:
+      summary: Starts an employment of a user.
+      operationId: startEmployment
+      tags:
+      - employments
+      parameters:
+      - $ref: "#/components/parameters/changeOrder"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Employment"
+        required: true
+      responses:
+        "201":
+          description: The new employment.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Employment"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /employments/{id}:
+    get:
+      summary: Returns an employment with the terms of every period.
+      operationId: getEmployment
+      tags:
+      - employments
+      parameters:
+      - description: The ID of the resource.
+        name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: The employment.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Employment"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /employments/{id}/end:
+    delete:
+      summary: "Removes the end of an employment, for example to take back a resignation."
+      operationId: removeEmploymentEnd
+      tags:
+      - employments
+      parameters:
+      - description: The ID of the resource.
+        name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      - $ref: "#/components/parameters/changeOrder"
+      responses:
+        "200":
+          description: The employment with the terms of every period.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Employment"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+    put:
+      summary: Sets the end of an employment.
+      description: An earlier end is how a person leaves. It also ends the terms and
+        the assignments on that date. A later end extends a fixed-term employment.
+      operationId: endEmployment
+      tags:
+      - employments
+      parameters:
+      - description: The ID of the resource.
+        name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      - $ref: "#/components/parameters/changeOrder"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/End"
+        required: true
+      responses:
+        "200":
+          description: The employment with the terms of every period.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Employment"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /employments/{id}/terms:
+    put:
+      summary: Replaces the terms of an employment from the `validFrom` date of the
+        body.
+      description: "The terms are the employment type, the grade, the status, the\
+        \ work percentage, and the attributes."
+      operationId: changeEmploymentTerms
+      tags:
+      - employments
+      parameters:
+      - description: The ID of the resource.
+        name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      - $ref: "#/components/parameters/changeOrder"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmploymentTerms"
+        required: true
+      responses:
+        "200":
+          description: The employment with the terms of every period.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Employment"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /export:
+    get:
+      summary: "Returns all organization data of the realm, with every period of every\
+        \ resource."
+      operationId: exportRealm
+      tags:
+      - bulk
+      responses:
+        "200":
+          description: The export.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Export"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /hierarchies:
+    get:
+      summary: "Lists the hierarchies of the realm, ordered by code."
+      operationId: listHierarchies
+      tags:
+      - general
+      responses:
+        "200":
+          description: The hierarchies.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Hierarchy"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /imports:
+    post:
+      summary: Loads many rows in one transaction.
+      description: "All rows are written, or none. A dry run does all checks and writes\
+        \ nothing. The lists are applied in the order reference items, org units,\
+        \ employments, assignments."
+      operationId: applyImport
+      tags:
+      - bulk
+      parameters:
+      - $ref: "#/components/parameters/changeOrder"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ImportDocument"
+        required: true
+      responses:
+        "200":
+          description: "The rows were written, or the request was a dry run without\
+            \ errors."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ImportReport"
+        "400":
+          $ref: "#/components/responses/ImportFailed"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /imports/csv/{list}:
+    post:
+      summary: Loads one CSV file in one transaction.
+      description: "The first row has the column names, in English or in Japanese.\
+        \ A blank cell keeps the stored value. The cell `#CLEAR` removes it. The `charset`\
+        \ of the content type says how the file is encoded. The default is UTF-8."
+      operationId: applyCsvImport
+      tags:
+      - bulk
+      parameters:
+      - description: The kind of rows.
+        schema:
+          type: string
+          enum:
+          - ref-items
+          - org-units
+          - employments
+          - assignments
+        name: list
+        in: path
+        required: true
+      - description: True to do all checks and write nothing.
+        schema:
+          type: boolean
+          default: false
+        name: dryRun
+        in: query
+      - description: The date of the state.
+        required: true
+        schema:
+          type: string
+          format: date
+        name: effectiveDate
+        in: query
+      - description: The name of the system that the rows come from.
+        schema:
+          type: string
+          default: import
+        name: source
+        in: query
+      - $ref: "#/components/parameters/changeOrder"
+      requestBody:
+        content:
+          text/csv:
+            schema:
+              type: string
+              format: binary
+        required: true
+      responses:
+        "200":
+          description: "The rows were written, or the request was a dry run without\
+            \ errors."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ImportReport"
+        "400":
+          $ref: "#/components/responses/ImportFailed"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /org-units:
+    get:
+      summary: Lists the org units that exist on a date.
+      description: Each parent comes before its children.
+      operationId: listOrgUnits
+      tags:
+      - org-units
+      parameters:
+      - description: The date to read. The default is today in the time zone of the
+          realm.
+        schema:
+          type: string
+          format: date
+        name: asOf
+        in: query
+      - description: True to return only the units with no parent.
+        schema:
+          type: boolean
+          default: false
+        name: roots
+        in: query
+      responses:
+        "200":
+          description: The units on the date.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/OrgUnit"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+    post:
+      summary: Creates an org unit that starts on a date.
+      operationId: createOrgUnit
+      tags:
+      - org-units
+      parameters:
+      - $ref: "#/components/parameters/changeOrder"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OrgUnit"
+        required: true
+      responses:
+        "201":
+          description: The unit as it is on its first date.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrgUnit"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /org-units/{id}:
+    get:
+      summary: Returns an org unit as it is on a date.
+      operationId: getOrgUnit
+      tags:
+      - org-units
+      parameters:
+      - description: The ID of the resource.
+        name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      - description: The date to read. The default is today in the time zone of the
+          realm.
+        schema:
+          type: string
+          format: date
+        name: asOf
+        in: query
+      responses:
+        "200":
+          description: The unit on the date.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrgUnit"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+    put:
+      summary: Replaces the details of an org unit from the `validFrom` date of the
+        body.
+      description: "The details are the names, the unit type, the display order, and\
+        \ the attributes. The code, the parent, and the external ID do not change\
+        \ here."
+      operationId: changeOrgUnitDetails
+      tags:
+      - org-units
+      parameters:
+      - description: The ID of the resource.
+        name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      - $ref: "#/components/parameters/changeOrder"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OrgUnit"
+        required: true
+      responses:
+        "200":
+          description: The unit as it is on that date.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrgUnit"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /org-units/{id}/children:
+    get:
+      summary: Lists the direct children of an org unit on a date.
+      operationId: listOrgUnitChildren
+      tags:
+      - org-units
+      parameters:
+      - description: The ID of the resource.
+        name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      - description: The date to read. The default is today for the org unit. It is
+          the date of the realm unless a unit sets its own time zone.
+        schema:
+          type: string
+          format: date
+        name: asOf
+        in: query
+      responses:
+        "200":
+          description: The children on the date.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/OrgUnit"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /org-units/{id}/end:
+    put:
+      summary: Ends an org unit.
+      description: Its history stays readable for earlier dates.
+      operationId: endOrgUnit
+      tags:
+      - org-units
+      parameters:
+      - description: The ID of the resource.
+        name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      - $ref: "#/components/parameters/changeOrder"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/End"
+        required: true
+      responses:
+        "200":
+          description: The unit as it is on its last date.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrgUnit"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /org-units/{id}/history:
+    get:
+      summary: Returns everything that is stored about an org unit over time.
+      operationId: getOrgUnitHistory
+      tags:
+      - org-units
+      parameters:
+      - description: The ID of the resource.
+        name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: The details of every period and the parent of every period.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrgUnitHistory"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /org-units/{id}/members:
+    get:
+      summary: Lists the assignments to an org unit that hold on a date.
+      operationId: listOrgUnitMembers
+      tags:
+      - org-units
+      parameters:
+      - description: The ID of the resource.
+        name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      - description: The date to read. The default is today for the org unit. It is
+          the date of the realm unless a unit sets its own time zone.
+        schema:
+          type: string
+          format: date
+        name: asOf
+        in: query
+      - description: The number of entries to skip.
+        schema:
+          type: integer
+          format: int32
+          minimum: 0
+          default: 0
+        name: first
+        in: query
+      - description: True to also list the members of every unit below.
+        schema:
+          type: boolean
+          default: false
+        name: includeDescendants
+        in: query
+      - description: The code of a job title to keep.
+        name: jobTitle
+        in: query
+        schema:
+          type: string
+      - description: The largest number of entries to return.
+        schema:
+          type: integer
+          format: int32
+          minimum: 0
+          default: 100
+        name: max
+        in: query
+      - description: The code of an occupation to keep.
+        name: occupation
+        in: query
+        schema:
+          type: string
+      - description: An employment status to keep.
+        schema:
+          $ref: "#/components/schemas/EmploymentStatus"
+        name: status
+        in: query
+      responses:
+        "200":
+          description: The members on the date.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Member"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /org-units/{id}/organization:
+    delete:
+      summary: Removes the link of an org unit to a Keycloak organization.
+      operationId: unlinkOrgUnitOrganization
+      tags:
+      - org-units
+      parameters:
+      - description: The ID of the resource.
+        name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      - $ref: "#/components/parameters/changeOrder"
+      responses:
+        "200":
+          description: The org unit with no link.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrganizationLink"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+    put:
+      summary: Links an org unit to a Keycloak organization.
+      description: The link says that the unit stands for the organization. One organization
+        is linked to at most one org unit.
+      operationId: linkOrgUnitOrganization
+      tags:
+      - org-units
+      parameters:
+      - description: The ID of the resource.
+        name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      - $ref: "#/components/parameters/changeOrder"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OrganizationLink"
+        required: true
+      responses:
+        "200":
+          description: The link.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrganizationLink"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /org-units/{id}/parent:
+    put:
+      summary: Gives an org unit a new parent in the default hierarchy from a date.
+      operationId: moveOrgUnit
+      tags:
+      - org-units
+      parameters:
+      - description: The ID of the resource.
+        name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      - $ref: "#/components/parameters/changeOrder"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ParentChange"
+        required: true
+      responses:
+        "200":
+          description: The unit as it is on that date.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrgUnit"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /org-units/{id}/path:
+    get:
+      summary: Lists the units from the root down to an org unit on a date.
+      operationId: getOrgUnitPath
+      tags:
+      - org-units
+      parameters:
+      - description: The ID of the resource.
+        name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      - description: The date to read. The default is today for the org unit. It is
+          the date of the realm unless a unit sets its own time zone.
+        schema:
+          type: string
+          format: date
+        name: asOf
+        in: query
+      responses:
+        "200":
+          description: "The path, with the root first and the unit last."
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/OrgUnit"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /org-units/{id}/subtree:
+    get:
+      summary: Lists an org unit and everything below it on a date.
+      description: Each parent comes before its children.
+      operationId: listOrgUnitSubtree
+      tags:
+      - org-units
+      parameters:
+      - description: The ID of the resource.
+        name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      - description: The date to read. The default is today for the org unit. It is
+          the date of the realm unless a unit sets its own time zone.
+        schema:
+          type: string
+          format: date
+        name: asOf
+        in: query
+      responses:
+        "200":
+          description: The unit and its descendants on the date.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/OrgUnit"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /org-units/{id}/time-settings:
+    put:
+      summary: Sets the time zone and the day start of an org unit.
+      description: "They decide what today is for the unit and for the units below\
+        \ it. A value that is left out is removed, and the unit then uses the value\
+        \ from above."
+      operationId: setOrgUnitTimeSettings
+      tags:
+      - org-units
+      parameters:
+      - description: The ID of the resource.
+        name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      - $ref: "#/components/parameters/changeOrder"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TimeSettings"
+        required: true
+      responses:
+        "200":
+          description: The settings of the org unit.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TimeSettings"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /projection/rebuild:
+    post:
+      summary: Mirrors the org structure of today into the groups of Keycloak organizations.
+      description: A rebuild with no change in between changes nothing.
+      operationId: rebuildProjection
+      tags:
+      - keycloak
+      parameters:
+      - $ref: "#/components/parameters/changeOrder"
+      responses:
+        "200":
+          description: What the rebuild changed in Keycloak.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectionReport"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /qualifications:
+    post:
+      summary: Adds a qualification of a user.
+      description: The body needs `userId`.
+      operationId: addQualification
+      tags:
+      - qualifications
+      parameters:
+      - $ref: "#/components/parameters/changeOrder"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Qualification"
+        required: true
+      responses:
+        "201":
+          description: The new qualification.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Qualification"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /qualifications/{id}:
+    put:
+      summary: "Replaces the kind, the number, the dates, and the attributes of a\
+        \ qualification."
+      operationId: replaceQualification
+      tags:
+      - qualifications
+      parameters:
+      - description: The ID of the resource.
+        name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      - $ref: "#/components/parameters/changeOrder"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Qualification"
+        required: true
+      responses:
+        "200":
+          description: The changed qualification.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Qualification"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+    get:
+      summary: Returns one qualification.
+      operationId: getQualification
+      tags:
+      - qualifications
+      parameters:
+      - description: The ID of the resource.
+        name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: The qualification.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Qualification"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+    delete:
+      summary: Deletes a qualification.
+      operationId: deleteQualification
+      tags:
+      - qualifications
+      parameters:
+      - description: The ID of the resource.
+        name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      - $ref: "#/components/parameters/changeOrder"
+      responses:
+        "204":
+          description: The qualification was deleted.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /ref-items:
+    get:
+      summary: "Lists the items of a kind, ordered by display order and then by code."
+      operationId: listRefItems
+      tags:
+      - ref-items
+      parameters:
+      - description: True to also return inactive items.
+        schema:
+          type: boolean
+          default: false
+        name: includeInactive
+        in: query
+      - required: true
+        schema:
+          $ref: "#/components/schemas/RefKind"
+        name: kind
+        in: query
+      responses:
+        "200":
+          description: The items.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RefItem"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+    post:
+      summary: Creates an item.
+      description: "The body needs `kind`, `code`, and `name`."
+      operationId: createRefItem
+      tags:
+      - ref-items
+      parameters:
+      - $ref: "#/components/parameters/changeOrder"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RefItem"
+        required: true
+      responses:
+        "201":
+          description: The new item.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RefItem"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /ref-items/{id}:
+    put:
+      summary: Replaces the changeable values of an item.
+      description: The kind and the code never change. The body can leave them out.
+      operationId: updateRefItem
+      tags:
+      - ref-items
+      parameters:
+      - description: The ID of the resource.
+        name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      - $ref: "#/components/parameters/changeOrder"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RefItem"
+        required: true
+      responses:
+        "200":
+          description: The changed item.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RefItem"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+    get:
+      summary: Returns one item.
+      operationId: getRefItem
+      tags:
+      - ref-items
+      parameters:
+      - description: The ID of the resource.
+        name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: The item.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RefItem"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+    delete:
+      summary: Deletes an item.
+      operationId: deleteRefItem
+      tags:
+      - ref-items
+      parameters:
+      - description: The ID of the resource.
+        name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      - $ref: "#/components/parameters/changeOrder"
+      responses:
+        "204":
+          description: The item was deleted.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /reorganizations:
+    post:
+      summary: "Changes many org units on one date, in one transaction."
+      description: A failed step writes nothing.
+      operationId: applyReorganization
+      tags:
+      - org-units
+      parameters:
+      - $ref: "#/components/parameters/changeOrder"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Reorganization"
+        required: true
+      responses:
+        "200":
+          description: What each step did.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Reorganization"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /reporting-lines:
+    post:
+      summary: Adds a reporting line from an assignment to a manager.
+      operationId: addReportingLine
+      tags:
+      - reporting-lines
+      parameters:
+      - $ref: "#/components/parameters/changeOrder"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReportingLine"
+        required: true
+      responses:
+        "201":
+          description: The new line.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReportingLine"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /reporting-lines/{id}:
+    get:
+      summary: Returns one reporting line.
+      operationId: getReportingLine
+      tags:
+      - reporting-lines
+      parameters:
+      - description: The ID of the resource.
+        name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: The line.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReportingLine"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+    delete:
+      summary: "Deletes a reporting line, as if it had never been stored."
+      operationId: deleteReportingLine
+      tags:
+      - reporting-lines
+      parameters:
+      - description: The ID of the resource.
+        name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      - $ref: "#/components/parameters/changeOrder"
+      responses:
+        "204":
+          description: The line was deleted.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /reporting-lines/{id}/end:
+    put:
+      summary: Ends a reporting line earlier.
+      operationId: endReportingLine
+      tags:
+      - reporting-lines
+      parameters:
+      - description: The ID of the resource.
+        name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      - $ref: "#/components/parameters/changeOrder"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/End"
+        required: true
+      responses:
+        "200":
+          description: The changed line.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReportingLine"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /staff:
+    post:
+      summary: Starts an employment and adds its first assignment in one call.
+      operationId: addStaff
+      tags:
+      - assignments
+      parameters:
+      - $ref: "#/components/parameters/changeOrder"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Staff"
+        required: true
+      responses:
+        "201":
+          description: The new employment and the new assignment.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Staff"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /users/{userId}/assignments:
+    get:
+      summary: Lists the assignments of a user that hold on a date.
+      description: The primary assignment comes first.
+      operationId: listUserAssignments
+      tags:
+      - users
+      parameters:
+      - description: The ID of the Keycloak user.
+        name: userId
+        in: path
+        required: true
+        schema:
+          type: string
+      - description: The date to read. The default is today in the time zone of the
+          realm.
+        schema:
+          type: string
+          format: date
+        name: asOf
+        in: query
+      - description: True to return each org unit with its path from the root.
+        schema:
+          type: boolean
+          default: false
+        name: includePath
+        in: query
+      responses:
+        "200":
+          description: The assignments of the user on the date.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Member"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /users/{userId}/data:
+    delete:
+      summary: Erases everything about one user for good.
+      description: "These are the employments with their terms and assignments, the\
+        \ qualifications, the reporting lines of the user as a report and as a manager,\
+        \ and the change log entries about them. Removal of a user from Keycloak does\
+        \ not do this. This endpoint is for a request to delete personal data."
+      operationId: eraseUserData
+      tags:
+      - users
+      parameters:
+      - description: The ID of the Keycloak user.
+        name: userId
+        in: path
+        required: true
+        schema:
+          type: string
+      - $ref: "#/components/parameters/changeOrder"
+      responses:
+        "204":
+          description: The data was erased.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /users/{userId}/history:
+    get:
+      summary: "Returns every employment and every assignment of a user, with all\
+        \ their periods."
+      operationId: getUserHistory
+      tags:
+      - users
+      parameters:
+      - description: The ID of the Keycloak user.
+        name: userId
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: The history of the user.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserHistory"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /users/{userId}/managers:
+    get:
+      summary: "Lists the managers of a user on a date, for each assignment of the\
+        \ user."
+      description: "An assignment with no stored solid line takes the head of its\
+        \ org unit, or of the nearest unit above."
+      operationId: listUserManagers
+      tags:
+      - users
+      parameters:
+      - description: The ID of the Keycloak user.
+        name: userId
+        in: path
+        required: true
+        schema:
+          type: string
+      - description: The date to read. The default is today in the time zone of the
+          realm.
+        schema:
+          type: string
+          format: date
+        name: asOf
+        in: query
+      responses:
+        "200":
+          description: The managers.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Reporting"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /users/{userId}/mask:
+    post:
+      summary: Masks the personal data of a user who left. It cannot be undone.
+      description: "It clears the staff number, the numbers of qualifications, the\
+        \ external IDs, and the free attributes, also in the change log. Every record\
+        \ keeps its ID, its org unit, its job title, its occupation, and its dates."
+      operationId: maskUser
+      tags:
+      - users
+      parameters:
+      - description: The ID of the Keycloak user.
+        name: userId
+        in: path
+        required: true
+        schema:
+          type: string
+      - $ref: "#/components/parameters/changeOrder"
+      responses:
+        "200":
+          description: The user ID and the time of the masking.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Mask"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /users/{userId}/qualifications:
+    get:
+      summary: "Lists the qualifications of a user, oldest first."
+      operationId: listUserQualifications
+      tags:
+      - users
+      parameters:
+      - description: The ID of the Keycloak user.
+        name: userId
+        in: path
+        required: true
+        schema:
+          type: string
+      - description: "True to return every qualification, expired ones and future\
+          \ ones included."
+        schema:
+          type: boolean
+          default: false
+        name: all
+        in: query
+      - description: The date to read. The default is today in the time zone of the
+          realm.
+        schema:
+          type: string
+          format: date
+        name: asOf
+        in: query
+      responses:
+        "200":
+          description: The qualifications.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Qualification"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /users/{userId}/reports:
+    get:
+      summary: Lists the direct reports of a user on a date.
+      operationId: listUserReports
+      tags:
+      - users
+      parameters:
+      - description: The ID of the Keycloak user.
+        name: userId
+        in: path
+        required: true
+        schema:
+          type: string
+      - description: The date to read. The default is today in the time zone of the
+          realm.
+        schema:
+          type: string
+          format: date
+        name: asOf
+        in: query
+      responses:
+        "200":
+          description: The direct reports.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Reporting"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"

@@ -9,12 +9,19 @@ import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.rest.RequestContext.Change;
 import net.exoego.keycloak.fuhito.service.AssignmentService;
 import net.exoego.keycloak.fuhito.service.EmploymentService;
+import org.eclipse.microprofile.openapi.annotations.Operation;
+import org.eclipse.microprofile.openapi.annotations.media.Content;
+import org.eclipse.microprofile.openapi.annotations.media.Schema;
+import org.eclipse.microprofile.openapi.annotations.parameters.Parameter;
+import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
+import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 
 /**
  * A shortcut for the common case of a person who joins one org unit.
  */
 @Produces(MediaType.APPLICATION_JSON)
 @Consumes(MediaType.APPLICATION_JSON)
+@Tag(ref = Tags.ASSIGNMENTS)
 public class StaffResource {
 
     private final RequestContext context;
@@ -42,6 +49,16 @@ public class StaffResource {
      * @return 201 with the new employment and the new assignment
      */
     @POST
+    @Operation(operationId = "addStaff", summary = "Starts an employment and adds its first assignment in one call.")
+    @Parameter(ref = "changeOrder")
+    @APIResponse(
+            responseCode = "201",
+            description = "The new employment and the new assignment.",
+            content = @Content(mediaType = "application/json",
+                    schema = @Schema(implementation = StaffRepresentation.class)))
+    @BadRequest
+    @NotFound
+    @ApiErrors
     public Response add(StaffRepresentation body) {
         context.requireWrite();
         return Calls.run(context, () -> {

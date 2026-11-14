@@ -7,6 +7,7 @@ import java.util.Objects;
 
 import net.exoego.keycloak.fuhito.service.Member;
 import net.exoego.keycloak.fuhito.service.OrgUnitState;
+import org.eclipse.microprofile.openapi.annotations.media.Schema;
 
 /**
  * One assignment of one person on one date.
@@ -33,11 +34,58 @@ import net.exoego.keycloak.fuhito.service.OrgUnitState;
  * @param status the employment status on the date
  * @param workPercent the share of full-time work on the date in percent, or null
  */
-public record MemberRepresentation(String assignmentId, String employmentId, String userId, String staffNumber,
-        String orgUnitId, String orgUnitName, List<PathEntry> orgUnitPath, String validFrom, String validTo,
-        String jobTitle, String occupation, String kind, boolean head, boolean primary,
-        BigDecimal allocationPercent, int displayOrder, Map<String, Object> attributes, String employmentType,
-        String grade, String status, BigDecimal workPercent) {
+@Schema(
+        name = "Member",
+        description = "One assignment of one person on one date.",
+        requiredProperties = {"assignmentId", "employmentId", "userId", "orgUnitId", "orgUnitName", "validFrom", "head", "primary", "displayOrder", "status"})
+public record MemberRepresentation(
+        String assignmentId,
+        String employmentId,
+        @Schema(description = "The ID of the Keycloak user.")
+        String userId,
+        @Schema(description = "The number that the legal entity gives to the person.")
+        String staffNumber,
+        String orgUnitId,
+        @Schema(description = "The name of the org unit on the date.")
+        String orgUnitName,
+        @Schema(description = "The units from the root down to the org unit. Only present when asked for.")
+        List<PathEntry> orgUnitPath,
+        @Schema(description = "The first date of these details of the assignment.", format = "date")
+        String validFrom,
+        @Schema(description = "The first date after these details. It is missing for no end.", format = "date")
+        String validTo,
+        @Schema(description = "The code of the job title.")
+        String jobTitle,
+        @Schema(description = "The code of the occupation.")
+        String occupation,
+        @Schema(description = "The code of the assignment kind.")
+        String kind,
+        @Schema(description = "True when the person leads the org unit.")
+        boolean head,
+        @Schema(description = "True when this is the main assignment of the employment.")
+        boolean primary,
+        @Schema(
+                description = "The share of the person's work in percent.",
+                minimum = "0",
+                exclusiveMinimum = true,
+                maximum = "100")
+        BigDecimal allocationPercent,
+        @Schema(description = "The position among the members of the org unit, lowest first.")
+        int displayOrder,
+        @Schema(description = "Free values that the realm defines.")
+        Map<String, Object> attributes,
+        @Schema(description = "The code of the employment type on the date.")
+        String employmentType,
+        @Schema(description = "The code of the grade on the date.")
+        String grade,
+        @Schema(ref = "EmploymentStatus")
+        String status,
+        @Schema(
+                description = "The share of full-time work on the date in percent.",
+                minimum = "0",
+                exclusiveMinimum = true,
+                maximum = "100")
+        BigDecimal workPercent) {
 
     /**
      * One org unit on the way from the root.
@@ -45,7 +93,14 @@ public record MemberRepresentation(String assignmentId, String employmentId, Str
      * @param id the ID of the org unit
      * @param name the name of the org unit on the date
      */
-    public record PathEntry(String id, String name) {
+    @Schema(
+            name = "PathEntry",
+            description = "One org unit on the way from the root.",
+            requiredProperties = {"id", "name"})
+    public record PathEntry(
+            String id,
+            @Schema(description = "The name of the org unit on the date.")
+            String name) {
 
         static PathEntry of(OrgUnitState state) {
             return new PathEntry(state.unit().id(), state.version().name());

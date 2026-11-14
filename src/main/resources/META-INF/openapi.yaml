@@ -1,0 +1,35 @@
+# OpenAPI 3.2 fields of the tags. The annotations cannot say them yet.
+tags:
+  - name: general
+    summary: General
+    kind: nav
+  - name: ref-items
+    summary: Reference items
+    kind: nav
+  - name: org-units
+    summary: Org units
+    kind: nav
+  - name: employments
+    summary: Employments
+    kind: nav
+  - name: assignments
+    summary: Assignments
+    kind: nav
+  - name: reporting-lines
+    summary: Reporting lines
+    kind: nav
+  - name: qualifications
+    summary: Qualifications
+    kind: nav
+  - name: users
+    summary: Users
+    kind: nav
+  - name: change-orders
+    summary: Change orders and change log
+    kind: nav
+  - name: bulk
+    summary: Import and export
+    kind: nav
+  - name: keycloak
+    summary: Keycloak sync
+    kind: nav

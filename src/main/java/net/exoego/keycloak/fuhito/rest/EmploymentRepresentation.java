@@ -7,6 +7,7 @@ import java.util.Objects;
 
 import net.exoego.keycloak.fuhito.service.EmploymentView;
 import net.exoego.keycloak.fuhito.service.NewEmployment;
+import org.eclipse.microprofile.openapi.annotations.media.Schema;
 
 /**
  * An employment in requests and responses.
@@ -28,9 +29,52 @@ import net.exoego.keycloak.fuhito.service.NewEmployment;
  * @param attributes the first free values. Only requests use them.
  * @param terms the terms of each period, oldest first. Only responses have them.
  */
-public record EmploymentRepresentation(String id, String userId, String validFrom, String validTo,
-        String staffNumber, String endReason, String externalId, String source, String employmentType, String grade,
-        String status, BigDecimal workPercent, Map<String, Object> attributes, List<Terms> terms) {
+@Schema(
+        name = "Employment",
+        description = "A request to start an employment gives the first terms in the fields of the employment "
+                + "itself. A response gives the terms of every period in `terms`.",
+        requiredProperties = {"userId", "validFrom"})
+public record EmploymentRepresentation(
+        @Schema(readOnly = true)
+        String id,
+        @Schema(description = "The ID of the Keycloak user.")
+        String userId,
+        @Schema(description = "The first date of the employment.", format = "date")
+        String validFrom,
+        @Schema(description = "The first date after the employment. It is missing for no end.", format = "date")
+        String validTo,
+        @Schema(
+                description = "The number that the legal entity gives to the person.",
+                maxLength = 64,
+                pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$")
+        String staffNumber,
+        @Schema(description = "The code of the end reason.", readOnly = true)
+        String endReason,
+        @Schema(description = "The ID of the employment in the system it came from.")
+        String externalId,
+        @Schema(description = "The name of that system.")
+        String source,
+        @Schema(description = "The code of the first employment type.", writeOnly = true)
+        String employmentType,
+        @Schema(description = "The code of the first grade.", writeOnly = true)
+        String grade,
+        @Schema(
+                description = "The first status.",
+                ref = "EmploymentStatus",
+                defaultValue = "ACTIVE",
+                writeOnly = true)
+        String status,
+        @Schema(
+                description = "The first share of full-time work in percent.",
+                minimum = "0",
+                exclusiveMinimum = true,
+                maximum = "100",
+                writeOnly = true)
+        BigDecimal workPercent,
+        @Schema(description = "The first free values.", writeOnly = true)
+        Map<String, Object> attributes,
+        @Schema(description = "The terms of each period, oldest first.", readOnly = true)
+        List<Terms> terms) {
 
     /**
      * The conditions of an employment for a period.
@@ -43,8 +87,32 @@ public record EmploymentRepresentation(String id, String userId, String validFro
      * @param workPercent the share of full-time work in percent, or null
      * @param attributes free values that the realm defines
      */
-    public record Terms(String validFrom, String validTo, String employmentType, String grade, String status,
-            BigDecimal workPercent, Map<String, Object> attributes) {
+    @Schema(
+            name = "EmploymentTerms",
+            description = "The conditions of an employment for a period.",
+            requiredProperties = {"validFrom"})
+    public record Terms(
+            @Schema(description = "The first date of these conditions.", format = "date")
+            String validFrom,
+            @Schema(
+                    description = "The first date after these conditions. It is missing for no end.",
+                    format = "date",
+                    readOnly = true)
+            String validTo,
+            @Schema(description = "The code of the employment type.")
+            String employmentType,
+            @Schema(description = "The code of the grade.")
+            String grade,
+            @Schema(ref = "EmploymentStatus", defaultValue = "ACTIVE")
+            String status,
+            @Schema(
+                    description = "The share of full-time work in percent.",
+                    minimum = "0",
+                    exclusiveMinimum = true,
+                    maximum = "100")
+            BigDecimal workPercent,
+            @Schema(description = "Free values that the realm defines.")
+            Map<String, Object> attributes) {
     }
 
     /**

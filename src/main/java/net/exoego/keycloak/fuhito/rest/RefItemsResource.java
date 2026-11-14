@@ -19,12 +19,19 @@ import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.RefKind;
 import net.exoego.keycloak.fuhito.rest.RequestContext.Change;
 import net.exoego.keycloak.fuhito.service.RefItemService;
+import org.eclipse.microprofile.openapi.annotations.Operation;
+import org.eclipse.microprofile.openapi.annotations.media.Content;
+import org.eclipse.microprofile.openapi.annotations.media.Schema;
+import org.eclipse.microprofile.openapi.annotations.parameters.Parameter;
+import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
+import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 
 /**
  * The reference items of one realm.
  */
 @Produces(MediaType.APPLICATION_JSON)
 @Consumes(MediaType.APPLICATION_JSON)
+@Tag(ref = Tags.REF_ITEMS)
 public class RefItemsResource {
 
     /**
@@ -54,7 +61,16 @@ public class RefItemsResource {
      * @return the items, ordered by display order and then by code
      */
     @GET
-    public List<RefItemRepresentation> list(@QueryParam("kind") String kind,
+    @Operation(
+            operationId = "listRefItems",
+            summary = "Lists the items of a kind, ordered by display order and then by code.")
+    @APIResponse(responseCode = "200", description = "The items.")
+    @BadRequest
+    @ApiErrors
+    public List<RefItemRepresentation> list(
+            @Parameter(required = true, schema = @Schema(ref = "RefKind"))
+            @QueryParam("kind") String kind,
+            @Parameter(description = "True to also return inactive items.", schema = @Schema(defaultValue = "false"))
             @QueryParam("includeInactive") boolean includeInactive) {
         context.requireRead();
         return Calls.run(context, () -> service.list(parseKind(kind), includeInactive).stream()
@@ -70,7 +86,13 @@ public class RefItemsResource {
      */
     @GET
     @Path("{id}")
-    public RefItemRepresentation get(@PathParam("id") String id) {
+    @Operation(operationId = "getRefItem", summary = "Returns one item.")
+    @APIResponse(responseCode = "200", description = "The item.")
+    @NotFound
+    @ApiErrors
+    public RefItemRepresentation get(
+            @Parameter(description = "The ID of the resource.")
+            @PathParam("id") String id) {
         context.requireRead();
         return Calls.run(context, () -> RefItemRepresentation.of(service.get(id)));
     }
@@ -82,6 +104,18 @@ public class RefItemsResource {
      * @return 201 with the new item
      */
     @POST
+    @Operation(
+            operationId = "createRefItem",
+            summary = "Creates an item.",
+            description = "The body needs `kind`, `code`, and `name`.")
+    @Parameter(ref = "changeOrder")
+    @APIResponse(
+            responseCode = "201",
+            description = "The new item.",
+            content = @Content(mediaType = "application/json",
+                    schema = @Schema(implementation = RefItemRepresentation.class)))
+    @BadRequest
+    @ApiErrors
     public Response create(RefItemRepresentation body) {
         context.requireWrite();
         return Calls.run(context, () -> {
@@ -102,7 +136,19 @@ public class RefItemsResource {
      */
     @PUT
     @Path("{id}")
-    public RefItemRepresentation update(@PathParam("id") String id, RefItemRepresentation body) {
+    @Operation(
+            operationId = "updateRefItem",
+            summary = "Replaces the changeable values of an item.",
+            description = "The kind and the code never change. The body can leave them out.")
+    @Parameter(ref = "changeOrder")
+    @APIResponse(responseCode = "200", description = "The changed item.")
+    @BadRequest
+    @NotFound
+    @ApiErrors
+    public RefItemRepresentation update(
+            @Parameter(description = "The ID of the resource.")
+            @PathParam("id") String id,
+            RefItemRepresentation body) {
         context.requireWrite();
         return Calls.run(context, () -> {
             Checks.required("body", body);
@@ -121,7 +167,15 @@ public class RefItemsResource {
      */
     @DELETE
     @Path("{id}")
-    public Response delete(@PathParam("id") String id) {
+    @Operation(operationId = "deleteRefItem", summary = "Deletes an item.")
+    @Parameter(ref = "changeOrder")
+    @APIResponse(responseCode = "204", description = "The item was deleted.")
+    @BadRequest
+    @NotFound
+    @ApiErrors
+    public Response delete(
+            @Parameter(description = "The ID of the resource.")
+            @PathParam("id") String id) {
         context.requireWrite();
         return Calls.run(context, () -> {
             service.delete(id);
