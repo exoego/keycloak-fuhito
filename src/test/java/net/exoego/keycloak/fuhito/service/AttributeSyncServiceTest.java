@@ -343,4 +343,47 @@ class AttributeSyncServiceTest {
         assertEquals(List.of(), assignmentsOf("alice"));
         assertEquals(List.of("Internal Medicine 2026-06-14 2026-06-15 - primary"), assignmentsOf("bob"));
     }
+
+    @Test
+    void aTitleWithANameThatTwoJobTitlesShareMatchesTheFirst() {
+        refItems.insert(new RefItem("t3", RefKind.JOB_TITLE, "staff-2", "Staff", Map.of(), 0, Map.of(), true));
+        set("alice", "med", "Staff", null, null);
+
+        run();
+
+        assertEquals(List.of("Internal Medicine 2026-06-15 null staff primary"), assignmentsOf("alice"));
+    }
+
+    @Test
+    void anAssignmentThatEndedForItsUnitIsNotFoundAgainFromTheDateOfTheRealm() {
+        putSurgeryOnTheNextDate();
+        clock = Clock.offset(clock, Duration.ofDays(-2));
+        set("alice", "Surgery", "staff", null, null);
+        run();
+        nextDay();
+        nextDay();
+
+        // Surgery is on June 15, so the assignment ends there. The realm is still on June 14.
+        attributes.remove("alice");
+        assertEquals(1, run().assignmentsEnded());
+        assertEquals(List.of("Surgery 2026-06-13 2026-06-15 staff primary"), assignmentsOf("alice"));
+        assertEquals(new SyncReport(0, 0, 0, 0, 0, 0, 0, List.of(), List.of()), run());
+    }
+
+    @Test
+    void anAssignmentWithANewTitleFromTodayIsReadOnTheDateOfItsUnit() {
+        putSurgeryOnTheNextDate();
+        clock = Clock.offset(clock, Duration.ofDays(-2));
+        set("alice", "Surgery", "staff", null, null);
+        run();
+        nextDay();
+        nextDay();
+
+        // The old title still holds on the date of the realm. The new one holds on the date of Surgery.
+        set("alice", "Surgery", "director", null, null);
+        assertEquals(1, run().assignmentsChanged());
+        assertEquals(List.of("Surgery 2026-06-13 2026-06-15 staff primary",
+                "Surgery 2026-06-15 null director primary"), assignmentsOf("alice"));
+        assertEquals(new SyncReport(1, 0, 0, 0, 0, 0, 0, List.of(), List.of()), run());
+    }
 }

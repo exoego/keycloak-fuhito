@@ -290,4 +290,22 @@ class OrgUnitsIT {
         assertEquals(401, anonymous.post("/org-units", "{}").statusCode());
         assertEquals(401, anonymous.get("/org-units/x").statusCode());
     }
+
+    @Test
+    void aUnitCanLoseItsParentOnTheDateItGotIt() throws Exception {
+        TestRealm realm = TestRealm.create("org-units-unparent");
+        String root = Api.json(realm.api.post("/org-units", "{\"name\": \"Root\", \"validFrom\": \"2026-04-01\"}"))
+                .get("id").asText();
+        String branch = Api.json(realm.api.post("/org-units", "{\"name\": \"Branch\", \"parentId\": \"" + root
+                + "\", \"validFrom\": \"2026-04-01\"}")).get("id").asText();
+        assertEquals(1, Api.json(realm.api.get("/org-units/" + branch + "/history")).get("parents").size());
+
+        // The link starts on this date, so it never held and is removed.
+        HttpResponse<String> moved = realm.api.put("/org-units/" + branch + "/parent", "{\"validFrom\": \"2026-04-01\"}");
+
+        assertEquals(200, moved.statusCode(), moved.body());
+        assertFalse(Api.json(moved).has("parentId"));
+        assertEquals(0, Api.json(realm.api.get("/org-units/" + branch + "/history")).get("parents").size());
+        assertEquals(2, Api.json(realm.api.get("/org-units?asOf=2026-04-01&roots=true")).size());
+    }
 }

@@ -1,7 +1,5 @@
 package net.exoego.keycloak.fuhito.jpa;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -14,6 +12,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import jakarta.persistence.EntityManager;
+import net.exoego.keycloak.fuhito.domain.Unchecked;
 import net.exoego.keycloak.fuhito.store.UserDataMasker;
 
 /**
@@ -120,13 +119,11 @@ public class JpaUserDataMasker implements UserDataMasker {
     }
 
     static String masked(String json) {
-        try {
+        return Unchecked.io(() -> {
             JsonNode root = JSON.readTree(json);
             strip(root);
             return JSON.writeValueAsString(root);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
+        });
     }
 
     private static void strip(JsonNode node) {

@@ -216,4 +216,20 @@ class CsvImportServiceTest {
                 "2026-04-01").version().name());
         assertTrue(orgUnitStore.findUnitByExternalId("other", "K").isPresent());
     }
+
+    @Test
+    void aRowForAUnitThatDoesNotExistOnTheDateIsReported() {
+        load("orgUnits", "2026-04-01", """
+                externalId,name,shortName
+                H,Hospital,Hosp
+                """);
+
+        // The unit starts in 2026. On a date in 2025 it has no stored values to keep.
+        CsvImportService.Result result = load("orgUnits", "2025-04-01", """
+                externalId,name,shortName
+                H,,
+                """);
+
+        assertEquals(List.of("line 2 row 0 org_unit.not_valid_on"), errors(result));
+    }
 }

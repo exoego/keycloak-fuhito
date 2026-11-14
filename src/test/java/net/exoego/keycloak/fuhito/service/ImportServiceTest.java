@@ -463,4 +463,23 @@ class ImportServiceTest {
         assertEquals(Map.of("refItems", new Counts(0, 0, 0), "orgUnits", new Counts(0, 0, 0)),
                 service.apply(doc("2026-04-01", false, null, List.of(), List.of())).counts());
     }
+
+    @Test
+    void aNewEmploymentWithAnEndAndAReasonIsCreatedAndEnded() {
+        refItems.insert(new RefItem("r", RefKind.END_REASON, "resignation", "x", Map.of(), 0, Map.of(), true));
+        ImportDocument document = new ImportDocument("2026-04-01", false, "hr", null, null,
+                List.of(new EmploymentRow(null, "E9", "nurse", null, null, null, null, null, null, null,
+                        "2020-04-01", "2026-04-01", "resignation")), null);
+
+        ImportReport report = service.apply(document);
+
+        assertEquals(List.of(), errors(report));
+        assertEquals(new Counts(1, 0, 0), report.counts().get("employments"));
+        assertEquals(List.of("fuhito/employments/", "/end"), report.writes().stream()
+                .map(w -> w.path().endsWith("/end") ? "/end" : "fuhito/employments/").toList());
+        var stored = employmentStore.findByExternalId("hr", "E9").orElseThrow();
+        assertEquals(LocalDate.of(2026, 4, 1), stored.period().to());
+        assertEquals("r", stored.endReasonId());
+        assertEquals(new Counts(0, 0, 1), service.apply(document).counts().get("employments"));
+    }
 }

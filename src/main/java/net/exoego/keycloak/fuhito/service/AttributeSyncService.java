@@ -1,8 +1,8 @@
 package net.exoego.keycloak.fuhito.service;
 
-import java.time.Clock;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -11,6 +11,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.BinaryOperator;
 import java.util.stream.Collectors;
 
 import net.exoego.keycloak.fuhito.domain.Assignment;
@@ -77,16 +78,6 @@ public class AttributeSyncService {
     private int reportingLinesChanged;
 
     /**
-     * Creates the service for one run.
-     *
-     * @param from what the sync reads and writes
-     * @param clock the clock that decides what "today" is
-     */
-    public AttributeSyncService(Sources from, Clock clock) {
-        this(from, Today.of(clock));
-    }
-
-    /**
      * Creates the service for one run in a realm where an org unit can have its own time settings.
      *
      * @param from what the sync reads and writes
@@ -145,10 +136,10 @@ public class AttributeSyncService {
                     continue;
                 }
                 // The row of the date of the unit wins. Without one, the earliest row wins.
-                byAssignment.merge(row.assignmentId(), row, (kept, next) -> kept.period().contains(unitDate)
-                        || (!next.period().contains(unitDate)
-                                && !next.period().from().isBefore(kept.period().from()))
-                        ? kept : next);
+                Comparator<Assignment> best = Comparator
+                        .comparing((Assignment candidate) -> !candidate.period().contains(unitDate))
+                        .thenComparing(candidate -> candidate.period().from());
+                byAssignment.merge(row.assignmentId(), row, BinaryOperator.minBy(best));
             }
         }
         List<Assignment> rows = List.copyOf(byAssignment.values());

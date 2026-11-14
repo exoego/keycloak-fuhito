@@ -103,10 +103,7 @@ public class JpaOrgUnitStore implements OrgUnitStore {
 
     @Override
     public void updateUnit(OrgUnit unit) {
-        OrgUnitEntity entity = em.find(OrgUnitEntity.class, unit.id());
-        if (entity == null || !entity.realmId.equals(realmId)) {
-            throw new IllegalStateException("No such org unit in the realm: " + unit.id());
-        }
+        OrgUnitEntity entity = Rows.require(em, OrgUnitEntity.class, unit.id(), realmId, found -> found.realmId);
         entity.code = unit.code();
         entity.externalId = unit.externalId();
         entity.source = unit.source();
@@ -193,10 +190,7 @@ public class JpaOrgUnitStore implements OrgUnitStore {
 
     @Override
     public void updateVersion(OrgUnitVersion version) {
-        OrgUnitVersionEntity entity = em.find(OrgUnitVersionEntity.class, version.id());
-        if (entity == null || !entity.realmId.equals(realmId)) {
-            throw new IllegalStateException("No such version in the realm: " + version.id());
-        }
+        OrgUnitVersionEntity entity = Rows.require(em, OrgUnitVersionEntity.class, version.id(), realmId, found -> found.realmId);
         copy(version, entity);
         // A split shortens this row and then inserts the next one. The database must see the shorter row first.
         em.flush();
@@ -270,10 +264,7 @@ public class JpaOrgUnitStore implements OrgUnitStore {
     }
 
     private OrgUnitLinkEntity findLink(String id) {
-        OrgUnitLinkEntity entity = em.find(OrgUnitLinkEntity.class, id);
-        if (entity == null || !entity.realmId.equals(realmId)) {
-            throw new IllegalStateException("No such link in the realm: " + id);
-        }
+        OrgUnitLinkEntity entity = Rows.require(em, OrgUnitLinkEntity.class, id, realmId, found -> found.realmId);
         return entity;
     }
 
