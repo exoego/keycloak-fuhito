@@ -90,11 +90,16 @@ final class PeopleImport {
         String source = Checks.code("source", row.source() == null ? defaultSource : row.source());
         String personId = personId(row);
         Optional<Employment> stored = people.employments().findByExternalId(source, row.externalId());
+        String employerId = row.employerExternalId() == null ? null
+                : orgUnits.findUnitByExternalId(source, row.employerExternalId())
+                        .map(OrgUnit::id)
+                        .orElseThrow(() -> FuhitoException.invalid("import.org_unit_unknown",
+                                Map.of("orgUnitExternalId", row.employerExternalId())));
         if (stored.isEmpty()) {
             EmploymentView created = people.employmentService().start(new NewEmployment(personId,
                     row.validFrom() == null ? effectiveDate : row.validFrom(), row.validTo(), row.staffNumber(),
                     row.employmentType(), row.grade(), row.status(), row.workPercent(), row.attributes(),
-                    row.externalId(), source));
+                    row.externalId(), source, employerId));
             String id = created.employment().id();
             written(true, "", created);
             if (row.validTo() != null && row.endReason() != null) {
@@ -107,6 +112,10 @@ final class PeopleImport {
         String id = employment.id();
         if (!employment.personId().equals(personId)) {
             throw FuhitoException.conflict("import.user_mismatch", Map.of("externalId", row.externalId()));
+        }
+        // The employer never changes. A transfer to another employer is the way to move a person.
+        if (employerId != null && !employerId.equals(employment.employerId())) {
+            throw FuhitoException.conflict("import.employer_mismatch", Map.of("externalId", row.externalId()));
         }
         EmploymentView before = people.employmentService().get(id);
         boolean changed = false;

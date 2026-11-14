@@ -94,6 +94,7 @@ Define the attributes in the user profile of the realm, as the SCIM documentatio
 | `fuhito.sync.attribute.title` | The user attribute with the title | `title` |
 | `fuhito.sync.attribute.manager` | The user attribute with the user ID of the manager | `manager` |
 | `fuhito.sync.attribute.employeeNumber` | The user attribute with the staff number | `employeeNumber` |
+| `fuhito.sync.employer` | The code of the org unit that employs the people of the sync. It is a legal entity. A realm with several legal entities needs it. | The only legal entity of the realm |
 
 ## Open points
 

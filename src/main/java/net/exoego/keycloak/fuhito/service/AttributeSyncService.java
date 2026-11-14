@@ -17,6 +17,7 @@ import java.util.stream.Collectors;
 import net.exoego.keycloak.fuhito.domain.Assignment;
 import net.exoego.keycloak.fuhito.domain.Employment;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
+import net.exoego.keycloak.fuhito.domain.OrgUnit;
 import net.exoego.keycloak.fuhito.domain.RefItem;
 import net.exoego.keycloak.fuhito.domain.RefKind;
 import net.exoego.keycloak.fuhito.domain.ReportingLine;
@@ -70,6 +71,7 @@ public class AttributeSyncService {
 
     private final List<Unmatched> unmatched = new ArrayList<>();
     private final List<Write> writes = new ArrayList<>();
+    private String employerId;
     private int employmentsStarted;
     private int assignmentsAdded;
     private int assignmentsMoved;
@@ -100,6 +102,11 @@ public class AttributeSyncService {
         if (!settings.enabled()) {
             throw FuhitoException.conflict("sync.disabled", Map.of());
         }
+        // With no setting, the rule for a new employment takes the only legal entity of the realm.
+        employerId = settings.employerCode() == null ? null : from.orgUnits().findUnitByCode(settings.employerCode())
+                .map(OrgUnit::id)
+                .orElseThrow(() -> FuhitoException.conflict("sync.employer_unknown",
+                        Map.of("code", settings.employerCode())));
         Matcher matcher = new Matcher(today.ofRealm());
         Map<String, Assignment> owned = ownedByUser();
         List<Values> users = from.attributes().usersWithDepartment(settings);
@@ -219,7 +226,7 @@ public class AttributeSyncService {
 
     private EmploymentView start(Values user, String personId, String staffNumber, LocalDate today) {
         return from.employmentService().start(new NewEmployment(personId, today.toString(), null, staffNumber,
-                null, null, null, null, null, user.userId(), SOURCE));
+                null, null, null, null, null, user.userId(), SOURCE, employerId));
     }
 
     // The assignment of the sync is the primary one, unless the user has a primary assignment from elsewhere.

@@ -665,6 +665,11 @@ components:
         endReason:
           type: string
           description: The code of the end reason. It is used only with `validTo`.
+        employerExternalId:
+          type: string
+          description: "The external ID of the org unit that employs the person. It\
+            \ is a legal entity. Leave it out when the realm has exactly one. A stored\
+            \ employment keeps its employer, so the value must name that one."
     ImportOrgUnitRow:
       type: object
       required:
@@ -770,6 +775,10 @@ components:
           type: boolean
           description: False to stop the use of the item for new data.
           default: true
+        legalEntity:
+          type: boolean
+          description: True for a unit type whose org units are legal entities. A
+            row that leaves it out keeps the mark of a stored item.
     ImportReport:
       required:
       - dryRun

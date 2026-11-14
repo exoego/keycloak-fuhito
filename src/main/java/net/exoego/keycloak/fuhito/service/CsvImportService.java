@@ -72,6 +72,7 @@ public class CsvImportService {
             Map.entry("workPercent", "勤務割合"), Map.entry("endReason", "終了理由"),
             Map.entry("employmentExternalId", "雇用の外部ID"), Map.entry("orgUnitExternalId", "組織の外部ID"),
             Map.entry("jobTitle", "役職"), Map.entry("occupation", "職種"), Map.entry("assignmentKind", "所属区分"),
+            Map.entry("employerExternalId", "雇用主の外部ID"), Map.entry("legalEntity", "法人"),
             Map.entry("head", "長"), Map.entry("primary", "主務"), Map.entry("allocationPercent", "配分割合"));
 
     // The lists that a file can hold.
@@ -94,11 +95,11 @@ public class CsvImportService {
     }
 
     private static final Map<Kind, Set<String>> FIELDS = Map.of(
-            Kind.REF_ITEMS, Set.of("kind", "code", "name", "displayOrder", "active"),
+            Kind.REF_ITEMS, Set.of("kind", "code", "name", "displayOrder", "active", "legalEntity"),
             Kind.ORG_UNITS, Set.of("externalId", "source", "code", "name", "shortName", "phoneticName", "unitType",
                     "parentExternalId", "displayOrder", "validFrom", "validTo"),
             Kind.EMPLOYMENTS, Set.of("externalId", "source", "username", "userId", "staffNumber", "employmentType",
-                    "grade", "status", "workPercent", "validFrom", "validTo", "endReason"),
+                    "grade", "status", "workPercent", "validFrom", "validTo", "endReason", "employerExternalId"),
             Kind.ASSIGNMENTS, Set.of("externalId", "source", "employmentExternalId", "orgUnitExternalId", "jobTitle",
                     "occupation", "assignmentKind", "head", "primary", "allocationPercent", "displayOrder",
                     "validFrom", "validTo"));
@@ -226,7 +227,8 @@ public class CsvImportService {
                 cells.localized("name", stored.map(RefItem::names).orElse(Map.of())),
                 cells.integer("displayOrder", stored.map(RefItem::displayOrder).orElse(null)),
                 stored.map(RefItem::attributes).orElse(null),
-                cells.bool("active", stored.map(RefItem::active).orElse(null)));
+                cells.bool("active", stored.map(RefItem::active).orElse(null)),
+                cells.bool("legalEntity", null));
     }
 
     private OrgUnitRow orgUnit(Cells cells, LocalDate date, String defaultSource) {
@@ -275,7 +277,8 @@ public class CsvImportService {
                 cells.text("status", terms.map(t -> t.terms().status().name()).orElse(null)),
                 cells.decimal("workPercent", terms.map(t -> t.terms().workPercent()).orElse(null)),
                 terms.map(t -> t.terms().attributes()).orElse(null),
-                cells.text("validFrom", null), cells.text("validTo", null), cells.text("endReason", null));
+                cells.text("validFrom", null), cells.text("validTo", null), cells.text("endReason", null),
+                cells.text("employerExternalId", null));
     }
 
     private AssignmentRow assignment(Cells cells, LocalDate date, String defaultSource) {

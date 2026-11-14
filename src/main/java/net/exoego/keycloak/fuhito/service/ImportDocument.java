@@ -72,7 +72,35 @@ public record ImportDocument(
             @Schema(description = "The first date on which the employment no longer holds.", format = "date")
             String validTo,
             @Schema(description = "The code of the end reason. It is used only with `validTo`.")
-            String endReason) {
+            String endReason,
+            @Schema(description = "The external ID of the org unit that employs the person. It is a legal entity. "
+                    + "Leave it out when the realm has exactly one. A stored employment keeps its employer, so "
+                    + "the value must name that one.")
+            String employerExternalId) {
+
+        /**
+         * Makes a row that names no employer.
+         *
+         * @param source the name of the system that the row comes from, or null
+         * @param externalId the ID of the employment in that system
+         * @param username the username of the user, or null
+         * @param userId the ID of the user, or null
+         * @param staffNumber the staff number, or null
+         * @param employmentType the code of the employment type, or null
+         * @param grade the code of the grade, or null
+         * @param status the status, or null
+         * @param workPercent the share of full-time work in percent, or null
+         * @param attributes free values, or null
+         * @param validFrom the first date of a new employment, or null
+         * @param validTo the first date on which the employment no longer holds, or null
+         * @param endReason the code of the end reason, or null
+         */
+        public EmploymentRow(String source, String externalId, String username, String userId, String staffNumber,
+                String employmentType, String grade, String status, BigDecimal workPercent,
+                Map<String, Object> attributes, String validFrom, String validTo, String endReason) {
+            this(source, externalId, username, userId, staffNumber, employmentType, grade, status, workPercent,
+                    attributes, validFrom, validTo, endReason, null);
+        }
     }
 
     @Schema(
@@ -142,7 +170,26 @@ public record ImportDocument(
             @Schema(description = "Free values that the realm defines.")
             Map<String, Object> attributes,
             @Schema(description = "False to stop the use of the item for new data.", defaultValue = "true")
-            Boolean active) {
+            Boolean active,
+            @Schema(description = "True for a unit type whose org units are legal entities. A row that leaves it "
+                    + "out keeps the mark of a stored item.")
+            Boolean legalEntity) {
+
+        /**
+         * Makes a row that does not speak about the mark of a legal entity.
+         *
+         * @param kind the kind
+         * @param code the code
+         * @param name the default name
+         * @param names the names in other languages, or null
+         * @param displayOrder the position in lists, or null
+         * @param attributes free values, or null
+         * @param active false to stop the use of the item for new data, or null
+         */
+        public RefItemRow(String kind, String code, String name, Map<String, String> names, Integer displayOrder,
+                Map<String, Object> attributes, Boolean active) {
+            this(kind, code, name, names, displayOrder, attributes, active, null);
+        }
     }
 
     @Schema(
