@@ -171,7 +171,7 @@ public class FuhitoResource {
      */
     @Path("employments")
     public EmploymentsResource employments() {
-        return new EmploymentsResource(context, employmentService());
+        return new EmploymentsResource(context, employmentService(), personService());
     }
 
     /**
@@ -181,7 +181,7 @@ public class FuhitoResource {
      */
     @Path("staff")
     public StaffResource staff() {
-        return new StaffResource(context, employmentService(), assignmentService());
+        return new StaffResource(context, employmentService(), assignmentService(), personService());
     }
 
     /**
@@ -202,8 +202,8 @@ public class FuhitoResource {
 
     private EmploymentService employmentService() {
         return new EmploymentService(new JpaEmploymentStore(entityManager, realmId),
-                new JpaAssignmentStore(entityManager, realmId), new JpaRefItemStore(entityManager, realmId), users,
-                new JpaReportingLineStore(entityManager, realmId));
+                new JpaAssignmentStore(entityManager, realmId), new JpaRefItemStore(entityManager, realmId),
+                new JpaPersonStore(entityManager, realmId), new JpaReportingLineStore(entityManager, realmId));
     }
 
     /**
@@ -268,7 +268,7 @@ public class FuhitoResource {
                 userAttributes, users, new JpaOrgUnitStore(entityManager, realmId),
                 new JpaRefItemStore(entityManager, realmId), new JpaEmploymentStore(entityManager, realmId),
                 employmentService(), new JpaAssignmentStore(entityManager, realmId), assignmentService(),
-                new JpaReportingLineStore(entityManager, realmId), reportingLineService()),
+                new JpaReportingLineStore(entityManager, realmId), reportingLineService(), personService()),
                 today()));
     }
 
@@ -282,7 +282,7 @@ public class FuhitoResource {
         var refItemStore = new JpaRefItemStore(entityManager, realmId);
         var orgUnitStore = new JpaOrgUnitStore(entityManager, realmId);
         var people = new ImportService.People(employmentService(), new JpaEmploymentStore(entityManager, realmId),
-                assignmentService(), new JpaAssignmentStore(entityManager, realmId), users);
+                assignmentService(), new JpaAssignmentStore(entityManager, realmId), users, personService());
         var importService = new ImportService(new RefItemService(refItemStore), refItemStore, orgUnitService(),
                 orgUnitStore, people);
         return new ImportsResource(context, importService,
@@ -338,7 +338,12 @@ public class FuhitoResource {
      */
     @Path("people")
     public PeopleResource people() {
-        return new PeopleResource(context, new PersonService(new JpaPersonStore(entityManager, realmId), users));
+        return new PeopleResource(context, personService());
+    }
+
+    private PersonService personService() {
+        return new PersonService(new JpaPersonStore(entityManager, realmId), users,
+                new JpaEmploymentStore(entityManager, realmId));
     }
 
     /**

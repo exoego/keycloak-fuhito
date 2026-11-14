@@ -38,14 +38,16 @@ class CsvImportServiceTest {
     };
     private final OrgUnitService orgUnits = new OrgUnitService(orgUnitStore, assignmentStore, refItems,
             Clock.systemUTC());
+    private final MemoryPersonStore personStore = new MemoryPersonStore();
     private final EmploymentService employments =
-            new EmploymentService(employmentStore, assignmentStore, refItems, users,
+            new EmploymentService(employmentStore, assignmentStore, refItems, personStore,
             new MemoryReportingLineStore());
     private final AssignmentService assignments =
             new AssignmentService(assignmentStore, employmentStore, orgUnitStore, refItems,
             new MemoryReportingLineStore());
     private final ImportService.People people =
-            new ImportService.People(employments, employmentStore, assignments, assignmentStore, users);
+            new ImportService.People(employments, employmentStore, assignments, assignmentStore, users,
+                    new PersonService(personStore, users, employmentStore));
     private final CsvImportService service = new CsvImportService(
             new ImportService(new RefItemService(refItems), refItems, orgUnits, orgUnitStore, people), refItems,
             orgUnitStore, orgUnits, people);

@@ -88,10 +88,10 @@ final class PeopleImport {
     private Outcome importEmployment(EmploymentRow row, Set<String> seen) {
         requireFirst(seen, row.source(), row.externalId());
         String source = Checks.code("source", row.source() == null ? defaultSource : row.source());
-        String userId = userId(row);
+        String personId = personId(row);
         Optional<Employment> stored = people.employments().findByExternalId(source, row.externalId());
         if (stored.isEmpty()) {
-            EmploymentView created = people.employmentService().start(new NewEmployment(userId,
+            EmploymentView created = people.employmentService().start(new NewEmployment(personId,
                     row.validFrom() == null ? effectiveDate : row.validFrom(), row.validTo(), row.staffNumber(),
                     row.employmentType(), row.grade(), row.status(), row.workPercent(), row.attributes(),
                     row.externalId(), source));
@@ -105,7 +105,7 @@ final class PeopleImport {
         }
         Employment employment = stored.get();
         String id = employment.id();
-        if (!employment.userId().equals(userId)) {
+        if (!employment.personId().equals(personId)) {
             throw FuhitoException.conflict("import.user_mismatch", Map.of("externalId", row.externalId()));
         }
         EmploymentView before = people.employmentService().get(id);
@@ -134,6 +134,15 @@ final class PeopleImport {
             changed = true;
         }
         return changed ? Outcome.CHANGED : Outcome.UNCHANGED;
+    }
+
+    // A row names a Keycloak user. The person of the user is used, and created when the user has none.
+    private String personId(EmploymentRow row) {
+        PersonService.Resolved resolved = people.personService().forUser(userId(row));
+        if (resolved.created() != null) {
+            report.write(new Write.OfPerson(resolved.created()));
+        }
+        return resolved.person().id();
     }
 
     private String userId(EmploymentRow row) {

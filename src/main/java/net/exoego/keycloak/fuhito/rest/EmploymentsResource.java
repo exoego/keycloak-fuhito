@@ -13,6 +13,7 @@ import jakarta.ws.rs.core.Response;
 import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.rest.RequestContext.Change;
 import net.exoego.keycloak.fuhito.service.EmploymentService;
+import net.exoego.keycloak.fuhito.service.PersonService;
 import net.exoego.keycloak.fuhito.service.TermsChange;
 import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.media.Content;
@@ -36,16 +37,19 @@ public class EmploymentsResource {
 
     private final RequestContext context;
     private final EmploymentService service;
+    private final PersonService people;
 
     /**
      * Creates the resource for one request.
      *
      * @param context the request and its caller
      * @param service the operations on the realm of the request
+     * @param people the operations on people of the realm
      */
-    public EmploymentsResource(RequestContext context, EmploymentService service) {
+    public EmploymentsResource(RequestContext context, EmploymentService service, PersonService people) {
         this.context = context;
         this.service = service;
+        this.people = people;
     }
 
     @POST
@@ -63,7 +67,8 @@ public class EmploymentsResource {
         context.requireWrite();
         return Calls.run(context, () -> {
             Checks.required("body", body);
-            var employment = EmploymentRepresentation.of(service.start(body.toNewEmployment()));
+            var employment = EmploymentRepresentation.of(service.start(
+                    body.toNewEmployment(Writes.personId(context, people, body.personId(), body.userId()))));
             context.recordChange(Change.CREATE, RESOURCE_TYPE, employment.id(), "fuhito/employments/" + employment.id(),
                     employment);
             return Response.status(Response.Status.CREATED).entity(employment).build();

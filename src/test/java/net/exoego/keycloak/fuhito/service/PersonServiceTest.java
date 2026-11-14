@@ -1,11 +1,14 @@
 package net.exoego.keycloak.fuhito.service;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import net.exoego.keycloak.fuhito.domain.Employment;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.Person;
+import net.exoego.keycloak.fuhito.domain.ValidPeriod;
 import net.exoego.keycloak.fuhito.service.PersonView.NameSource;
 import net.exoego.keycloak.fuhito.store.UserDirectory;
 import org.junit.jupiter.api.Test;
@@ -34,7 +37,8 @@ class PersonServiceTest {
     };
 
     private final MemoryPersonStore store = new MemoryPersonStore();
-    private final PersonService service = new PersonService(store, USERS);
+    private final MemoryEmploymentStore employments = new MemoryEmploymentStore();
+    private final PersonService service = new PersonService(store, USERS, employments);
 
     private static PersonValues named(String name) {
         return new PersonValues(null, name, null, null, null, null, null);
@@ -141,6 +145,29 @@ class PersonServiceTest {
 
         assertEquals("person.not_found", failure(() -> service.get(id)).code());
         assertEquals("person.not_found", failure(() -> service.delete(id)).code());
+    }
+
+    @Test
+    void findsThePersonOfAUserOrCreatesIt() {
+        PersonService.Resolved first = service.forUser("taro");
+        PersonService.Resolved second = service.forUser("taro");
+
+        assertEquals("taro", first.person().userId());
+        assertEquals(first.person(), first.created().person());
+        assertEquals("Taro Yamada", first.created().name());
+        assertEquals(first.person(), second.person());
+        assertNull(second.created());
+        assertEquals("person.user_unknown", failure(() -> service.forUser("nobody")).code());
+        assertEquals("invalid.required", failure(() -> service.forUser(null)).code());
+    }
+
+    @Test
+    void aPersonWithAnEmploymentCannotBeDeleted() {
+        String id = service.forUser("taro").person().id();
+        employments.insert(new Employment("e1", id, "taro", ValidPeriod.startingAt(LocalDate.parse("2020-04-01")),
+                null, null, null, null));
+
+        assertEquals("person.in_use", failure(() -> service.delete(id)).code());
     }
 
     @Test

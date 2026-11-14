@@ -276,7 +276,7 @@ The default is today, as the realm defines it. See "What today is" below.
 | `/ref-items` | The lists that a realm defines, such as unit types and occupations |
 | `/org-units` | Org units, their tree on a date, and their history |
 | `/people` | The people that the realm knows, with or without a Keycloak user |
-| `/employments` | Employments of users, with their terms over time |
+| `/employments` | Employments of people, with their terms over time |
 | `/assignments` | Assignments of employments to org units |
 | `/staff` | A shortcut that starts an employment and adds its first assignment in one call |
 | `/org-units/{id}/members` | Who works in an org unit on a date, with or without the units below |
@@ -317,6 +317,10 @@ Keycloak keeps a first name and a last name. The extension joins them with a spa
 | `fuhito.nameOrder` | `given-first` or `family-first` | `given-first` |
 
 A person with no linked user must have a name in the record.
+
+An employment has `personId`. It also has `userId` when the person is linked to a user.
+`POST /employments` and `POST /staff` take either one. With `userId`, the person of the user is used, and created when the user has none.
+A person with no linked user gets no token claim and no group in the projection.
 
 ## Admin events
 

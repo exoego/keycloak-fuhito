@@ -28,7 +28,8 @@ class AssignmentServiceTest {
     private final MemoryRefItemStore refItems = new MemoryRefItemStore();
     private final AssignmentService service = new AssignmentService(store, employments, orgUnits, refItems,
             new MemoryReportingLineStore());
-    private final EmploymentService employmentService = new EmploymentService(employments, store, refItems, id -> true,
+    private final EmploymentService employmentService = new EmploymentService(employments, store, refItems,
+            MemoryPersonStore.anyUser(),
             new MemoryReportingLineStore());
     private final OrgUnitService orgUnitService = new OrgUnitService(orgUnits, store, refItems, Clock.systemUTC());
 

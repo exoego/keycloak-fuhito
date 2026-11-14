@@ -276,18 +276,23 @@ components:
           readOnly: true
     Employment:
       required:
-      - userId
       - validFrom
       description: A request to start an employment gives the first terms in the fields
-        of the employment itself. A response gives the terms of every period in `terms`.
+        of the employment itself. It names the person by `personId` or by `userId`.
+        A response gives the terms of every period in `terms`.
       type: object
       properties:
         id:
           type: string
           readOnly: true
+        personId:
+          type: string
+          description: The ID of the person.
         userId:
           type: string
-          description: The ID of the Keycloak user.
+          description: "The ID of the Keycloak user that the person is linked to.\
+            \ A request can give it in place of `personId`. The person of the user\
+            \ is then used, and created when the user has none."
         validFrom:
           type: string
           description: The first date of the employment.
@@ -832,7 +837,7 @@ components:
       required:
       - assignmentId
       - employmentId
-      - userId
+      - personId
       - orgUnitId
       - orgUnitName
       - validFrom
@@ -847,9 +852,12 @@ components:
           type: string
         employmentId:
           type: string
+        personId:
+          type: string
+          description: The ID of the person.
         userId:
           type: string
-          description: The ID of the Keycloak user.
+          description: The ID of the Keycloak user that the person is linked to.
         staffNumber:
           type: string
           description: The number that the legal entity gives to the person.
@@ -1435,16 +1443,20 @@ components:
           format: date
     Staff:
       required:
-      - userId
       - orgUnitId
       - validFrom
       description: "A request to add a person to an org unit in one call, and its\
         \ response. The request starts an employment and adds its first assignment."
       type: object
       properties:
+        personId:
+          type: string
+          description: The ID of the person.
+          writeOnly: true
         userId:
           type: string
-          description: The ID of the Keycloak user.
+          description: "The ID of the Keycloak user, in place of `personId`. The person\
+            \ of the user is used, and created when the user has none."
           writeOnly: true
         orgUnitId:
           type: string

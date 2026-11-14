@@ -40,7 +40,8 @@ public class ImportService {
      * @param users the users of the realm
      */
     public record People(EmploymentService employmentService, EmploymentStore employments,
-            AssignmentService assignmentService, AssignmentStore assignments, UserDirectory users) {
+            AssignmentService assignmentService, AssignmentStore assignments, UserDirectory users,
+            PersonService personService) {
     }
 
     private final RefItemService refItemService;

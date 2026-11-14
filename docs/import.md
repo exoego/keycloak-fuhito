@@ -59,6 +59,7 @@ The lists are applied in the order reference items, org units, employments, assi
 - A row with `validTo` ends the thing on that date. An employment can also carry `endReason`.
 - A row replaces all details of an existing thing. A missing optional value clears it.
 - The user of an employment is named by `username` or by `userId`. The user must exist.
+- The employment belongs to the person of that user. The import creates the person when the user has none.
 
 ## CSV
 

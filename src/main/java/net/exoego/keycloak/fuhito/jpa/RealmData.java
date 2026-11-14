@@ -14,7 +14,6 @@ public final class RealmData {
     // Children come before the rows they refer to.
     private static final List<Class<?>> ENTITIES = List.of(
             UserMaskEntity.class,
-            PersonEntity.class,
             ReportingLineEntity.class,
             QualificationEntity.class,
             ChangeLogEntity.class,
@@ -22,6 +21,7 @@ public final class RealmData {
             AssignmentEntity.class,
             EmploymentTermsEntity.class,
             EmploymentEntity.class,
+            PersonEntity.class,
             OrgUnitLinkEntity.class,
             OrgUnitVersionEntity.class,
             OrgUnitEntity.class,
@@ -67,22 +67,27 @@ public final class RealmData {
                 and (r.managerUserId = :userId or r.assignmentId in
                 (select a.assignmentId from AssignmentEntity a where a.realmId = :realmId
                 and a.employmentId in
-                (select e.id from EmploymentEntity e where e.realmId = :realmId and e.userId = :userId)))""",
+                (select e.id from EmploymentEntity e where e.realmId = :realmId and e.personId in
+                (select p.id from PersonEntity p where p.realmId = :realmId and p.userId = :userId))))""",
                 // An entry that only names the user as the actor of a write stays.
                 """
                 delete from ChangeLogEntity l where l.realmId = :realmId
                 and ((l.resourceType = 'FUHITO_EMPLOYMENT' and l.resourceId in
-                (select e.id from EmploymentEntity e where e.realmId = :realmId and e.userId = :userId))
+                (select e.id from EmploymentEntity e where e.realmId = :realmId and e.personId in
+                (select p.id from PersonEntity p where p.realmId = :realmId and p.userId = :userId)))
                 or (l.resourceType = 'FUHITO_ASSIGNMENT' and l.resourceId in
                 (select a.assignmentId from AssignmentEntity a where a.realmId = :realmId
                 and a.employmentId in
-                (select e.id from EmploymentEntity e where e.realmId = :realmId and e.userId = :userId))))""",
+                (select e.id from EmploymentEntity e where e.realmId = :realmId and e.personId in
+                (select p.id from PersonEntity p where p.realmId = :realmId and p.userId = :userId)))))""",
                 """
                 delete from AssignmentEntity x where x.realmId = :realmId and x.employmentId in
-                (select e.id from EmploymentEntity e where e.realmId = :realmId and e.userId = :userId)""",
+                (select e.id from EmploymentEntity e where e.realmId = :realmId and e.personId in
+                (select p.id from PersonEntity p where p.realmId = :realmId and p.userId = :userId))""",
                 """
                 delete from EmploymentTermsEntity x where x.realmId = :realmId and x.employmentId in
-                (select e.id from EmploymentEntity e where e.realmId = :realmId and e.userId = :userId)""",
+                (select e.id from EmploymentEntity e where e.realmId = :realmId and e.personId in
+                (select p.id from PersonEntity p where p.realmId = :realmId and p.userId = :userId))""",
                 // The change log keeps no entries about the qualifications of the user either.
                 """
                 delete from ChangeLogEntity l where l.realmId = :realmId
@@ -90,13 +95,15 @@ public final class RealmData {
                 (select q.id from QualificationEntity q where q.realmId = :realmId and q.userId = :userId)""",
                 "delete from QualificationEntity q where q.realmId = :realmId and q.userId = :userId",
                 "delete from UserMaskEntity m where m.realmId = :realmId and m.userId = :userId",
+                """
+                delete from EmploymentEntity e where e.realmId = :realmId and e.personId in
+                (select p.id from PersonEntity p where p.realmId = :realmId and p.userId = :userId)""",
                 // The person record of the user holds the name, so it goes too, with its change log entries.
                 """
                 delete from ChangeLogEntity l where l.realmId = :realmId
                 and l.resourceType = 'FUHITO_PERSON' and l.resourceId in
                 (select p.id from PersonEntity p where p.realmId = :realmId and p.userId = :userId)""",
-                "delete from PersonEntity p where p.realmId = :realmId and p.userId = :userId",
-                "delete from EmploymentEntity e where e.realmId = :realmId and e.userId = :userId")
+                "delete from PersonEntity p where p.realmId = :realmId and p.userId = :userId")
                 .forEach(query -> em.createQuery(query)
                         .setParameter("realmId", realmId)
                         .setParameter("userId", userId)

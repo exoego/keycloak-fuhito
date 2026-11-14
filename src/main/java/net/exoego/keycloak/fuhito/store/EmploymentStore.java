@@ -62,6 +62,14 @@ public interface EmploymentStore {
     List<Employment> findAll(Collection<String> ids);
 
     /**
+     * Lists the employments of a person, oldest first.
+     *
+     * @param personId the ID of the person
+     * @return the employments
+     */
+    List<Employment> findByPerson(String personId);
+
+    /**
      * Lists the terms that are valid on a date for the given employments.
      *
      * @param employmentIds the IDs of the employments

@@ -12,12 +12,18 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
 @Schema(
         name = "Employment",
         description = "A request to start an employment gives the first terms in the fields of the employment "
-                + "itself. A response gives the terms of every period in `terms`.",
-        requiredProperties = {"userId", "validFrom"})
+                + "itself. It names the person by `personId` or by `userId`. A response gives the terms of every "
+                + "period in `terms`.",
+        requiredProperties = {"validFrom"})
 public record EmploymentRepresentation(
         @Schema(readOnly = true)
         String id,
-        @Schema(description = "The ID of the Keycloak user.")
+        @Schema(description = "The ID of the person.")
+        String personId,
+        @Schema(
+                description = "The ID of the Keycloak user that the person is linked to. A request can give it in "
+                        + "place of `personId`. The person of the user is then used, and created when the user "
+                        + "has none.")
         String userId,
         @Schema(description = "The first date of the employment.", format = "date")
         String validFrom,
@@ -92,7 +98,7 @@ public record EmploymentRepresentation(
      */
     public static EmploymentRepresentation of(EmploymentView view) {
         var e = view.employment();
-        return new EmploymentRepresentation(e.id(), e.userId(), e.period().from().toString(), text(e.period().to()),
+        return new EmploymentRepresentation(e.id(), e.personId(), e.userId(), e.period().from().toString(), text(e.period().to()),
                 e.staffNumber(), view.endReason(), e.externalId(), e.source(), null, null, null, null, null,
                 view.terms().stream()
                         .map(t -> new Terms(t.terms().period().from().toString(), text(t.terms().period().to()),
@@ -101,8 +107,8 @@ public record EmploymentRepresentation(
                         .toList());
     }
 
-    NewEmployment toNewEmployment() {
-        return new NewEmployment(userId, validFrom, validTo, staffNumber, employmentType, grade, status, workPercent,
+    NewEmployment toNewEmployment(String person) {
+        return new NewEmployment(person, validFrom, validTo, staffNumber, employmentType, grade, status, workPercent,
                 attributes, externalId, source);
     }
 
