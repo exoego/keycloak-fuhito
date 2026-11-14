@@ -697,4 +697,11 @@
             <column name="CONTINUES_ASSIGNMENT_ID" type="VARCHAR(36)"/>
         </addColumn>
     </changeSet>
+    <changeSet id="0.1.0-org-unit-own-time-index" author="keycloak-fuhito" dbms="postgresql">
+        <!-- Almost every read asks whether a unit sets its own time. Most realms have no such unit. -->
+        <sql>
+            CREATE INDEX IDX_FUHITO_ORG_UNIT_OWN_TIME ON FUHITO_ORG_UNIT (REALM_ID)
+            WHERE TIME_ZONE IS NOT NULL OR DAY_START IS NOT NULL
+        </sql>
+    </changeSet>
 </databaseChangeLog>

@@ -3,14 +3,12 @@ package net.exoego.keycloak.fuhito.service;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 
 import net.exoego.keycloak.fuhito.domain.BusinessDay;
 import net.exoego.keycloak.fuhito.domain.OrgUnit;
-import net.exoego.keycloak.fuhito.domain.OrgUnitLink;
 import net.exoego.keycloak.fuhito.store.OrgUnitStore;
 
 /**
@@ -22,8 +20,8 @@ public class UnitDays implements Today {
     private final BusinessDay.Rule realmRule;
     private final Clock base;
 
-    private Map<String, OrgUnit> units;
-    private Map<String, String> parents;
+    // Only the units that set a time of their own. Most realms have none, and then nothing else is read.
+    private Map<String, OrgUnit> ownTime;
     private final Map<String, LocalDate> cache = new HashMap<>();
 
     /**
@@ -46,46 +44,38 @@ public class UnitDays implements Today {
 
     @Override
     public LocalDate ofUnit(String orgUnitId) {
-        load();
+        if (ownTime().isEmpty()) {
+            return ofRealm();
+        }
         return cache.computeIfAbsent(orgUnitId, this::resolve);
     }
 
     @Override
     public Set<LocalDate> everywhere() {
-        load();
         Set<LocalDate> dates = new LinkedHashSet<>();
         dates.add(ofRealm());
-        units.values().stream()
-                .filter(unit -> unit.timeZone() != null || unit.dayStart() != null)
-                .forEach(unit -> dates.add(ofUnit(unit.id())));
+        ownTime().keySet().forEach(id -> dates.add(ofUnit(id)));
         return dates;
+    }
+
+    private Map<String, OrgUnit> ownTime() {
+        if (ownTime == null) {
+            ownTime = new HashMap<>();
+            store.unitsWithOwnTime().forEach(unit -> ownTime.put(unit.id(), unit));
+        }
+        return ownTime;
     }
 
     // The tree can change on a date, and the date depends on the tree. The tree of the date of the realm is
     // used to find the units above.
-    private void load() {
-        if (units != null) {
-            return;
-        }
-        units = new HashMap<>();
-        store.units().forEach(unit -> units.put(unit.id(), unit));
-        parents = new HashMap<>();
-        if (units.values().stream().anyMatch(unit -> unit.timeZone() != null || unit.dayStart() != null)) {
-            for (OrgUnitLink link : store.linksOn(store.defaultHierarchyId(), ofRealm())) {
-                parents.put(link.childId(), link.parentId());
-            }
-        }
-    }
-
     // The nearest time zone and the nearest day start are looked up one by one, so a unit can set only one.
     private LocalDate resolve(String orgUnitId) {
         String timeZone = null;
         String dayStart = null;
-        Set<String> seen = new HashSet<>();
-        for (String id = orgUnitId; id != null && seen.add(id); id = parents.get(id)) {
-            OrgUnit unit = units.get(id);
+        for (String id : store.lineOn(store.defaultHierarchyId(), orgUnitId, ofRealm())) {
+            OrgUnit unit = ownTime.get(id);
             if (unit == null) {
-                break;
+                continue;
             }
             if (timeZone == null) {
                 timeZone = unit.timeZone();
