@@ -10,7 +10,24 @@ package net.exoego.keycloak.fuhito.service;
  * @param status an employment status to keep, or null for all
  * @param first the number of members to skip, or null for 0
  * @param max the largest number of members to return, or null for 100. At most 1000 are returned.
+ * @param hierarchy the code of the hierarchy that says what is below the unit, or null for the default one
  */
 public record MemberQuery(String asOf, boolean includeDescendants, String occupation, String jobTitle,
-        String status, Integer first, Integer max) {
+        String status, Integer first, Integer max, String hierarchy) {
+
+    /**
+     * Makes the options of a request that uses the default hierarchy.
+     *
+     * @param asOf the date as {@code YYYY-MM-DD}, or null for today
+     * @param includeDescendants true to also list the members of every unit below
+     * @param occupation the code of an occupation to keep, or null for all
+     * @param jobTitle the code of a job title to keep, or null for all
+     * @param status an employment status to keep, or null for all
+     * @param first the number of members to skip, or null for 0
+     * @param max the largest number of members to return, or null for 100
+     */
+    public MemberQuery(String asOf, boolean includeDescendants, String occupation, String jobTitle, String status,
+            Integer first, Integer max) {
+        this(asOf, includeDescendants, occupation, jobTitle, status, first, max, null);
+    }
 }

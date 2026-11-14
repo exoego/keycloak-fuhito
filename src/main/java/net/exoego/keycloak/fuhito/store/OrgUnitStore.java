@@ -100,24 +100,30 @@ public interface OrgUnitStore {
      *
      * @param hierarchyId the ID of the hierarchy
      * @param rootId the ID of the unit to start from, or null for every root
+     * @param linkedOnly true to start only from roots that have a child in the hierarchy. It has no effect with
+     *        a {@code rootId}.
      * @param date the date
      * @param first the number of units to skip
      * @param max the largest number of units to return
      * @return the units of the page
      */
-    List<PlacedOrgUnit> treeOn(String hierarchyId, String rootId, LocalDate date, int first, int max);
+    List<PlacedOrgUnit> treeOn(String hierarchyId, String rootId, boolean linkedOnly, LocalDate date, int first,
+            int max);
 
     /**
      * Lists a page of the direct children of a unit on a date, in the order of siblings.
      *
      * @param hierarchyId the ID of the hierarchy
      * @param parentId the ID of the parent, or null for the units with no parent
+     * @param linkedOnly true to take only roots that have a child in the hierarchy. It has no effect with a
+     *        {@code parentId}.
      * @param date the date
      * @param first the number of units to skip
      * @param max the largest number of units to return
      * @return the units of the page
      */
-    List<PlacedOrgUnit> childrenOn(String hierarchyId, String parentId, LocalDate date, int first, int max);
+    List<PlacedOrgUnit> childrenOn(String hierarchyId, String parentId, boolean linkedOnly, LocalDate date,
+            int first, int max);
 
     /**
      * Returns some units as they are on a date. A unit that does not exist on the date is left out.

@@ -289,7 +289,20 @@ public class OrgUnitService {
      * @throws FuhitoException when the unit does not exist, or does not exist on the date
      */
     public OrgUnitState get(String id, String asOf) {
-        return state(id, dateOrToday(asOf, id), store.defaultHierarchyId());
+        return get(id, asOf, null);
+    }
+
+    /**
+     * Returns an org unit as it is on a date, with its parent in a hierarchy.
+     *
+     * @param id the ID
+     * @param asOf the date as {@code YYYY-MM-DD}, or null for today
+     * @param hierarchy the code of the hierarchy, or null for the default one
+     * @return the unit on the date
+     * @throws FuhitoException when the unit or the hierarchy does not exist, or the unit does not exist on the date
+     */
+    public OrgUnitState get(String id, String asOf, String hierarchy) {
+        return state(id, dateOrToday(asOf, id), hierarchyId(hierarchy));
     }
 
     private OrgUnitState state(String id, LocalDate date, String hierarchyId) {
@@ -306,20 +319,24 @@ public class OrgUnitService {
     }
 
     /**
-     * Lists a page of the org units that exist on a date, in the default hierarchy.
+     * Lists a page of the org units that exist on a date, in a hierarchy.
      * Each parent comes before its children.
      * Siblings follow the display order, then the phonetic name, then the name.
+     * Every unit is in the default hierarchy. Another hierarchy has only the units with a parent or a child in it.
      *
      * @param asOf the date as {@code YYYY-MM-DD}, or null for today
      * @param rootsOnly true to return only the units with no parent
+     * @param hierarchy the code of the hierarchy, or null for the default one
      * @param page the part of the list to return
      * @return the units of the page on the date
+     * @throws FuhitoException when the date is bad or the hierarchy does not exist
      */
-    public List<OrgUnitState> list(String asOf, boolean rootsOnly, Page page) {
+    public List<OrgUnitState> list(String asOf, boolean rootsOnly, String hierarchy, Page page) {
         LocalDate date = dateOrToday(asOf, null);
-        String hierarchy = store.defaultHierarchyId();
-        return states(rootsOnly ? store.childrenOn(hierarchy, null, date, page.first(), page.max())
-                : store.treeOn(hierarchy, null, date, page.first(), page.max()));
+        String hierarchyId = hierarchyId(hierarchy);
+        boolean linkedOnly = !hierarchyId.equals(store.defaultHierarchyId());
+        return states(rootsOnly ? store.childrenOn(hierarchyId, null, linkedOnly, date, page.first(), page.max())
+                : store.treeOn(hierarchyId, null, linkedOnly, date, page.first(), page.max()));
     }
 
     /**
@@ -327,13 +344,14 @@ public class OrgUnitService {
      *
      * @param id the ID
      * @param asOf the date as {@code YYYY-MM-DD}, or null for today
+     * @param hierarchy the code of the hierarchy, or null for the default one
      * @param page the part of the list to return
      * @return the children of the page on the date
-     * @throws FuhitoException when the unit does not exist, or does not exist on the date
+     * @throws FuhitoException when the unit or the hierarchy does not exist, or the unit does not exist on the date
      */
-    public List<OrgUnitState> children(String id, String asOf, Page page) {
+    public List<OrgUnitState> children(String id, String asOf, String hierarchy, Page page) {
         LocalDate date = dateOfUnit(id, asOf);
-        return states(store.childrenOn(store.defaultHierarchyId(), id, date, page.first(), page.max()));
+        return states(store.childrenOn(hierarchyId(hierarchy), id, false, date, page.first(), page.max()));
     }
 
     /**
@@ -341,13 +359,14 @@ public class OrgUnitService {
      *
      * @param id the ID
      * @param asOf the date as {@code YYYY-MM-DD}, or null for today
+     * @param hierarchy the code of the hierarchy, or null for the default one
      * @param page the part of the list to return
      * @return the units of the page on the date
-     * @throws FuhitoException when the unit does not exist, or does not exist on the date
+     * @throws FuhitoException when the unit or the hierarchy does not exist, or the unit does not exist on the date
      */
-    public List<OrgUnitState> subtree(String id, String asOf, Page page) {
+    public List<OrgUnitState> subtree(String id, String asOf, String hierarchy, Page page) {
         LocalDate date = dateOfUnit(id, asOf);
-        return states(store.treeOn(store.defaultHierarchyId(), id, date, page.first(), page.max()));
+        return states(store.treeOn(hierarchyId(hierarchy), id, false, date, page.first(), page.max()));
     }
 
     private LocalDate dateOfUnit(String id, String asOf) {
@@ -375,8 +394,21 @@ public class OrgUnitService {
      * @throws FuhitoException when the unit does not exist, or does not exist on the date
      */
     public List<OrgUnitState> path(String id, String asOf) {
+        return path(id, asOf, null);
+    }
+
+    /**
+     * Lists the units from the root down to an org unit on a date, in a hierarchy.
+     *
+     * @param id the ID
+     * @param asOf the date as {@code YYYY-MM-DD}, or null for today
+     * @param hierarchy the code of the hierarchy, or null for the default one
+     * @return the path, with the root first and the unit last
+     * @throws FuhitoException when the unit or the hierarchy does not exist, or the unit does not exist on the date
+     */
+    public List<OrgUnitState> path(String id, String asOf, String hierarchy) {
         requireUnit(id);
-        return tree(asOf, id).path(id);
+        return new OrgUnitTree(store, refItems, dateOrToday(asOf, id), hierarchyId(hierarchy)).path(id);
     }
 
     /**
@@ -398,19 +430,7 @@ public class OrgUnitService {
     }
 
     private String hierarchyId(String code) {
-        String defaultId = store.defaultHierarchyId();
-        if (code == null) {
-            return defaultId;
-        }
-        return store.hierarchyCodes().entrySet().stream()
-                .filter(entry -> entry.getValue().equals(code))
-                .map(Map.Entry::getKey)
-                .findFirst()
-                .orElseThrow(() -> FuhitoException.invalid("hierarchy.unknown", Map.of("code", code)));
-    }
-
-    private OrgUnitTree tree(String asOf, String orgUnitId) {
-        return new OrgUnitTree(store, refItems, dateOrToday(asOf, orgUnitId));
+        return HierarchyCodes.idOf(store, code);
     }
 
     // A read about one org unit uses the date of that unit. A read about the whole realm uses the date of the realm.

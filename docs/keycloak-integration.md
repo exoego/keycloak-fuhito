@@ -284,6 +284,17 @@ Siblings follow the display order, then the phonetic name, then the name. A unit
 The database orders the names, so the order of two names follows the collation of the database.
 The database also walks the tree, so a read of one page does not load the whole tree.
 
+### Hierarchies
+
+Every realm has the hierarchy `default`. A realm can create more with `POST /hierarchies`, for another view of the same org units.
+An org unit has at most one parent in each hierarchy on a date.
+
+- `PUT /org-units/{id}/parent`, `GET /org-units`, `GET /org-units/{id}`, `/children`, `/subtree`, `/path`, and `/members` take `hierarchy` with the code of a hierarchy. The default is `default`.
+- Every org unit is in the default hierarchy. Another hierarchy has only the units with a parent or a child in it on the date.
+- The history of an org unit lists its parents in every hierarchy.
+- An org unit cannot end while it has a child in any hierarchy. Its end ends its parent links in every hierarchy.
+- These use the default hierarchy only. They are the `parentId` of a new org unit, the import, the reorganization, the managers that come from the head of the unit above, and the projection into Keycloak.
+
 The members of an org unit with the units below come in the same tree order.
 Inside one unit, they follow the display order, then the start of the assignment.
 The database applies the filters, the order, and the page.

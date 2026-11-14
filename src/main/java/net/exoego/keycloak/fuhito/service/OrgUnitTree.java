@@ -18,7 +18,7 @@ import net.exoego.keycloak.fuhito.store.OrgUnitStore;
 import net.exoego.keycloak.fuhito.store.RefItemStore;
 
 /**
- * The org units of one realm in the default hierarchy as they are on one date.
+ * The org units of one realm in one hierarchy as they are on one date.
  */
 final class OrgUnitTree {
 
@@ -34,11 +34,15 @@ final class OrgUnitTree {
     private final List<OrgUnitState> roots = new ArrayList<>();
 
     OrgUnitTree(OrgUnitStore store, RefItemStore refItems, LocalDate date) {
+        this(store, refItems, date, store.defaultHierarchyId());
+    }
+
+    OrgUnitTree(OrgUnitStore store, RefItemStore refItems, LocalDate date, String hierarchyId) {
         this.date = date;
         Map<String, OrgUnit> units = store.units().stream().collect(Collectors.toMap(OrgUnit::id, Function.identity()));
         Map<String, String> unitTypeCodes = refItems.list(RefKind.UNIT_TYPE, true).stream()
                 .collect(Collectors.toMap(RefItem::id, RefItem::code));
-        Map<String, String> parents = store.linksOn(store.defaultHierarchyId(), date).stream()
+        Map<String, String> parents = store.linksOn(hierarchyId, date).stream()
                 .collect(Collectors.toMap(OrgUnitLink::childId, OrgUnitLink::parentId));
         store.versionsOn(date).forEach(version -> states.put(version.orgUnitId(), new OrgUnitState(
                 units.get(version.orgUnitId()), version, unitTypeCodes.get(version.unitTypeId()),
@@ -60,6 +64,11 @@ final class OrgUnitTree {
 
     List<OrgUnitState> roots() {
         return List.copyOf(roots);
+    }
+
+    /** The roots that have a child. */
+    List<OrgUnitState> linkedRoots() {
+        return roots.stream().filter(root -> children.containsKey(root.unit().id())).toList();
     }
 
     /** Every unit, each parent before its children. */

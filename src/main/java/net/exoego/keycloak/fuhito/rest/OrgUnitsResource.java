@@ -169,6 +169,8 @@ public class OrgUnitsResource {
                     description = "True to return only the units with no parent.",
                     schema = @Schema(defaultValue = "false"))
             @QueryParam("roots") boolean roots,
+            @Parameter(description = "The code of the hierarchy. The default is the hierarchy `default`.")
+            @QueryParam("hierarchy") String hierarchy,
             @Parameter(
                     description = "The number of entries to skip.",
                     schema = @Schema(minimum = "0", defaultValue = "0"))
@@ -178,7 +180,7 @@ public class OrgUnitsResource {
                     schema = @Schema(minimum = "0", maximum = "1000", defaultValue = "100"))
             @QueryParam("max") Integer max) {
         context.requireRead();
-        return Calls.run(context, () -> represent(service.list(asOf, roots, Page.of(first, max))));
+        return Calls.run(context, () -> represent(service.list(asOf, roots, hierarchy, Page.of(first, max))));
     }
 
     @GET
@@ -196,6 +198,8 @@ public class OrgUnitsResource {
                             + "realm unless a unit sets its own time zone.",
                     schema = @Schema(format = "date"))
             @QueryParam("asOf") String asOf,
+            @Parameter(description = "The code of the hierarchy. The default is the hierarchy `default`.")
+            @QueryParam("hierarchy") String hierarchy,
             @Parameter(
                     description = "The number of entries to skip.",
                     schema = @Schema(minimum = "0", defaultValue = "0"))
@@ -205,7 +209,7 @@ public class OrgUnitsResource {
                     schema = @Schema(minimum = "0", maximum = "1000", defaultValue = "100"))
             @QueryParam("max") Integer max) {
         context.requireRead();
-        return Calls.run(context, () -> represent(service.children(id, asOf, Page.of(first, max))));
+        return Calls.run(context, () -> represent(service.children(id, asOf, hierarchy, Page.of(first, max))));
     }
 
     @GET
@@ -226,6 +230,8 @@ public class OrgUnitsResource {
                             + "realm unless a unit sets its own time zone.",
                     schema = @Schema(format = "date"))
             @QueryParam("asOf") String asOf,
+            @Parameter(description = "The code of the hierarchy. The default is the hierarchy `default`.")
+            @QueryParam("hierarchy") String hierarchy,
             @Parameter(
                     description = "The number of entries to skip.",
                     schema = @Schema(minimum = "0", defaultValue = "0"))
@@ -235,7 +241,7 @@ public class OrgUnitsResource {
                     schema = @Schema(minimum = "0", maximum = "1000", defaultValue = "100"))
             @QueryParam("max") Integer max) {
         context.requireRead();
-        return Calls.run(context, () -> represent(service.subtree(id, asOf, Page.of(first, max))));
+        return Calls.run(context, () -> represent(service.subtree(id, asOf, hierarchy, Page.of(first, max))));
     }
 
     @GET
@@ -254,9 +260,11 @@ public class OrgUnitsResource {
                     description = "The date to read. The default is today for the org unit. It is the date of the "
                             + "realm unless a unit sets its own time zone.",
                     schema = @Schema(format = "date"))
-            @QueryParam("asOf") String asOf) {
+            @QueryParam("asOf") String asOf,
+            @Parameter(description = "The code of the hierarchy. The default is the hierarchy `default`.")
+            @QueryParam("hierarchy") String hierarchy) {
         context.requireRead();
-        return Calls.run(context, () -> represent(service.path(id, asOf)));
+        return Calls.run(context, () -> represent(service.path(id, asOf, hierarchy)));
     }
 
     @PUT
@@ -350,6 +358,8 @@ public class OrgUnitsResource {
                             + "realm unless a unit sets its own time zone.",
                     schema = @Schema(format = "date"))
             @QueryParam("asOf") String asOf,
+            @Parameter(description = "The code of the hierarchy. The default is the hierarchy `default`.")
+            @QueryParam("hierarchy") String hierarchy,
             @Parameter(
                     description = "True to also list the members of every unit below.",
                     schema = @Schema(defaultValue = "false"))
@@ -372,7 +382,8 @@ public class OrgUnitsResource {
             @QueryParam("max") Integer max) {
         context.requireRead();
         return Calls.run(context, () -> membership.members(id,
-                        new MemberQuery(asOf, includeDescendants, occupation, jobTitle, status, first, max)).stream()
+                        new MemberQuery(asOf, includeDescendants, occupation, jobTitle, status, first, max,
+                                hierarchy)).stream()
                 .map(MemberRepresentation::of)
                 .toList());
     }
@@ -419,8 +430,10 @@ public class OrgUnitsResource {
             @Parameter(
                     description = "The date to read. The default is today in the time zone of the realm.",
                     schema = @Schema(format = "date"))
-            @QueryParam("asOf") String asOf) {
+            @QueryParam("asOf") String asOf,
+            @Parameter(description = "The code of the hierarchy. The default is the hierarchy `default`.")
+            @QueryParam("hierarchy") String hierarchy) {
         context.requireRead();
-        return Calls.run(context, () -> OrgUnitRepresentation.of(service.get(id, asOf)));
+        return Calls.run(context, () -> OrgUnitRepresentation.of(service.get(id, asOf, hierarchy)));
     }
 }

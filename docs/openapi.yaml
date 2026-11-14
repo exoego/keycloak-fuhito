@@ -2772,6 +2772,11 @@ paths:
           default: 0
         name: first
         in: query
+      - description: The code of the hierarchy. The default is the hierarchy `default`.
+        name: hierarchy
+        in: query
+        schema:
+          type: string
       - description: The largest number of entries to return.
         schema:
           type: integer
@@ -2854,6 +2859,11 @@ paths:
           format: date
         name: asOf
         in: query
+      - description: The code of the hierarchy. The default is the hierarchy `default`.
+        name: hierarchy
+        in: query
+        schema:
+          type: string
       responses:
         "200":
           description: The unit on the date.
@@ -2939,6 +2949,11 @@ paths:
           default: 0
         name: first
         in: query
+      - description: The code of the hierarchy. The default is the hierarchy `default`.
+        name: hierarchy
+        in: query
+        schema:
+          type: string
       - description: The largest number of entries to return.
         schema:
           type: integer
@@ -3061,6 +3076,11 @@ paths:
           default: 0
         name: first
         in: query
+      - description: The code of the hierarchy. The default is the hierarchy `default`.
+        name: hierarchy
+        in: query
+        schema:
+          type: string
       - description: True to also list the members of every unit below.
         schema:
           type: boolean
@@ -3242,6 +3262,11 @@ paths:
           format: date
         name: asOf
         in: query
+      - description: The code of the hierarchy. The default is the hierarchy `default`.
+        name: hierarchy
+        in: query
+        schema:
+          type: string
       responses:
         "200":
           description: "The path, with the root first and the unit last."
@@ -3290,6 +3315,11 @@ paths:
           default: 0
         name: first
         in: query
+      - description: The code of the hierarchy. The default is the hierarchy `default`.
+        name: hierarchy
+        in: query
+        schema:
+          type: string
       - description: The largest number of entries to return.
         schema:
           type: integer
