@@ -66,7 +66,7 @@ class RefItemServiceTest {
         assertEquals("invalid.name", assertThrows(FuhitoException.class,
                 () -> service.create(RefKind.UNIT_TYPE, "a", " ", null, null, null)).code());
         assertEquals("invalid.required", assertThrows(FuhitoException.class,
-                () -> service.list(null, false)).code());
+                () -> service.list(null, false, Page.of(null, null))).code());
     }
 
     @Test
@@ -77,8 +77,9 @@ class RefItemServiceTest {
         RefItem inactive = create("off", 0);
         service.update(inactive.id(), "off", null, 0, null, false);
 
-        assertEquals(List.of(first, a, b), service.list(RefKind.UNIT_TYPE, false));
-        assertEquals(4, service.list(RefKind.UNIT_TYPE, true).size());
+        assertEquals(List.of(first, a, b), service.list(RefKind.UNIT_TYPE, false, Page.of(null, null)));
+        assertEquals(4, service.list(RefKind.UNIT_TYPE, true, Page.of(null, null)).size());
+        assertEquals(List.of(a), service.list(RefKind.UNIT_TYPE, false, Page.of(1, 1)));
     }
 
     @Test
