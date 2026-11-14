@@ -385,7 +385,7 @@ public class FuhitoResource {
     @APIResponse(responseCode = "200", description = "The version.")
     @ApiErrors
     public VersionRepresentation version() {
-        context.requireRead();
+        context.requireReadStructure();
         return new VersionRepresentation(VERSION);
     }
 

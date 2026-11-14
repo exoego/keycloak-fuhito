@@ -252,10 +252,17 @@ On a day when the clocks change for summer time, the date can change up to one h
 The endpoints are under `/admin/realms/{realm}/fuhito`.
 The caller needs an access token for the admin API, the same as for the other admin endpoints.
 
-| Operation | Required permission |
-|---|---|
-| Read | View users |
-| Write | Manage users |
+| Operation | Required permission | Role of the realm management client |
+|---|---|---|
+| Read the org structure | Query users | `query-users` |
+| Read everything | View users | `view-users` |
+| Write | Manage users | `manage-users` |
+
+The org structure is the org units with their children, subtree, path, and history, the hierarchies, the reference items, and the version.
+Every other read has data of people, and needs the permission to view users. The members of an org unit are among them.
+A caller who may view users may also read the org structure.
+
+So a product that only draws the tree gets `query-users`, and learns no grade, no status, and no staff number.
 
 A request with no token gets 401.
 A caller without the permission gets 403.

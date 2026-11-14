@@ -61,6 +61,12 @@ final class KeycloakRequestContext implements RequestContext {
         requireTimeSettings();
     }
 
+    @Override
+    public void requireReadStructure() {
+        auth.users().requireQuery();
+        requireTimeSettings();
+    }
+
     // Every date in a response depends on what today is, so a realm must say where it is first.
     private void requireTimeSettings() {
         if (timeSettingsError != null) {

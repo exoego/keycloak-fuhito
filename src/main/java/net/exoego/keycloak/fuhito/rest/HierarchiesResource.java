@@ -64,7 +64,7 @@ public class HierarchiesResource {
                     description = "The largest number of entries to return.",
                     schema = @Schema(minimum = "0", maximum = "1000", defaultValue = "100"))
             @QueryParam("max") Integer max) {
-        context.requireRead();
+        context.requireReadStructure();
         return Calls.run(context,
                 () -> service.list(Page.of(first, max)).stream().map(HierarchyRepresentation::of).toList());
     }
@@ -78,7 +78,7 @@ public class HierarchiesResource {
     public HierarchyRepresentation get(
             @Parameter(description = "The ID of the resource.")
             @PathParam("id") String id) {
-        context.requireRead();
+        context.requireReadStructure();
         return Calls.run(context, () -> HierarchyRepresentation.of(service.get(id)));
     }
 
