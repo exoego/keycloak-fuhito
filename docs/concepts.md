@@ -29,6 +29,7 @@ So staff who never log in, and people who left long ago, can be stored too.
 
 An employment and a qualification belong to a person. The manager of a reporting line is a person.
 A write can name the person by the ID of a Keycloak user. The person of that user is then used, and created when the user has none.
+Reads, the mask, and the erase work by person. Each has a shortcut by the ID of a Keycloak user.
 
 | Term | Japanese | Meaning |
 |---|---|---|

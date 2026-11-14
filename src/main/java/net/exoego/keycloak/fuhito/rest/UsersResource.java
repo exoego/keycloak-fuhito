@@ -2,7 +2,6 @@ package net.exoego.keycloak.fuhito.rest;
 
 import java.util.List;
 import java.util.Map;
-import java.util.function.Consumer;
 
 import jakarta.ws.rs.DELETE;
 import jakarta.ws.rs.GET;
@@ -14,13 +13,13 @@ import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
-import net.exoego.keycloak.fuhito.rest.RequestContext.Change;
 import net.exoego.keycloak.fuhito.service.AssignmentService;
 import net.exoego.keycloak.fuhito.service.EmploymentService;
+import net.exoego.keycloak.fuhito.service.ImportReport.Write;
 import net.exoego.keycloak.fuhito.service.MembershipService;
+import net.exoego.keycloak.fuhito.service.PersonService;
 import net.exoego.keycloak.fuhito.service.QualificationService;
 import net.exoego.keycloak.fuhito.service.ReportingLineService;
-import net.exoego.keycloak.fuhito.service.UserMaskingService;
 import net.exoego.keycloak.fuhito.store.UserDirectory;
 import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
@@ -29,7 +28,7 @@ import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
 import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 
 /**
- * What is stored about the users of one realm.
+ * What is stored about the person of a Keycloak user. Each path is a shortcut to the same path of the person.
  */
 @Produces(MediaType.APPLICATION_JSON)
 @Tag(ref = Tags.USERS)
@@ -42,35 +41,32 @@ public class UsersResource {
     private final QualificationService qualifications;
     private final ReportingLineService reportingLines;
     private final UserDirectory users;
-    private final Consumer<String> eraseUser;
-    private final UserMaskingService masking;
+    private final PersonService people;
+    private final PersonData data;
 
     /**
-     * Creates the resource for one request.
+     * The services that read what is stored about a person.
      *
-     * @param context the request and its caller
-     * @param membership the reads on the realm of the request
+     * @param membership the reads of assignments and of the history
      * @param employments the operations on employments of the realm
      * @param assignments the operations on assignments of the realm
      * @param qualifications the operations on qualifications of the realm
      * @param reportingLines the reads of managers and reports on the realm
-     * @param users the users of the realm
-     * @param eraseUser removes every row and every change log entry about one user
-     * @param masking the masking of personal data of the realm
      */
-    public UsersResource(RequestContext context, MembershipService membership, EmploymentService employments,
-            AssignmentService assignments, QualificationService qualifications,
-            ReportingLineService reportingLines, UserDirectory users, Consumer<String> eraseUser,
-            UserMaskingService masking) {
-        this.masking = masking;
-        this.users = users;
-        this.eraseUser = eraseUser;
-        this.reportingLines = reportingLines;
+    public record Reads(MembershipService membership, EmploymentService employments, AssignmentService assignments,
+            QualificationService qualifications, ReportingLineService reportingLines) {
+    }
+
+    UsersResource(RequestContext context, Reads reads, UserDirectory users, PersonService people, PersonData data) {
         this.context = context;
-        this.membership = membership;
-        this.employments = employments;
-        this.assignments = assignments;
-        this.qualifications = qualifications;
+        this.membership = reads.membership();
+        this.employments = reads.employments();
+        this.assignments = reads.assignments();
+        this.qualifications = reads.qualifications();
+        this.reportingLines = reads.reportingLines();
+        this.users = users;
+        this.people = people;
+        this.data = data;
     }
 
     @POST
@@ -82,7 +78,7 @@ public class UsersResource {
                     + "free attributes, also in the change log. Every record keeps its ID, its org unit, its job "
                     + "title, its occupation, and its dates.")
     @Parameter(ref = "changeOrder")
-    @APIResponse(responseCode = "200", description = "The user ID and the time of the masking.")
+    @APIResponse(responseCode = "200", description = "The person and the time of the masking.")
     @BadRequest
     @NotFound
     @ApiErrors
@@ -91,14 +87,20 @@ public class UsersResource {
             @PathParam("userId") String userId) {
         context.requireWrite();
         return Calls.run(context, () -> {
-            var mask = new MaskRepresentation(userId, masking.mask(userId).toString());
-            context.recordChange(Change.UPDATE, "FUHITO_USER_DATA", userId, "fuhito/users/" + userId + "/mask", mask);
-            return mask;
+            requireKnown(userId);
+            // A user with nothing stored gets a person, so that the masking is remembered.
+            PersonService.Resolved resolved = people.forUser(userId);
+            if (resolved.created() != null) {
+                Writes.record(context, new Write.OfPerson(resolved.created()));
+            }
+            return data.mask(resolved.person());
         });
     }
 
-    @Schema(name = "Mask", description = "The result of a masking.", requiredProperties = {"userId", "maskedAt"})
+    @Schema(name = "Mask", description = "The result of a masking.", requiredProperties = {"personId", "maskedAt"})
     public record MaskRepresentation(
+            String personId,
+            @Schema(description = "The ID of the Keycloak user that the person is linked to.")
             String userId,
             @Schema(description = "When the data was first masked, in UTC.", format = "date-time")
             String maskedAt) {
@@ -123,12 +125,8 @@ public class UsersResource {
             @PathParam("userId") String userId) {
         context.requireWrite();
         return Calls.run(context, () -> {
-            if (!users.isKnown(userId)) {
-                throw FuhitoException.notFound("user.not_found", Map.of("userId", userId));
-            }
-            eraseUser.accept(userId);
-            // The entry says that data was erased and by whom. It has nothing about the person but the ID.
-            context.recordChange(Change.DELETE, "FUHITO_USER_DATA", userId, "fuhito/users/" + userId + "/data", null);
+            requireKnown(userId);
+            people.ofUser(userId).ifPresent(person -> data.erase(person.id()));
             return Response.noContent().build();
         });
     }
@@ -242,6 +240,12 @@ public class UsersResource {
         context.requireRead();
         return Calls.run(context,
                 () -> UserHistoryRepresentation.of(membership.historyOf(userId, employments, assignments),
-                        masking.maskedAt(userId)));
+                        people.ofUser(userId).flatMap(person -> data.maskedAt(person.id()))));
+    }
+
+    private void requireKnown(String userId) {
+        if (!users.isKnown(userId)) {
+            throw FuhitoException.notFound("user.not_found", Map.of("userId", userId));
+        }
     }
 }

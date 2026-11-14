@@ -105,6 +105,9 @@ class ReportingLineServiceTest {
                 summary(service.reportsOf("head-nurse", null)));
         assertEquals(List.of("head-nurse SOLID derived"), summary(service.reportsOf("director", null)));
         assertEquals(List.of(), summary(service.reportsOf("nurse-a", null)));
+        // The same lists are read by person.
+        assertEquals(service.managersOf("nurse-a", null), service.managersOfPerson("nurse-a", null));
+        assertEquals(service.reportsOf("head-nurse", null), service.reportsOfPerson("head-nurse", null));
         assertEquals(List.of(), summary(service.reportsOf("idle", null)));
     }
 

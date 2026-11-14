@@ -17,6 +17,7 @@ import net.exoego.keycloak.fuhito.domain.Employment;
 import net.exoego.keycloak.fuhito.domain.EmploymentStatus;
 import net.exoego.keycloak.fuhito.domain.EmploymentTerms;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
+import net.exoego.keycloak.fuhito.domain.Person;
 import net.exoego.keycloak.fuhito.domain.RefItem;
 import net.exoego.keycloak.fuhito.domain.RefKind;
 import net.exoego.keycloak.fuhito.store.AssignmentStore;
@@ -129,9 +130,26 @@ public class MembershipService {
     public List<Member> assignmentsOf(String userId, String asOf, boolean includePath) {
         LocalDate asked = Checks.optionalDate("asOf", asOf);
         requireUser(userId);
+        return assignmentsOf(employments.findByUser(userId), asked, includePath);
+    }
+
+    /**
+     * Lists the assignments of a person that hold on a date. The primary assignment comes first.
+     *
+     * @param personId the ID of the person
+     * @param asOf the date as {@code YYYY-MM-DD}, or null for today
+     * @param includePath true to return each org unit with its path from the root
+     * @return the assignments of the person on the date
+     * @throws FuhitoException when the date is bad
+     */
+    public List<Member> assignmentsOfPerson(String personId, String asOf, boolean includePath) {
+        return assignmentsOf(employments.findByPerson(personId), Checks.optionalDate("asOf", asOf), includePath);
+    }
+
+    private List<Member> assignmentsOf(List<Employment> ofOne, LocalDate asked, boolean includePath) {
         // With no date, each assignment is judged on the date of its own org unit.
         Map<LocalDate, List<Assignment>> rowsByDate = new LinkedHashMap<>();
-        employments.findByUser(userId).stream()
+        ofOne.stream()
                 .flatMap(employment -> assignments.rowsOfEmployment(employment.id()).stream())
                 .forEach(row -> {
                     LocalDate date = asked == null ? today.ofUnit(row.orgUnitId()) : asked;
@@ -161,6 +179,26 @@ public class MembershipService {
             AssignmentService assignmentService) {
         requireUser(userId);
         List<Employment> ofUser = employments.findByUser(userId);
+        return history(ofUser.isEmpty() ? null : ofUser.getFirst().personId(), userId, ofUser, employmentService,
+                assignmentService);
+    }
+
+    /**
+     * Returns every employment and every assignment of a person, with all their periods.
+     *
+     * @param person the person
+     * @param employmentService the reads of employments
+     * @param assignmentService the reads of assignments
+     * @return the history of the person
+     */
+    public UserHistory historyOfPerson(Person person, EmploymentService employmentService,
+            AssignmentService assignmentService) {
+        return history(person.id(), person.userId(), employments.findByPerson(person.id()), employmentService,
+                assignmentService);
+    }
+
+    private UserHistory history(String personId, String userId, List<Employment> ofUser,
+            EmploymentService employmentService, AssignmentService assignmentService) {
         List<AssignmentView> assignmentViews = ofUser.stream()
                 .flatMap(employment -> assignments.rowsOfEmployment(employment.id()).stream())
                 .map(Assignment::assignmentId)
@@ -169,7 +207,7 @@ public class MembershipService {
                 .sorted(Comparator.comparing((AssignmentView view) -> view.period().from())
                         .thenComparing(AssignmentView::assignmentId))
                 .toList();
-        return new UserHistory(userId, ofUser.stream().map(e -> employmentService.get(e.id())).toList(),
+        return new UserHistory(personId, userId, ofUser.stream().map(e -> employmentService.get(e.id())).toList(),
                 assignmentViews);
     }
 

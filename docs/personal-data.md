@@ -26,7 +26,7 @@ A person with no Keycloak user has the name only in the person record.
 
 | | Keep | Mask | Erase |
 |---|---|---|---|
-| How | Remove the user from Keycloak, or do nothing | `POST /users/{userId}/mask` | `DELETE /users/{userId}/data` |
+| How | Remove the user from Keycloak, or do nothing | `POST /people/{id}/mask` | `DELETE /people/{id}/data` |
 | Records and their IDs | Stay | Stay | Gone |
 | Org units, job titles, occupations, dates | Stay | Stay | Gone |
 | The names in the person record | Stay | Cleared | Gone, with the person record |
@@ -45,16 +45,18 @@ See [keycloak-integration.md](keycloak-integration.md).
 
 Masking removes what identifies the person directly, and keeps the structure of the history.
 
-- It works only for a user with no employment that is open today or starts later.
-- It works for a user who is still in Keycloak and for one who was removed.
-- The reads about the user have `maskedAt` afterwards.
-- The change log records who masked which user ID.
+- It works only for a person with no employment that is open today or starts later.
+- It works for a person with a Keycloak user, for one whose user was removed, and for one who never had a user.
+- `POST /users/{userId}/mask` masks the person of a user.
+- A person who is still linked to a user keeps the name that Keycloak has. Remove the user to remove that name.
+- The history of the person has `maskedAt` afterwards.
+- The change log records who masked which person ID.
 - Masking again keeps the first time, and clears what was added since.
 
 ### Erase
 
-Erasing removes every row and every change log entry about the user.
-The change log keeps one entry that says who erased the data of which user ID.
+Erasing removes the person record, and every row and every change log entry about the person.
+The change log keeps one entry that says who erased the data of which person ID.
 
 ## What masking does not do
 

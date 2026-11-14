@@ -118,6 +118,10 @@ class QualificationServiceTest {
         assertEquals(List.of("physician-license", "specialist", "specialist", "narcotics-license"),
                 kinds(service.ofUser("doctor", null, true)));
         assertEquals("123", service.ofUser("doctor", null, false).getFirst().qualification().number());
+        // The same list is read by person.
+        assertEquals(service.ofUser("doctor", "2027-06-01", false), service.ofPerson("doctor", "2027-06-01", false));
+        assertEquals(service.ofUser("doctor", null, true), service.ofPerson("doctor", null, true));
+        assertEquals(service.ofUser("doctor", null, false), service.ofPerson("doctor", null, false));
     }
 
     private static List<String> kinds(List<QualificationView> views) {

@@ -65,6 +65,16 @@ public class PersonService {
     }
 
     /**
+     * Finds the person that is linked to a Keycloak user.
+     *
+     * @param userId the ID of the user
+     * @return the person, or empty when no person is linked to the user
+     */
+    public Optional<Person> ofUser(String userId) {
+        return store.findByUser(userId);
+    }
+
+    /**
      * Creates a person.
      *
      * @param request the values of the request

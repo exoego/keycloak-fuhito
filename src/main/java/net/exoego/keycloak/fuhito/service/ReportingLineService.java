@@ -171,6 +171,18 @@ public class ReportingLineService {
         return personOf(userId).map(personId -> managers(personId, date)).orElse(List.of());
     }
 
+    /**
+     * Lists the managers of a person on a date, for each assignment of the person.
+     *
+     * @param personId the ID of the person
+     * @param asOf the date as {@code YYYY-MM-DD}, or null for today
+     * @return the managers
+     * @throws FuhitoException when the date is bad
+     */
+    public List<Reporting> managersOfPerson(String personId, String asOf) {
+        return managers(personId, dateOrToday(asOf));
+    }
+
     private List<Reporting> managers(String personId, LocalDate date) {
         Snapshot snapshot = new Snapshot(date);
         List<Reporting> result = new ArrayList<>();
@@ -199,6 +211,18 @@ public class ReportingLineService {
         LocalDate date = dateOrToday(asOf);
         requireUser(userId);
         return personOf(userId).map(personId -> reports(personId, date)).orElse(List.of());
+    }
+
+    /**
+     * Lists the direct reports of a person on a date.
+     *
+     * @param personId the ID of the person
+     * @param asOf the date as {@code YYYY-MM-DD}, or null for today
+     * @return the direct reports
+     * @throws FuhitoException when the date is bad
+     */
+    public List<Reporting> reportsOfPerson(String personId, String asOf) {
+        return reports(personId, dateOrToday(asOf));
     }
 
     private List<Reporting> reports(String personId, LocalDate date) {

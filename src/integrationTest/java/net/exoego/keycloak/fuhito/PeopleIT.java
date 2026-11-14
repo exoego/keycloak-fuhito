@@ -291,4 +291,72 @@ class PeopleIT {
         assertEquals("employment.person_unknown", errorOf(400, otherRealm.api.post("/employments",
                 "{\"personId\": \"" + personId + "\", \"validFrom\": \"2020-04-01\"}")));
     }
+
+    @Test
+    void aPersonWithNoUserIsReadMaskedAndErasedByPersonId() throws Exception {
+        TestRealm scratch = TestRealm.create("people-reads");
+        Api scratchApi = scratch.api;
+        scratch.refItem("QUALIFICATION", "license", "免許");
+        String unit = created(scratchApi.post("/org-units", "{\"name\": \"外科\", \"validFrom\": \"2020-04-01\"}"))
+                .get("id").asText();
+        String chief = created(scratchApi.post("/people", "{\"name\": \"部長\", \"phoneticName\": \"ぶちょう\"}"))
+                .get("id").asText();
+        String member = created(scratchApi.post("/people", "{\"name\": \"応援 医師\", \"externalId\": \"X-1\", "
+                + "\"source\": \"hr\"}")).get("id").asText();
+        String start = "\", \"orgUnitId\": \"" + unit + "\", \"validFrom\": \"2020-04-01\", \"validTo\": \"2024-04-01\"";
+        created(scratchApi.post("/staff", "{\"personId\": \"" + chief + start + ", \"head\": true}"));
+        JsonNode staff = created(scratchApi.post("/staff", "{\"personId\": \"" + member + start
+                + ", \"staffNumber\": \"D-1\"}"));
+        created(scratchApi.post("/qualifications", "{\"personId\": \"" + member
+                + "\", \"kind\": \"license\", \"number\": \"第1号\", \"validFrom\": \"2010-05-01\"}"));
+        String people = "/people/" + member;
+
+        assertEquals(List.of(unit),
+                ok(scratchApi.get(people + "/assignments?asOf=2021-04-01&includePath=true")).findValuesAsText("orgUnitId"));
+        assertEquals(0, ok(scratchApi.get(people + "/assignments")).size());
+        assertEquals(List.of(chief), ok(scratchApi.get(people + "/managers?asOf=2021-04-01")).findValuesAsText("personId"));
+        assertEquals(List.of(member),
+                ok(scratchApi.get("/people/" + chief + "/reports?asOf=2021-04-01")).findValuesAsText("personId"));
+        assertEquals(List.of("license"), ok(scratchApi.get(people + "/qualifications")).findValuesAsText("kind"));
+        assertEquals(1, ok(scratchApi.get(people + "/qualifications?all=true")).size());
+        JsonNode history = ok(scratchApi.get(people + "/history"));
+        assertEquals(member, history.get("personId").asText());
+        assertFalse(history.has("userId"));
+        assertFalse(history.has("maskedAt"));
+        assertEquals(List.of(staff.get("employment").get("id").asText()), history.get("employments").findValuesAsText("id"));
+        assertEquals(1, history.get("assignments").size());
+
+        JsonNode mask = ok(scratchApi.post(people + "/mask", ""));
+        assertEquals(member, mask.get("personId").asText());
+        assertFalse(mask.has("userId"));
+        JsonNode masked = ok(scratchApi.get(people));
+        assertFalse(masked.has("name"));
+        assertFalse(masked.has("externalId"));
+        JsonNode maskedHistory = ok(scratchApi.get(people + "/history"));
+        assertEquals(mask.get("maskedAt").asText(), maskedHistory.get("maskedAt").asText());
+        assertFalse(maskedHistory.get("employments").get(0).has("staffNumber"));
+        assertFalse(ok(scratchApi.get(people + "/qualifications?all=true")).get(0).has("number"));
+        assertEquals(mask.get("maskedAt").asText(), ok(scratchApi.post(people + "/mask", "")).get("maskedAt").asText());
+
+        assertEquals(204, scratchApi.delete(people + "/data").statusCode());
+        assertEquals("person.not_found", errorOf(404, scratchApi.get(people)));
+        assertEquals("person.not_found", errorOf(404, scratchApi.delete(people + "/data")));
+        assertEquals(404, scratchApi.get("/employments/" + staff.get("employment").get("id").asText()).statusCode());
+        assertEquals(List.of("UPDATE", "UPDATE", "DELETE"), Api.json(scratchApi.get(
+                "/change-log?resourceType=FUHITO_PERSON_DATA&resourceId=" + member)).findValuesAsText("operation"));
+        assertEquals(0, Api.json(scratchApi.get("/change-log?resourceType=FUHITO_PERSON&resourceId=" + member)).size());
+        // The other person is untouched.
+        assertEquals("部長", ok(scratchApi.get("/people/" + chief)).get("name").asText());
+        assertEquals(1, ok(scratchApi.get("/people/" + chief + "/history")).get("employments").size());
+
+        for (String path : List.of("/assignments", "/history", "/managers", "/reports", "/qualifications")) {
+            assertEquals("person.not_found", errorOf(404, scratchApi.get("/people/nobody" + path)));
+            assertEquals("person.not_found", errorOf(404, otherRealm.api.get("/people/" + chief + path)));
+        }
+        assertEquals("person.not_found", errorOf(404, scratchApi.post("/people/nobody/mask", "")));
+        assertEquals("person.still_employed", errorOf(409, scratchApi.post("/people/" + created(scratchApi.post("/staff",
+                "{\"personId\": \"" + chief + "\", \"orgUnitId\": \"" + unit + "\", \"validFrom\": \"2025-04-01\"}"))
+                .get("employment").get("personId").asText() + "/mask", "")));
+        assertEquals("invalid.date", errorOf(400, scratchApi.get("/people/" + chief + "/managers?asOf=x")));
+    }
 }

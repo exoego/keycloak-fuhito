@@ -86,6 +86,7 @@ class UserRemovalIT {
         realm.removeUser(gone);
         assertEquals("6", rows("fuhito_employment", realmId));
 
+        String erasedPerson = Api.json(api.get("/users/" + erased + "/history")).get("personId").asText();
         assertEquals(204, api.delete("/users/" + erased + "/data").statusCode());
         assertEquals(204, api.delete("/users/" + gone + "/data").statusCode());
 
@@ -105,7 +106,11 @@ class UserRemovalIT {
         assertEquals(404, api.delete("/users/" + gone + "/data").statusCode());
         assertEquals(404, api.delete("/users/no-such-user/data").statusCode());
         // The log says that data was erased, and nothing more about the person.
-        JsonNode erasure = Api.json(api.get("/change-log?resourceType=FUHITO_USER_DATA&resourceId=" + erased));
+        JsonNode erasure = Api.json(api.get("/change-log?resourceType=FUHITO_PERSON_DATA&resourceId=" + erasedPerson));
+        assertEquals("fuhito/people/" + erasedPerson + "/data", erasure.get(0).get("resourcePath").asText());
+        // Erasing again finds no person, and writes nothing.
+        assertEquals(204, api.delete("/users/" + erased + "/data").statusCode());
+        assertFalse(Api.json(api.get("/users/" + erased + "/history")).has("personId"));
         assertEquals(List.of("DELETE"), erasure.findValuesAsText("operation"));
         assertFalse(erasure.get(0).has("representation"));
         assertEquals(401, new Api(realm.name, null).delete("/users/" + kept + "/data").statusCode());
