@@ -855,6 +855,7 @@ components:
       - assignmentId
       - employmentId
       - personId
+      - seconded
       - orgUnitId
       - orgUnitName
       - validFrom
@@ -875,6 +876,13 @@ components:
         userId:
           type: string
           description: The ID of the Keycloak user that the person is linked to.
+        employerId:
+          type: string
+          description: The ID of the org unit that employs the person.
+        seconded:
+          type: boolean
+          description: True when the person works outside the employer. The org unit
+            is then not the employer and not below it in the default hierarchy.
         staffNumber:
           type: string
           description: The number that the legal entity gives to the person.

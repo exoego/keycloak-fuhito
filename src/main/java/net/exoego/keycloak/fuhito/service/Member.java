@@ -19,8 +19,9 @@ import net.exoego.keycloak.fuhito.domain.EmploymentTerms;
  * @param grade the code of the grade, or null
  * @param orgUnit the org unit on the date
  * @param orgUnitPath the units from the root down to the org unit, or null when it was not asked for
+ * @param seconded true when the org unit is not the employer and is not below it in the default hierarchy
  */
 public record Member(Assignment assignment, Employment employment, EmploymentTerms terms, String jobTitle,
         String occupation, String kind, String employmentType, String grade, OrgUnitState orgUnit,
-        List<OrgUnitState> orgUnitPath) {
+        List<OrgUnitState> orgUnitPath, boolean seconded) {
 }
