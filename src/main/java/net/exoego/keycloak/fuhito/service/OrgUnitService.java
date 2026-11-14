@@ -224,11 +224,7 @@ public class OrgUnitService {
         if (laterChange) {
             throw FuhitoException.conflict("org_unit.later_changes_exist", Map.of("id", id, "validTo", validTo));
         }
-        long children = store.childLinks(id).stream()
-                .filter(l -> l.period().endsAfter(to))
-                .map(OrgUnitLink::childId)
-                .distinct()
-                .count();
+        long children = store.childrenHoldingFrom(id, to);
         if (children > 0) {
             throw FuhitoException.conflict("org_unit.has_children",
                     Map.of("id", id, "validTo", validTo, "count", Long.toString(children)));
@@ -240,11 +236,7 @@ public class OrgUnitService {
                     Map.of("id", id, "validTo", validTo, "count", Long.toString(employed)));
         }
 
-        long staffed = assignments.rowsOfOrgUnit(id).stream()
-                .filter(row -> row.period().endsAfter(to))
-                .map(Assignment::assignmentId)
-                .distinct()
-                .count();
+        long staffed = assignments.assignmentsHoldingFrom(id, to);
         if (staffed > 0) {
             throw FuhitoException.conflict("org_unit.has_assignments",
                     Map.of("id", id, "validTo", validTo, "count", Long.toString(staffed)));

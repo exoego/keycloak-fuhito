@@ -55,15 +55,14 @@ public class JpaAssignmentStore implements AssignmentStore {
     }
 
     @Override
-    public List<Assignment> rowsOfOrgUnit(String orgUnitId) {
+    public long assignmentsHoldingFrom(String orgUnitId, LocalDate date) {
         return em.createQuery("""
-                        select a from AssignmentEntity a where a.realmId = :realmId
-                        and a.orgUnitId = :orgUnitId order by a.validFrom, a.id""", AssignmentEntity.class)
+                        select count(distinct a.assignmentId) from AssignmentEntity a where a.realmId = :realmId
+                        and a.orgUnitId = :orgUnitId and (a.validTo is null or a.validTo > :date)""", Long.class)
                 .setParameter("realmId", realmId)
                 .setParameter("orgUnitId", orgUnitId)
-                .getResultStream()
-                .map(JpaAssignmentStore::toDomain)
-                .toList();
+                .setParameter("date", date)
+                .getSingleResult();
     }
 
     @Override

@@ -220,8 +220,12 @@ final class MemoryOrgUnitStore implements OrgUnitStore {
     }
 
     @Override
-    public List<OrgUnitLink> childLinks(String parentId) {
-        return links.stream().filter(l -> l.parentId().equals(parentId)).toList();
+    public long childrenHoldingFrom(String parentId, LocalDate date) {
+        return links.stream()
+                .filter(l -> l.parentId().equals(parentId) && l.period().endsAfter(date))
+                .map(OrgUnitLink::childId)
+                .distinct()
+                .count();
     }
 
     @Override
