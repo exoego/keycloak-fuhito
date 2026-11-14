@@ -108,7 +108,7 @@ public class ImportsResource {
         try {
             return Charset.forName(name);
         } catch (IllegalArgumentException e) {
-            throw FuhitoException.invalid("csv.bad_charset", Map.of("charset", name));
+            throw FuhitoException.invalid("csv.bad_charset", Map.of("charset", name)).causedBy(e);
         }
     }
 

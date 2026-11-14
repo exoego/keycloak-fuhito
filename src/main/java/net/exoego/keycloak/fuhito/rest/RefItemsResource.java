@@ -139,7 +139,7 @@ public class RefItemsResource {
         try {
             return RefKind.valueOf(kind);
         } catch (IllegalArgumentException e) {
-            throw FuhitoException.invalid("invalid.kind", Map.of("value", kind));
+            throw FuhitoException.invalid("invalid.kind", Map.of("value", kind)).causedBy(e);
         }
     }
 }

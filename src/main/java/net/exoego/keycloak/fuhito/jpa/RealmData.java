@@ -7,6 +7,7 @@ import jakarta.persistence.EntityManager;
 /**
  * Removal of the rows of this extension that belong to one realm or to one user.
  */
+// aislop-ignore-file security/sql-injection -- only entity names from this file are joined in, values are parameters
 public final class RealmData {
 
     // Children come before the rows they refer to.
@@ -63,8 +64,7 @@ public final class RealmData {
                 .setParameter("realmId", realmId)
                 .setParameter("userId", userId)
                 .executeUpdate();
-        // The change log keeps the ID of the user as the actor of a write.
-        // It does not keep the entries about the employments and assignments of that user.
+        // An entry that only names the user as the actor of a write stays.
         em.createQuery("delete from ChangeLogEntity l where l.realmId = :realmId"
                         + " and ((l.resourceType = 'FUHITO_EMPLOYMENT' and l.resourceId in " + employmentsOfUser + ")"
                         + " or (l.resourceType = 'FUHITO_ASSIGNMENT' and l.resourceId in"

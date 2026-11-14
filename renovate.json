@@ -9,7 +9,27 @@
   "labels": [
     "chore"
   ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Tool versions in a Dockerfile, marked with a renovate comment on the line above",
+      "managerFilePatterns": [
+        "/(^|/)Dockerfile$/"
+      ],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>[a-z-]+) depName=(?<depName>\\S+)(?: extractVersion=(?<extractVersion>\\S+))?\\nARG [A-Z_]+_VERSION=(?<currentValue>\\S+)"
+      ]
+    }
+  ],
   "packageRules": [
+    {
+      "description": "aislop and PMD gate CI and can add rules in any release, so check each update by hand. PMD also needs its new checksum.",
+      "matchPackageNames": [
+        "aislop",
+        "pmd/pmd"
+      ],
+      "automerge": false
+    },
     {
       "description": "Pick a new Java major by hand",
       "matchDatasources": [

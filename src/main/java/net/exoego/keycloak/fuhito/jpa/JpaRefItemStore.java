@@ -13,16 +13,16 @@ import net.exoego.keycloak.fuhito.store.RefItemStore;
  */
 public class JpaRefItemStore implements RefItemStore {
 
-    // Every column that holds the ID of a reference item.
+    // One count for every column that holds the ID of a reference item.
     private static final List<String> REFERENCES = List.of(
-            "OrgUnitVersionEntity e where e.unitTypeId",
-            "EmploymentEntity e where e.endReasonId",
-            "EmploymentTermsEntity e where e.employmentTypeId",
-            "EmploymentTermsEntity e where e.gradeId",
-            "AssignmentEntity e where e.jobTitleId",
-            "AssignmentEntity e where e.occupationId",
-            "AssignmentEntity e where e.kindId",
-            "QualificationEntity e where e.kindId");
+            "select count(e) from OrgUnitVersionEntity e where e.unitTypeId = :id and e.realmId = :realmId",
+            "select count(e) from EmploymentEntity e where e.endReasonId = :id and e.realmId = :realmId",
+            "select count(e) from EmploymentTermsEntity e where e.employmentTypeId = :id and e.realmId = :realmId",
+            "select count(e) from EmploymentTermsEntity e where e.gradeId = :id and e.realmId = :realmId",
+            "select count(e) from AssignmentEntity e where e.jobTitleId = :id and e.realmId = :realmId",
+            "select count(e) from AssignmentEntity e where e.occupationId = :id and e.realmId = :realmId",
+            "select count(e) from AssignmentEntity e where e.kindId = :id and e.realmId = :realmId",
+            "select count(e) from QualificationEntity e where e.kindId = :id and e.realmId = :realmId");
 
     private final EntityManager em;
     private final String realmId;
@@ -72,8 +72,7 @@ public class JpaRefItemStore implements RefItemStore {
 
     @Override
     public boolean isInUse(String id) {
-        return REFERENCES.stream().anyMatch(reference -> em.createQuery("select count(e) from " + reference
-                        + " = :id and e.realmId = :realmId", Long.class)
+        return REFERENCES.stream().anyMatch(reference -> em.createQuery(reference, Long.class)
                 .setParameter("realmId", realmId)
                 .setParameter("id", id)
                 .getSingleResult() > 0);

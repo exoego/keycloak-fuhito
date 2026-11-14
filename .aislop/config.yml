@@ -1,0 +1,31 @@
+version: 1
+
+engines:
+  # No formatter is set up for this project.
+  format: false
+  lint: true
+  code-quality: true
+  ai-slop: true
+  architecture: false
+  security: true
+
+security:
+  # The audit of dependencies needs the network. The scan runs with none.
+  audit: false
+
+ci:
+  failBelow: 90
+
+telemetry:
+  enabled: false
+
+overrides:
+  # A record with many small methods is counted as one long function.
+  - files: ["src/main/java/**/domain/ValidPeriod.java"]
+    rules:
+      complexity/function-too-long: off
+  # Test helpers may throw anything, and the passwords are for users that a test creates.
+  - files: ["src/test/**", "src/integrationTest/**"]
+    rules:
+      ai-slop/java-broad-throws: off
+      security/hardcoded-secret: off

@@ -34,17 +34,20 @@ public class JpaReportingLineStore implements ReportingLineStore {
 
     @Override
     public List<ReportingLine> findByAssignment(String assignmentId) {
-        return list("assignmentId", assignmentId);
+        return list("""
+                select l from ReportingLineEntity l where l.realmId = :realmId and l.assignmentId = :value
+                order by l.validFrom, l.id""", assignmentId);
     }
 
     @Override
     public List<ReportingLine> findByManager(String managerUserId) {
-        return list("managerUserId", managerUserId);
+        return list("""
+                select l from ReportingLineEntity l where l.realmId = :realmId and l.managerUserId = :value
+                order by l.validFrom, l.id""", managerUserId);
     }
 
-    private List<ReportingLine> list(String field, String value) {
-        return em.createQuery("select l from ReportingLineEntity l where l.realmId = :realmId and l." + field
-                        + " = :value order by l.validFrom, l.id", ReportingLineEntity.class)
+    private List<ReportingLine> list(String query, String value) {
+        return em.createQuery(query, ReportingLineEntity.class)
                 .setParameter("realmId", realmId)
                 .setParameter("value", value)
                 .getResultStream()

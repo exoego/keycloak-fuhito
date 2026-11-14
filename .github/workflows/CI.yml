@@ -56,16 +56,31 @@ jobs:
           KEYCLOAK_VERSION: ${{ matrix.keycloak }}
         run: ./gradlew check -PtestJavaVersion=${{ matrix.java }} -PtestKeycloakVersion="$KEYCLOAK_VERSION"
 
+  # aislop is a third-party tool from npm. The script builds an image with it and runs it with no network.
+  # The job token has no permission at all. A public repository can be checked out without one.
+  quality:
+    name: Quality scan
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Run aislop
+        run: scripts/aislop.sh
+
   # A skipped required job counts as passed, so fail instead of skipping.
   result:
     name: CI result
     timeout-minutes: 5
     if: always()
-    needs: test
+    needs: [test, quality]
     runs-on: ubuntu-latest
     permissions:
       contents: read
     steps:
-      - name: Check matrix result
-        if: needs.test.result != 'success'
+      - name: Check the results
+        if: needs.test.result != 'success' || needs.quality.result != 'success'
         run: exit 1
