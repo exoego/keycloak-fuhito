@@ -259,4 +259,60 @@ class ImportIT {
         assertEquals("invalid.required", Api.json(noDate).get("error").asText());
         assertEquals(401, new Api(realm.name, null).post("/imports", "{}").statusCode());
     }
+
+    @Test
+    void anImportNamesTheEmployerInARealmWithSeveralLegalEntities() throws Exception {
+        TestRealm realm = TestRealm.create("import-employers");
+        Api api = realm.api;
+        String sato = realm.user("sato");
+        String suzuki = realm.user("suzuki");
+        String document = """
+                {"effectiveDate": "2026-04-01", "source": "sheet",
+                 "refItems": [{"kind": "UNIT_TYPE", "code": "company", "name": "会社", "legalEntity": true}],
+                 "orgUnits": [
+                   {"externalId": "X", "name": "医療法人X会", "unitType": "company"},
+                   {"externalId": "Y", "name": "株式会社Yサービス", "unitType": "company"},
+                   {"externalId": "K", "name": "栄養科", "parentExternalId": "X"}
+                 ],
+                 "employments": [
+                   {"externalId": "E1", "username": "sato", "staffNumber": "1001", "employerExternalId": "X"},
+                   {"externalId": "E2", "username": "suzuki", "staffNumber": "1001", "employerExternalId": "Y"}
+                 ],
+                 "assignments": [
+                   {"externalId": "A2", "employmentExternalId": "E2", "orgUnitExternalId": "K", "primary": true}
+                 ]}
+                """;
+
+        JsonNode first = ok(api.post("/imports", document));
+
+        assertTrue(first.get("applied").asBoolean());
+        assertEquals(2, first.get("counts").get("employments").get("created").asInt());
+        JsonNode entities = Api.json(api.get("/org-units?legalEntity=true&asOf=2026-04-01"));
+        assertEquals(List.of("医療法人X会", "株式会社Yサービス"), entities.findValuesAsText("name").stream().sorted().toList());
+        String employerOfSato = Api.json(api.get("/users/" + sato + "/history")).get("employments").get(0).get("employerId").asText();
+        String employerOfSuzuki = Api.json(api.get("/users/" + suzuki + "/history")).get("employments").get(0).get("employerId").asText();
+        assertEquals("医療法人X会", Api.json(api.get("/org-units/" + employerOfSato + "?asOf=2026-04-01")).get("name").asText());
+        assertEquals("株式会社Yサービス", Api.json(api.get("/org-units/" + employerOfSuzuki + "?asOf=2026-04-01")).get("name").asText());
+
+        // The same document changes nothing. A unit type row with no mark keeps the mark.
+        JsonNode again = ok(api.post("/imports", document.replace(", \"legalEntity\": true", "")));
+        assertEquals(0, again.get("counts").get("employments").get("created").asInt());
+        assertEquals(1, again.get("counts").get("refItems").get("unchanged").asInt());
+        assertEquals(2, again.get("counts").get("employments").get("unchanged").asInt());
+        assertEquals(2, Api.json(api.get("/org-units?legalEntity=true&asOf=2026-04-01")).size());
+
+        HttpResponse<String> bad = api.post("/imports", """
+                {"effectiveDate": "2026-04-01", "source": "sheet",
+                 "employments": [
+                   {"externalId": "E1", "username": "sato", "staffNumber": "1001", "employerExternalId": "Y"},
+                   {"externalId": "E3", "username": "sato", "validFrom": "2027-04-01"},
+                   {"externalId": "E4", "username": "sato", "validFrom": "2027-04-01", "employerExternalId": "nope"},
+                   {"externalId": "E5", "username": "sato", "validFrom": "2027-04-01", "employerExternalId": "K"}
+                 ]}
+                """);
+        assertEquals(400, bad.statusCode(), bad.body());
+        assertEquals(List.of("import.employer_mismatch", "employment.employer_required", "import.org_unit_unknown",
+                "employment.employer_not_legal_entity"), Api.json(bad).get("errors").findValuesAsText("error"));
+        assertEquals("2", rows(realm, "fuhito_employment"));
+    }
 }

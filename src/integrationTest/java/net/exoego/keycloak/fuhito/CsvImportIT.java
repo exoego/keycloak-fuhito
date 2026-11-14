@@ -131,4 +131,31 @@ class CsvImportIT {
         assertEquals(400, unknown.statusCode(), unknown.body());
         assertEquals("csv.bad_charset", Api.json(unknown).get("error").asText());
     }
+
+    @Test
+    void aCsvFileNamesTheEmployerAndMarksAUnitTypeAsALegalEntity() throws Exception {
+        TestRealm realm = TestRealm.create("csv-employers");
+        Api api = realm.api;
+        String nurse = realm.user("nurse");
+
+        load(api, "ref-items", "effectiveDate=2026-04-01", """
+                種類,コード,名称,法人
+                UNIT_TYPE,company,会社,はい
+                UNIT_TYPE,ward,病棟,
+                """);
+        load(api, "org-units", "effectiveDate=2026-04-01&source=sheet", """
+                外部ID,名称,組織種別
+                X,医療法人X会,company
+                Y,株式会社Yサービス,company
+                """);
+        JsonNode loaded = load(api, "employments", "effectiveDate=2026-04-01&source=sheet", """
+                外部ID,ユーザー名,雇用主の外部ID
+                E1,nurse,Y
+                """);
+
+        assertTrue(loaded.get("applied").asBoolean());
+        assertEquals(2, Api.json(api.get("/org-units?legalEntity=true&asOf=2026-04-01")).size());
+        String employer = Api.json(api.get("/users/" + nurse + "/history")).get("employments").get(0).get("employerId").asText();
+        assertEquals("株式会社Yサービス", Api.json(api.get("/org-units/" + employer + "?asOf=2026-04-01")).get("name").asText());
+    }
 }

@@ -203,4 +203,37 @@ class AttributeSyncIT {
         assertEquals(1, assignmentsOf(padded).size());
         assertEquals(0, report.get("unmatched").size());
     }
+
+    @Test
+    void theSyncNamesItsEmployerInARealmWithSeveralLegalEntities() throws Exception {
+        createRealm(Map.of("fuhito.sync.enabled", "true", "fuhito.sync.employer", "y-service"));
+        unit("内科", "naika", null);
+        String alice = user("alice", Map.of("department", "naika"));
+
+        // The code names no org unit yet.
+        HttpResponse<String> unknown = api.post("/attribute-sync/run", "");
+        assertEquals(409, unknown.statusCode(), unknown.body());
+        assertEquals("sync.employer_unknown", Api.json(unknown).get("error").asText());
+
+        HttpResponse<String> second = api.post("/org-units", "{\"name\": \"株式会社Yサービス\", \"code\": \"y-service\", "
+                + "\"unitType\": \"legal-entity\", \"validFrom\": \"2020-04-01\"}");
+        assertEquals(201, second.statusCode(), second.body());
+        String employer = Api.json(second).get("id").asText();
+
+        assertEquals(1, run("").get("employmentsStarted").asInt());
+        assertEquals(employer, Api.json(api.get("/users/" + alice + "/history")).get("employments").get(0).get("employerId").asText());
+    }
+
+    @Test
+    void theSyncStopsWhenItCannotTellTheEmployer() throws Exception {
+        createRealm(Map.of("fuhito.sync.enabled", "true"));
+        TestRealm.legalEntity(api, "株式会社Yサービス");
+        unit("内科", "naika", null);
+        user("alice", Map.of("department", "naika"));
+
+        HttpResponse<String> response = api.post("/attribute-sync/run", "");
+
+        assertEquals(400, response.statusCode(), response.body());
+        assertEquals("employment.employer_required", Api.json(response).get("error").asText());
+    }
 }

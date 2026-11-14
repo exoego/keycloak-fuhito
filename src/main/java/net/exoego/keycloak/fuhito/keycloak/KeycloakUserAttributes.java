@@ -26,7 +26,12 @@ final class KeycloakUserAttributes implements UserAttributeSource {
     @Override
     public Settings settings() {
         return new Settings(realm.getAttribute(PREFIX + "enabled", false), name("department"), name("title"),
-                name("manager"), name("employeeNumber"));
+                name("manager"), name("employeeNumber"), employerCode());
+    }
+
+    private String employerCode() {
+        String configured = realm.getAttribute(PREFIX + "employer");
+        return configured == null || configured.isBlank() ? null : configured.strip();
     }
 
     private String name(String field) {

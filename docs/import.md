@@ -58,6 +58,9 @@ The lists are applied in the order reference items, org units, employments, assi
 - A new row can have its own `validFrom`. An existing row ignores it.
 - A row with `validTo` ends the thing on that date. An employment can also carry `endReason`.
 - A row replaces all details of an existing thing. A missing optional value clears it.
+- A new employment names its employer by `employerExternalId`. It is the external ID of an org unit that is a legal entity. A row can leave it out when the realm has exactly one legal entity.
+- The employer of a stored employment never changes. A row that names another employer is rejected.
+- A row of a unit type can carry `legalEntity`. The CSV header is `法人`. A row that leaves it out keeps the mark of a stored item.
 - The user of an employment is named by `username` or by `userId`. The user must exist.
 - The employment belongs to the person of that user. The import creates the person when the user has none.
 
@@ -131,6 +134,7 @@ Employments.
 | `validFrom` | `開始日` |
 | `validTo` | `終了日` |
 | `endReason` | `終了理由` |
+| `employerExternalId` | `雇用主の外部ID` |
 
 Assignments.
 

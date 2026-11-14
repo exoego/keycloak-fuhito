@@ -16,8 +16,24 @@ public interface UserAttributeSource {
      * @param title the name of the user attribute with the title
      * @param manager the name of the user attribute with the user ID of the manager
      * @param employeeNumber the name of the user attribute with the staff number
+     * @param employerCode the code of the org unit that employs the people of the sync, or null when the realm
+     *        has one legal entity
      */
-    record Settings(boolean enabled, String department, String title, String manager, String employeeNumber) {
+    record Settings(boolean enabled, String department, String title, String manager, String employeeNumber,
+            String employerCode) {
+
+        /**
+         * Makes settings that name no employer.
+         *
+         * @param enabled true when the realm turned the sync on
+         * @param department the name of the user attribute with the department
+         * @param title the name of the user attribute with the title
+         * @param manager the name of the user attribute with the user ID of the manager
+         * @param employeeNumber the name of the user attribute with the staff number
+         */
+        public Settings(boolean enabled, String department, String title, String manager, String employeeNumber) {
+            this(enabled, department, title, manager, employeeNumber, null);
+        }
     }
 
     /**
