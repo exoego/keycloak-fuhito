@@ -4,6 +4,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.Set;
 
 import net.exoego.keycloak.fuhito.domain.BusinessDay;
@@ -152,7 +153,9 @@ class UnitDaysTest {
         assertEquals(1, reads.subtree(america, null, null, Page.of(null, null)).size());
         assertEquals(0, reads.children(america, null, null, Page.of(null, null)).size());
         assertEquals(2, reads.subtree(america, "2026-04-01", null, Page.of(null, null)).size());
-        assertEquals(2, reads.list(null, false, null, Page.of(null, null)).size());
+        // The roots are a read about the realm, so they are on the date of the realm.
+        assertEquals(List.of(america),
+                reads.roots(null, null, Page.of(null, null)).stream().map(state -> state.unit().id()).toList());
         assertEquals("org_unit.not_valid_on",
                 assertThrows(FuhitoException.class, () -> reads.get(opensInApril, null)).code());
     }

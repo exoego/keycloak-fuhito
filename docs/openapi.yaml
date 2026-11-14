@@ -3095,8 +3095,10 @@ paths:
           $ref: "#/components/responses/Conflict"
   /org-units:
     get:
-      summary: Lists the org units that exist on a date.
-      description: Each parent comes before its children.
+      summary: "Lists the org units with no parent on a date, the roots."
+      description: "There is no read of the whole tree. Go down with the children\
+        \ of an org unit, or read one branch with its subtree. Siblings follow the\
+        \ display order, then the phonetic name, then the name."
       operationId: listOrgUnits
       tags:
       - org-units
@@ -3121,9 +3123,9 @@ paths:
         in: query
         schema:
           type: string
-      - description: "True to return only the units that are legal entities, such\
-          \ as companies. A unit is one when its unit type says so. The list is then\
-          \ flat, and `roots` and `hierarchy` have no effect."
+      - description: "True to list the units that are legal entities, such as companies,\
+          \ in place of the roots. A unit is one when its unit type says so. `hierarchy`\
+          \ then has no effect."
         schema:
           type: boolean
           default: false
@@ -3138,15 +3140,9 @@ paths:
           default: 100
         name: max
         in: query
-      - description: True to return only the units with no parent.
-        schema:
-          type: boolean
-          default: false
-        name: roots
-        in: query
       responses:
         "200":
-          description: The units on the date.
+          description: The roots on the date.
           content:
             application/json:
               schema:

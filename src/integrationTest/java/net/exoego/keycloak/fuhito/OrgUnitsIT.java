@@ -307,7 +307,7 @@ class OrgUnitsIT {
         assertEquals(200, moved.statusCode(), moved.body());
         assertFalse(Api.json(moved).has("parentId"));
         assertEquals(0, Api.json(realm.api.get("/org-units/" + branch + "/history")).get("parents").size());
-        assertEquals(2, Api.json(realm.api.get("/org-units?asOf=2026-04-01&roots=true")).size());
+        assertEquals(2, Api.json(realm.api.get("/org-units?asOf=2026-04-01")).size());
     }
 
     @Test
@@ -381,11 +381,12 @@ class OrgUnitsIT {
         String on = "asOf=2026-04-01";
 
         // Only the units with a parent or a child in the matrix are in it.
-        assertEquals(List.of("Project", "Team"), namesOf(matrixApi.get("/org-units?hierarchy=matrix&" + on)));
-        assertEquals(List.of("Team"), namesOf(matrixApi.get("/org-units?hierarchy=matrix&first=1&max=1&" + on)));
-        assertEquals(List.of("Project"), namesOf(matrixApi.get("/org-units?hierarchy=matrix&roots=true&" + on)));
-        assertEquals(List.of("Alone", "Line", "Team", "Squad", "Project"), namesOf(matrixApi.get("/org-units?" + on)));
-        assertEquals(List.of("Alone", "Line", "Project"), namesOf(matrixApi.get("/org-units?roots=true&hierarchy=default&" + on)));
+        assertEquals(List.of("Project"), namesOf(matrixApi.get("/org-units?hierarchy=matrix&" + on)));
+        assertEquals(List.of("Project", "Team"), matrixApi.tree("hierarchy=matrix&" + on).findValuesAsText("name"));
+        assertEquals(List.of("Team"), namesOf(matrixApi.get("/org-units/" + project
+                + "/subtree?hierarchy=matrix&first=1&max=1&" + on)));
+        assertEquals(List.of("Alone", "Line", "Team", "Squad", "Project"), matrixApi.tree(on).findValuesAsText("name"));
+        assertEquals(List.of("Alone", "Line", "Project"), namesOf(matrixApi.get("/org-units?hierarchy=default&" + on)));
 
         assertEquals(List.of("Team"), namesOf(matrixApi.get("/org-units/" + project + "/children?hierarchy=matrix&" + on)));
         assertEquals(List.of(), namesOf(matrixApi.get("/org-units/" + project + "/children?" + on)));

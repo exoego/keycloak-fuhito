@@ -40,7 +40,7 @@ class ReorganizationIT {
     }
 
     private static List<String> names(String asOf) throws Exception {
-        return Api.json(api.get("/org-units?asOf=" + asOf)).findValuesAsText("name");
+        return api.tree("asOf=" + asOf).findValuesAsText("name");
     }
 
     @Test
@@ -82,7 +82,7 @@ class ReorganizationIT {
         TestRealm scratch = TestRealm.create("reorganization-failed");
         String root = Api.json(scratch.api.post("/org-units", "{\"name\": \"Root\", \"validFrom\": \"2026-04-01\"}")).get("id").asText();
         String child = Api.json(scratch.api.post("/org-units", "{\"name\": \"Child\", \"parentId\": \"" + root + "\", \"validFrom\": \"2026-04-01\"}")).get("id").asText();
-        String before = scratch.api.get("/org-units?asOf=2030-01-01").body();
+        String before = scratch.api.tree("asOf=2030-01-01").toString();
         String rows = "select count(*) from fuhito_org_unit_version where realm_id = '" + scratch.id() + "'";
         String logRows = "select count(*) from fuhito_change_log where realm_id = '" + scratch.id() + "'";
         assertEquals("2", KeycloakEnvironment.sql(rows));
@@ -101,7 +101,7 @@ class ReorganizationIT {
         JsonNode error = Api.json(response);
         assertEquals("org_unit.has_children", error.get("error").asText());
         assertEquals("2", error.get("params").get("step").asText());
-        assertEquals(before, scratch.api.get("/org-units?asOf=2030-01-01").body());
+        assertEquals(before, scratch.api.tree("asOf=2030-01-01").toString());
         assertEquals("2", KeycloakEnvironment.sql(rows));
         assertEquals("2", KeycloakEnvironment.sql(logRows));
     }

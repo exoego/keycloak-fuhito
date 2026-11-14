@@ -285,14 +285,16 @@ A list that grows with the realm is read in pages.
 `first` is the number of entries to skip. `max` is the largest number of entries to return.
 `max` is 100 by default and 1000 at most. A larger value counts as 1000.
 A read with fewer entries than `max` has reached the end.
-These are the lists of org units, children, subtrees, members, people, reference items, change orders, the change log, and the effective changes.
+These are the lists of roots, children, subtrees, members, people, reference items, change orders, the change log, and the effective changes.
 
 The lists of one person and the history of one resource are returned whole. The reports of a person are the exception. They are read in pages, because the head of a large org unit has many.
 
-The lists of org units come in tree order. Each parent comes before its children.
+There is no read of the whole tree. `GET /org-units` lists the org units with no parent, the roots.
+A caller goes down with `GET /org-units/{id}/children`, or reads one branch with `GET /org-units/{id}/subtree`.
+A subtree comes in tree order. Each parent comes before its children.
 Siblings follow the display order, then the phonetic name, then the name. A unit with no phonetic name comes after the ones that have it.
 The database orders the names, so the order of two names follows the collation of the database.
-The database also walks the tree, so a read of one page does not load the whole tree.
+The database also walks the subtree, so a read of one page does not load it into memory.
 The path of an org unit is read with a walk upward from the unit. The assignments of a person and the managers of a person use the same walk.
 
 ### Hierarchies
@@ -315,7 +317,8 @@ The database applies the filters, the order, and the page.
 | Path | Purpose |
 |---|---|
 | `/ref-items` | The lists that a realm defines, such as unit types and occupations |
-| `/org-units` | Org units, their tree on a date, and their history |
+| `/org-units` | Org units. The list has the roots of a date, or the legal entities |
+| `/org-units/{id}/children`, `/subtree`, `/path` | The tree of a date, one level, one branch, or the way up |
 | `/people` | The people that the realm knows, with or without a Keycloak user |
 | `/employments` | Employments of people, with their terms over time |
 | `/assignments` | Assignments of employments to org units |
