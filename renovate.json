@@ -12,20 +12,21 @@
   "customManagers": [
     {
       "customType": "regex",
-      "description": "Versions in shell scripts, marked with a renovate comment on the line above",
+      "description": "Tool versions in a Dockerfile, marked with a renovate comment on the line above",
       "managerFilePatterns": [
-        "/^scripts/.+\\.sh$/"
+        "/(^|/)Dockerfile$/"
       ],
       "matchStrings": [
-        "# renovate: datasource=(?<datasource>[a-z-]+) depName=(?<depName>\\S+)\\n[A-Z_]+_VERSION=(?<currentValue>[^@\\s]+)(?:@(?<currentDigest>sha256:[a-f0-9]+))?"
+        "# renovate: datasource=(?<datasource>[a-z-]+) depName=(?<depName>\\S+)(?: extractVersion=(?<extractVersion>\\S+))?\\nARG [A-Z_]+_VERSION=(?<currentValue>\\S+)"
       ]
     }
   ],
   "packageRules": [
     {
-      "description": "aislop gates CI and can add rules in any release, so check each update by hand",
+      "description": "aislop and PMD gate CI and can add rules in any release, so check each update by hand. PMD also needs its new checksum.",
       "matchPackageNames": [
-        "aislop"
+        "aislop",
+        "pmd/pmd"
       ],
       "automerge": false
     },

@@ -256,7 +256,7 @@ public class OrgUnitService {
             // Any rule will do for the check. Only the two new values are parsed.
             new BusinessDay.Rule(ZoneOffset.UTC, LocalTime.MIDNIGHT).with(zone, start);
         } catch (FuhitoException e) {
-            throw FuhitoException.invalid(e.code(), e.params());
+            throw FuhitoException.invalid(e.code(), e.params()).causedBy(e);
         }
         OrgUnit changed = new OrgUnit(unit.id(), unit.code(), unit.externalId(), unit.source(),
                 unit.keycloakOrganizationId(), zone, start);

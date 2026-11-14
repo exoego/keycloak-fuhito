@@ -7,6 +7,7 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
 
 class FuhitoExceptionTest {
 
@@ -27,5 +28,15 @@ class FuhitoExceptionTest {
         assertEquals(3, FuhitoException.Reason.values().length);
         assertEquals(List.of("UNIT_TYPE", "JOB_TITLE", "OCCUPATION", "EMPLOYMENT_TYPE", "GRADE", "END_REASON",
                 "ASSIGNMENT_KIND", "QUALIFICATION"), Arrays.stream(RefKind.values()).map(RefKind::name).toList());
+    }
+
+    @Test
+    void keepsWhatLedToIt() {
+        var cause = new IllegalArgumentException("bad");
+
+        FuhitoException e = FuhitoException.invalid("invalid.choice", Map.of()).causedBy(cause);
+
+        assertSame(cause, e.getCause());
+        assertEquals("invalid.choice", e.code());
     }
 }

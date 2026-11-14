@@ -48,6 +48,17 @@ public class FuhitoException extends RuntimeException {
     }
 
     /**
+     * Records what led to this exception, so that a log can show it. A response never shows it.
+     *
+     * @param cause the exception that was caught
+     * @return this exception
+     */
+    public FuhitoException causedBy(Throwable cause) {
+        initCause(cause);
+        return this;
+    }
+
+    /**
      * Creates an exception for a bad value.
      *
      * @param code the stable error code

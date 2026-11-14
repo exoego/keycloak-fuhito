@@ -54,9 +54,9 @@ scripts/aislop.sh
 
 The script needs Docker. aislop is a third-party tool from npm, so the script never runs it on your machine.
 
-- The tool runs in a container with no network and no privileges.
+- The tool runs in a container with no network and no privileges. The image also holds PMD, which aislop uses to lint Java.
 - The container gets a read-only copy of the tracked files. It cannot change the repository.
-- Only the step that downloads the tool has the network, and that step sees no project file.
+- Only the build of the image has the network, and that build sees no project file. The image is built once and then reused.
 - Telemetry is off.
 
 The script scans tracked files with their changes that are not committed yet. Run `git add` on a new file first.

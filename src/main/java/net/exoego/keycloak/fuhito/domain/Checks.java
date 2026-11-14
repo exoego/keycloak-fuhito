@@ -119,7 +119,7 @@ public final class Checks {
         try {
             return LocalDate.parse(value);
         } catch (DateTimeParseException e) {
-            throw FuhitoException.invalid("invalid.date", Map.of("field", field, "value", value));
+            throw FuhitoException.invalid("invalid.date", Map.of("field", field, "value", value)).causedBy(e);
         }
     }
 
@@ -187,7 +187,7 @@ public final class Checks {
         try {
             return Enum.valueOf(type, value);
         } catch (IllegalArgumentException e) {
-            throw FuhitoException.invalid("invalid.choice", Map.of("field", field, "value", value));
+            throw FuhitoException.invalid("invalid.choice", Map.of("field", field, "value", value)).causedBy(e);
         }
     }
 

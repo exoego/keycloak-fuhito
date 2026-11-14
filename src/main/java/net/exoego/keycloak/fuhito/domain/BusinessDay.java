@@ -97,7 +97,7 @@ public final class BusinessDay {
         try {
             return ZoneId.of(value.strip());
         } catch (DateTimeException e) {
-            throw FuhitoException.conflict(errorCode, Map.of("value", value));
+            throw FuhitoException.conflict(errorCode, Map.of("value", value)).causedBy(e);
         }
     }
 
@@ -105,7 +105,7 @@ public final class BusinessDay {
         try {
             return LocalTime.parse(value.strip(), TIME);
         } catch (DateTimeParseException e) {
-            throw FuhitoException.conflict(errorCode, Map.of("value", value));
+            throw FuhitoException.conflict(errorCode, Map.of("value", value)).causedBy(e);
         }
     }
 }

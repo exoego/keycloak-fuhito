@@ -58,7 +58,7 @@ public class ReorganizationService {
             } catch (FuhitoException e) {
                 Map<String, String> params = new HashMap<>(e.params());
                 params.put("step", Integer.toString(i));
-                throw new FuhitoException(e.reason(), e.code(), params);
+                throw new FuhitoException(e.reason(), e.code(), params).causedBy(e);
             }
         }
         return results;

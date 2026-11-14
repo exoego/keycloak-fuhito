@@ -3,8 +3,7 @@ version: 1
 engines:
   # No formatter is set up for this project.
   format: false
-  # Linting of Java needs PMD, which the scan container does not have.
-  lint: false
+  lint: true
   code-quality: true
   ai-slop: true
   architecture: false

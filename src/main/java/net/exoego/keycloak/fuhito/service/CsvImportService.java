@@ -349,7 +349,7 @@ public class CsvImportService {
             try {
                 return parse.apply(value);
             } catch (NumberFormatException e) {
-                throw FuhitoException.invalid("csv.bad_number", Map.of("field", field, "value", value));
+                throw FuhitoException.invalid("csv.bad_number", Map.of("field", field, "value", value)).causedBy(e);
             }
         }
 
