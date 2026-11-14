@@ -70,6 +70,18 @@ Other systems use "Position" for a seat that exists even when nobody holds it.
 The valid period says when something was true in the real world.
 The change log says when the system learned about it.
 
+### Names of date and time fields
+
+A field with a date or a time is one of two kinds, and its name tells which.
+
+| Name | Kind | Who sets it | Can be in the future |
+|---|---|---|---|
+| Ends in `At`, such as `recordedAt`, `createdAt`, and `maskedAt` | A time that the system recorded. It is a fact. | The system, when the thing happens | No |
+| Ends in `Date`, such as `effectiveDate` and `orderDate`, and `validFrom` and `validTo` | A date of the business. It can be a plan. | The request | Yes |
+
+A date of the business does not say whether the thing happened. An end of an employment next month is a plan today, and the field is the same after that day.
+When a reader must know that something happened, the field is an `At` field that an operation sets. No request gives it a value.
+
 ## Reference data
 
 Unit types, job titles, occupations, employment types, grades, end reasons, assignment kinds, and qualification kinds are reference data.
