@@ -63,3 +63,9 @@ The script scans tracked files with their changes that are not committed yet. Ru
 
 The rules are in `.aislop/config.yml`. The gate fails on any finding of the level error, and on a score below 90.
 When a finding is wrong, add `aislop-ignore-next-line <rule> -- <reason>` in a comment on the line above it.
+
+## CodeQL
+
+CI also runs CodeQL, the code scanning of GitHub, on the Java code and on the workflows.
+It follows a value from a request to the place where it is used, so it finds injection into a query even through several methods.
+The results are in the "Security" tab of the repository. A pull request shows new findings as a check.
