@@ -126,6 +126,18 @@ public interface OrgUnitStore {
             int first, int max);
 
     /**
+     * Lists a page of the units that are legal entities on a date. A unit is one when its unit type says so.
+     * The order is the display order, then the phonetic name, then the name, then the ID.
+     *
+     * @param hierarchyId the ID of the hierarchy that the parents come from
+     * @param date the date
+     * @param first the number of units to skip
+     * @param max the largest number of units to return
+     * @return the units of the page
+     */
+    List<PlacedOrgUnit> legalEntitiesOn(String hierarchyId, LocalDate date, int first, int max);
+
+    /**
      * Returns some units as they are on a date. A unit that does not exist on the date is left out.
      *
      * @param hierarchyId the ID of the hierarchy that the parents come from

@@ -403,4 +403,50 @@ class OrgUnitsIT {
             assertEquals("hierarchy.unknown", Api.json(unknown).get("error").asText());
         }
     }
+
+    @Test
+    void listsTheLegalEntitiesOfADate() throws Exception {
+        TestRealm realm = TestRealm.create("org-units-legal-entity");
+        Api entityApi = realm.api;
+        JsonNode company = created(entityApi.post("/ref-items",
+                "{\"kind\": \"UNIT_TYPE\", \"code\": \"company\", \"name\": \"株式会社\", \"legalEntity\": true}"));
+        assertTrue(company.get("legalEntity").asBoolean());
+        JsonNode department = created(entityApi.post("/ref-items",
+                "{\"kind\": \"UNIT_TYPE\", \"code\": \"department\", \"name\": \"部\"}"));
+        assertFalse(department.has("legalEntity"));
+        HttpResponse<String> wrongKind = entityApi.post("/ref-items",
+                "{\"kind\": \"GRADE\", \"code\": \"g1\", \"name\": \"G1\", \"legalEntity\": true}");
+        assertEquals(400, wrongKind.statusCode(), wrongKind.body());
+        assertEquals("ref_item.legal_entity_kind", Api.json(wrongKind).get("error").asText());
+
+        String on = "\"validFrom\": \"2026-04-01\"}";
+        String holding = created(entityApi.post("/org-units", "{\"name\": \"Holding\", \"unitType\": \"company\", "
+                + "\"displayOrder\": 2, " + on)).get("id").asText();
+        JsonNode subsidiary = created(entityApi.post("/org-units", "{\"name\": \"Subsidiary\", \"unitType\": \"company\", "
+                + "\"displayOrder\": 1, \"parentId\": \"" + holding + "\", " + on));
+        String sales = created(entityApi.post("/org-units", "{\"name\": \"Sales\", \"unitType\": \"department\", "
+                + "\"parentId\": \"" + holding + "\", " + on)).get("id").asText();
+        created(entityApi.post("/org-units", "{\"name\": \"Untyped\", " + on));
+
+        assertTrue(subsidiary.get("legalEntity").asBoolean());
+        assertFalse(Api.json(entityApi.get("/org-units/" + sales + "?asOf=2026-04-01")).has("legalEntity"));
+        JsonNode entities = Api.json(entityApi.get("/org-units?legalEntity=true&asOf=2026-04-01"));
+        assertEquals(List.of("Subsidiary", "Holding"), entities.findValuesAsText("name"));
+        assertEquals(holding, entities.get(0).get("parentId").asText());
+        assertEquals(List.of("Holding"),
+                namesOf(entityApi.get("/org-units?legalEntity=true&asOf=2026-04-01&first=1&max=1")));
+        assertEquals(List.of(), namesOf(entityApi.get("/org-units?legalEntity=true&asOf=2026-03-31")));
+
+        // The sales department becomes a company of its own in 2027.
+        assertEquals(200, entityApi.put("/org-units/" + sales, "{\"name\": \"Sales Inc.\", \"unitType\": \"company\", "
+                + "\"validFrom\": \"2027-04-01\"}").statusCode());
+        assertEquals(List.of("Subsidiary", "Holding"), namesOf(entityApi.get("/org-units?legalEntity=true&asOf=2027-03-31")));
+        assertEquals(List.of("Sales Inc.", "Subsidiary", "Holding"),
+                namesOf(entityApi.get("/org-units?legalEntity=true&asOf=2027-04-01")));
+
+        // A change that leaves the mark out takes it away.
+        String companyId = company.get("id").asText();
+        assertFalse(Api.json(entityApi.put("/ref-items/" + companyId, "{\"name\": \"株式会社\"}")).has("legalEntity"));
+        assertEquals(List.of(), namesOf(entityApi.get("/org-units?legalEntity=true&asOf=2027-04-01")));
+    }
 }

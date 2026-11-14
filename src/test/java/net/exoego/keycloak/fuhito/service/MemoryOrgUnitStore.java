@@ -5,9 +5,11 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import net.exoego.keycloak.fuhito.domain.OrgUnit;
 import net.exoego.keycloak.fuhito.domain.OrgUnitLink;
@@ -84,6 +86,18 @@ final class MemoryOrgUnitStore implements OrgUnitStore {
     public List<PlacedOrgUnit> placedOn(String hierarchyId, Collection<String> ids, LocalDate date) {
         return placed(new OrgUnitTree(this, new MemoryRefItemStore(), date, hierarchyId).all().stream()
                 .filter(state -> ids.contains(state.unit().id())).toList(), 0, Integer.MAX_VALUE);
+    }
+
+    /** The IDs of the unit types that mark a legal entity. A test of legal entities sets them. */
+    final Set<String> legalEntityTypes = new HashSet<>();
+
+    @Override
+    public List<PlacedOrgUnit> legalEntitiesOn(String hierarchyId, LocalDate date, int first, int max) {
+        return placed(new OrgUnitTree(this, new MemoryRefItemStore(), date, hierarchyId).all().stream()
+                .filter(state -> legalEntityTypes.contains(state.version().unitTypeId()))
+                .sorted(Comparator.comparingInt((OrgUnitState state) -> state.version().displayOrder())
+                        .thenComparing(state -> state.version().name()))
+                .toList(), first, max);
     }
 
     private static List<PlacedOrgUnit> placed(List<OrgUnitState> states, int first, int max) {

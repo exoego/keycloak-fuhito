@@ -45,6 +45,9 @@ public class RefItemEntity {
     @Column(name = "ACTIVE", nullable = false)
     boolean active;
 
+    @Column(name = "LEGAL_ENTITY", nullable = false)
+    boolean legalEntity;
+
     /**
      * Creates an empty entity for JPA.
      */

@@ -967,6 +967,11 @@ components:
         unitType:
           type: string
           description: The code of the unit type.
+        legalEntity:
+          type: boolean
+          description: "True when the unit type marks the unit as a legal entity,\
+            \ such as a company."
+          readOnly: true
         parentId:
           type: string
           description: The ID of the parent in the default hierarchy. A root has none.
@@ -1266,6 +1271,11 @@ components:
         active:
           type: boolean
           description: False when the item must not be used for new data.
+        legalEntity:
+          type: boolean
+          description: "True for a unit type whose org units are legal entities, such\
+            \ as a company. Only the kind `UNIT_TYPE` can have it."
+          default: false
     RefKind:
       type: string
       enum:
@@ -2777,6 +2787,14 @@ paths:
         in: query
         schema:
           type: string
+      - description: "True to return only the units that are legal entities, such\
+          \ as companies. A unit is one when its unit type says so. The list is then\
+          \ flat, and `roots` and `hierarchy` have no effect."
+        schema:
+          type: boolean
+          default: false
+        name: legalEntity
+        in: query
       - description: The largest number of entries to return.
         schema:
           type: integer

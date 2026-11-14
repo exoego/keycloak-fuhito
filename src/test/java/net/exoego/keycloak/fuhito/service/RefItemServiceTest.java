@@ -111,6 +111,29 @@ class RefItemServiceTest {
     }
 
     @Test
+    void onlyAUnitTypeCanBeMarkedAsALegalEntity() {
+        RefItem company = service.create(RefKind.UNIT_TYPE, "company", "Company", null, null, null, true);
+        RefItem ward = service.create(RefKind.UNIT_TYPE, "ward", "Ward", null, null, null, null);
+
+        assertTrue(company.legalEntity());
+        assertFalse(ward.legalEntity());
+        assertTrue(service.get(company.id()).legalEntity());
+
+        // A change that does not speak about the mark keeps it. A change that does can take it away.
+        assertTrue(service.update(company.id(), "Corporation", null, null, null, null).legalEntity());
+        assertFalse(service.update(company.id(), "Corporation", null, null, null, null, null).legalEntity());
+        assertTrue(service.update(ward.id(), "Ward", null, null, null, null, true).legalEntity());
+
+        FuhitoException wrongKind = assertThrows(FuhitoException.class,
+                () -> service.create(RefKind.OCCUPATION, "nurse", "Nurse", null, null, null, true));
+        assertEquals(FuhitoException.Reason.INVALID, wrongKind.reason());
+        assertEquals("ref_item.legal_entity_kind", wrongKind.code());
+        RefItem grade = service.create(RefKind.GRADE, "g1", "G1", null, null, null, false);
+        assertEquals("ref_item.legal_entity_kind", assertThrows(FuhitoException.class,
+                () -> service.update(grade.id(), "G1", null, null, null, null, true)).code());
+    }
+
+    @Test
     void deletesAnItem() {
         RefItem item = create("dept", null);
 

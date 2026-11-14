@@ -15,6 +15,7 @@ All data in this document belongs to one realm.
 | Org Unit | 組織単位、部署 | A node in the organization tree. A hospital, a department, a ward, a team, and a committee are all org units. |
 | Unit Type | 組織種別 | The kind of an org unit, for example "hospital" or "department". Each realm defines its own list. |
 | Hierarchy | 階層 | A named tree of org units. Each realm has one default hierarchy. More hierarchies can describe other views of the same units, such as a matrix organization. |
+| Legal Entity | 法人 | An org unit whose unit type has the mark `legalEntity`, such as a company or a medical corporation. A realm can have several. `GET /org-units?legalEntity=true` lists them. |
 | Root | ルート | An org unit with no parent in a hierarchy. A realm can have several roots, for example one for each hospital. |
 
 An org unit keeps its identity when its name or its parent changes.
