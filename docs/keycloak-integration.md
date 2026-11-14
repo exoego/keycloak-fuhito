@@ -114,8 +114,22 @@ The projection is off unless the realm has the attribute `fuhito.projection.enab
 `POST /projection/rebuild` runs it. The response counts what changed.
 A rebuild with no change in between changes nothing.
 
-Nothing else runs the projection. A write to the API does not, and no timer does.
-Run a rebuild after changes, and once a day. A dated change becomes true on its date with no write on that day, so only a daily rebuild picks it up.
+A timer inside Keycloak also runs it, for every realm that turned the projection on.
+A dated change becomes true on its date with no write on that day, so only a run on that day picks it up.
+A write to the API does not run the projection. The timer picks the change up at its next run.
+
+- The timer runs every 15 minutes by default.
+- The server option `spi-admin-realm-restapi-extension--fuhito--projection-interval-seconds` sets the number of seconds between two runs. `0` turns the timer off.
+- There is no time of day to set. Each realm and each org unit can change its date at another moment, so the timer runs through the whole day.
+- In a cluster, only one node runs the projection at a time. A run with nothing to change writes nothing.
+- A failure in one realm is logged and does not stop the other realms.
+- A realm with no usable time zone is skipped, and the log has a warning.
+
+For example, this starts Keycloak with a run every hour.
+
+```sh
+kc.sh start --spi-admin-realm-restapi-extension--fuhito--projection-interval-seconds=3600
+```
 
 #### What the projection owns
 

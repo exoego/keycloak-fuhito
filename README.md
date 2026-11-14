@@ -27,7 +27,7 @@ What works today:
 - Reorganizations of many org units in one transaction.
 - Bulk import by JSON and CSV with a dry run, and a full export.
 - A protocol mapper that adds current assignments to tokens.
-- An optional projection into the groups of Keycloak organizations.
+- An optional projection into the groups of Keycloak organizations, kept up to date by a timer.
 - A sync from user attributes that an identity provider fills over SCIM.
 - Messages in English and Japanese.
 
