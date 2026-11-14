@@ -75,7 +75,7 @@ public class RefItemsResource {
                     schema = @Schema(minimum = "0", maximum = "1000", defaultValue = "100"))
             @QueryParam("max") Integer max) {
         context.requireRead();
-        return Calls.run(context, () -> Page.of(first, max).of(service.list(parseKind(kind), includeInactive)).stream()
+        return Calls.run(context, () -> service.list(parseKind(kind), includeInactive, Page.of(first, max)).stream()
                 .map(RefItemRepresentation::of)
                 .toList());
     }

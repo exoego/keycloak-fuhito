@@ -27,14 +27,15 @@ public class RefItemService {
     }
 
     /**
-     * Lists the items of a kind.
+     * Lists a page of the items of a kind.
      *
      * @param kind the kind
      * @param includeInactive true to also return inactive items
-     * @return the items, ordered by display order and then by code
+     * @param page the part of the list to return
+     * @return the items of the page, ordered by display order and then by code
      */
-    public List<RefItem> list(RefKind kind, boolean includeInactive) {
-        return store.list(Checks.required("kind", kind), includeInactive);
+    public List<RefItem> list(RefKind kind, boolean includeInactive, Page page) {
+        return store.list(Checks.required("kind", kind), includeInactive, page.first(), page.max());
     }
 
     /**

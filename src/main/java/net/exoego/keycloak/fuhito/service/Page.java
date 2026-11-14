@@ -1,7 +1,5 @@
 package net.exoego.keycloak.fuhito.service;
 
-import java.util.List;
-
 /**
  * The part of a list that a read returns.
  *
@@ -30,16 +28,5 @@ public record Page(int first, int max) {
     public static Page of(Integer first, Integer max) {
         return new Page(first == null ? 0 : Math.max(0, first),
                 max == null ? DEFAULT_MAX : Math.clamp(max, 0, LARGEST_MAX));
-    }
-
-    /**
-     * Cuts a whole list down to the page.
-     *
-     * @param <T> the type of the entries
-     * @param all the whole list
-     * @return the entries of the page
-     */
-    public <T> List<T> of(List<T> all) {
-        return all.stream().skip(first).limit(max).toList();
     }
 }

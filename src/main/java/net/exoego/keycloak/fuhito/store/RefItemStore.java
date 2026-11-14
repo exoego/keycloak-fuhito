@@ -12,13 +12,24 @@ import net.exoego.keycloak.fuhito.domain.RefKind;
 public interface RefItemStore {
 
     /**
-     * Lists the items of a kind, ordered by display order and then by code.
+     * Lists every item of a kind, ordered by display order and then by code. This is for code that looks items up.
      *
      * @param kind the kind
      * @param includeInactive true to also return inactive items
      * @return the items
      */
     List<RefItem> list(RefKind kind, boolean includeInactive);
+
+    /**
+     * Lists a page of the items of a kind, ordered by display order and then by code.
+     *
+     * @param kind the kind
+     * @param includeInactive true to also return inactive items
+     * @param first the number of items to skip
+     * @param max the largest number of items to return
+     * @return the items of the page
+     */
+    List<RefItem> list(RefKind kind, boolean includeInactive, int first, int max);
 
     /**
      * Finds an item by ID.

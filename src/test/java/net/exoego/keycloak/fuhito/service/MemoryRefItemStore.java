@@ -25,6 +25,11 @@ final class MemoryRefItemStore implements RefItemStore {
     }
 
     @Override
+    public List<RefItem> list(RefKind kind, boolean includeInactive, int first, int max) {
+        return list(kind, includeInactive).stream().skip(first).limit(max).toList();
+    }
+
+    @Override
     public Optional<RefItem> find(String id) {
         return Optional.ofNullable(items.get(id));
     }
