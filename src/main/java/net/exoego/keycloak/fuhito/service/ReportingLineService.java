@@ -259,9 +259,9 @@ public class ReportingLineService {
                     .toList();
         }
 
-        private List<Assignment> headsOf(String orgUnitId, String exceptUserId) {
+        private List<Assignment> headsOf(String orgUnitId) {
             return sources.assignments().rowsOn(List.of(orgUnitId), date).stream()
-                    .filter(row -> row.head() && !exceptUserId.equals(userOf(row)))
+                    .filter(Assignment::head)
                     .toList();
         }
 
@@ -275,10 +275,11 @@ public class ReportingLineService {
             List<OrgUnitState> path = tree.path(orgUnitId);
             for (int i = path.size() - 1; i >= 0; i--) {
                 String unitId = path.get(i).unit().id();
+                // The user is no head of this unit from here on, so none of its heads is the user.
                 if (isHeadOf(unitId, userId)) {
                     continue;
                 }
-                List<Assignment> heads = headsOf(unitId, userId);
+                List<Assignment> heads = headsOf(unitId);
                 if (!heads.isEmpty()) {
                     return heads;
                 }

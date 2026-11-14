@@ -172,4 +172,16 @@ class ReportingLinesIT {
         assertEquals(List.of(kept), Api.json(scratchApi.get("/users/" + keptManager + "/reports?asOf=" + tomorrow)).findValuesAsText("userId"));
         assertEquals(List.of(keptManager), Api.json(scratchApi.get("/users/" + kept + "/managers?asOf=" + tomorrow)).findValuesAsText("userId"));
     }
+
+    @Test
+    void aLineOfAnotherRealmIsNotFound() throws Exception {
+        String line = id(api.post("/reporting-lines", "{\"assignmentId\": \"" + nurseBAssignment
+                + "\", \"managerUserId\": \"" + projectLead + "\", \"kind\": \"DOTTED\", \"validFrom\": \"2029-04-01\"}"));
+        Api other = TestRealm.create("reporting-other").api;
+
+        assertEquals(404, other.get("/reporting-lines/" + line).statusCode());
+        assertEquals(404, other.delete("/reporting-lines/" + line).statusCode());
+        assertEquals(200, api.get("/reporting-lines/" + line).statusCode());
+        assertEquals(204, api.delete("/reporting-lines/" + line).statusCode());
+    }
 }

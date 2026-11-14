@@ -109,12 +109,11 @@ public class JpaUserDataMasker implements UserDataMasker {
         }
         for (ChangeLogEntity entry : em.createQuery("""
                         select l from ChangeLogEntity l where l.realmId = :realmId
-                        and l.resourceType = :type and l.resourceId in :ids""", ChangeLogEntity.class)
+                        and l.resourceType = :type and l.resourceId in :ids
+                        and l.representation is not null""", ChangeLogEntity.class)
                 .setParameter("realmId", realmId).setParameter("type", resourceType)
                 .setParameter("ids", resourceIds).getResultList()) {
-            if (entry.representation != null) {
-                entry.representation = masked(entry.representation);
-            }
+            entry.representation = masked(entry.representation);
         }
     }
 

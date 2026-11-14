@@ -251,4 +251,14 @@ class ReportingLineServiceTest {
         assertNull(service.get(other.id()).period().to());
         assertEquals(List.of(), summary(service.managersOf("nurse-a", "2027-04-01")));
     }
+
+    @Test
+    void aDottedLineDoesNotBlockASolidOneForTheSamePeriod() {
+        service.add(nurseA, "project-lead", "DOTTED", "2026-04-01", null);
+
+        ReportingLine solid = service.add(nurseA, "director", "SOLID", "2026-04-01", null);
+
+        assertEquals(ReportingLine.Kind.SOLID, solid.kind());
+        assertEquals(2, store.lines.size());
+    }
 }

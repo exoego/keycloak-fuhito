@@ -180,4 +180,20 @@ class AttributeSyncIT {
         assertEquals(0, assignmentsOf(user).size());
         assertEquals(401, new Api(realm, null).post("/attribute-sync/run", "").statusCode());
     }
+
+    @Test
+    void anAttributeWithOnlySpacesCountsAsMissing() throws Exception {
+        // A name of only spaces for an attribute means the default name.
+        createRealm(Map.of("fuhito.sync.enabled", "true", "fuhito.sync.attribute.department", " "));
+        unit("内科", "naika", null);
+        String blank = user("blank", Map.of("department", " "));
+        String padded = user("padded", Map.of("department", " naika ", "title", "  "));
+
+        JsonNode report = run("");
+
+        assertEquals(1, report.get("assignmentsAdded").asInt());
+        assertEquals(0, assignmentsOf(blank).size());
+        assertEquals(1, assignmentsOf(padded).size());
+        assertEquals(0, report.get("unmatched").size());
+    }
 }

@@ -69,10 +69,9 @@ final class OrgUnitImport {
     }
 
     private void fail(int index, FuhitoException error) {
-        if (failed.add(index)) {
-            done.add(index);
-            report.error(ORG_UNITS, index, error);
-        }
+        failed.add(index);
+        done.add(index);
+        report.error(ORG_UNITS, index, error);
     }
 
     private void apply(int index) {

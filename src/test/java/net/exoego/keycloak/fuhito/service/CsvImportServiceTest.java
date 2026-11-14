@@ -232,4 +232,64 @@ class CsvImportServiceTest {
 
         assertEquals(List.of("line 2 row 0 org_unit.not_valid_on"), errors(result));
     }
+
+    @Test
+    void aRowWithNoKeyIsReportedForEveryKindOfList() {
+        assertEquals(List.of("line 2 row 0 invalid.required"),
+                errors(load("refItems", "2026-04-01", "kind,code,name\nUNIT_TYPE,,Ward\n")));
+        assertEquals(List.of("line 2 row 0 invalid.required"),
+                errors(load("orgUnits", "2026-04-01", "externalId,name\n,Ward\n")));
+        assertEquals(List.of("line 2 row 0 invalid.required"),
+                errors(load("employments", "2026-04-01", "externalId,username\n,nurse\n")));
+        assertEquals(List.of("line 2 row 0 invalid.required"),
+                errors(load("assignments", "2026-04-01", "externalId,employmentExternalId\n,E1\n")));
+    }
+
+    @Test
+    void aRowCanNameItsSourceAndAUserById() {
+        load("orgUnits", "2026-04-01", "source,externalId,name\nhr-2,W,Ward\n");
+        CsvImportService.Result people = load("employments", "2026-04-01", """
+                source,externalId,userId
+                hr-2,E1,user-nurse
+                """);
+        CsvImportService.Result placed = load("assignments", "2026-04-01", """
+                source,externalId,employmentExternalId,orgUnitExternalId
+                hr-2,A1,E1,W
+                """);
+
+        assertEquals(List.of(), errors(people));
+        assertEquals(List.of(), errors(placed));
+        // The same rows again find what is stored under that source.
+        assertEquals(new Counts(0, 0, 1), load("employments", "2026-04-01", "source,externalId\nhr-2,E1\n")
+                .report().counts().get("employments"));
+        assertEquals(new Counts(0, 0, 1), load("assignments", "2026-04-01", "source,externalId\nhr-2,A1\n")
+                .report().counts().get("assignments"));
+        assertTrue(employmentStore.findByExternalId("import", "E1").isEmpty());
+    }
+
+    @Test
+    void aShortRowHasEmptyCellsAndClearWorksOnNumbersAndFlags() {
+        item(RefKind.UNIT_TYPE, "ward");
+        load("refItems", "2026-04-01", "kind,code,name,displayOrder,active\nUNIT_TYPE,ward,Ward,5,no\n");
+        var stored = refItems.findByCode(RefKind.UNIT_TYPE, "ward").orElseThrow();
+        assertEquals(5, stored.displayOrder());
+        assertFalse(stored.active());
+
+        // The second row stops after its name. The cells that are missing keep what is stored.
+        CsvImportService.Result result = load("refItems", "2026-04-01", """
+                kind,code,name,displayOrder,active
+                UNIT_TYPE,ward,Ward,#CLEAR,#CLEAR
+                """);
+        CsvImportService.Result kept = load("refItems", "2026-04-01", """
+                kind,code,name,displayOrder,active
+                UNIT_TYPE,ward,East ward
+                """);
+
+        assertEquals(List.of(), errors(result));
+        assertEquals(List.of(), errors(kept));
+        var changed = refItems.findByCode(RefKind.UNIT_TYPE, "ward").orElseThrow();
+        assertEquals("East ward", changed.name());
+        assertEquals(0, changed.displayOrder());
+        assertTrue(changed.active());
+    }
 }

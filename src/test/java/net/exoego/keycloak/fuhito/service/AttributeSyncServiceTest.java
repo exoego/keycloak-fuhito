@@ -15,6 +15,8 @@ import net.exoego.keycloak.fuhito.domain.BusinessDay;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.RefItem;
 import net.exoego.keycloak.fuhito.domain.RefKind;
+import net.exoego.keycloak.fuhito.domain.ValidPeriod;
+import net.exoego.keycloak.fuhito.domain.ReportingLine;
 import net.exoego.keycloak.fuhito.service.SyncReport.Unmatched;
 import net.exoego.keycloak.fuhito.store.UserAttributeSource;
 import org.junit.jupiter.api.BeforeEach;
@@ -385,5 +387,86 @@ class AttributeSyncServiceTest {
         assertEquals(List.of("Surgery 2026-06-13 2026-06-15 staff primary",
                 "Surgery 2026-06-15 null director primary"), assignmentsOf("alice"));
         assertEquals(new SyncReport(1, 0, 0, 0, 0, 0, 0, List.of(), List.of()), run());
+    }
+
+    @Test
+    void aChangeThatIsPlannedForLaterIsNotTakenForTheStateOfToday() {
+        putSurgeryOnTheNextDate();
+        set("boss", "med", "staff", null, null);
+        run();
+        String assignment = assignmentStore.rowsBySourceOn("scim", LocalDate.of(2026, 6, 14)).getFirst()
+                .assignmentId();
+        // Someone plans a new title from the next day. That day already started for Surgery, not for this unit.
+        assignments().changeDetails(assignment, new AssignmentValues(null, null, "2026-06-15", null, "director",
+                null, null, null, true, false, null, null, null, null, null));
+
+        assertEquals(new SyncReport(1, 0, 0, 0, 0, 0, 0, List.of(), List.of()), run());
+    }
+
+    @Test
+    void theAssignmentFollowsTheUserToAnotherEmployment() {
+        set("alice", "med", null, null, null);
+        run();
+        nextDay();
+        // An older employment that was entered later. It is the first one of the user now.
+        employments().start(new NewEmployment("alice", "2020-04-01", null, "OLD-1", null, null, null, null, null,
+                null, null));
+
+        SyncReport report = run();
+
+        assertEquals(1, report.assignmentsMoved());
+        assertEquals(0, report.employmentsStarted());
+        assertEquals(List.of("Internal Medicine 2026-06-16 null - primary",
+                "Internal Medicine 2026-06-15 2026-06-16 - primary"), assignmentsOf("alice"));
+    }
+
+    @Test
+    void aPrimaryAssignmentThatEndedDoesNotKeepTheFlag() {
+        set("alice", "med", null, null, null);
+        String employment = employments().start(new NewEmployment("alice", "2020-04-01", null, null, null, null,
+                null, null, null, null, null)).employment().id();
+        assignments().add(new AssignmentValues(employment, surgery, "2020-04-01", "2026-01-01", null, null, null,
+                null, true, null, null, null, null, null, null));
+
+        run();
+
+        assertEquals(List.of("Surgery 2020-04-01 2026-01-01 - primary",
+                "Internal Medicine 2026-06-15 null - primary"), assignmentsOf("alice"));
+    }
+
+    @Test
+    void aDottedLineAndAnEndedLineAreLeftAlone() {
+        set("boss", "med", null, null, null);
+        set("alice", "med", null, "boss", null);
+        run();
+        String assignment = assignmentStore.rowsBySourceOn("scim", LocalDate.of(2026, 6, 15)).stream()
+                .filter(row -> unitName(row).equals("Internal Medicine"))
+                .map(Assignment::assignmentId)
+                .filter(id -> !lineStore.findByAssignment(id).isEmpty())
+                .findFirst().orElseThrow();
+        lineStore.insert(new ReportingLine("dotted", assignment, "boss", ReportingLine.Kind.DOTTED,
+                ValidPeriod.startingAt(LocalDate.of(2026, 6, 15))));
+        nextDay();
+        set("alice", "med", null, null, null);
+        assertEquals(1, run().reportingLinesChanged());
+        nextDay();
+
+        // The solid line ended the day before, and the dotted one is not from the sync.
+        assertEquals(0, run().reportingLinesChanged());
+        assertEquals(List.of("boss 2026-06-15 2026-06-16", "boss 2026-06-15 null"), managersOf("alice"));
+    }
+
+    @Test
+    void anAssignmentByHandThatIsNotPrimaryLeavesTheFlagToTheSync() {
+        set("alice", "med", null, null, null);
+        String employment = employments().start(new NewEmployment("alice", "2020-04-01", null, null, null, null,
+                null, null, null, null, null)).employment().id();
+        assignments().add(new AssignmentValues(employment, surgery, "2020-04-01", null, null, null, null, null,
+                false, null, null, null, null, null, null));
+
+        run();
+
+        assertEquals(List.of("Surgery 2020-04-01 null -", "Internal Medicine 2026-06-15 null - primary"),
+                assignmentsOf("alice"));
     }
 }

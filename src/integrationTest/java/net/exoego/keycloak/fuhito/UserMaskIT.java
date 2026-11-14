@@ -150,4 +150,23 @@ class UserMaskIT {
         assertEquals(204, api.delete("/users/" + removed + "/data").statusCode());
         assertEquals("0", KeycloakEnvironment.sql("select count(*) from fuhito_user_mask where user_id = '" + removed + "'"));
     }
+
+    @Test
+    void aUserWithOnlyAQualificationCanBeMasked() throws Exception {
+        TestRealm realm = realm();
+        Api api = realm.api;
+        String user = realm.user("licensed");
+        String kept = created(api.post("/qualifications", "{\"userId\": \"" + user
+                + "\", \"kind\": \"license\", \"number\": \"L-1\", \"validFrom\": \"2020-04-01\"}")).get("id").asText();
+        String deleted = created(api.post("/qualifications", "{\"userId\": \"" + user
+                + "\", \"kind\": \"license\", \"number\": \"L-2\", \"validFrom\": \"2021-04-01\"}")).get("id").asText();
+        // The log entry of a delete has no state to mask.
+        assertEquals(204, api.delete("/qualifications/" + deleted).statusCode());
+
+        assertEquals(200, api.post("/users/" + user + "/mask", "").statusCode());
+
+        assertFalse(Api.json(api.get("/qualifications/" + kept)).has("number"));
+        assertEquals("0", KeycloakEnvironment.sql("select count(*) from fuhito_change_log where realm_id = '"
+                + realm.id() + "' and representation like '%L-1%'"));
+    }
 }
