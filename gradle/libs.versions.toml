@@ -19,6 +19,8 @@ jboss-logging = { module = "org.jboss.logging:jboss-logging" }
 junit-jupiter = { module = "org.junit.jupiter:junit-jupiter", version.ref = "junit" }
 errorprone-core = { module = "com.google.errorprone:error_prone_core", version = "2.52.0" }
 jacoco-core = { module = "org.jacoco:org.jacoco.core", version.ref = "jacoco" }
+# The test of docs/openapi.yaml reads it. The version comes from the Keycloak parent POM.
+snakeyaml = { module = "org.yaml:snakeyaml" }
 archunit = { module = "com.tngtech.archunit:archunit", version = "1.5.1" }
 testcontainers-keycloak = { module = "com.github.dasniko:testcontainers-keycloak", version = "4.4.0" }
 testcontainers-postgresql = { module = "org.testcontainers:testcontainers-postgresql", version = "2.0.5" }

@@ -299,6 +299,9 @@ The default is today, as the realm defines it. See "What today is" below.
 | `/change-log` | The writes to one resource |
 | `/hierarchies` | The hierarchies of the realm |
 
+[openapi.yaml](openapi.yaml) lists every endpoint with its request and its response, as OpenAPI 3.2.
+It is written by hand. `OpenApiDocTest` fails when its paths, its query parameters, or the fields of its schemas differ from the code.
+
 ## Admin events
 
 Every successful write records an admin event, the same as the built-in admin endpoints do.

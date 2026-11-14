@@ -70,6 +70,12 @@ testing {
             useJUnitJupiter(libs.versions.junit)
             dependencies {
                 implementation(libs.archunit)
+                implementation(libs.snakeyaml)
+            }
+            targets.all {
+                testTask.configure {
+                    inputs.file("docs/openapi.yaml")
+                }
             }
         }
 
