@@ -54,12 +54,22 @@ Each number is the best of five requests, measured by curl on the same machine.
 | Effective changes of one day | `/effective-changes?from=2024-04-01` | 18 |
 | Effective changes of five years, first 1,000 | `/effective-changes?from=2020-01-01&to=2026-01-01&max=1000` | 234 |
 
+### After the indexes on the realm and the dates
+
+The tables of employments, terms, assignments, qualifications, and reporting lines got an index on the realm and `VALID_FROM`, and one on the realm and `VALID_TO`.
+The same run then gave these numbers. The other reads did not change.
+
+| Read | Before in ms | After in ms |
+|---|---|---|
+| Effective changes of one day | 18 | 11 |
+| Effective changes of five years, first 1,000 | 234 | 46 |
+
 ## What the numbers say
 
 - A read about one org unit, one person, or one page of people does not grow with the realm.
 - A read of the whole tree costs about 80 ms for 5,000 org units, also for the first page. The database walks the whole tree and orders it before it cuts the page. A subtree costs as much as its own size.
 - The members below the whole company cost more on a late page. The database counts past the skipped rows. A reader that goes through all people pays that on every page.
-- The effective changes scan the tables of employments, terms, and assignments, because no index starts with the realm and a date. One day is still fast. A range of years is not.
+- The effective changes scanned the tables of employments, terms, and assignments in the first run, because no index started with the realm and a date. The indexes above fixed that.
 - The tree does not need another table design at this size. A walk over 5,000 org units stays below 100 ms.
 
 ## Not measured

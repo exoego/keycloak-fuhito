@@ -704,4 +704,47 @@
             WHERE TIME_ZONE IS NOT NULL OR DAY_START IS NOT NULL
         </sql>
     </changeSet>
+    <changeSet id="0.1.0-date-indexes" author="keycloak-fuhito">
+        <!-- The read of what takes effect in a range of dates looks rows up by the realm and a date. -->
+        <createIndex tableName="FUHITO_EMPLOYMENT" indexName="IDX_FUHITO_EMPLOYMENT_FROM">
+            <column name="REALM_ID"/>
+            <column name="VALID_FROM"/>
+        </createIndex>
+        <createIndex tableName="FUHITO_EMPLOYMENT" indexName="IDX_FUHITO_EMPLOYMENT_TO">
+            <column name="REALM_ID"/>
+            <column name="VALID_TO"/>
+        </createIndex>
+        <createIndex tableName="FUHITO_EMPLOYMENT_TERMS" indexName="IDX_FUHITO_EMPLOYMENT_TERMS_FROM">
+            <column name="REALM_ID"/>
+            <column name="VALID_FROM"/>
+        </createIndex>
+        <createIndex tableName="FUHITO_EMPLOYMENT_TERMS" indexName="IDX_FUHITO_EMPLOYMENT_TERMS_TO">
+            <column name="REALM_ID"/>
+            <column name="VALID_TO"/>
+        </createIndex>
+        <createIndex tableName="FUHITO_ASSIGNMENT" indexName="IDX_FUHITO_ASSIGNMENT_FROM">
+            <column name="REALM_ID"/>
+            <column name="VALID_FROM"/>
+        </createIndex>
+        <createIndex tableName="FUHITO_ASSIGNMENT" indexName="IDX_FUHITO_ASSIGNMENT_TO">
+            <column name="REALM_ID"/>
+            <column name="VALID_TO"/>
+        </createIndex>
+        <createIndex tableName="FUHITO_QUALIFICATION" indexName="IDX_FUHITO_QUALIFICATION_FROM">
+            <column name="REALM_ID"/>
+            <column name="VALID_FROM"/>
+        </createIndex>
+        <createIndex tableName="FUHITO_QUALIFICATION" indexName="IDX_FUHITO_QUALIFICATION_TO">
+            <column name="REALM_ID"/>
+            <column name="VALID_TO"/>
+        </createIndex>
+        <createIndex tableName="FUHITO_REPORTING_LINE" indexName="IDX_FUHITO_REPORTING_LINE_FROM">
+            <column name="REALM_ID"/>
+            <column name="VALID_FROM"/>
+        </createIndex>
+        <createIndex tableName="FUHITO_REPORTING_LINE" indexName="IDX_FUHITO_REPORTING_LINE_TO">
+            <column name="REALM_ID"/>
+            <column name="VALID_TO"/>
+        </createIndex>
+    </changeSet>
 </databaseChangeLog>
