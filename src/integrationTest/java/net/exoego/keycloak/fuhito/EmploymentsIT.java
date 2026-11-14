@@ -267,4 +267,30 @@ class EmploymentsIT {
         assertEquals(company, Api.json(groupApi.put("/employments/" + seconded.get("employment").get("id").asText() + "/end",
                 "{\"validTo\": \"2030-04-01\"}")).get("employerId").asText());
     }
+
+    @Test
+    void anEmployerStaysALegalEntityWhileAnEmploymentNamesIt() throws Exception {
+        TestRealm scratch = TestRealm.create("employments-keep-entity");
+        Api scratchApi = scratch.api;
+        String company = scratch.legalEntity("株式会社Z");
+        String type = Api.json(scratchApi.get("/ref-items?kind=UNIT_TYPE")).get(0).get("id").asText();
+        scratch.refItem("UNIT_TYPE", "department", "部");
+        String employment = created(scratchApi.post("/employments", "{\"userId\": \"" + scratch.user("taro")
+                + "\", \"validFrom\": \"2026-04-01\", \"validTo\": \"2028-04-01\"}")).get("id").asText();
+
+        assertEquals("ref_item.legal_entity_in_use", errorOf(409, scratchApi.put("/ref-items/" + type, "{\"name\": \"法人\"}")));
+        assertEquals(200, scratchApi.put("/ref-items/" + type, "{\"name\": \"会社\", \"legalEntity\": true}").statusCode());
+        assertEquals("org_unit.is_employer", errorOf(409, scratchApi.put("/org-units/" + company,
+                "{\"name\": \"株式会社Z\", \"unitType\": \"department\", \"validFrom\": \"2026-01-01\"}")));
+        assertEquals("org_unit.is_employer", errorOf(409, scratchApi.put("/org-units/" + company,
+                "{\"name\": \"株式会社Z\", \"validFrom\": \"2026-01-01\"}")));
+        assertEquals(200, scratchApi.put("/org-units/" + company,
+                "{\"name\": \"Z社\", \"unitType\": \"legal-entity\", \"validFrom\": \"2026-01-01\"}").statusCode());
+        assertEquals("org_unit.has_employments",
+                errorOf(409, scratchApi.put("/org-units/" + company + "/end", "{\"validTo\": \"2028-03-31\"}")));
+        assertEquals(company, Api.json(scratchApi.get("/employments/" + employment)).get("employerId").asText());
+
+        // The company can end on the day after the last day of the employment.
+        assertEquals(200, scratchApi.put("/org-units/" + company + "/end", "{\"validTo\": \"2028-04-01\"}").statusCode());
+    }
 }

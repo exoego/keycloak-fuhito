@@ -134,6 +134,25 @@ class RefItemServiceTest {
     }
 
     @Test
+    void aUnitTypeKeepsItsMarkWhileItMakesAnEmployerALegalEntity() {
+        RefItem company = service.create(RefKind.UNIT_TYPE, "company", "Company", null, null, null, true);
+        store.typesOfEmployers.add(company.id());
+
+        FuhitoException e = assertThrows(FuhitoException.class,
+                () -> service.update(company.id(), "Company", null, null, null, null, false));
+        assertEquals(FuhitoException.Reason.CONFLICT, e.reason());
+        assertEquals("ref_item.legal_entity_in_use", e.code());
+        assertEquals("ref_item.legal_entity_in_use", assertThrows(FuhitoException.class,
+                () -> service.update(company.id(), "Company", null, null, null, null, null)).code());
+        // Every other change still works.
+        assertTrue(service.update(company.id(), "Corporation", null, 5, null, null, true).legalEntity());
+        assertTrue(service.update(company.id(), "Corporation", null, null, null, null).legalEntity());
+
+        store.typesOfEmployers.clear();
+        assertFalse(service.update(company.id(), "Company", null, null, null, null, false).legalEntity());
+    }
+
+    @Test
     void deletesAnItem() {
         RefItem item = create("dept", null);
 

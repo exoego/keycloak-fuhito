@@ -100,6 +100,24 @@ final class MemoryOrgUnitStore implements OrgUnitStore {
                 .toList(), first, max);
     }
 
+    /** The employments that name an employer. A test of employers sets it. */
+    MemoryEmploymentStore employments;
+
+    @Override
+    public long employmentsStartingIn(String employerId, LocalDate from, LocalDate to) {
+        return employments == null ? 0 : employments.employments.values().stream()
+                .filter(e -> employerId.equals(e.employerId()) && !e.period().from().isBefore(from)
+                        && (to == null || e.period().from().isBefore(to)))
+                .count();
+    }
+
+    @Override
+    public long employmentsHoldingFrom(String employerId, LocalDate date) {
+        return employments == null ? 0 : employments.employments.values().stream()
+                .filter(e -> employerId.equals(e.employerId()) && e.period().endsAfter(date))
+                .count();
+    }
+
     private static List<PlacedOrgUnit> placed(List<OrgUnitState> states, int first, int max) {
         return states.stream().skip(first).limit(max)
                 .map(state -> new PlacedOrgUnit(state.unit(), state.version(), state.parentId()))

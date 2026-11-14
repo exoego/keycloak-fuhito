@@ -39,6 +39,14 @@ final class MemoryRefItemStore implements RefItemStore {
         return items.values().stream().filter(i -> i.kind() == kind && i.code().equals(code)).findFirst();
     }
 
+    /** The unit types that make an employer a legal entity. A test of employers sets them. */
+    final Set<String> typesOfEmployers = new HashSet<>();
+
+    @Override
+    public boolean isTypeOfAnEmployer(String id) {
+        return typesOfEmployers.contains(id);
+    }
+
     @Override
     public boolean isInUse(String id) {
         return inUse.contains(id);
