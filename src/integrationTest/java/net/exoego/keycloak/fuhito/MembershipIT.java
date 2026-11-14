@@ -120,6 +120,11 @@ class MembershipIT {
         assertEquals(List.of(nurse), users(api.get(all + "&asOf=2026-10-01&status=ON_LEAVE")));
         assertEquals(List.of(physician, clerk, nurse), users(api.get(all + "&asOf=2026-10-01")));
         assertEquals(List.of(clerk), users(api.get(all + "&asOf=2026-04-01&first=1&max=1")));
+        assertEquals(List.of(nurse), users(api.get(all + "&asOf=2026-10-01&first=2&max=5")));
+        assertEquals(List.of(), users(api.get(all + "&asOf=2026-10-01&status=ON_LEAVE&occupation=physician")));
+        String direct = "/org-units/" + xHospital + "/members?asOf=2026-04-01";
+        assertEquals(List.of(physician), users(api.get(direct + "&occupation=physician&jobTitle=director&status=ACTIVE")));
+        assertEquals(List.of(), users(api.get(direct + "&occupation=nurse")));
         assertEquals(400, api.get(all + "&occupation=director").statusCode());
         assertEquals(400, api.get(all + "&status=GONE").statusCode());
         assertEquals(404, api.get("/org-units/" + xHospital + "/members?asOf=2026-03-31").statusCode());

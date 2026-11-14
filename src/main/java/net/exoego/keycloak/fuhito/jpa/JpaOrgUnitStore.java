@@ -1,6 +1,7 @@
 package net.exoego.keycloak.fuhito.jpa;
 
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -23,47 +24,36 @@ public class JpaOrgUnitStore implements OrgUnitStore {
      */
     public static final String DEFAULT_HIERARCHY_CODE = "default";
 
-    private static final String ON_DATE = "validFrom <= :date and (%1$s.validTo is null or %1$s.validTo > :date)";
-
     private static final String NO_PARENT = """
             not exists (select 1 from OrgUnitLinkEntity l where l.realmId = :realmId
-            and l.hierarchyId = :hierarchyId and l.childId = v.orgUnitId and l.%s)""".formatted(ON_DATE.formatted("l"));
+            and l.hierarchyId = :hierarchyId and l.childId = v.orgUnitId and l.%s)""".formatted(TreeQuery.onDate("l"));
 
-    // The database walks the tree, so that a read of one page does not load the whole tree.
-    private static final String TREE = """
-            with Tree as (
-                select v.orgUnitId as id, v.id as versionId,
-                    (select l.parentId from OrgUnitLinkEntity l where l.realmId = :realmId
-                        and l.hierarchyId = :hierarchyId and l.childId = v.orgUnitId and l.%1$s) as parentId,
-                    v.displayOrder as displayOrder, v.phoneticName as phoneticName, v.name as name
-                from OrgUnitVersionEntity v
-                where v.realmId = :realmId and v.%2$s and %%s
-                union all
-                select v.orgUnitId as id, v.id as versionId, l.parentId as parentId,
-                    v.displayOrder as displayOrder, v.phoneticName as phoneticName, v.name as name
-                from Tree p
-                join OrgUnitLinkEntity l on l.parentId = p.id and l.realmId = :realmId
-                    and l.hierarchyId = :hierarchyId and l.%1$s
-                join OrgUnitVersionEntity v on v.orgUnitId = l.childId and v.realmId = :realmId and v.%2$s
-            ) search depth first by displayOrder, phoneticName, name, id set position
+    private static final String UNITS_OF_TREE = """
             select u, v, t.parentId from Tree t
             join OrgUnitEntity u on u.id = t.id
             join OrgUnitVersionEntity v on v.id = t.versionId
-            order by t.position""".formatted(ON_DATE.formatted("l"), ON_DATE.formatted("v"));
+            order by t.position""";
 
-    private static final String WHOLE_TREE = TREE.formatted(NO_PARENT);
-    private static final String SUBTREE = TREE.formatted("v.orgUnitId = :rootId");
+    private static final String PLACED = """
+            select u, v, (select l.parentId from OrgUnitLinkEntity l where l.realmId = :realmId
+                and l.hierarchyId = :hierarchyId and l.childId = v.orgUnitId and l.%s)
+            from OrgUnitVersionEntity v join OrgUnitEntity u on u.id = v.orgUnitId
+            where v.realmId = :realmId and v.orgUnitId in :ids and v.%s""".formatted(TreeQuery.onDate("l"),
+            TreeQuery.onDate("v"));
+
+    private static final String WHOLE_TREE = TreeQuery.from(NO_PARENT) + UNITS_OF_TREE;
+    private static final String SUBTREE = TreeQuery.SUBTREE + UNITS_OF_TREE;
 
     private static final String SIBLINGS = """
             select u, v from OrgUnitVersionEntity v join OrgUnitEntity u on u.id = v.orgUnitId
             where v.realmId = :realmId and v.%s and %%s
-            order by v.displayOrder, v.phoneticName nulls last, v.name, v.orgUnitId""".formatted(ON_DATE.formatted("v"));
+            order by v.displayOrder, v.phoneticName nulls last, v.name, v.orgUnitId""".formatted(TreeQuery.onDate("v"));
 
     private static final String ROOTS = SIBLINGS.formatted(NO_PARENT);
     private static final String CHILDREN = SIBLINGS.formatted("""
             exists (select 1 from OrgUnitLinkEntity l where l.realmId = :realmId
             and l.hierarchyId = :hierarchyId and l.childId = v.orgUnitId and l.parentId = :parentId
-            and l.%s)""".formatted(ON_DATE.formatted("l")));
+            and l.%s)""".formatted(TreeQuery.onDate("l")));
 
     private final EntityManager em;
     private final String realmId;
@@ -202,6 +192,22 @@ public class JpaOrgUnitStore implements OrgUnitStore {
             query.setParameter("rootId", rootId);
         }
         return query.setFirstResult(first).setMaxResults(max).getResultStream()
+                .map(row -> new PlacedOrgUnit(toDomain((OrgUnitEntity) row[0]),
+                        toDomain((OrgUnitVersionEntity) row[1]), (String) row[2]))
+                .toList();
+    }
+
+    @Override
+    public List<PlacedOrgUnit> placedOn(String hierarchyId, Collection<String> ids, LocalDate date) {
+        if (ids.isEmpty()) {
+            return List.of();
+        }
+        return em.createQuery(PLACED, Object[].class)
+                .setParameter("realmId", realmId)
+                .setParameter("hierarchyId", hierarchyId)
+                .setParameter("ids", ids)
+                .setParameter("date", date)
+                .getResultStream()
                 .map(row -> new PlacedOrgUnit(toDomain((OrgUnitEntity) row[0]),
                         toDomain((OrgUnitVersionEntity) row[1]), (String) row[2]))
                 .toList();

@@ -50,6 +50,8 @@ class MembershipServiceTest {
 
     @BeforeEach
     void createTheHospital() {
+        assignmentStore.orgUnits = orgUnitStore;
+        assignmentStore.employments = employmentStore;
         for (String[] item : new String[][] {{"OCCUPATION", "physician"}, {"OCCUPATION", "nurse"},
                 {"JOB_TITLE", "director"}, {"EMPLOYMENT_TYPE", "part-time"}, {"GRADE", "g2"},
                 {"ASSIGNMENT_KIND", "regular"}}) {

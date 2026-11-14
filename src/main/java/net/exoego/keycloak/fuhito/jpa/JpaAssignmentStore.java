@@ -7,6 +7,7 @@ import java.util.Optional;
 
 import jakarta.persistence.EntityManager;
 import net.exoego.keycloak.fuhito.domain.Assignment;
+import net.exoego.keycloak.fuhito.domain.MemberFilter;
 import net.exoego.keycloak.fuhito.domain.ValidPeriod;
 import net.exoego.keycloak.fuhito.store.AssignmentStore;
 
@@ -76,6 +77,54 @@ public class JpaAssignmentStore implements AssignmentStore {
                 .setParameter("orgUnitIds", orgUnitIds)
                 .setParameter("date", date)
                 .getResultStream()
+                .map(JpaAssignmentStore::toDomain)
+                .toList();
+    }
+
+    @Override
+    public List<Assignment> membersOn(MemberFilter filter, int first, int max) {
+        // Each piece is a fixed text. The values of the request go in as parameters.
+        StringBuilder text = new StringBuilder();
+        if (filter.includeDescendants()) {
+            text.append(TreeQuery.SUBTREE).append("""
+                    select a from AssignmentEntity a join Tree t on t.id = a.orgUnitId
+                    where a.realmId = :realmId""");
+        } else {
+            text.append("select a from AssignmentEntity a where a.realmId = :realmId and a.orgUnitId = :rootId");
+        }
+        text.append(" and a.").append(TreeQuery.onDate("a"));
+        if (filter.occupationId() != null) {
+            text.append(" and a.occupationId = :occupationId");
+        }
+        if (filter.jobTitleId() != null) {
+            text.append(" and a.jobTitleId = :jobTitleId");
+        }
+        if (filter.status() != null) {
+            text.append("""
+                     and exists (select 1 from EmploymentTermsEntity e where e.realmId = :realmId
+                    and e.employmentId = a.employmentId and e.status = :status and e.""")
+                    .append(TreeQuery.onDate("e")).append(')');
+        }
+        text.append(" order by ").append(filter.includeDescendants() ? "t.position, " : "")
+                .append("a.displayOrder, a.validFrom, a.assignmentId");
+
+        var query = em.createQuery(text.toString(), AssignmentEntity.class)
+                .setParameter("realmId", realmId)
+                .setParameter("rootId", filter.orgUnitId())
+                .setParameter("date", filter.date());
+        if (filter.includeDescendants()) {
+            query.setParameter("hierarchyId", filter.hierarchyId());
+        }
+        if (filter.occupationId() != null) {
+            query.setParameter("occupationId", filter.occupationId());
+        }
+        if (filter.jobTitleId() != null) {
+            query.setParameter("jobTitleId", filter.jobTitleId());
+        }
+        if (filter.status() != null) {
+            query.setParameter("status", filter.status().name());
+        }
+        return query.setFirstResult(first).setMaxResults(max).getResultStream()
                 .map(JpaAssignmentStore::toDomain)
                 .toList();
     }
