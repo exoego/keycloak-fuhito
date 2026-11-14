@@ -456,7 +456,6 @@ components:
             the `Accept-Language` header.
     Hierarchy:
       required:
-      - id
       - code
       - name
       description: A named tree of org units.
@@ -464,11 +463,16 @@ components:
       properties:
         id:
           type: string
+          readOnly: true
         code:
           type: string
-          description: The code
+          maxLength: 64
+          pattern: "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
+          description: The code. It is unique in the realm and never changes. Every
+            realm has the hierarchy `default`.
         name:
           type: string
+          maxLength: 255
     ImportAssignmentRow:
       type: object
       required:
@@ -2484,7 +2488,25 @@ paths:
       summary: "Lists the hierarchies of the realm, ordered by code."
       operationId: listHierarchies
       tags:
-      - general
+      - org-units
+      parameters:
+      - description: The number of entries to skip.
+        schema:
+          type: integer
+          format: int32
+          minimum: 0
+          default: 0
+        name: first
+        in: query
+      - description: The largest number of entries to return.
+        schema:
+          type: integer
+          format: int32
+          maximum: 1000
+          minimum: 0
+          default: 100
+        name: max
+        in: query
       responses:
         "200":
           description: The hierarchies.
@@ -2494,6 +2516,127 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/Hierarchy"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+    post:
+      summary: Creates a hierarchy.
+      description: "A second hierarchy describes another view of the same org units,\
+        \ such as a matrix organization. The body needs `code` and `name`."
+      operationId: createHierarchy
+      tags:
+      - org-units
+      parameters:
+      - $ref: "#/components/parameters/changeOrder"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Hierarchy"
+        required: true
+      responses:
+        "201":
+          description: The new hierarchy.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Hierarchy"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /hierarchies/{id}:
+    put:
+      summary: Changes the name of a hierarchy.
+      description: The code never changes. The body can leave it out.
+      operationId: renameHierarchy
+      tags:
+      - org-units
+      parameters:
+      - description: The ID of the resource.
+        name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      - $ref: "#/components/parameters/changeOrder"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Hierarchy"
+        required: true
+      responses:
+        "200":
+          description: The changed hierarchy.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Hierarchy"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+    get:
+      summary: Returns one hierarchy.
+      operationId: getHierarchy
+      tags:
+      - org-units
+      parameters:
+      - description: The ID of the resource.
+        name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: The hierarchy.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Hierarchy"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+    delete:
+      summary: Deletes a hierarchy.
+      description: "The default hierarchy cannot be deleted. A hierarchy with parent\
+        \ links, on any date, cannot be deleted."
+      operationId: deleteHierarchy
+      tags:
+      - org-units
+      parameters:
+      - description: The ID of the resource.
+        name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      - $ref: "#/components/parameters/changeOrder"
+      responses:
+        "204":
+          description: The hierarchy was deleted.
+        "404":
+          $ref: "#/components/responses/NotFound"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":

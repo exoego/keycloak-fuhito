@@ -50,6 +50,15 @@ public class HierarchyEntity {
     }
 
     /**
+     * Returns the ID of the realm that owns this hierarchy.
+     *
+     * @return the realm ID
+     */
+    public String getRealmId() {
+        return realmId;
+    }
+
+    /**
      * Sets the ID of the realm that owns this hierarchy.
      *
      * @param realmId the realm ID
