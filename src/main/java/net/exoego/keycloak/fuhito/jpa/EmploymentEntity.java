@@ -27,6 +27,9 @@ public class EmploymentEntity {
     @Column(name = "PERSON_ID", nullable = false, length = 36)
     String personId;
 
+    @Column(name = "EMPLOYER_ID", length = 36, updatable = false)
+    String employerId;
+
     // Only for reads. The column is written through personId.
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "PERSON_ID", insertable = false, updatable = false)

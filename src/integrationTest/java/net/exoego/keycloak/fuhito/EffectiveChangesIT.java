@@ -26,7 +26,7 @@ class EffectiveChangesIT {
 
     @BeforeAll
     static void storeTheFuture() throws Exception {
-        realm = TestRealm.create("effective");
+        realm = TestRealm.withEmployer("effective");
         api = realm.api;
         realm.refItem("QUALIFICATION", "license", "免許");
         String nurse = realm.user("nurse");
@@ -90,7 +90,7 @@ class EffectiveChangesIT {
     @Test
     void theDefaultRangeIsTodayAndBadRangesAreRejected() throws Exception {
         assertEquals(List.of(), entries(api.get("/effective-changes")));
-        assertEquals(List.of(), entries(TestRealm.create("effective").api.get("/effective-changes?from=2030-04-01")));
+        assertEquals(List.of(), entries(TestRealm.withEmployer("effective").api.get("/effective-changes?from=2030-04-01")));
         assertEquals(400, api.get("/effective-changes?from=nope").statusCode());
         assertEquals(400, api.get("/effective-changes?from=2030-04-02&to=2030-04-02").statusCode());
         assertEquals(401, new Api(realm.name, null).get("/effective-changes").statusCode());

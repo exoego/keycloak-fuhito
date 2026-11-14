@@ -34,7 +34,7 @@ class UnitTimeIT {
     @Test
     void aBranchInAnotherTimeZoneIsOnItsOwnDate() throws Exception {
         String zone = RealmTimeIT.zoneOnAnotherDate();
-        TestRealm realm = TestRealm.create("unit-time");
+        TestRealm realm = TestRealm.withEmployer("unit-time");
         LocalDate realmToday = LocalDate.now(ZoneOffset.UTC);
         LocalDate branchToday = LocalDate.now(ZoneId.of(zone));
         assertNotEquals(realmToday, branchToday);
@@ -77,7 +77,9 @@ class UnitTimeIT {
         assertEquals(headSees, count(realm, "/users/" + headUser + "/assignments"), where);
         assertEquals(1 - headSees, branchSees);
         // The list of the whole realm is on the date of the realm.
-        assertEquals(3 + 2 * headSees, count(realm, "/org-units"), where);
+        // The three units of the past, the legal entity of the realm, and the two new ones for a place that
+        // is on the later date.
+        assertEquals(4 + 2 * headSees, count(realm, "/org-units"), where);
         // A date in the request never depends on a time zone.
         assertEquals(1, count(realm, "/org-units/" + branchTeam + "/children?asOf=" + later));
         assertEquals(0, count(realm, "/org-units/" + branchTeam + "/children?asOf=" + earlier));

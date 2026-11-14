@@ -31,6 +31,7 @@ public class EmploymentService {
     private final AssignmentStore assignments;
     private final RefItemStore refItems;
     private final PersonStore people;
+    private final Employers employers;
     private final ReportingLineStore reportingLines;
 
     /**
@@ -41,9 +42,11 @@ public class EmploymentService {
      * @param refItems the storage of reference items of the realm
      * @param people the storage of people of the realm
      * @param reportingLines the storage of reporting lines of the realm
+     * @param employers the rule that decides who employs a person
      */
     public EmploymentService(EmploymentStore store, AssignmentStore assignments, RefItemStore refItems,
-            PersonStore people, ReportingLineStore reportingLines) {
+            PersonStore people, ReportingLineStore reportingLines, Employers employers) {
+        this.employers = employers;
         this.reportingLines = reportingLines;
         this.store = store;
         this.assignments = assignments;
@@ -58,7 +61,8 @@ public class EmploymentService {
      *
      * @param request the values of the request
      * @return the new employment with its first terms
-     * @throws FuhitoException when a value is bad, the person does not exist, or another person has the staff number
+     * @throws FuhitoException when a value is bad, the person does not exist, the employer is not a legal entity,
+     *         or another person has the staff number at the same employer
      */
     public EmploymentView start(NewEmployment request) {
         Checks.required("body", request);
@@ -71,13 +75,15 @@ public class EmploymentService {
         EmploymentTerms terms = terms(newId(), null, period, firstTerms, null);
         Person person = people.find(personId).orElseThrow(
                 () -> FuhitoException.invalid("employment.person_unknown", Map.of("personId", personId)));
-        if (staffNumber != null
-                && store.findByStaffNumber(staffNumber).stream().anyMatch(e -> !e.personId().equals(personId))) {
+        String employerId = employers.of(request.employerId(), from);
+        // Each legal entity gives its own numbers, so two of them may give the same number to two people.
+        if (staffNumber != null && store.findByStaffNumber(staffNumber).stream()
+                .anyMatch(e -> employerId.equals(e.employerId()) && !e.personId().equals(personId))) {
             throw FuhitoException.conflict("employment.staff_number_taken", Map.of("staffNumber", staffNumber));
         }
 
-        Employment employment = new Employment(newId(), personId, person.userId(), period, staffNumber, null, request.externalId(),
-                request.source());
+        Employment employment = new Employment(newId(), personId, person.userId(), employerId, period, staffNumber,
+                null, request.externalId(), request.source());
         store.insert(employment);
         store.insertTerms(new EmploymentTerms(terms.id(), employment.id(), terms.period(), terms.employmentTypeId(),
                 terms.gradeId(), terms.status(), terms.workPercent(), terms.attributes()));
@@ -169,7 +175,7 @@ public class EmploymentService {
 
     private void setEnd(Employment employment, LocalDate to, String endReasonId) {
         String id = employment.id();
-        store.update(new Employment(id, employment.personId(), employment.userId(),
+        store.update(new Employment(id, employment.personId(), employment.userId(), employment.employerId(),
                 employment.period().endingAt(to),
                 employment.staffNumber(), endReasonId, employment.externalId(), employment.source()));
 

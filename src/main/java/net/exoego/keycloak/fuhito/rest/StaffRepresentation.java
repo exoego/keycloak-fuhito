@@ -19,6 +19,11 @@ public record StaffRepresentation(
                         + "and created when the user has none.",
                 writeOnly = true)
         String userId,
+        @Schema(
+                description = "The ID of the org unit that employs the person. Leave it out when the realm has "
+                        + "exactly one legal entity.",
+                writeOnly = true)
+        String employerId,
         @Schema(writeOnly = true)
         String orgUnitId,
         @Schema(
@@ -60,7 +65,7 @@ public record StaffRepresentation(
 
     NewEmployment toNewEmployment(String person) {
         return new NewEmployment(person, validFrom, validTo, staffNumber, employmentType, grade, null, workPercent,
-                null, null, null);
+                null, null, null, employerId);
     }
 
     // The first assignment of a new employment is its primary one unless the request says otherwise.
@@ -71,6 +76,6 @@ public record StaffRepresentation(
 
     static StaffRepresentation of(EmploymentRepresentation employment, AssignmentRepresentation assignment) {
         return new StaffRepresentation(null, null, null, null, null, null, null, null, null, null, null, null, null,
-                employment, assignment);
+                null, employment, assignment);
     }
 }

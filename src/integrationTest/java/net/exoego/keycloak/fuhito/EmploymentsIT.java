@@ -20,8 +20,8 @@ class EmploymentsIT {
 
     @BeforeAll
     static void createRealms() throws Exception {
-        realm = TestRealm.create("employments");
-        otherRealm = TestRealm.create("employments");
+        realm = TestRealm.withEmployer("employments");
+        otherRealm = TestRealm.withEmployer("employments");
         api = realm.api;
         nurse = realm.user("nurse");
         doctor = realm.user("doctor");
@@ -222,5 +222,49 @@ class EmploymentsIT {
                 + "\", \"validFrom\": \"2026-04-01\", \"employmentType\": \"full-time\"}"));
 
         assertEquals("ref_item.in_use", errorOf(409, api.delete("/ref-items/" + fullTimeId)));
+    }
+
+    @Test
+    void anEmploymentNamesItsEmployerWhenTheRealmHasSeveralLegalEntities() throws Exception {
+        TestRealm group = TestRealm.create("employments-group");
+        Api groupApi = group.api;
+        String taro = group.user("taro");
+        String jiro = group.user("jiro");
+        String start = "\"validFrom\": \"2026-04-01\"";
+
+        // With no legal entity, nobody can be employed.
+        assertEquals("employment.no_legal_entity",
+                errorOf(400, groupApi.post("/employments", "{\"userId\": \"" + taro + "\", " + start + "}")));
+
+        // With one, the request need not name it.
+        String corporation = group.legalEntity("医療法人X会");
+        JsonNode first = created(groupApi.post("/employments",
+                "{\"userId\": \"" + taro + "\", \"staffNumber\": \"1001\", " + start + "}"));
+        assertEquals(corporation, first.get("employerId").asText());
+        assertEquals(corporation, Api.json(groupApi.get("/employments/" + first.get("id").asText())).get("employerId").asText());
+
+        // With two, it must.
+        String company = group.legalEntity("株式会社Yサービス");
+        String ward = created(groupApi.post("/org-units", "{\"name\": \"1病棟\", \"parentId\": \"" + corporation
+                + "\", " + start + "}")).get("id").asText();
+        assertEquals("employment.employer_required",
+                errorOf(400, groupApi.post("/employments", "{\"userId\": \"" + jiro + "\", " + start + "}")));
+        assertEquals("employment.employer_required", errorOf(400, groupApi.post("/staff",
+                "{\"userId\": \"" + jiro + "\", \"orgUnitId\": \"" + ward + "\", " + start + "}")));
+        assertEquals("employment.employer_not_legal_entity", errorOf(400, groupApi.post("/employments",
+                "{\"userId\": \"" + jiro + "\", \"employerId\": \"" + ward + "\", " + start + "}")));
+        assertEquals("employment.employer_unknown", errorOf(400, groupApi.post("/employments",
+                "{\"userId\": \"" + jiro + "\", \"employerId\": \"nope\", " + start + "}")));
+
+        // Each legal entity gives its own staff numbers. The ward is where the person works, not who employs.
+        JsonNode seconded = created(groupApi.post("/staff", "{\"userId\": \"" + jiro + "\", \"employerId\": \"" + company
+                + "\", \"orgUnitId\": \"" + ward + "\", \"staffNumber\": \"1001\", " + start + "}"));
+        assertEquals(company, seconded.get("employment").get("employerId").asText());
+        assertEquals("employment.staff_number_taken", errorOf(409, groupApi.post("/employments",
+                "{\"userId\": \"" + jiro + "\", \"employerId\": \"" + corporation + "\", \"staffNumber\": \"1001\", "
+                        + "\"validFrom\": \"2027-04-01\"}")));
+        // An end does not change the employer.
+        assertEquals(company, Api.json(groupApi.put("/employments/" + seconded.get("employment").get("id").asText() + "/end",
+                "{\"validTo\": \"2030-04-01\"}")).get("employerId").asText());
     }
 }

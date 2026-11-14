@@ -46,6 +46,7 @@ class ProjectionIT {
         TestRealm.withTimeZone(representation);
         admin.realms().create(representation);
         api = new Api(realm, token);
+        TestRealm.legalEntity(api, "法人");
     }
 
     private String user(String username) {

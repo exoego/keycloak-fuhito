@@ -31,8 +31,8 @@ class ReportingLinesIT {
 
     @BeforeAll
     static void createTheHospital() throws Exception {
-        realm = TestRealm.create("reporting");
-        otherRealm = TestRealm.create("reporting");
+        realm = TestRealm.withEmployer("reporting");
+        otherRealm = TestRealm.withEmployer("reporting");
         api = realm.api;
         String hospital = unit("X病院", null);
         String nursing = unit("看護部", hospital);
@@ -144,7 +144,7 @@ class ReportingLinesIT {
 
     @Test
     void removingAManagerOrAReportEndsTheirLinesAndKeepsThem() throws Exception {
-        TestRealm scratch = TestRealm.create("reporting-removal");
+        TestRealm scratch = TestRealm.withEmployer("reporting-removal");
         Api scratchApi = scratch.api;
         String today = LocalDate.now(ZoneOffset.UTC).toString();
         String unit = Api.json(scratchApi.post("/org-units", "{\"name\": \"課\", \"validFrom\": \"2025-04-01\"}")).get("id").asText();
@@ -178,7 +178,7 @@ class ReportingLinesIT {
     void aLineOfAnotherRealmIsNotFound() throws Exception {
         String line = id(api.post("/reporting-lines", "{\"assignmentId\": \"" + nurseBAssignment
                 + "\", \"managerUserId\": \"" + projectLead + "\", \"kind\": \"DOTTED\", \"validFrom\": \"2029-04-01\"}"));
-        Api other = TestRealm.create("reporting-other").api;
+        Api other = TestRealm.withEmployer("reporting-other").api;
 
         assertEquals(404, other.get("/reporting-lines/" + line).statusCode());
         assertEquals(404, other.delete("/reporting-lines/" + line).statusCode());

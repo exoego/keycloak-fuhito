@@ -362,7 +362,11 @@ class OrgUnitsIT {
         TestRealm realm = TestRealm.create("org-units-matrix-reads");
         Api matrixApi = realm.api;
         created(matrixApi.post("/hierarchies", "{\"code\": \"matrix\", \"name\": \"Matrix\"}"));
-        String line = created(matrixApi.post("/org-units", "{\"name\": \"Line\", \"validFrom\": \"2026-04-01\"}")).get("id").asText();
+        // The line is the company, so that the realm can store the employment below.
+        created(matrixApi.post("/ref-items",
+                "{\"kind\": \"UNIT_TYPE\", \"code\": \"company\", \"name\": \"Company\", \"legalEntity\": true}"));
+        String line = created(matrixApi.post("/org-units",
+                "{\"name\": \"Line\", \"unitType\": \"company\", \"validFrom\": \"2026-04-01\"}")).get("id").asText();
         String project = created(matrixApi.post("/org-units", "{\"name\": \"Project\", \"validFrom\": \"2026-04-01\"}")).get("id").asText();
         created(matrixApi.post("/org-units", "{\"name\": \"Alone\", \"validFrom\": \"2026-04-01\"}"));
         String team = created(matrixApi.post("/org-units", "{\"name\": \"Team\", \"parentId\": \"" + line

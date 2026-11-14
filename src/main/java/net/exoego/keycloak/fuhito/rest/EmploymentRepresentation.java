@@ -25,6 +25,11 @@ public record EmploymentRepresentation(
                         + "place of `personId`. The person of the user is then used, and created when the user "
                         + "has none.")
         String userId,
+        @Schema(
+                description = "The ID of the org unit that employs the person. It is a legal entity on the first "
+                        + "date of the employment, and it never changes. A request can leave it out when the "
+                        + "realm has exactly one legal entity on that date.")
+        String employerId,
         @Schema(description = "The first date of the employment.", format = "date")
         String validFrom,
         @Schema(description = "The first date after the employment. It is missing for no end.", format = "date")
@@ -98,7 +103,8 @@ public record EmploymentRepresentation(
      */
     public static EmploymentRepresentation of(EmploymentView view) {
         var e = view.employment();
-        return new EmploymentRepresentation(e.id(), e.personId(), e.userId(), e.period().from().toString(), text(e.period().to()),
+        return new EmploymentRepresentation(e.id(), e.personId(), e.userId(), e.employerId(),
+                e.period().from().toString(), text(e.period().to()),
                 e.staffNumber(), view.endReason(), e.externalId(), e.source(), null, null, null, null, null,
                 view.terms().stream()
                         .map(t -> new Terms(t.terms().period().from().toString(), text(t.terms().period().to()),
@@ -109,7 +115,7 @@ public record EmploymentRepresentation(
 
     NewEmployment toNewEmployment(String person) {
         return new NewEmployment(person, validFrom, validTo, staffNumber, employmentType, grade, status, workPercent,
-                attributes, externalId, source);
+                attributes, externalId, source, employerId);
     }
 
     private static String text(Object value) {

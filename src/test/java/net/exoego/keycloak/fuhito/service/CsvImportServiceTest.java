@@ -41,7 +41,7 @@ class CsvImportServiceTest {
     private final MemoryPersonStore personStore = new MemoryPersonStore();
     private final EmploymentService employments =
             new EmploymentService(employmentStore, assignmentStore, refItems, personStore,
-            new MemoryReportingLineStore());
+            new MemoryReportingLineStore(), new AnyEmployer());
     private final AssignmentService assignments =
             new AssignmentService(assignmentStore, employmentStore, orgUnitStore, refItems,
             new MemoryReportingLineStore());

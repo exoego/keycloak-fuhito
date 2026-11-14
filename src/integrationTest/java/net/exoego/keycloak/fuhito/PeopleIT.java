@@ -20,8 +20,8 @@ class PeopleIT {
 
     @BeforeAll
     static void createRealms() {
-        realm = TestRealm.create("people");
-        otherRealm = TestRealm.create("people");
+        realm = TestRealm.withEmployer("people");
+        otherRealm = TestRealm.withEmployer("people");
         api = realm.api;
     }
 
@@ -100,7 +100,7 @@ class PeopleIT {
 
     @Test
     void aRealmCanPutTheFamilyNameFirst() throws Exception {
-        TestRealm japanese = TestRealm.create("people-order", Map.of("fuhito.nameOrder", "family-first"));
+        TestRealm japanese = TestRealm.withEmployer("people-order", Map.of("fuhito.nameOrder", "family-first"));
         String user = japanese.user("taro", "太郎", "山田");
 
         JsonNode person = created(japanese.api.post("/people", "{\"userId\": \"" + user + "\"}"));
@@ -111,7 +111,7 @@ class PeopleIT {
 
     @Test
     void listsThePeopleInPages() throws Exception {
-        TestRealm scratch = TestRealm.create("people-list");
+        TestRealm scratch = TestRealm.withEmployer("people-list");
         for (String name : List.of("A", "B", "C")) {
             created(scratch.api.post("/people", "{\"name\": \"" + name + "\"}"));
         }
@@ -147,7 +147,7 @@ class PeopleIT {
 
     @Test
     void maskingAUserClearsThePersonAndErasingRemovesIt() throws Exception {
-        TestRealm scratch = TestRealm.create("people-personal-data");
+        TestRealm scratch = TestRealm.withEmployer("people-personal-data");
         Api scratchApi = scratch.api;
         String user = scratch.user("left");
         String kept = created(scratchApi.post("/people", "{\"name\": \"Kept\"}")).get("id").asText();
@@ -183,7 +183,7 @@ class PeopleIT {
 
     @Test
     void aPersonWithNoUserCanBeEmployedAndAssigned() throws Exception {
-        TestRealm scratch = TestRealm.create("people-employed");
+        TestRealm scratch = TestRealm.withEmployer("people-employed");
         Api scratchApi = scratch.api;
         String unit = created(scratchApi.post("/org-units", "{\"name\": \"1病棟\", \"validFrom\": \"2020-04-01\"}"))
                 .get("id").asText();
@@ -228,7 +228,7 @@ class PeopleIT {
 
     @Test
     void aPersonWithNoUserCanHoldAQualificationAndBeAManager() throws Exception {
-        TestRealm scratch = TestRealm.create("people-lines");
+        TestRealm scratch = TestRealm.withEmployer("people-lines");
         Api scratchApi = scratch.api;
         scratch.refItem("QUALIFICATION", "license", "免許");
         String unit = created(scratchApi.post("/org-units", "{\"name\": \"外科\", \"validFrom\": \"2020-04-01\"}"))
@@ -267,7 +267,7 @@ class PeopleIT {
 
     @Test
     void anEmploymentByUserIdUsesThePersonOfTheUserOrCreatesIt() throws Exception {
-        TestRealm scratch = TestRealm.create("people-by-user");
+        TestRealm scratch = TestRealm.withEmployer("people-by-user");
         Api scratchApi = scratch.api;
         String user = scratch.user("taro", "Taro", "Yamada");
         String start = "{\"userId\": \"" + user + "\", \"validFrom\": \"";
@@ -294,7 +294,7 @@ class PeopleIT {
 
     @Test
     void aPersonWithNoUserIsReadMaskedAndErasedByPersonId() throws Exception {
-        TestRealm scratch = TestRealm.create("people-reads");
+        TestRealm scratch = TestRealm.withEmployer("people-reads");
         Api scratchApi = scratch.api;
         scratch.refItem("QUALIFICATION", "license", "免許");
         String unit = created(scratchApi.post("/org-units", "{\"name\": \"外科\", \"validFrom\": \"2020-04-01\"}"))

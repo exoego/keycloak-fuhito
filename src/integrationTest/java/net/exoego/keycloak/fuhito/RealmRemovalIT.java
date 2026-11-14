@@ -25,8 +25,8 @@ class RealmRemovalIT {
 
     @Test
     void removingARealmDeletesItsRowsAndNoOthers() throws Exception {
-        TestRealm removed = TestRealm.create("removal");
-        TestRealm kept = TestRealm.create("removal");
+        TestRealm removed = TestRealm.withEmployer("removal");
+        TestRealm kept = TestRealm.withEmployer("removal");
         fill(removed);
         fill(kept);
         String removedId = removed.id();

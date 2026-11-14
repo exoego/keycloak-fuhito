@@ -32,7 +32,7 @@ class CsvImportIT {
 
     @Test
     void loadsOrgUnitsAndStaffFromCsvFilesWithJapaneseHeaders() throws Exception {
-        TestRealm realm = TestRealm.create("csv");
+        TestRealm realm = TestRealm.withEmployer("csv");
         Api api = realm.api;
         String nurse = realm.user("nurse");
 
@@ -55,10 +55,11 @@ class CsvImportIT {
         assertTrue(units.get("applied").asBoolean());
         assertEquals(3, units.get("counts").get("orgUnits").get("created").asInt());
         JsonNode tree = Api.json(api.get("/org-units?asOf=2026-04-01"));
-        assertEquals(List.of("X病院", "看護部", "1病棟, 東館"), tree.findValuesAsText("name"));
-        assertEquals("X Hospital", tree.get(0).get("names").get("en").asText());
-        assertEquals("hospital", tree.get(0).get("unitType").asText());
-        assertEquals("sheet", tree.get(0).get("source").asText());
+        // The legal entity of the realm is a root of its own.
+        assertEquals(List.of("法人", "X病院", "看護部", "1病棟, 東館"), tree.findValuesAsText("name"));
+        assertEquals("X Hospital", tree.get(1).get("names").get("en").asText());
+        assertEquals("hospital", tree.get(1).get("unitType").asText());
+        assertEquals("sheet", tree.get(1).get("source").asText());
         JsonNode member = Api.json(api.get("/users/" + nurse + "/assignments?asOf=2026-04-01&includePath=true")).get(0);
         assertEquals(List.of("X病院", "看護部", "1病棟, 東館"), member.get("orgUnitPath").findValuesAsText("name"));
         assertEquals("nurse", member.get("occupation").asText());
@@ -71,7 +72,7 @@ class CsvImportIT {
                 .get("counts").get("orgUnits").get("unchanged").asInt());
         JsonNode renamed = load(api, "org-units", "effectiveDate=2027-04-01&source=sheet", "外部ID,名称\nW1,東病棟\n");
         assertEquals(1, renamed.get("counts").get("orgUnits").get("changed").asInt());
-        JsonNode ward = Api.json(api.get("/org-units?asOf=2027-04-01")).get(2);
+        JsonNode ward = Api.json(api.get("/org-units?asOf=2027-04-01")).get(3);
         assertEquals("東病棟", ward.get("name").asText());
         assertEquals("いちびょうとう", ward.get("phoneticName").asText());
     }

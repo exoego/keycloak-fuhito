@@ -23,7 +23,7 @@ class UserRetirementTest {
     private final MemoryRefItemStore refItems = new MemoryRefItemStore();
     private final MemoryPersonStore people = MemoryPersonStore.anyUser();
     private final EmploymentService employments =
-            new EmploymentService(employmentStore, assignmentStore, refItems, people, lines);
+            new EmploymentService(employmentStore, assignmentStore, refItems, people, lines, new AnyEmployer());
     private final AssignmentService assignments =
             new AssignmentService(assignmentStore, employmentStore, orgUnitStore, refItems, lines);
     private final ReportingLineService lineService = new ReportingLineService(lines,

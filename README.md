@@ -40,7 +40,8 @@ The [open issues](https://github.com/exoego/keycloak-fuhito/issues) show what is
 
 ## Scope
 
-One realm is one legal entity.
+A realm holds one legal entity or several, for example a group of companies.
+A legal entity is an org unit whose unit type is marked as one. Every employment names the legal entity that employs the person.
 A realm can hold several top-level org units, for example several hospitals of one corporation.
 Each of them has its own tree of org units.
 

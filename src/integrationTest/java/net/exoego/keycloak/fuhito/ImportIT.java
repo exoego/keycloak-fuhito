@@ -151,7 +151,7 @@ class ImportIT {
 
     @Test
     void loadsASmallHospitalWithStaffThenATransferAndAResignation() throws Exception {
-        TestRealm realm = TestRealm.create("import-people");
+        TestRealm realm = TestRealm.withEmployer("import-people");
         Api api = realm.api;
         String nurse = realm.user("nurse");
         String clerk = realm.user("clerk");
@@ -221,7 +221,7 @@ class ImportIT {
 
     @Test
     void badPeopleRowsAreReportedAndNothingIsWritten() throws Exception {
-        TestRealm realm = TestRealm.create("import-people-errors");
+        TestRealm realm = TestRealm.withEmployer("import-people-errors");
         realm.user("nurse");
 
         HttpResponse<String> response = realm.api.post("/imports", """
@@ -242,7 +242,10 @@ class ImportIT {
         assertEquals(List.of("import.username_unknown", "import.employment_unknown", "import.org_unit_unknown"),
                 report.get("errors").findValuesAsText("error"));
         assertEquals(List.of("employments", "assignments", "assignments"), report.get("errors").findValuesAsText("list"));
-        for (String table : List.of("fuhito_org_unit", "fuhito_employment", "fuhito_assignment", "fuhito_change_log")) {
+        // The realm has its legal entity, with the two entries of the change log for it, and nothing more.
+        assertEquals("1", rows(realm, "fuhito_org_unit"));
+        assertEquals("2", rows(realm, "fuhito_change_log"));
+        for (String table : List.of("fuhito_employment", "fuhito_assignment")) {
             assertEquals("0", rows(realm, table), table);
         }
     }

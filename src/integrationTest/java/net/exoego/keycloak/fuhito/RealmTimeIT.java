@@ -34,6 +34,7 @@ class RealmTimeIT {
     // Hires a user in the past and removes the user. Returns the end date of the employment, which is today.
     private static String endedOn(TestRealm realm) throws Exception {
         String user = realm.user("someone");
+        realm.legalEntity("法人");
         String unit = Api.json(realm.api.post("/org-units", "{\"name\": \"Unit\", \"validFrom\": \"2020-04-01\"}")).get("id").asText();
         HttpResponse<String> staff = realm.api.post("/staff", "{\"userId\": \"" + user + "\", \"orgUnitId\": \"" + unit
                 + "\", \"validFrom\": \"2020-04-01\"}");

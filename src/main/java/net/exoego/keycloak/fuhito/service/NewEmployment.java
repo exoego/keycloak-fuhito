@@ -17,8 +17,31 @@ import java.util.Map;
  * @param attributes free values, or null
  * @param externalId the ID of the employment in the system it came from, or null
  * @param source the name of that system, or null
+ * @param employerId the ID of the org unit that employs the person, or null when the realm has one legal entity
  */
 public record NewEmployment(String personId, String validFrom, String validTo, String staffNumber,
         String employmentType, String grade, String status, BigDecimal workPercent, Map<String, Object> attributes,
-        String externalId, String source) {
+        String externalId, String source, String employerId) {
+
+    /**
+     * Makes a request that names no employer. It works in a realm with one legal entity.
+     *
+     * @param personId the ID of the person
+     * @param validFrom the first date of the employment, as {@code YYYY-MM-DD}
+     * @param validTo the first date after the employment, or null for no end
+     * @param staffNumber the number that the legal entity gives to the person, or null
+     * @param employmentType the code of the employment type, or null
+     * @param grade the code of the grade, or null
+     * @param status the status, or null for {@code ACTIVE}
+     * @param workPercent the share of full-time work in percent, or null
+     * @param attributes free values, or null
+     * @param externalId the ID of the employment in the system it came from, or null
+     * @param source the name of that system, or null
+     */
+    public NewEmployment(String personId, String validFrom, String validTo, String staffNumber,
+            String employmentType, String grade, String status, BigDecimal workPercent,
+            Map<String, Object> attributes, String externalId, String source) {
+        this(personId, validFrom, validTo, staffNumber, employmentType, grade, status, workPercent, attributes,
+                externalId, source, null);
+    }
 }

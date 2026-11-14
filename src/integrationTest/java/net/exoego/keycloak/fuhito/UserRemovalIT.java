@@ -19,7 +19,7 @@ class UserRemovalIT {
 
     @Test
     void removingAUserKeepsTheirHistoryAndEndsWhatIsOpen() throws Exception {
-        TestRealm realm = TestRealm.create("user-removal");
+        TestRealm realm = TestRealm.withEmployer("user-removal");
         Api api = realm.api;
         String unit = Api.json(api.post("/org-units", "{\"name\": \"課\", \"validFrom\": \"2020-04-01\"}")).get("id").asText();
         String removed = realm.user("removed");
@@ -67,7 +67,7 @@ class UserRemovalIT {
 
     @Test
     void erasingAUserRemovesEverythingAboutThemAndNothingElse() throws Exception {
-        TestRealm realm = TestRealm.create("user-erase");
+        TestRealm realm = TestRealm.withEmployer("user-erase");
         Api api = realm.api;
         String unit = Api.json(api.post("/org-units", "{\"name\": \"課\", \"validFrom\": \"2020-04-01\"}")).get("id").asText();
         realm.refItem("QUALIFICATION", "license", "免許");
@@ -140,7 +140,7 @@ class UserRemovalIT {
 
     @Test
     void removingAUserDeletesAnEmploymentThatNeverStarted() throws Exception {
-        TestRealm realm = TestRealm.create("user-removal-future");
+        TestRealm realm = TestRealm.withEmployer("user-removal-future");
         Api api = realm.api;
         String unit = Api.json(api.post("/org-units", "{\"name\": \"課\", \"validFrom\": \"2020-04-01\"}")).get("id").asText();
         String user = realm.user("joins-later");

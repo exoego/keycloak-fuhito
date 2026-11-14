@@ -21,7 +21,7 @@ class StaffIT {
 
     @BeforeAll
     static void createTheClinic() throws Exception {
-        realm = TestRealm.create("staff");
+        realm = TestRealm.withEmployer("staff");
         api = realm.api;
         clinic = Api.json(api.post("/org-units", "{\"name\": \"ホゲホゲ診療所\", \"validFrom\": \"2026-04-01\"}"))
                 .get("id").asText();

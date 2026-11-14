@@ -31,8 +31,8 @@ class MembershipIT {
 
     @BeforeAll
     static void createTheOrganization() throws Exception {
-        realm = TestRealm.create("membership");
-        otherRealm = TestRealm.create("membership");
+        realm = TestRealm.withEmployer("membership");
+        otherRealm = TestRealm.withEmployer("membership");
         api = realm.api;
         realm.refItem("OCCUPATION", "physician", "医師");
         realm.refItem("OCCUPATION", "nurse", "看護師");

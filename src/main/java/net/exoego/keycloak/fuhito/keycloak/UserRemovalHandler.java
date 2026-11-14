@@ -9,12 +9,14 @@ import net.exoego.keycloak.fuhito.domain.ChangeLogEntry;
 import net.exoego.keycloak.fuhito.jpa.JpaAssignmentStore;
 import net.exoego.keycloak.fuhito.jpa.JpaChangeLogStore;
 import net.exoego.keycloak.fuhito.jpa.JpaEmploymentStore;
+import net.exoego.keycloak.fuhito.jpa.JpaOrgUnitStore;
 import net.exoego.keycloak.fuhito.jpa.JpaPersonStore;
 import net.exoego.keycloak.fuhito.jpa.JpaRefItemStore;
 import net.exoego.keycloak.fuhito.jpa.JpaReportingLineStore;
 import net.exoego.keycloak.fuhito.rest.EmploymentRepresentation;
 import net.exoego.keycloak.fuhito.service.EmploymentService;
 import net.exoego.keycloak.fuhito.service.EmploymentView;
+import net.exoego.keycloak.fuhito.service.LegalEntityEmployers;
 import net.exoego.keycloak.fuhito.service.UserRetirement;
 import org.keycloak.models.RealmModel;
 
@@ -32,7 +34,8 @@ final class UserRemovalHandler {
         var assignments = new JpaAssignmentStore(em, realmId);
         var lines = new JpaReportingLineStore(em, realmId);
         var employmentService = new EmploymentService(employments, assignments, new JpaRefItemStore(em, realmId),
-                new JpaPersonStore(em, realmId), lines);
+                new JpaPersonStore(em, realmId), lines,
+                new LegalEntityEmployers(new JpaOrgUnitStore(em, realmId), new JpaRefItemStore(em, realmId)));
         var changeLog = new JpaChangeLogStore(em, realmId);
         for (EmploymentView ended : new UserRetirement(employments, employmentService, assignments, lines,
                 new JpaPersonStore(em, realmId), RealmTime.clockOrUtc(realm)).retire(userId)) {
