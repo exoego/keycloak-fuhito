@@ -1,5 +1,7 @@
 # keycloak-fuhito
 
+[![codecov](https://codecov.io/gh/exoego/keycloak-fuhito/graph/badge.svg?token=7xvNfUdlJX)](https://codecov.io/gh/exoego/keycloak-fuhito)
+
 A Keycloak extension that stores organization structure and its history for each realm.
 
 It answers questions like these.
