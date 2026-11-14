@@ -10,6 +10,7 @@ import java.util.Set;
 
 import net.exoego.keycloak.fuhito.domain.BusinessDay;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
+import net.exoego.keycloak.fuhito.domain.Person;
 import net.exoego.keycloak.fuhito.domain.RefItem;
 import net.exoego.keycloak.fuhito.domain.RefKind;
 import org.junit.jupiter.api.BeforeEach;
@@ -229,6 +230,13 @@ class MembershipServiceTest {
         UserHistory history = service.historyOf("clerk", employments, assignments);
 
         assertEquals("clerk", history.userId());
+        assertEquals("clerk", history.personId());
+        // The same history is read by person.
+        Person clerk = new Person("clerk", "clerk", null, Map.of(), null, Map.of(), null, null);
+        assertEquals(history, service.historyOfPerson(clerk, employments, assignments));
+        assertEquals(service.assignmentsOf("clerk", "2026-06-01", true),
+                service.assignmentsOfPerson("clerk", "2026-06-01", true));
+        assertEquals(List.of(), service.assignmentsOfPerson("nope", null, false));
         assertEquals(List.of(clerkEmployment, rehire),
                 history.employments().stream().map(v -> v.employment().id()).toList());
         assertEquals(List.of(first, second, third),

@@ -33,7 +33,7 @@ Each resource keeps its ID through all changes.
 - The default of `asOf` is today. The realm decides what today is with its time zone and its day start. An org unit can set its own. See [keycloak-integration.md](keycloak-integration.md).
 - `GET /org-units/{id}/history` returns every period of an org unit.
 - `GET /employments/{id}` and `GET /assignments/{id}` return every period of their resource.
-- `GET /users/{userId}/history` returns every employment and assignment of a user.
+- `GET /people/{id}/history` returns every employment and assignment of a person. `GET /users/{userId}/history` does the same for the person of a user.
 
 Checked by `OrgUnitTreeIT.listsTheWholeTreeOnTwoDates`, `OrgUnitTreeIT.readsTheHistoryOfAUnit`, `MembershipIT.listsTheMembersOfAUnitOnTwoDates`, and `MembershipIT.readsTheHistoryOfAUserWhoLeftAndCameBack`.
 
@@ -100,7 +100,7 @@ When an assignment has no solid line on a date, the manager is derived from the 
 - A member of a unit with no head does the same.
 - Two heads of one unit are not each other's managers.
 
-`GET /users/{userId}/managers` and `GET /users/{userId}/reports` use these rules.
+`GET /people/{id}/managers` and `GET /people/{id}/reports` use these rules.
 Each entry says whether it is stored or derived.
 
 Checked by `ReportingLinesIT.derivesManagersAndReportsFromTheHeadsOfTheTree` and `ReportingLinesIT.storedLinesChangeTheAnswerFromTheirDate`.
@@ -148,7 +148,7 @@ Checked by `ChangeLogIT.listsTheWritesOfAChangeOrderInTheOrderTheyHappened` and 
 ## What is removed for good
 
 - Removal of a realm removes all its rows and its change log.
-- `DELETE /users/{userId}/data` erases everything about one user.
+- `DELETE /people/{id}/data` erases everything about one person.
 
 Removal of a user from Keycloak removes nothing that held.
 It ends the open employment of the user on that day, and the history stays readable.

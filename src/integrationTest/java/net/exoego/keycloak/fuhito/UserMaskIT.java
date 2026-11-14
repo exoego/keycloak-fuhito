@@ -118,9 +118,11 @@ class UserMaskIT {
         assertTrue(api.get("/change-log?resourceType=FUHITO_EMPLOYMENT&resourceId=" + otherIds.get(0)).body().contains("N-002"));
 
         // The log says who masked whom. Masking again keeps the first time.
-        JsonNode maskLog = Api.json(api.get("/change-log?resourceType=FUHITO_USER_DATA&resourceId=" + left));
+        String person = Api.json(response).get("personId").asText();
+        assertEquals(person, employment.get("personId").asText());
+        JsonNode maskLog = Api.json(api.get("/change-log?resourceType=FUHITO_PERSON_DATA&resourceId=" + person));
         assertEquals(List.of("UPDATE"), maskLog.findValuesAsText("operation"));
-        assertEquals("fuhito/users/" + left + "/mask", maskLog.get(0).get("resourcePath").asText());
+        assertEquals("fuhito/people/" + person + "/mask", maskLog.get(0).get("resourcePath").asText());
         assertEquals(maskedAt, Api.json(api.post("/users/" + left + "/mask", "")).get("maskedAt").asText());
     }
 
@@ -141,14 +143,16 @@ class UserMaskIT {
 
         HttpResponse<String> rejected = api.post("/users/" + employed + "/mask", "");
         assertEquals(409, rejected.statusCode(), rejected.body());
-        assertEquals("user.still_employed", Api.json(rejected).get("error").asText());
+        assertEquals("person.still_employed", Api.json(rejected).get("error").asText());
         assertEquals("N-020", Api.json(api.get("/users/" + employed + "/history")).get("employments").get(0).get("staffNumber").asText());
         assertEquals(404, api.post("/users/no-such-user/mask", "").statusCode());
         assertEquals(401, new Api(realm.name, null).post("/users/" + removed + "/mask", "").statusCode());
 
         // Erasing is still possible after masking, and removes the mark too.
+        String person = Api.json(api.get("/users/" + removed + "/history")).get("personId").asText();
+        assertEquals("1", KeycloakEnvironment.sql("select count(*) from fuhito_user_mask where person_id = '" + person + "'"));
         assertEquals(204, api.delete("/users/" + removed + "/data").statusCode());
-        assertEquals("0", KeycloakEnvironment.sql("select count(*) from fuhito_user_mask where user_id = '" + removed + "'"));
+        assertEquals("0", KeycloakEnvironment.sql("select count(*) from fuhito_user_mask where person_id = '" + person + "'"));
     }
 
     @Test

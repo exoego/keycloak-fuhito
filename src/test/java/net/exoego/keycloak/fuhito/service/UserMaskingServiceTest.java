@@ -12,7 +12,6 @@ import java.util.Optional;
 
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.store.UserDataMasker;
-import net.exoego.keycloak.fuhito.store.UserDirectory;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -39,20 +38,8 @@ class UserMaskingServiceTest {
     private final MemoryEmploymentStore employmentStore = new MemoryEmploymentStore();
     private final EmploymentService employments = new EmploymentService(employmentStore, new MemoryAssignmentStore(),
             new MemoryRefItemStore(), MemoryPersonStore.anyUser(), new MemoryReportingLineStore());
-    private final UserDirectory users = new UserDirectory() {
-        @Override
-        public boolean exists(String userId) {
-            return userId.equals("still-here");
-        }
-
-        @Override
-        public boolean isKnown(String userId) {
-            return !userId.equals("nobody");
-        }
-    };
-
     private UserMaskingService service() {
-        return new UserMaskingService(masker, employmentStore, users, clock, clock);
+        return new UserMaskingService(masker, employmentStore, clock, clock);
     }
 
     private void employ(String userId, String from, String to) {
@@ -89,17 +76,9 @@ class UserMaskingServiceTest {
         for (String userId : List.of("open", "ends-tomorrow", "future")) {
             FuhitoException e = assertThrows(FuhitoException.class, () -> service().mask(userId));
             assertEquals(FuhitoException.Reason.CONFLICT, e.reason());
-            assertEquals("user.still_employed", e.code());
-            assertEquals(Map.of("userId", userId), e.params());
+            assertEquals("person.still_employed", e.code());
+            assertEquals(Map.of("id", userId), e.params());
         }
         assertEquals(List.of(), calls);
-    }
-
-    @Test
-    void rejectsAnUnknownUser() {
-        FuhitoException e = assertThrows(FuhitoException.class, () -> service().mask("nobody"));
-
-        assertEquals(FuhitoException.Reason.NOT_FOUND, e.reason());
-        assertEquals("user.not_found", e.code());
     }
 }

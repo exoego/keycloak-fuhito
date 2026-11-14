@@ -163,12 +163,14 @@ Every read about the user still works with the user ID, for example `GET /users/
 
 ### Masking the data of one user
 
-`POST /users/{userId}/mask` clears what identifies a person who left, and keeps every record.
+`POST /people/{id}/mask` clears what identifies a person who left, and keeps every record.
+`POST /users/{userId}/mask` does the same for the person of a user.
 See [personal-data.md](personal-data.md) for what it clears, what it keeps, and what it does not do.
 
 ### Erasing the data of one user
 
-`DELETE /users/{userId}/data` erases everything about one user for good.
+`DELETE /people/{id}/data` erases everything about one person for good.
+`DELETE /users/{userId}/data` does the same for the person of a user.
 It is the only way to erase. Applications that refer to a record by ID find nothing afterwards, so prefer masking when the records must stay.
 
 It removes the employments with their terms and assignments, the qualifications, the reporting lines of the user as a report and as a manager, and the change log entries about them.
@@ -280,15 +282,16 @@ The default is today, as the realm defines it. See "What today is" below.
 | `/assignments` | Assignments of employments to org units |
 | `/staff` | A shortcut that starts an employment and adds its first assignment in one call |
 | `/org-units/{id}/members` | Who works in an org unit on a date, with or without the units below |
-| `/users/{userId}/assignments` | Where a user works on a date |
-| `/users/{userId}/history` | Every employment and assignment of a user |
-| `/users/{userId}/mask` | Clears what identifies a person who left, and keeps the records |
-| `/users/{userId}/data` | Erases everything about one user, for a request to delete personal data |
+| `/people/{id}/assignments` | Where a person works on a date |
+| `/people/{id}/history` | Every employment and assignment of a person |
+| `/people/{id}/mask` | Clears what identifies a person who left, and keeps the records |
+| `/people/{id}/data` | Erases everything about one person, for a request to delete personal data |
 | `/qualifications` | Licenses and certificates of users |
 | `/reporting-lines` | Links from an assignment to a manager |
-| `/users/{userId}/managers` | The managers of a user on a date |
-| `/users/{userId}/reports` | The direct reports of a user on a date |
-| `/users/{userId}/qualifications` | The qualifications of a user on a date, or all of them |
+| `/people/{id}/managers` | The managers of a person on a date |
+| `/people/{id}/reports` | The direct reports of a person on a date |
+| `/people/{id}/qualifications` | The qualifications of a person on a date, or all of them |
+| `/users/{userId}/...` | A shortcut to each `/people/{id}/...` path above, for the person of a Keycloak user |
 | `/reorganizations` | Many org unit changes on one date, in one transaction |
 | `/imports` | Many rows in one request, with a dry run |
 | `/imports/csv/{list}` | The same from one CSV file |
@@ -323,6 +326,15 @@ A reporting line has `managerPersonId`, and `managerUserId` in the same way.
 A request to create one of them takes either ID. With the ID of a user, the person of the user is used, and created when the user has none.
 A person with no linked user gets no token claim and no group in the projection.
 
+### Paths by user
+
+Each `/users/{userId}/...` path is a shortcut to the same path of the person that is linked to the user.
+
+- A user that Keycloak does not know, and that no person is linked to, gets 404.
+- A user with no person gets empty lists and an empty history.
+- A mask of a user with no person creates the person, so that the masking is remembered.
+- An erase of a user with no person does nothing.
+
 ## Admin events
 
 Every successful write records an admin event, the same as the built-in admin endpoints do.
@@ -333,6 +345,7 @@ The realm stores the events when admin events are turned on in its settings.
 | `FUHITO_REF_ITEM` | `CREATE`, `UPDATE`, `DELETE` | `fuhito/ref-items/{id}` |
 | `FUHITO_ORG_UNIT` | `CREATE`, `UPDATE` | `fuhito/org-units/{id}`, and the same with `/parent`, `/end`, `/organization`, or `/time-settings` |
 | `FUHITO_PERSON` | `CREATE`, `UPDATE`, `DELETE` | `fuhito/people/{id}` |
+| `FUHITO_PERSON_DATA` | `UPDATE` for a mask, `DELETE` for an erase | `fuhito/people/{id}/mask`, `fuhito/people/{id}/data` |
 | `FUHITO_EMPLOYMENT` | `CREATE`, `UPDATE` | `fuhito/employments/{id}`, and the same with `/terms` or `/end` |
 | `FUHITO_ASSIGNMENT` | `CREATE`, `UPDATE` | `fuhito/assignments/{id}`, and the same with `/details` or `/end` |
 | `FUHITO_CHANGE_ORDER` | `CREATE`, `UPDATE`, `DELETE` | `fuhito/change-orders/{id}` |

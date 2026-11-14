@@ -72,7 +72,7 @@ public class FuhitoResource {
     private final OrganizationDirectory organizations;
     private final OrganizationGroups organizationGroups;
     private final UserAttributeSource userAttributes;
-    private final Consumer<String> eraseUser;
+    private final Consumer<String> erasePerson;
 
     /**
      * Creates the resource for one request.
@@ -85,14 +85,14 @@ public class FuhitoResource {
      * @param organizations the Keycloak organizations of the realm
      * @param organizationGroups the groups and members of the Keycloak organizations of the realm
      * @param userAttributes the user attributes that an identity provider fills
-     * @param eraseUser removes every row and every change log entry about one user
+     * @param erasePerson removes every row and every change log entry about one person
      */
     public FuhitoResource(String realmId, RequestContext context, EntityManager entityManager, BusinessDay.Rule rule,
             UserDirectory users,
             OrganizationDirectory organizations, OrganizationGroups organizationGroups,
-            UserAttributeSource userAttributes, Consumer<String> eraseUser) {
+            UserAttributeSource userAttributes, Consumer<String> erasePerson) {
         this.userAttributes = userAttributes;
-        this.eraseUser = eraseUser;
+        this.erasePerson = erasePerson;
         this.organizationGroups = organizationGroups;
         this.organizations = organizations;
         this.realmId = realmId;
@@ -101,7 +101,7 @@ public class FuhitoResource {
         this.rule = rule;
         // The date of this clock is the date of the realm. Its instant is not a time stamp.
         this.clock = rule.clock(Clock.systemUTC());
-        // A removed user who left data behind is still known to the reads.
+        // A removed user who still has a person is known to the reads.
         this.users = new UserDirectory() {
             @Override
             public boolean exists(String userId) {
@@ -121,8 +121,7 @@ public class FuhitoResource {
             @Override
             public boolean isKnown(String userId) {
                 return users.exists(userId)
-                        || !new JpaEmploymentStore(entityManager, realmId).findByUser(userId).isEmpty()
-                        || !new JpaQualificationStore(entityManager, realmId).findByUser(userId).isEmpty();
+                        || new JpaPersonStore(entityManager, realmId).findByUser(userId).isPresent();
             }
         };
     }
@@ -325,11 +324,17 @@ public class FuhitoResource {
      */
     @Path("users")
     public UsersResource users() {
-        return new UsersResource(context, membershipService(), employmentService(), assignmentService(),
-                qualificationService(), reportingLineService(), users, eraseUser,
-                new UserMaskingService(new JpaUserDataMasker(entityManager, realmId),
-                        new JpaEmploymentStore(entityManager, realmId), users, clock,
-                        Clock.systemUTC()));
+        return new UsersResource(context, reads(), users, personService(), personData());
+    }
+
+    private UsersResource.Reads reads() {
+        return new UsersResource.Reads(membershipService(), employmentService(), assignmentService(),
+                qualificationService(), reportingLineService());
+    }
+
+    private PersonData personData() {
+        return new PersonData(context, new UserMaskingService(new JpaUserDataMasker(entityManager, realmId),
+                new JpaEmploymentStore(entityManager, realmId), clock, Clock.systemUTC()), erasePerson);
     }
 
     /**
@@ -339,7 +344,7 @@ public class FuhitoResource {
      */
     @Path("people")
     public PeopleResource people() {
-        return new PeopleResource(context, personService());
+        return new PeopleResource(context, personService(), reads(), personData());
     }
 
     private PersonService personService() {

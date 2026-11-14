@@ -21,8 +21,8 @@ public class UserMaskEntity {
     @Column(name = "REALM_ID", nullable = false, length = 36)
     String realmId;
 
-    @Column(name = "USER_ID", nullable = false, length = 255)
-    String userId;
+    @Column(name = "PERSON_ID", nullable = false, length = 36)
+    String personId;
 
     @Column(name = "MASKED_AT", nullable = false)
     Instant maskedAt;

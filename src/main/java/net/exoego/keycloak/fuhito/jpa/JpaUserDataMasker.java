@@ -16,7 +16,7 @@ import net.exoego.keycloak.fuhito.domain.Unchecked;
 import net.exoego.keycloak.fuhito.store.UserDataMasker;
 
 /**
- * Masks the data of one user in the database of Keycloak.
+ * Masks the data of one person in the database of Keycloak.
  */
 public class JpaUserDataMasker implements UserDataMasker {
 
@@ -40,22 +40,22 @@ public class JpaUserDataMasker implements UserDataMasker {
     }
 
     @Override
-    public Optional<Instant> maskedAt(String userId) {
+    public Optional<Instant> maskedAt(String personId) {
         return em.createQuery("""
                         select m.maskedAt from UserMaskEntity m where m.realmId = :realmId
-                        and m.userId = :userId""", Instant.class)
+                        and m.personId = :personId""", Instant.class)
                 .setParameter("realmId", realmId)
-                .setParameter("userId", userId)
+                .setParameter("personId", personId)
                 .getResultStream()
                 .findFirst();
     }
 
     @Override
-    public void mask(String userId, Instant now) {
+    public void mask(String personId, Instant now) {
         List<EmploymentEntity> employments = em.createQuery("""
                         select e from EmploymentEntity e
-                        where e.realmId = :realmId and e.person.userId = :userId""", EmploymentEntity.class)
-                .setParameter("realmId", realmId).setParameter("userId", userId).getResultList();
+                        where e.realmId = :realmId and e.personId = :personId""", EmploymentEntity.class)
+                .setParameter("realmId", realmId).setParameter("personId", personId).getResultList();
         List<String> employmentIds = new ArrayList<>();
         for (EmploymentEntity employment : employments) {
             employmentIds.add(employment.id);
@@ -81,35 +81,29 @@ public class JpaUserDataMasker implements UserDataMasker {
         List<String> qualificationIds = new ArrayList<>();
         for (QualificationEntity qualification : em.createQuery("""
                         select q from QualificationEntity q
-                        where q.realmId = :realmId and q.person.userId = :userId""", QualificationEntity.class)
-                .setParameter("realmId", realmId).setParameter("userId", userId).getResultList()) {
+                        where q.realmId = :realmId and q.personId = :personId""", QualificationEntity.class)
+                .setParameter("realmId", realmId).setParameter("personId", personId).getResultList()) {
             qualificationIds.add(qualification.id);
             qualification.number = null;
             qualification.attributes = new LinkedHashMap<>();
             qualification.externalId = null;
         }
-        List<String> personIds = new ArrayList<>();
-        for (PersonEntity person : em.createQuery("""
-                        select p from PersonEntity p
-                        where p.realmId = :realmId and p.userId = :userId""", PersonEntity.class)
-                .setParameter("realmId", realmId).setParameter("userId", userId).getResultList()) {
-            personIds.add(person.id);
-            person.name = null;
-            person.names = new LinkedHashMap<>();
-            person.phoneticName = null;
-            person.attributes = new LinkedHashMap<>();
-            person.externalId = null;
-        }
-        maskChangeLog("FUHITO_PERSON", personIds);
+        PersonEntity person = Rows.require(em, PersonEntity.class, personId, realmId, found -> found.realmId);
+        person.name = null;
+        person.names = new LinkedHashMap<>();
+        person.phoneticName = null;
+        person.attributes = new LinkedHashMap<>();
+        person.externalId = null;
+        maskChangeLog("FUHITO_PERSON", List.of(personId));
         maskChangeLog("FUHITO_EMPLOYMENT", employmentIds);
         maskChangeLog("FUHITO_ASSIGNMENT", assignmentIds);
         maskChangeLog("FUHITO_QUALIFICATION", qualificationIds);
 
-        if (maskedAt(userId).isEmpty()) {
+        if (maskedAt(personId).isEmpty()) {
             UserMaskEntity mark = new UserMaskEntity();
             mark.id = UUID.randomUUID().toString();
             mark.realmId = realmId;
-            mark.userId = userId;
+            mark.personId = personId;
             mark.maskedAt = now;
             em.persist(mark);
         }

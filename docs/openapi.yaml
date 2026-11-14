@@ -822,13 +822,16 @@ components:
           description: The message for people.
     Mask:
       required:
-      - userId
+      - personId
       - maskedAt
       description: The result of a masking.
       type: object
       properties:
+        personId:
+          type: string
         userId:
           type: string
+          description: The ID of the Keycloak user that the person is linked to.
         maskedAt:
           type: string
           description: "When the data was first masked, in UTC."
@@ -1628,17 +1631,20 @@ components:
           - 05:00
     UserHistory:
       required:
-      - userId
       - employments
       - assignments
-      description: Everything that is stored about one user over time.
+      description: Everything that is stored about one person over time.
       type: object
       properties:
+        personId:
+          type: string
+          description: The ID of the person. A user with no person has none.
         userId:
           type: string
+          description: The ID of the Keycloak user that the person is linked to.
         maskedAt:
           type: string
-          description: "When the personal data of the user was masked, in UTC. It\
+          description: "When the personal data of the person was masked, in UTC. It\
             \ is missing when it never was."
           format: date-time
         employments:
@@ -3240,6 +3246,274 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+  /people/{id}/assignments:
+    get:
+      summary: Lists the assignments of a person that hold on a date.
+      description: The primary assignment comes first.
+      operationId: listPersonAssignments
+      tags:
+      - people
+      parameters:
+      - description: The ID of the resource.
+        name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      - description: The date to read. The default is today for the org unit of each
+          assignment.
+        schema:
+          type: string
+          format: date
+        name: asOf
+        in: query
+      - description: True to return each org unit with its path from the root.
+        schema:
+          type: boolean
+          default: false
+        name: includePath
+        in: query
+      responses:
+        "200":
+          description: The assignments of the person on the date.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Member"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /people/{id}/data:
+    delete:
+      summary: Erases everything about one person for good.
+      description: "These are the person record, the employments with their terms\
+        \ and assignments, the qualifications, the reporting lines of the person as\
+        \ a report and as a manager, and the change log entries about them. This endpoint\
+        \ is for a request to delete personal data."
+      operationId: erasePersonData
+      tags:
+      - people
+      parameters:
+      - description: The ID of the resource.
+        name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      - $ref: "#/components/parameters/changeOrder"
+      responses:
+        "204":
+          description: The data was erased.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /people/{id}/history:
+    get:
+      summary: "Returns every employment and every assignment of a person, with all\
+        \ their periods."
+      operationId: getPersonHistory
+      tags:
+      - people
+      parameters:
+      - description: The ID of the resource.
+        name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: The history of the person.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserHistory"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /people/{id}/managers:
+    get:
+      summary: "Lists the managers of a person on a date, for each assignment of the\
+        \ person."
+      description: "An assignment with no stored solid line takes the head of its\
+        \ org unit, or of the nearest unit above."
+      operationId: listPersonManagers
+      tags:
+      - people
+      parameters:
+      - description: The ID of the resource.
+        name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      - description: The date to read. The default is today in the time zone of the
+          realm.
+        schema:
+          type: string
+          format: date
+        name: asOf
+        in: query
+      responses:
+        "200":
+          description: The managers.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Reporting"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /people/{id}/mask:
+    post:
+      summary: Masks the personal data of a person who left. It cannot be undone.
+      description: "It clears the names, the staff number, the numbers of qualifications,\
+        \ the external IDs, and the free attributes, also in the change log. Every\
+        \ record keeps its ID, its org unit, its job title, its occupation, and its\
+        \ dates."
+      operationId: maskPerson
+      tags:
+      - people
+      parameters:
+      - description: The ID of the resource.
+        name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      - $ref: "#/components/parameters/changeOrder"
+      responses:
+        "200":
+          description: The person and the time of the masking.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Mask"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /people/{id}/qualifications:
+    get:
+      summary: "Lists the qualifications of a person, oldest first."
+      operationId: listPersonQualifications
+      tags:
+      - people
+      parameters:
+      - description: The ID of the resource.
+        name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      - description: "True to return every qualification, expired ones and future\
+          \ ones included."
+        schema:
+          type: boolean
+          default: false
+        name: all
+        in: query
+      - description: The date to read. The default is today in the time zone of the
+          realm.
+        schema:
+          type: string
+          format: date
+        name: asOf
+        in: query
+      responses:
+        "200":
+          description: The qualifications.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Qualification"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /people/{id}/reports:
+    get:
+      summary: Lists the direct reports of a person on a date.
+      operationId: listPersonReports
+      tags:
+      - people
+      parameters:
+      - description: The ID of the resource.
+        name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      - description: The date to read. The default is today in the time zone of the
+          realm.
+        schema:
+          type: string
+          format: date
+        name: asOf
+        in: query
+      responses:
+        "200":
+          description: The direct reports.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Reporting"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
   /projection/rebuild:
     post:
       summary: Mirrors the org structure of today into the groups of Keycloak organizations.
@@ -3894,7 +4168,7 @@ paths:
       - $ref: "#/components/parameters/changeOrder"
       responses:
         "200":
-          description: The user ID and the time of the masking.
+          description: The person and the time of the masking.
           content:
             application/json:
               schema:
