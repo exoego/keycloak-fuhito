@@ -155,9 +155,11 @@ public class OrgUnitsResource {
     @GET
     @Operation(
             operationId = "listOrgUnits",
-            summary = "Lists the org units that exist on a date.",
-            description = "Each parent comes before its children.")
-    @APIResponse(responseCode = "200", description = "The units on the date.")
+            summary = "Lists the org units with no parent on a date, the roots.",
+            description = "There is no read of the whole tree. Go down with the children of an org unit, or "
+                    + "read one branch with its subtree. Siblings follow the display order, then the phonetic "
+                    + "name, then the name.")
+    @APIResponse(responseCode = "200", description = "The roots on the date.")
     @BadRequest
     @ApiErrors
     public List<OrgUnitRepresentation> list(
@@ -166,13 +168,9 @@ public class OrgUnitsResource {
                     schema = @Schema(format = "date"))
             @QueryParam("asOf") String asOf,
             @Parameter(
-                    description = "True to return only the units with no parent.",
-                    schema = @Schema(defaultValue = "false"))
-            @QueryParam("roots") boolean roots,
-            @Parameter(
-                    description = "True to return only the units that are legal entities, such as companies. A "
-                            + "unit is one when its unit type says so. The list is then flat, and `roots` and "
-                            + "`hierarchy` have no effect.",
+                    description = "True to list the units that are legal entities, such as companies, in place "
+                            + "of the roots. A unit is one when its unit type says so. `hierarchy` then has no "
+                            + "effect.",
                     schema = @Schema(defaultValue = "false"))
             @QueryParam("legalEntity") boolean legalEntity,
             @Parameter(description = "The code of the hierarchy. The default is the hierarchy `default`.")
@@ -187,7 +185,7 @@ public class OrgUnitsResource {
             @QueryParam("max") Integer max) {
         context.requireReadStructure();
         return Calls.run(context, () -> represent(legalEntity ? service.legalEntities(asOf, Page.of(first, max))
-                : service.list(asOf, roots, hierarchy, Page.of(first, max))));
+                : service.roots(asOf, hierarchy, Page.of(first, max))));
     }
 
     @GET

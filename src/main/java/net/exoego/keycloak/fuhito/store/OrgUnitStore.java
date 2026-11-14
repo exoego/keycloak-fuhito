@@ -96,20 +96,17 @@ public interface OrgUnitStore {
     List<OrgUnitLink> linksOn(String hierarchyId, LocalDate date);
 
     /**
-     * Lists a page of the units of a hierarchy on a date, each parent before its children.
+     * Lists a page of a unit and everything below it on a date, each parent before its children.
      * Siblings follow the display order, then the phonetic name, then the name, then the ID.
      *
      * @param hierarchyId the ID of the hierarchy
-     * @param rootId the ID of the unit to start from, or null for every root
-     * @param linkedOnly true to start only from roots that have a child in the hierarchy. It has no effect with
-     *        a {@code rootId}.
+     * @param rootId the ID of the unit to start from
      * @param date the date
      * @param first the number of units to skip
      * @param max the largest number of units to return
      * @return the units of the page
      */
-    List<PlacedOrgUnit> treeOn(String hierarchyId, String rootId, boolean linkedOnly, LocalDate date, int first,
-            int max);
+    List<PlacedOrgUnit> treeOn(String hierarchyId, String rootId, LocalDate date, int first, int max);
 
     /**
      * Lists a page of the direct children of a unit on a date, in the order of siblings.

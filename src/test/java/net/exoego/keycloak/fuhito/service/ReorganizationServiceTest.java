@@ -45,7 +45,7 @@ class ReorganizationServiceTest {
     }
 
     private List<String> tree(String asOf) {
-        return orgUnits.list(asOf, false, null, Page.of(null, null)).stream()
+        return Trees.all(orgUnits, asOf, null).stream()
                 .map(s -> s.version().name() + (s.parentId() == null ? "" : " < "
                         + orgUnits.get(s.parentId(), asOf).version().name()))
                 .toList();

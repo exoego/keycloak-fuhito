@@ -73,6 +73,19 @@ final class Api {
         return HTTP.send(request.build(), HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
     }
 
+    /**
+     * Reads every org unit of a date, root by root. The API has no read of the whole tree.
+     * The query is for example {@code asOf=2026-04-01}, or an empty text.
+     */
+    JsonNode tree(String query) throws Exception {
+        var all = MAPPER.createArrayNode();
+        for (JsonNode root : json(get("/org-units?max=1000&" + query))) {
+            all.addAll((com.fasterxml.jackson.databind.node.ArrayNode) json(
+                    get("/org-units/" + root.get("id").asText() + "/subtree?max=1000&" + query)));
+        }
+        return all;
+    }
+
     static JsonNode json(HttpResponse<String> response) throws Exception {
         return MAPPER.readTree(response.body());
     }

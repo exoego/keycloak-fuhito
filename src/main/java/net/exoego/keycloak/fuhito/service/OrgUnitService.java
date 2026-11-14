@@ -325,24 +325,21 @@ public class OrgUnitService {
     }
 
     /**
-     * Lists a page of the org units that exist on a date, in a hierarchy.
-     * Each parent comes before its children.
-     * Siblings follow the display order, then the phonetic name, then the name.
+     * Lists a page of the org units with no parent on a date, in a hierarchy.
+     * They follow the display order, then the phonetic name, then the name.
      * Every unit is in the default hierarchy. Another hierarchy has only the units with a parent or a child in it.
      *
      * @param asOf the date as {@code YYYY-MM-DD}, or null for today
-     * @param rootsOnly true to return only the units with no parent
      * @param hierarchy the code of the hierarchy, or null for the default one
      * @param page the part of the list to return
-     * @return the units of the page on the date
+     * @return the roots of the page on the date
      * @throws FuhitoException when the date is bad or the hierarchy does not exist
      */
-    public List<OrgUnitState> list(String asOf, boolean rootsOnly, String hierarchy, Page page) {
+    public List<OrgUnitState> roots(String asOf, String hierarchy, Page page) {
         LocalDate date = dateOrToday(asOf, null);
         String hierarchyId = hierarchyId(hierarchy);
         boolean linkedOnly = !hierarchyId.equals(store.defaultHierarchyId());
-        return states(rootsOnly ? store.childrenOn(hierarchyId, null, linkedOnly, date, page.first(), page.max())
-                : store.treeOn(hierarchyId, null, linkedOnly, date, page.first(), page.max()));
+        return states(store.childrenOn(hierarchyId, null, linkedOnly, date, page.first(), page.max()));
     }
 
     /**
@@ -372,7 +369,7 @@ public class OrgUnitService {
      */
     public List<OrgUnitState> subtree(String id, String asOf, String hierarchy, Page page) {
         LocalDate date = dateOfUnit(id, asOf);
-        return states(store.treeOn(hierarchyId(hierarchy), id, false, date, page.first(), page.max()));
+        return states(store.treeOn(hierarchyId(hierarchy), id, date, page.first(), page.max()));
     }
 
     /**

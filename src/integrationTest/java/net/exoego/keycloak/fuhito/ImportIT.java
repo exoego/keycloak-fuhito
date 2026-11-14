@@ -33,7 +33,7 @@ class ImportIT {
     }
 
     private static List<String> names(Api api, String asOf) throws Exception {
-        return Api.json(api.get("/org-units?asOf=" + asOf)).findValuesAsText("name");
+        return api.tree("asOf=" + asOf).findValuesAsText("name");
     }
 
     private static String rows(TestRealm realm, String table) throws Exception {
@@ -54,7 +54,7 @@ class ImportIT {
         assertEquals(4, first.get("counts").get("orgUnits").get("created").asInt());
         assertEquals(List.of("X病院", "診療部", "看護部", "1病棟"), names(api, "2026-04-01"));
         assertEquals(List.of("X病院"), names(api, "1998-04-01"));
-        JsonNode root = Api.json(api.get("/org-units?roots=true&asOf=2026-04-01")).get(0);
+        JsonNode root = Api.json(api.get("/org-units?asOf=2026-04-01")).get(0);
         assertEquals("H", root.get("externalId").asText());
         assertEquals("sheet", root.get("source").asText());
         assertEquals("hospital", root.get("unitType").asText());

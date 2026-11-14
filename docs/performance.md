@@ -93,6 +93,11 @@ What is still slow at this size, and why.
 
 A reader of a late page pays for all pages before it. A cursor that says "go on after this row" would make every page cost as much as the first one.
 
+## What changed after these runs
+
+- The read of the whole tree, `GET /org-units` with every org unit, is gone. `GET /org-units` now lists the roots. The rows "Org units, first page" and "Org units, last page" above are from before that, and the script no longer measures them. A subtree of a root still walks the whole tree.
+- The number 333 ms for the whole tree with the two indexes does not hold in general. In a second run the planner still chose the GiST index of the exclusion constraint, and the read took 1.2 seconds. It chose the plain index only after the index was built again. Which one it takes depends on the sizes of the two indexes. A walk that does not depend on that choice is the next change.
+
 ## What the numbers say
 
 - A read about one org unit, one person, or one page of people does not grow with the realm.

@@ -60,9 +60,7 @@ measure() {
 
 echo '| Read | Path | Best of 5 in ms | Bytes | Status |'
 echo '|---|---|---|---|---|'
-measure 'Org units, first page' '/org-units?max=100'
-measure 'Org units, last page' "/org-units?first=$((UNITS - 100))&max=100"
-measure 'Roots' '/org-units?roots=true'
+measure 'Roots' '/org-units'
 measure 'Legal entities' '/org-units?legalEntity=true'
 measure 'One org unit' '/org-units/u-4321'
 measure 'Children of a division' '/org-units/u-1/children'

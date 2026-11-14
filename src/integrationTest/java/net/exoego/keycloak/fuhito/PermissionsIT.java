@@ -84,7 +84,7 @@ class PermissionsIT {
     }
 
     private static List<String> structureReads() {
-        return List.of("", "/org-units", "/org-units?roots=true", "/org-units/" + unit, "/org-units/" + unit + "/children",
+        return List.of("", "/org-units", "/org-units?legalEntity=true", "/org-units/" + unit, "/org-units/" + unit + "/children",
                 "/org-units/" + unit + "/subtree", "/org-units/" + unit + "/path", "/org-units/" + unit + "/history",
                 "/hierarchies", "/ref-items?kind=UNIT_TYPE");
     }

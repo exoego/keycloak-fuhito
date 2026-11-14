@@ -63,14 +63,8 @@ final class MemoryOrgUnitStore implements OrgUnitStore {
     }
 
     @Override
-    public List<PlacedOrgUnit> treeOn(String hierarchyId, String rootId, boolean linkedOnly, LocalDate date,
-            int first, int max) {
-        OrgUnitTree tree = new OrgUnitTree(this, new MemoryRefItemStore(), date, hierarchyId);
-        if (rootId != null) {
-            return placed(tree.subtree(rootId), first, max);
-        }
-        return placed(linkedOnly ? tree.linkedRoots().stream()
-                .flatMap(root -> tree.subtree(root.unit().id()).stream()).toList() : tree.all(), first, max);
+    public List<PlacedOrgUnit> treeOn(String hierarchyId, String rootId, LocalDate date, int first, int max) {
+        return placed(new OrgUnitTree(this, new MemoryRefItemStore(), date, hierarchyId).subtree(rootId), first, max);
     }
 
     @Override

@@ -54,7 +54,7 @@ class CsvImportIT {
 
         assertTrue(units.get("applied").asBoolean());
         assertEquals(3, units.get("counts").get("orgUnits").get("created").asInt());
-        JsonNode tree = Api.json(api.get("/org-units?asOf=2026-04-01"));
+        JsonNode tree = api.tree("asOf=2026-04-01");
         // The legal entity of the realm is a root of its own.
         assertEquals(List.of("法人", "X病院", "看護部", "1病棟, 東館"), tree.findValuesAsText("name"));
         assertEquals("X Hospital", tree.get(1).get("names").get("en").asText());
@@ -72,7 +72,7 @@ class CsvImportIT {
                 .get("counts").get("orgUnits").get("unchanged").asInt());
         JsonNode renamed = load(api, "org-units", "effectiveDate=2027-04-01&source=sheet", "外部ID,名称\nW1,東病棟\n");
         assertEquals(1, renamed.get("counts").get("orgUnits").get("changed").asInt());
-        JsonNode ward = Api.json(api.get("/org-units?asOf=2027-04-01")).get(3);
+        JsonNode ward = api.tree("asOf=2027-04-01").get(3);
         assertEquals("東病棟", ward.get("name").asText());
         assertEquals("いちびょうとう", ward.get("phoneticName").asText());
     }
@@ -124,7 +124,7 @@ class CsvImportIT {
                 "text/csv; charset=Shift_JIS", "外部ID,名称\nH,X病院\n".getBytes(Charset.forName("Shift_JIS")));
 
         assertEquals(200, response.statusCode(), response.body());
-        assertEquals(List.of("X病院"), Api.json(api.get("/org-units?asOf=2026-04-01")).findValuesAsText("name"));
+        assertEquals(List.of("X病院"), api.tree("asOf=2026-04-01").findValuesAsText("name"));
 
         HttpResponse<String> unknown = api.postBytes("/imports/csv/org-units?effectiveDate=2026-04-01",
                 "text/csv; charset=no-such-charset", "a\n1\n".getBytes(StandardCharsets.UTF_8));

@@ -100,8 +100,6 @@ public class JpaOrgUnitStore implements OrgUnitStore {
             )
             select a.id from Above a order by a.depth""".formatted(TreeQuery.onDate("l"));
 
-    private static final String WHOLE_TREE = TreeQuery.from(NO_PARENT) + UNITS_OF_TREE;
-    private static final String LINKED_TREE = TreeQuery.from(LINKED_ROOT) + UNITS_OF_TREE;
     private static final String SUBTREE = TreeQuery.SUBTREE + UNITS_OF_TREE;
 
     private static final String SIBLINGS = """
@@ -233,17 +231,15 @@ public class JpaOrgUnitStore implements OrgUnitStore {
     }
 
     @Override
-    public List<PlacedOrgUnit> treeOn(String hierarchyId, String rootId, boolean linkedOnly, LocalDate date,
-            int first, int max) {
-        String whole = linkedOnly ? LINKED_TREE : WHOLE_TREE;
-        var query = em.createQuery(rootId == null ? whole : SUBTREE, Object[].class)
+    public List<PlacedOrgUnit> treeOn(String hierarchyId, String rootId, LocalDate date, int first, int max) {
+        return em.createQuery(SUBTREE, Object[].class)
                 .setParameter("realmId", realmId)
                 .setParameter("hierarchyId", hierarchyId)
-                .setParameter("date", date);
-        if (rootId != null) {
-            query.setParameter("rootId", rootId);
-        }
-        return query.setFirstResult(first).setMaxResults(max).getResultStream()
+                .setParameter("date", date)
+                .setParameter("rootId", rootId)
+                .setFirstResult(first)
+                .setMaxResults(max)
+                .getResultStream()
                 .map(row -> new PlacedOrgUnit(toDomain((OrgUnitEntity) row[0]),
                         toDomain((OrgUnitVersionEntity) row[1]), (String) row[2]))
                 .toList();

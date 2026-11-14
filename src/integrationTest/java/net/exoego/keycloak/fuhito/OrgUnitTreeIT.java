@@ -81,11 +81,13 @@ class OrgUnitTreeIT {
     @Test
     void listsTheWholeTreeOnTwoDates() throws Exception {
         assertEquals(List.of("X病院", "診療部", "看護部", "1病棟", "2病棟", "Y病院", "外科"),
-                names(api.get("/org-units?asOf=2027-03-31")));
+                api.tree("asOf=2027-03-31").findValuesAsText("name"));
         assertEquals(List.of("X病院", "診療部", "看護部", "2病棟", "Y病院", "東病棟"),
-                names(api.get("/org-units?asOf=2027-04-01")));
-        assertEquals(List.of("看護部", "1病棟"), names(api.get("/org-units?asOf=2027-03-31&first=2&max=2")));
-        assertEquals(List.of("Y病院"), names(api.get("/org-units?roots=true&asOf=2027-03-31&first=1")));
+                api.tree("asOf=2027-04-01").findValuesAsText("name"));
+        assertEquals(List.of("看護部", "1病棟"), names(api.get("/org-units/" + xHospital + "/subtree?asOf=2027-03-31&first=2&max=2")));
+        assertEquals(List.of("Y病院"), names(api.get("/org-units?asOf=2027-03-31&first=1")));
+        // The list itself has the roots only.
+        assertEquals(List.of("X病院", "Y病院"), names(api.get("/org-units?asOf=2027-03-31")));
         assertEquals(List.of(), names(api.get("/org-units?asOf=2026-03-31")));
         assertEquals(List.of(), names(emptyRealmApi.get("/org-units?asOf=2027-04-01")));
     }
@@ -108,15 +110,15 @@ class OrgUnitTreeIT {
         List<String> children = List.of("総務", "眼科", "外科", "内科", "Alpha", "Zebra");
         assertEquals(children, names(realm.api.get("/org-units/" + root + "/children?" + on)));
         assertEquals(children.subList(2, 5), names(realm.api.get("/org-units/" + root + "/children?first=2&max=3&" + on)));
-        assertEquals(List.of("Root", "Other"), names(realm.api.get("/org-units?roots=true&" + on)));
+        assertEquals(List.of("Root", "Other"), names(realm.api.get("/org-units?" + on)));
 
         List<String> tree = List.of("Root", "総務", "眼科", "外科", "内科", "第一内科", "第二内科", "Alpha", "Zebra", "Other");
-        assertEquals(tree, names(realm.api.get("/org-units?" + on)));
+        assertEquals(tree, realm.api.tree(on).findValuesAsText("name"));
         List<String> paged = new ArrayList<>();
-        for (int first = 0; first < tree.size(); first += 3) {
-            paged.addAll(names(realm.api.get("/org-units?first=" + first + "&max=3&" + on)));
+        for (int first = 0; first < 9; first += 3) {
+            paged.addAll(names(realm.api.get("/org-units/" + root + "/subtree?first=" + first + "&max=3&" + on)));
         }
-        assertEquals(tree, paged);
+        assertEquals(tree.subList(0, 9), paged);
         assertEquals(tree.subList(0, 9), names(realm.api.get("/org-units/" + root + "/subtree?" + on)));
         assertEquals(tree.subList(4, 7), names(realm.api.get("/org-units/" + internal + "/subtree?" + on)));
         assertEquals(tree.subList(5, 7), names(realm.api.get("/org-units/" + root + "/subtree?first=5&max=2&" + on)));
@@ -137,7 +139,7 @@ class OrgUnitTreeIT {
 
     @Test
     void listsRootsWithTheirUnitType() throws Exception {
-        JsonNode roots = Api.json(api.get("/org-units?roots=true&asOf=2026-04-01"));
+        JsonNode roots = Api.json(api.get("/org-units?asOf=2026-04-01"));
 
         assertEquals(List.of("X病院", "Y病院"), roots.findValuesAsText("name"));
         assertEquals(List.of("hospital", "hospital"), roots.findValuesAsText("unitType"));
