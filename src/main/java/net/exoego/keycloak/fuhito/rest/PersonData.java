@@ -8,6 +8,7 @@ import net.exoego.keycloak.fuhito.domain.Person;
 import net.exoego.keycloak.fuhito.rest.RequestContext.Change;
 import net.exoego.keycloak.fuhito.rest.UsersResource.MaskRepresentation;
 import net.exoego.keycloak.fuhito.service.UserMaskingService;
+import net.exoego.keycloak.fuhito.store.UserDirectory;
 
 /**
  * Masks and erases the personal data of one person, and records it.
@@ -18,17 +19,21 @@ final class PersonData {
 
     private final RequestContext context;
     private final UserMaskingService masking;
+    private final UserDirectory users;
     private final Consumer<String> erase;
 
-    PersonData(RequestContext context, UserMaskingService masking, Consumer<String> erase) {
+    PersonData(RequestContext context, UserMaskingService masking, UserDirectory users, Consumer<String> erase) {
         this.context = context;
         this.masking = masking;
+        this.users = users;
         this.erase = erase;
     }
 
-    MaskRepresentation mask(Person person) {
+    MaskRepresentation mask(Person person, boolean clearKeycloakName) {
         String id = person.id();
-        var mask = new MaskRepresentation(id, person.userId(), masking.mask(id).toString());
+        String maskedAt = masking.mask(id).toString();
+        boolean cleared = clearKeycloakName && person.userId() != null && users.clearName(person.userId());
+        var mask = new MaskRepresentation(id, person.userId(), maskedAt, cleared);
         context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, "fuhito/people/" + id + "/mask", mask);
         return mask;
     }

@@ -84,7 +84,12 @@ public class UsersResource {
     @ApiErrors
     public MaskRepresentation mask(
             @Parameter(description = "The ID of the Keycloak user.")
-            @PathParam("userId") String userId) {
+            @PathParam("userId") String userId,
+            @Parameter(
+                    description = "True to also empty the first and the last name of the linked Keycloak user. "
+                            + "The username, the email, and the attributes stay.",
+                    schema = @Schema(defaultValue = "false"))
+            @QueryParam("clearKeycloakName") boolean clearKeycloakName) {
         context.requireWrite();
         return Calls.run(context, () -> {
             requireKnown(userId);
@@ -93,17 +98,22 @@ public class UsersResource {
             if (resolved.created() != null) {
                 Writes.record(context, new Write.OfPerson(resolved.created()));
             }
-            return data.mask(resolved.person());
+            return data.mask(resolved.person(), clearKeycloakName);
         });
     }
 
-    @Schema(name = "Mask", description = "The result of a masking.", requiredProperties = {"personId", "maskedAt"})
+    @Schema(
+            name = "Mask",
+            description = "The result of a masking.",
+            requiredProperties = {"personId", "maskedAt", "keycloakNameCleared"})
     public record MaskRepresentation(
             String personId,
             @Schema(description = "The ID of the Keycloak user that the person is linked to.")
             String userId,
             @Schema(description = "When the data was first masked, in UTC.", format = "date-time")
-            String maskedAt) {
+            String maskedAt,
+            @Schema(description = "True when this request emptied the name of the linked Keycloak user.")
+            boolean keycloakNameCleared) {
     }
 
     @DELETE

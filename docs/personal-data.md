@@ -48,7 +48,10 @@ Masking removes what identifies the person directly, and keeps the structure of 
 - It works only for a person with no employment that is open today or starts later.
 - It works for a person with a Keycloak user, for one whose user was removed, and for one who never had a user.
 - `POST /users/{userId}/mask` masks the person of a user.
-- A person who is still linked to a user keeps the name that Keycloak has. Remove the user to remove that name.
+- A person who is still linked to a user keeps the name that Keycloak has. The responses still show it.
+- `clearKeycloakName=true` on the request also empties the first and the last name of that user. The username, the email, and the attributes of the user stay.
+- A user from a read-only user store cannot be changed. The mask then fails with `person.keycloak_name_read_only` and writes nothing. Mask without the parameter, and remove the name in the store that owns the user.
+- Keycloak may ask a user with no name to fill the profile at the next login.
 - The history of the person has `maskedAt` afterwards.
 - The change log records who masked which person ID.
 - Masking again keeps the first time, and clears what was added since.

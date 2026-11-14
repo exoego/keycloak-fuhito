@@ -45,4 +45,15 @@ public interface UserDirectory {
     default Optional<String> displayName(String userId) {
         return Optional.empty();
     }
+
+    /**
+     * Empties the first and the last name of a user.
+     *
+     * @param userId the ID of the user
+     * @return false when the realm has no such user
+     * @throws net.exoego.keycloak.fuhito.domain.FuhitoException when the user cannot be changed
+     */
+    default boolean clearName(String userId) {
+        return false;
+    }
 }

@@ -1,6 +1,8 @@
 package net.exoego.keycloak.fuhito;
 
 import java.util.HashMap;
+import java.util.List;
+import java.util.Objects;
 import java.util.Map;
 import java.util.UUID;
 
@@ -77,6 +79,12 @@ final class TestRealm {
             assertEquals(201, response.getStatus());
             return CreatedResponseUtil.getCreatedId(response);
         }
+    }
+
+    /** Returns the first and the last name that Keycloak has for a user, with an empty text for a missing one. */
+    List<String> nameOfUser(String userId) {
+        var user = admin.realm(name).users().get(userId).toRepresentation();
+        return List.of(Objects.toString(user.getFirstName(), ""), Objects.toString(user.getLastName(), ""));
     }
 
     void removeUser(String userId) {
