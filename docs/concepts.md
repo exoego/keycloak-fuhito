@@ -115,6 +115,7 @@ Every employment names its employer. The employer is an org unit that is a legal
 - A realm needs at least one legal entity before its first employment.
 - A request can leave the employer out when the realm has exactly one legal entity on that date. With several, the request must name it. Nothing is guessed from the org unit where the person works.
 - The employer of an employment never changes. A move to another employer is the end of one employment and the start of another.
+- `POST /employments/{id}/transfer` does that move in one write. The new employment gets the terms, the assignments, and the reporting lines of the old one from the date on, and names the old one in `continuesEmploymentId`. So the years of service can be counted across the two.
 - A legal entity stays one while employments name it. Its unit type keeps the mark, the unit does not get a type without the mark from a date on which an employment starts, and the unit does not end before the employments do.
 - A staff number is unique for one employer. Two legal entities can give the same number to two people.
 - A person who is employed by one legal entity and works in an org unit of another is seconded. The employment names the first, and the assignment names the org unit.

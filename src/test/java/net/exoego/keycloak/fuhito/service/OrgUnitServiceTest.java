@@ -774,7 +774,7 @@ class OrgUnitServiceTest {
         String company = service.create(new NewOrgUnit(null, "Company", null, null, null, null, "company", null,
                 "2020-04-01", null, null, null, null)).unit().id();
         employments.insert(new Employment("e1", "alice", null, company,
-                new ValidPeriod(LocalDate.of(2026, 4, 1), LocalDate.of(2028, 4, 1)), null, null, null, null));
+                new ValidPeriod(LocalDate.of(2026, 4, 1), LocalDate.of(2028, 4, 1)), null, null, null, null, null));
         OrgUnitChange toDepartment = new OrgUnitChange("2026-01-01", "Company", null, null, null, null, "department",
                 null, null);
 

@@ -1,6 +1,8 @@
 package net.exoego.keycloak.fuhito.service;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -15,6 +17,7 @@ import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.Person;
 import net.exoego.keycloak.fuhito.domain.RefItem;
 import net.exoego.keycloak.fuhito.domain.RefKind;
+import net.exoego.keycloak.fuhito.domain.ReportingLine;
 import net.exoego.keycloak.fuhito.domain.ValidPeriod;
 import net.exoego.keycloak.fuhito.store.AssignmentStore;
 import net.exoego.keycloak.fuhito.store.EmploymentStore;
@@ -76,14 +79,10 @@ public class EmploymentService {
         Person person = people.find(personId).orElseThrow(
                 () -> FuhitoException.invalid("employment.person_unknown", Map.of("personId", personId)));
         String employerId = employers.of(request.employerId(), from);
-        // Each legal entity gives its own numbers, so two of them may give the same number to two people.
-        if (staffNumber != null && store.findByStaffNumber(staffNumber).stream()
-                .anyMatch(e -> employerId.equals(e.employerId()) && !e.personId().equals(personId))) {
-            throw FuhitoException.conflict("employment.staff_number_taken", Map.of("staffNumber", staffNumber));
-        }
+        requireFreeStaffNumber(staffNumber, employerId, personId);
 
         Employment employment = new Employment(newId(), personId, person.userId(), employerId, period, staffNumber,
-                null, request.externalId(), request.source());
+                null, request.externalId(), request.source(), null);
         store.insert(employment);
         store.insertTerms(new EmploymentTerms(terms.id(), employment.id(), terms.period(), terms.employmentTypeId(),
                 terms.gradeId(), terms.status(), terms.workPercent(), terms.attributes()));
@@ -161,6 +160,96 @@ public class EmploymentService {
     }
 
     /**
+     * What a transfer wrote.
+     *
+     * @param ended the employment at the old employer, with its end
+     * @param started the employment at the new employer
+     * @param assignmentIds the IDs of the assignments that the new employment got
+     * @param reportingLines the reporting lines that the new assignments got
+     */
+    public record Transfer(EmploymentView ended, EmploymentView started, List<String> assignmentIds,
+            List<ReportingLine> reportingLines) {
+    }
+
+    /**
+     * Moves a person to another employer on a date, in one write.
+     * The employment ends on the date, and a new employment at the new employer starts on the same date.
+     * The new employment gets the terms, the assignments, and the reporting lines of the old one from the date
+     * on. These are the ones that hold on the date and the ones that were stored for a later date.
+     * It names the old employment as the one that it continues.
+     *
+     * @param id the ID of the employment to end
+     * @param request the new employer, the date, and the new staff number
+     * @return the two employments and what the new one got
+     * @throws FuhitoException when the employment does not hold on the day before and on the date, the new
+     *         employer is not a legal entity or is the old one, or a value is bad
+     */
+    public Transfer transfer(String id, TransferRequest request) {
+        Checks.required("body", request);
+        LocalDate date = Checks.date("validFrom", request.validFrom());
+        Employment old = get(id).employment();
+        if (!old.period().contains(date) || date.equals(old.period().from())) {
+            throw FuhitoException.notFound("employment.not_valid_on", Map.of("id", id, "date", request.validFrom()));
+        }
+        String employerId = employers.of(Checks.required("employerId", request.employerId()), date);
+        if (employerId.equals(old.employerId())) {
+            throw FuhitoException.invalid("employment.same_employer", Map.of("employerId", employerId));
+        }
+        String staffNumber = Checks.optionalCode("staffNumber", request.staffNumber());
+        requireFreeStaffNumber(staffNumber, employerId, old.personId());
+
+        // These are read before the end, because the end cuts them and removes what would start later.
+        List<EmploymentTerms> terms = store.terms(id).stream().filter(t -> t.period().endsAfter(date)).toList();
+        List<Assignment> rows = assignments.rowsOfEmployment(id).stream()
+                .filter(row -> row.period().endsAfter(date))
+                .toList();
+        Map<String, List<ReportingLine>> lines = new LinkedHashMap<>();
+        rows.forEach(row -> lines.computeIfAbsent(row.assignmentId(),
+                assignmentId -> reportingLines.findByAssignment(assignmentId).stream()
+                        .filter(line -> line.period().endsAfter(date))
+                        .toList()));
+
+        EmploymentView ended = end(id, request.validFrom(), request.endReason());
+
+        Employment started = new Employment(newId(), old.personId(), old.userId(), employerId,
+                from(date, old.period()), staffNumber, null, null, null, id);
+        store.insert(started);
+        terms.forEach(t -> store.insertTerms(new EmploymentTerms(newId(), started.id(), from(date, t.period()),
+                t.employmentTypeId(), t.gradeId(), t.status(), t.workPercent(), t.attributes())));
+        // Each old assignment becomes one new assignment, with every period from the date on.
+        Map<String, String> newAssignmentIds = new LinkedHashMap<>();
+        for (Assignment row : rows) {
+            String assignmentId = newAssignmentIds.computeIfAbsent(row.assignmentId(), oldId -> newId());
+            // The external ID stays with the old assignment, so that an import still finds that one.
+            assignments.insert(new Assignment(newId(), assignmentId, started.id(), row.orgUnitId(),
+                    from(date, row.period()), row.jobTitleId(), row.occupationId(), row.kindId(), row.head(),
+                    row.primary(), row.allocationPercent(), row.displayOrder(), row.attributes(), null, null));
+        }
+        List<ReportingLine> newLines = new ArrayList<>();
+        lines.forEach((oldAssignmentId, ofAssignment) -> ofAssignment.forEach(line -> {
+            ReportingLine next = new ReportingLine(newId(), newAssignmentIds.get(oldAssignmentId),
+                    line.managerPersonId(), line.managerUserId(), line.kind(), from(date, line.period()));
+            reportingLines.insert(next);
+            newLines.add(next);
+        }));
+        List<String> assignmentIds = List.copyOf(newAssignmentIds.values());
+        return new Transfer(ended, get(started.id()), assignmentIds, newLines);
+    }
+
+    // What holds on the date starts on the date. What was stored for later keeps its own start.
+    private static ValidPeriod from(LocalDate date, ValidPeriod period) {
+        return new ValidPeriod(period.from().isAfter(date) ? period.from() : date, period.to());
+    }
+
+    // Each legal entity gives its own numbers, so two of them may give the same number to two people.
+    private void requireFreeStaffNumber(String staffNumber, String employerId, String personId) {
+        if (staffNumber != null && store.findByStaffNumber(staffNumber).stream()
+                .anyMatch(e -> employerId.equals(e.employerId()) && !e.personId().equals(personId))) {
+            throw FuhitoException.conflict("employment.staff_number_taken", Map.of("staffNumber", staffNumber));
+        }
+    }
+
+    /**
      * Removes the end of an employment, for example to take back a resignation.
      * The last terms get no end either. Assignments stay as they are.
      *
@@ -177,7 +266,8 @@ public class EmploymentService {
         String id = employment.id();
         store.update(new Employment(id, employment.personId(), employment.userId(), employment.employerId(),
                 employment.period().endingAt(to),
-                employment.staffNumber(), endReasonId, employment.externalId(), employment.source()));
+                employment.staffNumber(), endReasonId, employment.externalId(), employment.source(),
+                employment.continuesEmploymentId()));
 
         List<EmploymentTerms> terms = store.terms(id);
         if (to != null) {

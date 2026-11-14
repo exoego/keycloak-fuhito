@@ -47,6 +47,9 @@ public class EmploymentEntity {
     @Column(name = "END_REASON_ID", length = 36)
     String endReasonId;
 
+    @Column(name = "CONTINUES_EMPLOYMENT_ID", length = 36, updatable = false)
+    String continuesEmploymentId;
+
     @Column(name = "EXTERNAL_ID", length = 255)
     String externalId;
 
