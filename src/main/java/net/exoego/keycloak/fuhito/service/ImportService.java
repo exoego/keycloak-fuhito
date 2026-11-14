@@ -163,9 +163,9 @@ public class ImportService {
                     row.employmentType(), row.grade(), row.status(), row.workPercent(), row.attributes(),
                     row.externalId(), source));
             String id = created.employment().id();
-            written(report, id, true, "", created);
+            written(report, true, "", created);
             if (row.validTo() != null && row.endReason() != null) {
-                written(report, id, false, "/end",
+                written(report, false, "/end",
                         people.employmentService().end(id, row.validTo(), row.endReason()));
             }
             return Outcome.CREATED;
@@ -187,7 +187,7 @@ public class ImportService {
                     .orElseThrow(() -> FuhitoException.notFound("employment.not_valid_on",
                             Map.of("id", id, "date", effectiveDate)));
             if (!sameTerms(row, terms)) {
-                written(report, id, false, "/terms", people.employmentService().changeTerms(id, new TermsChange(
+                written(report, false, "/terms", people.employmentService().changeTerms(id, new TermsChange(
                         effectiveDate, row.employmentType(), row.grade(), row.status(), row.workPercent(),
                         row.attributes())));
                 changed = true;
@@ -197,7 +197,7 @@ public class ImportService {
         boolean sameEnd = Objects.equals(row.validTo(), storedEnd)
                 && (row.endReason() == null || row.endReason().equals(before.endReason()));
         if (row.validTo() != null && !sameEnd) {
-            written(report, id, false, "/end", people.employmentService().end(id, row.validTo(), row.endReason()));
+            written(report, false, "/end", people.employmentService().end(id, row.validTo(), row.endReason()));
             changed = true;
         }
         return changed ? Outcome.CHANGED : Outcome.UNCHANGED;
@@ -226,10 +226,8 @@ public class ImportService {
         return a == null ? b == null : b != null && a.compareTo(b) == 0;
     }
 
-    private void written(ImportReport report, String employmentId, boolean created, String suffix,
-            EmploymentView state) {
-        report.write(new Write("FUHITO_EMPLOYMENT", employmentId, created,
-                "fuhito/employments/" + employmentId + suffix, state));
+    private void written(ImportReport report, boolean created, String suffix, EmploymentView state) {
+        report.write(new Write.OfEmployment(created, suffix, state));
     }
 
     private Outcome importAssignment(AssignmentRow row, String effectiveDate, String defaultSource,
@@ -253,7 +251,7 @@ public class ImportService {
         Optional<String> stored = people.assignments().findAssignmentIdByExternalId(source, row.externalId());
         if (stored.isEmpty()) {
             AssignmentView created = people.assignmentService().add(values);
-            written(report, created.assignmentId(), true, "", created);
+            written(report, true, "", created);
             return Outcome.CREATED;
         }
         String id = stored.get();
@@ -272,7 +270,7 @@ public class ImportService {
                     .orElseThrow(() -> FuhitoException.notFound("assignment.not_valid_on",
                             Map.of("id", id, "date", effectiveDate)));
             if (!sameDetails(row, current)) {
-                written(report, id, false, "/details", people.assignmentService().changeDetails(id,
+                written(report, false, "/details", people.assignmentService().changeDetails(id,
                         new AssignmentValues(null, null, effectiveDate, null, row.jobTitle(), row.occupation(),
                                 row.kind(), row.head(), row.primary(), false, row.allocationPercent(),
                                 row.displayOrder(), row.attributes(), null, null)));
@@ -281,7 +279,7 @@ public class ImportService {
         }
         String storedEnd = Objects.toString(before.period().to(), null);
         if (row.validTo() != null && !row.validTo().equals(storedEnd)) {
-            written(report, id, false, "/end", people.assignmentService().end(id, row.validTo()));
+            written(report, false, "/end", people.assignmentService().end(id, row.validTo()));
             changed = true;
         }
         return changed ? Outcome.CHANGED : Outcome.UNCHANGED;
@@ -299,10 +297,8 @@ public class ImportService {
                 && (row.attributes() == null ? Map.of() : row.attributes()).equals(stored.attributes());
     }
 
-    private void written(ImportReport report, String assignmentId, boolean created, String suffix,
-            AssignmentView state) {
-        report.write(new Write("FUHITO_ASSIGNMENT", assignmentId, created,
-                "fuhito/assignments/" + assignmentId + suffix, state));
+    private void written(ImportReport report, boolean created, String suffix, AssignmentView state) {
+        report.write(new Write.OfAssignment(created, suffix, state));
     }
 
     private void importRefItems(List<RefItemRow> rows, ImportReport report) {
@@ -327,7 +323,7 @@ public class ImportService {
                     ? refItemService.update(created.id(), row.name(), row.names(), row.displayOrder(),
                             row.attributes(), false)
                     : created;
-            report.write(new Write("FUHITO_REF_ITEM", item.id(), true, "fuhito/ref-items/" + item.id(), item));
+            report.write(new Write.OfRefItem(true, item));
             return Outcome.CREATED;
         }
         RefItem before = stored.get();
@@ -339,7 +335,7 @@ public class ImportService {
         }
         RefItem item = refItemService.update(before.id(), row.name(), row.names(), row.displayOrder(),
                 row.attributes(), row.active());
-        report.write(new Write("FUHITO_REF_ITEM", item.id(), false, "fuhito/ref-items/" + item.id(), item));
+        report.write(new Write.OfRefItem(false, item));
         return Outcome.CHANGED;
     }
 
@@ -445,9 +441,9 @@ public class ImportService {
                         row.attributes(), row.externalId(), source));
                 String id = created.unit().id();
                 unitIdByRow.put(index, id);
-                written(id, true, "", created);
+                written(true, "", created);
                 if (row.validTo() != null) {
-                    written(id, false, "/end", orgUnitService.end(id, row.validTo()));
+                    written(false, "/end", orgUnitService.end(id, row.validTo()));
                 }
                 return Outcome.CREATED;
             }
@@ -456,17 +452,17 @@ public class ImportService {
             OrgUnitState before = orgUnitService.get(id, effectiveDate);
             boolean changed = false;
             if (!sameDetails(row, before)) {
-                written(id, false, "", orgUnitService.changeDetails(id, new OrgUnitChange(effectiveDate, row.name(),
+                written(false, "", orgUnitService.changeDetails(id, new OrgUnitChange(effectiveDate, row.name(),
                         row.names(), row.shortName(), row.shortNames(), row.phoneticName(), row.unitType(),
                         row.displayOrder(), row.attributes())));
                 changed = true;
             }
             if (!Objects.equals(parentId, before.parentId())) {
-                written(id, false, "/parent", orgUnitService.move(id, parentId, effectiveDate));
+                written(false, "/parent", orgUnitService.move(id, parentId, effectiveDate));
                 changed = true;
             }
             if (row.validTo() != null && !row.validTo().equals(lastDay(id))) {
-                written(id, false, "/end", orgUnitService.end(id, row.validTo()));
+                written(false, "/end", orgUnitService.end(id, row.validTo()));
                 changed = true;
             }
             return changed ? Outcome.CHANGED : Outcome.UNCHANGED;
@@ -489,8 +485,8 @@ public class ImportService {
                     && (row.attributes() == null ? Map.of() : row.attributes()).equals(version.attributes());
         }
 
-        private void written(String id, boolean created, String suffix, OrgUnitState state) {
-            report.write(new Write("FUHITO_ORG_UNIT", id, created, "fuhito/org-units/" + id + suffix, state));
+        private void written(boolean created, String suffix, OrgUnitState state) {
+            report.write(new Write.OfOrgUnit(created, suffix, state));
         }
     }
 }

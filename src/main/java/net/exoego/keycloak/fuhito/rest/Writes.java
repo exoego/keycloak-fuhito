@@ -1,11 +1,7 @@
 package net.exoego.keycloak.fuhito.rest;
 
-import net.exoego.keycloak.fuhito.domain.RefItem;
 import net.exoego.keycloak.fuhito.rest.RequestContext.Change;
-import net.exoego.keycloak.fuhito.service.AssignmentView;
-import net.exoego.keycloak.fuhito.service.EmploymentView;
-import net.exoego.keycloak.fuhito.service.ImportReport;
-import net.exoego.keycloak.fuhito.service.OrgUnitState;
+import net.exoego.keycloak.fuhito.service.ImportReport.Write;
 
 /**
  * Records the writes of a bulk operation in the event log and the change log.
@@ -15,13 +11,12 @@ final class Writes {
     private Writes() {
     }
 
-    static void record(RequestContext context, ImportReport.Write write) {
-        Object representation = switch (write.state()) {
-            case RefItem item -> RefItemRepresentation.of(item);
-            case OrgUnitState unit -> OrgUnitRepresentation.of(unit);
-            case EmploymentView employment -> EmploymentRepresentation.of(employment);
-            case AssignmentView assignment -> AssignmentRepresentation.of(assignment);
-            default -> throw new IllegalStateException("No representation for " + write.state().getClass());
+    static void record(RequestContext context, Write write) {
+        Object representation = switch (write) {
+            case Write.OfRefItem item -> RefItemRepresentation.of(item.state());
+            case Write.OfOrgUnit unit -> OrgUnitRepresentation.of(unit.state());
+            case Write.OfEmployment employment -> EmploymentRepresentation.of(employment.state());
+            case Write.OfAssignment assignment -> AssignmentRepresentation.of(assignment.state());
         };
         context.recordChange(write.created() ? Change.CREATE : Change.UPDATE, write.resourceType(),
                 write.resourceId(), write.path(), representation);

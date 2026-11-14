@@ -98,7 +98,7 @@ class ImportServiceTest {
         assertEquals(List.of(), second.writes());
         RefItem hospital = refItems.findByCode(RefKind.UNIT_TYPE, "hospital").orElseThrow();
         assertEquals("病院", hospital.name());
-        assertEquals(hospital, first.writes().getFirst().state());
+        assertEquals(new ImportReport.Write.OfRefItem(true, hospital), first.writes().getFirst());
         assertFalse(refItems.findByCode(RefKind.OCCUPATION, "nurse").orElseThrow().active());
     }
 
@@ -147,7 +147,7 @@ class ImportServiceTest {
         assertEquals(Map.of("orgUnits", new Counts(3, 0, 0)), report.counts());
         assertEquals(List.of("Hospital", "Nursing < Hospital", "Ward < Nursing"), tree("2026-04-01"));
         assertEquals(List.of("Hospital", "Nursing", "Ward"), report.writes().stream()
-                .map(w -> ((OrgUnitState) w.state()).version().name()).toList());
+                .map(w -> ((ImportReport.Write.OfOrgUnit) w).state().version().name()).toList());
         assertEquals("import", orgUnitStore.findUnitByExternalId("import", "H").orElseThrow().source());
     }
 
@@ -333,8 +333,8 @@ class ImportServiceTest {
         assertEquals(List.of("FUHITO_ORG_UNIT", "FUHITO_ORG_UNIT", "FUHITO_EMPLOYMENT", "FUHITO_EMPLOYMENT",
                 "FUHITO_ASSIGNMENT", "FUHITO_ASSIGNMENT"),
                 first.writes().stream().map(ImportReport.Write::resourceType).toList());
-        assertTrue(first.writes().get(2).state() instanceof EmploymentView);
-        assertTrue(first.writes().get(4).state() instanceof AssignmentView);
+        assertTrue(first.writes().get(2) instanceof ImportReport.Write.OfEmployment);
+        assertTrue(first.writes().get(4) instanceof ImportReport.Write.OfAssignment);
     }
 
     @Test

@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Map;
 
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
+import net.exoego.keycloak.fuhito.domain.RefItem;
 
 /**
  * What an import did, or would do.
@@ -46,15 +47,135 @@ public final class ImportReport {
 
     /**
      * One write that the import did, for the event log and the change log.
-     *
-     * @param resourceType the type of the written resource
-     * @param resourceId the ID of the written resource
-     * @param created true for a new resource, false for a change
-     * @param path the path that the same write has in its own endpoint
-     * @param state the state after the write. It is a {@code RefItem}, an {@code OrgUnitState}, an
-     *        {@code EmploymentView}, or an {@code AssignmentView}.
      */
-    public record Write(String resourceType, String resourceId, boolean created, String path, Object state) {
+    public sealed interface Write {
+
+        /**
+         * Tells whether the write made a new resource.
+         *
+         * @return true for a new resource, false for a change
+         */
+        boolean created();
+
+        /**
+         * Returns the type of the written resource.
+         *
+         * @return the type, as the event log names it
+         */
+        String resourceType();
+
+        /**
+         * Returns the ID of the written resource.
+         *
+         * @return the ID
+         */
+        String resourceId();
+
+        /**
+         * Returns the path that the same write has in its own endpoint.
+         *
+         * @return the path below the realm
+         */
+        String path();
+
+        /**
+         * A write of a reference item.
+         *
+         * @param created true for a new item, false for a change
+         * @param state the item after the write
+         */
+        record OfRefItem(boolean created, RefItem state) implements Write {
+
+            @Override
+            public String resourceType() {
+                return "FUHITO_REF_ITEM";
+            }
+
+            @Override
+            public String resourceId() {
+                return state.id();
+            }
+
+            @Override
+            public String path() {
+                return "fuhito/ref-items/" + resourceId();
+            }
+        }
+
+        /**
+         * A write of an org unit.
+         *
+         * @param created true for a new unit, false for a change
+         * @param suffix the end of the path after the ID, for example {@code /parent}, or an empty text
+         * @param state the unit after the write
+         */
+        record OfOrgUnit(boolean created, String suffix, OrgUnitState state) implements Write {
+
+            @Override
+            public String resourceType() {
+                return "FUHITO_ORG_UNIT";
+            }
+
+            @Override
+            public String resourceId() {
+                return state.unit().id();
+            }
+
+            @Override
+            public String path() {
+                return "fuhito/org-units/" + resourceId() + suffix;
+            }
+        }
+
+        /**
+         * A write of an employment.
+         *
+         * @param created true for a new employment, false for a change
+         * @param suffix the end of the path after the ID, for example {@code /terms}, or an empty text
+         * @param state the employment after the write
+         */
+        record OfEmployment(boolean created, String suffix, EmploymentView state) implements Write {
+
+            @Override
+            public String resourceType() {
+                return "FUHITO_EMPLOYMENT";
+            }
+
+            @Override
+            public String resourceId() {
+                return state.employment().id();
+            }
+
+            @Override
+            public String path() {
+                return "fuhito/employments/" + resourceId() + suffix;
+            }
+        }
+
+        /**
+         * A write of an assignment.
+         *
+         * @param created true for a new assignment, false for a change
+         * @param suffix the end of the path after the ID, for example {@code /end}, or an empty text
+         * @param state the assignment after the write
+         */
+        record OfAssignment(boolean created, String suffix, AssignmentView state) implements Write {
+
+            @Override
+            public String resourceType() {
+                return "FUHITO_ASSIGNMENT";
+            }
+
+            @Override
+            public String resourceId() {
+                return state.assignmentId();
+            }
+
+            @Override
+            public String path() {
+                return "fuhito/assignments/" + resourceId() + suffix;
+            }
+        }
     }
 
     private final Map<String, int[]> counts = new LinkedHashMap<>();
