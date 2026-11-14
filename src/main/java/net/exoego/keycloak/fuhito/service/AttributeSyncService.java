@@ -211,8 +211,7 @@ public class AttributeSyncService {
             started = start(user, null, today);
         }
         employmentsStarted++;
-        writes.add(new Write("FUHITO_EMPLOYMENT", started.employment().id(), true,
-                "fuhito/employments/" + started.employment().id(), started));
+        writes.add(new Write.OfEmployment(true, "", started));
         return started.employment();
     }
 
@@ -269,8 +268,7 @@ public class AttributeSyncService {
     }
 
     private void written(AssignmentView view, boolean created, String suffix) {
-        writes.add(new Write("FUHITO_ASSIGNMENT", view.assignmentId(), created,
-                "fuhito/assignments/" + view.assignmentId() + suffix, view));
+        writes.add(new Write.OfAssignment(created, suffix, view));
     }
 
     private String codeOf(String refItemId) {
