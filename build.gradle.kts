@@ -57,6 +57,9 @@ testing {
     suites {
         named<JvmTestSuite>("test") {
             useJUnitJupiter(libs.versions.junit)
+            dependencies {
+                implementation(libs.archunit)
+            }
         }
 
         // Runs the built jar in a real Keycloak container with PostgreSQL. Needs Docker.
