@@ -456,15 +456,14 @@ public class JpaOrgUnitStore implements OrgUnitStore {
     }
 
     @Override
-    public List<OrgUnitLink> childLinks(String parentId) {
+    public long childrenHoldingFrom(String parentId, LocalDate date) {
         return em.createQuery("""
-                        select l from OrgUnitLinkEntity l where l.realmId = :realmId
-                        and l.parentId = :parentId order by l.validFrom""", OrgUnitLinkEntity.class)
+                        select count(distinct l.childId) from OrgUnitLinkEntity l where l.realmId = :realmId
+                        and l.parentId = :parentId and (l.validTo is null or l.validTo > :date)""", Long.class)
                 .setParameter("realmId", realmId)
                 .setParameter("parentId", parentId)
-                .getResultStream()
-                .map(JpaOrgUnitStore::toDomain)
-                .toList();
+                .setParameter("date", date)
+                .getSingleResult();
     }
 
     private static OrgUnitLink toDomain(OrgUnitLinkEntity e) {
