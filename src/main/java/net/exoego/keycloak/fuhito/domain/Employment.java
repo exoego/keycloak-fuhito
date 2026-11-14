@@ -14,8 +14,9 @@ package net.exoego.keycloak.fuhito.domain;
  * @param endReasonId the ID of the end reason, or null
  * @param externalId the ID of the employment in the system it came from, or null
  * @param source the name of that system, or null
+ * @param continuesEmploymentId the ID of the employment that this one continues after a transfer to another
+ *        employer, or null
  */
 public record Employment(String id, String personId, String userId, String employerId, ValidPeriod period,
-        String staffNumber, String endReasonId,
-        String externalId, String source) {
+        String staffNumber, String endReasonId, String externalId, String source, String continuesEmploymentId) {
 }

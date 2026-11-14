@@ -45,6 +45,11 @@ public record EmploymentRepresentation(
         String externalId,
         @Schema(description = "The name of that system.")
         String source,
+        @Schema(
+                description = "The ID of the employment that this one continues after a transfer to another "
+                        + "employer.",
+                readOnly = true)
+        String continuesEmploymentId,
         @Schema(description = "The code of the first employment type.", writeOnly = true)
         String employmentType,
         @Schema(description = "The code of the first grade.", writeOnly = true)
@@ -105,7 +110,8 @@ public record EmploymentRepresentation(
         var e = view.employment();
         return new EmploymentRepresentation(e.id(), e.personId(), e.userId(), e.employerId(),
                 e.period().from().toString(), text(e.period().to()),
-                e.staffNumber(), view.endReason(), e.externalId(), e.source(), null, null, null, null, null,
+                e.staffNumber(), view.endReason(), e.externalId(), e.source(), e.continuesEmploymentId(), null, null,
+                null, null, null,
                 view.terms().stream()
                         .map(t -> new Terms(t.terms().period().from().toString(), text(t.terms().period().to()),
                                 t.employmentType(), t.grade(), t.terms().status().name(), Numbers.plain(t.terms().workPercent()),

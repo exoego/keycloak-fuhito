@@ -357,6 +357,11 @@ components:
         source:
           type: string
           description: The name of that system.
+        continuesEmploymentId:
+          type: string
+          description: The ID of the employment that this one continues after a transfer
+            to another employer.
+          readOnly: true
         employmentType:
           type: string
           description: The code of the first employment type.
@@ -1657,6 +1662,56 @@ components:
             \ out to use the one from above."
           examples:
           - 05:00
+    Transfer:
+      required:
+      - employerId
+      - validFrom
+      description: "A request to move a person to another employer on a date, and\
+        \ its response."
+      type: object
+      properties:
+        employerId:
+          type: string
+          description: "The ID of the org unit that employs the person from the date.\
+            \ It is a legal entity on that date, and not the employer of today."
+          writeOnly: true
+        validFrom:
+          type: string
+          description: The first date at the new employer.
+          format: date
+          writeOnly: true
+        staffNumber:
+          type: string
+          maxLength: 64
+          pattern: "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
+          description: The number that the new employer gives to the person.
+          writeOnly: true
+        endReason:
+          type: string
+          description: The code of the end reason of the old employment.
+          writeOnly: true
+        ended:
+          description: "The employment at the old employer, with its end."
+          readOnly: true
+          type: object
+          $ref: "#/components/schemas/Employment"
+        started:
+          description: The employment at the new employer.
+          readOnly: true
+          type: object
+          $ref: "#/components/schemas/Employment"
+        assignments:
+          type: array
+          items:
+            $ref: "#/components/schemas/Assignment"
+          description: The assignments that the new employment got.
+          readOnly: true
+        reportingLines:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReportingLine"
+          description: The reporting lines that the new assignments got.
+          readOnly: true
     UserHistory:
       required:
       - employments
@@ -2503,6 +2558,48 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Employment"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /employments/{id}/transfer:
+    post:
+      summary: "Moves a person to another employer on a date, in one write."
+      description: "The employment ends on the date. A new employment at the new employer\
+        \ starts on the same date. It gets the terms, the assignments, and the reporting\
+        \ lines of the old one from the date on, also the ones that were stored for\
+        \ a later date. It names the old employment in `continuesEmploymentId`. A\
+        \ failure writes nothing."
+      operationId: transferEmployment
+      tags:
+      - employments
+      parameters:
+      - description: The ID of the employment at the old employer.
+        name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      - $ref: "#/components/parameters/changeOrder"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Transfer"
+        required: true
+      responses:
+        "201":
+          description: "The two employments, and what the new one got."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Transfer"
         "400":
           $ref: "#/components/responses/BadRequest"
         "404":

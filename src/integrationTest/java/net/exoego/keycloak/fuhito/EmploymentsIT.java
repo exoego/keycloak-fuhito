@@ -1,6 +1,7 @@
 package net.exoego.keycloak.fuhito;
 
 import java.net.http.HttpResponse;
+import java.util.List;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import org.junit.jupiter.api.BeforeAll;
@@ -292,5 +293,81 @@ class EmploymentsIT {
 
         // The company can end on the day after the last day of the employment.
         assertEquals(200, scratchApi.put("/org-units/" + company + "/end", "{\"validTo\": \"2028-04-01\"}").statusCode());
+    }
+
+    @Test
+    void aTransferMovesAPersonToAnotherEmployerInOneWrite() throws Exception {
+        TestRealm group = TestRealm.create("employments-transfer");
+        Api groupApi = group.api;
+        String corporation = group.legalEntity("医療法人X会");
+        String company = group.legalEntity("株式会社Yサービス");
+        group.refItem("END_REASON", "transfer", "転籍");
+        String kitchen = created(groupApi.post("/org-units", "{\"name\": \"栄養科\", \"parentId\": \"" + corporation
+                + "\", \"validFrom\": \"2020-04-01\"}")).get("id").asText();
+        String suzuki = group.user("suzuki");
+        String chief = group.user("chief");
+        JsonNode hired = created(groupApi.post("/staff", "{\"userId\": \"" + suzuki + "\", \"employerId\": \"" + company
+                + "\", \"orgUnitId\": \"" + kitchen + "\", \"staffNumber\": \"Y-1001\", \"validFrom\": \"2020-04-01\"}"));
+        String old = hired.get("employment").get("id").asText();
+        String oldAssignment = hired.get("assignment").get("id").asText();
+        created(groupApi.post("/reporting-lines", "{\"assignmentId\": \"" + oldAssignment + "\", \"managerUserId\": \""
+                + chief + "\", \"validFrom\": \"2020-04-01\"}"));
+        // A leave that is planned for 2029 must not get lost.
+        assertEquals(200, groupApi.put("/employments/" + old + "/terms",
+                "{\"validFrom\": \"2029-04-01\", \"status\": \"ON_LEAVE\"}").statusCode());
+
+        String transferPath = "/employments/" + old + "/transfer";
+        assertEquals("employment.same_employer", errorOf(400, groupApi.post(transferPath,
+                "{\"employerId\": \"" + company + "\", \"validFrom\": \"2027-04-01\"}")));
+        assertEquals("employment.employer_not_legal_entity", errorOf(400, groupApi.post(transferPath,
+                "{\"employerId\": \"" + kitchen + "\", \"validFrom\": \"2027-04-01\"}")));
+        assertEquals("employment.not_valid_on", errorOf(404, groupApi.post(transferPath,
+                "{\"employerId\": \"" + corporation + "\", \"validFrom\": \"2020-04-01\"}")));
+        assertEquals(400, groupApi.post(transferPath, "{\"validFrom\": \"2027-04-01\"}").statusCode());
+        assertEquals(404, groupApi.post("/employments/nope/transfer",
+                "{\"employerId\": \"" + corporation + "\", \"validFrom\": \"2027-04-01\"}").statusCode());
+        assertEquals(1, Api.json(groupApi.get("/users/" + suzuki + "/history")).get("employments").size());
+
+        JsonNode transfer = created(groupApi.post(transferPath, "{\"employerId\": \"" + corporation
+                + "\", \"validFrom\": \"2027-04-01\", \"staffNumber\": \"X-2040\", \"endReason\": \"transfer\"}"));
+
+        JsonNode ended = transfer.get("ended");
+        assertEquals("2027-04-01", ended.get("validTo").asText());
+        assertEquals("transfer", ended.get("endReason").asText());
+        assertEquals(company, ended.get("employerId").asText());
+        JsonNode started = transfer.get("started");
+        String next = started.get("id").asText();
+        assertEquals(corporation, started.get("employerId").asText());
+        assertEquals("X-2040", started.get("staffNumber").asText());
+        assertEquals(old, started.get("continuesEmploymentId").asText());
+        assertEquals("2027-04-01", started.get("validFrom").asText());
+        assertEquals(List.of("ACTIVE", "ON_LEAVE"), started.get("terms").findValuesAsText("status"));
+        assertEquals(List.of("2027-04-01", "2029-04-01"), started.get("terms").findValuesAsText("validFrom"));
+
+        // The person still works in the same place, under the same manager, with no day between.
+        JsonNode assignment = transfer.get("assignments").get(0);
+        assertEquals(1, transfer.get("assignments").size());
+        assertEquals(next, assignment.get("employmentId").asText());
+        assertEquals(kitchen, assignment.get("orgUnitId").asText());
+        assertEquals("2027-04-01", assignment.get("validFrom").asText());
+        assertEquals(1, transfer.get("reportingLines").size());
+        assertEquals(assignment.get("id").asText(), transfer.get("reportingLines").get(0).get("assignmentId").asText());
+        assertEquals(1, Api.json(groupApi.get("/users/" + suzuki + "/assignments?asOf=2027-03-31")).size());
+        assertEquals(1, Api.json(groupApi.get("/users/" + suzuki + "/assignments?asOf=2027-04-01")).size());
+        assertEquals(List.of(chief),
+                Api.json(groupApi.get("/users/" + suzuki + "/managers?asOf=2027-04-01")).findValuesAsText("userId"));
+        JsonNode history = Api.json(groupApi.get("/users/" + suzuki + "/history"));
+        assertEquals(List.of(old, next), history.get("employments").findValuesAsText("id").subList(0, 2));
+        assertEquals(2, history.get("employments").size());
+
+        // Every part of the transfer is in the change log.
+        assertEquals(List.of("CREATE", "UPDATE", "UPDATE"), Api.json(groupApi.get(
+                "/change-log?resourceType=FUHITO_EMPLOYMENT&resourceId=" + old)).findValuesAsText("operation"));
+        assertEquals(List.of("CREATE"), Api.json(groupApi.get(
+                "/change-log?resourceType=FUHITO_EMPLOYMENT&resourceId=" + next)).findValuesAsText("operation"));
+        assertEquals(List.of("CREATE"), Api.json(groupApi.get("/change-log?resourceType=FUHITO_ASSIGNMENT&resourceId="
+                + assignment.get("id").asText())).findValuesAsText("operation"));
+        assertEquals(List.of("CREATE"), Api.json(groupApi.get("/change-log?resourceType=FUHITO_REPORTING_LINE&resourceId="
+                + transfer.get("reportingLines").get(0).get("id").asText())).findValuesAsText("operation"));
     }
 }

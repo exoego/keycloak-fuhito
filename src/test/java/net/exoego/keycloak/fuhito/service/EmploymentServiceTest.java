@@ -9,9 +9,11 @@ import java.util.Set;
 import net.exoego.keycloak.fuhito.domain.Assignment;
 import net.exoego.keycloak.fuhito.domain.EmploymentStatus;
 import net.exoego.keycloak.fuhito.domain.EmploymentTerms;
+import net.exoego.keycloak.fuhito.domain.Employment;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.RefItem;
 import net.exoego.keycloak.fuhito.domain.RefKind;
+import net.exoego.keycloak.fuhito.domain.ReportingLine;
 import net.exoego.keycloak.fuhito.domain.ValidPeriod;
 import org.junit.jupiter.api.Test;
 
@@ -25,10 +27,11 @@ class EmploymentServiceTest {
     private final MemoryEmploymentStore store = new MemoryEmploymentStore();
     private final MemoryAssignmentStore assignments = new MemoryAssignmentStore();
     private final MemoryRefItemStore refItems = new MemoryRefItemStore();
+    private final MemoryReportingLineStore lines = new MemoryReportingLineStore();
     private final EmploymentService service =
             new EmploymentService(store, assignments, refItems,
             MemoryPersonStore.linked(Set.of("alice", "bob")),
-            new MemoryReportingLineStore(), new AnyEmployer());
+            lines, new AnyEmployer());
 
     private static NewEmployment minimal(String userId, String validFrom) {
         return new NewEmployment(userId, validFrom, null, null, null, null, null, null, null, null, null);
@@ -305,6 +308,91 @@ class EmploymentServiceTest {
         assertEquals("invalid.percent", assertThrows(FuhitoException.class, () -> service.changeTerms(id,
                 new TermsChange("2026-10-01", null, null, null, new BigDecimal("0"), null))).code());
         assertEquals(List.of("2026-04-01 null ACTIVE"), statuses(service.get(id)));
+    }
+
+    @Test
+    void aTransferEndsOneEmploymentAndStartsTheNextWithWhatHoldsOnTheDate() {
+        item(RefKind.EMPLOYMENT_TYPE, "full-time", true);
+        item(RefKind.END_REASON, "transfer", true);
+        String old = service.start(new NewEmployment("alice", "2020-04-01", "2030-04-01", "Y-1001", "full-time", null,
+                null, new BigDecimal("80"), Map.of("desk", "3F"), "HR-1", "hr", "company-y")).employment().id();
+        service.changeTerms(old, status("2029-04-01", "ON_LEAVE"));
+        assignment("ward-row", "ward", old, "2020-04-01", null);
+        assignment("past-row", "past", old, "2020-04-01", "2025-04-01");
+        assignment("future-row", "future", old, "2028-04-01", null);
+        lines.insert(new ReportingLine("solid", "ward", "bob", "bob", ReportingLine.Kind.SOLID,
+                new ValidPeriod(LocalDate.of(2020, 4, 1), LocalDate.of(2029, 4, 1))));
+        lines.insert(new ReportingLine("old-line", "ward", "bob", "bob", ReportingLine.Kind.DOTTED,
+                new ValidPeriod(LocalDate.of(2020, 4, 1), LocalDate.of(2021, 4, 1))));
+
+        EmploymentService.Transfer transfer = service.transfer(old,
+                new TransferRequest("company-x", "2027-04-01", "X-2040", "transfer"));
+
+        Employment ended = transfer.ended().employment();
+        assertEquals(LocalDate.of(2027, 4, 1), ended.period().to());
+        assertEquals("company-y", ended.employerId());
+        assertEquals("transfer", transfer.ended().endReason());
+        Employment started = transfer.started().employment();
+        assertEquals("alice", started.personId());
+        assertEquals("company-x", started.employerId());
+        assertEquals("X-2040", started.staffNumber());
+        assertEquals(old, started.continuesEmploymentId());
+        assertNull(started.externalId());
+        // The new employment lasts as long as the old one would have. It keeps the leave that was stored for 2029.
+        assertEquals(new ValidPeriod(LocalDate.of(2027, 4, 1), LocalDate.of(2030, 4, 1)), started.period());
+        assertEquals(List.of("2027-04-01 2029-04-01 ACTIVE", "2029-04-01 2030-04-01 ON_LEAVE"),
+                statuses(transfer.started()));
+        assertEquals("full-time", transfer.started().terms().getFirst().employmentType());
+        EmploymentTerms terms = store.terms(started.id()).getFirst();
+        assertEquals(new BigDecimal("80"), terms.workPercent());
+        assertEquals(Map.of("desk", "3F"), terms.attributes());
+
+        // The assignment of the date and the one for 2028 move over. The one that ended in 2025 stays.
+        assertEquals(2, transfer.assignmentIds().size());
+        Assignment moved = assignments.rows(transfer.assignmentIds().get(0)).getFirst();
+        assertEquals(started.id(), moved.employmentId());
+        assertEquals("unit", moved.orgUnitId());
+        assertEquals(ValidPeriod.startingAt(LocalDate.of(2027, 4, 1)), moved.period());
+        assertEquals(ValidPeriod.startingAt(LocalDate.of(2028, 4, 1)),
+                assignments.rows(transfer.assignmentIds().get(1)).getFirst().period());
+        assertEquals(LocalDate.of(2027, 4, 1), assignments.rows("ward").getFirst().period().to());
+        assertEquals(List.of(), assignments.rows("future"));
+        assertEquals(1, assignments.rows("past").size());
+
+        // The line of the date moves over with its own end. The line that ended in 2021 stays.
+        assertEquals(1, transfer.reportingLines().size());
+        ReportingLine line = transfer.reportingLines().getFirst();
+        assertEquals(transfer.assignmentIds().get(0), line.assignmentId());
+        assertEquals("bob", line.managerPersonId());
+        assertEquals(ReportingLine.Kind.SOLID, line.kind());
+        assertEquals(new ValidPeriod(LocalDate.of(2027, 4, 1), LocalDate.of(2029, 4, 1)), line.period());
+        assertEquals(LocalDate.of(2027, 4, 1), lines.find("solid").orElseThrow().period().to());
+    }
+
+    @Test
+    void aTransferIsRejectedWhenItCannotHappen() {
+        String old = service.start(new NewEmployment("alice", "2020-04-01", "2030-04-01", "1001", null, null, null,
+                null, null, null, null, "company-y")).employment().id();
+        service.start(new NewEmployment("bob", "2020-04-01", null, "2040", null, null, null, null, null, null, null,
+                "company-x"));
+
+        assertEquals("employment.same_employer", assertThrows(FuhitoException.class,
+                () -> service.transfer(old, new TransferRequest("company-y", "2027-04-01", null, null))).code());
+        assertEquals("employment.staff_number_taken", assertThrows(FuhitoException.class,
+                () -> service.transfer(old, new TransferRequest("company-x", "2027-04-01", "2040", null))).code());
+        // The person must be employed on the day before and on the date.
+        for (String date : List.of("2020-04-01", "2019-04-01", "2030-04-01")) {
+            assertEquals("employment.not_valid_on", assertThrows(FuhitoException.class,
+                    () -> service.transfer(old, new TransferRequest("company-x", date, null, null))).code(), date);
+        }
+        assertEquals("invalid.required", assertThrows(FuhitoException.class,
+                () -> service.transfer(old, new TransferRequest(null, "2027-04-01", null, null))).code());
+        assertEquals("invalid.date", assertThrows(FuhitoException.class,
+                () -> service.transfer(old, new TransferRequest("company-x", "soon", null, null))).code());
+        assertEquals("employment.not_found", assertThrows(FuhitoException.class,
+                () -> service.transfer("nope", new TransferRequest("company-x", "2027-04-01", null, null))).code());
+        assertEquals(2, store.employments.size());
+        assertEquals(LocalDate.of(2030, 4, 1), store.employments.get(old).period().to());
     }
 
     private Assignment assignment(String rowId, String assignmentId, String employmentId, String from, String to) {

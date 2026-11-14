@@ -680,4 +680,15 @@
             <column name="EMPLOYER_ID"/>
         </createIndex>
     </changeSet>
+    <changeSet id="0.1.0-employment-continues" author="keycloak-fuhito">
+        <addColumn tableName="FUHITO_EMPLOYMENT">
+            <column name="CONTINUES_EMPLOYMENT_ID" type="VARCHAR(36)"/>
+        </addColumn>
+        <addForeignKeyConstraint baseTableName="FUHITO_EMPLOYMENT" baseColumnNames="CONTINUES_EMPLOYMENT_ID"
+                                 referencedTableName="FUHITO_EMPLOYMENT" referencedColumnNames="ID"
+                                 constraintName="FK_FUHITO_EMPLOYMENT_CONTINUES"/>
+        <createIndex tableName="FUHITO_EMPLOYMENT" indexName="IDX_FUHITO_EMPLOYMENT_CONTINUES">
+            <column name="CONTINUES_EMPLOYMENT_ID"/>
+        </createIndex>
+    </changeSet>
 </databaseChangeLog>
