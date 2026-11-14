@@ -138,17 +138,35 @@ public class CsvImportService {
         List<String> columns = columns(rows.getFirst().cells(), fields);
         List<Csv.Row> data = rows.subList(1, rows.size());
 
+        // Each list has its own type of row, so the rows keep that type from the cells to the import.
+        return switch (list) {
+            case "refItems" -> run(data, columns, this::refItem,
+                    typed -> new ImportDocument(effectiveDate, dryRun, defaultSource, typed, null, null, null));
+            case "orgUnits" -> run(data, columns, cells -> orgUnit(cells, date, defaultSource),
+                    typed -> new ImportDocument(effectiveDate, dryRun, defaultSource, null, typed, null, null));
+            case "employments" -> run(data, columns, cells -> employment(cells, date, defaultSource),
+                    typed -> new ImportDocument(effectiveDate, dryRun, defaultSource, null, null, typed, null));
+            case "assignments" -> run(data, columns, cells -> assignment(cells, date, defaultSource),
+                    typed -> new ImportDocument(effectiveDate, dryRun, defaultSource, null, null, null, typed));
+            default -> throw new IllegalStateException("A list with fields and no parser: " + list);
+        };
+    }
+
+    private <R> Result run(List<Csv.Row> data, List<String> columns, Function<Cells, R> parse,
+            Function<List<R>, ImportDocument> document) {
         Map<Integer, FuhitoException> conversionErrors = new HashMap<>();
-        List<Object> converted = new ArrayList<>();
+        List<R> converted = new ArrayList<>();
         for (int i = 0; i < data.size(); i++) {
             try {
-                converted.add(convert(list, Cells.of(columns, data.get(i).cells()), date, defaultSource));
+                converted.add(parse.apply(Cells.of(columns, data.get(i).cells())));
             } catch (FuhitoException e) {
+                // The row keeps its place as null. The import reports a missing row there, and the cause
+                // from here replaces that error below.
                 conversionErrors.put(i, e);
                 converted.add(null);
             }
         }
-        ImportReport report = importService.apply(document(list, converted, effectiveDate, dryRun, defaultSource));
+        ImportReport report = importService.apply(document.apply(converted));
         List<LineError> errors = report.errors().stream()
                 .map(e -> new LineError(e.list(), e.row(), data.get(e.row()).line(),
                         conversionErrors.getOrDefault(e.row(), e.error())))
@@ -179,25 +197,6 @@ public class CsvImportService {
             columns.add(localized ? field + name.substring(colon) : field);
         }
         return columns;
-    }
-
-    @SuppressWarnings("unchecked")
-    private static ImportDocument document(String list, List<Object> rows, String effectiveDate, boolean dryRun,
-            String source) {
-        return new ImportDocument(effectiveDate, dryRun, source,
-                list.equals("refItems") ? (List<RefItemRow>) (List<?>) rows : null,
-                list.equals("orgUnits") ? (List<OrgUnitRow>) (List<?>) rows : null,
-                list.equals("employments") ? (List<EmploymentRow>) (List<?>) rows : null,
-                list.equals("assignments") ? (List<AssignmentRow>) (List<?>) rows : null);
-    }
-
-    private Object convert(String list, Cells cells, LocalDate date, String defaultSource) {
-        return switch (list) {
-            case "refItems" -> refItem(cells);
-            case "orgUnits" -> orgUnit(cells, date, defaultSource);
-            case "employments" -> employment(cells, date, defaultSource);
-            default -> assignment(cells, date, defaultSource);
-        };
     }
 
     private RefItemRow refItem(Cells cells) {
