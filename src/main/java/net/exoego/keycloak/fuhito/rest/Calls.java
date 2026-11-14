@@ -21,7 +21,6 @@ final class Calls {
         } catch (FuhitoException e) {
             var body = new ErrorRepresentation(e.code(), e.params(),
                     Messages.format(e.code(), e.params(), context.locale()));
-            // aislop-ignore-next-line pmd/PreserveStackTrace -- the response carries the whole error
             throw context.failure(Response.status(status(e.reason()))
                     .type(MediaType.APPLICATION_JSON_TYPE)
                     .entity(body)

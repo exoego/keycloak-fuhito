@@ -93,7 +93,7 @@ class TokenMapperIT {
     }
 
     private static JsonNode claims(String jwt) throws Exception {
-        return JSON.readTree(new String(Base64.getUrlDecoder().decode(jwt.split("\\.")[1]), StandardCharsets.UTF_8));
+        return JSON.readTree(new String(Base64.getUrlDecoder().decode(jwt.split("\\.", -1)[1]), StandardCharsets.UTF_8));
     }
 
     private static String post(String path, String body) throws Exception {

@@ -209,14 +209,20 @@ public final class Checks {
     }
 
     private static String languageTag(String field, String tag) {
-        try {
-            String normalized = new Locale.Builder().setLanguageTag(tag).build().toLanguageTag();
-            if (!normalized.equals("und")) {
-                return normalized;
-            }
-        } catch (IllformedLocaleException | NullPointerException e) {
-            // Falls through to the error below.
+        FuhitoException bad =
+                FuhitoException.invalid("invalid.language_tag", Map.of("field", field, "value", String.valueOf(tag)));
+        if (tag == null) {
+            throw bad;
         }
-        throw FuhitoException.invalid("invalid.language_tag", Map.of("field", field, "value", String.valueOf(tag)));
+        try {
+            // An empty tag gives "und", with no exception.
+            String normalized = new Locale.Builder().setLanguageTag(tag).build().toLanguageTag();
+            if (normalized.equals("und")) {
+                throw bad;
+            }
+            return normalized;
+        } catch (IllformedLocaleException e) {
+            throw bad.causedBy(e);
+        }
     }
 }

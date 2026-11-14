@@ -41,8 +41,8 @@ public class ReorganizationService {
      * @param effectiveDate the date of every step, as {@code YYYY-MM-DD}
      * @param steps the steps
      * @return what each step did, in the same order
-     * @throws FuhitoException when a step fails. Its values have {@code step} with the position of the step,
-     *         counted from 0.
+     * @throws FuhitoException when a step fails. Its values hold the position of the failed step, counted
+     *         from 0, under the key "step".
      */
     public List<Result> apply(String effectiveDate, List<ReorganizationStep> steps) {
         Checks.date("effectiveDate", effectiveDate);

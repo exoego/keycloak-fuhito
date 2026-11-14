@@ -36,7 +36,7 @@ final class KeycloakRequestContext implements RequestContext {
      */
     static final String CHANGE_ORDER_PARAMETER = "changeOrder";
 
-    private static final ObjectMapper JSON = new ObjectMapper().setSerializationInclusion(JsonInclude.Include.NON_NULL);
+    private static final ObjectMapper JSON = new ObjectMapper().setDefaultPropertyInclusion(JsonInclude.Include.NON_NULL);
 
     private final KeycloakSession session;
     private final RealmModel realm;
@@ -89,7 +89,7 @@ final class KeycloakRequestContext implements RequestContext {
 
     @Override
     public Locale locale() {
-        return session.getContext().getRequestHeaders().getAcceptableLanguages().stream()
+        return session.getContext().getHttpRequest().getHttpHeaders().getAcceptableLanguages().stream()
                 .filter(locale -> !"*".equals(locale.getLanguage()))
                 .findFirst()
                 .orElse(Locale.ENGLISH);

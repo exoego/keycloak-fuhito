@@ -6,6 +6,7 @@ plugins {
     signing
     jacoco
     alias(libs.plugins.nexus.publish)
+    alias(libs.plugins.errorprone)
 }
 
 group = "net.exoego"
@@ -21,6 +22,8 @@ java {
 
 tasks.withType<JavaCompile>().configureEach {
     options.release.set(21)
+    // Every warning of the compiler and of Error Prone fails the build.
+    options.compilerArgs.addAll(listOf("-Xlint:all", "-Werror"))
 }
 
 repositories {
@@ -28,6 +31,7 @@ repositories {
 }
 
 dependencies {
+    errorprone(libs.errorprone.core)
     compileOnly(platform(libs.keycloak.parent))
     compileOnly(libs.bundles.keycloak.provided)
     testImplementation(platform(libs.keycloak.parent))

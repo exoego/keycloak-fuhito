@@ -44,6 +44,9 @@ Write a comment only for something the code cannot say, such as a reason.
 ./gradlew check
 ```
 
+The compiler runs with every warning turned on, and with [Error Prone](https://errorprone.info/).
+A warning fails the build. Fix the cause. When a warning is wrong, use `@SuppressWarnings` with the name of the check, and say why in a comment.
+
 ## Quality scan
 
 CI also runs [aislop](https://github.com/scanaislop/aislop), a scanner for common code problems. Run the same gate before you open a pull request.
@@ -54,7 +57,7 @@ scripts/aislop.sh
 
 The script needs Docker. aislop is a third-party tool from npm, so the script never runs it on your machine.
 
-- The tool runs in a container with no network and no privileges. The image also holds PMD, which aislop uses to lint Java.
+- The tool runs in a container with no network and no privileges.
 - The container gets a read-only copy of the tracked files. It cannot change the repository.
 - Only the build of the image has the network, and that build sees no project file. The image is built once and then reused.
 - Telemetry is off.

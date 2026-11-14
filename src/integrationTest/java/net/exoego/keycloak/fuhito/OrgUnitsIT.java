@@ -2,6 +2,7 @@ package net.exoego.keycloak.fuhito;
 
 import java.net.http.HttpResponse;
 import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.UUID;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -88,7 +89,7 @@ class OrgUnitsIT {
 
     @Test
     void readsAUnitOnlyFromItsFirstDate() throws Exception {
-        String future = LocalDate.now().plusYears(1).toString();
+        String future = LocalDate.now(ZoneOffset.UTC).plusYears(1).toString();
         String id = created(api.post("/org-units", "{\"name\": \"Next year\", \"validFrom\": \"" + future + "\"}"))
                 .get("id").asText();
 

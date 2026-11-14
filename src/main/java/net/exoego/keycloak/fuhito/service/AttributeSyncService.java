@@ -146,7 +146,8 @@ public class AttributeSyncService {
                 }
                 // The row of the date of the unit wins. Without one, the earliest row wins.
                 byAssignment.merge(row.assignmentId(), row, (kept, next) -> kept.period().contains(unitDate)
-                        || !next.period().contains(unitDate) && !next.period().from().isBefore(kept.period().from())
+                        || (!next.period().contains(unitDate)
+                                && !next.period().from().isBefore(kept.period().from()))
                         ? kept : next);
             }
         }
