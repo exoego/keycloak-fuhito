@@ -5,6 +5,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import net.exoego.keycloak.fuhito.domain.OrgUnit;
 import net.exoego.keycloak.fuhito.domain.OrgUnitLink;
@@ -155,6 +156,18 @@ public interface OrgUnitStore {
      * @return the number of employments
      */
     long employmentsHoldingFrom(String employerId, LocalDate date);
+
+    /**
+     * Returns, for each of some units, the unit itself and every unit above it on a date.
+     * The database walks upward, so the whole tree is not loaded.
+     *
+     * @param hierarchyId the ID of the hierarchy
+     * @param ids the IDs of the units
+     * @param date the date
+     * @return the IDs of the unit and of its ancestors, by the ID of the unit. A unit that does not exist on the
+     *         date has no entry.
+     */
+    Map<String, Set<String>> ancestorsOn(String hierarchyId, Collection<String> ids, LocalDate date);
 
     /**
      * Returns some units as they are on a date. A unit that does not exist on the date is left out.

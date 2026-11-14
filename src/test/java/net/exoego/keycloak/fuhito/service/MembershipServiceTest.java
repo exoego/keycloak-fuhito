@@ -83,6 +83,29 @@ class MembershipServiceTest {
                 "regular", jobTitle != null, primary, null, null, displayOrder, null, null, null)).assignmentId();
     }
 
+    @Test
+    void aPersonWhoWorksOutsideTheEmployerIsSeconded() {
+        // The hospital employs the nurse, and the other hospital employs the doctor. Both work in the ward.
+        String ownStaff = employments.start(new NewEmployment("nurse", "2026-04-01", null, null, null, null, null,
+                null, null, null, null, hospital)).employment().id();
+        String guest = employments.start(new NewEmployment("doctor", "2026-04-01", null, null, null, null, null,
+                null, null, null, null, otherHospital)).employment().id();
+        assign(ownStaff, ward, "2026-04-01", null, null, true, 1);
+        assign(guest, ward, "2026-04-01", null, null, false, 2);
+        assign(guest, otherHospital, "2026-04-01", null, null, true, 1);
+
+        List<Member> inWard = service.members(ward, on("2026-04-01"));
+        assertEquals(List.of("nurse", "doctor"), userIds(inWard));
+        assertEquals(List.of(false, true), inWard.stream().map(Member::seconded).toList());
+        assertEquals(List.of(hospital, otherHospital),
+                inWard.stream().map(member -> member.employment().employerId()).toList());
+
+        // The doctor is seconded in the ward, and not in the hospital that employs the doctor.
+        List<Member> ofDoctor = service.assignmentsOf("doctor", "2026-04-01", false);
+        assertEquals(List.of(otherHospital, ward), ofDoctor.stream().map(m -> m.orgUnit().unit().id()).toList());
+        assertEquals(List.of(false, true), ofDoctor.stream().map(Member::seconded).toList());
+    }
+
     private static MemberQuery on(String asOf) {
         return new MemberQuery(asOf, false, null, null, null, null, null);
     }

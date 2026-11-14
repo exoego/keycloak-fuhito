@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class EmploymentsIT {
 
@@ -264,6 +265,19 @@ class EmploymentsIT {
         assertEquals("employment.staff_number_taken", errorOf(409, groupApi.post("/employments",
                 "{\"userId\": \"" + jiro + "\", \"employerId\": \"" + corporation + "\", \"staffNumber\": \"1001\", "
                         + "\"validFrom\": \"2027-04-01\"}")));
+        // Jiro works outside the employer, so the assignment is a secondment. Taro works for the corporation.
+        created(groupApi.post("/assignments", "{\"employmentId\": \"" + first.get("id").asText() + "\", \"orgUnitId\": \""
+                + ward + "\", \"primary\": true, \"displayOrder\": 1, " + start + "}"));
+        JsonNode members = Api.json(groupApi.get("/org-units/" + ward + "/members?asOf=2026-04-01"));
+        assertEquals(List.of(jiro, taro), members.findValuesAsText("userId"));
+        assertEquals(List.of(company, corporation), members.findValuesAsText("employerId"));
+        assertTrue(members.get(0).get("seconded").asBoolean());
+        assertFalse(members.get(1).get("seconded").asBoolean());
+        assertTrue(Api.json(groupApi.get("/users/" + jiro + "/assignments?asOf=2026-04-01")).get(0).get("seconded").asBoolean());
+        // The people below the corporation are both there, the guest among them.
+        assertEquals(2, Api.json(groupApi.get("/org-units/" + corporation
+                + "/members?includeDescendants=true&asOf=2026-04-01")).size());
+
         // An end does not change the employer.
         assertEquals(company, Api.json(groupApi.put("/employments/" + seconded.get("employment").get("id").asText() + "/end",
                 "{\"validTo\": \"2030-04-01\"}")).get("employerId").asText());

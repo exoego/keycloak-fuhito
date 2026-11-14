@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import net.exoego.keycloak.fuhito.domain.OrgUnit;
 import net.exoego.keycloak.fuhito.domain.OrgUnitLink;
@@ -116,6 +117,15 @@ final class MemoryOrgUnitStore implements OrgUnitStore {
         return employments == null ? 0 : employments.employments.values().stream()
                 .filter(e -> employerId.equals(e.employerId()) && e.period().endsAfter(date))
                 .count();
+    }
+
+    @Override
+    public Map<String, Set<String>> ancestorsOn(String hierarchyId, Collection<String> ids, LocalDate date) {
+        OrgUnitTree tree = new OrgUnitTree(this, new MemoryRefItemStore(), date, hierarchyId);
+        Map<String, Set<String>> result = new LinkedHashMap<>();
+        ids.stream().filter(tree::exists).forEach(id -> result.put(id,
+                tree.path(id).stream().map(state -> state.unit().id()).collect(Collectors.toSet())));
+        return result;
     }
 
     private static List<PlacedOrgUnit> placed(List<OrgUnitState> states, int first, int max) {

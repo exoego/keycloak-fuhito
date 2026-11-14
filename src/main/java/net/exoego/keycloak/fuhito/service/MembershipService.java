@@ -9,6 +9,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -218,14 +219,20 @@ public class MembershipService {
                 .collect(Collectors.toMap(Employment::id, Function.identity()));
         Map<String, EmploymentTerms> termsByEmployment = employments.termsOn(employmentIds, date).stream()
                 .collect(Collectors.toMap(EmploymentTerms::employmentId, Function.identity()));
+        // A person works outside the employer when the employer is not on the way up from the org unit.
+        Map<String, Set<String>> above = orgUnits.ancestorsOn(orgUnits.defaultHierarchyId(),
+                rows.stream().map(Assignment::orgUnitId).distinct().toList(), date);
         Map<String, String> codes = new HashMap<>();
         List<Member> members = new ArrayList<>();
         for (Assignment row : rows) {
             EmploymentTerms terms = termsByEmployment.get(row.employmentId());
-            members.add(new Member(row, employmentsById.get(row.employmentId()), terms,
+            Employment employment = employmentsById.get(row.employmentId());
+            boolean seconded = employment.employerId() != null
+                    && !above.getOrDefault(row.orgUnitId(), Set.of()).contains(employment.employerId());
+            members.add(new Member(row, employment, terms,
                     codeOf(codes, row.jobTitleId()), codeOf(codes, row.occupationId()), codeOf(codes, row.kindId()),
                     codeOf(codes, terms.employmentTypeId()), codeOf(codes, terms.gradeId()),
-                    unitOf.apply(row.orgUnitId()), pathOf == null ? null : pathOf.apply(row.orgUnitId())));
+                    unitOf.apply(row.orgUnitId()), pathOf == null ? null : pathOf.apply(row.orgUnitId()), seconded));
         }
         return members;
     }

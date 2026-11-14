@@ -2,9 +2,12 @@ package net.exoego.keycloak.fuhito.jpa;
 
 import java.time.LocalDate;
 import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import jakarta.persistence.EntityManager;
@@ -51,6 +54,19 @@ public class JpaOrgUnitStore implements OrgUnitStore {
                 (select r.id from RefItemEntity r where r.realmId = :realmId and r.legalEntity = true)
             order by v.displayOrder, v.phoneticName nulls last, v.name, v.orgUnitId""".formatted(
             TreeQuery.onDate("l"), TreeQuery.onDate("v"));
+
+    private static final String ANCESTORS = """
+            with Above as (
+                select v.orgUnitId as unitId, v.orgUnitId as ancestorId
+                from OrgUnitVersionEntity v
+                where v.realmId = :realmId and v.orgUnitId in :ids and v.%1$s
+                union all
+                select a.unitId as unitId, l.parentId as ancestorId
+                from Above a
+                join OrgUnitLinkEntity l on l.childId = a.ancestorId and l.realmId = :realmId
+                    and l.hierarchyId = :hierarchyId and l.%2$s
+            )
+            select a.unitId, a.ancestorId from Above a""".formatted(TreeQuery.onDate("v"), TreeQuery.onDate("l"));
 
     private static final String WHOLE_TREE = TreeQuery.from(NO_PARENT) + UNITS_OF_TREE;
     private static final String LINKED_TREE = TreeQuery.from(LINKED_ROOT) + UNITS_OF_TREE;
@@ -236,6 +252,22 @@ public class JpaOrgUnitStore implements OrgUnitStore {
                 .setParameter("employerId", employerId)
                 .setParameter("date", date)
                 .getSingleResult();
+    }
+
+    @Override
+    public Map<String, Set<String>> ancestorsOn(String hierarchyId, Collection<String> ids, LocalDate date) {
+        Map<String, Set<String>> result = new HashMap<>();
+        if (ids.isEmpty()) {
+            return result;
+        }
+        em.createQuery(ANCESTORS, Object[].class)
+                .setParameter("realmId", realmId)
+                .setParameter("hierarchyId", hierarchyId)
+                .setParameter("ids", ids)
+                .setParameter("date", date)
+                .getResultStream()
+                .forEach(row -> result.computeIfAbsent((String) row[0], id -> new HashSet<>()).add((String) row[1]));
+        return result;
     }
 
     @Override
