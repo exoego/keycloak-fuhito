@@ -504,4 +504,29 @@
             <column name="DAY_START" type="VARCHAR(5)"/>
         </addColumn>
     </changeSet>
+    <changeSet id="0.1.0-person" author="keycloak-fuhito">
+        <createTable tableName="FUHITO_PERSON">
+            <column name="ID" type="VARCHAR(36)">
+                <constraints primaryKey="true" primaryKeyName="PK_FUHITO_PERSON" nullable="false"/>
+            </column>
+            <column name="REALM_ID" type="VARCHAR(36)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="USER_ID" type="VARCHAR(255)"/>
+            <column name="NAME" type="VARCHAR(255)"/>
+            <column name="NAMES_I18N" type="CLOB">
+                <constraints nullable="false"/>
+            </column>
+            <column name="PHONETIC_NAME" type="VARCHAR(255)"/>
+            <column name="ATTRIBUTES" type="CLOB">
+                <constraints nullable="false"/>
+            </column>
+            <column name="EXTERNAL_ID" type="VARCHAR(255)"/>
+            <column name="SOURCE" type="VARCHAR(64)"/>
+        </createTable>
+        <addUniqueConstraint tableName="FUHITO_PERSON" columnNames="REALM_ID, USER_ID"
+                             constraintName="UK_FUHITO_PERSON_USER"/>
+        <addUniqueConstraint tableName="FUHITO_PERSON" columnNames="REALM_ID, SOURCE, EXTERNAL_ID"
+                             constraintName="UK_FUHITO_PERSON_EXTERNAL"/>
+    </changeSet>
 </databaseChangeLog>

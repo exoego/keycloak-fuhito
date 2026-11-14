@@ -22,6 +22,7 @@ This project has no release yet, and its API can still change.
 What works today:
 
 - Org units with a tree, dated changes, moves, and ends.
+- People with or without a Keycloak user, with a name and a phonetic name.
 - Employments with terms that change over time, such as employment type, grade, leave, and work percentage.
 - Assignments of a person to any number of org units at once, with job title, occupation, and a primary flag.
 - Reporting lines, and managers derived from the heads of org units.

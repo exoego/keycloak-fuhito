@@ -21,6 +21,9 @@ tags:
   - name: qualifications
     summary: Qualifications
     kind: nav
+  - name: people
+    summary: People
+    kind: nav
   - name: users
     summary: Users
     kind: nav

@@ -63,7 +63,14 @@ final class TestRealm {
 
     /** Creates a user and returns its ID. */
     String user(String username) {
+        return user(username, null, null);
+    }
+
+    /** Creates a user with a name and returns its ID. */
+    String user(String username, String firstName, String lastName) {
         var user = new UserRepresentation();
+        user.setFirstName(firstName);
+        user.setLastName(lastName);
         user.setUsername(username);
         user.setEnabled(true);
         try (Response response = admin.realm(name).users().create(user)) {

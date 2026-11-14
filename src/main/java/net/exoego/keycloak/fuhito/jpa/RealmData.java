@@ -14,6 +14,7 @@ public final class RealmData {
     // Children come before the rows they refer to.
     private static final List<Class<?>> ENTITIES = List.of(
             UserMaskEntity.class,
+            PersonEntity.class,
             ReportingLineEntity.class,
             QualificationEntity.class,
             ChangeLogEntity.class,
@@ -51,7 +52,7 @@ public final class RealmData {
     /**
      * Erases every row about one user, for a request to delete personal data. Removal of a user from Keycloak
      * does not call this. These are the employments of the user with their terms and assignments,
-     * and the qualifications of the user.
+     * the qualifications of the user, and the person record that is linked to the user.
      *
      * @param em the entity manager
      * @param realmId the ID of the realm
@@ -89,6 +90,12 @@ public final class RealmData {
                 (select q.id from QualificationEntity q where q.realmId = :realmId and q.userId = :userId)""",
                 "delete from QualificationEntity q where q.realmId = :realmId and q.userId = :userId",
                 "delete from UserMaskEntity m where m.realmId = :realmId and m.userId = :userId",
+                // The person record of the user holds the name, so it goes too, with its change log entries.
+                """
+                delete from ChangeLogEntity l where l.realmId = :realmId
+                and l.resourceType = 'FUHITO_PERSON' and l.resourceId in
+                (select p.id from PersonEntity p where p.realmId = :realmId and p.userId = :userId)""",
+                "delete from PersonEntity p where p.realmId = :realmId and p.userId = :userId",
                 "delete from EmploymentEntity e where e.realmId = :realmId and e.userId = :userId")
                 .forEach(query -> em.createQuery(query)
                         .setParameter("realmId", realmId)

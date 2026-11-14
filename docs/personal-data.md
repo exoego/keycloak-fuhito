@@ -10,14 +10,17 @@ Which way a law requires depends on the law, the country, and the reason for kee
 | Data | Where |
 |---|---|
 | The Keycloak user ID | Employments, qualifications, reporting lines, change orders, and the change log |
+| The name, the names in other languages, and the phonetic name | The person record |
 | The staff number | Employments |
 | The number of a license or certificate | Qualifications |
-| The ID in another system | The external ID of employments, assignments, and qualifications |
-| Free values that the realm defines | The attributes of employment terms, assignments, and qualifications |
+| The ID in another system | The external ID of people, employments, assignments, and qualifications |
+| Free values that the realm defines | The attributes of people, employment terms, assignments, and qualifications |
 | Where and when the person worked, with job title and occupation | Employments, assignments, and reporting lines |
 | A copy of all of the above after each write | The change log |
 
-The name, the email address, and the credentials of a person are in Keycloak, not in this extension.
+The email address and the credentials of a person are in Keycloak, not in this extension.
+The name of a person with a Keycloak user is in Keycloak. The person record can also have one.
+A person with no Keycloak user has the name only in the person record.
 
 ## Three ways
 
@@ -26,6 +29,7 @@ The name, the email address, and the credentials of a person are in Keycloak, no
 | How | Remove the user from Keycloak, or do nothing | `POST /users/{userId}/mask` | `DELETE /users/{userId}/data` |
 | Records and their IDs | Stay | Stay | Gone |
 | Org units, job titles, occupations, dates | Stay | Stay | Gone |
+| The names in the person record | Stay | Cleared | Gone, with the person record |
 | Staff number, license numbers, external IDs, free attributes | Stay | Cleared | Gone |
 | The same fields in the change log | Stay | Cleared | The entries are gone |
 | Can be undone | Yes | No | No |
