@@ -142,6 +142,57 @@ public class AssignmentService {
     }
 
     /**
+     * What a move wrote.
+     *
+     * @param ended the assignment to the old org unit, with its end
+     * @param started the assignment to the new org unit
+     */
+    public record Move(AssignmentView ended, AssignmentView started) {
+    }
+
+    /**
+     * Moves a person to another org unit on a date, in one write.
+     * The assignment ends on the date, and a new assignment of the same employment to the new org unit starts on
+     * the same date. The new one lasts as long as the old one would have, and names the old one as the one that
+     * it continues. It keeps the occupation, the kind, the primary flag, the allocation, and the attributes.
+     * It keeps the job title unless the request gives one. It does not keep the head flag or the display order,
+     * because those belong to the old org unit.
+     * The reporting lines of the old assignment end with it. The new assignment has none.
+     *
+     * @param id the ID of the assignment to end
+     * @param request the new org unit, the date, and what changes with the move
+     * @return the two assignments
+     * @throws FuhitoException when the assignment does not hold on the day before and on the date, has a change
+     *         that is stored for the date or later, or the new org unit is the old one or does not cover the
+     *         period
+     */
+    public Move move(String id, MoveRequest request) {
+        Checks.required("body", request);
+        String orgUnitId = Checks.required("orgUnitId", request.orgUnitId());
+        LocalDate date = Checks.date("validFrom", request.validFrom());
+        List<Assignment> rows = requireRows(id);
+        Assignment last = rows.getLast();
+        if (!date.isAfter(rows.getFirst().period().from()) || !last.period().endsAfter(date)) {
+            throw FuhitoException.notFound("assignment.not_valid_on", Map.of("id", id, "date", request.validFrom()));
+        }
+        if (orgUnitId.equals(last.orgUnitId())) {
+            throw FuhitoException.invalid("assignment.same_org_unit", Map.of("orgUnitId", orgUnitId));
+        }
+        ValidPeriod period = new ValidPeriod(date, last.period().to());
+        requireOrgUnitCovers(orgUnitId, period);
+        String jobTitleId = request.jobTitle() == null ? last.jobTitleId()
+                : idOf(RefKind.JOB_TITLE, request.jobTitle(), last.jobTitleId());
+        Assignment next = new Assignment(newId(), newId(), last.employmentId(), orgUnitId, period, jobTitleId,
+                last.occupationId(), last.kindId(), Boolean.TRUE.equals(request.head()), last.primary(),
+                last.allocationPercent(), request.displayOrder() == null ? 0 : request.displayOrder(),
+                last.attributes(), null, null, id);
+        // The end rejects a change that is stored for the date or later, and ends the reporting lines.
+        AssignmentView ended = end(id, request.validFrom());
+        store.insert(next);
+        return new Move(ended, get(next.assignmentId()));
+    }
+
+    /**
      * Removes the end of an assignment. The assignment then lasts as long as its employment.
      *
      * @param id the ID of the assignment
@@ -189,7 +240,7 @@ public class AssignmentService {
         List<Assignment> rows = requireRows(id);
         String userId = employments.find(rows.getFirst().employmentId()).map(Employment::userId).orElse(null);
         ValidPeriod period = new ValidPeriod(rows.getFirst().period().from(), rows.getLast().period().to());
-        return new AssignmentView(id, userId, period, rows.stream()
+        return new AssignmentView(id, userId, period, rows.getFirst().continuesAssignmentId(), rows.stream()
                 .map(r -> new AssignmentView.Row(r, codeOf(r.jobTitleId()), codeOf(r.occupationId()),
                         codeOf(r.kindId())))
                 .toList());
@@ -266,7 +317,7 @@ public class AssignmentService {
                 Checks.optionalPercent("allocationPercent", values.allocationPercent()),
                 values.displayOrder() == null ? 0 : values.displayOrder(),
                 values.attributes() == null ? Map.of() : values.attributes(),
-                externalId, source);
+                externalId, source, current == null ? null : current.continuesAssignmentId());
     }
 
     private String idOf(RefKind kind, String code, String currentId) {
