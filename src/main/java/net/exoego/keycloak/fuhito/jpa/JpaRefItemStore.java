@@ -40,6 +40,11 @@ public class JpaRefItemStore implements RefItemStore {
 
     @Override
     public List<RefItem> list(RefKind kind, boolean includeInactive) {
+        return list(kind, includeInactive, 0, Integer.MAX_VALUE);
+    }
+
+    @Override
+    public List<RefItem> list(RefKind kind, boolean includeInactive, int first, int max) {
         return em.createQuery("""
                         select r from RefItemEntity r where r.realmId = :realmId and r.kind = :kind
                         and (r.active = true or :includeInactive = true) order by r.displayOrder, r.code""",
@@ -47,6 +52,8 @@ public class JpaRefItemStore implements RefItemStore {
                 .setParameter("realmId", realmId)
                 .setParameter("kind", kind.name())
                 .setParameter("includeInactive", includeInactive)
+                .setFirstResult(first)
+                .setMaxResults(max)
                 .getResultStream()
                 .map(JpaRefItemStore::toDomain)
                 .toList();
