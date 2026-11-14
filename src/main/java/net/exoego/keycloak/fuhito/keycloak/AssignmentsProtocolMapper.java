@@ -44,11 +44,27 @@ public class AssignmentsProtocolMapper extends AbstractOIDCProtocolMapper
      */
     public static final String DEFAULT_CLAIM = "assignments";
 
+    /**
+     * The setting that adds the staff number to each entry.
+     */
+    public static final String INCLUDE_STAFF_NUMBER = "fuhito.include.staffNumber";
+
+    /**
+     * The setting that adds the employment status to each entry.
+     */
+    public static final String INCLUDE_STATUS = "fuhito.include.status";
+
     private static final List<ProviderConfigProperty> CONFIG = new ArrayList<>();
 
     static {
         OIDCAttributeMapperHelper.addTokenClaimNameConfig(CONFIG);
         OIDCAttributeMapperHelper.addIncludeInTokensConfig(CONFIG, AssignmentsProtocolMapper.class);
+        CONFIG.add(new ProviderConfigProperty(INCLUDE_STAFF_NUMBER, "Add staff number",
+                "Adds the staff number of the employment to each entry. Every client that gets the token can"
+                        + " read it.", ProviderConfigProperty.BOOLEAN_TYPE, "false"));
+        CONFIG.add(new ProviderConfigProperty(INCLUDE_STATUS, "Add employment status",
+                "Adds the employment status to each entry, for example that the user is on leave. Every client"
+                        + " that gets the token can read it.", ProviderConfigProperty.BOOLEAN_TYPE, "false"));
     }
 
     /**
@@ -87,11 +103,14 @@ public class AssignmentsProtocolMapper extends AbstractOIDCProtocolMapper
     protected void setClaim(IDToken token, ProtocolMapperModel mappingModel, UserSessionModel userSession,
             KeycloakSession session, ClientSessionContext clientSessionCtx) {
         String claim = mappingModel.getConfig().get(OIDCAttributeMapperHelper.TOKEN_CLAIM_NAME);
+        boolean staffNumber = Boolean.parseBoolean(mappingModel.getConfig().get(INCLUDE_STAFF_NUMBER));
+        boolean status = Boolean.parseBoolean(mappingModel.getConfig().get(INCLUDE_STATUS));
         token.getOtherClaims().put(claim == null || claim.isBlank() ? DEFAULT_CLAIM : claim,
-                assignments(session, userSession));
+                assignments(session, userSession, staffNumber, status));
     }
 
-    private static List<Map<String, Object>> assignments(KeycloakSession session, UserSessionModel userSession) {
+    private static List<Map<String, Object>> assignments(KeycloakSession session, UserSessionModel userSession,
+            boolean staffNumber, boolean status) {
         EntityManager em = session.getProvider(JpaConnectionProvider.class).getEntityManager();
         String realmId = userSession.getRealm().getId();
         var orgUnits = new JpaOrgUnitStore(em, realmId);
@@ -99,11 +118,11 @@ public class AssignmentsProtocolMapper extends AbstractOIDCProtocolMapper
                 new JpaEmploymentStore(em, realmId), orgUnits, new JpaRefItemStore(em, realmId), userId -> true,
                 new UnitDays(orgUnits, RealmTime.ruleOrUtc(userSession.getRealm()), Clock.systemUTC()));
         return membership.assignmentsOf(userSession.getUser().getId(), null, true).stream()
-                .map(AssignmentsProtocolMapper::entry)
+                .map(member -> entry(member, staffNumber, status))
                 .toList();
     }
 
-    private static Map<String, Object> entry(Member member) {
+    private static Map<String, Object> entry(Member member, boolean staffNumber, boolean status) {
         Map<String, Object> entry = new LinkedHashMap<>();
         var row = member.assignment();
         entry.put("assignmentId", row.assignmentId());
@@ -118,8 +137,12 @@ public class AssignmentsProtocolMapper extends AbstractOIDCProtocolMapper
         putIfPresent(entry, "kind", member.kind());
         entry.put("head", row.head());
         entry.put("primary", row.primary());
-        putIfPresent(entry, "staffNumber", member.employment().staffNumber());
-        entry.put("status", member.terms().status().name());
+        if (staffNumber) {
+            putIfPresent(entry, "staffNumber", member.employment().staffNumber());
+        }
+        if (status) {
+            entry.put("status", member.terms().status().name());
+        }
         return entry;
     }
 

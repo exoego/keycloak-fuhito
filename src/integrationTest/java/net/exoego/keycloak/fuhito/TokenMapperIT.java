@@ -53,7 +53,8 @@ class TokenMapperIT {
         mapper.setProtocol("openid-connect");
         mapper.setProtocolMapper("fuhito-assignments-mapper");
         mapper.setConfig(Map.of("claim.name", "org", "access.token.claim", "true", "id.token.claim", "true",
-                "userinfo.token.claim", "true"));
+                "userinfo.token.claim", "true", "fuhito.include.staffNumber", "true", "fuhito.include.status",
+                "true"));
         // A mapper with no claim name uses the default name.
         var unnamed = new ProtocolMapperRepresentation();
         unnamed.setName("org assignments with the default name");
@@ -149,8 +150,13 @@ class TokenMapperIT {
         assertEquals("chair", chair.get("jobTitle").asText());
         assertTrue(chair.get("head").asBoolean());
         assertEquals(org, claims(tokens.get("id_token").asText()).get("org"));
-        assertEquals(org, claims(tokens.get("access_token").asText()).get("assignments"));
-        assertEquals(org, claims(tokens.get("id_token").asText()).get("assignments"));
+        // A mapper that does not ask for them leaves the staff number and the status out.
+        JsonNode plain = claims(tokens.get("access_token").asText()).get("assignments");
+        assertEquals(org.findValuesAsText("assignmentId"), plain.findValuesAsText("assignmentId"));
+        assertEquals(List.of(), plain.findValuesAsText("staffNumber"));
+        assertEquals(List.of(), plain.findValuesAsText("status"));
+        assertEquals("physician", plain.get(0).get("occupation").asText());
+        assertEquals(plain, claims(tokens.get("id_token").asText()).get("assignments"));
     }
 
     @Test
