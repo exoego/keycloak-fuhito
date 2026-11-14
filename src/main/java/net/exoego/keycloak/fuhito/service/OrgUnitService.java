@@ -16,6 +16,7 @@ import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.OrgUnit;
 import net.exoego.keycloak.fuhito.domain.OrgUnitLink;
 import net.exoego.keycloak.fuhito.domain.OrgUnitVersion;
+import net.exoego.keycloak.fuhito.domain.PlacedOrgUnit;
 import net.exoego.keycloak.fuhito.domain.RefItem;
 import net.exoego.keycloak.fuhito.domain.RefKind;
 import net.exoego.keycloak.fuhito.domain.ValidPeriod;
@@ -287,43 +288,64 @@ public class OrgUnitService {
     }
 
     /**
-     * Lists the org units that exist on a date, in the default hierarchy.
+     * Lists a page of the org units that exist on a date, in the default hierarchy.
      * Each parent comes before its children.
      * Siblings follow the display order, then the phonetic name, then the name.
      *
      * @param asOf the date as {@code YYYY-MM-DD}, or null for today
      * @param rootsOnly true to return only the units with no parent
-     * @return the units on the date
+     * @param page the part of the list to return
+     * @return the units of the page on the date
      */
-    public List<OrgUnitState> list(String asOf, boolean rootsOnly) {
-        OrgUnitTree tree = tree(asOf, null);
-        return rootsOnly ? tree.roots() : tree.all();
+    public List<OrgUnitState> list(String asOf, boolean rootsOnly, Page page) {
+        LocalDate date = dateOrToday(asOf, null);
+        String hierarchy = store.defaultHierarchyId();
+        return states(rootsOnly ? store.childrenOn(hierarchy, null, date, page.first(), page.max())
+                : store.treeOn(hierarchy, null, date, page.first(), page.max()));
     }
 
     /**
-     * Lists the direct children of an org unit on a date.
+     * Lists a page of the direct children of an org unit on a date.
      *
      * @param id the ID
      * @param asOf the date as {@code YYYY-MM-DD}, or null for today
-     * @return the children on the date
+     * @param page the part of the list to return
+     * @return the children of the page on the date
      * @throws FuhitoException when the unit does not exist, or does not exist on the date
      */
-    public List<OrgUnitState> children(String id, String asOf) {
-        requireUnit(id);
-        return tree(asOf, id).children(id);
+    public List<OrgUnitState> children(String id, String asOf, Page page) {
+        LocalDate date = dateOfUnit(id, asOf);
+        return states(store.childrenOn(store.defaultHierarchyId(), id, date, page.first(), page.max()));
     }
 
     /**
-     * Lists an org unit and everything below it on a date. Each parent comes before its children.
+     * Lists a page of an org unit and everything below it on a date. Each parent comes before its children.
      *
      * @param id the ID
      * @param asOf the date as {@code YYYY-MM-DD}, or null for today
-     * @return the unit and its descendants on the date
+     * @param page the part of the list to return
+     * @return the units of the page on the date
      * @throws FuhitoException when the unit does not exist, or does not exist on the date
      */
-    public List<OrgUnitState> subtree(String id, String asOf) {
+    public List<OrgUnitState> subtree(String id, String asOf, Page page) {
+        LocalDate date = dateOfUnit(id, asOf);
+        return states(store.treeOn(store.defaultHierarchyId(), id, date, page.first(), page.max()));
+    }
+
+    private LocalDate dateOfUnit(String id, String asOf) {
         requireUnit(id);
-        return tree(asOf, id).subtree(id);
+        LocalDate date = dateOrToday(asOf, id);
+        versionOn(id, date);
+        return date;
+    }
+
+    private List<OrgUnitState> states(List<PlacedOrgUnit> placed) {
+        Map<String, String> unitTypeCodes = new HashMap<>();
+        return placed.stream()
+                .map(row -> new OrgUnitState(row.unit(), row.version(), row.version().unitTypeId() == null ? null
+                        : unitTypeCodes.computeIfAbsent(row.version().unitTypeId(),
+                                id -> refItems.find(id).map(RefItem::code).orElse(null)), row.parentId()))
+                .toList();
     }
 
     /**

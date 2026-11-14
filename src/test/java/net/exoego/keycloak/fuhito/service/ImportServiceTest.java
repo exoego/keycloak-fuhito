@@ -71,7 +71,7 @@ class ImportServiceTest {
     }
 
     private List<String> tree(String asOf) {
-        return orgUnits.list(asOf, false).stream()
+        return orgUnits.list(asOf, false, Page.of(null, null)).stream()
                 .map(s -> s.version().name() + (s.parentId() == null ? "" : " < "
                         + orgUnits.get(s.parentId(), asOf).version().name()))
                 .toList();

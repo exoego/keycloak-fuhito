@@ -11,6 +11,7 @@ import java.util.Optional;
 import net.exoego.keycloak.fuhito.domain.OrgUnit;
 import net.exoego.keycloak.fuhito.domain.OrgUnitLink;
 import net.exoego.keycloak.fuhito.domain.OrgUnitVersion;
+import net.exoego.keycloak.fuhito.domain.PlacedOrgUnit;
 import net.exoego.keycloak.fuhito.store.OrgUnitStore;
 
 final class MemoryOrgUnitStore implements OrgUnitStore {
@@ -49,6 +50,25 @@ final class MemoryOrgUnitStore implements OrgUnitStore {
     @Override
     public void updateUnit(OrgUnit unit) {
         units.put(unit.id(), unit);
+    }
+
+    @Override
+    public List<PlacedOrgUnit> treeOn(String hierarchyId, String rootId, LocalDate date, int first, int max) {
+        OrgUnitTree tree = new OrgUnitTree(this, new MemoryRefItemStore(), date);
+        return placed(rootId == null ? tree.all() : tree.subtree(rootId), first, max);
+    }
+
+    @Override
+    public List<PlacedOrgUnit> childrenOn(String hierarchyId, String parentId, LocalDate date, int first,
+            int max) {
+        OrgUnitTree tree = new OrgUnitTree(this, new MemoryRefItemStore(), date);
+        return placed(parentId == null ? tree.roots() : tree.children(parentId), first, max);
+    }
+
+    private static List<PlacedOrgUnit> placed(List<OrgUnitState> states, int first, int max) {
+        return states.stream().skip(first).limit(max)
+                .map(state -> new PlacedOrgUnit(state.unit(), state.version(), state.parentId()))
+                .toList();
     }
 
     @Override

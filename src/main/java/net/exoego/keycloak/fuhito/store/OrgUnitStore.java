@@ -7,6 +7,7 @@ import java.util.Optional;
 import net.exoego.keycloak.fuhito.domain.OrgUnit;
 import net.exoego.keycloak.fuhito.domain.OrgUnitLink;
 import net.exoego.keycloak.fuhito.domain.OrgUnitVersion;
+import net.exoego.keycloak.fuhito.domain.PlacedOrgUnit;
 
 /**
  * Storage of the org units of one realm.
@@ -83,6 +84,31 @@ public interface OrgUnitStore {
      * @return one link for each unit that has a parent on the date
      */
     List<OrgUnitLink> linksOn(String hierarchyId, LocalDate date);
+
+    /**
+     * Lists a page of the units of a hierarchy on a date, each parent before its children.
+     * Siblings follow the display order, then the phonetic name, then the name, then the ID.
+     *
+     * @param hierarchyId the ID of the hierarchy
+     * @param rootId the ID of the unit to start from, or null for every root
+     * @param date the date
+     * @param first the number of units to skip
+     * @param max the largest number of units to return
+     * @return the units of the page
+     */
+    List<PlacedOrgUnit> treeOn(String hierarchyId, String rootId, LocalDate date, int first, int max);
+
+    /**
+     * Lists a page of the direct children of a unit on a date, in the order of siblings.
+     *
+     * @param hierarchyId the ID of the hierarchy
+     * @param parentId the ID of the parent, or null for the units with no parent
+     * @param date the date
+     * @param first the number of units to skip
+     * @param max the largest number of units to return
+     * @return the units of the page
+     */
+    List<PlacedOrgUnit> childrenOn(String hierarchyId, String parentId, LocalDate date, int first, int max);
 
     /**
      * Stores a new org unit.

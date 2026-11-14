@@ -580,12 +580,16 @@ class OrgUnitServiceTest {
         unit("Admin", y, 0, null);
 
         assertEquals(List.of("X Hospital", "Medicine", "Nursing", "Ward 1", "Ward 2", "Y Hospital", "Admin"),
-                names(service.list("2026-04-01", false)));
-        assertEquals(List.of("X Hospital", "Y Hospital"), names(service.list("2026-04-01", true)));
-        assertEquals(List.of("Medicine", "Nursing"), names(service.children(x, "2026-04-01")));
-        assertEquals(List.of("Admin"), names(service.children(y, "2026-04-01")));
-        assertEquals(List.of("Nursing", "Ward 1", "Ward 2"), names(service.subtree(nursing, "2026-04-01")));
-        assertEquals(nursing, service.subtree(nursing, "2026-04-01").get(1).parentId());
+                names(service.list("2026-04-01", false, Page.of(null, null))));
+        assertEquals(List.of("X Hospital", "Y Hospital"), names(service.list("2026-04-01", true, Page.of(null, null))));
+        assertEquals(List.of("Medicine", "Nursing"), names(service.children(x, "2026-04-01", Page.of(null, null))));
+        assertEquals(List.of("Admin"), names(service.children(y, "2026-04-01", Page.of(null, null))));
+        assertEquals(List.of("Nursing", "Ward 1", "Ward 2"), names(service.subtree(nursing, "2026-04-01", Page.of(null, null))));
+        assertEquals(nursing, service.subtree(nursing, "2026-04-01", Page.of(null, null)).get(1).parentId());
+        assertEquals(List.of("Nursing", "Ward 1"), names(service.list("2026-04-01", false, Page.of(2, 2))));
+        assertEquals(List.of("Y Hospital"), names(service.list("2026-04-01", true, Page.of(1, 5))));
+        assertEquals(List.of("Nursing"), names(service.children(x, "2026-04-01", Page.of(1, 1))));
+        assertEquals(List.of("Ward 2"), names(service.subtree(nursing, "2026-04-01", Page.of(2, 1))));
     }
 
     @Test
@@ -599,7 +603,7 @@ class OrgUnitServiceTest {
         unit("総務", root, 0, "そうむ");
 
         assertEquals(List.of("総務", "眼科", "外科", "内科", "Alpha", "Zebra"),
-                names(service.children(root, "2026-04-01")));
+                names(service.children(root, "2026-04-01", Page.of(null, null))));
     }
 
     @Test
@@ -623,11 +627,11 @@ class OrgUnitServiceTest {
         service.end(ending, "2027-04-01");
         service.create(named("New", b, "2027-04-01"));
 
-        assertEquals(List.of("A", "Ending", "Moving", "B"), names(service.list("2027-03-31", false)));
-        assertEquals(List.of("A", "B", "Moved", "New"), names(service.list("2027-04-01", false)));
-        assertEquals(List.of(), names(service.list("2026-03-31", false)));
+        assertEquals(List.of("A", "Ending", "Moving", "B"), names(service.list("2027-03-31", false, Page.of(null, null))));
+        assertEquals(List.of("A", "B", "Moved", "New"), names(service.list("2027-04-01", false, Page.of(null, null))));
+        assertEquals(List.of(), names(service.list("2026-03-31", false, Page.of(null, null))));
         assertEquals(List.of("B", "Moved"), names(service.path(moving, "2027-04-01")));
-        assertEquals(4, service.list(null, false).size());
+        assertEquals(4, service.list(null, false, Page.of(null, null)).size());
     }
 
     @Test
@@ -635,19 +639,19 @@ class OrgUnitServiceTest {
         String a = root("A");
 
         assertEquals("org_unit.not_found",
-                assertThrows(FuhitoException.class, () -> service.children("nope", "2026-04-01")).code());
+                assertThrows(FuhitoException.class, () -> service.children("nope", "2026-04-01", Page.of(null, null))).code());
         assertEquals("org_unit.not_found",
-                assertThrows(FuhitoException.class, () -> service.subtree("nope", "2026-04-01")).code());
+                assertThrows(FuhitoException.class, () -> service.subtree("nope", "2026-04-01", Page.of(null, null))).code());
         assertEquals("org_unit.not_found",
                 assertThrows(FuhitoException.class, () -> service.path("nope", "2026-04-01")).code());
         assertEquals("org_unit.not_valid_on",
-                assertThrows(FuhitoException.class, () -> service.children(a, "2026-03-31")).code());
+                assertThrows(FuhitoException.class, () -> service.children(a, "2026-03-31", Page.of(null, null))).code());
         assertEquals("org_unit.not_valid_on",
-                assertThrows(FuhitoException.class, () -> service.subtree(a, "2026-03-31")).code());
+                assertThrows(FuhitoException.class, () -> service.subtree(a, "2026-03-31", Page.of(null, null))).code());
         FuhitoException e = assertThrows(FuhitoException.class, () -> service.path(a, "2026-03-31"));
         assertEquals("org_unit.not_valid_on", e.code());
         assertEquals(Map.of("id", a, "date", "2026-03-31"), e.params());
-        assertEquals("invalid.date", assertThrows(FuhitoException.class, () -> service.list("x", false)).code());
+        assertEquals("invalid.date", assertThrows(FuhitoException.class, () -> service.list("x", false, Page.of(null, null))).code());
     }
 
     @Test
