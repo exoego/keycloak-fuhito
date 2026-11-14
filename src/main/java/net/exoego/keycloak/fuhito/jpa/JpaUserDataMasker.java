@@ -21,7 +21,8 @@ import net.exoego.keycloak.fuhito.store.UserDataMasker;
 public class JpaUserDataMasker implements UserDataMasker {
 
     // The fields of a stored representation that can identify a person.
-    private static final Set<String> IDENTIFYING = Set.of("staffNumber", "number", "externalId", "attributes");
+    private static final Set<String> IDENTIFYING = Set.of("staffNumber", "number", "externalId", "attributes",
+            "name", "names", "phoneticName");
     private static final ObjectMapper JSON = new ObjectMapper();
 
     private final EntityManager em;
@@ -87,6 +88,19 @@ public class JpaUserDataMasker implements UserDataMasker {
             qualification.attributes = new LinkedHashMap<>();
             qualification.externalId = null;
         }
+        List<String> personIds = new ArrayList<>();
+        for (PersonEntity person : em.createQuery("""
+                        select p from PersonEntity p
+                        where p.realmId = :realmId and p.userId = :userId""", PersonEntity.class)
+                .setParameter("realmId", realmId).setParameter("userId", userId).getResultList()) {
+            personIds.add(person.id);
+            person.name = null;
+            person.names = new LinkedHashMap<>();
+            person.phoneticName = null;
+            person.attributes = new LinkedHashMap<>();
+            person.externalId = null;
+        }
+        maskChangeLog("FUHITO_PERSON", personIds);
         maskChangeLog("FUHITO_EMPLOYMENT", employmentIds);
         maskChangeLog("FUHITO_ASSIGNMENT", assignmentIds);
         maskChangeLog("FUHITO_QUALIFICATION", qualificationIds);

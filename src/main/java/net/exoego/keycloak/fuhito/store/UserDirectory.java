@@ -35,4 +35,14 @@ public interface UserDirectory {
     default Optional<String> findIdByUsername(String username) {
         return Optional.empty();
     }
+
+    /**
+     * Returns the name of a user as Keycloak has it, for a person record that has no name of its own.
+     *
+     * @param userId the ID of the user
+     * @return the name, or empty when the user does not exist or has no name
+     */
+    default Optional<String> displayName(String userId) {
+        return Optional.empty();
+    }
 }

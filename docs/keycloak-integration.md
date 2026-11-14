@@ -275,6 +275,7 @@ The default is today, as the realm defines it. See "What today is" below.
 |---|---|
 | `/ref-items` | The lists that a realm defines, such as unit types and occupations |
 | `/org-units` | Org units, their tree on a date, and their history |
+| `/people` | The people that the realm knows, with or without a Keycloak user |
 | `/employments` | Employments of users, with their terms over time |
 | `/assignments` | Assignments of employments to org units |
 | `/staff` | A shortcut that starts an employment and adds its first assignment in one call |
@@ -302,6 +303,21 @@ The default is today, as the realm defines it. See "What today is" below.
 [openapi.yaml](openapi.yaml) lists every endpoint with its request and its response, as OpenAPI 3.2.
 The build generates it from the annotations of the REST resources.
 
+## People and their names
+
+A person record can have a name of its own.
+When it has none and it is linked to a Keycloak user, a response has the name that Keycloak keeps for the user.
+The field `nameSource` says which one it is, `RECORD` or `KEYCLOAK`.
+So a product does not need to ask Keycloak for the name.
+
+Keycloak keeps a first name and a last name. The extension joins them with a space.
+
+| Realm attribute | Meaning | Default |
+|---|---|---|
+| `fuhito.nameOrder` | `given-first` or `family-first` | `given-first` |
+
+A person with no linked user must have a name in the record.
+
 ## Admin events
 
 Every successful write records an admin event, the same as the built-in admin endpoints do.
@@ -311,6 +327,7 @@ The realm stores the events when admin events are turned on in its settings.
 |---|---|---|
 | `FUHITO_REF_ITEM` | `CREATE`, `UPDATE`, `DELETE` | `fuhito/ref-items/{id}` |
 | `FUHITO_ORG_UNIT` | `CREATE`, `UPDATE` | `fuhito/org-units/{id}`, and the same with `/parent`, `/end`, `/organization`, or `/time-settings` |
+| `FUHITO_PERSON` | `CREATE`, `UPDATE`, `DELETE` | `fuhito/people/{id}` |
 | `FUHITO_EMPLOYMENT` | `CREATE`, `UPDATE` | `fuhito/employments/{id}`, and the same with `/terms` or `/end` |
 | `FUHITO_ASSIGNMENT` | `CREATE`, `UPDATE` | `fuhito/assignments/{id}`, and the same with `/details` or `/end` |
 | `FUHITO_CHANGE_ORDER` | `CREATE`, `UPDATE`, `DELETE` | `fuhito/change-orders/{id}` |

@@ -28,6 +28,10 @@ tags:
   summary: Qualifications
   kind: nav
   description: Licenses and certificates of users.
+- name: people
+  summary: People
+  kind: nav
+  description: "The people that the realm knows, with or without a Keycloak user."
 - name: users
   summary: Users
   kind: nav
@@ -1070,6 +1074,55 @@ components:
         name:
           type: string
           description: The name of the org unit on the date.
+    Person:
+      description: A person that the realm knows. A person does not need a Keycloak
+        user.
+      type: object
+      properties:
+        id:
+          type: string
+          readOnly: true
+        userId:
+          type: string
+          description: The ID of the linked Keycloak user. One user is linked to at
+            most one person.
+        name:
+          type: string
+          maxLength: 255
+          description: "The default name. A person with no linked user needs it. When\
+            \ the record has no name, a response has the name of the linked user from\
+            \ Keycloak."
+        nameSource:
+          type: string
+          description: Where the name of a response came from. `RECORD` is the person
+            record. `KEYCLOAK` is the linked user. It is missing when there is no
+            name.
+          readOnly: true
+          enum:
+          - RECORD
+          - KEYCLOAK
+        names:
+          type: object
+          additionalProperties:
+            type: string
+          description: "Names in other languages, by language tag."
+        phoneticName:
+          type: string
+          maxLength: 255
+          description: The reading of the name for sorting.
+        attributes:
+          type: object
+          additionalProperties: {}
+          description: Free values that the realm defines.
+        externalId:
+          type: string
+          description: The ID of the person in the system it came from. Only a create
+            request reads it.
+        source:
+          type: string
+          maxLength: 64
+          pattern: "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
+          description: The name of that system. Only a create request reads it.
     ProjectionReport:
       required:
       - organizations
@@ -2986,6 +3039,172 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/TimeSettings"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /people:
+    get:
+      summary: "Lists the people of the realm, ordered by ID."
+      operationId: listPeople
+      tags:
+      - people
+      parameters:
+      - description: The number of entries to skip.
+        schema:
+          type: integer
+          format: int32
+          minimum: 0
+          default: 0
+        name: first
+        in: query
+      - description: The largest number of entries to return.
+        schema:
+          type: integer
+          format: int32
+          minimum: 0
+          default: 100
+        name: max
+        in: query
+      - description: "The ID of a Keycloak user, to return only the person that is\
+          \ linked to it."
+        name: userId
+        in: query
+        schema:
+          type: string
+      responses:
+        "200":
+          description: The people.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Person"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+    post:
+      summary: Creates a person.
+      description: "The body needs `name`, or `userId` of a Keycloak user that has\
+        \ a name."
+      operationId: createPerson
+      tags:
+      - people
+      parameters:
+      - $ref: "#/components/parameters/changeOrder"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Person"
+        required: true
+      responses:
+        "201":
+          description: The new person.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Person"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /people/{id}:
+    put:
+      summary: "Replaces the names, the attributes, and the link to a Keycloak user."
+      description: A body with no `userId` removes the link. The external ID and its
+        source do not change.
+      operationId: replacePerson
+      tags:
+      - people
+      parameters:
+      - description: The ID of the resource.
+        name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      - $ref: "#/components/parameters/changeOrder"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Person"
+        required: true
+      responses:
+        "200":
+          description: The changed person.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Person"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+    get:
+      summary: Returns one person.
+      operationId: getPerson
+      tags:
+      - people
+      parameters:
+      - description: The ID of the resource.
+        name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: The person.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Person"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+    delete:
+      summary: Deletes a person.
+      operationId: deletePerson
+      tags:
+      - people
+      parameters:
+      - description: The ID of the resource.
+        name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      - $ref: "#/components/parameters/changeOrder"
+      responses:
+        "204":
+          description: The person was deleted.
         "400":
           $ref: "#/components/responses/BadRequest"
         "404":

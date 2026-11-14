@@ -23,11 +23,16 @@ The parent lives in dated parent links, one set for each hierarchy.
 
 ## People
 
-A person is always a Keycloak user.
-This project stores no separate person record.
+A person has a record of its own. It has a name, names in other languages, and a phonetic name.
+A person can be linked to a Keycloak user, and does not need one.
+So staff who never log in, and people who left long ago, can be stored too.
+
+Employments, qualifications, and reporting lines still name a Keycloak user today.
+They will name a person. See [issue 140](https://github.com/exoego/keycloak-fuhito/issues/140).
 
 | Term | Japanese | Meaning |
 |---|---|---|
+| Person | 人 | Someone the realm knows. The link to a Keycloak user is optional. One user is linked to at most one person. |
 | Employment | 雇用、在籍 | The relationship between a user and the legal entity, for a period. It also covers people who are not direct employees, such as agency staff and contractors. Leaving ends the employment. |
 | Employment Terms | 雇用条件 | The conditions of an employment that change over time. They are the employment type, the grade, the status, and the work ratio. |
 | Employment Type | 雇用形態 | The category of the contract, for example full-time, part-time, or temporary. |

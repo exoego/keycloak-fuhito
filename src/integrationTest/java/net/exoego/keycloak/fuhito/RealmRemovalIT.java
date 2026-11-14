@@ -12,7 +12,7 @@ class RealmRemovalIT {
     private static final List<String> TABLES = List.of("fuhito_hierarchy", "fuhito_ref_item", "fuhito_org_unit",
             "fuhito_org_unit_version", "fuhito_org_unit_link", "fuhito_employment", "fuhito_employment_terms",
             "fuhito_assignment", "fuhito_change_order", "fuhito_change_log", "fuhito_qualification",
-            "fuhito_reporting_line", "fuhito_user_mask");
+            "fuhito_reporting_line", "fuhito_user_mask", "fuhito_person");
 
     // A new table must be added to this test and to the cleanup. This test fails until that is done.
     @Test
@@ -54,6 +54,7 @@ class RealmRemovalIT {
                 + Api.json(parent).get("id").asText() + "\", \"validFrom\": \"2026-04-01\"}").statusCode());
         assertEquals(201, api.post("/change-orders",
                 "{\"title\": \"Order\", \"effectiveDate\": \"2026-04-01\"}").statusCode());
+        assertEquals(201, api.post("/people", "{\"name\": \"Visitor\"}").statusCode());
         String staff = realm.user("staff");
         realm.refItem("QUALIFICATION", "license", "License");
         assertEquals(201, api.post("/qualifications", "{\"userId\": \"" + staff

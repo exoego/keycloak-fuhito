@@ -20,6 +20,7 @@ import net.exoego.keycloak.fuhito.jpa.JpaChangeLogStore;
 import net.exoego.keycloak.fuhito.jpa.JpaChangeOrderStore;
 import net.exoego.keycloak.fuhito.jpa.JpaEmploymentStore;
 import net.exoego.keycloak.fuhito.jpa.JpaOrgUnitStore;
+import net.exoego.keycloak.fuhito.jpa.JpaPersonStore;
 import net.exoego.keycloak.fuhito.jpa.JpaQualificationStore;
 import net.exoego.keycloak.fuhito.jpa.JpaRefItemStore;
 import net.exoego.keycloak.fuhito.jpa.JpaReportingLineStore;
@@ -34,6 +35,7 @@ import net.exoego.keycloak.fuhito.service.ImportService;
 import net.exoego.keycloak.fuhito.service.MembershipService;
 import net.exoego.keycloak.fuhito.service.OrgUnitService;
 import net.exoego.keycloak.fuhito.service.OrganizationLinkService;
+import net.exoego.keycloak.fuhito.service.PersonService;
 import net.exoego.keycloak.fuhito.service.ProjectionService;
 import net.exoego.keycloak.fuhito.service.QualificationService;
 import net.exoego.keycloak.fuhito.service.RefItemService;
@@ -109,6 +111,11 @@ public class FuhitoResource {
             @Override
             public Optional<String> findIdByUsername(String username) {
                 return users.findIdByUsername(username);
+            }
+
+            @Override
+            public Optional<String> displayName(String userId) {
+                return users.displayName(userId);
             }
 
             @Override
@@ -322,6 +329,16 @@ public class FuhitoResource {
                 new UserMaskingService(new JpaUserDataMasker(entityManager, realmId),
                         new JpaEmploymentStore(entityManager, realmId), users, clock,
                         Clock.systemUTC()));
+    }
+
+    /**
+     * Returns the people of the realm.
+     *
+     * @return the sub-resource
+     */
+    @Path("people")
+    public PeopleResource people() {
+        return new PeopleResource(context, new PersonService(new JpaPersonStore(entityManager, realmId), users));
     }
 
     /**
