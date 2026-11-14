@@ -15,7 +15,7 @@ import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
 import net.exoego.keycloak.fuhito.domain.BusinessDay;
-import net.exoego.keycloak.fuhito.jpa.HierarchyEntity;
+import net.exoego.keycloak.fuhito.jpa.Hierarchies;
 import net.exoego.keycloak.fuhito.jpa.JpaAssignmentStore;
 import net.exoego.keycloak.fuhito.jpa.JpaChangeLogStore;
 import net.exoego.keycloak.fuhito.jpa.JpaChangeOrderStore;
@@ -361,11 +361,7 @@ public class FuhitoResource {
     @Produces(MediaType.APPLICATION_JSON)
     public List<HierarchyRepresentation> hierarchies() {
         context.requireRead();
-        return entityManager
-                .createQuery("select h from HierarchyEntity h where h.realmId = :realmId order by h.code",
-                        HierarchyEntity.class)
-                .setParameter("realmId", realmId)
-                .getResultStream()
+        return Hierarchies.list(entityManager, realmId).stream()
                 .map(h -> new HierarchyRepresentation(h.getId(), h.getCode(), h.getName()))
                 .toList();
     }
