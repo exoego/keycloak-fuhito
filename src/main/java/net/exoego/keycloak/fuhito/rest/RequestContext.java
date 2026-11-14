@@ -10,9 +10,15 @@ import jakarta.ws.rs.core.Response;
 public interface RequestContext {
 
     /**
-     * Requires the permission to read organization data. Throws when the caller lacks it.
+     * Requires the permission to read everything, the data of people included. Throws when the caller lacks it.
      */
     void requireRead();
+
+    /**
+     * Requires the permission to read the org structure. These are the org units, the hierarchies, and the
+     * reference items. Throws when the caller lacks it. A caller who may read everything has it too.
+     */
+    void requireReadStructure();
 
     /**
      * Requires the permission to change organization data. Throws when the caller lacks it.

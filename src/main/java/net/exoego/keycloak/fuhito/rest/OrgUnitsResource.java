@@ -179,7 +179,7 @@ public class OrgUnitsResource {
                     description = "The largest number of entries to return.",
                     schema = @Schema(minimum = "0", maximum = "1000", defaultValue = "100"))
             @QueryParam("max") Integer max) {
-        context.requireRead();
+        context.requireReadStructure();
         return Calls.run(context, () -> represent(service.list(asOf, roots, hierarchy, Page.of(first, max))));
     }
 
@@ -208,7 +208,7 @@ public class OrgUnitsResource {
                     description = "The largest number of entries to return.",
                     schema = @Schema(minimum = "0", maximum = "1000", defaultValue = "100"))
             @QueryParam("max") Integer max) {
-        context.requireRead();
+        context.requireReadStructure();
         return Calls.run(context, () -> represent(service.children(id, asOf, hierarchy, Page.of(first, max))));
     }
 
@@ -240,7 +240,7 @@ public class OrgUnitsResource {
                     description = "The largest number of entries to return.",
                     schema = @Schema(minimum = "0", maximum = "1000", defaultValue = "100"))
             @QueryParam("max") Integer max) {
-        context.requireRead();
+        context.requireReadStructure();
         return Calls.run(context, () -> represent(service.subtree(id, asOf, hierarchy, Page.of(first, max))));
     }
 
@@ -263,7 +263,7 @@ public class OrgUnitsResource {
             @QueryParam("asOf") String asOf,
             @Parameter(description = "The code of the hierarchy. The default is the hierarchy `default`.")
             @QueryParam("hierarchy") String hierarchy) {
-        context.requireRead();
+        context.requireReadStructure();
         return Calls.run(context, () -> represent(service.path(id, asOf, hierarchy)));
     }
 
@@ -399,7 +399,7 @@ public class OrgUnitsResource {
     public OrgUnitHistoryRepresentation history(
             @Parameter(description = "The ID of the resource.")
             @PathParam("id") String id) {
-        context.requireRead();
+        context.requireReadStructure();
         return Calls.run(context, () -> OrgUnitHistoryRepresentation.of(service.history(id)));
     }
 
@@ -433,7 +433,7 @@ public class OrgUnitsResource {
             @QueryParam("asOf") String asOf,
             @Parameter(description = "The code of the hierarchy. The default is the hierarchy `default`.")
             @QueryParam("hierarchy") String hierarchy) {
-        context.requireRead();
+        context.requireReadStructure();
         return Calls.run(context, () -> OrgUnitRepresentation.of(service.get(id, asOf, hierarchy)));
     }
 }

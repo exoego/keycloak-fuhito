@@ -74,7 +74,7 @@ public class RefItemsResource {
                     description = "The largest number of entries to return.",
                     schema = @Schema(minimum = "0", maximum = "1000", defaultValue = "100"))
             @QueryParam("max") Integer max) {
-        context.requireRead();
+        context.requireReadStructure();
         return Calls.run(context, () -> service.list(parseKind(kind), includeInactive, Page.of(first, max)).stream()
                 .map(RefItemRepresentation::of)
                 .toList());
@@ -89,7 +89,7 @@ public class RefItemsResource {
     public RefItemRepresentation get(
             @Parameter(description = "The ID of the resource.")
             @PathParam("id") String id) {
-        context.requireRead();
+        context.requireReadStructure();
         return Calls.run(context, () -> RefItemRepresentation.of(service.get(id)));
     }
 
