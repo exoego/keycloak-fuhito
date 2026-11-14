@@ -122,6 +122,11 @@ public class FuhitoResource {
             }
 
             @Override
+            public boolean clearName(String userId) {
+                return users.clearName(userId);
+            }
+
+            @Override
             public boolean isKnown(String userId) {
                 return users.exists(userId)
                         || new JpaPersonStore(entityManager, realmId).findByUser(userId).isPresent();
@@ -331,7 +336,7 @@ public class FuhitoResource {
 
     private PersonData personData() {
         return new PersonData(context, new UserMaskingService(new JpaUserDataMasker(entityManager, realmId),
-                new JpaEmploymentStore(entityManager, realmId), clock, Clock.systemUTC()), erasePerson);
+                new JpaEmploymentStore(entityManager, realmId), clock, Clock.systemUTC()), users, erasePerson);
     }
 
     /**

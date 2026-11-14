@@ -822,6 +822,7 @@ components:
       required:
       - personId
       - maskedAt
+      - keycloakNameCleared
       description: The result of a masking.
       type: object
       properties:
@@ -834,6 +835,10 @@ components:
           type: string
           description: "When the data was first masked, in UTC."
           format: date-time
+        keycloakNameCleared:
+          type: boolean
+          description: True when this request emptied the name of the linked Keycloak
+            user.
     Member:
       required:
       - assignmentId
@@ -3675,6 +3680,13 @@ paths:
         required: true
         schema:
           type: string
+      - description: "True to also empty the first and the last name of the linked\
+          \ Keycloak user. The username, the email, and the attributes stay."
+        schema:
+          type: boolean
+          default: false
+        name: clearKeycloakName
+        in: query
       - $ref: "#/components/parameters/changeOrder"
       responses:
         "200":
@@ -4446,6 +4458,13 @@ paths:
         required: true
         schema:
           type: string
+      - description: "True to also empty the first and the last name of the linked\
+          \ Keycloak user. The username, the email, and the attributes stay."
+        schema:
+          type: boolean
+          default: false
+        name: clearKeycloakName
+        in: query
       - $ref: "#/components/parameters/changeOrder"
       responses:
         "200":

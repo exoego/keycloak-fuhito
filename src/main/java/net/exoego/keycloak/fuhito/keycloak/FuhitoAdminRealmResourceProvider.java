@@ -1,5 +1,6 @@
 package net.exoego.keycloak.fuhito.keycloak;
 
+import java.util.Map;
 import java.util.Optional;
 
 import net.exoego.keycloak.fuhito.domain.BusinessDay;
@@ -14,6 +15,7 @@ import org.keycloak.models.UserModel;
 import org.keycloak.services.resources.admin.AdminEventBuilder;
 import org.keycloak.services.resources.admin.ext.AdminRealmResourceProvider;
 import org.keycloak.services.resources.admin.fgap.AdminPermissionEvaluator;
+import org.keycloak.storage.ReadOnlyException;
 
 /**
  * Builds the root resource of the admin REST API for one request.
@@ -60,6 +62,22 @@ public class FuhitoAdminRealmResourceProvider implements AdminRealmResourceProvi
                                 .map(user -> UserNames.of(user.getFirstName(), user.getLastName(),
                                         realm.getAttribute(UserNames.ORDER_ATTRIBUTE)))
                                 .filter(name -> !name.isEmpty());
+                    }
+
+                    @Override
+                    public boolean clearName(String userId) {
+                        UserModel user = session.users().getUserById(realm, userId);
+                        if (user == null) {
+                            return false;
+                        }
+                        try {
+                            user.setFirstName(null);
+                            user.setLastName(null);
+                        } catch (ReadOnlyException e) {
+                            throw FuhitoException.conflict("person.keycloak_name_read_only",
+                                    Map.of("userId", userId)).causedBy(e);
+                        }
+                        return true;
                     }
                 }, organizations, organizations, new KeycloakUserAttributes(session, realm),
                 personId -> RealmData.deletePerson(entityManager, realm.getId(), personId));
