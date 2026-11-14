@@ -131,10 +131,10 @@ class UnitDaysTest {
                 days());
 
         // The new office opens on April 1. America is still on March 31, and the realm is on April 1.
-        assertEquals(1, reads.subtree(america, null).size());
-        assertEquals(0, reads.children(america, null).size());
-        assertEquals(2, reads.subtree(america, "2026-04-01").size());
-        assertEquals(2, reads.list(null, false).size());
+        assertEquals(1, reads.subtree(america, null, Page.of(null, null)).size());
+        assertEquals(0, reads.children(america, null, Page.of(null, null)).size());
+        assertEquals(2, reads.subtree(america, "2026-04-01", Page.of(null, null)).size());
+        assertEquals(2, reads.list(null, false, Page.of(null, null)).size());
         assertEquals("org_unit.not_valid_on",
                 assertThrows(FuhitoException.class, () -> reads.get(opensInApril, null)).code());
     }

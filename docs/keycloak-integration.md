@@ -279,6 +279,11 @@ These are the lists of org units, children, subtrees, members, people, reference
 
 The lists of one person and the history of one resource are returned whole.
 
+The lists of org units come in tree order. Each parent comes before its children.
+Siblings follow the display order, then the phonetic name, then the name. A unit with no phonetic name comes after the ones that have it.
+The database orders the names, so the order of two names follows the collation of the database.
+The database also walks the tree, so a read of one page does not load the whole tree.
+
 ## Endpoints
 
 | Path | Purpose |

@@ -175,7 +175,7 @@ public class OrgUnitsResource {
                     schema = @Schema(minimum = "0", maximum = "1000", defaultValue = "100"))
             @QueryParam("max") Integer max) {
         context.requireRead();
-        return Calls.run(context, () -> represent(Page.of(first, max).of(service.list(asOf, roots))));
+        return Calls.run(context, () -> represent(service.list(asOf, roots, Page.of(first, max))));
     }
 
     @GET
@@ -202,7 +202,7 @@ public class OrgUnitsResource {
                     schema = @Schema(minimum = "0", maximum = "1000", defaultValue = "100"))
             @QueryParam("max") Integer max) {
         context.requireRead();
-        return Calls.run(context, () -> represent(Page.of(first, max).of(service.children(id, asOf))));
+        return Calls.run(context, () -> represent(service.children(id, asOf, Page.of(first, max))));
     }
 
     @GET
@@ -232,7 +232,7 @@ public class OrgUnitsResource {
                     schema = @Schema(minimum = "0", maximum = "1000", defaultValue = "100"))
             @QueryParam("max") Integer max) {
         context.requireRead();
-        return Calls.run(context, () -> represent(Page.of(first, max).of(service.subtree(id, asOf))));
+        return Calls.run(context, () -> represent(service.subtree(id, asOf, Page.of(first, max))));
     }
 
     @GET

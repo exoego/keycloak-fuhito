@@ -1,6 +1,7 @@
 package net.exoego.keycloak.fuhito;
 
 import java.net.http.HttpResponse;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -87,6 +88,51 @@ class OrgUnitTreeIT {
         assertEquals(List.of("Y病院"), names(api.get("/org-units?roots=true&asOf=2027-03-31&first=1")));
         assertEquals(List.of(), names(api.get("/org-units?asOf=2026-03-31")));
         assertEquals(List.of(), names(emptyRealmApi.get("/org-units?asOf=2027-04-01")));
+    }
+
+    @Test
+    void theDatabaseOrdersSiblingsAndPagesTheTree() throws Exception {
+        TestRealm realm = TestRealm.create("org-tree-order");
+        String root = unit(realm, "Root", null, null, 0);
+        unit(realm, "外科", "げか", root, 1);
+        String internal = unit(realm, "内科", "ないか", root, 1);
+        unit(realm, "眼科", "がんか", root, 1);
+        unit(realm, "Zebra", null, root, 1);
+        unit(realm, "Alpha", null, root, 1);
+        unit(realm, "総務", "そうむ", root, 0);
+        unit(realm, "第二内科", "だいにないか", internal, 2);
+        unit(realm, "第一内科", "だいいちないか", internal, 1);
+        unit(realm, "Other", null, null, 1);
+        String on = "asOf=2026-04-01";
+
+        List<String> children = List.of("総務", "眼科", "外科", "内科", "Alpha", "Zebra");
+        assertEquals(children, names(realm.api.get("/org-units/" + root + "/children?" + on)));
+        assertEquals(children.subList(2, 5), names(realm.api.get("/org-units/" + root + "/children?first=2&max=3&" + on)));
+        assertEquals(List.of("Root", "Other"), names(realm.api.get("/org-units?roots=true&" + on)));
+
+        List<String> tree = List.of("Root", "総務", "眼科", "外科", "内科", "第一内科", "第二内科", "Alpha", "Zebra", "Other");
+        assertEquals(tree, names(realm.api.get("/org-units?" + on)));
+        List<String> paged = new ArrayList<>();
+        for (int first = 0; first < tree.size(); first += 3) {
+            paged.addAll(names(realm.api.get("/org-units?first=" + first + "&max=3&" + on)));
+        }
+        assertEquals(tree, paged);
+        assertEquals(tree.subList(0, 9), names(realm.api.get("/org-units/" + root + "/subtree?" + on)));
+        assertEquals(tree.subList(4, 7), names(realm.api.get("/org-units/" + internal + "/subtree?" + on)));
+        assertEquals(tree.subList(5, 7), names(realm.api.get("/org-units/" + root + "/subtree?first=5&max=2&" + on)));
+        JsonNode second = Api.json(realm.api.get("/org-units/" + root + "/subtree?first=5&max=1&" + on)).get(0);
+        assertEquals(internal, second.get("parentId").asText());
+        assertFalse(Api.json(realm.api.get("/org-units/" + root + "/subtree?max=1&" + on)).get(0).has("parentId"));
+    }
+
+    private static String unit(TestRealm realm, String name, String phoneticName, String parentId, int displayOrder)
+            throws Exception {
+        String phonetic = phoneticName == null ? "" : ", \"phoneticName\": \"" + phoneticName + "\"";
+        String parent = parentId == null ? "" : ", \"parentId\": \"" + parentId + "\"";
+        HttpResponse<String> response = realm.api.post("/org-units", "{\"name\": \"" + name + "\"" + phonetic + parent
+                + ", \"displayOrder\": " + displayOrder + ", \"validFrom\": \"2026-04-01\"}");
+        assertEquals(201, response.statusCode(), response.body());
+        return Api.json(response).get("id").asText();
     }
 
     @Test
