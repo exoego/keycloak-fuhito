@@ -370,6 +370,68 @@ class EmploymentServiceTest {
     }
 
     @Test
+    void aMergerMovesEveryPersonOfOneEmployerToAnother() {
+        String alice = service.start(new NewEmployment("alice", "2020-04-01", null, "1001", null, null, null, null,
+                null, null, null, "company-y")).employment().id();
+        String bob = service.start(new NewEmployment("bob", "2021-04-01", null, "1002", null, null, null, null,
+                null, null, null, "company-y")).employment().id();
+        // These stay. One left before the date, one starts on the date, and one has another employer.
+        String left = service.start(new NewEmployment("alice", "2010-04-01", "2015-04-01", "0900", null, null, null,
+                null, null, null, null, "company-y")).employment().id();
+        String starting = service.start(new NewEmployment("bob", "2027-04-01", null, "1003", null, null, null, null,
+                null, null, null, "company-y")).employment().id();
+        String elsewhere = service.start(new NewEmployment("bob", "2020-04-01", null, "5000", null, null, null,
+                null, null, null, null, "company-z")).employment().id();
+
+        List<EmploymentService.Transfer> transfers = service.transferAll(new TransferAllRequest("company-y",
+                "company-x", "2027-04-01", null, true, Map.of(bob, "X-2")));
+
+        assertEquals(List.of(alice, bob), transfers.stream().map(t -> t.ended().employment().id()).toList());
+        assertEquals(List.of("company-x", "company-x"),
+                transfers.stream().map(t -> t.started().employment().employerId()).toList());
+        // Alice keeps her number, and Bob gets the one that the request names.
+        assertEquals(List.of("1001", "X-2"),
+                transfers.stream().map(t -> t.started().employment().staffNumber()).toList());
+        for (String untouched : List.of(left, starting, elsewhere)) {
+            assertEquals(store.employments.get(untouched).period(), service.get(untouched).employment().period());
+        }
+        assertNull(store.employments.get(starting).period().to());
+        assertEquals(7, store.employments.size());
+
+        // Without the wish to keep them, the people get no staff number.
+        String carol = service.start(new NewEmployment("alice", "2028-04-01", null, "7001", null, null, null, null,
+                null, null, null, "company-z")).employment().id();
+        assertNull(service.transferAll(new TransferAllRequest("company-z", "company-w", "2029-04-01", null, false,
+                null)).stream().filter(t -> t.ended().employment().id().equals(carol)).findFirst().orElseThrow()
+                .started().employment().staffNumber());
+    }
+
+    @Test
+    void aMergerIsRejectedAsAWholeWhenOnePartCannotHappen() {
+        String alice = service.start(new NewEmployment("alice", "2020-04-01", null, "1001", null, null, null, null,
+                null, null, null, "company-y")).employment().id();
+        service.start(new NewEmployment("bob", "2020-04-01", null, "1001", null, null, null, null, null, null, null,
+                "company-x"));
+
+        assertEquals("employment.staff_number_taken", assertThrows(FuhitoException.class,
+                () -> service.transferAll(new TransferAllRequest("company-y", "company-x", "2027-04-01", null, true,
+                        null))).code());
+        assertEquals("employment.not_transferred", assertThrows(FuhitoException.class,
+                () -> service.transferAll(new TransferAllRequest("company-y", "company-x", "2027-04-01", null, false,
+                        Map.of("nope", "1")))).code());
+        assertEquals("invalid.required", assertThrows(FuhitoException.class,
+                () -> service.transferAll(new TransferAllRequest(null, "company-x", "2027-04-01", null, false,
+                        null))).code());
+        assertEquals("invalid.required", assertThrows(FuhitoException.class,
+                () -> service.transferAll(new TransferAllRequest("company-y", null, "2027-04-01", null, false,
+                        null))).code());
+        // Nobody of an employer with no employment moves, and that is no error.
+        assertEquals(List.of(), service.transferAll(new TransferAllRequest("company-q", "company-x", "2027-04-01",
+                null, false, null)));
+        assertNull(store.employments.get(alice).period().to());
+    }
+
+    @Test
     void aTransferIsRejectedWhenItCannotHappen() {
         String old = service.start(new NewEmployment("alice", "2020-04-01", "2030-04-01", "1001", null, null, null,
                 null, null, null, null, "company-y")).employment().id();

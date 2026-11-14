@@ -384,4 +384,58 @@ class EmploymentsIT {
         assertEquals(List.of("CREATE"), Api.json(groupApi.get("/change-log?resourceType=FUHITO_REPORTING_LINE&resourceId="
                 + transfer.get("reportingLines").get(0).get("id").asText())).findValuesAsText("operation"));
     }
+
+    @Test
+    void aMergerMovesEveryPersonAndEndsTheOldEmployerInOneWrite() throws Exception {
+        TestRealm group = TestRealm.create("employments-merger");
+        Api groupApi = group.api;
+        String corporation = group.legalEntity("医療法人X会");
+        String company = group.legalEntity("株式会社Yサービス");
+        String kitchen = created(groupApi.post("/org-units", "{\"name\": \"栄養科\", \"parentId\": \"" + corporation
+                + "\", \"validFrom\": \"2020-04-01\"}")).get("id").asText();
+        String sato = group.user("sato");
+        String suzuki = group.user("suzuki");
+        String ofSato = created(groupApi.post("/staff", "{\"userId\": \"" + sato + "\", \"employerId\": \"" + company
+                + "\", \"orgUnitId\": \"" + kitchen + "\", \"staffNumber\": \"Y-1\", \"validFrom\": \"2020-04-01\"}"))
+                .get("employment").get("id").asText();
+        String ofSuzuki = created(groupApi.post("/staff", "{\"userId\": \"" + suzuki + "\", \"employerId\": \"" + company
+                + "\", \"orgUnitId\": \"" + kitchen + "\", \"staffNumber\": \"Y-2\", \"validFrom\": \"2021-04-01\"}"))
+                .get("employment").get("id").asText();
+        String merger = "{\"fromEmployerId\": \"" + company + "\", \"toEmployerId\": \"" + corporation
+                + "\", \"validFrom\": \"2028-04-01\", \"keepStaffNumbers\": true, \"endEmployer\": true";
+
+        // The company cannot end while it employs people.
+        assertEquals("org_unit.has_employments",
+                errorOf(409, groupApi.put("/org-units/" + company + "/end", "{\"validTo\": \"2028-04-01\"}")));
+        // A bad part rejects the whole merger, and nobody moves.
+        assertEquals("employment.not_transferred",
+                errorOf(400, groupApi.post("/employments/transfers", merger + ", \"staffNumbers\": {\"nope\": \"1\"}}")));
+        assertEquals(1, Api.json(groupApi.get("/users/" + sato + "/history")).get("employments").size());
+
+        JsonNode result = created(groupApi.post("/employments/transfers",
+                merger + ", \"staffNumbers\": {\"" + ofSuzuki + "\": \"X-9\"}}"));
+
+        assertEquals(2, result.get("transferred").asInt());
+        assertEquals(List.of(ofSato, ofSuzuki), result.get("employments").findValuesAsText("endedEmploymentId"));
+        assertEquals("2028-04-01", result.get("endedEmployer").get("validTo").asText());
+        JsonNode newOfSato = Api.json(groupApi.get("/employments/"
+                + result.get("employments").get(0).get("startedEmploymentId").asText()));
+        assertEquals(corporation, newOfSato.get("employerId").asText());
+        assertEquals("Y-1", newOfSato.get("staffNumber").asText());
+        assertEquals(ofSato, newOfSato.get("continuesEmploymentId").asText());
+        assertEquals("X-9", Api.json(groupApi.get("/employments/"
+                + result.get("employments").get(1).get("startedEmploymentId").asText())).get("staffNumber").asText());
+
+        // Both still work in the kitchen. From the date, they are no guests there.
+        JsonNode before = Api.json(groupApi.get("/org-units/" + kitchen + "/members?asOf=2028-03-31"));
+        JsonNode after = Api.json(groupApi.get("/org-units/" + kitchen + "/members?asOf=2028-04-01"));
+        assertEquals(List.of(company, company), before.findValuesAsText("employerId"));
+        assertEquals(List.of(corporation, corporation), after.findValuesAsText("employerId"));
+        assertTrue(before.get(0).get("seconded").asBoolean());
+        assertFalse(after.get(0).get("seconded").asBoolean());
+        assertEquals(List.of("医療法人X会"),
+                Api.json(groupApi.get("/org-units?legalEntity=true&asOf=2028-04-01")).findValuesAsText("name"));
+        assertEquals(List.of("CREATE", "UPDATE"), Api.json(groupApi.get(
+                "/change-log?resourceType=FUHITO_ORG_UNIT&resourceId=" + company)).findValuesAsText("operation"));
+    }
 }

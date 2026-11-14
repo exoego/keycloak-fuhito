@@ -6,7 +6,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import net.exoego.keycloak.fuhito.domain.Assignment;
 import net.exoego.keycloak.fuhito.domain.Checks;
@@ -234,6 +236,42 @@ public class EmploymentService {
         }));
         List<String> assignmentIds = List.copyOf(newAssignmentIds.values());
         return new Transfer(ended, get(started.id()), assignmentIds, newLines);
+    }
+
+    /**
+     * Moves every person of one employer to another employer on a date, in one write.
+     * It is a transfer of each employment that holds on the day before and on the date.
+     * An employment that starts on the date or later is not moved.
+     *
+     * @param request the two employers, the date, and the staff numbers
+     * @return what each transfer wrote, in the order of the first dates of the old employments
+     * @throws FuhitoException when a value is bad, a staff number names an employment that is not moved, or one
+     *         transfer cannot happen
+     */
+    public List<Transfer> transferAll(TransferAllRequest request) {
+        Checks.required("body", request);
+        String fromEmployerId = Checks.required("fromEmployerId", request.fromEmployerId());
+        Checks.required("toEmployerId", request.toEmployerId());
+        LocalDate date = Checks.date("validFrom", request.validFrom());
+        List<Employment> moving = store.findByEmployer(fromEmployerId).stream()
+                .filter(e -> e.period().contains(date) && e.period().from().isBefore(date))
+                .toList();
+        Map<String, String> staffNumbers = request.staffNumbers() == null ? Map.of() : request.staffNumbers();
+        Set<String> movingIds = moving.stream().map(Employment::id).collect(Collectors.toSet());
+        for (String id : staffNumbers.keySet()) {
+            if (!movingIds.contains(id)) {
+                throw FuhitoException.invalid("employment.not_transferred",
+                        Map.of("id", id, "date", request.validFrom()));
+            }
+        }
+        List<Transfer> transfers = new ArrayList<>();
+        for (Employment employment : moving) {
+            String staffNumber = staffNumbers.containsKey(employment.id()) ? staffNumbers.get(employment.id())
+                    : request.keepStaffNumbers() ? employment.staffNumber() : null;
+            transfers.add(transfer(employment.id(), new TransferRequest(request.toEmployerId(), request.validFrom(),
+                    staffNumber, request.endReason())));
+        }
+        return transfers;
     }
 
     // What holds on the date starts on the date. What was stored for later keeps its own start.

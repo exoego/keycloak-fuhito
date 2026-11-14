@@ -955,6 +955,22 @@ components:
           maximum: 100
           exclusiveMinimum: 0
           description: The share of full-time work on the date in percent.
+    MovedEmployment:
+      type: object
+      required:
+      - personId
+      - endedEmploymentId
+      - startedEmploymentId
+      description: One person who moved to the new employer.
+      properties:
+        personId:
+          type: string
+        endedEmploymentId:
+          type: string
+          description: The ID of the employment at the old employer.
+        startedEmploymentId:
+          type: string
+          description: The ID of the employment at the new employer.
     OrgUnit:
       type: object
       required:
@@ -1729,6 +1745,70 @@ components:
             $ref: "#/components/schemas/ReportingLine"
           description: The reporting lines that the new assignments got.
           readOnly: true
+    Transfers:
+      required:
+      - fromEmployerId
+      - toEmployerId
+      - validFrom
+      description: "A request to move every person of one employer to another employer\
+        \ on a date, and its response. It is for a merger of two legal entities."
+      type: object
+      properties:
+        fromEmployerId:
+          type: string
+          description: The ID of the org unit that employs the people today.
+          writeOnly: true
+        toEmployerId:
+          type: string
+          description: The ID of the org unit that employs them from the date. It
+            is a legal entity on that date.
+          writeOnly: true
+        validFrom:
+          type: string
+          description: The first date at the new employer.
+          format: date
+          writeOnly: true
+        endReason:
+          type: string
+          description: The code of the end reason of the old employments.
+          writeOnly: true
+        keepStaffNumbers:
+          type: boolean
+          description: True to keep the staff number of each person. A number that
+            the new employer has given to another person rejects the request.
+          writeOnly: true
+          default: false
+        staffNumbers:
+          type: object
+          additionalProperties:
+            type: string
+          description: "New staff numbers, by the ID of the old employment. They win\
+            \ over `keepStaffNumbers`."
+          writeOnly: true
+        endEmployer:
+          type: boolean
+          description: "True to also end the old employer on the date. The request\
+            \ is rejected when an employment, a child org unit, or an assignment would\
+            \ still be there."
+          writeOnly: true
+          default: false
+        transferred:
+          type: integer
+          format: int32
+          description: The number of people who moved.
+          readOnly: true
+        employments:
+          type: array
+          items:
+            $ref: "#/components/schemas/MovedEmployment"
+          description: The old and the new employment of each person.
+          readOnly: true
+        endedEmployer:
+          description: "The old employer with its end, when the request asked for\
+            \ it."
+          readOnly: true
+          type: object
+          $ref: "#/components/schemas/OrgUnit"
     UserHistory:
       required:
       - employments
@@ -2438,6 +2518,42 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Employment"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /employments/transfers:
+    post:
+      summary: "Moves every person of one employer to another employer on a date,\
+        \ in one write."
+      description: "It is for a merger of two legal entities. Each employment that\
+        \ holds on the day before and on the date is transferred, as `POST /employments/{id}/transfer`\
+        \ does for one. With `endEmployer`, the old employer ends on the same date.\
+        \ A failure writes nothing."
+      operationId: transferEmployments
+      tags:
+      - employments
+      parameters:
+      - $ref: "#/components/parameters/changeOrder"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Transfers"
+        required: true
+      responses:
+        "201":
+          description: The old and the new employment of each person.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Transfers"
         "400":
           $ref: "#/components/responses/BadRequest"
         "404":

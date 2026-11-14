@@ -55,6 +55,15 @@ public interface EmploymentStore {
     List<Employment> findAll(Collection<String> ids);
 
     /**
+     * Lists every employment that names an org unit as its employer, oldest first.
+     * This is for an operation that changes all of them in one write.
+     *
+     * @param employerId the ID of the org unit
+     * @return the employments
+     */
+    List<Employment> findByEmployer(String employerId);
+
+    /**
      * Lists the employments of a person, oldest first.
      *
      * @param personId the ID of the person
