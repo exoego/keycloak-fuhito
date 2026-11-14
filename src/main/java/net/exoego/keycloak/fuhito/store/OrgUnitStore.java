@@ -182,6 +182,24 @@ public interface OrgUnitStore {
     List<PlacedOrgUnit> pathOn(String hierarchyId, String id, LocalDate date);
 
     /**
+     * Lists the units that set a time zone or a day start of their own. Most realms have none.
+     *
+     * @return the units
+     */
+    List<OrgUnit> unitsWithOwnTime();
+
+    /**
+     * Lists the ID of a unit and the IDs of the units above it on a date, nearest first.
+     * It follows the parent links only, so it also works for a unit that has no details on the date.
+     *
+     * @param hierarchyId the ID of the hierarchy
+     * @param id the ID of the unit
+     * @param date the date
+     * @return the IDs, with the unit itself first. It is empty when the realm has no such unit.
+     */
+    List<String> lineOn(String hierarchyId, String id, LocalDate date);
+
+    /**
      * Returns some units as they are on a date. A unit that does not exist on the date is left out.
      *
      * @param hierarchyId the ID of the hierarchy that the parents come from

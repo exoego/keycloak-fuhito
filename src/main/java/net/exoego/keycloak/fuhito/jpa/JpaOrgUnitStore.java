@@ -87,6 +87,19 @@ public class JpaOrgUnitStore implements OrgUnitStore {
             join OrgUnitEntity u on u.id = a.id
             order by a.depth desc""".formatted(TreeQuery.onDate("v"), TreeQuery.onDate("l"), TreeQuery.onDate("p"));
 
+    private static final String LINE = """
+            with Above as (
+                select u.id as id, 0 as depth
+                from OrgUnitEntity u
+                where u.realmId = :realmId and u.id = :id
+                union all
+                select l.parentId as id, a.depth + 1 as depth
+                from Above a
+                join OrgUnitLinkEntity l on l.childId = a.id and l.realmId = :realmId
+                    and l.hierarchyId = :hierarchyId and l.%s
+            )
+            select a.id from Above a order by a.depth""".formatted(TreeQuery.onDate("l"));
+
     private static final String WHOLE_TREE = TreeQuery.from(NO_PARENT) + UNITS_OF_TREE;
     private static final String LINKED_TREE = TreeQuery.from(LINKED_ROOT) + UNITS_OF_TREE;
     private static final String SUBTREE = TreeQuery.SUBTREE + UNITS_OF_TREE;
@@ -300,6 +313,27 @@ public class JpaOrgUnitStore implements OrgUnitStore {
                 .map(row -> new PlacedOrgUnit(toDomain((OrgUnitEntity) row[0]),
                         toDomain((OrgUnitVersionEntity) row[1]), (String) row[2]))
                 .toList();
+    }
+
+    @Override
+    public List<OrgUnit> unitsWithOwnTime() {
+        return em.createQuery("""
+                        select u from OrgUnitEntity u where u.realmId = :realmId
+                        and (u.timeZone is not null or u.dayStart is not null)""", OrgUnitEntity.class)
+                .setParameter("realmId", realmId)
+                .getResultStream()
+                .map(JpaOrgUnitStore::toDomain)
+                .toList();
+    }
+
+    @Override
+    public List<String> lineOn(String hierarchyId, String id, LocalDate date) {
+        return em.createQuery(LINE, String.class)
+                .setParameter("realmId", realmId)
+                .setParameter("hierarchyId", hierarchyId)
+                .setParameter("id", id)
+                .setParameter("date", date)
+                .getResultList();
     }
 
     @Override

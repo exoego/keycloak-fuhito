@@ -53,6 +53,24 @@ class UnitDaysTest {
     }
 
     @Test
+    void aRealmWithNoUnitOfItsOwnTimeReadsNoTree() {
+        String root = unit("Root", null);
+        String child = unit("Child", root);
+        UnitDays days = days();
+
+        assertEquals(APRIL_1, days.ofUnit(child));
+        assertEquals(APRIL_1, days.ofUnit(root));
+        assertEquals(0, store.lineReads);
+
+        // With one unit that sets its own time, a unit is looked up once, and then remembered.
+        orgUnits.setTime(root, "UTC", null);
+        UnitDays again = days();
+        assertEquals(MARCH_31, again.ofUnit(child));
+        assertEquals(MARCH_31, again.ofUnit(child));
+        assertEquals(1, store.lineReads);
+    }
+
+    @Test
     void theNearestSettingWinsAndEachSettingIsLookedUpOnItsOwn() {
         String japan = unit("Japan", null);
         String america = unit("America", null);
