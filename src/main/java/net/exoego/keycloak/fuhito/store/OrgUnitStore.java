@@ -138,6 +138,25 @@ public interface OrgUnitStore {
     List<PlacedOrgUnit> legalEntitiesOn(String hierarchyId, LocalDate date, int first, int max);
 
     /**
+     * Counts the employments that name an org unit as their employer and start in a period.
+     *
+     * @param employerId the ID of the org unit
+     * @param from the first date of the period
+     * @param to the first date after the period, or null for no end
+     * @return the number of employments
+     */
+    long employmentsStartingIn(String employerId, LocalDate from, LocalDate to);
+
+    /**
+     * Counts the employments that name an org unit as their employer and still hold on a date or after it.
+     *
+     * @param employerId the ID of the org unit
+     * @param date the date
+     * @return the number of employments
+     */
+    long employmentsHoldingFrom(String employerId, LocalDate date);
+
+    /**
      * Returns some units as they are on a date. A unit that does not exist on the date is left out.
      *
      * @param hierarchyId the ID of the hierarchy that the parents come from

@@ -111,6 +111,14 @@ public class OrgUnitService {
         requireUnit(id);
         OrgUnitVersion current = versionOn(id, from);
         RefItem unitType = request.unitType() == null ? null : unitTypeForChange(request.unitType(), current);
+        if (unitType == null || !unitType.legalEntity()) {
+            // An employment needs its employer to be a legal entity on its first date.
+            long employments = store.employmentsStartingIn(id, from, current.period().to());
+            if (employments > 0) {
+                throw FuhitoException.conflict("org_unit.is_employer",
+                        Map.of("id", id, "validFrom", request.validFrom(), "count", Long.toString(employments)));
+            }
+        }
 
         if (current.period().from().equals(from)) {
             store.updateVersion(version(current.id(), id, current.period(), request, unitType));
@@ -224,6 +232,12 @@ public class OrgUnitService {
         if (children > 0) {
             throw FuhitoException.conflict("org_unit.has_children",
                     Map.of("id", id, "validTo", validTo, "count", Long.toString(children)));
+        }
+
+        long employed = store.employmentsHoldingFrom(id, to);
+        if (employed > 0) {
+            throw FuhitoException.conflict("org_unit.has_employments",
+                    Map.of("id", id, "validTo", validTo, "count", Long.toString(employed)));
         }
 
         long staffed = assignments.rowsOfOrgUnit(id).stream()

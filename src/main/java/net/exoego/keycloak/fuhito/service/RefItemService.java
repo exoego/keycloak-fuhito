@@ -126,6 +126,9 @@ public class RefItemService {
     public RefItem update(String id, String name, Map<String, String> names, Integer displayOrder,
             Map<String, Object> attributes, Boolean active, Boolean legalEntity) {
         RefItem current = get(id);
+        if (current.legalEntity() && !Boolean.TRUE.equals(legalEntity) && store.isTypeOfAnEmployer(id)) {
+            throw FuhitoException.conflict("ref_item.legal_entity_in_use", Map.of("id", id, "code", current.code()));
+        }
         RefItem changed = new RefItem(current.id(), current.kind(), current.code(), Checks.name("name", name),
                 Checks.localizedNames("names", names), displayOrder == null ? 0 : displayOrder,
                 attributes == null ? Map.of() : attributes, active == null || active,

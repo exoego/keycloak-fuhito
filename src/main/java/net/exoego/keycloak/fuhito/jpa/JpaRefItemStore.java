@@ -78,6 +78,19 @@ public class JpaRefItemStore implements RefItemStore {
     }
 
     @Override
+    public boolean isTypeOfAnEmployer(String id) {
+        return em.createQuery("""
+                        select count(e) from EmploymentEntity e, OrgUnitVersionEntity v
+                        where e.realmId = :realmId and v.realmId = :realmId and v.orgUnitId = e.employerId
+                        and v.unitTypeId = :id
+                        and v.validFrom <= e.validFrom and (v.validTo is null or v.validTo > e.validFrom)""",
+                        Long.class)
+                .setParameter("realmId", realmId)
+                .setParameter("id", id)
+                .getSingleResult() > 0;
+    }
+
+    @Override
     public boolean isInUse(String id) {
         return REFERENCES.stream().anyMatch(reference -> em.createQuery(reference, Long.class)
                 .setParameter("realmId", realmId)

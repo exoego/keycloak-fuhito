@@ -49,6 +49,14 @@ public interface RefItemStore {
     Optional<RefItem> findByCode(RefKind kind, String code);
 
     /**
+     * Tells whether an employment names an org unit that had this unit type on the first date of the employment.
+     *
+     * @param id the ID of the unit type
+     * @return true when the type makes the employer of an employment a legal entity
+     */
+    boolean isTypeOfAnEmployer(String id);
+
+    /**
      * Tells whether other data refers to the item.
      *
      * @param id the ID

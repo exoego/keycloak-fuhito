@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Map;
 
 import net.exoego.keycloak.fuhito.domain.Assignment;
+import net.exoego.keycloak.fuhito.domain.Employment;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.OrgUnit;
 import net.exoego.keycloak.fuhito.domain.OrgUnitLink;
@@ -761,6 +762,41 @@ class OrgUnitServiceTest {
         assertTrue(service.get(sales, "2027-04-01").legalEntity());
         assertEquals(subsidiary, service.legalEntities("2027-04-01", Page.of(null, null)).get(1).unit().id());
         assertEquals(3, service.legalEntities("2027-04-01", Page.of(null, null)).size());
+    }
+
+    @Test
+    void anEmployerStaysALegalEntityAndDoesNotEndWhileEmploymentsNameIt() {
+        refItems.insert(new RefItem("type-company", RefKind.UNIT_TYPE, "company", "Company", Map.of(), 0, Map.of(),
+                true, true));
+        unitType("department", true);
+        MemoryEmploymentStore employments = new MemoryEmploymentStore();
+        store.employments = employments;
+        String company = service.create(new NewOrgUnit(null, "Company", null, null, null, null, "company", null,
+                "2020-04-01", null, null, null, null)).unit().id();
+        employments.insert(new Employment("e1", "alice", null, company,
+                new ValidPeriod(LocalDate.of(2026, 4, 1), LocalDate.of(2028, 4, 1)), null, null, null, null));
+        OrgUnitChange toDepartment = new OrgUnitChange("2026-01-01", "Company", null, null, null, null, "department",
+                null, null);
+
+        // The employment starts after the change, so the company would not be a legal entity on its first date.
+        FuhitoException changed = assertThrows(FuhitoException.class, () -> service.changeDetails(company, toDepartment));
+        assertEquals(FuhitoException.Reason.CONFLICT, changed.reason());
+        assertEquals("org_unit.is_employer", changed.code());
+        assertEquals("1", changed.params().get("count"));
+        assertEquals("org_unit.is_employer", assertThrows(FuhitoException.class, () -> service.changeDetails(company,
+                new OrgUnitChange("2026-01-01", "Company", null, null, null, null, null, null, null))).code());
+        // A change that keeps the type of a legal entity works, and so does a change after the first date.
+        service.changeDetails(company, new OrgUnitChange("2026-01-01", "Company Inc.", null, null, null, null,
+                "company", null, null));
+        service.changeDetails(company, new OrgUnitChange("2027-01-01", "Company", null, null, null, null,
+                "department", null, null));
+
+        FuhitoException ended = assertThrows(FuhitoException.class, () -> service.end(company, "2028-03-31"));
+        assertEquals(FuhitoException.Reason.CONFLICT, ended.reason());
+        assertEquals("org_unit.has_employments", ended.code());
+        assertEquals("1", ended.params().get("count"));
+        // The company can end on the day after the last day of the employment.
+        assertEquals("Company", service.end(company, "2028-04-01").version().name());
     }
 
     @Test
