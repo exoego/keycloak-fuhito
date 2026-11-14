@@ -169,6 +169,12 @@ public class OrgUnitsResource {
                     description = "True to return only the units with no parent.",
                     schema = @Schema(defaultValue = "false"))
             @QueryParam("roots") boolean roots,
+            @Parameter(
+                    description = "True to return only the units that are legal entities, such as companies. A "
+                            + "unit is one when its unit type says so. The list is then flat, and `roots` and "
+                            + "`hierarchy` have no effect.",
+                    schema = @Schema(defaultValue = "false"))
+            @QueryParam("legalEntity") boolean legalEntity,
             @Parameter(description = "The code of the hierarchy. The default is the hierarchy `default`.")
             @QueryParam("hierarchy") String hierarchy,
             @Parameter(
@@ -180,7 +186,8 @@ public class OrgUnitsResource {
                     schema = @Schema(minimum = "0", maximum = "1000", defaultValue = "100"))
             @QueryParam("max") Integer max) {
         context.requireReadStructure();
-        return Calls.run(context, () -> represent(service.list(asOf, roots, hierarchy, Page.of(first, max))));
+        return Calls.run(context, () -> represent(legalEntity ? service.legalEntities(asOf, Page.of(first, max))
+                : service.list(asOf, roots, hierarchy, Page.of(first, max))));
     }
 
     @GET

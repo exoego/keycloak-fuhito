@@ -7,6 +7,7 @@ import java.time.ZoneOffset;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 import net.exoego.keycloak.fuhito.domain.Assignment;
@@ -91,7 +92,7 @@ public class OrgUnitService {
             store.insertLink(new OrgUnitLink(newId(), store.defaultHierarchyId(), unit.id(), request.parentId(),
                     period));
         }
-        return new OrgUnitState(unit, version, request.unitType(), request.parentId());
+        return OrgUnitState.of(unit, version, unitType, request.parentId());
     }
 
     /**
@@ -308,14 +309,13 @@ public class OrgUnitService {
     private OrgUnitState state(String id, LocalDate date, String hierarchyId) {
         OrgUnit unit = requireUnit(id);
         OrgUnitVersion version = versionOn(id, date);
-        String unitType = version.unitTypeId() == null ? null
-                : refItems.find(version.unitTypeId()).map(RefItem::code).orElse(null);
+        RefItem unitType = version.unitTypeId() == null ? null : refItems.find(version.unitTypeId()).orElse(null);
         String parentId = store.parentLinks(hierarchyId, id).stream()
                 .filter(link -> link.period().contains(date))
                 .map(OrgUnitLink::parentId)
                 .findFirst()
                 .orElse(null);
-        return new OrgUnitState(unit, version, unitType, parentId);
+        return OrgUnitState.of(unit, version, unitType, parentId);
     }
 
     /**
@@ -369,6 +369,19 @@ public class OrgUnitService {
         return states(store.treeOn(hierarchyId(hierarchy), id, false, date, page.first(), page.max()));
     }
 
+    /**
+     * Lists a page of the org units that are legal entities on a date. An org unit is one when its unit type
+     * says so. The order is the display order, then the phonetic name, then the name.
+     *
+     * @param asOf the date as {@code YYYY-MM-DD}, or null for today
+     * @param page the part of the list to return
+     * @return the legal entities of the page on the date, each with its parent in the default hierarchy
+     */
+    public List<OrgUnitState> legalEntities(String asOf, Page page) {
+        return states(store.legalEntitiesOn(store.defaultHierarchyId(), dateOrToday(asOf, null), page.first(),
+                page.max()));
+    }
+
     private LocalDate dateOfUnit(String id, String asOf) {
         requireUnit(id);
         LocalDate date = dateOrToday(asOf, id);
@@ -377,11 +390,11 @@ public class OrgUnitService {
     }
 
     private List<OrgUnitState> states(List<PlacedOrgUnit> placed) {
-        Map<String, String> unitTypeCodes = new HashMap<>();
+        Map<String, Optional<RefItem>> unitTypes = new HashMap<>();
         return placed.stream()
-                .map(row -> new OrgUnitState(row.unit(), row.version(), row.version().unitTypeId() == null ? null
-                        : unitTypeCodes.computeIfAbsent(row.version().unitTypeId(),
-                                id -> refItems.find(id).map(RefItem::code).orElse(null)), row.parentId()))
+                .map(row -> OrgUnitState.of(row.unit(), row.version(), row.version().unitTypeId() == null ? null
+                        : unitTypes.computeIfAbsent(row.version().unitTypeId(), refItems::find).orElse(null),
+                        row.parentId()))
                 .toList();
     }
 
@@ -420,10 +433,10 @@ public class OrgUnitService {
      */
     public OrgUnitHistory history(String id) {
         OrgUnit unit = requireUnit(id);
-        Map<String, String> unitTypeCodes = new HashMap<>();
-        refItems.list(RefKind.UNIT_TYPE, true).forEach(item -> unitTypeCodes.put(item.id(), item.code()));
+        Map<String, RefItem> unitTypes = new HashMap<>();
+        refItems.list(RefKind.UNIT_TYPE, true).forEach(item -> unitTypes.put(item.id(), item));
         List<OrgUnitState> versions = store.versions(id).stream()
-                .map(version -> new OrgUnitState(unit, version, unitTypeCodes.get(version.unitTypeId()), null))
+                .map(version -> OrgUnitState.of(unit, version, unitTypes.get(version.unitTypeId()), null))
                 .toList();
         store.defaultHierarchyId();
         return new OrgUnitHistory(unit, versions, store.parentLinks(id), store.hierarchyCodes());

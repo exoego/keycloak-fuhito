@@ -28,10 +28,16 @@ public record RefItemRepresentation(
         @Schema(description = "Free values that the realm defines.")
         Map<String, Object> attributes,
         @Schema(description = "False when the item must not be used for new data.")
-        Boolean active) {
+        Boolean active,
+        @Schema(
+                description = "True for a unit type whose org units are legal entities, such as a company. Only "
+                        + "the kind `UNIT_TYPE` can have it.",
+                defaultValue = "false")
+        Boolean legalEntity) {
 
     static RefItemRepresentation of(RefItem item) {
         return new RefItemRepresentation(item.id(), item.kind().name(), item.code(), item.name(), item.names(),
-                item.displayOrder(), item.attributes(), item.active());
+                item.displayOrder(), item.attributes(), item.active(),
+                item.legalEntity() ? Boolean.TRUE : null);
     }
 }

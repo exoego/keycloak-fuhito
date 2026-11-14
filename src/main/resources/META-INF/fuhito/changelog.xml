@@ -661,4 +661,11 @@
         <addUniqueConstraint tableName="FUHITO_CHANGE_LOG" columnNames="REALM_ID, SEQUENCE_NUMBER"
                              constraintName="UK_FUHITO_CHANGE_LOG_REALM_SEQUENCE"/>
     </changeSet>
+    <changeSet id="0.1.0-ref-item-legal-entity" author="keycloak-fuhito">
+        <addColumn tableName="FUHITO_REF_ITEM">
+            <column name="LEGAL_ENTITY" type="BOOLEAN" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+    </changeSet>
 </databaseChangeLog>

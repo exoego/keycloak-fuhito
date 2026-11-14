@@ -40,12 +40,12 @@ final class OrgUnitTree {
     OrgUnitTree(OrgUnitStore store, RefItemStore refItems, LocalDate date, String hierarchyId) {
         this.date = date;
         Map<String, OrgUnit> units = store.units().stream().collect(Collectors.toMap(OrgUnit::id, Function.identity()));
-        Map<String, String> unitTypeCodes = refItems.list(RefKind.UNIT_TYPE, true).stream()
-                .collect(Collectors.toMap(RefItem::id, RefItem::code));
+        Map<String, RefItem> unitTypes = refItems.list(RefKind.UNIT_TYPE, true).stream()
+                .collect(Collectors.toMap(RefItem::id, Function.identity()));
         Map<String, String> parents = store.linksOn(hierarchyId, date).stream()
                 .collect(Collectors.toMap(OrgUnitLink::childId, OrgUnitLink::parentId));
-        store.versionsOn(date).forEach(version -> states.put(version.orgUnitId(), new OrgUnitState(
-                units.get(version.orgUnitId()), version, unitTypeCodes.get(version.unitTypeId()),
+        store.versionsOn(date).forEach(version -> states.put(version.orgUnitId(), OrgUnitState.of(
+                units.get(version.orgUnitId()), version, unitTypes.get(version.unitTypeId()),
                 parents.get(version.orgUnitId()))));
         for (OrgUnitState state : states.values()) {
             if (state.parentId() == null) {

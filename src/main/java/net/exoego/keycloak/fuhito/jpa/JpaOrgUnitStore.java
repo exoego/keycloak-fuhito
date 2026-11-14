@@ -43,6 +43,15 @@ public class JpaOrgUnitStore implements OrgUnitStore {
             where v.realmId = :realmId and v.orgUnitId in :ids and v.%s""".formatted(TreeQuery.onDate("l"),
             TreeQuery.onDate("v"));
 
+    private static final String LEGAL_ENTITIES = """
+            select u, v, (select l.parentId from OrgUnitLinkEntity l where l.realmId = :realmId
+                and l.hierarchyId = :hierarchyId and l.childId = v.orgUnitId and l.%s)
+            from OrgUnitVersionEntity v join OrgUnitEntity u on u.id = v.orgUnitId
+            where v.realmId = :realmId and v.%s and v.unitTypeId in
+                (select r.id from RefItemEntity r where r.realmId = :realmId and r.legalEntity = true)
+            order by v.displayOrder, v.phoneticName nulls last, v.name, v.orgUnitId""".formatted(
+            TreeQuery.onDate("l"), TreeQuery.onDate("v"));
+
     private static final String WHOLE_TREE = TreeQuery.from(NO_PARENT) + UNITS_OF_TREE;
     private static final String LINKED_TREE = TreeQuery.from(LINKED_ROOT) + UNITS_OF_TREE;
     private static final String SUBTREE = TreeQuery.SUBTREE + UNITS_OF_TREE;
@@ -187,6 +196,20 @@ public class JpaOrgUnitStore implements OrgUnitStore {
             query.setParameter("rootId", rootId);
         }
         return query.setFirstResult(first).setMaxResults(max).getResultStream()
+                .map(row -> new PlacedOrgUnit(toDomain((OrgUnitEntity) row[0]),
+                        toDomain((OrgUnitVersionEntity) row[1]), (String) row[2]))
+                .toList();
+    }
+
+    @Override
+    public List<PlacedOrgUnit> legalEntitiesOn(String hierarchyId, LocalDate date, int first, int max) {
+        return em.createQuery(LEGAL_ENTITIES, Object[].class)
+                .setParameter("realmId", realmId)
+                .setParameter("hierarchyId", hierarchyId)
+                .setParameter("date", date)
+                .setFirstResult(first)
+                .setMaxResults(max)
+                .getResultStream()
                 .map(row -> new PlacedOrgUnit(toDomain((OrgUnitEntity) row[0]),
                         toDomain((OrgUnitVersionEntity) row[1]), (String) row[2]))
                 .toList();

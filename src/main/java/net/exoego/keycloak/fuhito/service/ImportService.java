@@ -127,7 +127,8 @@ public class ImportService {
         RefItem before = stored.get();
         RefItem wanted = new RefItem(before.id(), kind, code, Checks.name("name", row.name()),
                 Checks.localizedNames("names", row.names()), row.displayOrder() == null ? 0 : row.displayOrder(),
-                row.attributes() == null ? Map.of() : row.attributes(), row.active() == null || row.active());
+                row.attributes() == null ? Map.of() : row.attributes(), row.active() == null || row.active(),
+                before.legalEntity());
         if (wanted.equals(before)) {
             return Outcome.UNCHANGED;
         }

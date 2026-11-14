@@ -13,7 +13,25 @@ import java.util.Map;
  * @param displayOrder the position in lists, lowest first
  * @param attributes free values that the realm defines
  * @param active false when the item must not be used for new data
+ * @param legalEntity true for a unit type whose org units are legal entities, such as a company
  */
 public record RefItem(String id, RefKind kind, String code, String name, Map<String, String> names,
-        int displayOrder, Map<String, Object> attributes, boolean active) {
+        int displayOrder, Map<String, Object> attributes, boolean active, boolean legalEntity) {
+
+    /**
+     * Makes an item that is not a unit type of legal entities.
+     *
+     * @param id the ID
+     * @param kind the kind
+     * @param code the code
+     * @param name the default name
+     * @param names the names in other languages, by language tag
+     * @param displayOrder the position in lists, lowest first
+     * @param attributes free values that the realm defines
+     * @param active false when the item must not be used for new data
+     */
+    public RefItem(String id, RefKind kind, String code, String name, Map<String, String> names, int displayOrder,
+            Map<String, Object> attributes, boolean active) {
+        this(id, kind, code, name, names, displayOrder, attributes, active, false);
+    }
 }

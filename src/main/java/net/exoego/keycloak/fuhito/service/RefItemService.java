@@ -63,6 +63,24 @@ public class RefItemService {
      */
     public RefItem create(RefKind kind, String code, String name, Map<String, String> names, Integer displayOrder,
             Map<String, Object> attributes) {
+        return create(kind, code, name, names, displayOrder, attributes, null);
+    }
+
+    /**
+     * Creates an item, which may be a unit type of legal entities.
+     *
+     * @param kind the kind
+     * @param code the code
+     * @param name the default name
+     * @param names the names in other languages, or null
+     * @param displayOrder the position in lists, or null for 0
+     * @param attributes free values, or null
+     * @param legalEntity true for a unit type whose org units are legal entities, or null for false
+     * @return the new item
+     * @throws FuhitoException when a value is bad, the code is taken, or the kind cannot be a legal entity
+     */
+    public RefItem create(RefKind kind, String code, String name, Map<String, String> names, Integer displayOrder,
+            Map<String, Object> attributes, Boolean legalEntity) {
         Checks.required("kind", kind);
         Checks.code("code", code);
         if (store.findByCode(kind, code).isPresent()) {
@@ -70,7 +88,7 @@ public class RefItemService {
         }
         RefItem item = new RefItem(UUID.randomUUID().toString(), kind, code, Checks.name("name", name),
                 Checks.localizedNames("names", names), displayOrder == null ? 0 : displayOrder,
-                attributes == null ? Map.of() : attributes, true);
+                attributes == null ? Map.of() : attributes, true, legalEntity(kind, legalEntity));
         store.insert(item);
         return item;
     }
@@ -89,10 +107,29 @@ public class RefItemService {
      */
     public RefItem update(String id, String name, Map<String, String> names, Integer displayOrder,
             Map<String, Object> attributes, Boolean active) {
+        return update(id, name, names, displayOrder, attributes, active, get(id).legalEntity());
+    }
+
+    /**
+     * Replaces the changeable values of an item, with the mark of a legal entity among them.
+     *
+     * @param id the ID
+     * @param name the default name
+     * @param names the names in other languages, or null for none
+     * @param displayOrder the position in lists, or null for 0
+     * @param attributes free values, or null for none
+     * @param active false to stop the use of the item for new data, or null for true
+     * @param legalEntity true for a unit type whose org units are legal entities, or null for false
+     * @return the changed item
+     * @throws FuhitoException when the item does not exist, a value is bad, or the kind cannot be a legal entity
+     */
+    public RefItem update(String id, String name, Map<String, String> names, Integer displayOrder,
+            Map<String, Object> attributes, Boolean active, Boolean legalEntity) {
         RefItem current = get(id);
         RefItem changed = new RefItem(current.id(), current.kind(), current.code(), Checks.name("name", name),
                 Checks.localizedNames("names", names), displayOrder == null ? 0 : displayOrder,
-                attributes == null ? Map.of() : attributes, active == null || active);
+                attributes == null ? Map.of() : attributes, active == null || active,
+                legalEntity(current.kind(), legalEntity));
         store.update(changed);
         return changed;
     }
@@ -109,5 +146,13 @@ public class RefItemService {
             throw FuhitoException.conflict("ref_item.in_use", Map.of("id", id));
         }
         store.delete(id);
+    }
+
+    private static boolean legalEntity(RefKind kind, Boolean legalEntity) {
+        boolean marked = Boolean.TRUE.equals(legalEntity);
+        if (marked && kind != RefKind.UNIT_TYPE) {
+            throw FuhitoException.invalid("ref_item.legal_entity_kind", Map.of("kind", kind.name()));
+        }
+        return marked;
     }
 }

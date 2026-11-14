@@ -8,6 +8,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -104,10 +105,12 @@ public class MembershipService {
                 page.max());
 
         Map<String, OrgUnitState> units = new HashMap<>();
-        Map<String, String> codes = new HashMap<>();
+        Map<String, Optional<RefItem>> unitTypes = new HashMap<>();
         orgUnits.placedOn(hierarchy, rows.stream().map(Assignment::orgUnitId).distinct().toList(), date)
-                .forEach(placed -> units.put(placed.unit().id(), new OrgUnitState(placed.unit(), placed.version(),
-                        codeOf(codes, placed.version().unitTypeId()), placed.parentId())));
+                .forEach(placed -> units.put(placed.unit().id(), OrgUnitState.of(placed.unit(), placed.version(),
+                        placed.version().unitTypeId() == null ? null
+                                : unitTypes.computeIfAbsent(placed.version().unitTypeId(), refItems::find)
+                                        .orElse(null), placed.parentId())));
         return toMembers(rows, date, units::get, null);
     }
 

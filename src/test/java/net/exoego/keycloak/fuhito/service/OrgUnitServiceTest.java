@@ -18,6 +18,7 @@ import net.exoego.keycloak.fuhito.domain.ValidPeriod;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -724,6 +725,42 @@ class OrgUnitServiceTest {
                 assertThrows(FuhitoException.class, () -> service.list(on, false, "nope", all)).code());
         assertEquals("hierarchy.unknown",
                 assertThrows(FuhitoException.class, () -> service.path(team, on, "nope")).code());
+    }
+
+    @Test
+    void anOrgUnitIsALegalEntityWhenItsUnitTypeSaysSo() {
+        refItems.insert(new RefItem("type-company", RefKind.UNIT_TYPE, "company", "Company", Map.of(), 0, Map.of(),
+                true, true));
+        store.legalEntityTypes.add("type-company");
+        unitType("department", true);
+        String holding = service.create(new NewOrgUnit(null, "Holding", null, null, null, null, "company", null,
+                "2026-04-01", 2, null, null, null)).unit().id();
+        String subsidiary = service.create(new NewOrgUnit(null, "Subsidiary", null, null, null, null, "company",
+                holding, "2026-04-01", 1, null, null, null)).unit().id();
+        String sales = service.create(new NewOrgUnit(null, "Sales", null, null, null, null, "department", holding,
+                "2026-04-01", null, null, null, null)).unit().id();
+        root("Untyped");
+
+        assertTrue(service.get(holding, "2026-04-01").legalEntity());
+        assertFalse(service.get(sales, "2026-04-01").legalEntity());
+        // Untyped, then Holding with Sales and Subsidiary below it.
+        assertEquals(List.of(false, true, false, true), service.list("2026-04-01", false, null, Page.of(null, null))
+                .stream().map(OrgUnitState::legalEntity).toList());
+        assertEquals(List.of(true), service.history(holding).versions().stream().map(OrgUnitState::legalEntity).toList());
+
+        List<OrgUnitState> entities = service.legalEntities("2026-04-01", Page.of(null, null));
+        assertEquals(List.of("Subsidiary", "Holding"), names(entities));
+        assertEquals(holding, entities.getFirst().parentId());
+        assertEquals(List.of("Holding"), names(service.legalEntities("2026-04-01", Page.of(1, 1))));
+        assertEquals(List.of(), service.legalEntities("2026-03-31", Page.of(null, null)));
+
+        // The type of a unit is dated, so a unit becomes a legal entity on a date.
+        service.changeDetails(sales, new OrgUnitChange("2027-04-01", "Sales Inc.", null, null, null, null, "company",
+                null, null));
+        assertFalse(service.get(sales, "2027-03-31").legalEntity());
+        assertTrue(service.get(sales, "2027-04-01").legalEntity());
+        assertEquals(subsidiary, service.legalEntities("2027-04-01", Page.of(null, null)).get(1).unit().id());
+        assertEquals(3, service.legalEntities("2027-04-01", Page.of(null, null)).size());
     }
 
     @Test

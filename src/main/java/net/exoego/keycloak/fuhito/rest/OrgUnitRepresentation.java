@@ -32,6 +32,10 @@ public record OrgUnitRepresentation(
         String phoneticName,
         @Schema(description = "The code of the unit type.")
         String unitType,
+        @Schema(
+                description = "True when the unit type marks the unit as a legal entity, such as a company.",
+                readOnly = true)
+        Boolean legalEntity,
         @Schema(description = "The ID of the parent in the default hierarchy. A root has none.")
         String parentId,
         @Schema(description = "The first date of these details.", format = "date")
@@ -62,7 +66,7 @@ public record OrgUnitRepresentation(
         var period = version.period();
         return new OrgUnitRepresentation(unit.id(), unit.code(), version.name(), version.names(),
                 version.shortName(), version.shortNames(), version.phoneticName(), state.unitType(),
-                state.parentId(), period.from().toString(), Objects.toString(period.to(), null),
+                state.legalEntity() ? Boolean.TRUE : null, state.parentId(), period.from().toString(), Objects.toString(period.to(), null),
                 version.displayOrder(), version.attributes(), unit.externalId(), unit.source(),
                 unit.keycloakOrganizationId(), unit.timeZone(), unit.dayStart());
     }
