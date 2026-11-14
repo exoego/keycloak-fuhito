@@ -20,22 +20,29 @@ final class Api {
     private static final HttpClient HTTP = HttpClient.newHttpClient();
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
+    private final String serverUrl;
     private final String realm;
     private final String token;
     private final String acceptLanguage;
 
     Api(String realm, String token) {
-        this(realm, token, null);
+        this(KEYCLOAK.getAuthServerUrl(), realm, token, null);
     }
 
-    private Api(String realm, String token, String acceptLanguage) {
+    /** Calls another Keycloak than the shared one. */
+    Api(String serverUrl, String realm, String token) {
+        this(serverUrl, realm, token, null);
+    }
+
+    private Api(String serverUrl, String realm, String token, String acceptLanguage) {
+        this.serverUrl = serverUrl;
         this.realm = realm;
         this.token = token;
         this.acceptLanguage = acceptLanguage;
     }
 
     Api withAcceptLanguage(String value) {
-        return new Api(realm, token, value);
+        return new Api(serverUrl, realm, token, value);
     }
 
     HttpResponse<String> get(String path) throws Exception {
@@ -56,7 +63,7 @@ final class Api {
 
     HttpResponse<String> postBytes(String path, String contentType, byte[] body) throws Exception {
         var request = HttpRequest.newBuilder(
-                        URI.create(KEYCLOAK.getAuthServerUrl() + "/admin/realms/" + realm + "/fuhito" + path))
+                        URI.create(serverUrl + "/admin/realms/" + realm + "/fuhito" + path))
                 .POST(BodyPublishers.ofByteArray(body))
                 .header("Content-Type", contentType)
                 .header("Authorization", "Bearer " + token);
@@ -72,7 +79,7 @@ final class Api {
 
     private HttpResponse<String> send(String method, String path, String json) throws Exception {
         var request = HttpRequest.newBuilder(
-                        URI.create(KEYCLOAK.getAuthServerUrl() + "/admin/realms/" + realm + "/fuhito" + path))
+                        URI.create(serverUrl + "/admin/realms/" + realm + "/fuhito" + path))
                 .method(method, json == null ? BodyPublishers.noBody() : BodyPublishers.ofString(json, StandardCharsets.UTF_8));
         if (json != null) {
             request.header("Content-Type", "application/json");
