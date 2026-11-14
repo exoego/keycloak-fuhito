@@ -2008,11 +2008,28 @@ paths:
       tags:
       - change-orders
       parameters:
+      - description: The number of entries to skip.
+        schema:
+          type: integer
+          format: int32
+          minimum: 0
+          default: 0
+        name: first
+        in: query
       - description: The first effective date to return.
         schema:
           type: string
           format: date
         name: from
+        in: query
+      - description: The largest number of entries to return.
+        schema:
+          type: integer
+          format: int32
+          maximum: 1000
+          minimum: 0
+          default: 100
+        name: max
         in: query
       - description: The first effective date not to return.
         schema:
@@ -2504,6 +2521,23 @@ paths:
           format: date
         name: asOf
         in: query
+      - description: The number of entries to skip.
+        schema:
+          type: integer
+          format: int32
+          minimum: 0
+          default: 0
+        name: first
+        in: query
+      - description: The largest number of entries to return.
+        schema:
+          type: integer
+          format: int32
+          maximum: 1000
+          minimum: 0
+          default: 100
+        name: max
+        in: query
       - description: True to return only the units with no parent.
         schema:
           type: boolean
@@ -2654,6 +2688,23 @@ paths:
           format: date
         name: asOf
         in: query
+      - description: The number of entries to skip.
+        schema:
+          type: integer
+          format: int32
+          minimum: 0
+          default: 0
+        name: first
+        in: query
+      - description: The largest number of entries to return.
+        schema:
+          type: integer
+          format: int32
+          maximum: 1000
+          minimum: 0
+          default: 100
+        name: max
+        in: query
       responses:
         "200":
           description: The children on the date.
@@ -2782,6 +2833,7 @@ paths:
         schema:
           type: integer
           format: int32
+          maximum: 1000
           minimum: 0
           default: 100
         name: max
@@ -2981,6 +3033,23 @@ paths:
           format: date
         name: asOf
         in: query
+      - description: The number of entries to skip.
+        schema:
+          type: integer
+          format: int32
+          minimum: 0
+          default: 0
+        name: first
+        in: query
+      - description: The largest number of entries to return.
+        schema:
+          type: integer
+          format: int32
+          maximum: 1000
+          minimum: 0
+          default: 100
+        name: max
+        in: query
       responses:
         "200":
           description: The unit and its descendants on the date.
@@ -3059,6 +3128,7 @@ paths:
         schema:
           type: integer
           format: int32
+          maximum: 1000
           minimum: 0
           default: 100
         name: max
@@ -3628,6 +3698,14 @@ paths:
       tags:
       - ref-items
       parameters:
+      - description: The number of entries to skip.
+        schema:
+          type: integer
+          format: int32
+          minimum: 0
+          default: 0
+        name: first
+        in: query
       - description: True to also return inactive items.
         schema:
           type: boolean
@@ -3638,6 +3716,15 @@ paths:
         schema:
           $ref: "#/components/schemas/RefKind"
         name: kind
+        in: query
+      - description: The largest number of entries to return.
+        schema:
+          type: integer
+          format: int32
+          maximum: 1000
+          minimum: 0
+          default: 100
+        name: max
         in: query
       responses:
         "200":

@@ -31,7 +31,6 @@ import net.exoego.keycloak.fuhito.store.UserDirectory;
  */
 public class MembershipService {
 
-    private static final int DEFAULT_MAX = 100;
 
     private final AssignmentStore assignments;
     private final EmploymentStore employments;
@@ -97,8 +96,7 @@ public class MembershipService {
         String occupationId = filterId(RefKind.OCCUPATION, query.occupation());
         String jobTitleId = filterId(RefKind.JOB_TITLE, query.jobTitle());
         EmploymentStatus status = Checks.optionalEnum("status", EmploymentStatus.class, query.status(), null);
-        int first = query.first() == null ? 0 : Math.max(0, query.first());
-        int max = query.max() == null ? DEFAULT_MAX : Math.max(0, query.max());
+        Page page = Page.of(query.first(), query.max());
 
         Map<String, Integer> unitOrder = new HashMap<>();
         units.forEach(unit -> unitOrder.put(unit.unit().id(), unitOrder.size()));
@@ -112,8 +110,8 @@ public class MembershipService {
                 .toList();
         return toMembers(rows, date, tree, false).stream()
                 .filter(member -> status == null || member.terms().status() == status)
-                .skip(first)
-                .limit(max)
+                .skip(page.first())
+                .limit(page.max())
                 .toList();
     }
 

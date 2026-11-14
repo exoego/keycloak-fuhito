@@ -83,6 +83,8 @@ class OrgUnitTreeIT {
                 names(api.get("/org-units?asOf=2027-03-31")));
         assertEquals(List.of("X病院", "診療部", "看護部", "2病棟", "Y病院", "東病棟"),
                 names(api.get("/org-units?asOf=2027-04-01")));
+        assertEquals(List.of("看護部", "1病棟"), names(api.get("/org-units?asOf=2027-03-31&first=2&max=2")));
+        assertEquals(List.of("Y病院"), names(api.get("/org-units?roots=true&asOf=2027-03-31&first=1")));
         assertEquals(List.of(), names(api.get("/org-units?asOf=2026-03-31")));
         assertEquals(List.of(), names(emptyRealmApi.get("/org-units?asOf=2027-04-01")));
     }
@@ -101,6 +103,8 @@ class OrgUnitTreeIT {
         assertEquals(List.of("診療部", "看護部"), names(api.get("/org-units/" + xHospital + "/children?asOf=2026-04-01")));
         assertEquals(List.of("看護部", "1病棟", "2病棟"), names(api.get("/org-units/" + nursing + "/subtree?asOf=2027-03-31")));
         assertEquals(List.of("看護部", "2病棟"), names(api.get("/org-units/" + nursing + "/subtree?asOf=2027-04-01")));
+        assertEquals(List.of("看護部"), names(api.get("/org-units/" + xHospital + "/children?asOf=2026-04-01&first=1&max=1")));
+        assertEquals(List.of("1病棟"), names(api.get("/org-units/" + nursing + "/subtree?asOf=2027-03-31&first=1&max=1")));
         assertEquals(List.of("X病院", "看護部", "1病棟"), names(api.get("/org-units/" + ward1 + "/path?asOf=2027-03-31")));
         assertEquals(List.of("Y病院", "東病棟"), names(api.get("/org-units/" + ward1 + "/path?asOf=2027-04-01")));
         assertEquals(nursing, Api.json(api.get("/org-units/" + nursing + "/subtree?asOf=2027-03-31")).get(1).get("parentId").asText());

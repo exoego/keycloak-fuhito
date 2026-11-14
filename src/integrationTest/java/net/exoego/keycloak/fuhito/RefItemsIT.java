@@ -76,6 +76,7 @@ class RefItemsIT {
         List<String> codes = codes(api.get("/ref-items?kind=UNIT_TYPE"));
 
         assertEquals(List.of("list-z", "list-a", "list-b"), codes.stream().filter(c -> c.startsWith("list-")).toList());
+        assertEquals(codes.subList(1, 2), codes(api.get("/ref-items?kind=UNIT_TYPE&first=1&max=1")));
     }
 
     @Test

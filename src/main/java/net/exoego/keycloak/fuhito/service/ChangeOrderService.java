@@ -85,10 +85,14 @@ public class ChangeOrderService {
      *
      * @param from the first effective date to return, as {@code YYYY-MM-DD}, or null
      * @param to the first effective date not to return, as {@code YYYY-MM-DD}, or null
+     * @param first the number of orders to skip, or null for 0
+     * @param max the largest number of orders to return, or null for 100. At most 1000 are returned.
      * @return the orders
      */
-    public List<ChangeOrder> list(String from, String to) {
-        return store.list(Checks.optionalDate("from", from), Checks.optionalDate("to", to));
+    public List<ChangeOrder> list(String from, String to, Integer first, Integer max) {
+        Page page = Page.of(first, max);
+        return store.list(Checks.optionalDate("from", from), Checks.optionalDate("to", to), page.first(),
+                page.max());
     }
 
     /**

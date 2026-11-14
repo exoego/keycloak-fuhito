@@ -25,11 +25,13 @@ final class MemoryChangeOrderStore implements ChangeOrderStore {
     }
 
     @Override
-    public List<ChangeOrder> list(LocalDate from, LocalDate to) {
+    public List<ChangeOrder> list(LocalDate from, LocalDate to, int first, int max) {
         return orders.values().stream()
                 .filter(o -> (from == null || !o.effectiveDate().isBefore(from))
                         && (to == null || o.effectiveDate().isBefore(to)))
                 .sorted(Comparator.comparing(ChangeOrder::effectiveDate).reversed())
+                .skip(first)
+                .limit(max)
                 .toList();
     }
 

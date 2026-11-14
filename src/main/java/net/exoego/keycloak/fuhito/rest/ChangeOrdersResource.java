@@ -90,10 +90,18 @@ public class ChangeOrdersResource {
             @Parameter(description = "The first effective date to return.", schema = @Schema(format = "date"))
             @QueryParam("from") String from,
             @Parameter(description = "The first effective date not to return.", schema = @Schema(format = "date"))
-            @QueryParam("to") String to) {
+            @QueryParam("to") String to,
+            @Parameter(
+                    description = "The number of entries to skip.",
+                    schema = @Schema(minimum = "0", defaultValue = "0"))
+            @QueryParam("first") Integer first,
+            @Parameter(
+                    description = "The largest number of entries to return.",
+                    schema = @Schema(minimum = "0", maximum = "1000", defaultValue = "100"))
+            @QueryParam("max") Integer max) {
         context.requireRead();
         return Calls.run(context,
-                () -> service.list(from, to).stream().map(ChangeOrderRepresentation::of).toList());
+                () -> service.list(from, to, first, max).stream().map(ChangeOrderRepresentation::of).toList());
     }
 
     @GET

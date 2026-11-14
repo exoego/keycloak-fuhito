@@ -18,7 +18,6 @@ import net.exoego.keycloak.fuhito.store.UserDirectory;
  */
 public class PersonService {
 
-    private static final int DEFAULT_MAX = 100;
 
     /**
      * The person of a user, and whether this call created it.
@@ -141,14 +140,15 @@ public class PersonService {
      *
      * @param userId the ID of a Keycloak user, to return only the person linked to it, or null for everyone
      * @param first the number of people to skip, or null for 0
-     * @param max the largest number of people to return, or null for 100
+     * @param max the largest number of people to return, or null for 100. At most 1000 are returned.
      * @return the people
      */
     public List<PersonView> list(String userId, Integer first, Integer max) {
         if (userId != null) {
             return store.findByUser(userId).map(this::view).stream().toList();
         }
-        return store.list(first == null ? 0 : Math.max(0, first), max == null ? DEFAULT_MAX : Math.max(0, max))
+        Page page = Page.of(first, max);
+        return store.list(page.first(), page.max())
                 .stream()
                 .map(this::view)
                 .toList();

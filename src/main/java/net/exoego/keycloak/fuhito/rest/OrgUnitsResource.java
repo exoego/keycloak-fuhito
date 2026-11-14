@@ -20,6 +20,7 @@ import net.exoego.keycloak.fuhito.service.MembershipService;
 import net.exoego.keycloak.fuhito.service.OrgUnitService;
 import net.exoego.keycloak.fuhito.service.OrgUnitState;
 import net.exoego.keycloak.fuhito.service.OrganizationLinkService;
+import net.exoego.keycloak.fuhito.service.Page;
 import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.media.Content;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
@@ -164,9 +165,17 @@ public class OrgUnitsResource {
             @Parameter(
                     description = "True to return only the units with no parent.",
                     schema = @Schema(defaultValue = "false"))
-            @QueryParam("roots") boolean roots) {
+            @QueryParam("roots") boolean roots,
+            @Parameter(
+                    description = "The number of entries to skip.",
+                    schema = @Schema(minimum = "0", defaultValue = "0"))
+            @QueryParam("first") Integer first,
+            @Parameter(
+                    description = "The largest number of entries to return.",
+                    schema = @Schema(minimum = "0", maximum = "1000", defaultValue = "100"))
+            @QueryParam("max") Integer max) {
         context.requireRead();
-        return Calls.run(context, () -> represent(service.list(asOf, roots)));
+        return Calls.run(context, () -> represent(Page.of(first, max).of(service.list(asOf, roots))));
     }
 
     @GET
@@ -183,9 +192,17 @@ public class OrgUnitsResource {
                     description = "The date to read. The default is today for the org unit. It is the date of the "
                             + "realm unless a unit sets its own time zone.",
                     schema = @Schema(format = "date"))
-            @QueryParam("asOf") String asOf) {
+            @QueryParam("asOf") String asOf,
+            @Parameter(
+                    description = "The number of entries to skip.",
+                    schema = @Schema(minimum = "0", defaultValue = "0"))
+            @QueryParam("first") Integer first,
+            @Parameter(
+                    description = "The largest number of entries to return.",
+                    schema = @Schema(minimum = "0", maximum = "1000", defaultValue = "100"))
+            @QueryParam("max") Integer max) {
         context.requireRead();
-        return Calls.run(context, () -> represent(service.children(id, asOf)));
+        return Calls.run(context, () -> represent(Page.of(first, max).of(service.children(id, asOf))));
     }
 
     @GET
@@ -205,9 +222,17 @@ public class OrgUnitsResource {
                     description = "The date to read. The default is today for the org unit. It is the date of the "
                             + "realm unless a unit sets its own time zone.",
                     schema = @Schema(format = "date"))
-            @QueryParam("asOf") String asOf) {
+            @QueryParam("asOf") String asOf,
+            @Parameter(
+                    description = "The number of entries to skip.",
+                    schema = @Schema(minimum = "0", defaultValue = "0"))
+            @QueryParam("first") Integer first,
+            @Parameter(
+                    description = "The largest number of entries to return.",
+                    schema = @Schema(minimum = "0", maximum = "1000", defaultValue = "100"))
+            @QueryParam("max") Integer max) {
         context.requireRead();
-        return Calls.run(context, () -> represent(service.subtree(id, asOf)));
+        return Calls.run(context, () -> represent(Page.of(first, max).of(service.subtree(id, asOf))));
     }
 
     @GET
@@ -340,7 +365,7 @@ public class OrgUnitsResource {
             @QueryParam("first") Integer first,
             @Parameter(
                     description = "The largest number of entries to return.",
-                    schema = @Schema(minimum = "0", defaultValue = "100"))
+                    schema = @Schema(minimum = "0", maximum = "1000", defaultValue = "100"))
             @QueryParam("max") Integer max) {
         context.requireRead();
         return Calls.run(context, () -> membership.members(id,

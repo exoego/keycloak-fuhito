@@ -47,7 +47,7 @@ public class JpaChangeOrderStore implements ChangeOrderStore {
     }
 
     @Override
-    public List<ChangeOrder> list(LocalDate from, LocalDate to) {
+    public List<ChangeOrder> list(LocalDate from, LocalDate to, int first, int max) {
         return em.createQuery("""
                         select o from ChangeOrderEntity o where o.realmId = :realmId
                         and o.effectiveDate >= :from and o.effectiveDate < :to
@@ -55,6 +55,8 @@ public class JpaChangeOrderStore implements ChangeOrderStore {
                 .setParameter("realmId", realmId)
                 .setParameter("from", from == null ? FIRST_DATE : from)
                 .setParameter("to", to == null ? LAST_DATE : to)
+                .setFirstResult(first)
+                .setMaxResults(max)
                 .getResultStream()
                 .map(JpaChangeOrderStore::toDomain)
                 .toList();
