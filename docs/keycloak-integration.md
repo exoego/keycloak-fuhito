@@ -284,6 +284,10 @@ Siblings follow the display order, then the phonetic name, then the name. A unit
 The database orders the names, so the order of two names follows the collation of the database.
 The database also walks the tree, so a read of one page does not load the whole tree.
 
+The members of an org unit with the units below come in the same tree order.
+Inside one unit, they follow the display order, then the start of the assignment.
+The database applies the filters, the order, and the page.
+
 ## Endpoints
 
 | Path | Purpose |

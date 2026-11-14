@@ -1,6 +1,7 @@
 package net.exoego.keycloak.fuhito.store;
 
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -109,6 +110,16 @@ public interface OrgUnitStore {
      * @return the units of the page
      */
     List<PlacedOrgUnit> childrenOn(String hierarchyId, String parentId, LocalDate date, int first, int max);
+
+    /**
+     * Returns some units as they are on a date. A unit that does not exist on the date is left out.
+     *
+     * @param hierarchyId the ID of the hierarchy that the parents come from
+     * @param ids the IDs of the units
+     * @param date the date
+     * @return the units, in no order
+     */
+    List<PlacedOrgUnit> placedOn(String hierarchyId, Collection<String> ids, LocalDate date);
 
     /**
      * Stores a new org unit.

@@ -17,6 +17,7 @@ import net.exoego.keycloak.fuhito.domain.Employment;
 import net.exoego.keycloak.fuhito.domain.EmploymentStatus;
 import net.exoego.keycloak.fuhito.domain.EmploymentTerms;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
+import net.exoego.keycloak.fuhito.domain.MemberFilter;
 import net.exoego.keycloak.fuhito.domain.Person;
 import net.exoego.keycloak.fuhito.domain.RefItem;
 import net.exoego.keycloak.fuhito.domain.RefKind;
@@ -90,29 +91,24 @@ public class MembershipService {
         if (orgUnits.findUnit(orgUnitId).isEmpty()) {
             throw FuhitoException.notFound("org_unit.not_found", Map.of("id", orgUnitId));
         }
-        OrgUnitTree tree = new OrgUnitTree(orgUnits, refItems, date);
-        List<OrgUnitState> units = query.includeDescendants() ? tree.subtree(orgUnitId)
-                : List.of(tree.subtree(orgUnitId).getFirst());
-        String occupationId = filterId(RefKind.OCCUPATION, query.occupation());
-        String jobTitleId = filterId(RefKind.JOB_TITLE, query.jobTitle());
-        EmploymentStatus status = Checks.optionalEnum("status", EmploymentStatus.class, query.status(), null);
+        String hierarchy = orgUnits.defaultHierarchyId();
+        if (orgUnits.placedOn(hierarchy, List.of(orgUnitId), date).isEmpty()) {
+            throw FuhitoException.notFound("org_unit.not_valid_on",
+                    Map.of("id", orgUnitId, "date", date.toString()));
+        }
         Page page = Page.of(query.first(), query.max());
+        List<Assignment> rows = assignments.membersOn(new MemberFilter(hierarchy, orgUnitId,
+                query.includeDescendants(), date, filterId(RefKind.OCCUPATION, query.occupation()),
+                filterId(RefKind.JOB_TITLE, query.jobTitle()),
+                Checks.optionalEnum("status", EmploymentStatus.class, query.status(), null)), page.first(),
+                page.max());
 
-        Map<String, Integer> unitOrder = new HashMap<>();
-        units.forEach(unit -> unitOrder.put(unit.unit().id(), unitOrder.size()));
-        List<Assignment> rows = assignments.rowsOn(unitOrder.keySet(), date).stream()
-                .filter(row -> occupationId == null || occupationId.equals(row.occupationId()))
-                .filter(row -> jobTitleId == null || jobTitleId.equals(row.jobTitleId()))
-                .sorted(Comparator.comparing((Assignment row) -> unitOrder.get(row.orgUnitId()))
-                        .thenComparingInt(Assignment::displayOrder)
-                        .thenComparing(row -> row.period().from())
-                        .thenComparing(Assignment::assignmentId))
-                .toList();
-        return toMembers(rows, date, tree, false).stream()
-                .filter(member -> status == null || member.terms().status() == status)
-                .skip(page.first())
-                .limit(page.max())
-                .toList();
+        Map<String, OrgUnitState> units = new HashMap<>();
+        Map<String, String> codes = new HashMap<>();
+        orgUnits.placedOn(hierarchy, rows.stream().map(Assignment::orgUnitId).distinct().toList(), date)
+                .forEach(placed -> units.put(placed.unit().id(), new OrgUnitState(placed.unit(), placed.version(),
+                        codeOf(codes, placed.version().unitTypeId()), placed.parentId())));
+        return toMembers(rows, date, units::get, null);
     }
 
     /**
@@ -157,7 +153,10 @@ public class MembershipService {
                 });
         List<Member> members = new ArrayList<>();
         rowsByDate.forEach((date, rows) ->
-                members.addAll(toMembers(rows, date, new OrgUnitTree(orgUnits, refItems, date), includePath)));
+        {
+            OrgUnitTree tree = new OrgUnitTree(orgUnits, refItems, date);
+            members.addAll(toMembers(rows, date, id -> tree.path(id).getLast(), includePath ? tree::path : null));
+        });
         members.sort(Comparator.comparing((Member member) -> !member.assignment().primary())
                 .thenComparing(member -> member.assignment().period().from())
                 .thenComparing(member -> member.assignment().assignmentId()));
@@ -209,7 +208,8 @@ public class MembershipService {
                 assignmentViews);
     }
 
-    private List<Member> toMembers(List<Assignment> rows, LocalDate date, OrgUnitTree tree, boolean includePath) {
+    private List<Member> toMembers(List<Assignment> rows, LocalDate date, Function<String, OrgUnitState> unitOf,
+            Function<String, List<OrgUnitState>> pathOf) {
         List<String> employmentIds = rows.stream().map(Assignment::employmentId).distinct().toList();
         Map<String, Employment> employmentsById = employments.findAll(employmentIds).stream()
                 .collect(Collectors.toMap(Employment::id, Function.identity()));
@@ -219,11 +219,10 @@ public class MembershipService {
         List<Member> members = new ArrayList<>();
         for (Assignment row : rows) {
             EmploymentTerms terms = termsByEmployment.get(row.employmentId());
-            List<OrgUnitState> path = tree.path(row.orgUnitId());
             members.add(new Member(row, employmentsById.get(row.employmentId()), terms,
                     codeOf(codes, row.jobTitleId()), codeOf(codes, row.occupationId()), codeOf(codes, row.kindId()),
                     codeOf(codes, terms.employmentTypeId()), codeOf(codes, terms.gradeId()),
-                    path.getLast(), includePath ? path : null));
+                    unitOf.apply(row.orgUnitId()), pathOf == null ? null : pathOf.apply(row.orgUnitId())));
         }
         return members;
     }

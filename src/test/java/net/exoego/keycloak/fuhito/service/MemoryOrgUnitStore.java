@@ -2,6 +2,7 @@ package net.exoego.keycloak.fuhito.service;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -63,6 +64,12 @@ final class MemoryOrgUnitStore implements OrgUnitStore {
             int max) {
         OrgUnitTree tree = new OrgUnitTree(this, new MemoryRefItemStore(), date);
         return placed(parentId == null ? tree.roots() : tree.children(parentId), first, max);
+    }
+
+    @Override
+    public List<PlacedOrgUnit> placedOn(String hierarchyId, Collection<String> ids, LocalDate date) {
+        return placed(new OrgUnitTree(this, new MemoryRefItemStore(), date).all().stream()
+                .filter(state -> ids.contains(state.unit().id())).toList(), 0, Integer.MAX_VALUE);
     }
 
     private static List<PlacedOrgUnit> placed(List<OrgUnitState> states, int first, int max) {
