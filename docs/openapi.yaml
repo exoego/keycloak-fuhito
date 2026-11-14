@@ -1035,8 +1035,8 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ParentPeriod"
-          description: "The parents in the default hierarchy, oldest first. A gap\
-            \ means the unit was a root."
+          description: "The parents in every hierarchy, oldest first. A gap in a hierarchy\
+            \ means that the unit had no parent there."
     OrganizationLink:
       description: The link of an org unit to a Keycloak organization.
       type: object
@@ -1063,10 +1063,14 @@ components:
     ParentPeriod:
       type: object
       required:
+      - hierarchy
       - parentId
       - validFrom
       description: The parent of an org unit for a period.
       properties:
+        hierarchy:
+          type: string
+          description: The code of the hierarchy that the parent belongs to.
         parentId:
           type: string
         validFrom:
@@ -3177,7 +3181,8 @@ paths:
           $ref: "#/components/responses/Conflict"
   /org-units/{id}/parent:
     put:
-      summary: Gives an org unit a new parent in the default hierarchy from a date.
+      summary: Gives an org unit a new parent in a hierarchy from a date.
+      description: The response has the parent in that hierarchy.
       operationId: moveOrgUnit
       tags:
       - org-units
@@ -3186,6 +3191,11 @@ paths:
         name: id
         in: path
         required: true
+        schema:
+          type: string
+      - description: The code of the hierarchy. The default is the hierarchy `default`.
+        name: hierarchy
+        in: query
         schema:
           type: string
       - $ref: "#/components/parameters/changeOrder"

@@ -1,6 +1,7 @@
 package net.exoego.keycloak.fuhito;
 
 import java.net.http.HttpResponse;
+import java.util.List;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.UUID;
@@ -307,5 +308,47 @@ class OrgUnitsIT {
         assertFalse(Api.json(moved).has("parentId"));
         assertEquals(0, Api.json(realm.api.get("/org-units/" + branch + "/history")).get("parents").size());
         assertEquals(2, Api.json(realm.api.get("/org-units?asOf=2026-04-01&roots=true")).size());
+    }
+
+    @Test
+    void aUnitHasOneParentInEachHierarchy() throws Exception {
+        TestRealm realm = TestRealm.create("org-units-matrix");
+        Api matrixApi = realm.api;
+        String matrix = created(matrixApi.post("/hierarchies", "{\"code\": \"matrix\", \"name\": \"Matrix\"}")).get("id").asText();
+        String line = created(matrixApi.post("/org-units", "{\"name\": \"Line\", \"validFrom\": \"2026-04-01\"}")).get("id").asText();
+        String project = created(matrixApi.post("/org-units", "{\"name\": \"Project\", \"validFrom\": \"2026-04-01\"}")).get("id").asText();
+        String team = created(matrixApi.post("/org-units", "{\"name\": \"Team\", \"parentId\": \"" + line
+                + "\", \"validFrom\": \"2026-04-01\"}")).get("id").asText();
+
+        HttpResponse<String> moved = matrixApi.put("/org-units/" + team + "/parent?hierarchy=matrix",
+                "{\"parentId\": \"" + project + "\", \"validFrom\": \"2026-10-01\"}");
+
+        assertEquals(200, moved.statusCode(), moved.body());
+        assertEquals(project, Api.json(moved).get("parentId").asText());
+        assertEquals(line, Api.json(matrixApi.get("/org-units/" + team + "?asOf=2026-10-01")).get("parentId").asText());
+        JsonNode parents = Api.json(matrixApi.get("/org-units/" + team + "/history")).get("parents");
+        assertEquals(List.of("default", "matrix"), parents.findValuesAsText("hierarchy"));
+        assertEquals(List.of(line, project), parents.findValuesAsText("parentId"));
+
+        // The project is the parent of the line in the matrix, though the team is below the line by default.
+        assertEquals(200, matrixApi.put("/org-units/" + line + "/parent?hierarchy=matrix",
+                "{\"parentId\": \"" + project + "\", \"validFrom\": \"2026-10-01\"}").statusCode());
+        HttpResponse<String> cycle = matrixApi.put("/org-units/" + project + "/parent?hierarchy=matrix",
+                "{\"parentId\": \"" + team + "\", \"validFrom\": \"2026-10-01\"}");
+        assertEquals(409, cycle.statusCode(), cycle.body());
+        assertEquals("org_unit.cycle", Api.json(cycle).get("error").asText());
+
+        HttpResponse<String> unknown = matrixApi.put("/org-units/" + team + "/parent?hierarchy=nope",
+                "{\"validFrom\": \"2026-10-01\"}");
+        assertEquals(400, unknown.statusCode(), unknown.body());
+        assertEquals("hierarchy.unknown", Api.json(unknown).get("error").asText());
+
+        // A hierarchy with links stays. A child in the matrix keeps the project from ending.
+        assertEquals(409, matrixApi.delete("/hierarchies/" + matrix).statusCode());
+        assertEquals("org_unit.has_children", Api.json(matrixApi.put("/org-units/" + project + "/end",
+                "{\"validTo\": \"2027-04-01\"}")).get("error").asText());
+        assertEquals(200, matrixApi.put("/org-units/" + team + "/end", "{\"validTo\": \"2027-04-01\"}").statusCode());
+        assertEquals(List.of("2027-04-01", "2027-04-01"),
+                Api.json(matrixApi.get("/org-units/" + team + "/history")).get("parents").findValuesAsText("validTo"));
     }
 }

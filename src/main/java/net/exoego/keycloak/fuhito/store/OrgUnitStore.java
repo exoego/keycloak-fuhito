@@ -3,6 +3,7 @@ package net.exoego.keycloak.fuhito.store;
 import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import net.exoego.keycloak.fuhito.domain.OrgUnit;
@@ -21,6 +22,13 @@ public interface OrgUnitStore {
      * @return the ID
      */
     String defaultHierarchyId();
+
+    /**
+     * Returns the code of every hierarchy of the realm by its ID.
+     *
+     * @return the codes by ID
+     */
+    Map<String, String> hierarchyCodes();
 
     /**
      * Finds an org unit by ID.
@@ -158,6 +166,14 @@ public interface OrgUnitStore {
      * @return the links
      */
     List<OrgUnitLink> parentLinks(String hierarchyId, String childId);
+
+    /**
+     * Lists all parent links of an org unit in every hierarchy, oldest first.
+     *
+     * @param childId the ID of the unit
+     * @return the links
+     */
+    List<OrgUnitLink> parentLinks(String childId);
 
     /**
      * Lists all links to the children of an org unit, in every hierarchy.

@@ -20,6 +20,12 @@ final class MemoryOrgUnitStore implements OrgUnitStore {
     final Map<String, OrgUnit> units = new LinkedHashMap<>();
     final List<OrgUnitVersion> versions = new ArrayList<>();
     final List<OrgUnitLink> links = new ArrayList<>();
+    final Map<String, String> hierarchyCodes = new LinkedHashMap<>(Map.of("default-hierarchy", "default"));
+
+    @Override
+    public Map<String, String> hierarchyCodes() {
+        return hierarchyCodes;
+    }
 
     @Override
     public String defaultHierarchyId() {
@@ -120,6 +126,14 @@ final class MemoryOrgUnitStore implements OrgUnitStore {
     public List<OrgUnitLink> parentLinks(String hierarchyId, String childId) {
         return links.stream()
                 .filter(l -> l.hierarchyId().equals(hierarchyId) && l.childId().equals(childId))
+                .sorted(Comparator.comparing(l -> l.period().from()))
+                .toList();
+    }
+
+    @Override
+    public List<OrgUnitLink> parentLinks(String childId) {
+        return links.stream()
+                .filter(l -> l.childId().equals(childId))
                 .sorted(Comparator.comparing(l -> l.period().from()))
                 .toList();
     }
