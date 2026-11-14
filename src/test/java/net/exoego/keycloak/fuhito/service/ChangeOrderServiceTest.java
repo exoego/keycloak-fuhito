@@ -33,7 +33,7 @@ class ChangeOrderServiceTest {
         }
 
         @Override
-        public List<ChangeLogEntry> listByResource(String resourceType, String resourceId, int first, int max) {
+        public List<ChangeLogEntry> list(long after, String resourceType, String resourceId, int first, int max) {
             return List.of();
         }
 

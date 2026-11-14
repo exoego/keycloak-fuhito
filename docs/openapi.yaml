@@ -184,6 +184,7 @@ components:
     ChangeLogEntry:
       required:
       - id
+      - sequence
       - recordedAt
       - actorUserId
       - resourceType
@@ -195,6 +196,11 @@ components:
       properties:
         id:
           type: string
+        sequence:
+          type: integer
+          format: int64
+          description: "The position of the entry in the change log of the realm,\
+            \ counted from 1."
         recordedAt:
           type: string
           description: "When the write happened, in UTC."
@@ -1969,11 +1975,24 @@ paths:
           $ref: "#/components/responses/Conflict"
   /change-log:
     get:
-      summary: "Lists the writes to one resource, oldest first."
+      summary: "Lists the writes to the realm, oldest first."
+      description: "To follow the changes, keep the `sequence` of the last entry of\
+        \ each read and pass it as `after` in the next read. A read that returns fewer\
+        \ entries than `max` has reached the end. The numbers of a realm start at\
+        \ 1 and have no gaps, except where an erase of the data of a person removed\
+        \ entries."
       operationId: listChangeLog
       tags:
       - change-orders
       parameters:
+      - description: The sequence number that the entries come after.
+        schema:
+          type: integer
+          format: int64
+          minimum: 0
+          default: 0
+        name: after
+        in: query
       - description: The number of entries to skip.
         schema:
           type: integer
@@ -1986,18 +2005,19 @@ paths:
         schema:
           type: integer
           format: int32
+          maximum: 1000
           minimum: 0
           default: 100
         name: max
         in: query
-      - description: The ID of the resource.
-        required: true
+      - description: "The ID of the resource. Without it, the writes to every resource\
+          \ are listed."
         name: resourceId
         in: query
         schema:
           type: string
-      - description: The type of the resource.
-        required: true
+      - description: "The type of the resource. Without it, the writes to every type\
+          \ are listed."
         schema:
           type: string
           examples:
@@ -2202,6 +2222,7 @@ paths:
         schema:
           type: integer
           format: int32
+          maximum: 1000
           minimum: 0
           default: 100
         name: max

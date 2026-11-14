@@ -1,8 +1,13 @@
 package net.exoego.keycloak.fuhito.jpa;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.criteria.CriteriaBuilder;
+import jakarta.persistence.criteria.CriteriaQuery;
+import jakarta.persistence.criteria.Predicate;
+import jakarta.persistence.criteria.Root;
 import net.exoego.keycloak.fuhito.domain.ChangeLogEntry;
 import net.exoego.keycloak.fuhito.store.ChangeLogStore;
 
@@ -30,6 +35,7 @@ public class JpaChangeLogStore implements ChangeLogStore {
         ChangeLogEntity entity = new ChangeLogEntity();
         entity.id = entry.id();
         entity.realmId = realmId;
+        entity.sequence = nextSequence();
         entity.recordedAt = entry.recordedAt();
         entity.actorUserId = entry.actorUserId();
         entity.resourceType = entry.resourceType();
@@ -41,15 +47,47 @@ public class JpaChangeLogStore implements ChangeLogStore {
         em.persist(entity);
     }
 
-    @Override
-    public List<ChangeLogEntry> listByResource(String resourceType, String resourceId, int first, int max) {
-        return em.createQuery("""
-                        select l from ChangeLogEntity l where l.realmId = :realmId
-                        and l.resourceType = :resourceType and l.resourceId = :resourceId order by l.sequence""",
-                        ChangeLogEntity.class)
+    // The update locks the counter of the realm until the transaction ends. So the entries of a realm become
+    // visible in the order of their numbers, and a reader that goes on after the last number it saw misses none.
+    private long nextSequence() {
+        if (increment() == 0) {
+            em.createQuery("""
+                            insert into ChangeLogCounterEntity (realmId, lastSequence) values (:realmId, 0L)
+                            on conflict (realmId) do nothing""")
+                    .setParameter("realmId", realmId)
+                    .executeUpdate();
+            increment();
+        }
+        return em.createQuery("select c.lastSequence from ChangeLogCounterEntity c where c.realmId = :realmId",
+                        Long.class)
                 .setParameter("realmId", realmId)
-                .setParameter("resourceType", resourceType)
-                .setParameter("resourceId", resourceId)
+                .getSingleResult();
+    }
+
+    private int increment() {
+        return em.createQuery("""
+                        update ChangeLogCounterEntity c set c.lastSequence = c.lastSequence + 1
+                        where c.realmId = :realmId""")
+                .setParameter("realmId", realmId)
+                .executeUpdate();
+    }
+
+    @Override
+    public List<ChangeLogEntry> list(long after, String resourceType, String resourceId, int first, int max) {
+        CriteriaBuilder builder = em.getCriteriaBuilder();
+        CriteriaQuery<ChangeLogEntity> query = builder.createQuery(ChangeLogEntity.class);
+        Root<ChangeLogEntity> entry = query.from(ChangeLogEntity.class);
+        List<Predicate> where = new ArrayList<>();
+        where.add(builder.equal(entry.get("realmId"), realmId));
+        where.add(builder.gt(entry.get("sequence"), after));
+        if (resourceType != null) {
+            where.add(builder.equal(entry.get("resourceType"), resourceType));
+        }
+        if (resourceId != null) {
+            where.add(builder.equal(entry.get("resourceId"), resourceId));
+        }
+        return em.createQuery(query.select(entry).where(where.toArray(Predicate[]::new))
+                        .orderBy(builder.asc(entry.get("sequence"))))
                 .setFirstResult(first)
                 .setMaxResults(max)
                 .getResultStream()
