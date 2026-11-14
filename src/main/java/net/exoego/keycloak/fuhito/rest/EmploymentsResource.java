@@ -1,5 +1,7 @@
 package net.exoego.keycloak.fuhito.rest;
 
+import java.util.List;
+
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.DELETE;
 import jakarta.ws.rs.GET;
@@ -14,6 +16,7 @@ import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.rest.RequestContext.Change;
 import net.exoego.keycloak.fuhito.service.AssignmentService;
 import net.exoego.keycloak.fuhito.service.EmploymentService;
+import net.exoego.keycloak.fuhito.service.OrgUnitService;
 import net.exoego.keycloak.fuhito.service.PersonService;
 import net.exoego.keycloak.fuhito.service.TermsChange;
 import org.eclipse.microprofile.openapi.annotations.Operation;
@@ -40,6 +43,7 @@ public class EmploymentsResource {
     private final EmploymentService service;
     private final PersonService people;
     private final AssignmentService assignments;
+    private final OrgUnitService orgUnits;
 
     /**
      * Creates the resource for one request.
@@ -48,9 +52,11 @@ public class EmploymentsResource {
      * @param service the operations on the realm of the request
      * @param people the operations on people of the realm
      * @param assignments the reads of assignments of the realm
+     * @param orgUnits the operations on org units of the realm
      */
     public EmploymentsResource(RequestContext context, EmploymentService service, PersonService people,
-            AssignmentService assignments) {
+            AssignmentService assignments, OrgUnitService orgUnits) {
+        this.orgUnits = orgUnits;
         this.context = context;
         this.service = service;
         this.people = people;
@@ -156,25 +162,69 @@ public class EmploymentsResource {
         context.requireWrite();
         return Calls.run(context, () -> {
             Checks.required("body", body);
-            EmploymentService.Transfer transfer = service.transfer(id, body.toRequest());
-            var ended = EmploymentRepresentation.of(transfer.ended());
-            var started = EmploymentRepresentation.of(transfer.started());
-            context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, "fuhito/employments/" + id + "/transfer", ended);
-            context.recordChange(Change.CREATE, RESOURCE_TYPE, started.id(), "fuhito/employments/" + started.id(),
-                    started);
-            var newAssignments = transfer.assignmentIds().stream()
-                    .map(assignmentId -> AssignmentRepresentation.of(assignments.get(assignmentId)))
-                    .toList();
-            newAssignments.forEach(assignment -> context.recordChange(Change.CREATE,
-                    AssignmentsResource.RESOURCE_TYPE, assignment.id(), "fuhito/assignments/" + assignment.id(),
-                    assignment));
-            var newLines = transfer.reportingLines().stream().map(ReportingLineRepresentation::of).toList();
-            newLines.forEach(line -> context.recordChange(Change.CREATE, ReportingLinesResource.RESOURCE_TYPE,
-                    line.id(), "fuhito/reporting-lines/" + line.id(), line));
             return Response.status(Response.Status.CREATED)
-                    .entity(TransferRepresentation.of(ended, started, newAssignments, newLines))
+                    .entity(record(service.transfer(id, body.toRequest())))
                     .build();
         });
+    }
+
+    @POST
+    @Path("transfers")
+    @Operation(
+            operationId = "transferEmployments",
+            summary = "Moves every person of one employer to another employer on a date, in one write.",
+            description = "It is for a merger of two legal entities. Each employment that holds on the day before "
+                    + "and on the date is transferred, as `POST /employments/{id}/transfer` does for one. With "
+                    + "`endEmployer`, the old employer ends on the same date. A failure writes nothing.")
+    @Parameter(ref = "changeOrder")
+    @APIResponse(
+            responseCode = "201",
+            description = "The old and the new employment of each person.",
+            content = @Content(mediaType = "application/json",
+                    schema = @Schema(implementation = TransfersRepresentation.class)))
+    @BadRequest
+    @NotFound
+    @ApiErrors
+    public Response transferAll(TransfersRepresentation body) {
+        context.requireWrite();
+        return Calls.run(context, () -> {
+            Checks.required("body", body);
+            List<TransfersRepresentation.Moved> moved = service.transferAll(body.toRequest()).stream()
+                    .map(this::record)
+                    .map(transfer -> new TransfersRepresentation.Moved(transfer.started().personId(),
+                            transfer.ended().id(), transfer.started().id()))
+                    .toList();
+            OrgUnitRepresentation endedEmployer = null;
+            if (Boolean.TRUE.equals(body.endEmployer())) {
+                String employerId = body.fromEmployerId();
+                endedEmployer = OrgUnitRepresentation.of(orgUnits.end(employerId, body.validFrom()));
+                context.recordChange(Change.UPDATE, OrgUnitsResource.RESOURCE_TYPE, employerId,
+                        "fuhito/org-units/" + employerId + "/end", endedEmployer);
+            }
+            return Response.status(Response.Status.CREATED)
+                    .entity(TransfersRepresentation.of(moved, endedEmployer))
+                    .build();
+        });
+    }
+
+    // Every part of a transfer gets its own entry in the admin events and in the change log.
+    private TransferRepresentation record(EmploymentService.Transfer transfer) {
+        var ended = EmploymentRepresentation.of(transfer.ended());
+        var started = EmploymentRepresentation.of(transfer.started());
+        context.recordChange(Change.UPDATE, RESOURCE_TYPE, ended.id(), "fuhito/employments/" + ended.id() + "/transfer",
+                ended);
+        context.recordChange(Change.CREATE, RESOURCE_TYPE, started.id(), "fuhito/employments/" + started.id(),
+                started);
+        var newAssignments = transfer.assignmentIds().stream()
+                .map(assignmentId -> AssignmentRepresentation.of(assignments.get(assignmentId)))
+                .toList();
+        newAssignments.forEach(assignment -> context.recordChange(Change.CREATE,
+                AssignmentsResource.RESOURCE_TYPE, assignment.id(), "fuhito/assignments/" + assignment.id(),
+                assignment));
+        var newLines = transfer.reportingLines().stream().map(ReportingLineRepresentation::of).toList();
+        newLines.forEach(line -> context.recordChange(Change.CREATE, ReportingLinesResource.RESOURCE_TYPE,
+                line.id(), "fuhito/reporting-lines/" + line.id(), line));
+        return TransferRepresentation.of(ended, started, newAssignments, newLines);
     }
 
     @DELETE

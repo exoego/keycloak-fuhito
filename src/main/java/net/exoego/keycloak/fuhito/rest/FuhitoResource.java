@@ -190,7 +190,8 @@ public class FuhitoResource {
      */
     @Path("employments")
     public EmploymentsResource employments() {
-        return new EmploymentsResource(context, employmentService(), personService(), assignmentService());
+        return new EmploymentsResource(context, employmentService(), personService(), assignmentService(),
+                orgUnitService());
     }
 
     /**
