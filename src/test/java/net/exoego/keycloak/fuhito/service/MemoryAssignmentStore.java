@@ -8,11 +8,37 @@ import java.util.List;
 import java.util.Optional;
 
 import net.exoego.keycloak.fuhito.domain.Assignment;
+import net.exoego.keycloak.fuhito.domain.MemberFilter;
 import net.exoego.keycloak.fuhito.store.AssignmentStore;
 
 final class MemoryAssignmentStore implements AssignmentStore {
 
     final List<Assignment> rows = new ArrayList<>();
+
+    /** The stores that a list of members reads besides the rows. A test of members sets them. */
+    MemoryOrgUnitStore orgUnits;
+    MemoryEmploymentStore employments;
+
+    @Override
+    public List<Assignment> membersOn(MemberFilter filter, int first, int max) {
+        List<String> unitIds = filter.includeDescendants()
+                ? orgUnits.treeOn(filter.hierarchyId(), filter.orgUnitId(), filter.date(), 0, Integer.MAX_VALUE)
+                        .stream().map(placed -> placed.unit().id()).toList()
+                : List.of(filter.orgUnitId());
+        return rowsOn(unitIds, filter.date()).stream()
+                .filter(row -> filter.occupationId() == null || filter.occupationId().equals(row.occupationId()))
+                .filter(row -> filter.jobTitleId() == null || filter.jobTitleId().equals(row.jobTitleId()))
+                .filter(row -> filter.status() == null
+                        || employments.termsOn(List.of(row.employmentId()), filter.date()).stream()
+                                .anyMatch(terms -> terms.status() == filter.status()))
+                .sorted(Comparator.comparingInt((Assignment row) -> unitIds.indexOf(row.orgUnitId()))
+                        .thenComparingInt(Assignment::displayOrder)
+                        .thenComparing(row -> row.period().from())
+                        .thenComparing(Assignment::assignmentId))
+                .skip(first)
+                .limit(max)
+                .toList();
+    }
 
     @Override
     public List<Assignment> rows(String assignmentId) {
