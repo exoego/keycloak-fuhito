@@ -57,12 +57,12 @@ jobs:
         run: ./gradlew check -PtestJavaVersion=${{ matrix.java }} -PtestKeycloakVersion="$KEYCLOAK_VERSION"
 
   # aislop is a third-party tool from npm. The script runs it in a container with no network.
+  # The job token has no permission at all. A public repository can be checked out without one.
   quality:
     name: Quality scan
     timeout-minutes: 10
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
+    permissions: {}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

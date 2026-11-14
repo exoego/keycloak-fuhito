@@ -22,6 +22,7 @@ copy=$(mktemp -d)
 trap 'rm -rf "$copy"' EXIT
 
 run=(docker run --rm --cap-drop ALL --security-opt no-new-privileges --user "$(id -u):$(id -g)"
+    --read-only --memory 2g --pids-limit 256
     --tmpfs /tmp -e HOME=/tmp -e npm_config_update_notifier=false)
 
 if [ ! -x "$tool/node_modules/.bin/aislop" ]; then
@@ -37,7 +38,7 @@ git -C "$root" archive "${snapshot:-HEAD}" | tar -x -C "$copy"
 if [ "$#" -eq 0 ]; then
     set -- ci . --human
 fi
-"${run[@]}" --network none --read-only --memory 2g --pids-limit 256 \
+"${run[@]}" --network none \
     -e AISLOP_NO_TELEMETRY=1 -e DO_NOT_TRACK=1 -e AISLOP_NO_HISTORY=1 -e CI=true \
     -v "$tool:/tool:ro" -v "$copy:/src:ro" -w /src "$NODE_IMAGE" \
     /tool/node_modules/.bin/aislop "$@"
