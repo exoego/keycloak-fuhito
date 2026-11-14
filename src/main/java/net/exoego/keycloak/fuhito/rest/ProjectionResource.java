@@ -32,12 +32,6 @@ public class ProjectionResource {
         this.service = service;
     }
 
-    /**
-     * Makes the groups and the memberships of the linked Keycloak organizations match the org structure of today.
-     * Running it again with no change in between changes nothing.
-     *
-     * @return what the rebuild changed
-     */
     @POST
     @Path("rebuild")
     @Operation(

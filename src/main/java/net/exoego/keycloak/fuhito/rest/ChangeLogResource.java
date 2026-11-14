@@ -34,15 +34,6 @@ public class ChangeLogResource {
         this.service = service;
     }
 
-    /**
-     * Lists the writes to one resource, oldest first.
-     *
-     * @param resourceType the type of the resource, for example {@code FUHITO_ORG_UNIT}
-     * @param resourceId the ID of the resource
-     * @param first the number of entries to skip. The default is 0.
-     * @param max the largest number of entries to return. The default is 100.
-     * @return the entries
-     */
     @GET
     @Operation(operationId = "listChangeLog", summary = "Lists the writes to one resource, oldest first.")
     @APIResponse(responseCode = "200", description = "The entries.")

@@ -34,13 +34,6 @@ public class ReorganizationsResource {
         this.service = service;
     }
 
-    /**
-     * Changes many org units on one date in one transaction.
-     * When one step fails, nothing is written, and the error has the position of the step in {@code params.step}.
-     *
-     * @param body the effective date and the steps
-     * @return what each step did
-     */
     @POST
     @Operation(
             operationId = "applyReorganization",

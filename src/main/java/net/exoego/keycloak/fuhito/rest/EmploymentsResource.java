@@ -48,12 +48,6 @@ public class EmploymentsResource {
         this.service = service;
     }
 
-    /**
-     * Starts an employment of a user.
-     *
-     * @param body the user, the dates, and the first terms
-     * @return 201 with the new employment
-     */
     @POST
     @Operation(operationId = "startEmployment", summary = "Starts an employment of a user.")
     @Parameter(ref = "changeOrder")
@@ -76,14 +70,6 @@ public class EmploymentsResource {
         });
     }
 
-    /**
-     * Replaces the terms of an employment from the {@code validFrom} date of the body.
-     * The terms are the employment type, the grade, the status, the work percentage, and the attributes.
-     *
-     * @param id the ID
-     * @param body the new terms and their first date
-     * @return the employment with the terms of every period
-     */
     @PUT
     @Path("{id}/terms")
     @Operation(
@@ -110,15 +96,6 @@ public class EmploymentsResource {
         });
     }
 
-    /**
-     * Sets the end of an employment.
-     * An earlier end is how a person leaves. It also ends the terms and the assignments on that date.
-     * A later end extends a fixed-term employment.
-     *
-     * @param id the ID
-     * @param body the first date on which the employment no longer holds, and the end reason
-     * @return the employment with the terms of every period
-     */
     @PUT
     @Path("{id}/end")
     @Operation(
@@ -144,12 +121,6 @@ public class EmploymentsResource {
         });
     }
 
-    /**
-     * Removes the end of an employment, for example to take back a resignation.
-     *
-     * @param id the ID
-     * @return the employment with the terms of every period
-     */
     @DELETE
     @Path("{id}/end")
     @Operation(
@@ -171,12 +142,6 @@ public class EmploymentsResource {
         });
     }
 
-    /**
-     * Returns an employment with the terms of every period.
-     *
-     * @param id the ID
-     * @return the employment
-     */
     @GET
     @Path("{id}")
     @Operation(operationId = "getEmployment", summary = "Returns an employment with the terms of every period.")

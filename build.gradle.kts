@@ -165,7 +165,10 @@ tasks.check {
 
 // The javadoc jar goes to Maven Central, so a warning fails the build. check runs it, so a release does not find it first.
 tasks.javadoc {
-    (options as StandardJavadocDocletOptions).addBooleanOption("Werror", true)
+    val doclet = options as StandardJavadocDocletOptions
+    doclet.addBooleanOption("Werror", true)
+    // The REST resources and their records are described by OpenAPI annotations, not by Javadoc.
+    doclet.addBooleanOption("Xdoclint:all,-missing", true)
 }
 
 tasks.check {

@@ -53,21 +53,6 @@ public class ImportsResource {
         this.csvService = csvService;
     }
 
-    /**
-     * Loads one CSV file in one transaction.
-     * The first row has the column names, in English or in Japanese.
-     * A blank cell keeps the stored value. The cell {@code #CLEAR} removes it.
-     *
-     * @param list the kind of rows. It is {@code ref-items}, {@code org-units}, {@code employments}, or
-     *        {@code assignments}.
-     * @param effectiveDate the date of the state, as {@code YYYY-MM-DD}
-     * @param dryRun true to do all checks and write nothing
-     * @param source the name of the system that the rows come from. The default is "import".
-     * @param contentType the content type of the request. Its {@code charset} says how the file is encoded.
-     *        The default is UTF-8. A file saved by a spreadsheet in Japan is often {@code Shift_JIS}.
-     * @param file the bytes of the file
-     * @return 200 with the report, or 400 with the report when a row failed
-     */
     @POST
     @Path("csv/{list}")
     @Consumes("text/csv")
@@ -113,14 +98,6 @@ public class ImportsResource {
         });
     }
 
-    /**
-     * Loads many rows in one transaction.
-     * All rows are written, or none. A dry run does all checks and writes nothing.
-     *
-     * @param body the effective date, the dry run flag, and the rows
-     * @return 200 with the report when the rows were written or the request was a dry run without errors.
-     *         400 with the report when a row failed.
-     */
     @POST
     @Operation(
             operationId = "applyImport",

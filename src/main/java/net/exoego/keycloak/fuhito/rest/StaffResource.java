@@ -41,13 +41,6 @@ public class StaffResource {
         this.assignments = assignments;
     }
 
-    /**
-     * Starts an employment and adds its first assignment in one transaction.
-     * When either part fails, nothing is written.
-     *
-     * @param body the user, the org unit, the start date, and optional values
-     * @return 201 with the new employment and the new assignment
-     */
     @POST
     @Operation(operationId = "addStaff", summary = "Starts an employment and adds its first assignment in one call.")
     @Parameter(ref = "changeOrder")

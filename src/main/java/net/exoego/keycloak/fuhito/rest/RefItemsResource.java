@@ -53,13 +53,6 @@ public class RefItemsResource {
         this.service = service;
     }
 
-    /**
-     * Lists the items of a kind.
-     *
-     * @param kind the kind
-     * @param includeInactive true to also return inactive items
-     * @return the items, ordered by display order and then by code
-     */
     @GET
     @Operation(
             operationId = "listRefItems",
@@ -78,12 +71,6 @@ public class RefItemsResource {
                 .toList());
     }
 
-    /**
-     * Returns one item.
-     *
-     * @param id the ID
-     * @return the item
-     */
     @GET
     @Path("{id}")
     @Operation(operationId = "getRefItem", summary = "Returns one item.")
@@ -97,12 +84,6 @@ public class RefItemsResource {
         return Calls.run(context, () -> RefItemRepresentation.of(service.get(id)));
     }
 
-    /**
-     * Creates an item.
-     *
-     * @param body the kind, the code, and the other values
-     * @return 201 with the new item
-     */
     @POST
     @Operation(
             operationId = "createRefItem",
@@ -127,13 +108,6 @@ public class RefItemsResource {
         });
     }
 
-    /**
-     * Replaces the changeable values of an item. The kind and the code never change.
-     *
-     * @param id the ID
-     * @param body the new values
-     * @return the changed item
-     */
     @PUT
     @Path("{id}")
     @Operation(
@@ -159,12 +133,6 @@ public class RefItemsResource {
         });
     }
 
-    /**
-     * Deletes an item.
-     *
-     * @param id the ID
-     * @return 204
-     */
     @DELETE
     @Path("{id}")
     @Operation(operationId = "deleteRefItem", summary = "Deletes an item.")

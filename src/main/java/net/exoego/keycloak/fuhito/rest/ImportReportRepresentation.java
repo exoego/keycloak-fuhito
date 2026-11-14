@@ -9,14 +9,6 @@ import net.exoego.keycloak.fuhito.service.CsvImportService;
 import net.exoego.keycloak.fuhito.service.ImportReport;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 
-/**
- * What an import did, or would do.
- *
- * @param dryRun true when the request asked for a dry run
- * @param applied true when the rows were written. It is false for a dry run and when a row failed.
- * @param counts the number of rows by outcome for each list of the document
- * @param errors the rows that could not be applied. When this is not empty, nothing was written.
- */
 @Schema(
         name = "ImportReport",
         description = "What an import did, or would do.",
@@ -31,16 +23,6 @@ public record ImportReportRepresentation(
         @Schema(description = "The rows that could not be applied. When this is not empty, nothing was written.")
         List<RowError> errors) {
 
-    /**
-     * A row that could not be applied.
-     *
-     * @param list the name of the list in the document
-     * @param row the position of the row in its list, counted from 0
-     * @param line the line number in the CSV file, counted from 1. Only a CSV import has it.
-     * @param error the stable error code
-     * @param params the values that the message refers to
-     * @param message the message for people
-     */
     @Schema(
             name = "ImportRowError",
             description = "A row that could not be applied.",

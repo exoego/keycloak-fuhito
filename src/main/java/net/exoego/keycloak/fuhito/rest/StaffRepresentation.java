@@ -6,25 +6,6 @@ import net.exoego.keycloak.fuhito.service.AssignmentValues;
 import net.exoego.keycloak.fuhito.service.NewEmployment;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 
-/**
- * A request to add a person to an org unit in one call, and its response.
- * The request starts an employment and adds its first assignment.
- *
- * @param userId the ID of the Keycloak user
- * @param orgUnitId the ID of the org unit
- * @param validFrom the first date of the employment and of the assignment, as {@code YYYY-MM-DD}
- * @param validTo the first date after both, or null for no end
- * @param staffNumber the number that the legal entity gives to the person, or null
- * @param employmentType the code of the employment type, or null
- * @param grade the code of the grade, or null
- * @param workPercent the share of full-time work in percent, or null
- * @param jobTitle the code of the job title, or null
- * @param occupation the code of the occupation, or null
- * @param head true when the person leads the org unit, or null for false
- * @param primary false when this is not the main assignment, or null for true
- * @param employment the new employment. Only responses have it.
- * @param assignment the new assignment. Only responses have it.
- */
 @Schema(
         name = "Staff",
         description = "A request to add a person to an org unit in one call, and its response. The request starts "

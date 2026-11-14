@@ -47,12 +47,6 @@ public class ReportingLinesResource {
         this.service = service;
     }
 
-    /**
-     * Adds a reporting line from an assignment to a manager.
-     *
-     * @param body the assignment, the manager, the kind, and the dates
-     * @return 201 with the new line
-     */
     @POST
     @Operation(operationId = "addReportingLine", summary = "Adds a reporting line from an assignment to a manager.")
     @Parameter(ref = "changeOrder")
@@ -75,12 +69,6 @@ public class ReportingLinesResource {
         });
     }
 
-    /**
-     * Returns one reporting line.
-     *
-     * @param id the ID
-     * @return the line
-     */
     @GET
     @Path("{id}")
     @Operation(operationId = "getReportingLine", summary = "Returns one reporting line.")
@@ -94,13 +82,6 @@ public class ReportingLinesResource {
         return Calls.run(context, () -> ReportingLineRepresentation.of(service.get(id)));
     }
 
-    /**
-     * Ends a reporting line earlier.
-     *
-     * @param id the ID
-     * @param body the first date on which the line no longer holds
-     * @return the changed line
-     */
     @PUT
     @Path("{id}/end")
     @Operation(operationId = "endReportingLine", summary = "Ends a reporting line earlier.")
@@ -122,12 +103,6 @@ public class ReportingLinesResource {
         });
     }
 
-    /**
-     * Deletes a reporting line, as if it had never been stored.
-     *
-     * @param id the ID
-     * @return 204
-     */
     @DELETE
     @Path("{id}")
     @Operation(

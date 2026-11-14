@@ -35,13 +35,6 @@ public class AttributeSyncResource {
         this.service = service;
     }
 
-    /**
-     * Makes the assignments and reporting lines of the sync match the user attributes of now.
-     * Running it again with no change in between changes nothing.
-     *
-     * @param dryRun true to report what the sync would do and write nothing
-     * @return what the run did
-     */
     @POST
     @Path("run")
     @Operation(

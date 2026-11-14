@@ -65,11 +65,6 @@ public class ExportResource {
         this.clock = clock;
     }
 
-    /**
-     * Returns all organization data of the realm, with every period of every resource, ended ones included.
-     *
-     * @return the export
-     */
     @GET
     @Operation(
             operationId = "exportRealm",

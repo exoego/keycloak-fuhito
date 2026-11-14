@@ -73,15 +73,6 @@ public class UsersResource {
         this.qualifications = qualifications;
     }
 
-    /**
-     * Masks the personal data of a user who left. It cannot be undone.
-     * It clears the staff number, the numbers of qualifications, the external IDs, and the free attributes,
-     * also in the change log. Every record keeps its ID, its org unit, its job title, its occupation, and its
-     * dates. So an application that refers to a record by ID still finds it.
-     *
-     * @param userId the ID of the user. The user may be removed from Keycloak already.
-     * @return the user ID and the time of the masking
-     */
     @POST
     @Path("{userId}/mask")
     @Operation(
@@ -106,12 +97,6 @@ public class UsersResource {
         });
     }
 
-    /**
-     * The result of a masking.
-     *
-     * @param userId the ID of the user
-     * @param maskedAt when the data was first masked, in UTC
-     */
     @Schema(name = "Mask", description = "The result of a masking.", requiredProperties = {"userId", "maskedAt"})
     public record MaskRepresentation(
             String userId,
@@ -119,15 +104,6 @@ public class UsersResource {
             String maskedAt) {
     }
 
-    /**
-     * Erases everything about one user for good. These are the employments with their terms and assignments,
-     * the qualifications, the reporting lines of the user as a report and as a manager, and the change log
-     * entries about them.
-     * Removal of a user from Keycloak does not do this. This endpoint is for a request to delete personal data.
-     *
-     * @param userId the ID of the user. The user may be removed from Keycloak already.
-     * @return 204
-     */
     @DELETE
     @Path("{userId}/data")
     @Operation(
@@ -157,14 +133,6 @@ public class UsersResource {
         });
     }
 
-    /**
-     * Lists the managers of a user on a date, for each assignment of the user.
-     * An assignment with no stored solid line takes the head of its org unit, or of the nearest unit above.
-     *
-     * @param userId the ID of the user
-     * @param asOf the date as {@code YYYY-MM-DD}. The default is today in the time zone of the realm.
-     * @return the managers
-     */
     @GET
     @Path("{userId}/managers")
     @Operation(
@@ -189,13 +157,6 @@ public class UsersResource {
                 .toList());
     }
 
-    /**
-     * Lists the direct reports of a user on a date.
-     *
-     * @param userId the ID of the user
-     * @param asOf the date as {@code YYYY-MM-DD}. The default is today in the time zone of the realm.
-     * @return the direct reports
-     */
     @GET
     @Path("{userId}/reports")
     @Operation(operationId = "listUserReports", summary = "Lists the direct reports of a user on a date.")
@@ -216,14 +177,6 @@ public class UsersResource {
                 .toList());
     }
 
-    /**
-     * Lists the qualifications of a user, oldest first.
-     *
-     * @param userId the ID of the user
-     * @param asOf the date as {@code YYYY-MM-DD}. The default is today in the time zone of the realm.
-     * @param all true to return every qualification, expired ones and future ones included
-     * @return the qualifications
-     */
     @GET
     @Path("{userId}/qualifications")
     @Operation(operationId = "listUserQualifications", summary = "Lists the qualifications of a user, oldest first.")
@@ -248,14 +201,6 @@ public class UsersResource {
                 .toList());
     }
 
-    /**
-     * Lists the assignments of a user that hold on a date. The primary assignment comes first.
-     *
-     * @param userId the ID of the user
-     * @param asOf the date as {@code YYYY-MM-DD}. The default is today in the time zone of the realm.
-     * @param includePath true to return each org unit with its path from the root
-     * @return the assignments of the user on the date
-     */
     @GET
     @Path("{userId}/assignments")
     @Operation(
@@ -283,12 +228,6 @@ public class UsersResource {
                 .toList());
     }
 
-    /**
-     * Returns every employment and every assignment of a user, with all their periods.
-     *
-     * @param userId the ID of the user
-     * @return the history of the user
-     */
     @GET
     @Path("{userId}/history")
     @Operation(

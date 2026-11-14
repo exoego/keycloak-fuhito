@@ -15,13 +15,6 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
  */
 public final class ImportReport {
 
-    /**
-     * The number of rows of one list by outcome.
-     *
-     * @param created rows that made a new thing
-     * @param changed rows that changed an existing thing
-     * @param unchanged rows that matched what was stored
-     */
     @Schema(
             name = "ImportCounts",
             description = "The number of rows of one list by outcome.",

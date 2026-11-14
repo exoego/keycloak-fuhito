@@ -7,13 +7,6 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
 
 /**
  * A reporting line in requests and responses.
- *
- * @param id the ID. Requests ignore it.
- * @param assignmentId the ID of the assignment of the person who reports
- * @param managerUserId the ID of the Keycloak user who is the manager
- * @param kind {@code SOLID} or {@code DOTTED}. The default is {@code SOLID}.
- * @param validFrom the first date of the line, as {@code YYYY-MM-DD}
- * @param validTo the first date after the line, or null to last as long as the assignment
  */
 @Schema(name = "ReportingLine", requiredProperties = {"assignmentId", "managerUserId", "validFrom"})
 public record ReportingLineRepresentation(

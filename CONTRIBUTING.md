@@ -64,6 +64,9 @@ After a change to the API, run this and commit the result.
 
 `check` fails when the file is out of date.
 
+Describe an endpoint, a parameter, or a field of a request or a response in its annotation.
+Do not repeat it in Javadoc.
+
 The generator writes OpenAPI 3.1 content under the version 3.2.0. OpenAPI 3.2 only adds to 3.1.
 The annotations cannot say the 3.2 fields of the tags, so `src/main/resources/META-INF/openapi.yaml` adds them.
 

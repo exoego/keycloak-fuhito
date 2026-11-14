@@ -9,16 +9,6 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
 
 /**
  * A qualification in requests and responses.
- *
- * @param id the ID. Requests ignore it.
- * @param userId the ID of the Keycloak user. Only a request to add reads it.
- * @param kind the code of the qualification kind
- * @param number the number of the license or certificate, or null
- * @param validFrom the first date on which the qualification is valid, as {@code YYYY-MM-DD}
- * @param validTo the first date on which it is no longer valid, or null for no end
- * @param attributes free values that the realm defines
- * @param externalId the ID of the qualification in the system it came from, or null
- * @param source the name of that system, or null
  */
 @Schema(name = "Qualification", requiredProperties = {"kind", "validFrom"})
 public record QualificationRepresentation(

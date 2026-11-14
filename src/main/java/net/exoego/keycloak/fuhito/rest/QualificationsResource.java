@@ -47,12 +47,6 @@ public class QualificationsResource {
         this.service = service;
     }
 
-    /**
-     * Adds a qualification of a user.
-     *
-     * @param body the user, the kind, the number, and the dates
-     * @return 201 with the new qualification
-     */
     @POST
     @Operation(
             operationId = "addQualification",
@@ -78,12 +72,6 @@ public class QualificationsResource {
         });
     }
 
-    /**
-     * Returns one qualification.
-     *
-     * @param id the ID
-     * @return the qualification
-     */
     @GET
     @Path("{id}")
     @Operation(operationId = "getQualification", summary = "Returns one qualification.")
@@ -97,13 +85,6 @@ public class QualificationsResource {
         return Calls.run(context, () -> QualificationRepresentation.of(service.get(id)));
     }
 
-    /**
-     * Replaces the kind, the number, the dates, and the attributes of a qualification.
-     *
-     * @param id the ID
-     * @param body the new values
-     * @return the changed qualification
-     */
     @PUT
     @Path("{id}")
     @Operation(
@@ -127,12 +108,6 @@ public class QualificationsResource {
         });
     }
 
-    /**
-     * Deletes a qualification.
-     *
-     * @param id the ID
-     * @return 204
-     */
     @DELETE
     @Path("{id}")
     @Operation(operationId = "deleteQualification", summary = "Deletes a qualification.")

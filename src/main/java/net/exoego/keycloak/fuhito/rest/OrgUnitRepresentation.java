@@ -8,28 +8,6 @@ import net.exoego.keycloak.fuhito.service.OrgUnitChange;
 import net.exoego.keycloak.fuhito.service.OrgUnitState;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 
-/**
- * An org unit as it is on one date, in requests and responses.
- *
- * @param id the ID. Requests ignore it.
- * @param code a code that is unique in the realm, or null
- * @param name the default name
- * @param names the names in other languages, by language tag
- * @param shortName the default short name, or null
- * @param shortNames the short names in other languages, by language tag
- * @param phoneticName the reading of the name for sorting, or null
- * @param unitType the code of the unit type, or null
- * @param parentId the ID of the parent in the default hierarchy, or null for a root
- * @param validFrom the first date of these details, as {@code YYYY-MM-DD}
- * @param validTo the first date after these details, or null for no end. Requests ignore it.
- * @param displayOrder the position among siblings, lowest first
- * @param attributes free values that the realm defines
- * @param externalId the ID of the unit in the system it came from, or null
- * @param source the name of that system, or null
- * @param keycloakOrganizationId the ID of the linked Keycloak organization, or null. Requests ignore it.
- * @param timeZone the time zone that the unit sets for itself and the units below it, or null. Requests ignore it.
- * @param dayStart the day start that the unit sets for itself and the units below it, or null. Requests ignore it.
- */
 @Schema(
         name = "OrgUnit",
         description = "An org unit as it is on one date.",

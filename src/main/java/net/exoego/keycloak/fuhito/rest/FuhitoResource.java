@@ -345,11 +345,6 @@ public class FuhitoResource {
                 new JpaRefItemStore(entityManager, realmId), users, today());
     }
 
-    /**
-     * Returns the version of this extension.
-     *
-     * @return the version
-     */
     @GET
     @Produces(MediaType.APPLICATION_JSON)
     @Operation(operationId = "getVersion", summary = "Returns the version of this extension.")
@@ -361,11 +356,6 @@ public class FuhitoResource {
         return new VersionRepresentation(VERSION);
     }
 
-    /**
-     * Lists the hierarchies of the realm.
-     *
-     * @return the hierarchies, ordered by code
-     */
     @GET
     @Path("hierarchies")
     @Produces(MediaType.APPLICATION_JSON)

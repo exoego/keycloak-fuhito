@@ -47,12 +47,6 @@ public class AssignmentsResource {
         this.service = service;
     }
 
-    /**
-     * Adds an assignment of an employment to an org unit.
-     *
-     * @param body the employment, the org unit, the dates, and the first details
-     * @return 201 with the new assignment
-     */
     @POST
     @Operation(operationId = "addAssignment", summary = "Adds an assignment of an employment to an org unit.")
     @Parameter(ref = "changeOrder")
@@ -74,12 +68,6 @@ public class AssignmentsResource {
         });
     }
 
-    /**
-     * Returns an assignment with the details of every period.
-     *
-     * @param id the ID
-     * @return the assignment
-     */
     @GET
     @Path("{id}")
     @Operation(operationId = "getAssignment", summary = "Returns an assignment with the details of every period.")
@@ -93,14 +81,6 @@ public class AssignmentsResource {
         return Calls.run(context, () -> AssignmentRepresentation.of(service.get(id)));
     }
 
-    /**
-     * Replaces the details of an assignment from the {@code validFrom} date of the body.
-     * The employment and the org unit do not change.
-     *
-     * @param id the ID
-     * @param body the new details and their first date
-     * @return the assignment with the details of every period
-     */
     @PUT
     @Path("{id}/details")
     @Operation(
@@ -125,13 +105,6 @@ public class AssignmentsResource {
         });
     }
 
-    /**
-     * Sets the end of an assignment. Its history stays readable. The end can move earlier or later.
-     *
-     * @param id the ID
-     * @param body the first date on which the assignment no longer holds
-     * @return the assignment with the details of every period
-     */
     @PUT
     @Path("{id}/end")
     @Operation(
@@ -156,12 +129,6 @@ public class AssignmentsResource {
         });
     }
 
-    /**
-     * Removes the end of an assignment. The assignment then lasts as long as its employment.
-     *
-     * @param id the ID
-     * @return the assignment with the details of every period
-     */
     @DELETE
     @Path("{id}/end")
     @Operation(

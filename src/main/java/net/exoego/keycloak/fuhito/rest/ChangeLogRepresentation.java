@@ -7,19 +7,6 @@ import net.exoego.keycloak.fuhito.domain.Unchecked;
 import org.eclipse.microprofile.openapi.annotations.enums.SchemaType;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 
-/**
- * One successful write.
- *
- * @param id the ID of the entry
- * @param recordedAt when the write happened, in UTC
- * @param actorUserId the ID of the user who did the write
- * @param resourceType the type of the changed resource, for example {@code FUHITO_ORG_UNIT}
- * @param resourceId the ID of the changed resource
- * @param operation {@code CREATE}, {@code UPDATE}, or {@code DELETE}
- * @param resourcePath the path of the request below the realm
- * @param changeOrderId the ID of the change order that the write belongs to, or null
- * @param representation the state of the resource after the write, or null after a delete
- */
 @Schema(
         name = "ChangeLogEntry",
         description = "One successful write.",

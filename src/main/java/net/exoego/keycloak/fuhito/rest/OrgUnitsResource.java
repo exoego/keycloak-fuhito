@@ -61,12 +61,6 @@ public class OrgUnitsResource {
         this.membership = membership;
     }
 
-    /**
-     * Creates an org unit that starts on a date.
-     *
-     * @param body the values of the new unit
-     * @return 201 with the unit as it is on its first date
-     */
     @POST
     @Operation(operationId = "createOrgUnit", summary = "Creates an org unit that starts on a date.")
     @Parameter(ref = "changeOrder")
@@ -88,15 +82,6 @@ public class OrgUnitsResource {
         });
     }
 
-    /**
-     * Replaces the details of an org unit from the {@code validFrom} date of the body.
-     * The details are the names, the unit type, the display order, and the attributes.
-     * The code, the parent, and the external ID do not change here.
-     *
-     * @param id the ID
-     * @param body the new details and their first date
-     * @return the unit as it is on that date
-     */
     @PUT
     @Path("{id}")
     @Operation(
@@ -120,13 +105,6 @@ public class OrgUnitsResource {
         });
     }
 
-    /**
-     * Gives an org unit a new parent in the default hierarchy from a date.
-     *
-     * @param id the ID
-     * @param body the new parent and the first date under it. No parent makes the unit a root.
-     * @return the unit as it is on that date
-     */
     @PUT
     @Path("{id}/parent")
     @Operation(
@@ -148,13 +126,6 @@ public class OrgUnitsResource {
         });
     }
 
-    /**
-     * Ends an org unit. Its history stays readable for earlier dates.
-     *
-     * @param id the ID
-     * @param body the first date on which the unit no longer exists
-     * @return the unit as it is on its last date
-     */
     @PUT
     @Path("{id}/end")
     @Operation(
@@ -177,13 +148,6 @@ public class OrgUnitsResource {
         });
     }
 
-    /**
-     * Lists the org units that exist on a date. Each parent comes before its children.
-     *
-     * @param asOf the date as {@code YYYY-MM-DD}. The default is today in the time zone of the realm.
-     * @param roots true to return only the units with no parent
-     * @return the units on the date
-     */
     @GET
     @Operation(
             operationId = "listOrgUnits",
@@ -205,13 +169,6 @@ public class OrgUnitsResource {
         return Calls.run(context, () -> represent(service.list(asOf, roots)));
     }
 
-    /**
-     * Lists the direct children of an org unit on a date.
-     *
-     * @param id the ID
-     * @param asOf the date as {@code YYYY-MM-DD}. The default is today for the org unit. It is the date of the realm unless a unit sets its own time zone.
-     * @return the children on the date
-     */
     @GET
     @Path("{id}/children")
     @Operation(operationId = "listOrgUnitChildren", summary = "Lists the direct children of an org unit on a date.")
@@ -231,13 +188,6 @@ public class OrgUnitsResource {
         return Calls.run(context, () -> represent(service.children(id, asOf)));
     }
 
-    /**
-     * Lists an org unit and everything below it on a date. Each parent comes before its children.
-     *
-     * @param id the ID
-     * @param asOf the date as {@code YYYY-MM-DD}. The default is today for the org unit. It is the date of the realm unless a unit sets its own time zone.
-     * @return the unit and its descendants on the date
-     */
     @GET
     @Path("{id}/subtree")
     @Operation(
@@ -260,13 +210,6 @@ public class OrgUnitsResource {
         return Calls.run(context, () -> represent(service.subtree(id, asOf)));
     }
 
-    /**
-     * Lists the units from the root down to an org unit on a date.
-     *
-     * @param id the ID
-     * @param asOf the date as {@code YYYY-MM-DD}. The default is today for the org unit. It is the date of the realm unless a unit sets its own time zone.
-     * @return the path, with the root first and the unit last
-     */
     @GET
     @Path("{id}/path")
     @Operation(
@@ -288,13 +231,6 @@ public class OrgUnitsResource {
         return Calls.run(context, () -> represent(service.path(id, asOf)));
     }
 
-    /**
-     * Links an org unit to a Keycloak organization. The link says that the unit stands for the organization.
-     *
-     * @param id the ID of the org unit
-     * @param body the ID of the Keycloak organization
-     * @return the link
-     */
     @PUT
     @Path("{id}/organization")
     @Operation(
@@ -321,12 +257,6 @@ public class OrgUnitsResource {
         });
     }
 
-    /**
-     * Removes the link of an org unit to a Keycloak organization.
-     *
-     * @param id the ID of the org unit
-     * @return the org unit with no link
-     */
     @DELETE
     @Path("{id}/organization")
     @Operation(
@@ -349,14 +279,6 @@ public class OrgUnitsResource {
         });
     }
 
-    /**
-     * Sets the time zone and the day start of an org unit. They decide what today is for the unit and for the
-     * units below it. A value that is left out is removed, and the unit then uses the value from above.
-     *
-     * @param id the ID of the org unit
-     * @param body the time zone and the day start
-     * @return the settings of the org unit
-     */
     @PUT
     @Path("{id}/time-settings")
     @Operation(
@@ -383,19 +305,6 @@ public class OrgUnitsResource {
         });
     }
 
-    /**
-     * Lists the assignments to an org unit that hold on a date.
-     *
-     * @param id the ID
-     * @param asOf the date as {@code YYYY-MM-DD}. The default is today for the org unit. It is the date of the realm unless a unit sets its own time zone.
-     * @param includeDescendants true to also list the members of every unit below
-     * @param occupation the code of an occupation to keep
-     * @param jobTitle the code of a job title to keep
-     * @param status an employment status to keep. It is {@code ACTIVE}, {@code ON_LEAVE}, or {@code SUSPENDED}.
-     * @param first the number of members to skip. The default is 0.
-     * @param max the largest number of members to return. The default is 100.
-     * @return the members on the date
-     */
     @GET
     @Path("{id}/members")
     @Operation(
@@ -440,12 +349,6 @@ public class OrgUnitsResource {
                 .toList());
     }
 
-    /**
-     * Returns everything that is stored about an org unit over time.
-     *
-     * @param id the ID
-     * @return the details of every period and the parent of every period
-     */
     @GET
     @Path("{id}/history")
     @Operation(
@@ -475,13 +378,6 @@ public class OrgUnitsResource {
         return states.stream().map(OrgUnitRepresentation::of).toList();
     }
 
-    /**
-     * Returns an org unit as it is on a date.
-     *
-     * @param id the ID
-     * @param asOf the date as {@code YYYY-MM-DD}. The default is today for the org unit. It is the date of the realm unless a unit sets its own time zone.
-     * @return the unit on the date
-     */
     @GET
     @Path("{id}")
     @Operation(operationId = "getOrgUnit", summary = "Returns an org unit as it is on a date.")

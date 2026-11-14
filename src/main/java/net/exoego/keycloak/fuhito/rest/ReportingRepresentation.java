@@ -3,17 +3,6 @@ package net.exoego.keycloak.fuhito.rest;
 import net.exoego.keycloak.fuhito.service.Reporting;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 
-/**
- * One manager of a person, or one direct report of a person, on a date.
- *
- * @param userId the ID of the other user. It is the manager in a list of managers, and the report in a list of
- *        reports.
- * @param kind {@code SOLID} or {@code DOTTED}
- * @param derived true when no reporting line is stored and the head of the org unit is taken as the manager
- * @param lineId the ID of the stored reporting line. A derived entry has none.
- * @param assignmentId the ID of the assignment of the person who reports
- * @param orgUnitId the ID of the org unit of that assignment
- */
 @Schema(
         name = "Reporting",
         description = "One manager of a person, or one direct report of a person, on a date.",

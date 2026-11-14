@@ -54,15 +54,6 @@ public class ChangeOrdersResource {
         this.changeLog = changeLog;
     }
 
-    /**
-     * Lists the writes that belong to a change order, oldest first.
-     * A write belongs to a change order when its request had the query parameter {@code changeOrder}.
-     *
-     * @param id the ID of the change order
-     * @param first the number of entries to skip. The default is 0.
-     * @param max the largest number of entries to return. The default is 100.
-     * @return the entries
-     */
     @GET
     @Path("{id}/changes")
     @Operation(
@@ -88,13 +79,6 @@ public class ChangeOrdersResource {
                 .toList());
     }
 
-    /**
-     * Lists the change orders with an effective date in a range, newest effective date first.
-     *
-     * @param from the first effective date to return, as {@code YYYY-MM-DD}
-     * @param to the first effective date not to return, as {@code YYYY-MM-DD}
-     * @return the orders
-     */
     @GET
     @Operation(
             operationId = "listChangeOrders",
@@ -112,12 +96,6 @@ public class ChangeOrdersResource {
                 () -> service.list(from, to).stream().map(ChangeOrderRepresentation::of).toList());
     }
 
-    /**
-     * Returns one change order.
-     *
-     * @param id the ID
-     * @return the order
-     */
     @GET
     @Path("{id}")
     @Operation(operationId = "getChangeOrder", summary = "Returns one change order.")
@@ -131,12 +109,6 @@ public class ChangeOrdersResource {
         return Calls.run(context, () -> ChangeOrderRepresentation.of(service.get(id)));
     }
 
-    /**
-     * Creates a change order.
-     *
-     * @param body the values of the new order
-     * @return 201 with the new order
-     */
     @POST
     @Operation(operationId = "createChangeOrder", summary = "Creates a change order.")
     @Parameter(ref = "changeOrder")
@@ -157,13 +129,6 @@ public class ChangeOrdersResource {
         });
     }
 
-    /**
-     * Replaces the values of a change order.
-     *
-     * @param id the ID
-     * @param body the new values
-     * @return the changed order
-     */
     @PUT
     @Path("{id}")
     @Operation(operationId = "updateChangeOrder", summary = "Replaces the values of a change order.")
@@ -185,12 +150,6 @@ public class ChangeOrdersResource {
         });
     }
 
-    /**
-     * Deletes a change order. A change order with writes cannot be deleted.
-     *
-     * @param id the ID
-     * @return 204
-     */
     @DELETE
     @Path("{id}")
     @Operation(

@@ -7,14 +7,6 @@ import java.util.Optional;
 import net.exoego.keycloak.fuhito.service.UserHistory;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 
-/**
- * Everything that is stored about one user over time.
- *
- * @param userId the ID of the user
- * @param maskedAt when the personal data of the user was masked, in UTC. It is missing when it never was.
- * @param employments the employments with their terms, oldest first
- * @param assignments the assignments with their details, oldest first
- */
 @Schema(
         name = "UserHistory",
         description = "Everything that is stored about one user over time.",
