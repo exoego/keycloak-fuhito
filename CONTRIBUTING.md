@@ -63,6 +63,7 @@ After a change to the API, run this and commit the result.
 ```
 
 `check` fails when the file is out of date.
+CI also checks the file with [Redocly CLI](https://redocly.com/docs/cli). The rules are in `redocly.yaml`.
 
 Describe an endpoint, a parameter, or a field of a request or a response in its annotation.
 Do not repeat it in Javadoc.
