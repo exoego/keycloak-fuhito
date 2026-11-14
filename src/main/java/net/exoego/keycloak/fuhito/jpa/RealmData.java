@@ -52,8 +52,9 @@ public final class RealmData {
      * @param userId the ID of the user
      */
     public static void deleteUser(EntityManager em, String realmId, String userId) {
-        String employmentsOfUser = "(select e.id from EmploymentEntity e where e.realmId = :realmId"
-                + " and e.userId = :userId)";
+        String employmentsOfUser = """
+                (select e.id from EmploymentEntity e where e.realmId = :realmId
+                and e.userId = :userId)""";
         // Lines where the user reports, and lines where the user is the manager.
         em.createQuery("delete from ReportingLineEntity r where r.realmId = :realmId"
                         + " and (r.managerUserId = :userId or r.assignmentId in"
@@ -80,10 +81,11 @@ public final class RealmData {
                     .executeUpdate();
         }
         // The change log keeps no entries about the qualifications of the user either.
-        em.createQuery("delete from ChangeLogEntity l where l.realmId = :realmId"
-                        + " and l.resourceType = 'FUHITO_QUALIFICATION' and l.resourceId in"
-                        + " (select q.id from QualificationEntity q where q.realmId = :realmId"
-                        + " and q.userId = :userId)")
+        em.createQuery("""
+                        delete from ChangeLogEntity l where l.realmId = :realmId
+                        and l.resourceType = 'FUHITO_QUALIFICATION' and l.resourceId in
+                        (select q.id from QualificationEntity q where q.realmId = :realmId
+                        and q.userId = :userId)""")
                 .setParameter("realmId", realmId)
                 .setParameter("userId", userId)
                 .executeUpdate();
@@ -109,8 +111,9 @@ public final class RealmData {
      * @param organizationId the ID of the organization
      */
     public static void unlinkOrganization(EntityManager em, String realmId, String organizationId) {
-        em.createQuery("update OrgUnitEntity u set u.keycloakOrganizationId = null where u.realmId = :realmId"
-                        + " and u.keycloakOrganizationId = :organizationId")
+        em.createQuery("""
+                        update OrgUnitEntity u set u.keycloakOrganizationId = null where u.realmId = :realmId
+                        and u.keycloakOrganizationId = :organizationId""")
                 .setParameter("realmId", realmId)
                 .setParameter("organizationId", organizationId)
                 .executeUpdate();

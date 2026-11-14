@@ -3,6 +3,7 @@ package net.exoego.keycloak.fuhito.rest;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import net.exoego.keycloak.fuhito.service.Member;
 import net.exoego.keycloak.fuhito.service.OrgUnitState;
@@ -57,7 +58,7 @@ public record MemberRepresentation(String assignmentId, String employmentId, Str
         return new MemberRepresentation(row.assignmentId(), row.employmentId(), member.employment().userId(),
                 member.employment().staffNumber(), row.orgUnitId(), member.orgUnit().version().name(),
                 member.orgUnitPath() == null ? null : member.orgUnitPath().stream().map(PathEntry::of).toList(),
-                row.period().from().toString(), row.period().to() == null ? null : row.period().to().toString(),
+                row.period().from().toString(), Objects.toString(row.period().to(), null),
                 member.jobTitle(), member.occupation(), member.kind(), row.head(), row.primary(),
                 Numbers.plain(row.allocationPercent()), row.displayOrder(), row.attributes(),
                 member.employmentType(), member.grade(), terms.status().name(), Numbers.plain(terms.workPercent()));

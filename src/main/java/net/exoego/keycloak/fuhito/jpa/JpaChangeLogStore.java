@@ -43,8 +43,9 @@ public class JpaChangeLogStore implements ChangeLogStore {
 
     @Override
     public List<ChangeLogEntry> listByResource(String resourceType, String resourceId, int first, int max) {
-        return em.createQuery("select l from ChangeLogEntity l where l.realmId = :realmId"
-                        + " and l.resourceType = :resourceType and l.resourceId = :resourceId order by l.sequence",
+        return em.createQuery("""
+                        select l from ChangeLogEntity l where l.realmId = :realmId
+                        and l.resourceType = :resourceType and l.resourceId = :resourceId order by l.sequence""",
                         ChangeLogEntity.class)
                 .setParameter("realmId", realmId)
                 .setParameter("resourceType", resourceType)
@@ -58,8 +59,9 @@ public class JpaChangeLogStore implements ChangeLogStore {
 
     @Override
     public List<ChangeLogEntry> listByChangeOrder(String changeOrderId, int first, int max) {
-        return em.createQuery("select l from ChangeLogEntity l where l.realmId = :realmId"
-                        + " and l.changeOrderId = :changeOrderId order by l.sequence", ChangeLogEntity.class)
+        return em.createQuery("""
+                        select l from ChangeLogEntity l where l.realmId = :realmId
+                        and l.changeOrderId = :changeOrderId order by l.sequence""", ChangeLogEntity.class)
                 .setParameter("realmId", realmId)
                 .setParameter("changeOrderId", changeOrderId)
                 .setFirstResult(first)
@@ -71,8 +73,9 @@ public class JpaChangeLogStore implements ChangeLogStore {
 
     @Override
     public boolean existsForChangeOrder(String changeOrderId) {
-        return em.createQuery("select count(l) from ChangeLogEntity l where l.realmId = :realmId"
-                        + " and l.changeOrderId = :changeOrderId", Long.class)
+        return em.createQuery("""
+                        select count(l) from ChangeLogEntity l where l.realmId = :realmId
+                        and l.changeOrderId = :changeOrderId""", Long.class)
                 .setParameter("realmId", realmId)
                 .setParameter("changeOrderId", changeOrderId)
                 .getSingleResult() > 0;

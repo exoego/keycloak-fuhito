@@ -57,14 +57,14 @@ public class UserRetirement {
         for (Employment employment : employments.findByUser(userId)) {
             if (!employment.period().from().isBefore(today)) {
                 removeNeverHeld(employment);
-            } else if (employment.period().to() == null || employment.period().to().isAfter(today)) {
+            } else if (employment.period().endsAfter(today)) {
                 ended.add(employmentService.end(employment.id(), today.toString(), null));
             }
         }
         for (ReportingLine line : lines.findByManager(userId)) {
             if (!line.period().from().isBefore(today)) {
                 lines.delete(line.id());
-            } else if (line.period().to() == null || line.period().to().isAfter(today)) {
+            } else if (line.period().endsAfter(today)) {
                 lines.update(line.withPeriod(line.period().endingAt(today)));
             }
         }

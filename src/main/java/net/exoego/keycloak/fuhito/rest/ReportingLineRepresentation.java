@@ -1,5 +1,7 @@
 package net.exoego.keycloak.fuhito.rest;
 
+import java.util.Objects;
+
 import net.exoego.keycloak.fuhito.domain.ReportingLine;
 
 /**
@@ -18,6 +20,6 @@ public record ReportingLineRepresentation(String id, String assignmentId, String
     static ReportingLineRepresentation of(ReportingLine line) {
         return new ReportingLineRepresentation(line.id(), line.assignmentId(), line.managerUserId(),
                 line.kind().name(), line.period().from().toString(),
-                line.period().to() == null ? null : line.period().to().toString());
+                Objects.toString(line.period().to(), null));
     }
 }

@@ -1,6 +1,7 @@
 package net.exoego.keycloak.fuhito.rest;
 
 import java.util.List;
+import java.util.Objects;
 
 import net.exoego.keycloak.fuhito.service.OrgUnitHistory;
 
@@ -33,7 +34,7 @@ public record OrgUnitHistoryRepresentation(String id, String code, String extern
                 history.versions().stream().map(OrgUnitRepresentation::of).toList(),
                 history.parents().stream()
                         .map(link -> new ParentPeriod(link.parentId(), link.period().from().toString(),
-                                link.period().to() == null ? null : link.period().to().toString()))
+                                Objects.toString(link.period().to(), null)))
                         .toList());
     }
 }

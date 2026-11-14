@@ -92,7 +92,7 @@ public class MembershipService {
         }
         OrgUnitTree tree = new OrgUnitTree(orgUnits, refItems, date);
         List<OrgUnitState> units = query.includeDescendants() ? tree.subtree(orgUnitId)
-                : List.of(tree.subtree(orgUnitId).get(0));
+                : List.of(tree.subtree(orgUnitId).getFirst());
         String occupationId = filterId(RefKind.OCCUPATION, query.occupation());
         String jobTitleId = filterId(RefKind.JOB_TITLE, query.jobTitle());
         EmploymentStatus status = Checks.optionalEnum("status", EmploymentStatus.class, query.status(), null);
@@ -187,7 +187,7 @@ public class MembershipService {
             members.add(new Member(row, employmentsById.get(row.employmentId()), terms,
                     codeOf(codes, row.jobTitleId()), codeOf(codes, row.occupationId()), codeOf(codes, row.kindId()),
                     codeOf(codes, terms.employmentTypeId()), codeOf(codes, terms.gradeId()),
-                    path.get(path.size() - 1), includePath ? path : null));
+                    path.getLast(), includePath ? path : null));
         }
         return members;
     }

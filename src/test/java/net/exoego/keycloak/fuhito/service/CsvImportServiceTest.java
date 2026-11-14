@@ -151,9 +151,9 @@ class CsvImportServiceTest {
         assertEquals(0, new BigDecimal("50").compareTo(terms.terms().workPercent()));
         var old = assignments.get(assignmentStore.findAssignmentIdByExternalId("import", "A1").orElseThrow());
         assertEquals("2027-04-01", old.period().to().toString());
-        assertTrue(old.rows().get(0).row().head());
-        assertEquals("nurse", old.rows().get(0).occupation());
-        assertEquals(3, old.rows().get(0).row().displayOrder());
+        assertTrue(old.rows().getFirst().row().head());
+        assertEquals("nurse", old.rows().getFirst().occupation());
+        assertEquals(3, old.rows().getFirst().row().displayOrder());
         assertEquals(new Counts(1, 1, 0), moved.report().counts().get("assignments"));
     }
 
@@ -173,7 +173,7 @@ class CsvImportServiceTest {
 
         assertEquals(List.of("line 3 row 0 csv.bad_number", "line 4 row 1 import.parent_unknown",
                 "line 6 row 2 invalid.required"), errors(result));
-        assertEquals(Map.of("field", "displayOrder", "value", "x"), result.errors().get(0).error().params());
+        assertEquals(Map.of("field", "displayOrder", "value", "x"), result.errors().getFirst().error().params());
         assertEquals(new Counts(1, 0, 0), result.report().counts().get("orgUnits"));
 
         CsvImportService.Result flags = load("assignments", "2026-04-01",

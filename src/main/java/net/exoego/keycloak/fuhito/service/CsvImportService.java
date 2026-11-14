@@ -10,6 +10,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 import net.exoego.keycloak.fuhito.domain.Assignment;
@@ -133,14 +134,14 @@ public class CsvImportService {
         if (rows.isEmpty()) {
             throw FuhitoException.invalid("csv.no_header", Map.of());
         }
-        List<String> columns = columns(rows.get(0).cells(), fields);
+        List<String> columns = columns(rows.getFirst().cells(), fields);
         List<Csv.Row> data = rows.subList(1, rows.size());
 
         Map<Integer, FuhitoException> conversionErrors = new HashMap<>();
         List<Object> converted = new ArrayList<>();
         for (int i = 0; i < data.size(); i++) {
             try {
-                converted.add(convert(list, new Cells(columns, data.get(i).cells()), date, defaultSource));
+                converted.add(convert(list, Cells.of(columns, data.get(i).cells()), date, defaultSource));
             } catch (FuhitoException e) {
                 conversionErrors.put(i, e);
                 converted.add(null);
@@ -303,14 +304,14 @@ public class CsvImportService {
     /**
      * The cells of one row by column.
      */
-    private static final class Cells {
+    private record Cells(Map<String, String> values) {
 
-        private final Map<String, String> values = new LinkedHashMap<>();
-
-        Cells(List<String> columns, List<String> cells) {
+        static Cells of(List<String> columns, List<String> cells) {
+            Map<String, String> values = new LinkedHashMap<>();
             for (int i = 0; i < columns.size(); i++) {
                 values.put(columns.get(i), i < cells.size() ? cells.get(i).strip() : "");
             }
+            return new Cells(values);
         }
 
         String text(String field, String stored) {
@@ -322,42 +323,36 @@ public class CsvImportService {
         }
 
         Integer integer(String field, Integer stored) {
-            String value = text(field, null);
-            if (value == null) {
-                return values.getOrDefault(field, "").equals(CLEAR) ? null : stored;
-            }
-            try {
-                return Integer.valueOf(value);
-            } catch (NumberFormatException e) {
-                throw FuhitoException.invalid("csv.bad_number", Map.of("field", field, "value", value));
-            }
+            return parsed(field, stored, Integer::valueOf);
         }
 
         BigDecimal decimal(String field, BigDecimal stored) {
+            return parsed(field, stored, BigDecimal::new);
+        }
+
+        Boolean bool(String field, Boolean stored) {
+            return parsed(field, stored, value -> {
+                String lower = value.toLowerCase(Locale.ROOT);
+                if (TRUE.contains(lower)) {
+                    return true;
+                }
+                if (FALSE.contains(lower)) {
+                    return false;
+                }
+                throw FuhitoException.invalid("csv.bad_boolean", Map.of("field", field, "value", value));
+            });
+        }
+
+        private <T> T parsed(String field, T stored, Function<String, T> parse) {
             String value = text(field, null);
             if (value == null) {
                 return values.getOrDefault(field, "").equals(CLEAR) ? null : stored;
             }
             try {
-                return new BigDecimal(value);
+                return parse.apply(value);
             } catch (NumberFormatException e) {
                 throw FuhitoException.invalid("csv.bad_number", Map.of("field", field, "value", value));
             }
-        }
-
-        Boolean bool(String field, Boolean stored) {
-            String value = text(field, null);
-            if (value == null) {
-                return values.getOrDefault(field, "").equals(CLEAR) ? null : stored;
-            }
-            String lower = value.toLowerCase(Locale.ROOT);
-            if (TRUE.contains(lower)) {
-                return true;
-            }
-            if (FALSE.contains(lower)) {
-                return false;
-            }
-            throw FuhitoException.invalid("csv.bad_boolean", Map.of("field", field, "value", value));
         }
 
         // A column like "name:en" sets one language. The other languages keep what is stored.

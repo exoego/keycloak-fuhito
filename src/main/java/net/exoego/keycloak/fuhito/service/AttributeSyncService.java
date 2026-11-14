@@ -141,7 +141,7 @@ public class AttributeSyncService {
         for (LocalDate date : today.everywhere()) {
             for (Assignment row : from.assignments().rowsBySourceOn(SOURCE, date)) {
                 LocalDate unitDate = today.ofUnit(row.orgUnitId());
-                if (row.period().to() != null && !row.period().to().isAfter(unitDate)) {
+                if (!row.period().endsAfter(unitDate)) {
                     continue;
                 }
                 // The row of the date of the unit wins. Without one, the earliest row wins.
@@ -235,7 +235,7 @@ public class AttributeSyncService {
     // An assignment that started today never held, so it is removed. Any other ends today.
     private void retire(Assignment row, LocalDate today) {
         List<Assignment> rows = from.assignments().rows(row.assignmentId());
-        if (!rows.get(0).period().from().isBefore(today)) {
+        if (!rows.getFirst().period().from().isBefore(today)) {
             from.lines().findByAssignment(row.assignmentId()).forEach(line -> from.lines().delete(line.id()));
             rows.forEach(each -> from.assignments().delete(each.rowId()));
             return;
@@ -274,7 +274,7 @@ public class AttributeSyncService {
     }
 
     private String codeOf(String refItemId) {
-        return refItemId == null ? null : from.refItems().find(refItemId).map(RefItem::code).orElse(null);
+        return Optional.ofNullable(refItemId).flatMap(from.refItems()::find).map(RefItem::code).orElse(null);
     }
 
     /**
@@ -308,7 +308,7 @@ public class AttributeSyncService {
             }
             List<String> byName = unitsByName.getOrDefault(department, List.of());
             if (byName.size() == 1) {
-                return Optional.of(byName.get(0));
+                return Optional.of(byName.getFirst());
             }
             unmatched.add(new Unmatched(user.userId(), "department", department,
                     byName.isEmpty() ? "unknown" : "ambiguous"));

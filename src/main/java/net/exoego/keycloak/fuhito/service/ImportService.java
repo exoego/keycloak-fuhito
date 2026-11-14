@@ -193,7 +193,7 @@ public class ImportService {
                 changed = true;
             }
         }
-        String storedEnd = employment.period().to() == null ? null : employment.period().to().toString();
+        String storedEnd = Objects.toString(employment.period().to(), null);
         boolean sameEnd = Objects.equals(row.validTo(), storedEnd)
                 && (row.endReason() == null || row.endReason().equals(before.endReason()));
         if (row.validTo() != null && !sameEnd) {
@@ -258,13 +258,13 @@ public class ImportService {
         }
         String id = stored.get();
         AssignmentView before = people.assignmentService().get(id);
-        Assignment first = before.rows().get(0).row();
+        Assignment first = before.rows().getFirst().row();
         if (!first.employmentId().equals(employmentId) || !first.orgUnitId().equals(orgUnitId)) {
             throw FuhitoException.conflict("import.assignment_mismatch", Map.of("externalId", row.externalId()));
         }
         boolean changed = false;
         LocalDate date = Checks.date("effectiveDate", effectiveDate);
-        boolean endsBefore = before.period().to() != null && !before.period().to().isAfter(date);
+        boolean endsBefore = !before.period().endsAfter(date);
         if (!endsBefore) {
             AssignmentView.Row current = before.rows().stream()
                     .filter(r -> r.row().period().contains(date))
@@ -279,7 +279,7 @@ public class ImportService {
                 changed = true;
             }
         }
-        String storedEnd = before.period().to() == null ? null : before.period().to().toString();
+        String storedEnd = Objects.toString(before.period().to(), null);
         if (row.validTo() != null && !row.validTo().equals(storedEnd)) {
             written(report, id, false, "/end", people.assignmentService().end(id, row.validTo()));
             changed = true;
@@ -473,9 +473,7 @@ public class ImportService {
         }
 
         private String lastDay(String id) {
-            var versions = orgUnits.versions(id);
-            var to = versions.get(versions.size() - 1).period().to();
-            return to == null ? null : to.toString();
+            return Objects.toString(orgUnits.versions(id).getLast().period().to(), null);
         }
 
         private boolean sameDetails(OrgUnitRow row, OrgUnitState before) {

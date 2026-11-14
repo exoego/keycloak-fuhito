@@ -128,7 +128,13 @@ public record ValidPeriod(LocalDate from, LocalDate to) {
         return List.of(new ValidPeriod(from, date), new ValidPeriod(date, to));
     }
 
-    private boolean endsAfter(LocalDate date) {
+    /**
+     * Tells whether the period still runs after the date. A period with no end always does.
+     *
+     * @param date the date
+     * @return true when the period has no end, or ends after the date
+     */
+    public boolean endsAfter(LocalDate date) {
         return to == null || to.isAfter(date);
     }
 }

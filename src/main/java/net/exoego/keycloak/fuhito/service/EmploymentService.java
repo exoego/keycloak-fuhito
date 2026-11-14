@@ -3,6 +3,7 @@ package net.exoego.keycloak.fuhito.service;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 import net.exoego.keycloak.fuhito.domain.Assignment;
@@ -110,7 +111,7 @@ public class EmploymentService {
             List<ValidPeriod> parts = current.period().splitAt(from);
             // Build the new terms first, so that a bad value fails before anything is written.
             EmploymentTerms next = terms(newId(), id, parts.get(1), request, current);
-            store.updateTerms(new EmploymentTerms(current.id(), id, parts.get(0), current.employmentTypeId(),
+            store.updateTerms(new EmploymentTerms(current.id(), id, parts.getFirst(), current.employmentTypeId(),
                     current.gradeId(), current.status(), current.workPercent(), current.attributes()));
             store.insertTerms(next);
         }
@@ -190,7 +191,7 @@ public class EmploymentService {
             reportingLines.truncate(row.assignmentId(), to);
             if (!row.period().from().isBefore(to)) {
                 assignments.delete(row.rowId());
-            } else if (row.period().to() == null || row.period().to().isAfter(to)) {
+            } else if (row.period().endsAfter(to)) {
                 assignments.update(row.withPeriod(row.period().endingAt(to)));
             }
         }
@@ -222,7 +223,7 @@ public class EmploymentService {
     }
 
     private String codeOf(String refItemId) {
-        return refItemId == null ? null : refItems.find(refItemId).map(RefItem::code).orElse(null);
+        return Optional.ofNullable(refItemId).flatMap(refItems::find).map(RefItem::code).orElse(null);
     }
 
     private static String idOf(RefItem item) {

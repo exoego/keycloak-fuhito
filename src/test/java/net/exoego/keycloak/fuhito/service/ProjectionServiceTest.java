@@ -175,7 +175,7 @@ class ProjectionServiceTest {
         assertEquals(new ProjectionReport(1, 2, 0, 0, 0, 2, 0, 3), report);
         assertEquals(List.of("Nursing [head-nurse]", "Ward < Nursing [nurse]"), keycloak.describe("org-x"));
         assertEquals(Set.of("director", "head-nurse", "nurse"), keycloak.organizationMembers.get("org-x"));
-        assertEquals(nursing, keycloak.groups("org-x").get(0).orgUnitId());
+        assertEquals(nursing, keycloak.groups("org-x").getFirst().orgUnitId());
     }
 
     @Test

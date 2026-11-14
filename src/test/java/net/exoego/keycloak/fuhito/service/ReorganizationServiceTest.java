@@ -72,7 +72,7 @@ class ReorganizationServiceTest {
 
         assertEquals(List.of("change", "create", "move", "move", "create", "end"),
                 results.stream().map(ReorganizationService.Result::op).toList());
-        assertEquals("General Hospital", results.get(0).unit().version().name());
+        assertEquals("General Hospital", results.getFirst().unit().version().name());
         assertEquals(results.get(1).unit().unit().id(), results.get(2).unit().parentId());
         assertEquals("Old Office", results.get(5).unit().version().name());
         assertEquals(List.of("Hospital", "Medicine < Hospital", "Old Office < Hospital", "Surgery < Hospital"),

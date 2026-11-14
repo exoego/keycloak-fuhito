@@ -41,8 +41,9 @@ public class JpaUserDataMasker implements UserDataMasker {
 
     @Override
     public Optional<Instant> maskedAt(String userId) {
-        return em.createQuery("select m.maskedAt from UserMaskEntity m where m.realmId = :realmId"
-                        + " and m.userId = :userId", Instant.class)
+        return em.createQuery("""
+                        select m.maskedAt from UserMaskEntity m where m.realmId = :realmId
+                        and m.userId = :userId""", Instant.class)
                 .setParameter("realmId", realmId)
                 .setParameter("userId", userId)
                 .getResultStream()
@@ -51,8 +52,9 @@ public class JpaUserDataMasker implements UserDataMasker {
 
     @Override
     public void mask(String userId, Instant now) {
-        List<EmploymentEntity> employments = em.createQuery("select e from EmploymentEntity e"
-                        + " where e.realmId = :realmId and e.userId = :userId", EmploymentEntity.class)
+        List<EmploymentEntity> employments = em.createQuery("""
+                        select e from EmploymentEntity e
+                        where e.realmId = :realmId and e.userId = :userId""", EmploymentEntity.class)
                 .setParameter("realmId", realmId).setParameter("userId", userId).getResultList();
         List<String> employmentIds = new ArrayList<>();
         for (EmploymentEntity employment : employments) {
@@ -62,12 +64,14 @@ public class JpaUserDataMasker implements UserDataMasker {
         }
         List<String> assignmentIds = new ArrayList<>();
         if (!employmentIds.isEmpty()) {
-            em.createQuery("select t from EmploymentTermsEntity t where t.realmId = :realmId"
-                            + " and t.employmentId in :ids", EmploymentTermsEntity.class)
+            em.createQuery("""
+                            select t from EmploymentTermsEntity t where t.realmId = :realmId
+                            and t.employmentId in :ids""", EmploymentTermsEntity.class)
                     .setParameter("realmId", realmId).setParameter("ids", employmentIds).getResultList()
                     .forEach(terms -> terms.attributes = new LinkedHashMap<>());
-            for (AssignmentEntity row : em.createQuery("select a from AssignmentEntity a"
-                            + " where a.realmId = :realmId and a.employmentId in :ids", AssignmentEntity.class)
+            for (AssignmentEntity row : em.createQuery("""
+                            select a from AssignmentEntity a
+                            where a.realmId = :realmId and a.employmentId in :ids""", AssignmentEntity.class)
                     .setParameter("realmId", realmId).setParameter("ids", employmentIds).getResultList()) {
                 assignmentIds.add(row.assignmentId);
                 row.attributes = new LinkedHashMap<>();
@@ -75,8 +79,9 @@ public class JpaUserDataMasker implements UserDataMasker {
             }
         }
         List<String> qualificationIds = new ArrayList<>();
-        for (QualificationEntity qualification : em.createQuery("select q from QualificationEntity q"
-                        + " where q.realmId = :realmId and q.userId = :userId", QualificationEntity.class)
+        for (QualificationEntity qualification : em.createQuery("""
+                        select q from QualificationEntity q
+                        where q.realmId = :realmId and q.userId = :userId""", QualificationEntity.class)
                 .setParameter("realmId", realmId).setParameter("userId", userId).getResultList()) {
             qualificationIds.add(qualification.id);
             qualification.number = null;
@@ -103,8 +108,9 @@ public class JpaUserDataMasker implements UserDataMasker {
         if (resourceIds.isEmpty()) {
             return;
         }
-        for (ChangeLogEntity entry : em.createQuery("select l from ChangeLogEntity l where l.realmId = :realmId"
-                        + " and l.resourceType = :type and l.resourceId in :ids", ChangeLogEntity.class)
+        for (ChangeLogEntity entry : em.createQuery("""
+                        select l from ChangeLogEntity l where l.realmId = :realmId
+                        and l.resourceType = :type and l.resourceId in :ids""", ChangeLogEntity.class)
                 .setParameter("realmId", realmId).setParameter("type", resourceType)
                 .setParameter("ids", resourceIds).getResultList()) {
             if (entry.representation != null) {

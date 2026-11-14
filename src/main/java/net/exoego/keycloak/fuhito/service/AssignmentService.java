@@ -3,6 +3,7 @@ package net.exoego.keycloak.fuhito.service;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 import net.exoego.keycloak.fuhito.domain.Assignment;
@@ -111,7 +112,7 @@ public class AssignmentService {
             Assignment next = row(newId(), id, current.employmentId(), current.orgUnitId(), parts.get(1), request,
                     current, current.externalId(), current.source());
             claimPrimary(next, request);
-            store.update(current.withPeriod(parts.get(0)));
+            store.update(current.withPeriod(parts.getFirst()));
             store.insert(next);
         }
         return get(id);
@@ -129,10 +130,10 @@ public class AssignmentService {
     public AssignmentView end(String id, String validTo) {
         LocalDate to = Checks.date("validTo", validTo);
         List<Assignment> rows = requireRows(id);
-        if (!to.isAfter(rows.get(0).period().from())) {
+        if (!to.isAfter(rows.getFirst().period().from())) {
             throw FuhitoException.notFound("assignment.not_valid_on", Map.of("id", id, "date", validTo));
         }
-        Assignment last = rows.get(rows.size() - 1);
+        Assignment last = rows.getLast();
         if (!to.isAfter(last.period().from())) {
             throw FuhitoException.conflict("assignment.later_changes_exist", Map.of("id", id, "validTo", validTo));
         }
@@ -149,7 +150,7 @@ public class AssignmentService {
      */
     public AssignmentView removeEnd(String id) {
         List<Assignment> rows = requireRows(id);
-        Assignment last = rows.get(rows.size() - 1);
+        Assignment last = rows.getLast();
         LocalDate employmentEnd = employments.find(last.employmentId()).orElseThrow().period().to();
         setEnd(last, employmentEnd);
         return get(id);
@@ -186,8 +187,8 @@ public class AssignmentService {
      */
     public AssignmentView get(String id) {
         List<Assignment> rows = requireRows(id);
-        String userId = employments.find(rows.get(0).employmentId()).map(Employment::userId).orElse(null);
-        ValidPeriod period = new ValidPeriod(rows.get(0).period().from(), rows.get(rows.size() - 1).period().to());
+        String userId = employments.find(rows.getFirst().employmentId()).map(Employment::userId).orElse(null);
+        ValidPeriod period = new ValidPeriod(rows.getFirst().period().from(), rows.getLast().period().to());
         return new AssignmentView(id, userId, period, rows.stream()
                 .map(r -> new AssignmentView.Row(r, codeOf(r.jobTitleId()), codeOf(r.occupationId()),
                         codeOf(r.kindId())))
@@ -208,7 +209,7 @@ public class AssignmentService {
         }
         if (!Boolean.TRUE.equals(request.switchPrimary())) {
             throw FuhitoException.conflict("assignment.primary_exists", Map.of("employmentId",
-                    claimant.employmentId(), "assignmentId", holders.get(0).assignmentId(), "validFrom",
+                    claimant.employmentId(), "assignmentId", holders.getFirst().assignmentId(), "validFrom",
                     claimant.period().from().toString()));
         }
         holders.forEach(holder -> releasePrimary(holder, claimant.period()));
@@ -219,7 +220,7 @@ public class AssignmentService {
         ValidPeriod shared = holder.period().intersection(period).orElseThrow();
         boolean startsBefore = holder.period().from().isBefore(shared.from());
         boolean endsAfter = shared.to() != null
-                && (holder.period().to() == null || holder.period().to().isAfter(shared.to()));
+                && holder.period().endsAfter(shared.to());
         if (startsBefore) {
             store.update(holder.withPeriod(new ValidPeriod(holder.period().from(), shared.from())));
             store.insert(holder.part(newId(), shared, false));
@@ -245,8 +246,8 @@ public class AssignmentService {
         if (versions.isEmpty()) {
             throw FuhitoException.invalid("assignment.org_unit_unknown", Map.of("orgUnitId", orgUnitId));
         }
-        ValidPeriod life = new ValidPeriod(versions.get(0).period().from(),
-                versions.get(versions.size() - 1).period().to());
+        ValidPeriod life = new ValidPeriod(versions.getFirst().period().from(),
+                versions.getLast().period().to());
         if (!life.encloses(period)) {
             throw FuhitoException.conflict("assignment.org_unit_not_valid",
                     Map.of("orgUnitId", orgUnitId, "validFrom", period.from().toString()));
@@ -280,7 +281,7 @@ public class AssignmentService {
     }
 
     private String codeOf(String refItemId) {
-        return refItemId == null ? null : refItems.find(refItemId).map(RefItem::code).orElse(null);
+        return Optional.ofNullable(refItemId).flatMap(refItems::find).map(RefItem::code).orElse(null);
     }
 
     private static String newId() {

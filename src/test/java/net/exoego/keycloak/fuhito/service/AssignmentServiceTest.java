@@ -85,7 +85,7 @@ class AssignmentServiceTest {
         assertEquals("alice", view.userId());
         assertEquals(ValidPeriod.startingAt(LocalDate.of(2026, 4, 1)), view.period());
         assertEquals(1, view.rows().size());
-        Assignment row = view.rows().get(0).row();
+        Assignment row = view.rows().getFirst().row();
         assertEquals(view.assignmentId(), row.assignmentId());
         assertEquals(employment, row.employmentId());
         assertEquals(ward, row.orgUnitId());
@@ -98,7 +98,7 @@ class AssignmentServiceTest {
         assertNull(row.allocationPercent());
         assertEquals(0, row.displayOrder());
         assertEquals(Map.of(), row.attributes());
-        assertNull(view.rows().get(0).jobTitle());
+        assertNull(view.rows().getFirst().jobTitle());
         assertEquals(view, service.get(view.assignmentId()));
     }
 
@@ -112,7 +112,7 @@ class AssignmentServiceTest {
                 "head-nurse", "nurse", "acting", true, true, null, new BigDecimal("60"), 3, Map.of("shift", "night"),
                 "A-1", "hr"));
 
-        AssignmentView.Row row = view.rows().get(0);
+        AssignmentView.Row row = view.rows().getFirst();
         assertEquals(new ValidPeriod(LocalDate.of(2026, 4, 1), LocalDate.of(2027, 4, 1)), row.row().period());
         assertEquals(title.id(), row.row().jobTitleId());
         assertEquals("head-nurse", row.jobTitle());
@@ -237,12 +237,12 @@ class AssignmentServiceTest {
         item(RefKind.OCCUPATION, "nurse", true);
         String id = service.add(new AssignmentValues(employment, ward, "2026-04-01", null, "staff", "nurse", null,
                 true, true, null, new BigDecimal("50"), 4, Map.of("k", "v"), null, null)).assignmentId();
-        String rowId = store.rows(id).get(0).rowId();
+        String rowId = store.rows(id).getFirst().rowId();
 
         AssignmentView view = service.changeDetails(id, details("2026-04-01", null, null));
 
         assertEquals(1, view.rows().size());
-        Assignment row = view.rows().get(0).row();
+        Assignment row = view.rows().getFirst().row();
         assertEquals(rowId, row.rowId());
         assertNull(row.jobTitleId());
         assertNull(row.occupationId());
@@ -286,7 +286,7 @@ class AssignmentServiceTest {
         assertEquals("ref_item.unknown", assertThrows(FuhitoException.class,
                 () -> service.changeDetails(id, details("2026-10-01", "nope", null))).code());
         assertEquals(1, store.rows(id).size());
-        assertEquals(ValidPeriod.startingAt(LocalDate.of(2026, 4, 1)), store.rows(id).get(0).period());
+        assertEquals(ValidPeriod.startingAt(LocalDate.of(2026, 4, 1)), store.rows(id).getFirst().period());
     }
 
     @Test
@@ -331,7 +331,7 @@ class AssignmentServiceTest {
 
         assertEquals("assignment.primary_exists",
                 assertThrows(FuhitoException.class, () -> service.end(first, "2027-10-01")).code());
-        assertEquals(LocalDate.of(2027, 4, 1), store.rows(first).get(0).period().to());
+        assertEquals(LocalDate.of(2027, 4, 1), store.rows(first).getFirst().period().to());
     }
 
     @Test
@@ -412,12 +412,12 @@ class AssignmentServiceTest {
     @Test
     void switchingFromTheFirstDateOfTheHolderChangesItInPlace() {
         String old = service.add(primary(ward, "2026-04-01", null, null)).assignmentId();
-        String rowId = store.rows(old).get(0).rowId();
+        String rowId = store.rows(old).getFirst().rowId();
 
         service.add(primary(xHospital, "2026-04-01", "2027-04-01", true));
 
         assertEquals(List.of("2026-04-01 2027-04-01 false", "2027-04-01 null true"), primaryPeriods(old));
-        assertEquals(rowId, store.rows(old).get(0).rowId());
+        assertEquals(rowId, store.rows(old).getFirst().rowId());
     }
 
     @Test
@@ -467,7 +467,7 @@ class AssignmentServiceTest {
         AssignmentView view = service.get(id);
 
         assertNull(view.userId());
-        assertNull(view.rows().get(0).jobTitle());
+        assertNull(view.rows().getFirst().jobTitle());
         assertEquals("assignment.not_found",
                 assertThrows(FuhitoException.class, () -> service.get("nope")).code());
     }

@@ -92,7 +92,7 @@ class ReportingLineServiceTest {
         assertEquals(List.of("director SOLID derived"), summary(service.managersOf("head-nurse", null)));
         assertEquals(List.of(), summary(service.managersOf("director", null)));
         assertEquals(List.of(), summary(service.managersOf("idle", null)));
-        Reporting derived = service.managersOf("nurse-a", null).get(0);
+        Reporting derived = service.managersOf("nurse-a", null).getFirst();
         assertNull(derived.lineId());
         assertEquals(nurseA, derived.assignmentId());
         assertEquals(ward, derived.orgUnitId());
@@ -120,7 +120,7 @@ class ReportingLineServiceTest {
         assertEquals(List.of("nurse-b SOLID derived"), summary(service.reportsOf("head-nurse", "2026-10-01")));
         assertEquals(List.of("head-nurse SOLID derived", "nurse-a SOLID stored"),
                 summary(service.reportsOf("director", "2026-10-01")));
-        assertEquals(line.id(), service.managersOf("nurse-a", "2026-10-01").get(0).lineId());
+        assertEquals(line.id(), service.managersOf("nurse-a", "2026-10-01").getFirst().lineId());
     }
 
     @Test

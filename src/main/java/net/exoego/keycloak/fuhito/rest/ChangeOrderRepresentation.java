@@ -1,5 +1,7 @@
 package net.exoego.keycloak.fuhito.rest;
 
+import java.util.Objects;
+
 import net.exoego.keycloak.fuhito.domain.ChangeOrder;
 import net.exoego.keycloak.fuhito.service.ChangeOrderValues;
 
@@ -24,7 +26,7 @@ public record ChangeOrderRepresentation(String id, String number, String kind, S
 
     static ChangeOrderRepresentation of(ChangeOrder order) {
         return new ChangeOrderRepresentation(order.id(), order.number(), order.kind(), order.title(), order.note(),
-                order.orderDate() == null ? null : order.orderDate().toString(), order.effectiveDate().toString(),
+                Objects.toString(order.orderDate(), null), order.effectiveDate().toString(),
                 order.approverUserId(), order.requesterUserId(), order.externalReference(),
                 order.createdAt().toString());
     }
