@@ -82,7 +82,7 @@ class ProjectionScheduleIT {
                         .withUsername("keycloak")
                         .withPassword("keycloak");
                 KeycloakContainer keycloak =
-                        new KeycloakContainer("quay.io/keycloak/keycloak:" + System.getProperty("keycloak.version"))
+                        Coverage.keycloak()
                                 .withNetwork(network)
                                 .withProviderLibsFrom(List.of(new File(System.getProperty("provider.jar"))))
                                 .withEnv("KC_DB", "postgres")
@@ -142,6 +142,7 @@ class ProjectionScheduleIT {
             assertEquals(List.of(), groupNames(keycloak, token, "a-failing", failingOrganization));
             assertEquals(true, logs.contains("realm a-failing failed with projection.duplicate_name"),
                     "the failure is logged");
+            Coverage.save(keycloak);
         }
     }
 }

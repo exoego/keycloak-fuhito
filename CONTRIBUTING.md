@@ -44,6 +44,9 @@ Write a comment only for something the code cannot say, such as a reason.
 ./gradlew check
 ```
 
+`check` also writes one coverage report for the unit tests and the integration tests, in `build/reports/jacoco/test`.
+The provider runs in the JVM of Keycloak, so the integration tests put the JaCoCo agent into their Keycloak containers and read its data out.
+
 The compiler runs with every warning turned on, and with [Error Prone](https://errorprone.info/).
 A warning fails the build. Fix the cause. When a warning is wrong, use `@SuppressWarnings` with the name of the check, and say why in a comment.
 
