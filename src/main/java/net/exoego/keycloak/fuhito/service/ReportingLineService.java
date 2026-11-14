@@ -268,12 +268,19 @@ public class ReportingLineService {
     private final class Snapshot {
 
         private final LocalDate date;
-        private final OrgUnitTree tree;
         private final Map<String, Optional<Employment>> employments = new HashMap<>();
+        // Only the reads that go down from a unit need the whole tree.
+        private OrgUnitTree tree;
 
         Snapshot(LocalDate date) {
             this.date = date;
-            this.tree = new OrgUnitTree(sources.orgUnits(), sources.refItems(), date);
+        }
+
+        private OrgUnitTree tree() {
+            if (tree == null) {
+                tree = new OrgUnitTree(sources.orgUnits(), sources.refItems(), date);
+            }
+            return tree;
         }
 
         private Optional<Employment> employment(Assignment row) {
@@ -320,7 +327,8 @@ public class ReportingLineService {
 
         // The heads of the unit, or of the nearest unit above that has a head. A head looks above its own unit.
         List<Assignment> headsAbove(String orgUnitId, String personId) {
-            List<OrgUnitState> path = tree.path(orgUnitId);
+            List<OrgUnitState> path = OrgUnitPaths.on(sources.orgUnits(), sources.refItems(),
+                    sources.orgUnits().defaultHierarchyId(), orgUnitId, date);
             for (int i = path.size() - 1; i >= 0; i--) {
                 String unitId = path.get(i).unit().id();
                 // The person is no head of this unit from here on, so none of its heads is the person.
@@ -347,7 +355,7 @@ public class ReportingLineService {
                 return;
             }
             rows.stream().filter(row -> !row.head()).forEach(row -> addDerived(row, result));
-            tree.children(orgUnitId).forEach(child -> collectReports(child.unit().id(), false, managerPersonId,
+            tree().children(orgUnitId).forEach(child -> collectReports(child.unit().id(), false, managerPersonId,
                     result));
         }
 

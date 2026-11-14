@@ -128,6 +128,12 @@ final class MemoryOrgUnitStore implements OrgUnitStore {
         return result;
     }
 
+    @Override
+    public List<PlacedOrgUnit> pathOn(String hierarchyId, String id, LocalDate date) {
+        OrgUnitTree tree = new OrgUnitTree(this, new MemoryRefItemStore(), date, hierarchyId);
+        return tree.exists(id) ? placed(tree.path(id), 0, Integer.MAX_VALUE) : List.of();
+    }
+
     private static List<PlacedOrgUnit> placed(List<OrgUnitState> states, int first, int max) {
         return states.stream().skip(first).limit(max)
                 .map(state -> new PlacedOrgUnit(state.unit(), state.version(), state.parentId()))

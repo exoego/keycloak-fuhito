@@ -170,6 +170,18 @@ public interface OrgUnitStore {
     Map<String, Set<String>> ancestorsOn(String hierarchyId, Collection<String> ids, LocalDate date);
 
     /**
+     * Lists the units from the root down to a unit on a date. The database walks upward from the unit, so the
+     * whole tree is not loaded.
+     *
+     * @param hierarchyId the ID of the hierarchy
+     * @param id the ID of the unit
+     * @param date the date
+     * @return the path, with the root first and the unit last. It is empty when the unit does not exist on the
+     *         date.
+     */
+    List<PlacedOrgUnit> pathOn(String hierarchyId, String id, LocalDate date);
+
+    /**
      * Returns some units as they are on a date. A unit that does not exist on the date is left out.
      *
      * @param hierarchyId the ID of the hierarchy that the parents come from
