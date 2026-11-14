@@ -239,4 +239,37 @@ class ProjectionIT {
         assertEquals(List.of("看護部"), sorted(top, "name"));
         assertEquals(List.of("事務室"), sorted(keycloak(groups + "/" + idOf(top, "看護部") + "/children"), "name"));
     }
+
+    // Keycloak ends the employments of a user that it removes. Here the user is gone with no such step,
+    // as after a restore of only one of the two sets of tables.
+    @Test
+    void aUserThatIsGoneFromKeycloakIsSkipped() throws Exception {
+        createRealm(true);
+        String organization = OrganizationLinkIT.createOrganization(admin, realm, "z-hospital");
+        String hospital = unit("Z病院", null);
+        String ward = unit("病棟", hospital);
+        String stays = user("stays");
+        String gone = user("gone");
+        staff(stays, ward);
+        staff(gone, ward);
+        staff(gone, hospital);
+        assertEquals(200, api.put("/org-units/" + hospital + "/organization",
+                "{\"organizationId\": \"" + organization + "\"}").statusCode());
+        for (String table : List.of("user_role_mapping", "user_group_membership", "user_attribute", "credential",
+                "user_required_action")) {
+            KeycloakEnvironment.sql("delete from " + table + " where user_id = '" + gone + "'");
+        }
+        KeycloakEnvironment.sql("delete from user_entity where id = '" + gone + "'");
+        admin.realm(realm).clearUserCache();
+
+        JsonNode report = rebuild();
+
+        // Only the user that Keycloak still has is counted.
+        assertEquals(1, report.get("membersJoined").asInt());
+        assertEquals(1, report.get("organizationMembersAdded").asInt());
+        assertEquals(0, rebuild().get("membersJoined").asInt());
+        JsonNode groups = keycloak("/organizations/" + organization + "/groups");
+        assertEquals(List.of("stays"), sorted(keycloak("/organizations/" + organization + "/groups/"
+                + idOf(groups, "病棟") + "/members"), "username"));
+    }
 }

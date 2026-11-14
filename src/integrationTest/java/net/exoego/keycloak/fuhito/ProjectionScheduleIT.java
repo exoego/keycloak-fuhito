@@ -109,6 +109,18 @@ class ProjectionScheduleIT {
             }
             assertEquals(200, failing.put("/org-units/" + clinic + "/organization",
                     "{\"organizationId\": \"" + failingOrganization + "\"}").statusCode());
+            // The org unit of this realm points to an organization that is gone, so its rebuild crashes.
+            createRealm(admin, "a-crashing", "UTC");
+            String crashingOrganization = OrganizationLinkIT.createOrganization(admin, "a-crashing", "crashing");
+            Api crashing = new Api(keycloak.getAuthServerUrl(), "a-crashing", token);
+            String lost = post(crashing, "/org-units", "{\"name\": \"Lost\", \"validFrom\": \"2020-04-01\"}");
+            post(crashing, "/org-units", "{\"name\": \"Below\", \"parentId\": \"" + lost
+                    + "\", \"validFrom\": \"2020-04-01\"}");
+            assertEquals(200, crashing.put("/org-units/" + lost + "/organization",
+                    "{\"organizationId\": \"" + crashingOrganization + "\"}").statusCode());
+            // Keycloak would remove the link with the organization. Only broken data keeps it.
+            KeycloakEnvironment.run(postgres, "update fuhito_org_unit set kc_org_id = 'no-such-organization'"
+                    + " where id = '" + lost + "'");
             createRealm(admin, "b-working", "UTC");
             String organization = OrganizationLinkIT.createOrganization(admin, "b-working", "hospital");
             Api api = new Api(keycloak.getAuthServerUrl(), "b-working", token);
@@ -142,6 +154,8 @@ class ProjectionScheduleIT {
             assertEquals(List.of(), groupNames(keycloak, token, "a-failing", failingOrganization));
             assertEquals(true, logs.contains("realm a-failing failed with projection.duplicate_name"),
                     "the failure is logged");
+            assertEquals(true, logs.contains("The scheduled projection failed for the realm with the ID"),
+                    "the crash is logged");
             Coverage.save(keycloak);
         }
     }

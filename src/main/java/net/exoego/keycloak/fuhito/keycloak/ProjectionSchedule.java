@@ -77,6 +77,7 @@ final class ProjectionSchedule {
 
     private static void rebuild(KeycloakSession session, String realmId) {
         RealmModel realm = session.realms().getRealm(realmId);
+        // The realm is missing only when it is removed after the timer listed it. No test can time that.
         if (realm == null) {
             return;
         }

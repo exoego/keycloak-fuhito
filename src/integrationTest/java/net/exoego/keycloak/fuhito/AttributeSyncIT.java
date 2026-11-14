@@ -188,11 +188,17 @@ class AttributeSyncIT {
         unit("内科", "naika", null);
         String blank = user("blank", Map.of("department", " "));
         String padded = user("padded", Map.of("department", " naika ", "title", "  "));
+        // Keycloak itself stores no value of only spaces. Another user store can hand one over.
+        String spaces = user("spaces", Map.of("department", "naika"));
+        KeycloakEnvironment.sql("update user_attribute set value = '   ' where user_id = '" + spaces
+                + "' and name = 'department'");
+        admin.realm(realm).clearUserCache();
 
         JsonNode report = run("");
 
         assertEquals(1, report.get("assignmentsAdded").asInt());
         assertEquals(0, assignmentsOf(blank).size());
+        assertEquals(0, assignmentsOf(spaces).size());
         assertEquals(1, assignmentsOf(padded).size());
         assertEquals(0, report.get("unmatched").size());
     }

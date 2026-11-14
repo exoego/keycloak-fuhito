@@ -47,6 +47,8 @@ final class KeycloakUserAttributes implements UserAttributeSource {
 
     private static String value(UserModel user, String attribute) {
         String value = user.getFirstAttribute(attribute);
+        // Keycloak itself stores no value of only spaces. A user store that is federated, such as LDAP,
+        // can hand one over.
         return value == null || value.isBlank() ? null : value.strip();
     }
 }

@@ -1,9 +1,12 @@
 package net.exoego.keycloak.fuhito;
 
 import java.io.File;
+import java.net.http.HttpResponse;
 import java.util.List;
 
 import dasniko.testcontainers.keycloak.KeycloakContainer;
+import org.keycloak.admin.client.Keycloak;
+import org.keycloak.representations.idm.RealmRepresentation;
 import org.junit.jupiter.api.Test;
 import org.testcontainers.containers.Network;
 import org.testcontainers.postgresql.PostgreSQLContainer;
@@ -56,13 +59,34 @@ class RestrictedDatabaseIT {
                             .withEnv("KC_DB", "postgres")
                             .withEnv("KC_DB_URL", "jdbc:postgresql://restricted-postgres:5432/keycloak")
                             .withEnv("KC_DB_USERNAME", "limited")
-                            .withEnv("KC_DB_PASSWORD", "limited")) {
+                            .withEnv("KC_DB_PASSWORD", "limited")
+                            // This start also shows that the extension works with no organization feature.
+                            .withEnv("KC_FEATURES_DISABLED", "organization")) {
                 keycloak.start();
 
                 assertEquals("5", psql(postgres, "select count(*) from pg_constraint where conname like 'ex_fuhito_%'"));
+                assertALinkToAnOrganizationIsRefused(keycloak);
                 Coverage.save(keycloak);
             }
         }
+    }
+
+    private static void assertALinkToAnOrganizationIsRefused(KeycloakContainer keycloak) throws Exception {
+        Keycloak admin = keycloak.getKeycloakAdminClient();
+        var realm = new RealmRepresentation();
+        realm.setRealm("no-organizations");
+        realm.setEnabled(true);
+        TestRealm.withTimeZone(realm);
+        admin.realms().create(realm);
+        Api api = new Api(keycloak.getAuthServerUrl(), "no-organizations", admin.tokenManager().getAccessTokenString());
+        HttpResponse<String> unit = api.post("/org-units", "{\"name\": \"Clinic\", \"validFrom\": \"2020-04-01\"}");
+        assertEquals(201, unit.statusCode(), unit.body());
+
+        HttpResponse<String> linked = api.put("/org-units/" + Api.json(unit).get("id").asText() + "/organization",
+                "{\"organizationId\": \"any\"}");
+
+        assertEquals(400, linked.statusCode(), linked.body());
+        assertEquals("organization.unknown", Api.json(linked).get("error").asText());
     }
 
     private static String psql(PostgreSQLContainer postgres, String sql) throws Exception {

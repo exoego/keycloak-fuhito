@@ -67,9 +67,6 @@ public class JpaAssignmentStore implements AssignmentStore {
 
     @Override
     public List<Assignment> rowsOn(Collection<String> orgUnitIds, LocalDate date) {
-        if (orgUnitIds.isEmpty()) {
-            return List.of();
-        }
         return em.createQuery("""
                         select a from AssignmentEntity a where a.realmId = :realmId
                         and a.orgUnitId in :orgUnitIds

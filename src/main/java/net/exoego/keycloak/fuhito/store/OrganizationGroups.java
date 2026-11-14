@@ -82,16 +82,18 @@ public interface OrganizationGroups {
      *
      * @param groupId the ID of the group
      * @param userId the ID of the user
+     * @return false when Keycloak has no such user, so nothing changed
      */
-    void join(String groupId, String userId);
+    boolean join(String groupId, String userId);
 
     /**
      * Takes a user out of a group.
      *
      * @param groupId the ID of the group
      * @param userId the ID of the user
+     * @return false when Keycloak has no such user, so nothing changed
      */
-    void leave(String groupId, String userId);
+    boolean leave(String groupId, String userId);
 
     /**
      * Makes a user an unmanaged member of an organization, unless the user is a member already.

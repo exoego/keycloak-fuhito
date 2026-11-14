@@ -34,6 +34,8 @@ class ProjectionServiceTest {
         private final Map<String, String> organizationOfGroup = new HashMap<>();
         private final Map<String, Set<String>> members = new HashMap<>();
         private final Map<String, Set<String>> organizationMembers = new HashMap<>();
+        // Users that Keycloak no longer has.
+        private final Set<String> gone = new HashSet<>();
         private int nextId = 1;
 
         @Override
@@ -97,13 +99,19 @@ class ProjectionServiceTest {
         }
 
         @Override
-        public void join(String groupId, String userId) {
-            members.computeIfAbsent(groupId, id -> new HashSet<>()).add(userId);
+        public boolean join(String groupId, String userId) {
+            if (gone.contains(userId)) {
+                return false;
+            }
+            return members.computeIfAbsent(groupId, id -> new HashSet<>()).add(userId);
         }
 
         @Override
-        public void leave(String groupId, String userId) {
-            members.get(groupId).remove(userId);
+        public boolean leave(String groupId, String userId) {
+            if (gone.contains(userId)) {
+                return false;
+            }
+            return members.get(groupId).remove(userId);
         }
 
         @Override
@@ -319,5 +327,21 @@ class ProjectionServiceTest {
 
         assertEquals(1, report.groupsRemoved());
         assertEquals(List.of("Nursing [head-nurse]", "Ward < Nursing [nurse]"), keycloak.describe("org-x"));
+    }
+
+    @Test
+    void aUserThatKeycloakNoLongerHasIsNotCounted() {
+        rebuild();
+        // One user has an assignment and one sits in a group by hand. Keycloak has neither of them.
+        keycloak.gone.add("pharmacist");
+        keycloak.gone.add("intruder");
+        assign("pharmacist", ward, "2026-05-01");
+        String wardGroup = keycloak.groups("org-x").get(1).id();
+        keycloak.members.get(wardGroup).add("intruder");
+
+        ProjectionReport report = rebuild();
+
+        assertEquals(0, report.membersJoined());
+        assertEquals(0, report.membersLeft());
     }
 }

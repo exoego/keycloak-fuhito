@@ -82,7 +82,7 @@ public class JpaChangeLogStore implements ChangeLogStore {
     }
 
     private static ChangeLogEntry toDomain(ChangeLogEntity e) {
-        return new ChangeLogEntry(e.id, e.sequence == null ? 0 : e.sequence, e.recordedAt, e.actorUserId, e.resourceType, e.resourceId,
+        return new ChangeLogEntry(e.id, e.sequence, e.recordedAt, e.actorUserId, e.resourceType, e.resourceId,
                 e.operation, e.resourcePath, e.changeOrderId, e.representation);
     }
 }

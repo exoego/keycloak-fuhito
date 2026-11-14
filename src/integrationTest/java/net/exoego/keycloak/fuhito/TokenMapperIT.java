@@ -60,11 +60,17 @@ class TokenMapperIT {
         unnamed.setProtocol("openid-connect");
         unnamed.setProtocolMapper("fuhito-assignments-mapper");
         unnamed.setConfig(Map.of("access.token.claim", "true"));
+        // A claim name of only spaces counts as none.
+        var blank = new ProtocolMapperRepresentation();
+        blank.setName("org assignments with a blank name");
+        blank.setProtocol("openid-connect");
+        blank.setProtocolMapper("fuhito-assignments-mapper");
+        blank.setConfig(Map.of("claim.name", "  ", "id.token.claim", "true"));
         var client = new ClientRepresentation();
         client.setClientId("app");
         client.setPublicClient(true);
         client.setDirectAccessGrantsEnabled(true);
-        client.setProtocolMappers(List.of(mapper, unnamed));
+        client.setProtocolMappers(List.of(mapper, unnamed, blank));
         admin.realm(realm).clients().create(client).close();
     }
 
@@ -144,6 +150,7 @@ class TokenMapperIT {
         assertTrue(chair.get("head").asBoolean());
         assertEquals(org, claims(tokens.get("id_token").asText()).get("org"));
         assertEquals(org, claims(tokens.get("access_token").asText()).get("assignments"));
+        assertEquals(org, claims(tokens.get("id_token").asText()).get("assignments"));
     }
 
     @Test
