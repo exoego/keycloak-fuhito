@@ -9,7 +9,26 @@
   "labels": [
     "chore"
   ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Versions in shell scripts, marked with a renovate comment on the line above",
+      "managerFilePatterns": [
+        "/^scripts/.+\\.sh$/"
+      ],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>[a-z-]+) depName=(?<depName>\\S+)\\n[A-Z_]+_VERSION=(?<currentValue>[^@\\s]+)(?:@(?<currentDigest>sha256:[a-f0-9]+))?"
+      ]
+    }
+  ],
   "packageRules": [
+    {
+      "description": "aislop gates CI and can add rules in any release, so check each update by hand",
+      "matchPackageNames": [
+        "aislop"
+      ],
+      "automerge": false
+    },
     {
       "description": "Pick a new Java major by hand",
       "matchDatasources": [

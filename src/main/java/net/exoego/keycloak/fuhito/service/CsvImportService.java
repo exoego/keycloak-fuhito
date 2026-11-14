@@ -3,6 +3,7 @@ package net.exoego.keycloak.fuhito.service;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -202,14 +203,11 @@ public class CsvImportService {
     private RefItemRow refItem(Cells cells) {
         String kind = cells.text("kind", null);
         String code = cells.text("code", null);
-        Optional<RefItem> stored = Optional.empty();
-        if (kind != null && code != null) {
-            try {
-                stored = refItems.findByCode(RefKind.valueOf(kind), code);
-            } catch (IllegalArgumentException e) {
-                // The import reports the unknown kind.
-            }
-        }
+        // The import reports an unknown kind. Here it only means that nothing is stored.
+        Optional<RefItem> stored = code == null ? Optional.empty() : Arrays.stream(RefKind.values())
+                .filter(known -> known.name().equals(kind))
+                .findFirst()
+                .flatMap(known -> refItems.findByCode(known, code));
         return new RefItemRow(kind, code, cells.text("name", stored.map(RefItem::name).orElse(null)),
                 cells.localized("name", stored.map(RefItem::names).orElse(Map.of())),
                 cells.integer("displayOrder", stored.map(RefItem::displayOrder).orElse(null)),

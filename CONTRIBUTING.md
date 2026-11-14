@@ -43,3 +43,23 @@ Write a comment only for something the code cannot say, such as a reason.
 ```sh
 ./gradlew check
 ```
+
+## Quality scan
+
+CI also runs [aislop](https://github.com/scanaislop/aislop), a scanner for common code problems. Run the same gate before you open a pull request.
+
+```sh
+scripts/aislop.sh
+```
+
+The script needs Docker. aislop is a third-party tool from npm, so the script never runs it on your machine.
+
+- The tool runs in a container with no network and no privileges.
+- The container gets a read-only copy of the tracked files. It cannot change the repository.
+- Only the step that downloads the tool has the network, and that step sees no project file.
+- Telemetry is off.
+
+The script scans tracked files with their changes that are not committed yet. Run `git add` on a new file first.
+
+The rules are in `.aislop/config.yml`. The gate fails on any finding of the level error, and on a score below 90.
+When a finding is wrong, add `aislop-ignore-next-line <rule> -- <reason>` in a comment on the line above it.
