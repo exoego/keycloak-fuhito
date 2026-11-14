@@ -19,11 +19,6 @@ import net.exoego.keycloak.fuhito.store.OrgUnitStore;
  */
 public class JpaOrgUnitStore implements OrgUnitStore {
 
-    /**
-     * The code of the hierarchy that every realm has.
-     */
-    public static final String DEFAULT_HIERARCHY_CODE = "default";
-
     private static final String NO_PARENT = """
             not exists (select 1 from OrgUnitLinkEntity l where l.realmId = :realmId
             and l.hierarchyId = :hierarchyId and l.childId = v.orgUnitId and l.%s)""".formatted(TreeQuery.onDate("l"));
@@ -71,24 +66,7 @@ public class JpaOrgUnitStore implements OrgUnitStore {
 
     @Override
     public String defaultHierarchyId() {
-        return em.createQuery("select h.id from HierarchyEntity h where h.realmId = :realmId and h.code = :code",
-                        String.class)
-                .setParameter("realmId", realmId)
-                .setParameter("code", DEFAULT_HIERARCHY_CODE)
-                .getResultStream()
-                .findFirst()
-                .orElseGet(this::createDefaultHierarchy);
-    }
-
-    private String createDefaultHierarchy() {
-        HierarchyEntity entity = new HierarchyEntity();
-        entity.setId(UUID.randomUUID().toString());
-        entity.setRealmId(realmId);
-        entity.setCode(DEFAULT_HIERARCHY_CODE);
-        entity.setName("Default");
-        em.persist(entity);
-        em.flush();
-        return entity.getId();
+        return new JpaHierarchyStore(em, realmId).defaultId();
     }
 
     @Override

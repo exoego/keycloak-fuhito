@@ -14,12 +14,12 @@ import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
 import net.exoego.keycloak.fuhito.domain.BusinessDay;
 import net.exoego.keycloak.fuhito.domain.Unchecked;
-import net.exoego.keycloak.fuhito.jpa.Hierarchies;
 import net.exoego.keycloak.fuhito.jpa.JpaAssignmentStore;
 import net.exoego.keycloak.fuhito.jpa.JpaChangeLogStore;
 import net.exoego.keycloak.fuhito.jpa.JpaChangeOrderStore;
 import net.exoego.keycloak.fuhito.jpa.JpaEffectiveChangeStore;
 import net.exoego.keycloak.fuhito.jpa.JpaEmploymentStore;
+import net.exoego.keycloak.fuhito.jpa.JpaHierarchyStore;
 import net.exoego.keycloak.fuhito.jpa.JpaOrgUnitStore;
 import net.exoego.keycloak.fuhito.jpa.JpaPersonStore;
 import net.exoego.keycloak.fuhito.jpa.JpaQualificationStore;
@@ -33,6 +33,7 @@ import net.exoego.keycloak.fuhito.service.ChangeOrderService;
 import net.exoego.keycloak.fuhito.service.EffectiveChangeService;
 import net.exoego.keycloak.fuhito.service.CsvImportService;
 import net.exoego.keycloak.fuhito.service.EmploymentService;
+import net.exoego.keycloak.fuhito.service.HierarchyService;
 import net.exoego.keycloak.fuhito.service.ImportService;
 import net.exoego.keycloak.fuhito.service.MembershipService;
 import net.exoego.keycloak.fuhito.service.OrgUnitService;
@@ -388,18 +389,15 @@ public class FuhitoResource {
         return new VersionRepresentation(VERSION);
     }
 
-    @GET
+    /**
+     * Returns the hierarchies of the realm.
+     *
+     * @return the sub-resource
+     */
     @Path("hierarchies")
-    @Produces(MediaType.APPLICATION_JSON)
-    @Operation(operationId = "listHierarchies", summary = "Lists the hierarchies of the realm, ordered by code.")
-    @Tag(ref = Tags.GENERAL)
-    @APIResponse(responseCode = "200", description = "The hierarchies.")
-    @ApiErrors
-    public List<HierarchyRepresentation> hierarchies() {
-        context.requireRead();
-        return Hierarchies.list(entityManager, realmId).stream()
-                .map(h -> new HierarchyRepresentation(h.getId(), h.getCode(), h.getName()))
-                .toList();
+    public HierarchiesResource hierarchies() {
+        return new HierarchiesResource(context,
+                new HierarchyService(new JpaHierarchyStore(entityManager, realmId)));
     }
 
     private static String loadVersion() {

@@ -318,7 +318,7 @@ The database applies the filters, the order, and the page.
 | `/change-orders/{id}/changes` | The writes that belong to a change order |
 | `/change-log` | The writes to the realm, to follow from a sequence number or to narrow to one resource |
 | `/effective-changes` | The resources with a period that starts or ends in a range of dates |
-| `/hierarchies` | The hierarchies of the realm |
+| `/hierarchies` | The hierarchies of the realm. Create, rename, and delete |
 
 [openapi.yaml](openapi.yaml) lists every endpoint with its request and its response, as OpenAPI 3.2.
 The build generates it from the annotations of the REST resources.
