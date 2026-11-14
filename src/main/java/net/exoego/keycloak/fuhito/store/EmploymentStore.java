@@ -31,13 +31,6 @@ public interface EmploymentStore {
     Optional<Employment> findByExternalId(String source, String externalId);
 
     /**
-     * Lists all employments of the realm, oldest first.
-     *
-     * @return the employments
-     */
-    List<Employment> all();
-
-    /**
      * Lists the employments that use a staff number.
      *
      * @param staffNumber the staff number

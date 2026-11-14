@@ -1,4 +1,4 @@
-# Import and export
+# Import
 
 This document explains how to load data in bulk and how to read all of it.
 All paths are below `/admin/realms/{realm}/fuhito`.
@@ -185,11 +185,3 @@ Each write has its own entry in the change log.
 - It does not remove an end date.
 - It does not move an assignment to another org unit. End it and add a new one.
 - One CSV file is one transaction. Four files are four transactions. Use JSON to load several lists at once.
-
-## Export
-
-`GET /export` returns all data of the realm in one JSON document.
-It has every period of every resource, ended ones included.
-Each resource has its `source` and `externalId`.
-
-The export is for reading. It is not in the import format.

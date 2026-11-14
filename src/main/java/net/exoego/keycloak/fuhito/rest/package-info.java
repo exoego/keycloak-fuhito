@@ -46,7 +46,7 @@
             @Tag(name = Tags.USERS, description = "What is stored about one user."),
             @Tag(name = Tags.CHANGE_ORDERS,
                     description = "Approved instructions that cause changes, and the log of every write."),
-            @Tag(name = Tags.BULK, description = "Many rows in one request, and all data of the realm."),
+            @Tag(name = Tags.BULK, description = "Many rows in one request."),
             @Tag(name = Tags.KEYCLOAK,
                     description = "The projection into organization groups, and the sync from user attributes.")
         },

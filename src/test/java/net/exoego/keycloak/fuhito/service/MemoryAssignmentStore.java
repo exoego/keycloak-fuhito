@@ -52,11 +52,6 @@ final class MemoryAssignmentStore implements AssignmentStore {
     }
 
     @Override
-    public List<String> allAssignmentIds() {
-        return rows.stream().map(Assignment::assignmentId).distinct().toList();
-    }
-
-    @Override
     public List<Assignment> rowsBySourceOn(String source, LocalDate date) {
         return rows.stream().filter(r -> source.equals(r.source()) && r.period().contains(date)).toList();
     }

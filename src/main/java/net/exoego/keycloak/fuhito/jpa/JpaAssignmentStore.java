@@ -93,15 +93,6 @@ public class JpaAssignmentStore implements AssignmentStore {
     }
 
     @Override
-    public List<String> allAssignmentIds() {
-        return em.createQuery("""
-                        select a.assignmentId from AssignmentEntity a where a.realmId = :realmId
-                        group by a.assignmentId order by min(a.validFrom), a.assignmentId""", String.class)
-                .setParameter("realmId", realmId)
-                .getResultList();
-    }
-
-    @Override
     public List<Assignment> rowsBySourceOn(String source, LocalDate date) {
         return em.createQuery("""
                         select a from AssignmentEntity a where a.realmId = :realmId and a.source = :source

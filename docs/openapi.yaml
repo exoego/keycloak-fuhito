@@ -41,9 +41,9 @@ tags:
   kind: nav
   description: "Approved instructions that cause changes, and the log of every write."
 - name: bulk
-  summary: Import and export
+  summary: Import
   kind: nav
-  description: "Many rows in one request, and all data of the realm."
+  description: Many rows in one request.
 - name: keycloak
   summary: Keycloak sync
   kind: nav
@@ -425,47 +425,6 @@ components:
           type: string
           description: The message for people. Its text can change. Its language follows
             the `Accept-Language` header.
-    Export:
-      required:
-      - exportedAt
-      - refItems
-      - orgUnits
-      - employments
-      - assignments
-      - changeOrders
-      description: "All organization data of one realm, with every period of every\
-        \ resource."
-      type: object
-      properties:
-        exportedAt:
-          type: string
-          description: "When the export was made, in UTC."
-          format: date-time
-        refItems:
-          type: array
-          items:
-            $ref: "#/components/schemas/RefItem"
-          description: "The reference items of every kind, inactive ones included."
-        orgUnits:
-          type: array
-          items:
-            $ref: "#/components/schemas/OrgUnitHistory"
-          description: The org units with every period of their details and their
-            parents.
-        employments:
-          type: array
-          items:
-            $ref: "#/components/schemas/Employment"
-          description: The employments with every period of their terms.
-        assignments:
-          type: array
-          items:
-            $ref: "#/components/schemas/Assignment"
-          description: The assignments with every period of their details.
-        changeOrders:
-          type: array
-          items:
-            $ref: "#/components/schemas/ChangeOrder"
     Hierarchy:
       required:
       - id
@@ -1012,12 +971,12 @@ components:
             it.
           readOnly: true
     OrgUnitHistory:
-      type: object
       required:
       - id
       - versions
       - parents
       description: Everything that is stored about an org unit over time.
+      type: object
       properties:
         id:
           type: string
@@ -1229,9 +1188,9 @@ components:
           type: string
           description: The name of that system.
     RefItem:
-      type: object
       required:
       - name
+      type: object
       properties:
         id:
           type: string
@@ -2406,26 +2365,6 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "404":
           $ref: "#/components/responses/NotFound"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-        "409":
-          $ref: "#/components/responses/Conflict"
-  /export:
-    get:
-      summary: "Returns all organization data of the realm, with every period of every\
-        \ resource."
-      operationId: exportRealm
-      tags:
-      - bulk
-      responses:
-        "200":
-          description: The export.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Export"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":

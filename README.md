@@ -30,7 +30,7 @@ What works today:
 - Reads of the state on any date, and of the full history.
 - Change orders with an approver, and a change log of every write.
 - Reorganizations of many org units in one transaction.
-- Bulk import by JSON and CSV with a dry run, and a full export.
+- Bulk import by JSON and CSV with a dry run.
 - A protocol mapper that adds current assignments to tokens.
 - An optional projection into the groups of Keycloak organizations, kept up to date by a timer.
 - A sync from user attributes that an identity provider fills over SCIM.
@@ -48,7 +48,7 @@ Access control is out of scope. The caller decides who may do what with the data
 
 [docs/concepts.md](docs/concepts.md) defines the terms.
 [docs/history.md](docs/history.md) explains how dated changes and the change log behave.
-[docs/import.md](docs/import.md) explains bulk import by JSON and CSV, and the export.
+[docs/import.md](docs/import.md) explains bulk import by JSON and CSV.
 [docs/scim.md](docs/scim.md) explains how data from SCIM reaches the org structure.
 [docs/personal-data.md](docs/personal-data.md) explains what is stored about a person, and how to keep, mask, or erase it.
 [docs/keycloak-integration.md](docs/keycloak-integration.md) explains how the extension plugs into Keycloak.
