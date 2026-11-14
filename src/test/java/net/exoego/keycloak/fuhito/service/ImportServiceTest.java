@@ -54,7 +54,7 @@ class ImportServiceTest {
             new MemoryReportingLineStore());
     private final ImportService service = new ImportService(new RefItemService(refItems), refItems, orgUnits,
             orgUnitStore, new ImportService.People(employments, employmentStore, assignments, assignmentStore, users,
-                    new PersonService(personStore, users, employmentStore)));
+                    new PersonService(personStore, users, id -> false)));
 
     private static ImportDocument doc(String effectiveDate, boolean dryRun, String source, List<RefItemRow> refItems,
             List<OrgUnitRow> orgUnits) {

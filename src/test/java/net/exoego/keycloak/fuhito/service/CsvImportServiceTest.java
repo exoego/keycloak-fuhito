@@ -47,7 +47,7 @@ class CsvImportServiceTest {
             new MemoryReportingLineStore());
     private final ImportService.People people =
             new ImportService.People(employments, employmentStore, assignments, assignmentStore, users,
-                    new PersonService(personStore, users, employmentStore));
+                    new PersonService(personStore, users, id -> false));
     private final CsvImportService service = new CsvImportService(
             new ImportService(new RefItemService(refItems), refItems, orgUnits, orgUnitStore, people), refItems,
             orgUnitStore, orgUnits, people);

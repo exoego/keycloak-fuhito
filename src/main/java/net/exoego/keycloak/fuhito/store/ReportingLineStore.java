@@ -30,10 +30,10 @@ public interface ReportingLineStore {
     /**
      * Lists the reporting lines to a manager, oldest first.
      *
-     * @param managerUserId the ID of the manager
+     * @param managerPersonId the ID of the person who is the manager
      * @return the lines
      */
-    List<ReportingLine> findByManager(String managerUserId);
+    List<ReportingLine> findByManager(String managerPersonId);
 
     /**
      * Stores a new reporting line.

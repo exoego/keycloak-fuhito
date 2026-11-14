@@ -32,13 +32,14 @@ class ReportingLineServiceTest {
     private final MemoryOrgUnitStore orgUnitStore = new MemoryOrgUnitStore();
     private final MemoryRefItemStore refItems = new MemoryRefItemStore();
     private final Set<String> users = Set.of("director", "head-nurse", "nurse-a", "nurse-b", "project-lead", "idle");
+    private final MemoryPersonStore people = MemoryPersonStore.linked(users);
     private final EmploymentService employments =
-            new EmploymentService(employmentStore, assignmentStore, refItems, MemoryPersonStore.linked(users), store);
+            new EmploymentService(employmentStore, assignmentStore, refItems, people, store);
     private final AssignmentService assignments =
             new AssignmentService(assignmentStore, employmentStore, orgUnitStore, refItems, store);
     private final OrgUnitService orgUnits = new OrgUnitService(orgUnitStore, assignmentStore, refItems, CLOCK);
     private final ReportingLineService service = new ReportingLineService(store, new ReportingLineService.Sources(
-            assignmentStore, employmentStore, orgUnitStore, refItems, users::contains), CLOCK);
+            assignmentStore, employmentStore, orgUnitStore, refItems, users::contains, people), CLOCK);
 
     private String hospital;
     private String nursing;

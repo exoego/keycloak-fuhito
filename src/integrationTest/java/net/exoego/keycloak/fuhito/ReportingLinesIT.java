@@ -127,7 +127,7 @@ class ReportingLinesIT {
     @Test
     void rejectsBadRequests() throws Exception {
         String line = "{\"assignmentId\": \"" + nurseBAssignment + "\", \"validFrom\": \"2026-04-01\", \"managerUserId\": \"";
-        assertEquals("reporting_line.manager_unknown", errorOf(400, api.post("/reporting-lines", line + "nobody\"}")));
+        assertEquals("person.user_unknown", errorOf(400, api.post("/reporting-lines", line + "nobody\"}")));
         assertEquals("reporting_line.self", errorOf(400, api.post("/reporting-lines", line + nurseB + "\"}")));
         assertEquals("reporting_line.assignment_unknown", errorOf(400, api.post("/reporting-lines",
                 "{\"assignmentId\": \"nope\", \"managerUserId\": \"" + director + "\", \"validFrom\": \"2026-04-01\"}")));
@@ -136,7 +136,8 @@ class ReportingLinesIT {
         assertEquals("invalid.choice", errorOf(400, api.post("/reporting-lines", line + director + "\", \"kind\": \"THICK\"}")));
         assertEquals("user.not_found", errorOf(404, api.get("/users/nobody/managers")));
         assertEquals("user.not_found", errorOf(404, otherRealm.api.get("/users/" + nurseB + "/reports")));
-        assertEquals("reporting_line.assignment_unknown", errorOf(400, otherRealm.api.post("/reporting-lines", line + director + "\"}")));
+        // The other realm knows neither the manager nor the assignment. The manager is looked up first.
+        assertEquals("person.user_unknown", errorOf(400, otherRealm.api.post("/reporting-lines", line + director + "\"}")));
         assertEquals(401, new Api(realm.name, null).post("/reporting-lines", "{}").statusCode());
         assertEquals(401, new Api(realm.name, null).get("/users/" + nurseB + "/managers").statusCode());
     }

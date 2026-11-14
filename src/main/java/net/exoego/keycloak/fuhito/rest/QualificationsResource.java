@@ -12,6 +12,7 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.rest.RequestContext.Change;
+import net.exoego.keycloak.fuhito.service.PersonService;
 import net.exoego.keycloak.fuhito.service.QualificationService;
 import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.media.Content;
@@ -35,23 +36,26 @@ public class QualificationsResource {
 
     private final RequestContext context;
     private final QualificationService service;
+    private final PersonService people;
 
     /**
      * Creates the resource for one request.
      *
      * @param context the request and its caller
      * @param service the operations on the realm of the request
+     * @param people the operations on people of the realm
      */
-    public QualificationsResource(RequestContext context, QualificationService service) {
+    public QualificationsResource(RequestContext context, QualificationService service, PersonService people) {
         this.context = context;
         this.service = service;
+        this.people = people;
     }
 
     @POST
     @Operation(
             operationId = "addQualification",
-            summary = "Adds a qualification of a user.",
-            description = "The body needs `userId`.")
+            summary = "Adds a qualification of a person.",
+            description = "The body needs `personId` or `userId`.")
     @Parameter(ref = "changeOrder")
     @APIResponse(
             responseCode = "201",
@@ -65,7 +69,8 @@ public class QualificationsResource {
         context.requireWrite();
         return Calls.run(context, () -> {
             Checks.required("body", body);
-            var qualification = QualificationRepresentation.of(service.add(body.toValues()));
+            var qualification = QualificationRepresentation.of(service.add(
+                    body.toValues(Writes.personId(context, people, "personId", body.personId(), body.userId()))));
             context.recordChange(Change.CREATE, RESOURCE_TYPE, qualification.id(), path(qualification.id()),
                     qualification);
             return Response.status(Response.Status.CREATED).entity(qualification).build();
@@ -102,7 +107,7 @@ public class QualificationsResource {
         context.requireWrite();
         return Calls.run(context, () -> {
             Checks.required("body", body);
-            var qualification = QualificationRepresentation.of(service.replace(id, body.toValues()));
+            var qualification = QualificationRepresentation.of(service.replace(id, body.toValues(null)));
             context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, path(id), qualification);
             return qualification;
         });

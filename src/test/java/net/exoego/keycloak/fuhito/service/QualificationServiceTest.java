@@ -37,8 +37,13 @@ class QualificationServiceTest {
 
         @Override
         public List<Qualification> findByUser(String userId) {
-            return rows.stream().filter(q -> q.userId().equals(userId))
+            return rows.stream().filter(q -> userId.equals(q.userId()))
                     .sorted(Comparator.comparing(q -> q.period().from())).toList();
+        }
+
+        @Override
+        public List<Qualification> findByPerson(String personId) {
+            return rows.stream().filter(q -> q.personId().equals(personId)).toList();
         }
 
         @Override
@@ -60,7 +65,7 @@ class QualificationServiceTest {
     private final MemoryStore store = new MemoryStore();
     private final MemoryRefItemStore refItems = new MemoryRefItemStore();
     private final QualificationService service = new QualificationService(store, refItems,
-            Set.of("doctor", "nurse")::contains,
+            MemoryPersonStore.linked(Set.of("doctor", "nurse")), Set.of("doctor", "nurse")::contains,
             Clock.fixed(Instant.parse("2026-06-15T03:00:00Z"), ZoneId.of("Asia/Tokyo")));
 
     @BeforeEach
@@ -178,7 +183,7 @@ class QualificationServiceTest {
         assertEquals(Map.of("kind", "QUALIFICATION", "code", "nope"), kind.params());
         FuhitoException user = failure(of("nobody", "specialist", null, "2018-04-01", null));
         assertEquals(FuhitoException.Reason.INVALID, user.reason());
-        assertEquals("qualification.user_unknown", user.code());
+        assertEquals("qualification.person_unknown", user.code());
         assertTrue(store.rows.isEmpty());
         String id = service.add(of("doctor", "specialist", null, "2018-04-01", null)).qualification().id();
         assertEquals("invalid.required",

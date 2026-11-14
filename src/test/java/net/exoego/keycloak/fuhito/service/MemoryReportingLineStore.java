@@ -24,8 +24,8 @@ final class MemoryReportingLineStore implements ReportingLineStore {
     }
 
     @Override
-    public List<ReportingLine> findByManager(String managerUserId) {
-        return lines.stream().filter(l -> l.managerUserId().equals(managerUserId))
+    public List<ReportingLine> findByManager(String managerPersonId) {
+        return lines.stream().filter(l -> l.managerPersonId().equals(managerPersonId))
                 .sorted(Comparator.comparing(l -> l.period().from())).toList();
     }
 

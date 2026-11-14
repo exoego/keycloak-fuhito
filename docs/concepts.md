@@ -27,11 +27,8 @@ A person has a record of its own. It has a name, names in other languages, and a
 A person can be linked to a Keycloak user, and does not need one.
 So staff who never log in, and people who left long ago, can be stored too.
 
-An employment belongs to a person.
+An employment and a qualification belong to a person. The manager of a reporting line is a person.
 A write can name the person by the ID of a Keycloak user. The person of that user is then used, and created when the user has none.
-
-Qualifications and reporting lines still name a Keycloak user today.
-They will name a person. See [issue 140](https://github.com/exoego/keycloak-fuhito/issues/140).
 
 | Term | Japanese | Meaning |
 |---|---|---|
@@ -50,7 +47,7 @@ They will name a person. See [issue 140](https://github.com/exoego/keycloak-fuhi
 | Assignment Kind | 所属区分 | How the assignment is held, for example regular, acting, or support. |
 | Head | 長 | A flag on an assignment. It marks the person who leads the org unit. |
 | Reporting Line | レポートライン | A link from an assignment to a manager. It has a kind, solid or dotted, and a period. |
-| Qualification | 資格、免許 | A license or certificate that a user holds, with a number and a period. |
+| Qualification | 資格、免許 | A license or certificate that a person holds, with a number and a period. |
 
 Job title, occupation, grade, and employment type are four separate things.
 One person can be a nurse (occupation), a head nurse (job title), grade 4 (grade), and full-time (employment type).

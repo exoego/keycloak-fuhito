@@ -4,7 +4,10 @@ import java.time.LocalDate;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 
 /**
@@ -24,8 +27,13 @@ public class ReportingLineEntity {
     @Column(name = "ASSIGNMENT_ID", nullable = false, length = 36)
     String assignmentId;
 
-    @Column(name = "MANAGER_USER_ID", nullable = false, length = 255)
-    String managerUserId;
+    @Column(name = "MANAGER_PERSON_ID", nullable = false, length = 36)
+    String managerPersonId;
+
+    // Only for reads. The column is written through managerPersonId.
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "MANAGER_PERSON_ID", insertable = false, updatable = false)
+    PersonEntity manager;
 
     @Column(name = "KIND", nullable = false, length = 16)
     String kind;

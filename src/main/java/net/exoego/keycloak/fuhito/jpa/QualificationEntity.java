@@ -6,7 +6,10 @@ import java.util.Map;
 import jakarta.persistence.Column;
 import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 
 /**
@@ -23,8 +26,13 @@ public class QualificationEntity {
     @Column(name = "REALM_ID", nullable = false, length = 36)
     String realmId;
 
-    @Column(name = "USER_ID", nullable = false, length = 255)
-    String userId;
+    @Column(name = "PERSON_ID", nullable = false, length = 36)
+    String personId;
+
+    // Only for reads. The column is written through personId.
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "PERSON_ID", insertable = false, updatable = false)
+    PersonEntity person;
 
     @Column(name = "KIND_ID", nullable = false, length = 36)
     String kindId;

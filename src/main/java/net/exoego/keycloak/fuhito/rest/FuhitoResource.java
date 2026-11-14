@@ -213,14 +213,15 @@ public class FuhitoResource {
      */
     @Path("reporting-lines")
     public ReportingLinesResource reportingLines() {
-        return new ReportingLinesResource(context, reportingLineService());
+        return new ReportingLinesResource(context, reportingLineService(), personService());
     }
 
     private ReportingLineService reportingLineService() {
         return new ReportingLineService(new JpaReportingLineStore(entityManager, realmId),
                 new ReportingLineService.Sources(new JpaAssignmentStore(entityManager, realmId),
                         new JpaEmploymentStore(entityManager, realmId), new JpaOrgUnitStore(entityManager, realmId),
-                        new JpaRefItemStore(entityManager, realmId), users),
+                        new JpaRefItemStore(entityManager, realmId), users,
+                        new JpaPersonStore(entityManager, realmId)),
                 clock);
     }
 
@@ -343,7 +344,9 @@ public class FuhitoResource {
 
     private PersonService personService() {
         return new PersonService(new JpaPersonStore(entityManager, realmId), users,
-                new JpaEmploymentStore(entityManager, realmId));
+                personId -> !new JpaEmploymentStore(entityManager, realmId).findByPerson(personId).isEmpty()
+                        || !new JpaQualificationStore(entityManager, realmId).findByPerson(personId).isEmpty()
+                        || !new JpaReportingLineStore(entityManager, realmId).findByManager(personId).isEmpty());
     }
 
     /**
@@ -353,12 +356,13 @@ public class FuhitoResource {
      */
     @Path("qualifications")
     public QualificationsResource qualifications() {
-        return new QualificationsResource(context, qualificationService());
+        return new QualificationsResource(context, qualificationService(), personService());
     }
 
     private QualificationService qualificationService() {
         return new QualificationService(new JpaQualificationStore(entityManager, realmId),
-                new JpaRefItemStore(entityManager, realmId), users, clock);
+                new JpaRefItemStore(entityManager, realmId), new JpaPersonStore(entityManager, realmId), users,
+                clock);
     }
 
     private MembershipService membershipService() {

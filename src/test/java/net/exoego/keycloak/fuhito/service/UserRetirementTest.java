@@ -21,15 +21,17 @@ class UserRetirementTest {
     private final MemoryEmploymentStore employmentStore = new MemoryEmploymentStore();
     private final MemoryOrgUnitStore orgUnitStore = new MemoryOrgUnitStore();
     private final MemoryRefItemStore refItems = new MemoryRefItemStore();
+    private final MemoryPersonStore people = MemoryPersonStore.anyUser();
     private final EmploymentService employments =
-            new EmploymentService(employmentStore, assignmentStore, refItems, MemoryPersonStore.anyUser(), lines);
+            new EmploymentService(employmentStore, assignmentStore, refItems, people, lines);
     private final AssignmentService assignments =
             new AssignmentService(assignmentStore, employmentStore, orgUnitStore, refItems, lines);
     private final ReportingLineService lineService = new ReportingLineService(lines,
-            new ReportingLineService.Sources(assignmentStore, employmentStore, orgUnitStore, refItems, id -> true),
+            new ReportingLineService.Sources(assignmentStore, employmentStore, orgUnitStore, refItems, id -> true,
+                    people),
             CLOCK);
     private final UserRetirement retirement =
-            new UserRetirement(employmentStore, employments, assignmentStore, lines, CLOCK);
+            new UserRetirement(employmentStore, employments, assignmentStore, lines, people, CLOCK);
 
     private String unit;
 

@@ -40,10 +40,10 @@ public class JpaReportingLineStore implements ReportingLineStore {
     }
 
     @Override
-    public List<ReportingLine> findByManager(String managerUserId) {
+    public List<ReportingLine> findByManager(String managerPersonId) {
         return list("""
-                select l from ReportingLineEntity l where l.realmId = :realmId and l.managerUserId = :value
-                order by l.validFrom, l.id""", managerUserId);
+                select l from ReportingLineEntity l where l.realmId = :realmId and l.managerPersonId = :value
+                order by l.validFrom, l.id""", managerPersonId);
     }
 
     private List<ReportingLine> list(String query, String value) {
@@ -61,7 +61,9 @@ public class JpaReportingLineStore implements ReportingLineStore {
         entity.id = line.id();
         entity.realmId = realmId;
         entity.assignmentId = line.assignmentId();
-        entity.managerUserId = line.managerUserId();
+        entity.managerPersonId = line.managerPersonId();
+        // The same session reads the row back, and it then needs the person.
+        entity.manager = em.getReference(PersonEntity.class, line.managerPersonId());
         entity.kind = line.kind().name();
         entity.validFrom = line.period().from();
         entity.validTo = line.period().to();
@@ -91,7 +93,8 @@ public class JpaReportingLineStore implements ReportingLineStore {
     }
 
     private static ReportingLine toDomain(ReportingLineEntity e) {
-        return new ReportingLine(e.id, e.assignmentId, e.managerUserId, ReportingLine.Kind.valueOf(e.kind),
+        return new ReportingLine(e.id, e.assignmentId, e.managerPersonId, e.manager.userId,
+                ReportingLine.Kind.valueOf(e.kind),
                 new ValidPeriod(e.validFrom, e.validTo));
     }
 }

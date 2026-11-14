@@ -1185,9 +1185,14 @@ components:
         id:
           type: string
           readOnly: true
+        personId:
+          type: string
+          description: The ID of the person. Only a request to add reads it.
         userId:
           type: string
-          description: The ID of the Keycloak user. Only a request to add reads it.
+          description: "The ID of the Keycloak user that the person is linked to.\
+            \ A request to add can give it in place of `personId`. The person of the\
+            \ user is then used, and created when the user has none."
         kind:
           type: string
           description: The code of the qualification kind.
@@ -1377,7 +1382,7 @@ components:
           description: Free values that the realm defines.
     Reporting:
       required:
-      - userId
+      - personId
       - kind
       - derived
       - assignmentId
@@ -1386,10 +1391,14 @@ components:
         \ a date."
       type: object
       properties:
+        personId:
+          type: string
+          description: "The ID of the other person. It is the manager in a list of\
+            \ managers, and the report in a list of reports."
         userId:
           type: string
-          description: "The ID of the other user. It is the manager in a list of managers,\
-            \ and the report in a list of reports."
+          description: The ID of the Keycloak user that the other person is linked
+            to.
         kind:
           $ref: "#/components/schemas/ReportingKind"
         derived:
@@ -1416,7 +1425,6 @@ components:
     ReportingLine:
       required:
       - assignmentId
-      - managerUserId
       - validFrom
       type: object
       properties:
@@ -1426,9 +1434,14 @@ components:
         assignmentId:
           type: string
           description: The ID of the assignment of the person who reports.
+        managerPersonId:
+          type: string
+          description: The ID of the person who is the manager.
         managerUserId:
           type: string
-          description: The ID of the Keycloak user who is the manager.
+          description: "The ID of the Keycloak user that the manager is linked to.\
+            \ A request can give it in place of `managerPersonId`. The person of the\
+            \ user is then used, and created when the user has none."
         kind:
           $ref: "#/components/schemas/ReportingKind"
           default: SOLID
@@ -3253,8 +3266,8 @@ paths:
           $ref: "#/components/responses/Conflict"
   /qualifications:
     post:
-      summary: Adds a qualification of a user.
-      description: The body needs `userId`.
+      summary: Adds a qualification of a person.
+      description: The body needs `personId` or `userId`.
       operationId: addQualification
       tags:
       - qualifications

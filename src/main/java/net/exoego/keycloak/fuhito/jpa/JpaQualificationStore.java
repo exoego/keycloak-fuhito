@@ -36,9 +36,21 @@ public class JpaQualificationStore implements QualificationStore {
     public List<Qualification> findByUser(String userId) {
         return em.createQuery("""
                         select q from QualificationEntity q where q.realmId = :realmId
-                        and q.userId = :userId order by q.validFrom, q.id""", QualificationEntity.class)
+                        and q.person.userId = :userId order by q.validFrom, q.id""", QualificationEntity.class)
                 .setParameter("realmId", realmId)
                 .setParameter("userId", userId)
+                .getResultStream()
+                .map(JpaQualificationStore::toDomain)
+                .toList();
+    }
+
+    @Override
+    public List<Qualification> findByPerson(String personId) {
+        return em.createQuery("""
+                        select q from QualificationEntity q where q.realmId = :realmId
+                        and q.personId = :personId order by q.validFrom, q.id""", QualificationEntity.class)
+                .setParameter("realmId", realmId)
+                .setParameter("personId", personId)
                 .getResultStream()
                 .map(JpaQualificationStore::toDomain)
                 .toList();
@@ -49,7 +61,9 @@ public class JpaQualificationStore implements QualificationStore {
         QualificationEntity entity = new QualificationEntity();
         entity.id = qualification.id();
         entity.realmId = realmId;
-        entity.userId = qualification.userId();
+        entity.personId = qualification.personId();
+        // The same session reads the row back, and it then needs the person.
+        entity.person = em.getReference(PersonEntity.class, qualification.personId());
         entity.externalId = qualification.externalId();
         entity.source = qualification.source();
         copy(qualification, entity);
@@ -81,7 +95,7 @@ public class JpaQualificationStore implements QualificationStore {
     }
 
     private static Qualification toDomain(QualificationEntity e) {
-        return new Qualification(e.id, e.userId, e.kindId, e.number, new ValidPeriod(e.validFrom, e.validTo),
+        return new Qualification(e.id, e.personId, e.person.userId, e.kindId, e.number, new ValidPeriod(e.validFrom, e.validTo),
                 e.attributes, e.externalId, e.source);
     }
 }

@@ -81,7 +81,7 @@ public class JpaUserDataMasker implements UserDataMasker {
         List<String> qualificationIds = new ArrayList<>();
         for (QualificationEntity qualification : em.createQuery("""
                         select q from QualificationEntity q
-                        where q.realmId = :realmId and q.userId = :userId""", QualificationEntity.class)
+                        where q.realmId = :realmId and q.person.userId = :userId""", QualificationEntity.class)
                 .setParameter("realmId", realmId).setParameter("userId", userId).getResultList()) {
             qualificationIds.add(qualification.id);
             qualification.number = null;

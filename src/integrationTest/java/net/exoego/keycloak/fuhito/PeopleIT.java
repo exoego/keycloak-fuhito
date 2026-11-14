@@ -227,6 +227,45 @@ class PeopleIT {
     }
 
     @Test
+    void aPersonWithNoUserCanHoldAQualificationAndBeAManager() throws Exception {
+        TestRealm scratch = TestRealm.create("people-lines");
+        Api scratchApi = scratch.api;
+        scratch.refItem("QUALIFICATION", "license", "免許");
+        String unit = created(scratchApi.post("/org-units", "{\"name\": \"外科\", \"validFrom\": \"2020-04-01\"}"))
+                .get("id").asText();
+        String visiting = created(scratchApi.post("/people", "{\"name\": \"応援 医師\"}")).get("id").asText();
+        String advisor = created(scratchApi.post("/people", "{\"name\": \"顧問\"}")).get("id").asText();
+        String resident = scratch.user("resident");
+
+        JsonNode license = created(scratchApi.post("/qualifications", "{\"personId\": \"" + visiting
+                + "\", \"kind\": \"license\", \"validFrom\": \"2010-05-01\"}"));
+        assertEquals(visiting, license.get("personId").asText());
+        assertFalse(license.has("userId"));
+        assertEquals("person.in_use", errorOf(409, scratchApi.delete("/people/" + visiting)));
+
+        String assignment = created(scratchApi.post("/staff", "{\"userId\": \"" + resident + "\", \"orgUnitId\": \""
+                + unit + "\", \"validFrom\": \"2020-04-01\"}")).get("assignment").get("id").asText();
+        JsonNode line = created(scratchApi.post("/reporting-lines", "{\"assignmentId\": \"" + assignment
+                + "\", \"managerPersonId\": \"" + advisor + "\", \"validFrom\": \"2020-04-01\"}"));
+        assertEquals(advisor, line.get("managerPersonId").asText());
+        assertFalse(line.has("managerUserId"));
+        assertEquals("person.in_use", errorOf(409, scratchApi.delete("/people/" + advisor)));
+
+        JsonNode managers = ok(scratchApi.get("/users/" + resident + "/managers"));
+        assertEquals(List.of(advisor), managers.findValuesAsText("personId"));
+        assertFalse(managers.get(0).has("userId"));
+        assertFalse(managers.get(0).get("derived").asBoolean());
+
+        assertEquals("reporting_line.manager_unknown", errorOf(400, scratchApi.post("/reporting-lines",
+                "{\"assignmentId\": \"" + assignment + "\", \"managerPersonId\": \"nobody\", "
+                        + "\"validFrom\": \"2020-04-01\"}")));
+        assertEquals("invalid.required", errorOf(400, scratchApi.post("/reporting-lines",
+                "{\"assignmentId\": \"" + assignment + "\", \"validFrom\": \"2020-04-01\"}")));
+        assertEquals("qualification.person_unknown", errorOf(400, scratchApi.post("/qualifications",
+                "{\"personId\": \"nobody\", \"kind\": \"license\", \"validFrom\": \"2010-05-01\"}")));
+    }
+
+    @Test
     void anEmploymentByUserIdUsesThePersonOfTheUserOrCreatesIt() throws Exception {
         TestRealm scratch = TestRealm.create("people-by-user");
         Api scratchApi = scratch.api;

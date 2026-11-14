@@ -10,6 +10,7 @@ import net.exoego.keycloak.fuhito.domain.Employment;
 import net.exoego.keycloak.fuhito.domain.ReportingLine;
 import net.exoego.keycloak.fuhito.store.AssignmentStore;
 import net.exoego.keycloak.fuhito.store.EmploymentStore;
+import net.exoego.keycloak.fuhito.store.PersonStore;
 import net.exoego.keycloak.fuhito.store.ReportingLineStore;
 
 /**
@@ -22,6 +23,7 @@ public class UserRetirement {
     private final EmploymentService employmentService;
     private final AssignmentStore assignments;
     private final ReportingLineStore lines;
+    private final PersonStore people;
     private final Clock clock;
 
     /**
@@ -31,10 +33,12 @@ public class UserRetirement {
      * @param employmentService the operations on employments of the realm
      * @param assignments the storage of assignments of the realm
      * @param lines the storage of reporting lines of the realm
+     * @param people the storage of people of the realm
      * @param clock the clock that decides what "today" is
      */
     public UserRetirement(EmploymentStore employments, EmploymentService employmentService,
-            AssignmentStore assignments, ReportingLineStore lines, Clock clock) {
+            AssignmentStore assignments, ReportingLineStore lines, PersonStore people, Clock clock) {
+        this.people = people;
         this.employments = employments;
         this.employmentService = employmentService;
         this.assignments = assignments;
@@ -61,7 +65,9 @@ public class UserRetirement {
                 ended.add(employmentService.end(employment.id(), today.toString(), null));
             }
         }
-        for (ReportingLine line : lines.findByManager(userId)) {
+        List<ReportingLine> managed = people.findByUser(userId).map(person -> lines.findByManager(person.id()))
+                .orElse(List.of());
+        for (ReportingLine line : managed) {
             if (!line.period().from().isBefore(today)) {
                 lines.delete(line.id());
             } else if (line.period().endsAfter(today)) {
