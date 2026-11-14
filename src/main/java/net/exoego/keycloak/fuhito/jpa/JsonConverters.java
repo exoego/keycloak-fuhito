@@ -28,7 +28,7 @@ public final class JsonConverters {
         }
     }
 
-    private static <T> Map<String, T> read(String json, TypeReference<LinkedHashMap<String, T>> type) {
+    private static <T> Map<String, T> read(String json, TypeReference<Map<String, T>> type) {
         if (json == null) {
             return new LinkedHashMap<>();
         }

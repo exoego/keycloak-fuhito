@@ -17,16 +17,16 @@
         "/(^|/)Dockerfile$/"
       ],
       "matchStrings": [
-        "# renovate: datasource=(?<datasource>[a-z-]+) depName=(?<depName>\\S+)(?: extractVersion=(?<extractVersion>\\S+))?\\nARG [A-Z_]+_VERSION=(?<currentValue>\\S+)"
+        "# renovate: datasource=(?<datasource>[a-z-]+) depName=(?<depName>\\S+)\\nARG [A-Z_]+_VERSION=(?<currentValue>\\S+)"
       ]
     }
   ],
   "packageRules": [
     {
-      "description": "aislop and PMD gate CI and can add rules in any release, so check each update by hand. PMD also needs its new checksum.",
+      "description": "These tools gate the build and can add checks in any release, so check each update by hand",
       "matchPackageNames": [
         "aislop",
-        "pmd/pmd"
+        "com.google.errorprone:**"
       ],
       "automerge": false
     },

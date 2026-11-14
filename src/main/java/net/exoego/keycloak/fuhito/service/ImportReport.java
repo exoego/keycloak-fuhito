@@ -1,6 +1,7 @@
 package net.exoego.keycloak.fuhito.service;
 
 import java.util.ArrayList;
+import java.util.EnumMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -178,7 +179,7 @@ public final class ImportReport {
         }
     }
 
-    private final Map<String, int[]> counts = new LinkedHashMap<>();
+    private final Map<String, Map<Outcome, Integer>> counts = new LinkedHashMap<>();
     private final List<RowError> errors = new ArrayList<>();
     private final List<Write> writes = new ArrayList<>();
 
@@ -186,11 +187,11 @@ public final class ImportReport {
     }
 
     void count(String list, Outcome outcome) {
-        counts.computeIfAbsent(list, name -> new int[3])[outcome.ordinal()]++;
+        startList(list).merge(outcome, 1, Integer::sum);
     }
 
-    void startList(String list) {
-        counts.computeIfAbsent(list, name -> new int[3]);
+    Map<Outcome, Integer> startList(String list) {
+        return counts.computeIfAbsent(list, name -> new EnumMap<>(Outcome.class));
     }
 
     void error(String list, int row, FuhitoException error) {
@@ -208,7 +209,8 @@ public final class ImportReport {
      */
     public Map<String, Counts> counts() {
         Map<String, Counts> result = new LinkedHashMap<>();
-        counts.forEach((list, c) -> result.put(list, new Counts(c[0], c[1], c[2])));
+        counts.forEach((list, c) -> result.put(list, new Counts(c.getOrDefault(Outcome.CREATED, 0),
+                c.getOrDefault(Outcome.CHANGED, 0), c.getOrDefault(Outcome.UNCHANGED, 0))));
         return result;
     }
 

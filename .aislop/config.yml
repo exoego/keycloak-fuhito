@@ -3,7 +3,8 @@ version: 1
 engines:
   # No formatter is set up for this project.
   format: false
-  lint: true
+  # The compiler and Error Prone lint the Java code in the Gradle build.
+  lint: false
   code-quality: true
   ai-slop: true
   architecture: false

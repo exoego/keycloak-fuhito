@@ -16,6 +16,7 @@ jboss-logging = { module = "org.jboss.logging:jboss-logging" }
 
 # Not used directly. useJUnitJupiter takes only the version, and Renovate needs a library to find it.
 junit-jupiter = { module = "org.junit.jupiter:junit-jupiter", version.ref = "junit" }
+errorprone-core = { module = "com.google.errorprone:error_prone_core", version = "2.52.0" }
 archunit = { module = "com.tngtech.archunit:archunit", version = "1.5.1" }
 testcontainers-keycloak = { module = "com.github.dasniko:testcontainers-keycloak", version = "4.4.0" }
 testcontainers-postgresql = { module = "org.testcontainers:testcontainers-postgresql", version = "2.0.5" }
@@ -36,4 +37,5 @@ keycloak-provided = [
 ]
 
 [plugins]
+errorprone = { id = "net.ltgt.errorprone", version = "5.2.0" }
 nexus-publish = { id = "io.github.gradle-nexus.publish-plugin", version = "2.0.0" }

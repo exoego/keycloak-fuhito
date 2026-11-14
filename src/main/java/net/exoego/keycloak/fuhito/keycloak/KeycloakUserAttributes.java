@@ -37,7 +37,7 @@ final class KeycloakUserAttributes implements UserAttributeSource {
     @Override
     public List<Values> usersWithDepartment(Settings settings) {
         return session.users()
-                .searchForUserStream(realm, Map.of(UserModel.INCLUDE_SERVICE_ACCOUNT, Boolean.FALSE.toString()))
+                .searchForUserStream(realm, Map.of(UserModel.INCLUDE_SERVICE_ACCOUNT, "false"))
                 .map(user -> new Values(user.getId(), value(user, settings.department()),
                         value(user, settings.title()), value(user, settings.manager()),
                         value(user, settings.employeeNumber())))
