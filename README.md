@@ -11,7 +11,9 @@ It answers questions like these.
 - What was the answer on a given date in the past, or what will it be on a future date?
 - Who approved a change, and when did it take effect?
 
-The name comes from "fuhito", an old Japanese word for a scribe who keeps records.
+The name comes from [Fujiwara no Fuhito](https://en.wikipedia.org/wiki/Fujiwara_no_Fuhito), a statesman of Japan who lived from 659 to 720.
+He took part in writing the Taihō Code and the Yōrō Code.
+These codes set the offices of the government, their hierarchy, and the ranks of the people who held them.
 
 ## Status
 
