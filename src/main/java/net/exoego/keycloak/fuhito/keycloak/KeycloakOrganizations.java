@@ -2,7 +2,9 @@ package net.exoego.keycloak.fuhito.keycloak;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -45,7 +47,7 @@ final class KeycloakOrganizations implements OrganizationDirectory, Organization
     @Override
     public boolean exists(String organizationId) {
         OrganizationProvider provider = provider();
-        // No test has a missing provider. It happens when the server runs with the organization feature off.
+        // There is no provider when the server runs with the organization feature off.
         return provider != null && provider.isEnabled() && provider.getById(organizationId) != null;
     }
 
@@ -122,29 +124,27 @@ final class KeycloakOrganizations implements OrganizationDirectory, Organization
     }
 
     @Override
-    public void join(String groupId, String userId) {
-        UserModel user = session.users().getUserById(realm, userId);
-        GroupModel group = group(groupId);
-        // No test has a missing user here, in leave, or in addOrganizationMember. It happens when the user
-        // is removed from Keycloak while a rebuild runs, or when a user store that is federated lost the user.
-        if (user != null) {
-            within(group.getOrganization(), () -> {
-                user.joinGroup(group);
-                return null;
-            });
-        }
+    public boolean join(String groupId, String userId) {
+        return withUser(groupId, userId, UserModel::joinGroup);
     }
 
     @Override
-    public void leave(String groupId, String userId) {
+    public boolean leave(String groupId, String userId) {
+        return withUser(groupId, userId, UserModel::leaveGroup);
+    }
+
+    // The user is missing when Keycloak lost it and the assignment stayed. A restore of only the tables
+    // of Keycloak does that, and so does a removal of the user while a rebuild runs.
+    private boolean withUser(String groupId, String userId, BiConsumer<UserModel, GroupModel> change) {
         UserModel user = session.users().getUserById(realm, userId);
         GroupModel group = group(groupId);
-        if (user != null) {
-            within(group.getOrganization(), () -> {
-                user.leaveGroup(group);
-                return null;
-            });
+        if (user == null) {
+            return false;
         }
+        return within(group.getOrganization(), () -> {
+            change.accept(user, group);
+            return true;
+        });
     }
 
     @Override
@@ -159,11 +159,8 @@ final class KeycloakOrganizations implements OrganizationDirectory, Organization
     }
 
     private GroupModel group(String groupId) {
-        GroupModel group = session.groups().getGroupById(realm, groupId);
-        // No test reaches this. It happens when someone removes the group while a rebuild runs.
-        if (group == null) {
-            throw new IllegalStateException("No such group in the realm: " + groupId);
-        }
-        return group;
+        // The group is missing only when someone removes it while a rebuild runs. No test can time that.
+        return Objects.requireNonNull(session.groups().getGroupById(realm, groupId),
+                "No such group in the realm: " + groupId);
     }
 }

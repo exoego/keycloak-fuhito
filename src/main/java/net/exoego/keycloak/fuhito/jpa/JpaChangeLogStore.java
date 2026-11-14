@@ -82,10 +82,7 @@ public class JpaChangeLogStore implements ChangeLogStore {
     }
 
     private static ChangeLogEntry toDomain(ChangeLogEntity e) {
-        // No test has an entry with no number. It happens when an entry is read in the transaction that
-        // wrote it, before the database gave the number back.
-        long sequence = e.sequence == null ? 0 : e.sequence;
-        return new ChangeLogEntry(e.id, sequence, e.recordedAt, e.actorUserId, e.resourceType, e.resourceId,
+        return new ChangeLogEntry(e.id, e.sequence, e.recordedAt, e.actorUserId, e.resourceType, e.resourceId,
                 e.operation, e.resourcePath, e.changeOrderId, e.representation);
     }
 }

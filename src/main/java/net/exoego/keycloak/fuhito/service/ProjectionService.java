@@ -155,14 +155,12 @@ public class ProjectionService {
             Set<String> wanted = usersByUnit.getOrDefault(unitId, Set.of());
             Set<String> current = keycloak.members(groupId);
             for (String userId : wanted) {
-                if (!current.contains(userId)) {
-                    keycloak.join(groupId, userId);
+                if (!current.contains(userId) && keycloak.join(groupId, userId)) {
                     membersJoined++;
                 }
             }
             for (String userId : current) {
-                if (!wanted.contains(userId)) {
-                    keycloak.leave(groupId, userId);
+                if (!wanted.contains(userId) && keycloak.leave(groupId, userId)) {
                     membersLeft++;
                 }
             }

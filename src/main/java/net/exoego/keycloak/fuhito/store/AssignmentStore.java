@@ -39,7 +39,7 @@ public interface AssignmentStore {
     /**
      * Lists the rows that are valid on a date in any of the given org units.
      *
-     * @param orgUnitIds the IDs of the org units
+     * @param orgUnitIds the IDs of the org units, at least one
      * @param date the date
      * @return the rows
      */

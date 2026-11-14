@@ -70,8 +70,6 @@ final class ProjectionSchedule {
             try {
                 KeycloakModelUtils.runJobInTransaction(factory, each -> rebuild(each, realmId));
             } catch (RuntimeException e) {
-                // No test reaches this. It happens when the database fails in the middle of a rebuild,
-                // or when Keycloak refuses a change of a group.
                 LOG.errorf(e, "The scheduled projection failed for the realm with the ID %s.", realmId);
             }
         }
@@ -79,7 +77,7 @@ final class ProjectionSchedule {
 
     private static void rebuild(KeycloakSession session, String realmId) {
         RealmModel realm = session.realms().getRealm(realmId);
-        // No test reaches this. It happens when the realm is removed after the timer listed it.
+        // The realm is missing only when it is removed after the timer listed it. No test can time that.
         if (realm == null) {
             return;
         }

@@ -23,7 +23,7 @@ public class ChangeLogEntity {
 
     // The database gives the number, so that entries written at the same moment still have an order.
     @Column(name = "SEQUENCE_NUMBER", insertable = false, updatable = false)
-    Long sequence;
+    long sequence;
 
     @Column(name = "RECORDED_AT", nullable = false)
     Instant recordedAt;
