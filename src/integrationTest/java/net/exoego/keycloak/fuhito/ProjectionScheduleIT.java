@@ -124,6 +124,7 @@ class ProjectionScheduleIT {
             createRealm(admin, "b-working", "UTC");
             String organization = OrganizationLinkIT.createOrganization(admin, "b-working", "hospital");
             Api api = new Api(keycloak.getAuthServerUrl(), "b-working", token);
+            TestRealm.legalEntity(api, "法人");
             String hospital = post(api, "/org-units", "{\"name\": \"Hospital\", \"validFrom\": \"2020-04-01\"}");
             String nursing = post(api, "/org-units", "{\"name\": \"Nursing\", \"parentId\": \"" + hospital
                     + "\", \"validFrom\": \"2020-04-01\"}");

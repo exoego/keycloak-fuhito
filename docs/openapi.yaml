@@ -328,6 +328,12 @@ components:
           description: "The ID of the Keycloak user that the person is linked to.\
             \ A request can give it in place of `personId`. The person of the user\
             \ is then used, and created when the user has none."
+        employerId:
+          type: string
+          description: "The ID of the org unit that employs the person. It is a legal\
+            \ entity on the first date of the employment, and it never changes. A\
+            \ request can leave it out when the realm has exactly one legal entity\
+            \ on that date."
         validFrom:
           type: string
           description: The first date of the employment.
@@ -1490,6 +1496,11 @@ components:
           type: string
           description: "The ID of the Keycloak user, in place of `personId`. The person\
             \ of the user is used, and created when the user has none."
+          writeOnly: true
+        employerId:
+          type: string
+          description: The ID of the org unit that employs the person. Leave it out
+            when the realm has exactly one legal entity.
           writeOnly: true
         orgUnitId:
           type: string

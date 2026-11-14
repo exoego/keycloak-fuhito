@@ -37,7 +37,7 @@ class UserMaskIT {
     }
 
     private static TestRealm realm() throws Exception {
-        TestRealm realm = TestRealm.create("user-mask");
+        TestRealm realm = TestRealm.withEmployer("user-mask");
         realm.refItem("EMPLOYMENT_TYPE", "full-time", "常勤");
         realm.refItem("JOB_TITLE", "chief", "主任");
         realm.refItem("OCCUPATION", "nurse", "看護師");

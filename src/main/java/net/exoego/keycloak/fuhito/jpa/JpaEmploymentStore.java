@@ -125,6 +125,7 @@ public class JpaEmploymentStore implements EmploymentStore {
         entity.id = employment.id();
         entity.realmId = realmId;
         entity.personId = employment.personId();
+        entity.employerId = employment.employerId();
         // The same session reads the row back, and it then needs the person.
         entity.person = em.getReference(PersonEntity.class, employment.personId());
         entity.validFrom = employment.period().from();
@@ -201,7 +202,8 @@ public class JpaEmploymentStore implements EmploymentStore {
     }
 
     private static Employment toDomain(EmploymentEntity e) {
-        return new Employment(e.id, e.personId, e.person.userId, new ValidPeriod(e.validFrom, e.validTo), e.staffNumber, e.endReasonId,
+        return new Employment(e.id, e.personId, e.person.userId, e.employerId, new ValidPeriod(e.validFrom, e.validTo),
+                e.staffNumber, e.endReasonId,
                 e.externalId, e.source);
     }
 

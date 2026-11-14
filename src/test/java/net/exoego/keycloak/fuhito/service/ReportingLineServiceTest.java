@@ -34,7 +34,7 @@ class ReportingLineServiceTest {
     private final Set<String> users = Set.of("director", "head-nurse", "nurse-a", "nurse-b", "project-lead", "idle");
     private final MemoryPersonStore people = MemoryPersonStore.linked(users);
     private final EmploymentService employments =
-            new EmploymentService(employmentStore, assignmentStore, refItems, people, store);
+            new EmploymentService(employmentStore, assignmentStore, refItems, people, store, new AnyEmployer());
     private final AssignmentService assignments =
             new AssignmentService(assignmentStore, employmentStore, orgUnitStore, refItems, store);
     private final OrgUnitService orgUnits = new OrgUnitService(orgUnitStore, assignmentStore, refItems, CLOCK);

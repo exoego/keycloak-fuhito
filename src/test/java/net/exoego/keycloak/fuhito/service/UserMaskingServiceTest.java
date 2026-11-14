@@ -37,7 +37,7 @@ class UserMaskingServiceTest {
     };
     private final MemoryEmploymentStore employmentStore = new MemoryEmploymentStore();
     private final EmploymentService employments = new EmploymentService(employmentStore, new MemoryAssignmentStore(),
-            new MemoryRefItemStore(), MemoryPersonStore.anyUser(), new MemoryReportingLineStore());
+            new MemoryRefItemStore(), MemoryPersonStore.anyUser(), new MemoryReportingLineStore(), new AnyEmployer());
     private UserMaskingService service() {
         return new UserMaskingService(masker, employmentStore, clock, clock);
     }

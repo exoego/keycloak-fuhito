@@ -28,7 +28,7 @@ class EmploymentServiceTest {
     private final EmploymentService service =
             new EmploymentService(store, assignments, refItems,
             MemoryPersonStore.linked(Set.of("alice", "bob")),
-            new MemoryReportingLineStore());
+            new MemoryReportingLineStore(), new AnyEmployer());
 
     private static NewEmployment minimal(String userId, String validFrom) {
         return new NewEmployment(userId, validFrom, null, null, null, null, null, null, null, null, null);
@@ -102,6 +102,27 @@ class EmploymentServiceTest {
         service.start(minimal("alice", "2026-10-01"));
 
         assertEquals(3, store.employments.size());
+    }
+
+    @Test
+    void anEmploymentKeepsItsEmployerAndEachEmployerGivesItsOwnStaffNumbers() {
+        EmploymentView atA = service.start(new NewEmployment("alice", "2020-04-01", null, "1001", null, null, null,
+                null, null, null, null, "company-a"));
+        EmploymentView unnamed = service.start(minimal("bob", "2010-04-01"));
+
+        assertEquals("company-a", atA.employment().employerId());
+        assertEquals(AnyEmployer.DEFAULT, unnamed.employment().employerId());
+        assertEquals("company-a", service.end(atA.employment().id(), "2030-04-01", null).employment().employerId());
+
+        // Another company may give the same number to another person. The same company may not.
+        EmploymentView atB = service.start(new NewEmployment("bob", "2020-04-01", null, "1001", null, null, null,
+                null, null, null, null, "company-b"));
+        assertEquals("company-b", atB.employment().employerId());
+        assertEquals("employment.staff_number_taken", failure(new NewEmployment("bob", "2021-04-01", null, "1001",
+                null, null, null, null, null, null, null, "company-a")).code());
+        // The same person keeps the number in a second employment at the same company.
+        service.start(new NewEmployment("alice", "2031-04-01", null, "1001", null, null, null, null, null, null,
+                null, "company-a"));
     }
 
     @Test

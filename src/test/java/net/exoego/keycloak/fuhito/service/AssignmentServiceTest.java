@@ -30,7 +30,7 @@ class AssignmentServiceTest {
             new MemoryReportingLineStore());
     private final EmploymentService employmentService = new EmploymentService(employments, store, refItems,
             MemoryPersonStore.anyUser(),
-            new MemoryReportingLineStore());
+            new MemoryReportingLineStore(), new AnyEmployer());
     private final OrgUnitService orgUnitService = new OrgUnitService(orgUnits, store, refItems, Clock.systemUTC());
 
     private String employment;

@@ -44,6 +44,7 @@ class AttributeSyncIT {
         profile.setUnmanagedAttributePolicy(UPConfig.UnmanagedAttributePolicy.ENABLED);
         admin.realm(realm).users().userProfile().update(profile);
         api = new Api(realm, admin.tokenManager().getAccessTokenString());
+        TestRealm.legalEntity(api, "法人");
     }
 
     private String user(String username, Map<String, String> attributes) {

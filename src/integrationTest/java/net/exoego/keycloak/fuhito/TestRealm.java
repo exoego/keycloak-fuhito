@@ -14,6 +14,7 @@ import org.keycloak.representations.idm.UserRepresentation;
 
 import static net.exoego.keycloak.fuhito.KeycloakEnvironment.KEYCLOAK;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * A new realm for one test class, with helpers to fill it.
@@ -93,6 +94,41 @@ final class TestRealm {
 
     void remove() {
         admin.realm(name).remove();
+    }
+
+    /**
+     * Creates a realm that has one legal entity. Such a realm can store employments, and a request need not
+     * name the employer.
+     */
+    static TestRealm withEmployer(String prefix) {
+        return withEmployer(prefix, Map.of());
+    }
+
+    static TestRealm withEmployer(String prefix, Map<String, String> attributes) {
+        TestRealm realm = create(prefix, attributes);
+        realm.legalEntity("法人");
+        return realm;
+    }
+
+    /** Creates a legal entity that exists from 1990 and returns its ID. */
+    String legalEntity(String entityName) {
+        return legalEntity(api, entityName);
+    }
+
+    // The checked exceptions of the HTTP client become errors, so that a setup method need not declare them.
+    static String legalEntity(Api api, String entityName) {
+        try {
+            var type = api.post("/ref-items", "{\"kind\": \"UNIT_TYPE\", \"code\": \"legal-entity\", "
+                    + "\"name\": \"法人\", \"legalEntity\": true}");
+            // The type is there already when the realm has a legal entity.
+            assertTrue(type.statusCode() == 201 || type.statusCode() == 409, type.body());
+            var response = api.post("/org-units", "{\"name\": \"" + entityName
+                    + "\", \"unitType\": \"legal-entity\", \"validFrom\": \"1990-01-01\"}");
+            assertEquals(201, response.statusCode(), response.body());
+            return Api.json(response).get("id").asText();
+        } catch (Exception e) {
+            throw new AssertionError(e);
+        }
     }
 
     /** Creates a reference item and returns its ID. */

@@ -28,8 +28,8 @@ class AssignmentsIT {
 
     @BeforeAll
     static void createTheOrganization() throws Exception {
-        realm = TestRealm.create("assignments");
-        otherRealm = TestRealm.create("assignments");
+        realm = TestRealm.withEmployer("assignments");
+        otherRealm = TestRealm.withEmployer("assignments");
         api = realm.api;
         physician = realm.user("physician");
         employment = id(api.post("/employments", "{\"userId\": \"" + physician + "\", \"validFrom\": \"2026-04-01\"}"));

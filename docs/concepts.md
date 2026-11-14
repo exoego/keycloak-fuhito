@@ -5,7 +5,7 @@ Each term has its Japanese equivalent, so that Japanese readers can map the voca
 
 ## Scope of a realm
 
-One realm is one legal entity, such as a company or a medical corporation.
+One realm holds one legal entity or several, such as a company, a medical corporation, or a group of companies.
 All data in this document belongs to one realm.
 
 ## Structure
@@ -35,7 +35,7 @@ Reads, the mask, and the erase work by person. Each has a shortcut by the ID of 
 | Term | Japanese | Meaning |
 |---|---|---|
 | Person | 人 | Someone the realm knows. The link to a Keycloak user is optional. One user is linked to at most one person. |
-| Employment | 雇用、在籍 | The relationship between a person and the legal entity, for a period. It also covers people who are not direct employees, such as agency staff and contractors. Leaving ends the employment. |
+| Employment | 雇用、在籍 | The relationship between a person and a legal entity, for a period. The legal entity is the employer. It never changes for one employment. It also covers people who are not direct employees, such as agency staff and contractors. Leaving ends the employment. |
 | Employment Terms | 雇用条件 | The conditions of an employment that change over time. They are the employment type, the grade, the status, and the work ratio. |
 | Employment Type | 雇用形態 | The category of the contract, for example full-time, part-time, or temporary. |
 | Grade | 等級 | A rank level used for pay or seniority. |
@@ -107,9 +107,20 @@ It is not a translation.
 - A project team is an org unit with its own unit type. Its members hold concurrent assignments.
 - A dotted reporting line links a member to a project manager.
 
+## Employers
+
+Every employment names its employer. The employer is an org unit that is a legal entity on the first date of the employment.
+
+- An org unit is a legal entity when its unit type has the mark `legalEntity`. Mark the types such as "company" and "medical corporation" once.
+- A realm needs at least one legal entity before its first employment.
+- A request can leave the employer out when the realm has exactly one legal entity on that date. With several, the request must name it. Nothing is guessed from the org unit where the person works.
+- The employer of an employment never changes. A move to another employer is the end of one employment and the start of another.
+- A staff number is unique for one employer. Two legal entities can give the same number to two people.
+- A person who is employed by one legal entity and works in an org unit of another is seconded. The employment names the first, and the assignment names the org unit.
+
 ## Out of scope
 
 - Access control. The caller decides who may do what.
 - Seats and headcount control.
 - Shift plans and daily duty rosters.
-- People who work for several legal entities across realms.
+- People who work for legal entities in different realms. Legal entities in one realm are in scope.

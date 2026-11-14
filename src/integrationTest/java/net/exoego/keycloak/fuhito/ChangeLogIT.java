@@ -32,7 +32,7 @@ class ChangeLogIT {
 
     @BeforeAll
     static void transferOnePerson() throws Exception {
-        realm = TestRealm.create("change-log");
+        realm = TestRealm.withEmployer("change-log");
         otherRealm = TestRealm.create("change-log");
         api = realm.api;
         String director = realm.user("director");
@@ -107,9 +107,11 @@ class ChangeLogIT {
     void followsEveryWriteOfTheRealmAfterASequenceNumber() throws Exception {
         JsonNode firstPage = ok(api.get("/change-log?max=3"));
 
+        // The first two writes made the legal entity of the realm, with its unit type.
         assertEquals(List.of(1L, 2L, 3L), sequences(firstPage));
-        assertEquals("FUHITO_ORG_UNIT", firstPage.get(0).get("resourceType").asText());
-        assertEquals(unit, firstPage.get(0).get("resourceId").asText());
+        assertEquals(List.of("FUHITO_REF_ITEM", "FUHITO_ORG_UNIT", "FUHITO_ORG_UNIT"),
+                firstPage.findValuesAsText("resourceType"));
+        assertEquals(unit, firstPage.get(2).get("resourceId").asText());
         assertEquals(List.of(4L, 5L, 6L), sequences(ok(api.get("/change-log?after=3&max=3"))));
         assertEquals(List.of(5L), sequences(ok(api.get("/change-log?after=3&first=1&max=1"))));
         assertEquals(0, ok(api.get("/change-log?after=100000")).size());

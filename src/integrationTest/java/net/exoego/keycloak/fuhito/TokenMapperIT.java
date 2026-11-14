@@ -47,6 +47,7 @@ class TokenMapperIT {
         TestRealm.withTimeZone(realmRepresentation);
         admin.realms().create(realmRepresentation);
         api = new Api(realm, admin.tokenManager().getAccessTokenString());
+        TestRealm.legalEntity(api, "法人");
 
         var mapper = new ProtocolMapperRepresentation();
         mapper.setName("org assignments");

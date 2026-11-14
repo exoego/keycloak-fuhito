@@ -35,6 +35,7 @@ import net.exoego.keycloak.fuhito.service.CsvImportService;
 import net.exoego.keycloak.fuhito.service.EmploymentService;
 import net.exoego.keycloak.fuhito.service.HierarchyService;
 import net.exoego.keycloak.fuhito.service.ImportService;
+import net.exoego.keycloak.fuhito.service.LegalEntityEmployers;
 import net.exoego.keycloak.fuhito.service.MembershipService;
 import net.exoego.keycloak.fuhito.service.OrgUnitService;
 import net.exoego.keycloak.fuhito.service.OrganizationLinkService;
@@ -221,7 +222,9 @@ public class FuhitoResource {
     private EmploymentService employmentService() {
         return new EmploymentService(new JpaEmploymentStore(entityManager, realmId),
                 new JpaAssignmentStore(entityManager, realmId), new JpaRefItemStore(entityManager, realmId),
-                new JpaPersonStore(entityManager, realmId), new JpaReportingLineStore(entityManager, realmId));
+                new JpaPersonStore(entityManager, realmId), new JpaReportingLineStore(entityManager, realmId),
+                new LegalEntityEmployers(new JpaOrgUnitStore(entityManager, realmId),
+                        new JpaRefItemStore(entityManager, realmId)));
     }
 
     /**

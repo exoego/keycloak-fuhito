@@ -668,4 +668,16 @@
             </column>
         </addColumn>
     </changeSet>
+    <changeSet id="0.1.0-employment-employer" author="keycloak-fuhito">
+        <!-- An employment that was stored before this column has no employer. Every new one has. -->
+        <addColumn tableName="FUHITO_EMPLOYMENT">
+            <column name="EMPLOYER_ID" type="VARCHAR(36)"/>
+        </addColumn>
+        <addForeignKeyConstraint baseTableName="FUHITO_EMPLOYMENT" baseColumnNames="EMPLOYER_ID"
+                                 referencedTableName="FUHITO_ORG_UNIT" referencedColumnNames="ID"
+                                 constraintName="FK_FUHITO_EMPLOYMENT_EMPLOYER"/>
+        <createIndex tableName="FUHITO_EMPLOYMENT" indexName="IDX_FUHITO_EMPLOYMENT_EMPLOYER">
+            <column name="EMPLOYER_ID"/>
+        </createIndex>
+    </changeSet>
 </databaseChangeLog>
