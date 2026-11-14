@@ -7,6 +7,9 @@ KEYCLOAK_VERSION="${KEYCLOAK_VERSION:-26.8.2}"
 PORT="${PORT:-18089}"
 BASE="http://127.0.0.1:${PORT}"
 REALM=bench
+# The size of the realm. The defaults are the size of the first run in docs/performance.md.
+PEOPLE="${PEOPLE:-50000}"
+UNITS="${UNITS:-5000}"
 
 ./gradlew jar -q
 JAR="$(ls build/libs/keycloak-fuhito-*-SNAPSHOT.jar | head -1)"
@@ -36,6 +39,7 @@ curl -s -o /dev/null -X POST -H "Authorization: Bearer $(token)" -H 'Content-Typ
   "${BASE}/admin/realms"
 REALM_ID="$(curl -s -H "Authorization: Bearer $(token)" "${BASE}/admin/realms/${REALM}" | jq -r .id)"
 docker exec -i fuhito-bench-pg psql -q -U keycloak -d keycloak -v ON_ERROR_STOP=1 -v realm="${REALM_ID}" \
+  -v people="${PEOPLE}" -v units="${UNITS}" \
   < scripts/bench/seed.sql
 
 API="${BASE}/admin/realms/${REALM}/fuhito"
@@ -57,7 +61,7 @@ measure() {
 echo '| Read | Path | Best of 5 in ms | Bytes | Status |'
 echo '|---|---|---|---|---|'
 measure 'Org units, first page' '/org-units?max=100'
-measure 'Org units, last page' '/org-units?first=4900&max=100'
+measure 'Org units, last page' "/org-units?first=$((UNITS - 100))&max=100"
 measure 'Roots' '/org-units?roots=true'
 measure 'Legal entities' '/org-units?legalEntity=true'
 measure 'One org unit' '/org-units/u-4321'
@@ -67,10 +71,10 @@ measure 'Subtree of a division' '/org-units/u-1/subtree?max=1000'
 measure 'Path of a team' '/org-units/u-4321/path'
 measure 'Members of a team' '/org-units/u-4321/members'
 measure 'Members below the company, first page' '/org-units/u-0/members?includeDescendants=true&max=100'
-measure 'Members below the company, deep page' '/org-units/u-0/members?includeDescendants=true&first=40000&max=100'
+measure 'Members below the company, deep page' "/org-units/u-0/members?includeDescendants=true&first=$((PEOPLE * 8 / 10))&max=100"
 measure 'Members below a division' '/org-units/u-1/members?includeDescendants=true&max=1000'
 measure 'People, first page' '/people?max=100'
-measure 'People, deep page' '/people?first=49000&max=100'
+measure 'People, deep page' "/people?first=$((PEOPLE - 1000))&max=100"
 measure 'Assignments of a person' '/people/p-12345/assignments?includePath=true'
 measure 'History of a person' '/people/p-12345/history'
 measure 'Managers of a person' '/people/p-12345/managers'
@@ -78,7 +82,7 @@ measure 'Reports of the head of the company' '/people/p-0/reports?max=100'
 measure 'Reports of the head of a division' '/people/p-1/reports?max=1000'
 measure 'Reports of the head of a team' '/people/p-4321/reports'
 measure 'Change log, from the start' '/change-log?max=1000'
-measure 'Change log, from the middle' '/change-log?after=100000&max=1000'
+measure 'Change log, from the middle' "/change-log?after=$((PEOPLE * 2))&max=1000"
 measure 'Change log of one resource' '/change-log?resourceType=FUHITO_ASSIGNMENT&resourceId=a-777'
 measure 'Effective changes of one day' '/effective-changes?from=2024-04-01'
 measure 'Effective changes of five years' '/effective-changes?from=2020-01-01&to=2026-01-01&max=1000'
