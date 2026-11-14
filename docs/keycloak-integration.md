@@ -6,7 +6,7 @@ The notes on `kc.sh` come from the Keycloak documentation.
 
 ## Unsupported Keycloak APIs
 
-The extension uses four Keycloak APIs that Keycloak does not promise to keep stable.
+The extension uses these Keycloak APIs that Keycloak does not promise to keep stable.
 
 | API | Use |
 |---|---|
@@ -14,6 +14,7 @@ The extension uses four Keycloak APIs that Keycloak does not promise to keep sta
 | `AdminRealmResourceProvider` | Own endpoints in the admin REST API |
 | `AdminPermissionEvaluator` | Permission checks for the caller |
 | `AbstractOIDCProtocolMapper` | The protocol mapper for tokens |
+| `TimerProvider` and `ClusterAwareScheduledTaskRunner` | The timer of the projection |
 
 All code that touches these APIs is in the package `net.exoego.keycloak.fuhito.keycloak`.
 When Keycloak changes one of them, only that package needs a change.
@@ -121,7 +122,7 @@ A write to the API does not run the projection. The timer picks the change up at
 - The timer runs every 15 minutes by default.
 - The server option `spi-admin-realm-restapi-extension--fuhito--projection-interval-seconds` sets the number of seconds between two runs. `0` turns the timer off.
 - There is no time of day to set. Each realm and each org unit can change its date at another moment, so the timer runs through the whole day.
-- In a cluster, only one node runs the projection at a time. A run with nothing to change writes nothing.
+- In a cluster, only one node runs the projection at a time. The extension uses the same runner as the scheduled tasks of Keycloak itself. A run with nothing to change writes nothing.
 - A failure in one realm is logged and does not stop the other realms.
 - A realm with no usable time zone is skipped, and the log has a warning.
 

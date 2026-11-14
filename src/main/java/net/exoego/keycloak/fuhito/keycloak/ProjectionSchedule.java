@@ -14,12 +14,13 @@ import net.exoego.keycloak.fuhito.service.ProjectionReport;
 import net.exoego.keycloak.fuhito.service.ProjectionService;
 import net.exoego.keycloak.fuhito.service.UnitDays;
 import org.jboss.logging.Logger;
-import org.keycloak.cluster.ClusterProvider;
 import org.keycloak.connections.jpa.JpaConnectionProvider;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.KeycloakSessionFactory;
 import org.keycloak.models.RealmModel;
 import org.keycloak.models.utils.KeycloakModelUtils;
+import org.keycloak.services.scheduled.ClusterAwareScheduledTaskRunner;
+import org.keycloak.timer.ScheduledTask;
 import org.keycloak.timer.TimerProvider;
 
 /**
@@ -29,29 +30,34 @@ final class ProjectionSchedule {
 
     static final String TASK = "fuhito-projection";
 
+    // The cluster runner of Keycloak uses the simple name of this class as the name of the lock.
+    // So the name must not be one that another extension is likely to use.
+    static final class FuhitoProjectionTask implements ScheduledTask {
+
+        @Override
+        public void run(KeycloakSession session) {
+            rebuildAll(session.getKeycloakSessionFactory(), session);
+        }
+
+        @Override
+        public String getTaskName() {
+            return TASK;
+        }
+    }
+
     private static final Logger LOG = Logger.getLogger(ProjectionSchedule.class);
 
     private ProjectionSchedule() {
     }
 
+    // The timer of every node of a cluster fires. The runner of Keycloak lets only one of them in at a time.
+    // Keycloak runs its own scheduled tasks the same way.
     static void start(KeycloakSessionFactory factory, long intervalSeconds) {
+        long intervalMillis = intervalSeconds * 1000;
         KeycloakModelUtils.runJobInTransaction(factory, session -> session.getProvider(TimerProvider.class)
-                .schedule(() -> run(factory, intervalSeconds), intervalSeconds * 1000, TASK));
+                .schedule(new ClusterAwareScheduledTaskRunner(factory, new FuhitoProjectionTask(), intervalMillis),
+                        intervalMillis));
         LOG.infof("The projection runs every %d seconds for the realms that turned it on.", intervalSeconds);
-    }
-
-    // The timer of every node of a cluster fires. The cluster lets only one of them in at a time.
-    // A second run right after the first finds nothing to change.
-    private static void run(KeycloakSessionFactory factory, long intervalSeconds) {
-        try {
-            KeycloakModelUtils.runJobInTransaction(factory, session -> session.getProvider(ClusterProvider.class)
-                    .executeIfNotExecuted(TASK, (int) Math.min(intervalSeconds, Integer.MAX_VALUE), () -> {
-                        rebuildAll(factory, session);
-                        return null;
-                    }));
-        } catch (RuntimeException e) {
-            LOG.error("The scheduled projection did not run.", e);
-        }
     }
 
     private static void rebuildAll(KeycloakSessionFactory factory, KeycloakSession session) {

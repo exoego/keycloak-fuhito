@@ -11,6 +11,7 @@ keycloak-server-spi = { module = "org.keycloak:keycloak-server-spi", version.ref
 keycloak-server-spi-private = { module = "org.keycloak:keycloak-server-spi-private", version.ref = "keycloak" }
 keycloak-services = { module = "org.keycloak:keycloak-services", version.ref = "keycloak" }
 keycloak-model-jpa = { module = "org.keycloak:keycloak-model-jpa", version.ref = "keycloak" }
+keycloak-model-storage-private = { module = "org.keycloak:keycloak-model-storage-private", version.ref = "keycloak" }
 jboss-logging = { module = "org.jboss.logging:jboss-logging" }
 
 # Not used directly. useJUnitJupiter takes only the version, and Renovate needs a library to find it.
@@ -22,7 +23,7 @@ postgresql = { module = "org.postgresql:postgresql" }
 slf4j-simple = { module = "org.slf4j:slf4j-simple", version = "2.0.20" }
 
 [bundles]
-keycloak-provided = ["keycloak-core", "keycloak-common", "keycloak-server-spi", "keycloak-server-spi-private", "keycloak-services", "keycloak-model-jpa", "jboss-logging"]
+keycloak-provided = ["keycloak-core", "keycloak-common", "keycloak-server-spi", "keycloak-server-spi-private", "keycloak-services", "keycloak-model-jpa", "keycloak-model-storage-private", "jboss-logging"]
 
 [plugins]
 nexus-publish = { id = "io.github.gradle-nexus.publish-plugin", version = "2.0.0" }
