@@ -67,6 +67,8 @@ public class JpaAssignmentStore implements AssignmentStore {
 
     @Override
     public List<Assignment> rowsOn(Collection<String> orgUnitIds, LocalDate date) {
+        // No test reaches this. Every caller passes at least the org unit it asks about.
+        // It keeps a new caller from sending a query with an empty list to the database.
         if (orgUnitIds.isEmpty()) {
             return List.of();
         }

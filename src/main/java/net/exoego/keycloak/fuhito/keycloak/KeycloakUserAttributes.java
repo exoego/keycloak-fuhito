@@ -47,6 +47,8 @@ final class KeycloakUserAttributes implements UserAttributeSource {
 
     private static String value(UserModel user, String attribute) {
         String value = user.getFirstAttribute(attribute);
+        // No test has a value of only spaces. Keycloak dropped such a value when a test set one.
+        // A user store that is federated, such as LDAP, can still hand one over.
         return value == null || value.isBlank() ? null : value.strip();
     }
 }

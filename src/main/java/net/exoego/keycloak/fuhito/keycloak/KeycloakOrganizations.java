@@ -45,6 +45,7 @@ final class KeycloakOrganizations implements OrganizationDirectory, Organization
     @Override
     public boolean exists(String organizationId) {
         OrganizationProvider provider = provider();
+        // No test has a missing provider. It happens when the server runs with the organization feature off.
         return provider != null && provider.isEnabled() && provider.getById(organizationId) != null;
     }
 
@@ -124,6 +125,8 @@ final class KeycloakOrganizations implements OrganizationDirectory, Organization
     public void join(String groupId, String userId) {
         UserModel user = session.users().getUserById(realm, userId);
         GroupModel group = group(groupId);
+        // No test has a missing user here, in leave, or in addOrganizationMember. It happens when the user
+        // is removed from Keycloak while a rebuild runs, or when a user store that is federated lost the user.
         if (user != null) {
             within(group.getOrganization(), () -> {
                 user.joinGroup(group);
@@ -157,6 +160,7 @@ final class KeycloakOrganizations implements OrganizationDirectory, Organization
 
     private GroupModel group(String groupId) {
         GroupModel group = session.groups().getGroupById(realm, groupId);
+        // No test reaches this. It happens when someone removes the group while a rebuild runs.
         if (group == null) {
             throw new IllegalStateException("No such group in the realm: " + groupId);
         }

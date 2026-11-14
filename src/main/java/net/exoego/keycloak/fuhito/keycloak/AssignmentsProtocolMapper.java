@@ -87,6 +87,8 @@ public class AssignmentsProtocolMapper extends AbstractOIDCProtocolMapper
     protected void setClaim(IDToken token, ProtocolMapperModel mappingModel, UserSessionModel userSession,
             KeycloakSession session, ClientSessionContext clientSessionCtx) {
         String claim = mappingModel.getConfig().get(OIDCAttributeMapperHelper.TOKEN_CLAIM_NAME);
+        // No test has a name of only spaces. A mapper can get one from a call to the admin API
+        // or from an import of a realm.
         token.getOtherClaims().put(claim == null || claim.isBlank() ? DEFAULT_CLAIM : claim,
                 assignments(session, userSession));
     }
