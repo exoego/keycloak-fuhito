@@ -56,6 +56,17 @@ jobs:
           KEYCLOAK_VERSION: ${{ matrix.keycloak }}
         run: ./gradlew check -PtestJavaVersion=${{ matrix.java }} -PtestKeycloakVersion="$KEYCLOAK_VERSION"
 
+      # One row is enough. Every row measures the same unit tests.
+      # A pull request from a fork has no token, and an upload that fails must not fail the tests.
+      - name: Upload coverage to Codecov
+        if: matrix.java == 21 && matrix.keycloak == ''
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: build/reports/jacoco/test/jacocoTestReport.xml
+          disable_search: true
+          fail_ci_if_error: false
+
   # aislop is a third-party tool from npm. The script builds an image with it and runs it with no network.
   # The job token has no permission at all. A public repository can be checked out without one.
   quality:

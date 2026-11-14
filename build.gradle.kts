@@ -116,6 +116,11 @@ tasks.jacocoTestReport {
     }
 }
 
+// CI uploads the report, so every run of the unit tests writes it.
+tasks.test {
+    finalizedBy(tasks.jacocoTestReport)
+}
+
 // The domain package has no Keycloak and no database, so unit tests must cover all of it.
 // The integration tests cover the other packages, and they run in a container where JaCoCo does not see them.
 tasks.jacocoTestCoverageVerification {
