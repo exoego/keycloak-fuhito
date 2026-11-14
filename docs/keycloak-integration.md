@@ -271,6 +271,14 @@ A period includes its `validFrom` date and does not include its `validTo` date.
 Read endpoints take an `asOf` date.
 The default is today, as the realm defines it. See "What today is" below.
 
+A list that grows with the realm is read in pages.
+`first` is the number of entries to skip. `max` is the largest number of entries to return.
+`max` is 100 by default and 1000 at most. A larger value counts as 1000.
+A read with fewer entries than `max` has reached the end.
+These are the lists of org units, children, subtrees, members, people, reference items, change orders, and the change log.
+
+The lists of one person and the history of one resource are returned whole.
+
 ## Endpoints
 
 | Path | Purpose |

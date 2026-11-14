@@ -131,11 +131,12 @@ class ChangeOrderServiceTest {
         service.create(titled("October", "2026-10-01"));
         service.create(titled("Next April", "2027-04-01"));
 
-        assertEquals(List.of("Next April", "October", "April"), titles(service.list(null, null)));
-        assertEquals(List.of("October"), titles(service.list("2026-04-02", "2027-04-01")));
-        assertEquals(List.of("October", "April"), titles(service.list(null, "2027-04-01")));
-        assertEquals(List.of("Next April"), titles(service.list("2027-04-01", null)));
-        assertEquals("invalid.date", assertThrows(FuhitoException.class, () -> service.list("x", null)).code());
+        assertEquals(List.of("Next April", "October", "April"), titles(service.list(null, null, null, null)));
+        assertEquals(List.of("October"), titles(service.list("2026-04-02", "2027-04-01", null, null)));
+        assertEquals(List.of("October", "April"), titles(service.list(null, "2027-04-01", null, null)));
+        assertEquals(List.of("Next April"), titles(service.list("2027-04-01", null, null, null)));
+        assertEquals(List.of("October"), titles(service.list(null, null, 1, 1)));
+        assertEquals("invalid.date", assertThrows(FuhitoException.class, () -> service.list("x", null, null, null)).code());
     }
 
     private static List<String> titles(List<ChangeOrder> orders) {

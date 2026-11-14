@@ -79,6 +79,8 @@ class ChangeOrdersIT {
                 Api.json(listRealm.api.get("/change-orders")).findValuesAsText("title"));
         assertEquals(List.of("2026-10-01"),
                 Api.json(listRealm.api.get("/change-orders?from=2026-04-02&to=2027-04-01")).findValuesAsText("title"));
+        assertEquals(List.of("2026-10-01"),
+                Api.json(listRealm.api.get("/change-orders?first=1&max=1")).findValuesAsText("title"));
         assertEquals(400, listRealm.api.get("/change-orders?from=nope").statusCode());
     }
 

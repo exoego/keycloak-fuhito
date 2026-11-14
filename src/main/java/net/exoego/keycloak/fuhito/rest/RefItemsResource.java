@@ -18,6 +18,7 @@ import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.RefKind;
 import net.exoego.keycloak.fuhito.rest.RequestContext.Change;
+import net.exoego.keycloak.fuhito.service.Page;
 import net.exoego.keycloak.fuhito.service.RefItemService;
 import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.media.Content;
@@ -64,9 +65,17 @@ public class RefItemsResource {
             @Parameter(required = true, schema = @Schema(ref = "RefKind"))
             @QueryParam("kind") String kind,
             @Parameter(description = "True to also return inactive items.", schema = @Schema(defaultValue = "false"))
-            @QueryParam("includeInactive") boolean includeInactive) {
+            @QueryParam("includeInactive") boolean includeInactive,
+            @Parameter(
+                    description = "The number of entries to skip.",
+                    schema = @Schema(minimum = "0", defaultValue = "0"))
+            @QueryParam("first") Integer first,
+            @Parameter(
+                    description = "The largest number of entries to return.",
+                    schema = @Schema(minimum = "0", maximum = "1000", defaultValue = "100"))
+            @QueryParam("max") Integer max) {
         context.requireRead();
-        return Calls.run(context, () -> service.list(parseKind(kind), includeInactive).stream()
+        return Calls.run(context, () -> Page.of(first, max).of(service.list(parseKind(kind), includeInactive)).stream()
                 .map(RefItemRepresentation::of)
                 .toList());
     }

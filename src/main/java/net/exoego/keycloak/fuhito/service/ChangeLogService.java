@@ -13,9 +13,6 @@ import net.exoego.keycloak.fuhito.store.ChangeOrderStore;
  */
 public class ChangeLogService {
 
-    private static final int DEFAULT_MAX = 100;
-    private static final int LARGEST_MAX = 1000;
-
     private final ChangeLogStore store;
     private final ChangeOrderStore changeOrders;
 
@@ -42,7 +39,8 @@ public class ChangeLogService {
      */
     public List<ChangeLogEntry> list(Long after, String resourceType, String resourceId, Integer first,
             Integer max) {
-        return store.list(after == null ? 0 : after, resourceType, resourceId, skip(first), limit(max));
+        Page page = Page.of(first, max);
+        return store.list(after == null ? 0 : after, resourceType, resourceId, page.first(), page.max());
     }
 
     /**
@@ -58,14 +56,7 @@ public class ChangeLogService {
         if (changeOrders.find(changeOrderId).isEmpty()) {
             throw FuhitoException.notFound("change_order.not_found", Map.of("id", changeOrderId));
         }
-        return store.listByChangeOrder(changeOrderId, skip(first), limit(max));
-    }
-
-    private static int skip(Integer first) {
-        return first == null ? 0 : Math.max(0, first);
-    }
-
-    private static int limit(Integer max) {
-        return max == null ? DEFAULT_MAX : Math.clamp(max, 0, LARGEST_MAX);
+        Page page = Page.of(first, max);
+        return store.listByChangeOrder(changeOrderId, page.first(), page.max());
     }
 }

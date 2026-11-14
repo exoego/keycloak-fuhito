@@ -9,7 +9,7 @@ package net.exoego.keycloak.fuhito.service;
  * @param jobTitle the code of a job title to keep, or null for all
  * @param status an employment status to keep, or null for all
  * @param first the number of members to skip, or null for 0
- * @param max the largest number of members to return, or null for 100
+ * @param max the largest number of members to return, or null for 100. At most 1000 are returned.
  */
 public record MemberQuery(String asOf, boolean includeDescendants, String occupation, String jobTitle,
         String status, Integer first, Integer max) {

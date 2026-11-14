@@ -34,7 +34,7 @@ public interface ChangeOrderStore {
      * @param to the first effective date not to return, or null for no upper bound
      * @return the orders
      */
-    List<ChangeOrder> list(LocalDate from, LocalDate to);
+    List<ChangeOrder> list(LocalDate from, LocalDate to, int first, int max);
 
     /**
      * Stores a new change order.
