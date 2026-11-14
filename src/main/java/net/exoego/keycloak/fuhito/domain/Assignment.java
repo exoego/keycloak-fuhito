@@ -23,11 +23,13 @@ import java.util.Map;
  * @param attributes free values that the realm defines
  * @param externalId the ID of the assignment in the system it came from, or null
  * @param source the name of that system, or null
+ * @param continuesAssignmentId the ID of the assignment that this one continues, after a move to another org unit
+ *        or a transfer to another employer, or null
  */
 public record Assignment(String rowId, String assignmentId, String employmentId, String orgUnitId,
         ValidPeriod period, String jobTitleId, String occupationId, String kindId, boolean head, boolean primary,
         BigDecimal allocationPercent, int displayOrder, Map<String, Object> attributes, String externalId,
-        String source) {
+        String source, String continuesAssignmentId) {
 
     /**
      * Returns a copy of this row for another period, with another row ID and another primary flag.
@@ -39,7 +41,8 @@ public record Assignment(String rowId, String assignmentId, String employmentId,
      */
     public Assignment part(String newRowId, ValidPeriod newPeriod, boolean newPrimary) {
         return new Assignment(newRowId, assignmentId, employmentId, orgUnitId, newPeriod, jobTitleId, occupationId,
-                kindId, head, newPrimary, allocationPercent, displayOrder, attributes, externalId, source);
+                kindId, head, newPrimary, allocationPercent, displayOrder, attributes, externalId, source,
+                continuesAssignmentId);
     }
 
     /**
@@ -50,6 +53,7 @@ public record Assignment(String rowId, String assignmentId, String employmentId,
      */
     public Assignment withPeriod(ValidPeriod newPeriod) {
         return new Assignment(rowId, assignmentId, employmentId, orgUnitId, newPeriod, jobTitleId, occupationId,
-                kindId, head, primary, allocationPercent, displayOrder, attributes, externalId, source);
+                kindId, head, primary, allocationPercent, displayOrder, attributes, externalId, source,
+                continuesAssignmentId);
     }
 }

@@ -165,6 +165,7 @@ public class JpaAssignmentStore implements AssignmentStore {
         entity.orgUnitId = row.orgUnitId();
         entity.externalId = row.externalId();
         entity.source = row.source();
+        entity.continuesAssignmentId = row.continuesAssignmentId();
         copy(row, entity);
         em.persist(entity);
     }
@@ -199,6 +200,7 @@ public class JpaAssignmentStore implements AssignmentStore {
     private static Assignment toDomain(AssignmentEntity e) {
         return new Assignment(e.id, e.assignmentId, e.employmentId, e.orgUnitId,
                 new ValidPeriod(e.validFrom, e.validTo), e.jobTitleId, e.occupationId, e.kindId, e.head, e.primary,
-                e.allocationPercent, e.displayOrder, e.attributes, e.externalId, e.source);
+                e.allocationPercent, e.displayOrder, e.attributes, e.externalId, e.source,
+                e.continuesAssignmentId);
     }
 }

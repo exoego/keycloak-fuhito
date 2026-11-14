@@ -225,7 +225,8 @@ public class EmploymentService {
             // The external ID stays with the old assignment, so that an import still finds that one.
             assignments.insert(new Assignment(newId(), assignmentId, started.id(), row.orgUnitId(),
                     from(date, row.period()), row.jobTitleId(), row.occupationId(), row.kindId(), row.head(),
-                    row.primary(), row.allocationPercent(), row.displayOrder(), row.attributes(), null, null));
+                    row.primary(), row.allocationPercent(), row.displayOrder(), row.attributes(), null, null,
+                    row.assignmentId()));
         }
         List<ReportingLine> newLines = new ArrayList<>();
         lines.forEach((oldAssignmentId, ofAssignment) -> ofAssignment.forEach(line -> {

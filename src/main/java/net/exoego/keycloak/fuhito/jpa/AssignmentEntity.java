@@ -70,6 +70,9 @@ public class AssignmentEntity {
     @Column(name = "SOURCE", length = 64)
     String source;
 
+    @Column(name = "CONTINUES_ASSIGNMENT_ID", length = 36)
+    String continuesAssignmentId;
+
     /**
      * Creates an empty entity for JPA.
      */

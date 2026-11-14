@@ -129,6 +129,42 @@ public class AssignmentsResource {
         });
     }
 
+    @POST
+    @Path("{id}/move")
+    @Operation(
+            operationId = "moveAssignment",
+            summary = "Moves a person to another org unit on a date, in one write.",
+            description = "The assignment ends on the date. A new assignment of the same employment to the new "
+                    + "org unit starts on the same date, and names the old one in `continuesAssignmentId`. It "
+                    + "keeps the occupation, the kind, the primary flag, the allocation, and the attributes. It "
+                    + "keeps the job title unless the request gives one. The head flag and the display order "
+                    + "belong to the old org unit and are not kept. The reporting lines of the old assignment "
+                    + "end with it. A failure writes nothing.")
+    @Parameter(ref = "changeOrder")
+    @APIResponse(
+            responseCode = "201",
+            description = "The two assignments.",
+            content = @Content(mediaType = "application/json",
+                    schema = @Schema(implementation = MoveRepresentation.class)))
+    @BadRequest
+    @NotFound
+    @ApiErrors
+    public Response move(
+            @Parameter(description = "The ID of the assignment to the old org unit.")
+            @PathParam("id") String id,
+            MoveRepresentation body) {
+        context.requireWrite();
+        return Calls.run(context, () -> {
+            Checks.required("body", body);
+            AssignmentService.Move move = service.move(id, body.toRequest());
+            var ended = AssignmentRepresentation.of(move.ended());
+            var started = AssignmentRepresentation.of(move.started());
+            context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, path(id) + "/move", ended);
+            context.recordChange(Change.CREATE, RESOURCE_TYPE, started.id(), path(started.id()), started);
+            return Response.status(Response.Status.CREATED).entity(MoveRepresentation.of(ended, started)).build();
+        });
+    }
+
     @DELETE
     @Path("{id}/end")
     @Operation(

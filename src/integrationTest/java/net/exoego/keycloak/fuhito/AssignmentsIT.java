@@ -210,4 +210,49 @@ class AssignmentsIT {
         assertEquals("assignment.employment_unknown", errorOf(400, otherRealm.api.post("/assignments", assign(xMedicine, ""))));
         assertEquals(401, new Api(realm.name, null).post("/assignments", "{}").statusCode());
     }
+
+    @Test
+    void aMoveTakesAPersonToAnotherOrgUnitInOneWrite() throws Exception {
+        TestRealm scratch = TestRealm.withEmployer("assignments-move");
+        Api scratchApi = scratch.api;
+        scratch.refItem("JOB_TITLE", "staff", "医員");
+        scratch.refItem("JOB_TITLE", "director", "部長");
+        String medicine = id(scratchApi.post("/org-units", "{\"name\": \"内科\", \"validFrom\": \"2020-04-01\"}"));
+        String surgery = id(scratchApi.post("/org-units", "{\"name\": \"外科\", \"validFrom\": \"2020-04-01\"}"));
+        String doctor = scratch.user("doctor");
+        JsonNode hired = Api.json(scratchApi.post("/staff", "{\"userId\": \"" + doctor + "\", \"orgUnitId\": \"" + medicine
+                + "\", \"jobTitle\": \"staff\", \"validFrom\": \"2020-04-01\"}"));
+        String old = hired.get("assignment").get("id").asText();
+
+        assertEquals("assignment.same_org_unit", errorOf(400, scratchApi.post("/assignments/" + old + "/move",
+                "{\"orgUnitId\": \"" + medicine + "\", \"validFrom\": \"2027-04-01\"}")));
+        assertEquals("assignment.not_valid_on", errorOf(404, scratchApi.post("/assignments/" + old + "/move",
+                "{\"orgUnitId\": \"" + surgery + "\", \"validFrom\": \"2020-04-01\"}")));
+
+        HttpResponse<String> response = scratchApi.post("/assignments/" + old + "/move",
+                "{\"orgUnitId\": \"" + surgery + "\", \"validFrom\": \"2027-04-01\", \"jobTitle\": \"director\", \"head\": true}");
+
+        assertEquals(201, response.statusCode(), response.body());
+        JsonNode move = Api.json(response);
+        assertEquals("2027-04-01", move.get("ended").get("validTo").asText());
+        JsonNode started = move.get("started");
+        String next = started.get("id").asText();
+        assertEquals(surgery, started.get("orgUnitId").asText());
+        assertEquals(old, started.get("continuesAssignmentId").asText());
+        assertEquals(hired.get("employment").get("id").asText(), started.get("employmentId").asText());
+        assertEquals("director", started.get("periods").get(0).get("jobTitle").asText());
+        assertTrue(started.get("periods").get(0).get("head").asBoolean());
+        assertTrue(started.get("periods").get(0).get("primary").asBoolean());
+
+        // The person is in one place on every date.
+        assertEquals(List.of(medicine),
+                Api.json(scratchApi.get("/users/" + doctor + "/assignments?asOf=2027-03-31")).findValuesAsText("orgUnitId"));
+        assertEquals(List.of(surgery),
+                Api.json(scratchApi.get("/users/" + doctor + "/assignments?asOf=2027-04-01")).findValuesAsText("orgUnitId"));
+        assertEquals(next, Api.json(scratchApi.get("/assignments/" + next)).get("id").asText());
+        assertEquals(List.of("CREATE", "UPDATE"), Api.json(scratchApi.get(
+                "/change-log?resourceType=FUHITO_ASSIGNMENT&resourceId=" + old)).findValuesAsText("operation"));
+        assertEquals(List.of("CREATE"), Api.json(scratchApi.get(
+                "/change-log?resourceType=FUHITO_ASSIGNMENT&resourceId=" + next)).findValuesAsText("operation"));
+    }
 }

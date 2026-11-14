@@ -11,9 +11,11 @@ import net.exoego.keycloak.fuhito.domain.ValidPeriod;
  * @param assignmentId the ID of the assignment
  * @param userId the ID of the Keycloak user of the employment
  * @param period the dates from the first row to the last
+ * @param continuesAssignmentId the ID of the assignment that this one continues, or null
  * @param rows the details of each period, oldest first
  */
-public record AssignmentView(String assignmentId, String userId, ValidPeriod period, List<Row> rows) {
+public record AssignmentView(String assignmentId, String userId, ValidPeriod period, String continuesAssignmentId,
+        List<Row> rows) {
 
     /**
      * The details of one period, with codes in place of IDs.

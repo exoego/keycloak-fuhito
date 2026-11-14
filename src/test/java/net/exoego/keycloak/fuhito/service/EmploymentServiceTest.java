@@ -460,7 +460,7 @@ class EmploymentServiceTest {
     private Assignment assignment(String rowId, String assignmentId, String employmentId, String from, String to) {
         Assignment row = new Assignment(rowId, assignmentId, employmentId, "unit", new ValidPeriod(
                 LocalDate.parse(from), to == null ? null : LocalDate.parse(to)), null, null, null, false, false, null,
-                0, Map.of(), null, null);
+                0, Map.of(), null, null, null);
         assignments.insert(row);
         return row;
     }

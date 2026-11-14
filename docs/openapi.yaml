@@ -86,6 +86,11 @@ components:
         source:
           type: string
           description: The name of that system.
+        continuesAssignmentId:
+          type: string
+          description: "The ID of the assignment that this one continues, after a\
+            \ move to another org unit or a transfer to another employer."
+          readOnly: true
         jobTitle:
           type: string
           description: The code of the first job title.
@@ -955,6 +960,50 @@ components:
           maximum: 100
           exclusiveMinimum: 0
           description: The share of full-time work on the date in percent.
+    Move:
+      required:
+      - orgUnitId
+      - validFrom
+      description: "A request to move a person to another org unit on a date, and\
+        \ its response."
+      type: object
+      properties:
+        orgUnitId:
+          type: string
+          description: The ID of the org unit where the person works from the date.
+          writeOnly: true
+        validFrom:
+          type: string
+          description: The first date in the new org unit.
+          format: date
+          writeOnly: true
+        jobTitle:
+          type: string
+          description: The code of the job title in the new org unit. Leave it out
+            to keep the job title.
+          writeOnly: true
+        head:
+          type: boolean
+          description: True when the person leads the new org unit. The flag of the
+            old org unit is not kept.
+          writeOnly: true
+          default: false
+        displayOrder:
+          type: integer
+          format: int32
+          description: The position among the members of the new org unit.
+          writeOnly: true
+          default: 0
+        ended:
+          description: "The assignment to the old org unit, with its end."
+          readOnly: true
+          type: object
+          $ref: "#/components/schemas/Assignment"
+        started:
+          description: The assignment to the new org unit.
+          readOnly: true
+          type: object
+          $ref: "#/components/schemas/Assignment"
     MovedEmployment:
       type: object
       required:
@@ -2106,6 +2155,50 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Assignment"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /assignments/{id}/move:
+    post:
+      summary: "Moves a person to another org unit on a date, in one write."
+      description: "The assignment ends on the date. A new assignment of the same\
+        \ employment to the new org unit starts on the same date, and names the old\
+        \ one in `continuesAssignmentId`. It keeps the occupation, the kind, the primary\
+        \ flag, the allocation, and the attributes. It keeps the job title unless\
+        \ the request gives one. The head flag and the display order belong to the\
+        \ old org unit and are not kept. The reporting lines of the old assignment\
+        \ end with it. A failure writes nothing."
+      operationId: moveAssignment
+      tags:
+      - assignments
+      parameters:
+      - description: The ID of the assignment to the old org unit.
+        name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      - $ref: "#/components/parameters/changeOrder"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Move"
+        required: true
+      responses:
+        "201":
+          description: The two assignments.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Move"
         "400":
           $ref: "#/components/responses/BadRequest"
         "404":
