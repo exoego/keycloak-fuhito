@@ -17,6 +17,7 @@ import net.exoego.keycloak.fuhito.rest.RequestContext.Change;
 import net.exoego.keycloak.fuhito.service.AssignmentService;
 import net.exoego.keycloak.fuhito.service.EmploymentService;
 import net.exoego.keycloak.fuhito.service.OrgUnitService;
+import net.exoego.keycloak.fuhito.service.LeaveService;
 import net.exoego.keycloak.fuhito.service.PersonService;
 import net.exoego.keycloak.fuhito.service.PromotionService;
 import net.exoego.keycloak.fuhito.service.TermsChange;
@@ -46,6 +47,7 @@ public class EmploymentsResource {
     private final AssignmentService assignments;
     private final OrgUnitService orgUnits;
     private final PromotionService promotions;
+    private final LeaveService leaves;
 
     /**
      * Creates the resource for one request.
@@ -56,9 +58,12 @@ public class EmploymentsResource {
      * @param assignments the reads of assignments of the realm
      * @param orgUnits the operations on org units of the realm
      * @param promotions the promotion of the realm
+     * @param leaves the start and the end of a leave in the realm
      */
     public EmploymentsResource(RequestContext context, EmploymentService service, PersonService people,
-            AssignmentService assignments, OrgUnitService orgUnits, PromotionService promotions) {
+            AssignmentService assignments, OrgUnitService orgUnits, PromotionService promotions,
+            LeaveService leaves) {
+        this.leaves = leaves;
         this.promotions = promotions;
         this.orgUnits = orgUnits;
         this.context = context;
@@ -176,6 +181,57 @@ public class EmploymentsResource {
                         "fuhito/assignments/" + assignment.id() + "/details", assignment);
             }
             return PromotionRepresentation.of(employment, assignment);
+        });
+    }
+
+    @POST
+    @Path("{id}/leave")
+    @Operation(
+            operationId = "startLeave",
+            summary = "Puts a person on leave from a date.",
+            description = "The status of the employment is `ON_LEAVE` from the date. Every other value of the "
+                    + "terms stays. With `validTo`, the status of before the leave comes back on that date, in "
+                    + "the same write. A change of terms that is stored for a later date rejects the leave.")
+    @Parameter(ref = "changeOrder")
+    @APIResponse(responseCode = "200", description = "The employment with the terms of every period.")
+    @BadRequest
+    @NotFound
+    @ApiErrors
+    public EmploymentRepresentation startLeave(
+            @Parameter(description = "The ID of the resource.")
+            @PathParam("id") String id,
+            LeaveRepresentation body) {
+        context.requireWrite();
+        return Calls.run(context, () -> {
+            Checks.required("body", body);
+            var employment = EmploymentRepresentation.of(leaves.start(id, body.validFrom(), body.validTo()));
+            context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, "fuhito/employments/" + id + "/leave", employment);
+            return employment;
+        });
+    }
+
+    @POST
+    @Path("{id}/return")
+    @Operation(
+            operationId = "endLeave",
+            summary = "Ends the leave of a person on a date.",
+            description = "The status of the employment is `ACTIVE` from the date. Every other value of the terms "
+                    + "stays. A return that was stored for a later date stays too, and changes nothing more.")
+    @Parameter(ref = "changeOrder")
+    @APIResponse(responseCode = "200", description = "The employment with the terms of every period.")
+    @BadRequest
+    @NotFound
+    @ApiErrors
+    public EmploymentRepresentation endLeave(
+            @Parameter(description = "The ID of the resource.")
+            @PathParam("id") String id,
+            ReturnRepresentation body) {
+        context.requireWrite();
+        return Calls.run(context, () -> {
+            Checks.required("body", body);
+            var employment = EmploymentRepresentation.of(leaves.end(id, body.validFrom()));
+            context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, "fuhito/employments/" + id + "/return", employment);
+            return employment;
         });
     }
 

@@ -854,6 +854,21 @@ components:
         message:
           type: string
           description: The message for people.
+    Leave:
+      required:
+      - validFrom
+      description: A request to put a person on leave.
+      type: object
+      properties:
+        validFrom:
+          type: string
+          description: The first date of the leave.
+          format: date
+        validTo:
+          type: string
+          description: The first date back at work. Leave it out when it is not known
+            yet. On that date the status of before the leave comes back.
+          format: date
     Mask:
       required:
       - personId
@@ -1619,6 +1634,16 @@ components:
           type: string
           description: The first date after the line. Leave it out to last as long
             as the assignment.
+          format: date
+    Return:
+      required:
+      - validFrom
+      description: A request to end the leave of a person.
+      type: object
+      properties:
+        validFrom:
+          type: string
+          description: The first date back at work.
           format: date
     Staff:
       required:
@@ -2843,6 +2868,47 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+  /employments/{id}/leave:
+    post:
+      summary: Puts a person on leave from a date.
+      description: "The status of the employment is `ON_LEAVE` from the date. Every\
+        \ other value of the terms stays. With `validTo`, the status of before the\
+        \ leave comes back on that date, in the same write. A change of terms that\
+        \ is stored for a later date rejects the leave."
+      operationId: startLeave
+      tags:
+      - employments
+      parameters:
+      - description: The ID of the resource.
+        name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      - $ref: "#/components/parameters/changeOrder"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Leave"
+        required: true
+      responses:
+        "200":
+          description: The employment with the terms of every period.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Employment"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
   /employments/{id}/promotion:
     post:
       summary: "Promotes a person on a date, in one write."
@@ -2874,6 +2940,46 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Promotion"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /employments/{id}/return:
+    post:
+      summary: Ends the leave of a person on a date.
+      description: "The status of the employment is `ACTIVE` from the date. Every\
+        \ other value of the terms stays. A return that was stored for a later date\
+        \ stays too, and changes nothing more."
+      operationId: endLeave
+      tags:
+      - employments
+      parameters:
+      - description: The ID of the resource.
+        name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      - $ref: "#/components/parameters/changeOrder"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Return"
+        required: true
+      responses:
+        "200":
+          description: The employment with the terms of every period.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Employment"
         "400":
           $ref: "#/components/responses/BadRequest"
         "404":
