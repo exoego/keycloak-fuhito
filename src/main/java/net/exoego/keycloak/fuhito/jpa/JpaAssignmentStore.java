@@ -7,6 +7,7 @@ import java.util.Optional;
 
 import jakarta.persistence.EntityManager;
 import net.exoego.keycloak.fuhito.domain.Assignment;
+import net.exoego.keycloak.fuhito.domain.MemberCursor;
 import net.exoego.keycloak.fuhito.domain.MemberFilter;
 import net.exoego.keycloak.fuhito.domain.ValidPeriod;
 import net.exoego.keycloak.fuhito.store.AssignmentStore;
@@ -81,7 +82,7 @@ public class JpaAssignmentStore implements AssignmentStore {
     }
 
     @Override
-    public List<Assignment> membersOn(MemberFilter filter, int first, int max) {
+    public List<Assignment> membersOn(MemberFilter filter, MemberCursor after, int first, int max) {
         // Each piece is a fixed text. The values of the request go in as parameters.
         StringBuilder text = new StringBuilder();
         if (filter.includeDescendants()) {
@@ -104,6 +105,20 @@ public class JpaAssignmentStore implements AssignmentStore {
                     and e.employmentId = a.employmentId and e.status = :status and e.""")
                     .append(TreeQuery.onDate("e")).append(')');
         }
+        if (after != null) {
+            // The rows after the cursor, in the order of the list. So the database does not count past the
+            // rows of the pages before.
+            String laterInUnit = """
+                    (a.displayOrder > :afterOrder or (a.displayOrder = :afterOrder and (a.validFrom > :afterFrom
+                    or (a.validFrom = :afterFrom and a.assignmentId > :afterId))))""";
+            if (filter.includeDescendants()) {
+                text.append("""
+                         and (t.position > (select c.position from Tree c where c.id = :afterUnit)
+                        or (a.orgUnitId = :afterUnit and\s""").append(laterInUnit).append("))");
+            } else {
+                text.append(" and ").append(laterInUnit);
+            }
+        }
         text.append(" order by ").append(filter.includeDescendants() ? "t.position, " : "")
                 .append("a.displayOrder, a.validFrom, a.assignmentId");
 
@@ -122,6 +137,14 @@ public class JpaAssignmentStore implements AssignmentStore {
         }
         if (filter.status() != null) {
             query.setParameter("status", filter.status().name());
+        }
+        if (after != null) {
+            query.setParameter("afterOrder", after.displayOrder())
+                    .setParameter("afterFrom", after.validFrom())
+                    .setParameter("afterId", after.assignmentId());
+            if (filter.includeDescendants()) {
+                query.setParameter("afterUnit", after.orgUnitId());
+            }
         }
         return query.setFirstResult(first).setMaxResults(max).getResultStream()
                 .map(JpaAssignmentStore::toDomain)

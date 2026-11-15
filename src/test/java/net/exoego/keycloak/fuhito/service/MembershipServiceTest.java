@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.Set;
 
 import net.exoego.keycloak.fuhito.domain.BusinessDay;
+import net.exoego.keycloak.fuhito.domain.Assignment;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.Person;
 import net.exoego.keycloak.fuhito.domain.RefItem;
@@ -104,6 +105,41 @@ class MembershipServiceTest {
         List<Member> ofDoctor = service.assignmentsOf("doctor", "2026-04-01", false);
         assertEquals(List.of(otherHospital, ward), ofDoctor.stream().map(m -> m.orgUnit().unit().id()).toList());
         assertEquals(List.of(false, true), ofDoctor.stream().map(Member::seconded).toList());
+    }
+
+    @Test
+    void aCursorGoesOnAfterTheRowThatItNames() {
+        assign(doctorEmployment, hospital, "2026-04-01", null, null, true, 1);
+        assign(nurseEmployment, ward, "2026-04-01", null, null, true, 2);
+        assign(clerkEmployment, ward, "2026-04-01", null, null, true, 1);
+        List<Member> all = service.members(hospital, below("2026-04-01"));
+        assertEquals(List.of("doctor", "clerk", "nurse"), userIds(all));
+
+        Assignment first = all.get(0).assignment();
+        Assignment second = all.get(1).assignment();
+        String afterFirst = Cursor.encode(Cursor.MEMBERS, first.orgUnitId(), Integer.toString(first.displayOrder()),
+                first.period().from().toString(), first.assignmentId());
+        String afterSecond = Cursor.encode(Cursor.MEMBERS, second.orgUnitId(), Integer.toString(second.displayOrder()),
+                second.period().from().toString(), second.assignmentId());
+
+        assertEquals(List.of("clerk", "nurse"), userIds(service.members(hospital,
+                new MemberQuery("2026-04-01", true, null, null, null, null, null, null, afterFirst))));
+        assertEquals(List.of("nurse"), userIds(service.members(hospital,
+                new MemberQuery("2026-04-01", true, null, null, null, null, 5, null, afterSecond))));
+        // In one org unit, the cursor uses the display order and what comes after it.
+        assertEquals(List.of("nurse"), userIds(service.members(ward,
+                new MemberQuery("2026-04-01", false, null, null, null, null, null, null, afterSecond))));
+
+        assertEquals("invalid.cursor_with_first", assertThrows(FuhitoException.class, () -> service.members(hospital,
+                new MemberQuery("2026-04-01", true, null, null, null, 1, null, null, afterFirst))).code());
+        for (String bad : List.of(Cursor.encode(Cursor.MEMBERS, "one"),
+                Cursor.encode(Cursor.MEMBERS, "u", "x", "2026-04-01", "a"),
+                Cursor.encode(Cursor.MEMBERS, "u", "1", "soon", "a"),
+                // A cursor of the list of people does not fit this list.
+                Cursor.encode(Cursor.PEOPLE, "p"))) {
+            assertEquals("invalid.cursor", assertThrows(FuhitoException.class, () -> service.members(hospital,
+                    new MemberQuery("2026-04-01", true, null, null, null, null, null, null, bad))).code());
+        }
     }
 
     private static MemberQuery on(String asOf) {

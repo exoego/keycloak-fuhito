@@ -151,7 +151,7 @@ class PeopleIT {
             } else {
                 assertTrue(link.endsWith(">; rel=\"next\""), link);
                 String url = link.substring(1, link.indexOf('>'));
-                assertTrue(url.contains("after=") && url.contains("max=2") && !url.contains("first="), url);
+                assertTrue(url.contains("after=people.v1__") && url.contains("max=2") && !url.contains("first="), url);
                 path = url.substring(url.indexOf(prefix) + prefix.length());
             }
         }
@@ -159,11 +159,15 @@ class PeopleIT {
         // Two full pages, and one with the last person and no link.
         assertEquals(3, pages);
 
-        // A text that is no cursor at all is rejected. The percent signs are one "!" each.
-        HttpResponse<String> bad = scratch.api.get("/people?after=%21%21");
-        assertEquals(400, bad.statusCode(), bad.body());
-        assertEquals("invalid.cursor", Api.json(bad).get("error").asText());
-        HttpResponse<String> both = scratch.api.get("/people?first=1&after=eA");
+        // A cursor of another list, of another version, or with no name is rejected.
+        for (String cursor : List.of("members.v1__u__1__2026-04-01__a", "people.v0__" + all.get(0), all.get(0))) {
+            HttpResponse<String> bad = scratch.api.get("/people?after=" + cursor);
+            assertEquals(400, bad.statusCode(), bad.body());
+            assertEquals("invalid.cursor", Api.json(bad).get("error").asText());
+            assertTrue(Api.json(bad).get("message").asText().contains("people.v1"), bad.body());
+        }
+        assertEquals(all.subList(1, 5), ok(scratch.api.get("/people?after=people.v1__" + all.get(0))).findValuesAsText("id"));
+        HttpResponse<String> both = scratch.api.get("/people?first=1&after=people.v1__" + all.get(0));
         assertEquals(400, both.statusCode(), both.body());
         assertEquals("invalid.cursor_with_first", Api.json(both).get("error").asText());
     }

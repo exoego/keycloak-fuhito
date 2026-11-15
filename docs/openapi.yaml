@@ -3399,6 +3399,8 @@ paths:
   /org-units/{id}/members:
     get:
       summary: Lists the assignments to an org unit that hold on a date.
+      description: "To read every member, follow the `Link` header of each response.\
+        \ A late page then costs as much as the first one."
       operationId: listOrgUnitMembers
       tags:
       - org-units
@@ -3407,6 +3409,13 @@ paths:
         name: id
         in: path
         required: true
+        schema:
+          type: string
+      - description: The cursor from the `Link` header of the page before. It is the
+          name of its format and the values of the last row of that page. It cannot
+          be used with `first`.
+        name: after
+        in: query
         schema:
           type: string
       - description: The date to read. The default is today for the org unit. It is
@@ -3462,6 +3471,13 @@ paths:
       responses:
         "200":
           description: The members on the date.
+          headers:
+            Link:
+              description: "The URL of the next page, with `rel=\"next\"`. It is there\
+                \ when the page is full. A full page can be the last one, and the\
+                \ next page is then empty."
+              schema:
+                type: string
           content:
             application/json:
               schema:
@@ -3746,8 +3762,8 @@ paths:
       tags:
       - people
       parameters:
-      - description: "The cursor from the `Link` header of the page before. Its form\
-          \ can change, so take it from there and do not build it."
+      - description: The cursor from the `Link` header of the page before. It is the
+          name of its format and the values of the last row of that page.
         name: after
         in: query
         schema:

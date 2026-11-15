@@ -163,7 +163,7 @@ public class PersonService {
         }
         Cursor.requireAlone(after, first);
         Page page = Page.of(first, max);
-        String afterId = after == null ? null : Cursor.decode(after, 1).getFirst();
+        String afterId = after == null ? null : Cursor.decode(Cursor.PEOPLE, after).getFirst();
         return store.list(afterId, page.first(), page.max())
                 .stream()
                 .map(this::view)

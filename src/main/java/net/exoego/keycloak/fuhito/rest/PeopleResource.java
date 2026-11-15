@@ -82,13 +82,13 @@ public class PeopleResource {
                     description = "The largest number of entries to return.",
                     schema = @Schema(minimum = "0", maximum = "1000", defaultValue = "100"))
             @QueryParam("max") Integer max,
-            @Parameter(description = "The cursor from the `Link` header of the page before. Its form can change, "
-                    + "so take it from there and do not build it.")
+            @Parameter(description = "The cursor from the `Link` header of the page before. It is the name of its format "
+                    + "and the values of the last row of that page.")
             @QueryParam("after") String after) {
         context.requireRead();
         return Calls.run(context, () -> Pages.of(context,
                 service.list(userId, first, max, after).stream().map(PersonRepresentation::of).toList(),
-                Page.of(first, max).max(), person -> Cursor.encode(person.id())));
+                Page.of(first, max).max(), person -> Cursor.encode(Cursor.PEOPLE, person.id())));
     }
 
     @POST

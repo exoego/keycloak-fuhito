@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Optional;
 
 import net.exoego.keycloak.fuhito.domain.Assignment;
+import net.exoego.keycloak.fuhito.domain.MemberCursor;
 import net.exoego.keycloak.fuhito.domain.MemberFilter;
 
 /**
@@ -53,11 +54,12 @@ public interface AssignmentStore {
      * Inside one unit, the rows follow the display order, then the start of the row, then the assignment ID.
      *
      * @param filter which assignments to take
+     * @param after the last row of the page before, or null to start at the first row
      * @param first the number of rows to skip
      * @param max the largest number of rows to return
      * @return the rows of the page
      */
-    List<Assignment> membersOn(MemberFilter filter, int first, int max);
+    List<Assignment> membersOn(MemberFilter filter, MemberCursor after, int first, int max);
 
     /**
      * Finds the ID of an assignment by the ID it has in the system it came from.

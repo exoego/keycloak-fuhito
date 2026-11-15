@@ -15,6 +15,7 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.rest.RequestContext.Change;
+import net.exoego.keycloak.fuhito.service.Cursor;
 import net.exoego.keycloak.fuhito.service.MemberQuery;
 import net.exoego.keycloak.fuhito.service.MembershipService;
 import net.exoego.keycloak.fuhito.service.OrgUnitService;
@@ -22,6 +23,8 @@ import net.exoego.keycloak.fuhito.service.OrgUnitState;
 import net.exoego.keycloak.fuhito.service.OrganizationLinkService;
 import net.exoego.keycloak.fuhito.service.Page;
 import org.eclipse.microprofile.openapi.annotations.Operation;
+import org.eclipse.microprofile.openapi.annotations.enums.SchemaType;
+import org.eclipse.microprofile.openapi.annotations.headers.Header;
 import org.eclipse.microprofile.openapi.annotations.media.Content;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 import org.eclipse.microprofile.openapi.annotations.parameters.Parameter;
@@ -350,12 +353,23 @@ public class OrgUnitsResource {
     @Path("{id}/members")
     @Operation(
             operationId = "listOrgUnitMembers",
-            summary = "Lists the assignments to an org unit that hold on a date.")
-    @APIResponse(responseCode = "200", description = "The members on the date.")
+            summary = "Lists the assignments to an org unit that hold on a date.",
+            description = "To read every member, follow the `Link` header of each response. A late page then "
+                    + "costs as much as the first one.")
+    @APIResponse(
+            responseCode = "200",
+            description = "The members on the date.",
+            headers = @Header(
+                    name = "Link",
+                    description = "The URL of the next page, with `rel=\"next\"`. It is there when the page is "
+                            + "full. A full page can be the last one, and the next page is then empty.",
+                    schema = @Schema(type = SchemaType.STRING)),
+            content = @Content(mediaType = "application/json",
+                    schema = @Schema(type = SchemaType.ARRAY, implementation = MemberRepresentation.class)))
     @BadRequest
     @NotFound
     @ApiErrors
-    public List<MemberRepresentation> members(
+    public Response members(
             @Parameter(description = "The ID of the resource.")
             @PathParam("id") String id,
             @Parameter(
@@ -384,13 +398,18 @@ public class OrgUnitsResource {
             @Parameter(
                     description = "The largest number of entries to return.",
                     schema = @Schema(minimum = "0", maximum = "1000", defaultValue = "100"))
-            @QueryParam("max") Integer max) {
+            @QueryParam("max") Integer max,
+            @Parameter(description = "The cursor from the `Link` header of the page before. It is the name of its format "
+                    + "and the values of the last row of that page. It cannot be used with `first`.")
+            @QueryParam("after") String after) {
         context.requireRead();
-        return Calls.run(context, () -> membership.members(id,
-                        new MemberQuery(asOf, includeDescendants, occupation, jobTitle, status, first, max,
-                                hierarchy)).stream()
-                .map(MemberRepresentation::of)
-                .toList());
+        return Calls.run(context, () -> Pages.of(context,
+                membership.members(id, new MemberQuery(asOf, includeDescendants, occupation, jobTitle, status,
+                        first, max, hierarchy, after)).stream().map(MemberRepresentation::of).toList(),
+                Page.of(first, max).max(),
+                // The values that the order of the list uses, as MembershipService reads them back.
+                member -> Cursor.encode(Cursor.MEMBERS, member.orgUnitId(), Integer.toString(member.displayOrder()),
+                        member.validFrom(), member.assignmentId())));
     }
 
     @GET
