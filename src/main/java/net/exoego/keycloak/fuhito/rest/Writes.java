@@ -38,8 +38,10 @@ final class Writes {
             case Write.OfOrgUnit unit -> OrgUnitRepresentation.of(unit.state());
             case Write.OfEmployment employment -> EmploymentRepresentation.of(employment.state());
             case Write.OfAssignment assignment -> AssignmentRepresentation.of(assignment.state());
+            case Write.OfReportingLine line -> ReportingLineRepresentation.of(line.state());
+            case Write.Removed removed -> null;
         };
-        context.recordChange(write.created() ? Change.CREATE : Change.UPDATE, write.resourceType(),
-                write.resourceId(), write.path(), representation);
+        Change change = write.deleted() ? Change.DELETE : write.created() ? Change.CREATE : Change.UPDATE;
+        context.recordChange(change, write.resourceType(), write.resourceId(), write.path(), representation);
     }
 }

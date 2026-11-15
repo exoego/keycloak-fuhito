@@ -190,6 +190,20 @@ class CsvImportServiceTest {
     }
 
     @Test
+    void aRowWithMoreCellsThanTheHeaderIsReported() {
+        CsvImportService.Result result = load("orgUnits", "2026-04-01", """
+                外部ID,名称,よみがな
+                W1,1病棟, 東館,いちびょうとう
+                W2,2病棟,にびょうとう,
+                """);
+
+        assertEquals(List.of("line 2 row 0 csv.too_many_cells"), errors(result));
+        assertEquals(Map.of("columns", "3", "cells", "4"), result.errors().getFirst().error().params());
+        // An empty cell at the end is fine.
+        assertEquals("にびょうとう", unit("W2", "2026-04-01").version().phoneticName());
+    }
+
+    @Test
     void aReasonStaysWithTheLeaveAndGoesWithTheReturn() {
         item(RefKind.LEAVE_REASON, "parental");
         load("orgUnits", "2026-04-01", "外部ID,名称\nH,X病院\n");

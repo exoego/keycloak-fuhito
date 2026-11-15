@@ -69,6 +69,10 @@ final class Api {
         return send("DELETE", path, null);
     }
 
+    HttpResponse<String> delete(String path, String header, String value) throws Exception {
+        return send("DELETE", path, null, header, value);
+    }
+
     HttpResponse<String> postBytes(String path, String contentType, byte[] body) throws Exception {
         var request = HttpRequest.newBuilder(
                         URI.create(serverUrl + "/admin/realms/" + realm + "/fuhito" + path))

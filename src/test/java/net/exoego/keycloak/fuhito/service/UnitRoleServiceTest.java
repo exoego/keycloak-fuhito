@@ -149,5 +149,9 @@ class UnitRoleServiceTest {
         assertEquals(List.of("2026-09-01"), store.findByEmployment(next).stream()
                 .map(role -> role.period().from().toString()).toList());
         assertFalse(store.findByEmployment(next).getFirst().includesDescendants());
+        // The transfer returns the new role, so that the change log can name it.
+        assertEquals(List.of(store.findByEmployment(next).getFirst().id()),
+                moved.unitRoles().stream().map(view -> view.role().id()).toList());
+        assertEquals("approver", moved.unitRoles().getFirst().code());
     }
 }
