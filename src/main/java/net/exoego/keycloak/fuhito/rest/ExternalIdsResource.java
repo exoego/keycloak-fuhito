@@ -1,6 +1,7 @@
 package net.exoego.keycloak.fuhito.rest;
 
 import java.util.List;
+import java.util.Map;
 
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.DELETE;
@@ -12,8 +13,11 @@ import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import net.exoego.keycloak.fuhito.domain.Checks;
+import net.exoego.keycloak.fuhito.domain.ExternalId;
+import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.rest.RequestContext.Change;
 import net.exoego.keycloak.fuhito.service.ExternalIdService;
+import net.exoego.keycloak.fuhito.service.OrgUnitService;
 import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 import org.eclipse.microprofile.openapi.annotations.parameters.Parameter;
@@ -37,16 +41,23 @@ public class ExternalIdsResource {
 
     private final RequestContext context;
     private final ExternalIdService service;
+    private final OrgUnitService orgUnits;
+    private final StructureLimit limit;
 
     /**
      * Creates the resource for one request.
      *
      * @param context the request and its caller
      * @param service the operations on the realm of the request
+     * @param orgUnits the org units of the realm of the request
+     * @param limit how far ahead a caller who may read only the structure may read it
      */
-    public ExternalIdsResource(RequestContext context, ExternalIdService service) {
+    ExternalIdsResource(RequestContext context, ExternalIdService service, OrgUnitService orgUnits,
+            StructureLimit limit) {
         this.context = context;
         this.service = service;
+        this.orgUnits = orgUnits;
+        this.limit = limit;
     }
 
     @GET
@@ -89,7 +100,14 @@ public class ExternalIdsResource {
             @QueryParam("externalId") String externalId) {
         return Calls.run(context, () -> {
             requireRead(resourceType);
-            return ExternalIdRepresentation.of(service.find(resourceType, source, externalId));
+            ExternalIdService.View found = service.find(resourceType, source, externalId);
+            // A unit that starts after the last date that a limited caller may read stays unknown to it.
+            if (found.kind() == ExternalId.Kind.ORG_UNIT && limit.hides(
+                    orgUnits.history(found.resourceId()).versions().getFirst().version().period().from())) {
+                throw FuhitoException.notFound("external_id.unknown",
+                        Map.of("source", found.source(), "externalId", found.externalId()));
+            }
+            return ExternalIdRepresentation.of(found);
         });
     }
 
