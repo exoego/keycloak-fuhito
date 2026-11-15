@@ -167,6 +167,22 @@ What the runs showed.
 - The pieces keep each transaction short. A first run writes an assignment, and often a person and an employment, for each user through the services.
 - With nothing to change, a run still asks for the employments and the reporting line of each user. That is the 16 seconds.
 
+## The batch jobs in a realm ten times as large
+
+`PEOPLE=500000 UNITS=50000 BATCH=1 scripts/bench/run.sh`. One run each.
+
+| Job | First run | Nothing changed |
+|---|---|---|
+| Projection | 1,793 s | 43 s |
+| Sync from user attributes | 933 s | 186 s |
+
+What the runs showed.
+
+- The times grow about in line with the number of people. A first run is one write at a time through the API of Keycloak or through the services, about 1,000 to 2,000 a second.
+- A rebuild took longer than the 15 minutes of the timer, and the timer started a second one. The two failed on the unique keys of Keycloak. Now only one rebuild runs for a realm at a time.
+- A call that took more than 300 seconds did all its work and then answered with the status 500. The transaction of the request had ended by then, and its end failed. Now a long job ends that transaction before it starts.
+- A sync with nothing to change is close to that limit of 300 seconds for 500,000 people. It asks for the employments and the reporting line of each user.
+
 ## What the numbers say
 
 - A read about one org unit, one person, or one page of people does not grow with the realm.

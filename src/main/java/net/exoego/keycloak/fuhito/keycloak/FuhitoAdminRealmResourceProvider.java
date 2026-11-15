@@ -90,11 +90,12 @@ public class FuhitoAdminRealmResourceProvider implements AdminRealmResourceProvi
                     }
                 }, organizations, new KeycloakUserAttributes(session, realm),
                 personId -> RealmData.deletePerson(entityManager, realm.getId(), personId),
-                new ProjectionTransactions(session.getKeycloakSessionFactory(), realm.getId(), rule),
+                new ProjectionTransactions(session.getKeycloakSessionFactory(), realm.getId(), rule, request),
                 new FuhitoResource.Pieces() {
                     @Override
                     public <T> T alone(String job, Supplier<T> run) {
-                        return OneAtATime.run(session.getKeycloakSessionFactory(), job, realm.getId(), run);
+                        return OneAtATime.outsideTransaction(request, () -> OneAtATime.run(
+                                session.getKeycloakSessionFactory(), job, realm.getId(), run));
                     }
 
                     @Override

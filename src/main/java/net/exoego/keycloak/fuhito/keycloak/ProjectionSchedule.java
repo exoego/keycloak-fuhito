@@ -57,14 +57,18 @@ final class ProjectionSchedule {
                 .filter(realm -> realm.getAttribute(KeycloakOrganizations.PROJECTION_ATTRIBUTE, false))
                 .map(RealmModel::getId)
                 .toList();
-        for (String realmId : realmIds) {
-            // One transaction for each realm, so a failure in one realm leaves the others alone.
-            try {
-                KeycloakModelUtils.runJobInTransaction(factory, each -> rebuild(each, realmId));
-            } catch (RuntimeException e) {
-                LOG.errorf(e, "The scheduled projection failed for the realm with the ID %s.", realmId);
+        // The session of the timer has a transaction too, and the rebuilds can take longer than it may last.
+        OneAtATime.outsideTransaction(session, () -> {
+            for (String realmId : realmIds) {
+                // One session for each realm, so a failure in one realm leaves the others alone.
+                try {
+                    KeycloakModelUtils.runJobInTransaction(factory, each -> rebuild(each, realmId));
+                } catch (RuntimeException e) {
+                    LOG.errorf(e, "The scheduled projection failed for the realm with the ID %s.", realmId);
+                }
             }
-        }
+            return null;
+        });
     }
 
     private static void rebuild(KeycloakSession session, String realmId) {
@@ -82,15 +86,15 @@ final class ProjectionSchedule {
                     realm.getName(), e.code());
             return;
         }
+        // The rebuild ends the transaction of this session, so the name is read before it.
+        String name = realm.getName();
         try {
             ProjectionReport report = new ProjectionService(
-                    new ProjectionTransactions(session.getKeycloakSessionFactory(), realmId, rule)).rebuild();
-            LOG.debugf("The scheduled projection of realm %s is done: %s", realm.getName(), report);
+                    new ProjectionTransactions(session.getKeycloakSessionFactory(), realmId, rule, session)).rebuild();
+            LOG.debugf("The scheduled projection of realm %s is done: %s", name, report);
         } catch (FuhitoException e) {
             // The data of the realm must change first, so a stack trace on every run would only be noise.
-            LOG.warnf("The scheduled projection of realm %s failed with %s %s.", realm.getName(), e.code(),
-                    e.params());
-            session.getTransactionManager().setRollbackOnly();
+            LOG.warnf("The scheduled projection of realm %s failed with %s %s.", name, e.code(), e.params());
         }
     }
 }

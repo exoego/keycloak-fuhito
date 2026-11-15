@@ -14,6 +14,7 @@ import net.exoego.keycloak.fuhito.service.ProjectionService;
 import net.exoego.keycloak.fuhito.service.ProjectionService.Parts;
 import net.exoego.keycloak.fuhito.service.UnitDays;
 import org.keycloak.connections.jpa.JpaConnectionProvider;
+import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.KeycloakSessionFactory;
 import org.keycloak.models.RealmModel;
 import org.keycloak.models.utils.KeycloakModelUtils;
@@ -27,6 +28,7 @@ public final class ProjectionTransactions implements ProjectionService.Work {
     private final KeycloakSessionFactory factory;
     private final String realmId;
     private final BusinessDay.Rule rule;
+    private final KeycloakSession caller;
 
     /**
      * Creates the runner for one realm.
@@ -34,8 +36,11 @@ public final class ProjectionTransactions implements ProjectionService.Work {
      * @param factory makes the sessions
      * @param realmId the ID of the realm
      * @param rule the time zone and the day start of the realm
+     * @param caller the session of the request or of the timer that starts the rebuild
      */
-    public ProjectionTransactions(KeycloakSessionFactory factory, String realmId, BusinessDay.Rule rule) {
+    public ProjectionTransactions(KeycloakSessionFactory factory, String realmId, BusinessDay.Rule rule,
+            KeycloakSession caller) {
+        this.caller = caller;
         this.factory = factory;
         this.realmId = realmId;
         this.rule = rule;
@@ -43,7 +48,8 @@ public final class ProjectionTransactions implements ProjectionService.Work {
 
     @Override
     public <T> T alone(Supplier<T> run) {
-        return OneAtATime.run(factory, "projection", realmId, run);
+        return OneAtATime.outsideTransaction(caller,
+                () -> OneAtATime.run(factory, "projection", realmId, run));
     }
 
     @Override
