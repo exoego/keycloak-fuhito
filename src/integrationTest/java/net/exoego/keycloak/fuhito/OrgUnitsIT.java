@@ -70,6 +70,11 @@ class OrgUnitsIT {
                 .findValuesAsText("parentId"));
         assertEquals(List.of("50%病棟"), Api.json(search.get("/org-units/search?q=50%25" + on))
                 .findValuesAsText("name"));
+        // The search reads the names in other languages, not the JSON that keeps them.
+        for (String structure : List.of("en", "%22", "%7B", "%3A")) {
+            assertEquals(List.of(), Api.json(search.get("/org-units/search?q=" + structure + on)).findValuesAsText("id"),
+                    structure);
+        }
         assertEquals(List.of("1病棟"), Api.json(search.get("/org-units/search?unitType=ward&code=W1" + on))
                 .findValuesAsText("name"));
         HttpResponse<String> counted = search.get("/org-units/search?q=%E7%97%85%E6%A3%9F&max=1&count=true" + on);

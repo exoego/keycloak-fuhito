@@ -7,9 +7,11 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.TypedQuery;
@@ -281,9 +283,7 @@ public class JpaOrgUnitStore implements OrgUnitStore {
         if (search.text() != null) {
             text.append("""
                      and (lower(v.name) like :text escape '!' or lower(v.shortName) like :text escape '!'
-                    or lower(v.phoneticName) like :text escape '!'
-                    or lower(cast(v.names as String)) like :text escape '!'
-                    or lower(cast(v.shortNames as String)) like :text escape '!')""");
+                    or lower(v.phoneticName) like :text escape '!' or v.searchNames like :text escape '!')""");
         }
         if (search.code() != null) {
             text.append(" and v.code = :code");
@@ -521,6 +521,11 @@ public class JpaOrgUnitStore implements OrgUnitStore {
         entity.shortName = version.shortName();
         entity.shortNames = version.shortNames();
         entity.phoneticName = version.phoneticName();
+        entity.searchNames = Stream.of(version.names(), version.shortNames())
+                .filter(Objects::nonNull)
+                .flatMap(names -> names.values().stream())
+                .map(value -> value.toLowerCase(Locale.ROOT))
+                .collect(Collectors.joining("\n"));
         entity.unitTypeId = version.unitTypeId();
         entity.displayOrder = version.displayOrder();
         entity.attributes = version.attributes();
