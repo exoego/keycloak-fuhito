@@ -12,6 +12,9 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.BinaryOperator;
+import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import net.exoego.keycloak.fuhito.domain.Assignment;
@@ -66,8 +69,43 @@ public class AttributeSyncService {
             ReportingLineService lineService, PersonService personService) {
     }
 
-    private final Sources from;
-    private final Today today;
+    /**
+     * What one piece of a run works with. Every piece gets its own, bound to its own transaction.
+     *
+     * @param from what the sync reads and writes
+     * @param today what today is for the realm and for each org unit
+     * @param record takes each write of the piece, for the event log and the change log
+     */
+    public record Parts(Sources from, Today today, Consumer<Write> record) {
+    }
+
+    /**
+     * Runs the pieces of a run.
+     * A run for a large realm writes too much for one transaction. Keycloak ends a transaction after some
+     * minutes. A run can go again after a failure, so its pieces need not succeed or fail together.
+     */
+    public interface Work {
+
+        /**
+         * Runs one piece in a transaction of its own.
+         *
+         * @param <T> the type of the result
+         * @param piece the piece
+         * @return the result of the piece
+         */
+        <T> T inNewTransaction(Function<Parts, T> piece);
+    }
+
+    private record Plan(Matcher matcher, Map<String, Assignment> owned, List<Values> users) {
+    }
+
+    private static final int USERS_AT_A_TIME = 100;
+
+    private final Work work;
+    // The parts of the piece that runs now.
+    private Sources from;
+    private Today today;
+    private Consumer<Write> record;
 
     private final List<Unmatched> unmatched = new ArrayList<>();
     private final List<Write> writes = new ArrayList<>();
@@ -80,24 +118,85 @@ public class AttributeSyncService {
     private int reportingLinesChanged;
 
     /**
-     * Creates the service for one run in a realm where an org unit can have its own time settings.
+     * Creates the service for one run that works in pieces.
+     *
+     * @param work runs each piece in a transaction of its own
+     */
+    public AttributeSyncService(Work work) {
+        this.work = work;
+    }
+
+    /**
+     * Creates the service for one run in the transaction of the caller.
+     * The report of the run then has the writes.
      *
      * @param from what the sync reads and writes
      * @param today what today is for the realm and for each org unit
      */
     public AttributeSyncService(Sources from, Today today) {
-        this.from = from;
-        this.today = today;
+        Parts parts = new Parts(from, today, writes::add);
+        this.work = new Work() {
+            @Override
+            public <T> T inNewTransaction(Function<Parts, T> piece) {
+                return piece.apply(parts);
+            }
+        };
+    }
+
+    private <T> T piece(Supplier<T> body) {
+        return work.inNewTransaction(parts -> {
+            from = parts.from();
+            today = parts.today();
+            record = parts.record();
+            return body.get();
+        });
     }
 
     /**
      * Makes the assignments and reporting lines of the sync match the user attributes of now.
      * Every change takes effect today. Running it again with no change in between changes nothing.
+     * The work is done in pieces. When one fails, the pieces before it stay, and the next run goes on.
      *
      * @return what the run did
      * @throws FuhitoException when the realm did not turn the sync on
      */
     public SyncReport run() {
+        Plan plan = piece(this::plan);
+        Set<String> withDepartment = new HashSet<>();
+        for (List<Values> some : inPieces(plan.users())) {
+            piece(() -> {
+                for (Values user : some) {
+                    withDepartment.add(user.userId());
+                    Optional<String> orgUnitId = plan.matcher().orgUnit(user);
+                    if (orgUnitId.isPresent()) {
+                        // Every change for this user takes effect on the date of the matched org unit.
+                        sync(user, orgUnitId.get(), plan.matcher().jobTitle(user), plan.owned().get(user.userId()),
+                                today.ofUnit(orgUnitId.get()));
+                    }
+                }
+                return null;
+            });
+        }
+        // A user whose department was removed keeps no assignment from the sync.
+        List<Assignment> left = plan.owned().entrySet().stream()
+                .filter(entry -> !withDepartment.contains(entry.getKey()))
+                .map(Map.Entry::getValue)
+                .toList();
+        for (List<Assignment> some : inPieces(left)) {
+            piece(() -> {
+                for (Assignment row : some) {
+                    retire(row, today.ofUnit(row.orgUnitId()));
+                    assignmentsEnded++;
+                }
+                return null;
+            });
+        }
+        return new SyncReport(plan.users().size(), employmentsStarted, assignmentsAdded, assignmentsMoved,
+                assignmentsChanged, assignmentsEnded, reportingLinesChanged, List.copyOf(unmatched),
+                List.copyOf(writes));
+    }
+
+    private Plan plan() {
         Settings settings = from.attributes().settings();
         if (!settings.enabled()) {
             throw FuhitoException.conflict("sync.disabled", Map.of());
@@ -107,29 +206,15 @@ public class AttributeSyncService {
                 .map(OrgUnit::id)
                 .orElseThrow(() -> FuhitoException.conflict("sync.employer_unknown",
                         Map.of("code", settings.employerCode())));
-        Matcher matcher = new Matcher(today.ofRealm());
-        Map<String, Assignment> owned = ownedByUser();
-        List<Values> users = from.attributes().usersWithDepartment(settings);
-        Set<String> withDepartment = new HashSet<>();
-        for (Values user : users) {
-            withDepartment.add(user.userId());
-            Optional<String> orgUnitId = matcher.orgUnit(user);
-            if (orgUnitId.isPresent()) {
-                // Every change for this user takes effect on the date of the matched org unit.
-                sync(user, orgUnitId.get(), matcher.jobTitle(user), owned.get(user.userId()),
-                        today.ofUnit(orgUnitId.get()));
-            }
+        return new Plan(new Matcher(today.ofRealm()), ownedByUser(), from.attributes().usersWithDepartment(settings));
+    }
+
+    private static <E> List<List<E>> inPieces(List<E> all) {
+        List<List<E>> pieces = new ArrayList<>();
+        for (int start = 0; start < all.size(); start += USERS_AT_A_TIME) {
+            pieces.add(all.subList(start, Math.min(start + USERS_AT_A_TIME, all.size())));
         }
-        // A user whose department was removed keeps no assignment from the sync.
-        owned.forEach((userId, row) -> {
-            if (!withDepartment.contains(userId)) {
-                retire(row, today.ofUnit(row.orgUnitId()));
-                assignmentsEnded++;
-            }
-        });
-        return new SyncReport(users.size(), employmentsStarted, assignmentsAdded, assignmentsMoved,
-                assignmentsChanged, assignmentsEnded, reportingLinesChanged, List.copyOf(unmatched),
-                List.copyOf(writes));
+        return pieces;
     }
 
     // An assignment counts when it holds somewhere in the realm today, and did not end on the date of its own
@@ -211,7 +296,7 @@ public class AttributeSyncService {
             started = start(user, personId, null, today);
         }
         employmentsStarted++;
-        writes.add(new Write.OfEmployment(true, "", started));
+        record.accept(new Write.OfEmployment(true, "", started));
         return started.employment();
     }
 
@@ -219,7 +304,7 @@ public class AttributeSyncService {
     private String personOf(String userId) {
         PersonService.Resolved person = from.personService().forUser(userId);
         if (person.created() != null) {
-            writes.add(new Write.OfPerson(person.created()));
+            record.accept(new Write.OfPerson(person.created()));
         }
         return person.person().id();
     }
@@ -278,7 +363,7 @@ public class AttributeSyncService {
     }
 
     private void written(AssignmentView view, boolean created, String suffix) {
-        writes.add(new Write.OfAssignment(created, suffix, view));
+        record.accept(new Write.OfAssignment(created, suffix, view));
     }
 
     private String codeOf(String refItemId) {

@@ -2,6 +2,7 @@ package net.exoego.keycloak.fuhito.keycloak;
 
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Function;
 
 import net.exoego.keycloak.fuhito.domain.BusinessDay;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
@@ -12,6 +13,7 @@ import org.keycloak.connections.jpa.JpaConnectionProvider;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.RealmModel;
 import org.keycloak.models.UserModel;
+import org.keycloak.models.utils.KeycloakModelUtils;
 import org.keycloak.services.resources.admin.AdminEventBuilder;
 import org.keycloak.services.resources.admin.ext.AdminRealmResourceProvider;
 import org.keycloak.services.resources.admin.fgap.AdminPermissionEvaluator;
@@ -31,6 +33,12 @@ public class FuhitoAdminRealmResourceProvider implements AdminRealmResourceProvi
     @Override
     public Object getResource(KeycloakSession session, RealmModel realm, AdminPermissionEvaluator auth,
             AdminEventBuilder adminEvent) {
+        return resource(session, session, realm, auth, adminEvent);
+    }
+
+    // The request session knows the request. The other session does the reads and the writes.
+    private static FuhitoResource resource(KeycloakSession request, KeycloakSession session, RealmModel realm,
+            AdminPermissionEvaluator auth, AdminEventBuilder adminEvent) {
         var entityManager = session.getProvider(JpaConnectionProvider.class).getEntityManager();
         var organizations = new KeycloakOrganizations(session, realm);
         // With a bad setting, the request context rejects every call before the rule is used.
@@ -42,7 +50,7 @@ public class FuhitoAdminRealmResourceProvider implements AdminRealmResourceProvi
             timeSettingsError = e;
         }
         return new FuhitoResource(realm.getId(),
-                new KeycloakRequestContext(session, realm, auth, adminEvent, entityManager, timeSettingsError),
+                new KeycloakRequestContext(request, realm, auth, adminEvent, entityManager, timeSettingsError),
                 entityManager, rule,
                 new UserDirectory() {
                     @Override
@@ -81,7 +89,24 @@ public class FuhitoAdminRealmResourceProvider implements AdminRealmResourceProvi
                     }
                 }, organizations, new KeycloakUserAttributes(session, realm),
                 personId -> RealmData.deletePerson(entityManager, realm.getId(), personId),
-                new ProjectionTransactions(session.getKeycloakSessionFactory(), realm.getId(), rule));
+                new ProjectionTransactions(session.getKeycloakSessionFactory(), realm.getId(), rule),
+                new FuhitoResource.Pieces() {
+                    @Override
+                    public <T> T inNewTransaction(boolean rollBack, Function<FuhitoResource, T> piece) {
+                        return KeycloakModelUtils.runJobInTransactionWithResult(session.getKeycloakSessionFactory(),
+                                own -> {
+                                    RealmModel ownRealm = own.realms().getRealm(realm.getId());
+                                    own.getContext().setRealm(ownRealm);
+                                    T result = piece.apply(resource(request, own, ownRealm, auth,
+                                            new AdminEventBuilder(ownRealm, auth.adminAuth(), own,
+                                                    request.getContext().getConnection())));
+                                    if (rollBack) {
+                                        own.getTransactionManager().setRollbackOnly();
+                                    }
+                                    return result;
+                                });
+                    }
+                });
     }
 
     @Override

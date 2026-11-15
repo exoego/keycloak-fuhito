@@ -87,12 +87,50 @@ class AttributeSyncServiceTest {
     private BusinessDay.Rule rule;
 
     private SyncReport run() {
-        Today today = rule == null ? Today.of(clock) : new UnitDays(orgUnitStore, rule, clock);
+        return new AttributeSyncService(sources(), today()).run();
+    }
+
+    private Today today() {
+        return rule == null ? Today.of(clock) : new UnitDays(orgUnitStore, rule, clock);
+    }
+
+    private AttributeSyncService.Sources sources() {
         ReportingLineService lineService = new ReportingLineService(lineStore, new ReportingLineService.Sources(
                 assignmentStore, employmentStore, orgUnitStore, refItems, attributes::containsKey, people), clock);
-        return new AttributeSyncService(new AttributeSyncService.Sources(source, attributes::containsKey,
+        return new AttributeSyncService.Sources(source, attributes::containsKey,
                 orgUnitStore, refItems, employmentStore, employments(), assignmentStore, assignments(), lineStore,
-                lineService, new PersonService(people, attributes::containsKey, id -> false)), today).run();
+                lineService, new PersonService(people, attributes::containsKey, id -> false));
+    }
+
+    @Test
+    void aRunWorksInPiecesOfUsersAndEachPieceRecordsItsOwnWrites() {
+        for (int i = 0; i < 250; i++) {
+            set("user-" + i, "med", null, null, null);
+        }
+        List<Integer> writesOfPieces = new ArrayList<>();
+        AttributeSyncService.Work work = new AttributeSyncService.Work() {
+            @Override
+            public <T> T inNewTransaction(java.util.function.Function<AttributeSyncService.Parts, T> piece) {
+                List<ImportReport.Write> writes = new ArrayList<>();
+                T result = piece.apply(new AttributeSyncService.Parts(sources(), today(), writes::add));
+                writesOfPieces.add(writes.size());
+                return result;
+            }
+        };
+
+        SyncReport report = new AttributeSyncService(work).run();
+
+        assertEquals(250, report.assignmentsAdded());
+        assertEquals(List.of(), report.writes());
+        // One piece reads. Then 100, 100, and 50 users each write a person, an employment, and an assignment.
+        assertEquals(List.of(0, 300, 300, 150), writesOfPieces);
+
+        // The users lose their department. The assignments end in pieces too.
+        attributes.clear();
+        writesOfPieces.clear();
+        nextDay();
+        assertEquals(250, new AttributeSyncService(work).run().assignmentsEnded());
+        assertEquals(List.of(0, 100, 100, 50), writesOfPieces);
     }
 
     private void nextDay() {

@@ -1,11 +1,12 @@
 package net.exoego.keycloak.fuhito.rest;
 
+import java.util.function.Function;
+
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
-import jakarta.ws.rs.core.Response;
 import net.exoego.keycloak.fuhito.service.AttributeSyncService;
 import net.exoego.keycloak.fuhito.service.SyncReport;
 import org.eclipse.microprofile.openapi.annotations.Operation;
@@ -22,17 +23,17 @@ import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 public class AttributeSyncResource {
 
     private final RequestContext context;
-    private final AttributeSyncService service;
+    private final Function<Boolean, AttributeSyncService> services;
 
     /**
      * Creates the resource for one request.
      *
      * @param context the request and its caller
-     * @param service the sync of the realm of the request
+     * @param services makes the sync of the realm of the request. It takes true for a dry run.
      */
-    public AttributeSyncResource(RequestContext context, AttributeSyncService service) {
+    public AttributeSyncResource(RequestContext context, Function<Boolean, AttributeSyncService> services) {
         this.context = context;
-        this.service = service;
+        this.services = services;
     }
 
     @POST
@@ -40,7 +41,9 @@ public class AttributeSyncResource {
     @Operation(
             operationId = "runAttributeSync",
             summary = "Makes the assignments and reporting lines of the sync match the user attributes of now.",
-            description = "Running it again with no change in between changes nothing.")
+            description = "Running it again with no change in between changes nothing. The run works in "
+                    + "pieces of users. When it fails in the middle, the pieces before the failure stay, and the "
+                    + "next run does the rest.")
     @Parameter(ref = "changeOrder")
     @APIResponse(responseCode = "200", description = "What the run did.")
     @BadRequest
@@ -52,14 +55,8 @@ public class AttributeSyncResource {
             @QueryParam("dryRun") boolean dryRun) {
         context.requireWrite();
         return Calls.run(context, () -> {
-            SyncReport report = service.run();
-            var representation = SyncReportRepresentation.of(report, dryRun);
-            if (dryRun) {
-                // The failure rolls back everything that the run wrote. The response is still a success.
-                throw context.failure(Response.ok(representation, MediaType.APPLICATION_JSON_TYPE).build());
-            }
-            report.writes().forEach(write -> Writes.record(context, write));
-            return representation;
+            SyncReport report = services.apply(dryRun).run();
+            return SyncReportRepresentation.of(report, dryRun);
         });
     }
 }
