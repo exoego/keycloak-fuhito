@@ -21,6 +21,7 @@ import net.exoego.keycloak.fuhito.jpa.JpaChangeLogStore;
 import net.exoego.keycloak.fuhito.jpa.JpaChangeOrderStore;
 import net.exoego.keycloak.fuhito.jpa.JpaEffectiveChangeStore;
 import net.exoego.keycloak.fuhito.jpa.JpaEmploymentStore;
+import net.exoego.keycloak.fuhito.jpa.JpaExternalIdStore;
 import net.exoego.keycloak.fuhito.jpa.JpaHierarchyStore;
 import net.exoego.keycloak.fuhito.jpa.JpaOrgUnitStore;
 import net.exoego.keycloak.fuhito.jpa.JpaPersonStore;
@@ -37,6 +38,7 @@ import net.exoego.keycloak.fuhito.service.ChangeOrderService;
 import net.exoego.keycloak.fuhito.service.EffectiveChangeService;
 import net.exoego.keycloak.fuhito.service.CsvImportService;
 import net.exoego.keycloak.fuhito.service.EmploymentService;
+import net.exoego.keycloak.fuhito.service.ExternalIdService;
 import net.exoego.keycloak.fuhito.service.HierarchyService;
 import net.exoego.keycloak.fuhito.service.ImportService;
 import net.exoego.keycloak.fuhito.service.LegalEntityEmployers;
@@ -264,6 +266,17 @@ public class FuhitoResource {
     @Path("attribute-definitions")
     public AttributeDefinitionsResource attributeDefinitions() {
         return new AttributeDefinitionsResource(context, attributeRules());
+    }
+
+    /**
+     * Returns the IDs that other systems have for the resources of the realm.
+     *
+     * @return the sub-resource
+     */
+    @Path("external-ids")
+    public ExternalIdsResource externalIds() {
+        return new ExternalIdsResource(context, new ExternalIdService(new JpaExternalIdStore(entityManager,
+                realmId)));
     }
 
     private AttributeDefinitionService attributeRules() {

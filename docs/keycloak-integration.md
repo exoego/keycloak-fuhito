@@ -360,6 +360,7 @@ The database applies the filters, the order, and the page.
 | `/org-units/{id}/role-holders` | Who has a role over an org unit on a date, also from a unit above |
 | `/people/{id}/unit-roles` | The roles over org units of a person on a date |
 | `/attribute-definitions` | The names and types of the free attributes of each kind of resource |
+| `/external-ids` | The IDs that other systems have for a resource, and the read that finds a resource by one |
 | `/people/{id}/managers` | The managers of a person on a date |
 | `/people/{id}/reports` | The direct reports of a person on a date |
 | `/people/{id}/qualifications` | The qualifications of a person on a date, or all of them |
@@ -429,6 +430,7 @@ The realm stores the events when admin events are turned on in its settings.
 | `FUHITO_REPORTING_LINE` | `CREATE`, `UPDATE`, `DELETE` | `fuhito/reporting-lines/{id}`, and the same with `/end` |
 | `FUHITO_UNIT_ROLE` | `CREATE`, `UPDATE`, `DELETE` | `fuhito/unit-roles/{id}`, and the same with `/end` |
 | `FUHITO_ATTRIBUTE_DEFINITION` | `CREATE`, `UPDATE`, `DELETE` | `fuhito/attribute-definitions/{id}` |
+| `FUHITO_EXTERNAL_ID` | `UPDATE`, `DELETE` | `fuhito/external-ids/{id}`, with the ID of the stored row |
 
 The event has the new state as its representation when the realm keeps representations.
 A failed request records no event.

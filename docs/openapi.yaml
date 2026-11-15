@@ -535,6 +535,39 @@ components:
           type: string
           description: The message for people. Its text can change. Its language follows
             the `Accept-Language` header.
+    ExternalId:
+      required:
+      - resourceType
+      - resourceId
+      - source
+      - externalId
+      description: The ID that one system has for one resource.
+      type: object
+      properties:
+        resourceType:
+          type: string
+          enum:
+          - ORG_UNIT
+          - PERSON
+          - EMPLOYMENT
+          - ASSIGNMENT
+          - QUALIFICATION
+        resourceId:
+          type: string
+        source:
+          type: string
+          maxLength: 64
+          pattern: "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
+          description: The name of the system.
+        externalId:
+          type: string
+          maxLength: 255
+          description: The ID in that system.
+        own:
+          type: boolean
+          description: True for the pair of `source` and `externalId` that the resource
+            itself has.
+          readOnly: true
     Hierarchy:
       required:
       - code
@@ -3405,6 +3438,165 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Transfer"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /external-ids:
+    put:
+      summary: "Stores the ID of one system for a resource, or replaces it."
+      description: "A resource has at most one ID for each system, counting its own\
+        \ pair. One ID of one system names one resource of a kind."
+      operationId: putExternalId
+      tags:
+      - general
+      parameters:
+      - $ref: "#/components/parameters/changeOrder"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ExternalId"
+        required: true
+      responses:
+        "200":
+          description: The stored ID.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExternalId"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+    get:
+      summary: Lists every ID of one resource in other systems.
+      description: The pair that the resource itself has comes first. The IDs of an
+        org unit need the permission to read the org structure. The others need the
+        full read.
+      operationId: listExternalIds
+      tags:
+      - general
+      parameters:
+      - description: The ID of the resource.
+        required: true
+        name: resourceId
+        in: query
+        schema:
+          type: string
+      - description: "The kind of resource, ORG_UNIT, PERSON, EMPLOYMENT, ASSIGNMENT,\
+          \ or QUALIFICATION."
+        required: true
+        name: resourceType
+        in: query
+        schema:
+          type: string
+      responses:
+        "200":
+          description: The IDs.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ExternalId"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+    delete:
+      summary: Removes the ID of one system from a resource.
+      operationId: deleteExternalId
+      tags:
+      - general
+      parameters:
+      - description: The ID of the resource.
+        required: true
+        name: resourceId
+        in: query
+        schema:
+          type: string
+      - description: "The kind of resource, ORG_UNIT, PERSON, EMPLOYMENT, ASSIGNMENT,\
+          \ or QUALIFICATION."
+        required: true
+        name: resourceType
+        in: query
+        schema:
+          type: string
+      - description: The name of the system.
+        required: true
+        schema:
+          type: string
+          maxLength: 64
+        name: source
+        in: query
+      - $ref: "#/components/parameters/changeOrder"
+      responses:
+        "204":
+          description: The ID is gone.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /external-ids/lookup:
+    get:
+      summary: Finds the resource that an ID of a system names.
+      description: "It looks at the pair that each resource has, and at the IDs that\
+        \ were added."
+      operationId: lookUpExternalId
+      tags:
+      - general
+      parameters:
+      - description: The ID in that system.
+        required: true
+        name: externalId
+        in: query
+        schema:
+          type: string
+      - description: "The kind of resource, ORG_UNIT, PERSON, EMPLOYMENT, ASSIGNMENT,\
+          \ or QUALIFICATION."
+        required: true
+        name: resourceType
+        in: query
+        schema:
+          type: string
+      - description: The name of the system.
+        required: true
+        name: source
+        in: query
+        schema:
+          type: string
+      responses:
+        "200":
+          description: The ID with its resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExternalId"
         "400":
           $ref: "#/components/responses/BadRequest"
         "404":
