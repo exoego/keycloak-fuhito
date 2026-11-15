@@ -52,6 +52,12 @@ public class ChangeOrderEntity {
     @Column(name = "CREATED_AT", nullable = false)
     Instant createdAt;
 
+    @Column(name = "ANNOUNCED_AT")
+    Instant announcedAt;
+
+    @Column(name = "ANNOUNCED_BY_USER_ID", length = 255)
+    String announcedByUserId;
+
     /**
      * Creates an empty entity for JPA.
      */

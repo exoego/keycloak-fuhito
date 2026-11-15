@@ -49,7 +49,7 @@ public class ChangeOrderService {
     public ChangeOrder create(ChangeOrderValues request) {
         // The database keeps microseconds, so the returned time is cut to what a later read returns.
         ChangeOrder order = checked(UUID.randomUUID().toString(), request,
-                Instant.now(clock).truncatedTo(ChronoUnit.MILLIS));
+                Instant.now(clock).truncatedTo(ChronoUnit.MILLIS), null);
         store.insert(order);
         return order;
     }
@@ -63,7 +63,31 @@ public class ChangeOrderService {
      * @throws FuhitoException when the order does not exist, a value is bad, or the number is taken
      */
     public ChangeOrder update(String id, ChangeOrderValues request) {
-        ChangeOrder order = checked(id, request, get(id).createdAt());
+        ChangeOrder before = get(id);
+        ChangeOrder order = checked(id, request, before.createdAt(), before);
+        store.update(order);
+        return order;
+    }
+
+    /**
+     * Records that a change order was announced, now. This cannot be taken back.
+     * It is a fact and not a planned date. So a step that someone forgot leaves the order as not announced.
+     *
+     * @param id the ID
+     * @param byUserId the ID of the Keycloak user who records the announcement
+     * @return the changed order
+     * @throws FuhitoException when the order does not exist or was announced before
+     */
+    public ChangeOrder announce(String id, String byUserId) {
+        ChangeOrder before = get(id);
+        if (before.announcedAt() != null) {
+            throw FuhitoException.conflict("change_order.already_announced",
+                    Map.of("id", id, "announcedAt", before.announcedAt().toString()));
+        }
+        ChangeOrder order = new ChangeOrder(id, before.number(), before.kind(), before.title(), before.note(),
+                before.orderDate(), before.effectiveDate(), before.approverUserId(), before.requesterUserId(),
+                before.externalReference(), before.createdAt(), Instant.now(clock).truncatedTo(ChronoUnit.MILLIS),
+                byUserId);
         store.update(order);
         return order;
     }
@@ -109,7 +133,8 @@ public class ChangeOrderService {
         store.delete(id);
     }
 
-    private ChangeOrder checked(String id, ChangeOrderValues request, Instant createdAt) {
+    // A replace keeps the announcement. Only the operation for it sets it.
+    private ChangeOrder checked(String id, ChangeOrderValues request, Instant createdAt, ChangeOrder before) {
         Checks.required("body", request);
         String number = Checks.optionalCode("number", request.number());
         ChangeOrder order = new ChangeOrder(id, number, Checks.optionalCode("kind", request.kind()),
@@ -117,7 +142,8 @@ public class ChangeOrderService {
                 Checks.optionalDate("orderDate", request.orderDate()),
                 Checks.date("effectiveDate", request.effectiveDate()),
                 knownUser("approverUserId", request.approverUserId()),
-                knownUser("requesterUserId", request.requesterUserId()), request.externalReference(), createdAt);
+                knownUser("requesterUserId", request.requesterUserId()), request.externalReference(), createdAt,
+                before == null ? null : before.announcedAt(), before == null ? null : before.announcedByUserId());
         if (number != null && store.findByNumber(number).filter(other -> !other.id().equals(id)).isPresent()) {
             throw FuhitoException.conflict("change_order.number_taken", Map.of("number", number));
         }

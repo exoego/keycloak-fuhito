@@ -95,7 +95,7 @@ class ChangeLogServiceTest {
     @Test
     void listsTheWritesOfAChangeOrder() {
         changeOrders.insert(new ChangeOrder("order", null, null, "Order", null, null,
-                LocalDate.of(2026, 4, 1), null, null, null, Instant.EPOCH));
+                LocalDate.of(2026, 4, 1), null, null, null, Instant.EPOCH, null, null));
         write("u1", "CREATE", "order");
         write("u2", "CREATE", null);
         write("u3", "UPDATE", "order");

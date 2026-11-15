@@ -102,6 +102,11 @@ final class KeycloakRequestContext implements RequestContext {
     }
 
     @Override
+    public String callerUserId() {
+        return auth.adminAuth().getUser().getId();
+    }
+
+    @Override
     public RuntimeException failure(Response response) {
         return new ErrorResponseException(response);
     }
@@ -115,7 +120,7 @@ final class KeycloakRequestContext implements RequestContext {
                 .representation(representation)
                 .success();
         new JpaChangeLogStore(entityManager, realm.getId()).append(new ChangeLogEntry(UUID.randomUUID().toString(),
-                0, Instant.now().truncatedTo(ChronoUnit.MILLIS), auth.adminAuth().getUser().getId(), resourceType,
+                0, Instant.now().truncatedTo(ChronoUnit.MILLIS), callerUserId(), resourceType,
                 resourceId, change.name(), resourcePath, changeOrderId(), toJson(representation)));
     }
 
