@@ -108,15 +108,20 @@ public final class ImportReport {
         }
 
         /**
-         * A person that was created for a Keycloak user that a row named.
+         * A write of a person.
          *
-         * @param state the new person
+         * @param created true for a new person, false for a change
+         * @param state the person after the write
          */
-        record OfPerson(PersonView state) implements Write {
+        record OfPerson(boolean created, PersonView state) implements Write {
 
-            @Override
-            public boolean created() {
-                return true;
+            /**
+             * Makes the write of a person that was created for a Keycloak user that a row named.
+             *
+             * @param state the new person
+             */
+            public OfPerson(PersonView state) {
+                this(true, state);
             }
 
             @Override

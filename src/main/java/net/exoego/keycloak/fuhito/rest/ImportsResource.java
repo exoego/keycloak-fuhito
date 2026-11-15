@@ -34,7 +34,7 @@ import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 public class ImportsResource {
 
     private static final Map<String, String> CSV_LISTS = Map.of("ref-items", "refItems", "org-units", "orgUnits",
-            "employments", "employments", "assignments", "assignments");
+            "employments", "employments", "assignments", "assignments", "people", "people");
 
     private final RequestContext context;
     private final ImportService service;
@@ -71,7 +71,7 @@ public class ImportsResource {
     public ImportReportRepresentation applyCsv(
             @Parameter(
                     description = "The kind of rows.",
-                    schema = @Schema(enumeration = {"ref-items", "org-units", "employments", "assignments"}))
+                    schema = @Schema(enumeration = {"ref-items", "org-units", "people", "employments", "assignments"}))
             @PathParam("list") String list,
             @Parameter(description = "The date of the state.", required = true, schema = @Schema(format = "date"))
             @QueryParam("effectiveDate") String effectiveDate,

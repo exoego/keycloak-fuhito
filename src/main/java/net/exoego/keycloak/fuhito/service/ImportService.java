@@ -90,6 +90,9 @@ public class ImportService {
         }
         PeopleImport peopleImport =
                 new PeopleImport(people, orgUnits, document.effectiveDate(), defaultSource, report);
+        if (document.people() != null) {
+            peopleImport.people(document.people());
+        }
         if (document.employments() != null) {
             peopleImport.employments(document.employments());
         }
