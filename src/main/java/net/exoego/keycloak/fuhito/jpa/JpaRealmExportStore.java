@@ -81,14 +81,12 @@ public class JpaRealmExportStore implements RealmExportStore {
         return page(AttributeDefinitionEntity.class, "id", JpaAttributeDefinitionStore::toDomain);
     }
 
-    // Every realm has its own default hierarchy, so it is not part of an export.
     @Override
     public Page<Hierarchy> hierarchies() {
         return (afterId, max) -> em.createQuery("""
-                        select h from HierarchyEntity h where h.realmId = :realmId and h.code <> :code
+                        select h from HierarchyEntity h where h.realmId = :realmId
                         and h.id > :after order by h.id""", HierarchyEntity.class)
                 .setParameter("realmId", realmId)
-                .setParameter("code", Hierarchy.DEFAULT_CODE)
                 .setParameter("after", afterId == null ? "" : afterId)
                 .setMaxResults(max)
                 .getResultStream()
