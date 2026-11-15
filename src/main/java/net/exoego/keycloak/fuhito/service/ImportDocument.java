@@ -283,6 +283,9 @@ public record ImportDocument(
             String unitType,
             @Schema(description = "The external ID of the parent with the same source. A root has none.")
             String parentExternalId,
+            @Schema(description = "The ID of the parent, for a parent that has no external ID with the same source. "
+                    + "Give this or `parentExternalId`, not both.")
+            String parentId,
             @Schema(description = "The position among siblings.", defaultValue = "0")
             Integer displayOrder,
             @Schema(description = "Free values that the realm defines.")
