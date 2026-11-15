@@ -199,9 +199,10 @@ public class EmploymentService {
      * @param started the employment at the new employer
      * @param assignmentIds the IDs of the assignments that the new employment got
      * @param reportingLines the reporting lines that the new assignments got
+     * @param unitRoles the roles over org units that the new employment got
      */
     public record Transfer(EmploymentView ended, EmploymentView started, List<String> assignmentIds,
-            List<ReportingLine> reportingLines) {
+            List<ReportingLine> reportingLines, List<UnitRoleService.View> unitRoles) {
     }
 
     /**
@@ -269,11 +270,15 @@ public class EmploymentService {
             reportingLines.insert(next);
             newLines.add(next);
         }));
-        roles.forEach(role -> unitRoles.insert(new UnitRole(newId(), started.id(), started.personId(),
-                started.userId(), role.orgUnitId(), role.roleId(), role.includesDescendants(),
-                from(date, role.period()))));
+        List<UnitRoleService.View> newRoles = new ArrayList<>();
+        for (UnitRole role : roles) {
+            UnitRole next = new UnitRole(newId(), started.id(), started.personId(), started.userId(),
+                    role.orgUnitId(), role.roleId(), role.includesDescendants(), from(date, role.period()));
+            unitRoles.insert(next);
+            newRoles.add(new UnitRoleService.View(next, refItems.find(role.roleId()).map(RefItem::code).orElse(null)));
+        }
         List<String> assignmentIds = List.copyOf(newAssignmentIds.values());
-        return new Transfer(ended, get(started.id()), assignmentIds, newLines);
+        return new Transfer(ended, get(started.id()), assignmentIds, newLines, newRoles);
     }
 
     /**
