@@ -325,6 +325,7 @@ public class OrgUnitService {
                 .filter(l -> current.equals(l.period().to()))
                 .toList();
         ValidPeriod added = new ValidPeriod(current, to);
+        requireFreeCode(last.code(), id, added);
         for (OrgUnitLink link : ending) {
             requireParentCovers(link.parentId(), added);
             if (link.hierarchyId().equals(store.defaultHierarchyId())) {
