@@ -94,7 +94,13 @@ public class OrgUnitService {
         LocalDate validFrom = Checks.date("validFrom", request.validFrom());
         ValidPeriod period = ValidPeriod.startingAt(validFrom);
         RefItem unitType = request.unitType() == null ? null : activeUnitType(request.unitType());
-        OrgUnit unit = new OrgUnit(newId(), request.externalId(), request.source(), null);
+        String source = Checks.optionalCode("source", request.source());
+        String externalId = ExternalIdService.value(request.externalId());
+        if (source != null && externalId != null && store.externalIdTaken(source, externalId, null)) {
+            throw FuhitoException.conflict("org_unit.external_id_taken",
+                    Map.of("source", source, "externalId", externalId));
+        }
+        OrgUnit unit = new OrgUnit(newId(), externalId, source, null);
         requireFreeCode(Checks.optionalCode("code", request.code()), unit.id(), period);
         if (request.parentId() != null) {
             requireParentCovers(request.parentId(), period);
@@ -252,6 +258,7 @@ public class OrgUnitService {
         if (to.equals(current)) {
             return get(id, to.minusDays(1).toString());
         }
+        requireLaterThanPredecessors(id, to);
         if (current != null) {
             requireNoSuccessors(id);
         }
@@ -336,6 +343,17 @@ public class OrgUnitService {
         store.updateVersion(withPeriod(last, last.period().endingAt(to)));
         ending.forEach(l -> store.updateLink(new OrgUnitLink(l.id(), l.hierarchyId(), l.childId(), l.parentId(),
                 l.period().endingAt(to))));
+    }
+
+    // A unit that follows others must exist on the date of each succession.
+    private void requireLaterThanPredecessors(String id, LocalDate to) {
+        Optional<OrgUnitSuccession> followed = store.successions(id).stream()
+                .filter(link -> link.successorId().equals(id) && !to.isAfter(link.effectiveDate()))
+                .findFirst();
+        if (followed.isPresent()) {
+            throw FuhitoException.conflict("org_unit.follows_others",
+                    Map.of("id", id, "date", followed.get().effectiveDate().toString()));
+        }
     }
 
     // A merger or a split names the date of the end. The end stays where the successions put it.

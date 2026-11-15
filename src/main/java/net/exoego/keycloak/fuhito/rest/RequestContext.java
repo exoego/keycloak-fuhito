@@ -88,6 +88,13 @@ public interface RequestContext {
     void lockTarget();
 
     /**
+     * Returns the query of the request, as it came.
+     *
+     * @return the query, or null when the request has none
+     */
+    String requestQuery();
+
+    /**
      * Returns the storage of the responses to requests with an idempotency key.
      *
      * @return the storage of the realm

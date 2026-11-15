@@ -1,0 +1,131 @@
+package net.exoego.keycloak.fuhito.service;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.SortedSet;
+import java.util.TreeSet;
+import java.util.function.Function;
+
+import net.exoego.keycloak.fuhito.domain.AttributeDefinition;
+import net.exoego.keycloak.fuhito.domain.FuhitoException;
+import net.exoego.keycloak.fuhito.domain.OrgUnitVersion;
+
+/**
+ * Writes a list of the realm on a date as a CSV that the CSV import loads again with no change.
+ */
+public class CsvExportService {
+
+    // The mark that tells a spreadsheet that the file is UTF-8.
+    private static final String BYTE_ORDER_MARK = "﻿";
+    private static final int ROWS_AT_A_TIME = 1000;
+
+    private final OrgUnitService orgUnits;
+    private final Function<AttributeDefinition.Target, List<AttributeDefinition>> definitions;
+
+    /**
+     * Creates the service.
+     *
+     * @param orgUnits the operations on org units of the realm
+     * @param definitions the definitions of free attributes of the realm, by the resource that has them
+     */
+    public CsvExportService(OrgUnitService orgUnits,
+            Function<AttributeDefinition.Target, List<AttributeDefinition>> definitions) {
+        this.orgUnits = orgUnits;
+        this.definitions = definitions;
+    }
+
+    /**
+     * Writes a list on a date.
+     *
+     * @param list the list, as the path of the CSV import names it, for example {@code org-units}
+     * @param asOf the date as {@code YYYY-MM-DD}, or null for today
+     * @param japanese true for the Japanese names of the columns
+     * @return the CSV
+     * @throws FuhitoException when the list is not one that can be written yet, or the date is bad
+     */
+    public String write(String list, String asOf, boolean japanese) {
+        if (!"org-units".equals(list)) {
+            throw FuhitoException.invalid("csv.export_list_unknown", Map.of("list", String.valueOf(list)));
+        }
+        return orgUnits(asOf, japanese);
+    }
+
+    private String orgUnits(String asOf, boolean japanese) {
+        List<OrgUnitState> units = new ArrayList<>();
+        for (int first = 0;; first += ROWS_AT_A_TIME) {
+            List<OrgUnitState> page = orgUnits.search(new OrgUnitService.Search(null, null, null, null, asOf),
+                    Page.of(first, ROWS_AT_A_TIME));
+            units.addAll(page);
+            if (page.size() < ROWS_AT_A_TIME) {
+                break;
+            }
+        }
+        SortedSet<String> names = new TreeSet<>();
+        SortedSet<String> shortNames = new TreeSet<>();
+        for (OrgUnitState unit : units) {
+            names.addAll(unit.version().names().keySet());
+            shortNames.addAll(unit.version().shortNames().keySet());
+        }
+        List<String> attributes = definitions.apply(AttributeDefinition.Target.ORG_UNIT).stream()
+                .map(AttributeDefinition::name)
+                .toList();
+
+        List<String> header = new ArrayList<>();
+        for (String field : List.of("id", "externalId", "source", "code", "name")) {
+            header.add(column(field, japanese));
+        }
+        names.forEach(language -> header.add(column("name", japanese) + ":" + language));
+        header.add(column("shortName", japanese));
+        shortNames.forEach(language -> header.add(column("shortName", japanese) + ":" + language));
+        for (String field : List.of("phoneticName", "unitType", "parentId", "displayOrder")) {
+            header.add(column(field, japanese));
+        }
+        attributes.forEach(attribute -> header.add(CsvImportService.ATTRIBUTE_COLUMN + attribute));
+
+        StringBuilder csv = new StringBuilder(BYTE_ORDER_MARK);
+        line(csv, header);
+        for (OrgUnitState unit : units) {
+            OrgUnitVersion version = unit.version();
+            List<String> cells = new ArrayList<>(List.of(unit.unit().id(), text(unit.unit().externalId()),
+                    text(unit.unit().source()), text(version.code()), version.name()));
+            names.forEach(language -> cells.add(text(version.names().get(language))));
+            cells.add(text(version.shortName()));
+            shortNames.forEach(language -> cells.add(text(version.shortNames().get(language))));
+            cells.add(text(version.phoneticName()));
+            cells.add(text(unit.unitType()));
+            cells.add(text(unit.parentId()));
+            cells.add(Integer.toString(version.displayOrder()));
+            attributes.forEach(attribute -> cells.add(text(Optional.ofNullable(version.attributes())
+                    .map(values -> values.get(attribute)).orElse(null))));
+            line(csv, cells);
+        }
+        return csv.toString();
+    }
+
+    private static String column(String field, boolean japanese) {
+        return japanese ? CsvImportService.HEADERS.getOrDefault(field, field) : field;
+    }
+
+    private static String text(Object value) {
+        return Objects.toString(value, "");
+    }
+
+    // A cell with a comma, a quote, or a line break is in quotes, with each quote doubled.
+    private static void line(StringBuilder csv, List<String> cells) {
+        for (int i = 0; i < cells.size(); i++) {
+            if (i > 0) {
+                csv.append(',');
+            }
+            String cell = cells.get(i);
+            if (cell.contains(",") || cell.contains("\"") || cell.contains("\n") || cell.contains("\r")) {
+                csv.append('"').append(cell.replace("\"", "\"\"")).append('"');
+            } else {
+                csv.append(cell);
+            }
+        }
+        csv.append("\r\n");
+    }
+}
