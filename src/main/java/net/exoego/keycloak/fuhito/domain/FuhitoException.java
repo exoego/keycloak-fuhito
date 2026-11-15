@@ -20,7 +20,9 @@ public class FuhitoException extends RuntimeException {
         /** The request conflicts with existing data. */
         CONFLICT,
         /** The request was made for another state of the target. */
-        PRECONDITION
+        PRECONDITION,
+        /** The request repeats an earlier one with other values. */
+        UNPROCESSABLE
     }
 
     /**
@@ -102,6 +104,17 @@ public class FuhitoException extends RuntimeException {
      */
     public static FuhitoException precondition(String code, Map<String, String> params) {
         return new FuhitoException(Reason.PRECONDITION, code, params);
+    }
+
+    /**
+     * Creates an exception for a request that repeats an earlier one with other values.
+     *
+     * @param code the stable error code
+     * @param params the values that the message refers to
+     * @return the exception
+     */
+    public static FuhitoException unprocessable(String code, Map<String, String> params) {
+        return new FuhitoException(Reason.UNPROCESSABLE, code, params);
     }
 
     /**

@@ -31,6 +31,7 @@ public final class RealmData {
             RefItemEntity.class,
             AttributeDefinitionEntity.class,
             ExternalIdEntity.class,
+            IdempotencyKeyEntity.class,
             HierarchyEntity.class);
 
     private RealmData() {

@@ -108,13 +108,13 @@ public class RefItemsResource {
     @ApiErrors
     public Response create(RefItemRepresentation body) {
         context.requireWrite();
-        return Calls.run(context, () -> {
+        return Calls.once(context, body, Response.class, () -> Calls.run(context, () -> {
             Checks.required("body", body);
             var item = RefItemRepresentation.of(service.create(parseKind(body.kind()), body.code(), body.name(),
                     body.names(), body.displayOrder(), body.attributes(), body.marks()));
             context.recordChange(Change.CREATE, RESOURCE_TYPE, item.id(), path(item.id()), item);
             return Response.status(Response.Status.CREATED).entity(item).build();
-        });
+        }));
     }
 
     @PUT

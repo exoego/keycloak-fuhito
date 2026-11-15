@@ -55,4 +55,35 @@ class ConditionalWritesIT {
         assertEquals(412, api.put("/org-units/" + unitId + "/end", "{\"validTo\": \"2028-04-01\"}", "If-Match", ofUnit)
                 .statusCode());
     }
+
+    @Test
+    void aRepeatedPostWithTheSameKeyGetsTheFirstResponse() throws Exception {
+        TestRealm realm = TestRealm.withEmployer("idempotency");
+        Api api = realm.api;
+        String body = "{\"name\": \"1病棟\", \"validFrom\": \"2026-04-01\"}";
+
+        HttpResponse<String> first = api.post("/org-units", body, "Idempotency-Key", "order-1");
+        HttpResponse<String> again = api.post("/org-units", body, "Idempotency-Key", "order-1");
+
+        assertEquals(201, first.statusCode(), first.body());
+        assertEquals(201, again.statusCode(), again.body());
+        assertEquals(Api.json(first), Api.json(again));
+        assertEquals(first.headers().firstValue("Location"), again.headers().firstValue("Location"));
+        assertEquals(1, Api.json(api.get("/org-units/search?q=1%E7%97%85%E6%A3%9F&asOf=2026-05-01")).size());
+        assertEquals(422, api.post("/org-units", "{\"name\": \"2病棟\", \"validFrom\": \"2026-04-01\"}",
+                "Idempotency-Key", "order-1").statusCode());
+        assertEquals("idempotency.bad_key", Api.json(api.post("/org-units", body, "Idempotency-Key", " "))
+                .get("error").asText());
+
+        // An operation that answers with a resource returns the same one again.
+        HttpResponse<String> employment = api.post("/employments", "{\"userId\": \"" + realm.user("nurse")
+                + "\", \"validFrom\": \"2026-04-01\"}");
+        String id = Api.json(employment).get("id").asText();
+        String leave = "{\"validFrom\": \"2026-10-01\"}";
+        HttpResponse<String> firstLeave = api.post("/employments/" + id + "/leave", leave, "Idempotency-Key", "l-1");
+        HttpResponse<String> secondLeave = api.post("/employments/" + id + "/leave", leave, "Idempotency-Key", "l-1");
+        assertEquals(200, secondLeave.statusCode(), secondLeave.body());
+        assertEquals(Api.json(firstLeave), Api.json(secondLeave));
+        assertEquals(2, Api.json(api.get("/employments/" + id)).get("terms").size());
+    }
 }

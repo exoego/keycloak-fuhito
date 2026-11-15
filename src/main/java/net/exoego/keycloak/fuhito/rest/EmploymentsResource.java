@@ -146,14 +146,14 @@ public class EmploymentsResource {
     @ApiErrors
     public Response start(EmploymentRepresentation body) {
         context.requireWrite();
-        return Calls.run(context, () -> {
+        return Calls.once(context, body, Response.class, () -> Calls.run(context, () -> {
             Checks.required("body", body);
             var employment = EmploymentRepresentation.of(service.start(
                     body.toNewEmployment(Writes.personId(context, people, "personId", body.personId(), body.userId()))));
             context.recordChange(Change.CREATE, RESOURCE_TYPE, employment.id(), "fuhito/employments/" + employment.id(),
                     employment);
             return Response.status(Response.Status.CREATED).entity(employment).build();
-        });
+        }));
     }
 
     @PUT
@@ -230,7 +230,8 @@ public class EmploymentsResource {
             @PathParam("id") String id,
             PromotionRepresentation body) {
         context.requireWrite();
-        return Calls.guarded(context, () -> state(id), () -> {
+        return Calls.once(context, body, PromotionRepresentation.class,
+                () -> Calls.guarded(context, () -> state(id), () -> {
             Checks.required("body", body);
             PromotionService.Promotion promotion = promotions.promote(id, body.toRequest());
             var employment = EmploymentRepresentation.of(promotion.employment());
@@ -243,7 +244,7 @@ public class EmploymentsResource {
                         "fuhito/assignments/" + assignment.id() + "/details", assignment);
             }
             return PromotionRepresentation.of(employment, assignment);
-        });
+        }));
     }
 
     @POST
@@ -264,13 +265,14 @@ public class EmploymentsResource {
             @PathParam("id") String id,
             LeaveRepresentation body) {
         context.requireWrite();
-        return Calls.guarded(context, () -> state(id), () -> {
+        return Calls.once(context, body, EmploymentRepresentation.class,
+                () -> Calls.guarded(context, () -> state(id), () -> {
             Checks.required("body", body);
             var employment = EmploymentRepresentation.of(leaves.start(id, body.validFrom(), body.validTo(),
                     body.reason()));
             context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, "fuhito/employments/" + id + "/leave", employment);
             return employment;
-        });
+        }));
     }
 
     @POST
@@ -290,12 +292,13 @@ public class EmploymentsResource {
             @PathParam("id") String id,
             ReturnRepresentation body) {
         context.requireWrite();
-        return Calls.guarded(context, () -> state(id), () -> {
+        return Calls.once(context, body, EmploymentRepresentation.class,
+                () -> Calls.guarded(context, () -> state(id), () -> {
             Checks.required("body", body);
             var employment = EmploymentRepresentation.of(leaves.end(id, body.validFrom()));
             context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, "fuhito/employments/" + id + "/return", employment);
             return employment;
-        });
+        }));
     }
 
     @POST
@@ -321,12 +324,12 @@ public class EmploymentsResource {
             @PathParam("id") String id,
             TransferRepresentation body) {
         context.requireWrite();
-        return Calls.guarded(context, () -> state(id), () -> {
+        return Calls.once(context, body, Response.class, () -> Calls.guarded(context, () -> state(id), () -> {
             Checks.required("body", body);
             return Response.status(Response.Status.CREATED)
                     .entity(record(service.transfer(id, body.toRequest())))
                     .build();
-        });
+        }));
     }
 
     @POST
@@ -348,7 +351,7 @@ public class EmploymentsResource {
     @ApiErrors
     public Response transferAll(TransfersRepresentation body) {
         context.requireWrite();
-        return Calls.run(context, () -> {
+        return Calls.once(context, body, Response.class, () -> Calls.run(context, () -> {
             Checks.required("body", body);
             List<TransfersRepresentation.Moved> moved = service.transferAll(body.toRequest()).stream()
                     .map(this::record)
@@ -365,7 +368,7 @@ public class EmploymentsResource {
             return Response.status(Response.Status.CREATED)
                     .entity(TransfersRepresentation.of(moved, endedEmployer))
                     .build();
-        });
+        }));
     }
 
     // Every part of a transfer gets its own entry in the admin events and in the change log.

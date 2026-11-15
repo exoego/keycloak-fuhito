@@ -945,4 +945,37 @@
         <addUniqueConstraint tableName="FUHITO_EXTERNAL_ID" columnNames="REALM_ID, RESOURCE_KIND, RESOURCE_ID, SOURCE"
                              constraintName="UK_FUHITO_EXTERNAL_ID_SOURCE"/>
     </changeSet>
+    <changeSet id="0.1.0-idempotency-key" author="keycloak-fuhito">
+        <createTable tableName="FUHITO_IDEMPOTENCY_KEY">
+            <column name="ID" type="VARCHAR(36)">
+                <constraints primaryKey="true" primaryKeyName="PK_FUHITO_IDEMPOTENCY_KEY" nullable="false"/>
+            </column>
+            <column name="REALM_ID" type="VARCHAR(36)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="KEY_VALUE" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="REQUEST_PATH" type="VARCHAR(512)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="REQUEST_HASH" type="VARCHAR(64)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="STATUS" type="INT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="BODY" type="CLOB"/>
+            <column name="LOCATION" type="VARCHAR(1024)"/>
+            <column name="CREATED_AT" type="TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        <addUniqueConstraint tableName="FUHITO_IDEMPOTENCY_KEY" columnNames="REALM_ID, KEY_VALUE, REQUEST_PATH"
+                             constraintName="UK_FUHITO_IDEMPOTENCY_KEY"/>
+        <createIndex tableName="FUHITO_IDEMPOTENCY_KEY" indexName="IDX_FUHITO_IDEMPOTENCY_KEY_CREATED">
+            <column name="REALM_ID"/>
+            <column name="CREATED_AT"/>
+        </createIndex>
+    </changeSet>
 </databaseChangeLog>
