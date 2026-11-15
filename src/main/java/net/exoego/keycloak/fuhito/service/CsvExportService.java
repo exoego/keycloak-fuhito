@@ -3,6 +3,7 @@ package net.exoego.keycloak.fuhito.service;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -19,6 +20,7 @@ import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.Employment;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.Hierarchy;
+import net.exoego.keycloak.fuhito.domain.OrgUnitLink;
 import net.exoego.keycloak.fuhito.domain.OrgUnitVersion;
 import net.exoego.keycloak.fuhito.domain.Person;
 import net.exoego.keycloak.fuhito.domain.RefItem;
@@ -33,7 +35,7 @@ public class CsvExportService {
     private static final String BYTE_ORDER_MARK = "﻿";
     private static final int ROWS_AT_A_TIME = 1000;
     private static final List<String> LISTS = List.of("ref-kinds", "attribute-definitions", "ref-items",
-            "hierarchies", "org-units", "people", "employments", "assignments");
+            "hierarchies", "org-units", "org-unit-parents", "people", "employments", "assignments");
 
     private final RefItemService refItems;
     private final Supplier<List<RealmKindService.View>> kinds;
@@ -87,6 +89,7 @@ public class CsvExportService {
             case "ref-kinds" -> refKinds(japanese);
             case "attribute-definitions" -> attributeDefinitions(japanese);
             case "hierarchies" -> hierarchies(japanese);
+            case "org-unit-parents" -> orgUnitParents(asOf, japanese);
             case "ref-items" -> refItems(japanese);
             case "org-units" -> orgUnits(asOf, japanese);
             case "people" -> people(japanese);
@@ -124,6 +127,30 @@ public class CsvExportService {
                 return csv.toString();
             }
         }
+    }
+
+    // The parents of the default hierarchy are in the list of org units.
+    private String orgUnitParents(String asOf, boolean japanese) {
+        LocalDate date = asOf == null ? today.ofRealm() : Checks.date("asOf", asOf);
+        List<Hierarchy> all = new ArrayList<>();
+        for (int first = 0;; first += ROWS_AT_A_TIME) {
+            List<Hierarchy> page = hierarchies.list(Page.of(first, ROWS_AT_A_TIME));
+            all.addAll(page);
+            if (page.size() < ROWS_AT_A_TIME) {
+                break;
+            }
+        }
+        StringBuilder csv = new StringBuilder(BYTE_ORDER_MARK);
+        line(csv, List.of(column("hierarchy", japanese), column("orgUnitId", japanese), column("parentId", japanese)));
+        for (Hierarchy hierarchy : all) {
+            if (hierarchy.isDefault()) {
+                continue;
+            }
+            orgUnits.parentLinks(hierarchy.code(), date).stream()
+                    .sorted(Comparator.comparing(OrgUnitLink::childId))
+                    .forEach(link -> line(csv, List.of(hierarchy.code(), link.childId(), link.parentId())));
+        }
+        return csv.toString();
     }
 
     private String attributeDefinitions(boolean japanese) {

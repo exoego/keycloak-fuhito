@@ -35,7 +35,9 @@ public record ImportDocument(
                 + "reference items, whose attributes they check.")
         List<AttributeDefinitionRow> attributeDefinitions,
         @Schema(description = "The hierarchies. They come before the org units.")
-        List<HierarchyRow> hierarchies) {
+        List<HierarchyRow> hierarchies,
+        @Schema(description = "The parents of org units in hierarchies. They come after the org units.")
+        List<OrgUnitParentRow> orgUnitParents) {
 
     /**
      * Makes a document with no list of kinds.
@@ -52,7 +54,8 @@ public record ImportDocument(
     public ImportDocument(String effectiveDate, boolean dryRun, String source, List<RefItemRow> refItems,
             List<OrgUnitRow> orgUnits, List<EmploymentRow> employments, List<AssignmentRow> assignments,
             List<PersonRow> people) {
-        this(effectiveDate, dryRun, source, refItems, orgUnits, employments, assignments, people, null, null, null);
+        this(effectiveDate, dryRun, source, refItems, orgUnits, employments, assignments, people, null, null, null,
+                null);
     }
 
     /**
@@ -68,7 +71,32 @@ public record ImportDocument(
      */
     public ImportDocument(String effectiveDate, boolean dryRun, String source, List<RefItemRow> refItems,
             List<OrgUnitRow> orgUnits, List<EmploymentRow> employments, List<AssignmentRow> assignments) {
-        this(effectiveDate, dryRun, source, refItems, orgUnits, employments, assignments, null, null, null, null);
+        this(effectiveDate, dryRun, source, refItems, orgUnits, employments, assignments, null, null, null, null,
+                null);
+    }
+
+    @Schema(
+            name = "ImportOrgUnitParentRow",
+            description = "The parent of an org unit in a hierarchy from the effective date. It is matched by "
+                    + "hierarchy and org unit. A row with no parent takes the unit out of the hierarchy.",
+            requiredProperties = {"hierarchy"})
+    public record OrgUnitParentRow(
+            @Schema(description = "The code of the hierarchy.")
+            String hierarchy,
+            @Schema(
+                    description = "The name of the system that the external IDs come from. The default is the "
+                            + "source of the document.",
+                    maxLength = 64,
+                    pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$")
+            String source,
+            @Schema(description = "The external ID of the org unit. Give this or `orgUnitId`.")
+            String orgUnitExternalId,
+            @Schema(description = "The ID of the org unit.")
+            String orgUnitId,
+            @Schema(description = "The external ID of the parent. Give this or `parentId`, or none for no parent.")
+            String parentExternalId,
+            @Schema(description = "The ID of the parent.")
+            String parentId) {
     }
 
     @Schema(

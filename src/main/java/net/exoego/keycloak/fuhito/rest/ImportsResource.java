@@ -37,7 +37,7 @@ public class ImportsResource {
 
     private static final Map<String, String> CSV_LISTS = Map.ofEntries(Map.entry("ref-kinds", "refKinds"),
             Map.entry("attribute-definitions", "attributeDefinitions"), Map.entry("ref-items", "refItems"),
-            Map.entry("hierarchies", "hierarchies"),
+            Map.entry("hierarchies", "hierarchies"), Map.entry("org-unit-parents", "orgUnitParents"),
             Map.entry("org-units", "orgUnits"), Map.entry("employments", "employments"),
             Map.entry("assignments", "assignments"), Map.entry("people", "people"));
 
@@ -79,7 +79,7 @@ public class ImportsResource {
             @Parameter(
                     description = "The kind of rows.",
                     schema = @Schema(enumeration = {"ref-kinds", "attribute-definitions", "ref-items", "hierarchies",
-                        "org-units", "people", "employments", "assignments"}))
+                        "org-units", "org-unit-parents", "people", "employments", "assignments"}))
             @PathParam("list") String list,
             @Parameter(
                     description = "The date of the state. The default is today in the time zone of the realm.",
@@ -115,7 +115,7 @@ public class ImportsResource {
             @Parameter(
                     description = "The kind of rows.",
                     schema = @Schema(enumeration = {"ref-kinds", "attribute-definitions", "ref-items", "hierarchies",
-                        "org-units", "people", "employments", "assignments"}))
+                        "org-units", "org-unit-parents", "people", "employments", "assignments"}))
             @PathParam("list") String list,
             @Parameter(description = "The date of the state.", required = true, schema = @Schema(format = "date"))
             @QueryParam("effectiveDate") String effectiveDate,
@@ -148,7 +148,7 @@ public class ImportsResource {
             summary = "Loads many rows in one transaction.",
             description = "All rows are written, or none. A dry run does all checks and writes nothing. The lists "
                     + "are applied in the order kinds of reference data, definitions of attributes, reference "
-                    + "items, hierarchies, org units, people, employments, assignments.")
+                    + "items, hierarchies, org units, parents in hierarchies, people, employments, assignments.")
     @Parameter(ref = "changeOrder")
     @APIResponse(
             responseCode = "200",

@@ -655,6 +655,18 @@ public class OrgUnitService {
         return new OrgUnitHistory(unit, versions, store.parentLinks(id), store.hierarchyCodes());
     }
 
+    /**
+     * Lists the parent links of a hierarchy on a date.
+     *
+     * @param hierarchy the code of the hierarchy
+     * @param date the date
+     * @return the links, each with the unit and its parent
+     * @throws FuhitoException when the hierarchy does not exist
+     */
+    public List<OrgUnitLink> parentLinks(String hierarchy, LocalDate date) {
+        return store.linksOn(hierarchyId(hierarchy), date);
+    }
+
     private String hierarchyId(String code) {
         return HierarchyCodes.idOf(store, code);
     }

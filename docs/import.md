@@ -24,6 +24,7 @@ Every bad row is reported, not only the first one.
 | Hierarchies | Code |
 | Reference items | Kind and code |
 | Org units | Source and external ID, or ID |
+| Parents in hierarchies | Hierarchy and org unit |
 | People | Source and external ID, or ID |
 | Employments | Source and external ID, or ID |
 | Assignments | Source and external ID, or ID |
@@ -45,7 +46,7 @@ The list `people` loads people, also those with no Keycloak user, such as staff 
 ## JSON
 
 `POST /imports` takes one document with several lists.
-The lists are applied in the order kinds of reference data, attribute definitions, reference items, hierarchies, org units, people, employments, assignments.
+The lists are applied in the order kinds of reference data, attribute definitions, reference items, hierarchies, org units, parents in hierarchies, people, employments, assignments.
 
 ```json
 {
@@ -74,6 +75,7 @@ The lists are applied in the order kinds of reference data, attribute definition
 - The list `hierarchies` adds hierarchies. A row has `code` and `name`. A row of a stored hierarchy changes its name. The code `default` names the default hierarchy.
 - Rows of org units can come in any order. A parent is applied before its children.
 - A parent with no external ID of the same source can be named by `parentId`, the ID of the unit. A row gives `parentExternalId` or `parentId`, not both.
+- The list `orgUnitParents` gives the parent of an org unit in a hierarchy from the effective date. A row has `hierarchy`, the unit by `orgUnitExternalId` or `orgUnitId`, and the parent by `parentExternalId` or `parentId`. A row with no parent takes the unit out of the hierarchy. The parent in the default hierarchy is in the row of the org unit, but a row of this list can name the default hierarchy too.
 - A row of a stored org unit can name it by `id`, also when the unit has no external ID. An external ID beside it must be the one of that unit.
 - A row of a stored employment or assignment can name it by `id` the same way.
 - A row of an employment can name its person by `personId` and its employer by `employerId`. A row gives the external ID or the ID, not both.
@@ -92,13 +94,15 @@ The lists are applied in the order kinds of reference data, attribute definition
 
 ## CSV
 
-`POST /imports/csv/{list}` takes one file. The list is `ref-kinds`, `attribute-definitions`, `ref-items`, `hierarchies`, `org-units`, `people`, `employments`, or `assignments`.
+`POST /imports/csv/{list}` takes one file. The list is `ref-kinds`, `attribute-definitions`, `ref-items`, `hierarchies`, `org-units`, `org-unit-parents`, `people`, `employments`, or `assignments`.
 
 `GET /imports/csv/org-units?asOf=` gives the org units of a date as such a file, for a change in a spreadsheet. Each row has the column `id`, so a unit with no external ID loads again too. The parent is in the column `parentId`. With `header=ja`, the names of the columns are in Japanese. The file is UTF-8 with a byte order mark, which spreadsheets need to read it as UTF-8. The same file loaded on the same date changes nothing.
 
 `GET /imports/csv/ref-kinds` gives the kinds that the realm added the same way. It takes no `asOf`. `GET /imports/csv/attribute-definitions` gives the definitions of attributes the same way. `GET /imports/csv/hierarchies` gives the hierarchies the same way, the default one too.
 
 `GET /imports/csv/ref-items` gives the reference items of every kind the same way, the inactive ones too. It takes no `asOf`. An item is matched by kind and code, so the file has no `id`. A mark such as `legalEntity` is blank for a kind that cannot have it.
+
+`GET /imports/csv/org-unit-parents?asOf=` gives the parents of the date in every hierarchy but the default one. It names the units by `orgUnitId` and `parentId`. In a file, blank cells of the parent keep the stored parent, and `#CLEAR` takes the unit out of the hierarchy.
 
 `GET /imports/csv/people` gives the people the same way. A person has no date, so it takes no `asOf`. The file leaves out the link to a Keycloak user: a blank cell keeps the stored link, and the ID of a user who was removed from Keycloak would not load again.
 
@@ -182,6 +186,17 @@ Org units.
 | `displayOrder` | `表示順` |
 | `validFrom` | `開始日` |
 | `validTo` | `終了日` |
+
+Parents in hierarchies.
+
+| English | Japanese |
+|---|---|
+| `hierarchy` | `階層` |
+| `source` | `ソース` |
+| `orgUnitExternalId` | `組織の外部ID` |
+| `orgUnitId` | `組織のID` |
+| `parentExternalId` | `親の外部ID` |
+| `parentId` | `親のID` |
 
 People.
 
