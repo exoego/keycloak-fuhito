@@ -24,11 +24,12 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
  * @param qualifications the qualifications
  * @param externalIds the IDs that other systems have for the resources
  * @param changeOrders the change orders
+ * @param erasures the people whose data was erased
  */
 @Schema(
         name = "RealmExport",
         description = "Every stored row of a realm, with every period. `POST /restore` loads it into a realm that "
-                + "has no data of the extension.")
+                + "has no data of the extension, or in place of the data of a realm.")
 public record RealmExport(
         @Schema(description = "The name and the version of the format.", examples = {"fuhito.export.v1"})
         String format,
@@ -44,7 +45,8 @@ public record RealmExport(
         List<Role> unitRoles,
         List<QualificationRow> qualifications,
         List<ExternalIdRow> externalIds,
-        List<Order> changeOrders) {
+        List<Order> changeOrders,
+        List<Erasure> erasures) {
 
     /** The name and the version of the format that this extension writes and reads. */
     public static final String FORMAT = "fuhito.export.v1";
@@ -52,7 +54,7 @@ public record RealmExport(
     /** The names of the lists, as the paths of the export name them. */
     public static final List<String> LISTS = List.of("ref-kinds", "ref-items", "attribute-definitions",
             "hierarchies", "org-units", "people", "employments", "assignments", "reporting-lines", "unit-roles",
-            "qualifications", "external-ids", "change-orders");
+            "qualifications", "external-ids", "change-orders", "erasures");
 
     @Schema(name = "ExportRefKind")
     public record Kind(String id, String code, String name, Map<String, String> names) {
@@ -93,6 +95,11 @@ public record RealmExport(
 
     @Schema(name = "ExportOrgUnitSuccession")
     public record Succession(String id, String successorId, String effectiveDate) {
+    }
+
+    @Schema(name = "ExportErasure", description = "A person whose data was erased. A restore erases the person "
+            + "again, also when an older export has the data.")
+    public record Erasure(String personId, String erasedAt) {
     }
 
     @Schema(name = "ExportPerson", description = "A person. It names its Keycloak user by username.")

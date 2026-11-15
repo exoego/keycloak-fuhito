@@ -1,7 +1,9 @@
 package net.exoego.keycloak.fuhito.jpa;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.criteria.CriteriaBuilder;
@@ -14,6 +16,7 @@ public final class RealmData {
 
     // Children come before the rows they refer to.
     static final List<Class<?>> ENTITIES = List.of(
+            ErasureEntity.class,
             UserMaskEntity.class,
             ReportingLineEntity.class,
             UnitRoleEntity.class,
@@ -37,7 +40,24 @@ public final class RealmData {
             JobRunEntity.class,
             HierarchyEntity.class);
 
+    // The record of what happened, and the state of requests and of jobs, stay over a restore. So do the records
+    // of erases and masks, which the restore does again.
+    private static final Set<Class<?>> KEPT_BY_RESTORE = Set.of(ChangeLogEntity.class, ChangeLogCounterEntity.class,
+            IdempotencyKeyEntity.class, JobRunEntity.class, ErasureEntity.class, UserMaskEntity.class);
+
     private RealmData() {
+    }
+
+    /**
+     * Deletes every row of a realm that a restore replaces.
+     *
+     * @param em the entity manager
+     * @param realmId the ID of the realm
+     */
+    public static void deleteForRestore(EntityManager em, String realmId) {
+        ENTITIES.stream()
+                .filter(entity -> !KEPT_BY_RESTORE.contains(entity))
+                .forEach(entity -> deleteOfRealm(em, entity, realmId));
     }
 
     /**
@@ -59,8 +79,47 @@ public final class RealmData {
     }
 
     /**
-     * Erases every row about one person, for a request to delete personal data. Removal of a user from Keycloak
-     * does not call this. These are the employments of the person with their terms, assignments, and roles over
+     * Erases every row about one person, for a request to delete personal data, and keeps the ID of the person
+     * and the time. Removal of a user from Keycloak does not call this.
+     *
+     * @param em the entity manager
+     * @param realmId the ID of the realm
+     * @param personId the ID of the person
+     * @param erasedAt the time of the erase
+     */
+    public static void erase(EntityManager em, String realmId, String personId, Instant erasedAt) {
+        deletePerson(em, realmId, personId);
+        recordErasure(em, realmId, personId, erasedAt);
+    }
+
+    /**
+     * Keeps the ID of an erased person and the time, unless the realm has them already.
+     *
+     * @param em the entity manager
+     * @param realmId the ID of the realm
+     * @param personId the ID of the person
+     * @param erasedAt the time of the erase
+     */
+    static void recordErasure(EntityManager em, String realmId, String personId, Instant erasedAt) {
+        boolean recorded = !em.createQuery("""
+                        select e.id from ErasureEntity e where e.realmId = :realmId and e.personId = :personId""",
+                        String.class)
+                .setParameter("realmId", realmId)
+                .setParameter("personId", personId)
+                .getResultList()
+                .isEmpty();
+        if (!recorded) {
+            ErasureEntity record = new ErasureEntity();
+            record.id = UUID.randomUUID().toString();
+            record.realmId = realmId;
+            record.personId = personId;
+            record.erasedAt = erasedAt;
+            em.persist(record);
+        }
+    }
+
+    /**
+     * Deletes every row about one person. These are the employments of the person with their terms, assignments, and roles over
      * org units, the qualifications, the reporting lines, and the person record itself.
      *
      * @param em the entity manager

@@ -1056,4 +1056,22 @@
             WHERE NOT EXISTS (SELECT 1 FROM FUHITO_HIERARCHY h WHERE h.REALM_ID = r.ID AND h.CODE = 'default')
         </sql>
     </changeSet>
+    <changeSet id="0.1.0-erasure" author="keycloak-fuhito">
+        <createTable tableName="FUHITO_ERASURE">
+            <column name="ID" type="VARCHAR(36)">
+                <constraints primaryKey="true" primaryKeyName="PK_FUHITO_ERASURE" nullable="false"/>
+            </column>
+            <column name="REALM_ID" type="VARCHAR(36)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="PERSON_ID" type="VARCHAR(36)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="ERASED_AT" type="TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        <addUniqueConstraint tableName="FUHITO_ERASURE" columnNames="REALM_ID, PERSON_ID"
+                             constraintName="UK_FUHITO_ERASURE_PERSON"/>
+    </changeSet>
 </databaseChangeLog>
