@@ -5,11 +5,13 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
 import jakarta.persistence.EntityManager;
+import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.jpa.GroupMemberships;
 import net.exoego.keycloak.fuhito.jpa.OneFlush;
 import net.exoego.keycloak.fuhito.store.OrganizationDirectory;
@@ -20,6 +22,7 @@ import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.OrganizationModel;
 import org.keycloak.models.RealmModel;
 import org.keycloak.models.UserModel;
+import org.keycloak.models.utils.KeycloakModelUtils;
 import org.keycloak.organization.OrganizationProvider;
 
 /**
@@ -31,6 +34,11 @@ final class KeycloakOrganizations implements OrganizationDirectory, Organization
      * The realm attribute that turns the projection on when it is "true".
      */
     static final String PROJECTION_ATTRIBUTE = "fuhito.projection.enabled";
+
+    /**
+     * The realm attribute with the path of the realm group that the whole tree is mirrored below.
+     */
+    static final String REALM_GROUP_ATTRIBUTE = "fuhito.projection.realmGroup";
 
     /**
      * The group attribute that holds the ID of the org unit that a group mirrors.
@@ -83,6 +91,39 @@ final class KeycloakOrganizations implements OrganizationDirectory, Organization
             group.setSingleAttribute(ORG_UNIT_ATTRIBUTE, orgUnitId);
             return group.getId();
         });
+    }
+
+    @Override
+    public Optional<String> realmGroupRoot() {
+        String path = realm.getAttribute(REALM_GROUP_ATTRIBUTE);
+        if (path == null || path.isBlank()) {
+            return Optional.empty();
+        }
+        GroupModel root = KeycloakModelUtils.findGroupByPath(session, realm, path);
+        if (root == null) {
+            throw FuhitoException.conflict("projection.realm_group_unknown", Map.of("path", path));
+        }
+        return Optional.of(root.getId());
+    }
+
+    @Override
+    public List<Group> realmGroups(String rootGroupId) {
+        List<Group> result = new ArrayList<>();
+        group(rootGroupId).getSubGroupsStream().toList().forEach(group -> collect(group, null, result));
+        return result;
+    }
+
+    @Override
+    public String createRealmGroup(String rootGroupId, String name, String parentId, String orgUnitId) {
+        GroupModel group = session.groups().createGroup(realm, name,
+                group(parentId == null ? rootGroupId : parentId));
+        group.setSingleAttribute(ORG_UNIT_ATTRIBUTE, orgUnitId);
+        return group.getId();
+    }
+
+    @Override
+    public void moveRealmGroup(String rootGroupId, String groupId, String parentId) {
+        session.groups().moveGroup(realm, group(groupId), group(parentId == null ? rootGroupId : parentId));
     }
 
     @Override

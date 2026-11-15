@@ -1417,6 +1417,7 @@ components:
       - membersJoined
       - membersLeft
       - organizationMembersAdded
+      - realmGroupTrees
       description: What a rebuild of the projection changed in Keycloak.
       type: object
       properties:
@@ -1452,6 +1453,11 @@ components:
           type: integer
           format: int32
           description: The number of users who became members of an organization.
+        realmGroupTrees:
+          type: integer
+          format: int32
+          description: "1 when the tree was mirrored into realm groups, 0 when the\
+            \ realm does not do it."
     Promotion:
       required:
       - validFrom

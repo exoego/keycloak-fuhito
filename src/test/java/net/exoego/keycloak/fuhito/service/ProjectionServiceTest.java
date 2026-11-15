@@ -10,6 +10,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 
 import net.exoego.keycloak.fuhito.domain.BusinessDay;
@@ -136,6 +137,29 @@ class ProjectionServiceTest {
             return members.get(groupId).remove(userId);
         }
 
+        // The realm group that the tree goes below, or null for none.
+        private String realmGroup;
+
+        @Override
+        public Optional<String> realmGroupRoot() {
+            return Optional.ofNullable(realmGroup);
+        }
+
+        @Override
+        public List<Group> realmGroups(String rootGroupId) {
+            return groups("realm:" + rootGroupId);
+        }
+
+        @Override
+        public String createRealmGroup(String rootGroupId, String name, String parentId, String orgUnitId) {
+            return createGroup("realm:" + rootGroupId, name, parentId, orgUnitId);
+        }
+
+        @Override
+        public void moveRealmGroup(String rootGroupId, String groupId, String parentId) {
+            moveGroup("realm:" + rootGroupId, groupId, parentId);
+        }
+
         @Override
         public boolean addOrganizationMember(String organizationId, String userId) {
             return organizationMembers.computeIfAbsent(organizationId, id -> new HashSet<>()).add(userId);
@@ -202,17 +226,53 @@ class ProjectionServiceTest {
     void mirrorsTheUnitsBelowALinkedUnitAndTheAssignmentsOfToday() {
         ProjectionReport report = rebuild();
 
-        assertEquals(new ProjectionReport(1, 2, 0, 0, 0, 2, 0, 3), report);
+        assertEquals(new ProjectionReport(1, 2, 0, 0, 0, 2, 0, 3, 0), report);
         assertEquals(List.of("Nursing [head-nurse]", "Ward < Nursing [nurse]"), keycloak.describe("org-x"));
         assertEquals(Set.of("director", "head-nurse", "nurse"), keycloak.organizationMembers.get("org-x"));
         assertEquals(nursing, keycloak.groups("org-x").getFirst().orgUnitId());
     }
 
     @Test
+    void mirrorsEveryRootIntoTheRealmGroupToo() {
+        keycloak.realmGroup = "org";
+        String clinic = unit("Clinic", null);
+        assign("doctor", clinic, "2026-04-01");
+
+        ProjectionReport report = rebuild();
+
+        assertEquals(1, report.realmGroupTrees());
+        // The roots follow the order of siblings.
+        assertEquals(List.of("Clinic [doctor]", "Hospital [director]", "Nursing < Hospital [head-nurse]",
+                "Ward < Nursing [nurse]"), keycloak.describe("realm:org"));
+        // The organization still gets its own groups, and the realm group adds no members to it.
+        assertEquals(List.of("Nursing [head-nurse]", "Ward < Nursing [nurse]"), keycloak.describe("org-x"));
+        assertEquals(Set.of("director", "head-nurse", "nurse"), keycloak.organizationMembers.get("org-x"));
+
+        // A unit that moves keeps its group. One that ends loses it.
+        orgUnits.move(ward, clinic, "2026-06-01");
+        String office = unit("Office", hospital);
+        rebuild();
+        orgUnits.end(office, "2026-06-10");
+        rebuild();
+        assertEquals(List.of("Clinic [doctor]", "Ward < Clinic [nurse]", "Hospital [director]",
+                "Nursing < Hospital [head-nurse]"), keycloak.describe("realm:org"));
+        assertEquals(new ProjectionReport(1, 0, 0, 0, 0, 0, 0, 0, 1), rebuild());
+    }
+
+    @Test
+    void twoRootsWithOneNameCannotBeRealmGroups() {
+        keycloak.realmGroup = "org";
+        unit("Hospital", null);
+
+        assertEquals("projection.duplicate_name",
+                assertThrows(FuhitoException.class, this::rebuild).code());
+    }
+
+    @Test
     void aSecondRebuildWithNoChangeDoesNothing() {
         rebuild();
 
-        assertEquals(new ProjectionReport(1, 0, 0, 0, 0, 0, 0, 0), rebuild());
+        assertEquals(new ProjectionReport(1, 0, 0, 0, 0, 0, 0, 0, 0), rebuild());
     }
 
     @Test
@@ -227,7 +287,7 @@ class ProjectionServiceTest {
 
         ProjectionReport report = rebuild();
 
-        assertEquals(new ProjectionReport(1, 1, 1, 1, 0, 1, 1, 1), report);
+        assertEquals(new ProjectionReport(1, 1, 1, 1, 0, 1, 1, 1, 0), report);
         assertEquals(List.of("Nursing Division [head-nurse]", "Ward [pharmacist]", "Pharmacy []"),
                 keycloak.describe("org-x"));
         // The nurse left the ward. The projection never takes a user out of the organization.
