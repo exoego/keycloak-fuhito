@@ -126,6 +126,23 @@ When one step fails, nothing is written.
 
 Checked by `ReorganizationIT.appliesAReorganizationUnderAChangeOrder` and `ReorganizationIT.aFailedStepWritesNothing`.
 
+### A merger and a split
+
+The step `succeed` ends an org unit on the date and records the units that follow it.
+It names those units in `successorIds`, or in `successorRefs` for units that an earlier step of the same request creates.
+
+- One unit that follows is a succession. A split names several.
+- A merger is a step for each old unit, and each names the same new unit.
+- The kind is not stored. The links already say it.
+- Each unit that follows must exist on the date.
+- The old unit ends the same way as with the step `end`. The units below it and the people in it must move first.
+- `GET /org-units/{id}/succession` lists the units before a unit and the units after it. A report across a reorganization follows a unit with it.
+- The change log has two entries for the old unit. One has the path `.../end`, and one has the path `.../succession` with the links.
+
+An end cannot be taken back, so a link never points to a unit that exists again.
+
+Checked by `ReorganizationIT.aMergerLinksTheOldUnitsToTheNewOne`.
+
 ## A move to another org unit
 
 An assignment never changes its org unit. A move is the end of one assignment and the start of another.

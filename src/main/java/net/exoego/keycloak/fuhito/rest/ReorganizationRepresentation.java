@@ -19,9 +19,12 @@ public record ReorganizationRepresentation(
 
     @Schema(name = "ReorganizationResult", description = "What one step did.", requiredProperties = {"op", "unit"})
     public record Result(
-            @Schema(enumeration = {"create", "change", "move", "end"})
+            @Schema(enumeration = {"create", "change", "move", "end", "succeed"})
             String op,
-            @Schema(description = "The unit after the step. For an end, it is the unit on its last date.")
-            OrgUnitRepresentation unit) {
+            @Schema(description = "The unit after the step. For an end and a succeed step, it is the unit on its "
+                    + "last date.")
+            OrgUnitRepresentation unit,
+            @Schema(description = "For a succeed step, the IDs of the units that follow the unit that ended.")
+            List<String> successorIds) {
     }
 }

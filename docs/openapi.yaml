@@ -1161,6 +1161,37 @@ components:
             $ref: "#/components/schemas/ParentPeriod"
           description: "The parents in every hierarchy, oldest first. A gap in a hierarchy\
             \ means that the unit had no parent there."
+    OrgUnitSuccessionLink:
+      type: object
+      required:
+      - orgUnitId
+      - effectiveDate
+      properties:
+        orgUnitId:
+          type: string
+          description: The ID of the other org unit.
+        effectiveDate:
+          type: string
+          description: The first date on which the old unit no longer exists.
+          format: date
+    OrgUnitSuccessions:
+      required:
+      - predecessors
+      - successors
+      description: "The org units that an org unit follows, and the ones that follow\
+        \ it."
+      type: object
+      properties:
+        predecessors:
+          type: array
+          items:
+            $ref: "#/components/schemas/OrgUnitSuccessionLink"
+          description: The units that this unit follows. Several of them mean a merger.
+        successors:
+          type: array
+          items:
+            $ref: "#/components/schemas/OrgUnitSuccessionLink"
+          description: The units that follow this unit. Several of them mean a split.
     OrganizationLink:
       description: The link of an org unit to a Keycloak organization.
       type: object
@@ -1488,11 +1519,18 @@ components:
           - change
           - move
           - end
+          - succeed
         unit:
-          description: "The unit after the step. For an end, it is the unit on its\
-            \ last date."
+          description: "The unit after the step. For an end and a succeed step, it\
+            \ is the unit on its last date."
           type: object
           $ref: "#/components/schemas/OrgUnit"
+        successorIds:
+          type: array
+          items:
+            type: string
+          description: "For a succeed step, the IDs of the units that follow the unit\
+            \ that ended."
     ReorganizationStep:
       type: object
       required:
@@ -1506,13 +1544,14 @@ components:
           - change
           - move
           - end
+          - succeed
         ref:
           type: string
           description: A name that later steps of the same request can use for the
             unit that a create step makes.
         id:
           type: string
-          description: "The ID of the unit to change, move, or end."
+          description: "The ID of the unit to change, move, end, or succeed."
         unitRef:
           type: string
           description: "The `ref` of an earlier create step, in place of `id`."
@@ -1561,6 +1600,18 @@ components:
           type: object
           additionalProperties: {}
           description: Free values that the realm defines.
+        successorIds:
+          type: array
+          items:
+            type: string
+          description: "For a succeed step, the IDs of the units that follow the unit\
+            \ that ends."
+        successorRefs:
+          type: array
+          items:
+            type: string
+          description: "For a succeed step, the `ref` of earlier create steps, in\
+            \ place of `successorIds`."
     Reporting:
       required:
       - personId
@@ -3946,6 +3997,37 @@ paths:
                   $ref: "#/components/schemas/OrgUnit"
         "400":
           $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /org-units/{id}/succession:
+    get:
+      summary: "Returns the org units that an org unit follows, and the ones that\
+        \ follow it."
+      description: A step `succeed` of a reorganization records them. Several units
+        before mean a merger. Several units after mean a split.
+      operationId: getOrgUnitSuccession
+      tags:
+      - org-units
+      parameters:
+      - description: The ID of the resource.
+        name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: "The units before and after, oldest first."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrgUnitSuccessions"
         "404":
           $ref: "#/components/responses/NotFound"
         "401":

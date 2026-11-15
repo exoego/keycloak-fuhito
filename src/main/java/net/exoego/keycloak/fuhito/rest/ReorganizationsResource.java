@@ -1,5 +1,9 @@
 package net.exoego.keycloak.fuhito.rest;
 
+import java.util.List;
+
+import java.util.ArrayList;
+
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Produces;
@@ -48,18 +52,27 @@ public class ReorganizationsResource {
         context.requireWrite();
         return Calls.run(context, () -> {
             Checks.required("body", body);
-            var results = service.apply(body.effectiveDate(), body.steps()).stream()
-                    .map(result -> new ReorganizationRepresentation.Result(result.op(),
-                            OrgUnitRepresentation.of(result.unit())))
-                    .toList();
-            for (var result : results) {
-                String path = "fuhito/org-units/" + result.unit().id();
+            List<ReorganizationRepresentation.Result> results = new ArrayList<>();
+            for (ReorganizationService.Result result : service.apply(body.effectiveDate(), body.steps())) {
+                var unit = OrgUnitRepresentation.of(result.unit());
+                String path = "fuhito/org-units/" + unit.id();
+                List<String> successorIds = null;
                 switch (result.op()) {
-                    case "create" -> record(Change.CREATE, path, result.unit());
-                    case "move" -> record(Change.UPDATE, path + "/parent", result.unit());
-                    case "end" -> record(Change.UPDATE, path + "/end", result.unit());
-                    default -> record(Change.UPDATE, path, result.unit());
+                    case "create" -> record(Change.CREATE, path, unit);
+                    case "move" -> record(Change.UPDATE, path + "/parent", unit);
+                    case "end" -> record(Change.UPDATE, path + "/end", unit);
+                    case "succeed" -> {
+                        record(Change.UPDATE, path + "/end", unit);
+                        var successions = OrgUnitSuccessionsRepresentation.of(result.successions());
+                        context.recordChange(Change.UPDATE, OrgUnitsResource.RESOURCE_TYPE, unit.id(),
+                                path + "/succession", successions);
+                        successorIds = successions.successors().stream()
+                                .map(OrgUnitSuccessionsRepresentation.Link::orgUnitId)
+                                .toList();
+                    }
+                    default -> record(Change.UPDATE, path, unit);
                 }
+                results.add(new ReorganizationRepresentation.Result(result.op(), unit, successorIds));
             }
             return new ReorganizationRepresentation(null, null, results);
         });

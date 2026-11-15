@@ -430,6 +430,23 @@ public class OrgUnitsResource {
         return Calls.run(context, () -> OrgUnitHistoryRepresentation.of(service.history(id)));
     }
 
+    @GET
+    @Path("{id}/succession")
+    @Operation(
+            operationId = "getOrgUnitSuccession",
+            summary = "Returns the org units that an org unit follows, and the ones that follow it.",
+            description = "A step `succeed` of a reorganization records them. Several units before mean a merger. "
+                    + "Several units after mean a split.")
+    @APIResponse(responseCode = "200", description = "The units before and after, oldest first.")
+    @NotFound
+    @ApiErrors
+    public OrgUnitSuccessionsRepresentation succession(
+            @Parameter(description = "The ID of the resource.")
+            @PathParam("id") String id) {
+        context.requireReadStructure();
+        return Calls.run(context, () -> OrgUnitSuccessionsRepresentation.of(service.successions(id)));
+    }
+
     private OrgUnitRepresentation updated(String path, OrgUnitState state) {
         var unit = OrgUnitRepresentation.of(state);
         context.recordChange(Change.UPDATE, RESOURCE_TYPE, unit.id(), path, unit);

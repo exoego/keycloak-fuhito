@@ -44,6 +44,60 @@ class ReorganizationIT {
     }
 
     @Test
+    void aMergerLinksTheOldUnitsToTheNewOne() throws Exception {
+        Api own = TestRealm.create("succession").api;
+        String root = Api.json(own.post("/org-units", "{\"name\": \"Y病院\", \"validFrom\": \"2026-04-01\"}"))
+                .get("id").asText();
+        String east = Api.json(own.post("/org-units", "{\"name\": \"東病棟\", \"parentId\": \"" + root
+                + "\", \"validFrom\": \"2026-04-01\"}")).get("id").asText();
+        String west = Api.json(own.post("/org-units", "{\"name\": \"西病棟\", \"parentId\": \"" + root
+                + "\", \"validFrom\": \"2026-04-01\"}")).get("id").asText();
+
+        // A failed step writes no link.
+        HttpResponse<String> bad = own.post("/reorganizations", """
+                {"effectiveDate": "2027-04-01", "steps": [
+                  {"op": "create", "ref": "merged", "name": "中央病棟", "parentId": "%s"},
+                  {"op": "succeed", "id": "%s", "successorRefs": ["merged"]},
+                  {"op": "succeed", "id": "%s"}
+                ]}
+                """.formatted(root, east, west));
+        assertEquals(400, bad.statusCode(), bad.body());
+        assertEquals("invalid.required", Api.json(bad).get("error").asText());
+        assertEquals("2", Api.json(bad).get("params").get("step").asText());
+        assertEquals(0, Api.json(own.get("/org-units/" + east + "/succession")).get("successors").size());
+
+        HttpResponse<String> response = own.post("/reorganizations", """
+                {"effectiveDate": "2027-04-01", "steps": [
+                  {"op": "create", "ref": "merged", "name": "中央病棟", "parentId": "%s"},
+                  {"op": "succeed", "id": "%s", "successorRefs": ["merged"]},
+                  {"op": "succeed", "id": "%s", "successorRefs": ["merged"]}
+                ]}
+                """.formatted(root, east, west));
+
+        assertEquals(200, response.statusCode(), response.body());
+        JsonNode results = Api.json(response).get("results");
+        String merged = results.get(0).get("unit").get("id").asText();
+        assertEquals(List.of("create", "succeed", "succeed"), results.findValuesAsText("op"));
+        assertEquals(1, results.get(1).get("successorIds").size());
+        assertEquals(merged, results.get(1).get("successorIds").get(0).asText());
+        assertEquals("2027-04-01", results.get(1).get("unit").get("validTo").asText());
+        assertEquals(List.of("Y病院", "中央病棟"), own.tree("asOf=2027-04-01").findValuesAsText("name"));
+
+        JsonNode ofMerged = Api.json(own.get("/org-units/" + merged + "/succession"));
+        // Links of one date come in the order of their IDs.
+        assertEquals(List.of(east, west).stream().sorted().toList(),
+                ofMerged.get("predecessors").findValuesAsText("orgUnitId"));
+        assertEquals(List.of("2027-04-01", "2027-04-01"), ofMerged.get("predecessors").findValuesAsText("effectiveDate"));
+        assertEquals(0, ofMerged.get("successors").size());
+        assertEquals(List.of(merged),
+                Api.json(own.get("/org-units/" + west + "/succession")).get("successors").findValuesAsText("orgUnitId"));
+        assertEquals(List.of("fuhito/org-units/" + east, "fuhito/org-units/" + east + "/end",
+                "fuhito/org-units/" + east + "/succession"), Api.json(own.get(
+                "/change-log?resourceType=FUHITO_ORG_UNIT&resourceId=" + east)).findValuesAsText("resourcePath"));
+        assertEquals(404, own.get("/org-units/nope/succession").statusCode());
+    }
+
+    @Test
     void appliesAReorganizationUnderAChangeOrder() throws Exception {
         String order = Api.json(api.post("/change-orders",
                 "{\"title\": \"2027年度組織改編\", \"kind\": \"reorganization\", \"effectiveDate\": \"2027-04-01\"}")).get("id").asText();

@@ -14,6 +14,7 @@ import java.util.stream.Collectors;
 
 import net.exoego.keycloak.fuhito.domain.OrgUnit;
 import net.exoego.keycloak.fuhito.domain.OrgUnitLink;
+import net.exoego.keycloak.fuhito.domain.OrgUnitSuccession;
 import net.exoego.keycloak.fuhito.domain.OrgUnitVersion;
 import net.exoego.keycloak.fuhito.domain.PlacedOrgUnit;
 import net.exoego.keycloak.fuhito.store.OrgUnitStore;
@@ -23,6 +24,7 @@ final class MemoryOrgUnitStore implements OrgUnitStore {
     final Map<String, OrgUnit> units = new LinkedHashMap<>();
     final List<OrgUnitVersion> versions = new ArrayList<>();
     final List<OrgUnitLink> links = new ArrayList<>();
+    final List<OrgUnitSuccession> successions = new ArrayList<>();
     final Map<String, String> hierarchyCodes = new LinkedHashMap<>(Map.of("default-hierarchy", "default"));
 
     @Override
@@ -235,5 +237,24 @@ final class MemoryOrgUnitStore implements OrgUnitStore {
     @Override
     public void deleteLink(String id) {
         links.removeIf(l -> l.id().equals(id));
+    }
+
+    @Override
+    public void insertSuccession(OrgUnitSuccession succession) {
+        if (successions.stream().anyMatch(other -> other.predecessorId().equals(succession.predecessorId())
+                && other.successorId().equals(succession.successorId()))) {
+            throw new IllegalStateException("stored twice: " + succession);
+        }
+        successions.add(succession);
+    }
+
+    @Override
+    public List<OrgUnitSuccession> successions(String orgUnitId) {
+        return successions.stream()
+                .filter(s -> s.predecessorId().equals(orgUnitId) || s.successorId().equals(orgUnitId))
+                .sorted(Comparator.comparing(OrgUnitSuccession::effectiveDate)
+                        .thenComparing(OrgUnitSuccession::predecessorId)
+                        .thenComparing(OrgUnitSuccession::successorId))
+                .toList();
     }
 }

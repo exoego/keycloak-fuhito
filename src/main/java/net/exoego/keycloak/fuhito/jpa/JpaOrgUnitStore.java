@@ -14,6 +14,7 @@ import jakarta.persistence.EntityManager;
 import net.exoego.keycloak.fuhito.domain.Hierarchy;
 import net.exoego.keycloak.fuhito.domain.OrgUnit;
 import net.exoego.keycloak.fuhito.domain.OrgUnitLink;
+import net.exoego.keycloak.fuhito.domain.OrgUnitSuccession;
 import net.exoego.keycloak.fuhito.domain.OrgUnitVersion;
 import net.exoego.keycloak.fuhito.domain.PlacedOrgUnit;
 import net.exoego.keycloak.fuhito.domain.ValidPeriod;
@@ -489,6 +490,30 @@ public class JpaOrgUnitStore implements OrgUnitStore {
     public void deleteLink(String id) {
         em.remove(findLink(id));
         em.flush();
+    }
+
+    @Override
+    public void insertSuccession(OrgUnitSuccession succession) {
+        OrgUnitSuccessionEntity entity = new OrgUnitSuccessionEntity();
+        entity.id = succession.id();
+        entity.realmId = realmId;
+        entity.predecessorId = succession.predecessorId();
+        entity.successorId = succession.successorId();
+        entity.effectiveDate = succession.effectiveDate();
+        em.persist(entity);
+    }
+
+    @Override
+    public List<OrgUnitSuccession> successions(String orgUnitId) {
+        return em.createQuery("""
+                        select s from OrgUnitSuccessionEntity s where s.realmId = :realmId
+                        and (s.predecessorId = :id or s.successorId = :id)
+                        order by s.effectiveDate, s.predecessorId, s.successorId""", OrgUnitSuccessionEntity.class)
+                .setParameter("realmId", realmId)
+                .setParameter("id", orgUnitId)
+                .getResultStream()
+                .map(e -> new OrgUnitSuccession(e.id, e.predecessorId, e.successorId, e.effectiveDate))
+                .toList();
     }
 
     private OrgUnitLinkEntity findLink(String id) {

@@ -9,6 +9,7 @@ import java.util.Set;
 
 import net.exoego.keycloak.fuhito.domain.OrgUnit;
 import net.exoego.keycloak.fuhito.domain.OrgUnitLink;
+import net.exoego.keycloak.fuhito.domain.OrgUnitSuccession;
 import net.exoego.keycloak.fuhito.domain.OrgUnitVersion;
 import net.exoego.keycloak.fuhito.domain.PlacedOrgUnit;
 
@@ -281,4 +282,19 @@ public interface OrgUnitStore {
      * @param id the ID of the link
      */
     void deleteLink(String id);
+
+    /**
+     * Stores that one org unit follows another.
+     *
+     * @param succession the link
+     */
+    void insertSuccession(OrgUnitSuccession succession);
+
+    /**
+     * Lists the links of an org unit to the units before it and after it, oldest first.
+     *
+     * @param orgUnitId the ID of the org unit
+     * @return the links where the unit is the predecessor or the successor
+     */
+    List<OrgUnitSuccession> successions(String orgUnitId);
 }

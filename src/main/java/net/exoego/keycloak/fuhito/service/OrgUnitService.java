@@ -5,9 +5,11 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.ZoneOffset;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 import net.exoego.keycloak.fuhito.domain.Assignment;
@@ -16,6 +18,7 @@ import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.OrgUnit;
 import net.exoego.keycloak.fuhito.domain.OrgUnitLink;
+import net.exoego.keycloak.fuhito.domain.OrgUnitSuccession;
 import net.exoego.keycloak.fuhito.domain.OrgUnitVersion;
 import net.exoego.keycloak.fuhito.domain.PlacedOrgUnit;
 import net.exoego.keycloak.fuhito.domain.RefItem;
@@ -248,6 +251,51 @@ public class OrgUnitService {
                 .forEach(l -> store.updateLink(new OrgUnitLink(l.id(), l.hierarchyId(), l.childId(), l.parentId(),
                         l.period().endingAt(to))));
         return get(id, to.minusDays(1).toString());
+    }
+
+    /**
+     * Ends an org unit, and records the units that follow it from the same date.
+     * One unit that follows is a succession. A split has several. A merger is several ends that name one unit.
+     * The people and the units below must move first, the same as for an end.
+     *
+     * @param id the ID of the unit that ends
+     * @param validTo the first date on which the unit no longer exists, as {@code YYYY-MM-DD}
+     * @param successorIds the IDs of the units that follow it. Each must exist on the date.
+     * @return the unit as it is on its last date
+     * @throws FuhitoException when no unit follows, a unit that follows is the unit itself or does not exist on the
+     *         date, or the unit cannot end
+     */
+    public OrgUnitState succeed(String id, String validTo, List<String> successorIds) {
+        LocalDate to = Checks.date("validTo", validTo);
+        if (successorIds == null || successorIds.isEmpty()) {
+            throw FuhitoException.invalid("invalid.required", Map.of("field", "successorIds"));
+        }
+        Set<String> successors = new LinkedHashSet<>(successorIds);
+        for (String successorId : successors) {
+            Checks.required("successorIds", successorId);
+            if (successorId.equals(id)) {
+                throw FuhitoException.invalid("org_unit.successor_self", Map.of("id", id));
+            }
+            get(successorId, validTo);
+        }
+        OrgUnitState ended = end(id, validTo);
+        successors.forEach(successorId -> store.insertSuccession(
+                new OrgUnitSuccession(newId(), id, successorId, to)));
+        return ended;
+    }
+
+    /**
+     * Returns the org units that an org unit follows, and the ones that follow it.
+     *
+     * @param id the ID
+     * @return the links before and after the unit, oldest first, and by the ID of the other unit for one date
+     * @throws FuhitoException when the unit does not exist
+     */
+    public OrgUnitSuccessions successions(String id) {
+        requireUnit(id);
+        List<OrgUnitSuccession> all = store.successions(id);
+        return new OrgUnitSuccessions(all.stream().filter(link -> link.successorId().equals(id)).toList(),
+                all.stream().filter(link -> link.predecessorId().equals(id)).toList());
     }
 
     // Walks up from the new parent on every date of the period. Meeting the moved unit means a cycle.
