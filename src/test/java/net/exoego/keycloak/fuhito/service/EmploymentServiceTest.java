@@ -486,6 +486,29 @@ class EmploymentServiceTest {
         assertEquals(LocalDate.of(2030, 4, 1), store.employments.get(old).period().to());
     }
 
+    @Test
+    void aMoveThatIsPlannedAfterATransferStaysAMoveBetweenTheCopies() {
+        String old = service.start(new NewEmployment("alice", "2020-04-01", null, null, null, null, null, null,
+                null, null, null, null, "company-y")).employment().id();
+        assignment("first-row", "first", old, "2020-04-01", "2027-07-01");
+        // The move to the ward is planned for July, and the transfer comes in April.
+        assignments.insert(new Assignment("moved-row", "moved", old, "ward", ValidPeriod.startingAt(
+                LocalDate.of(2027, 7, 1)), null, null, null, false, false, null, 0, Map.of(), "M-1", "hr", "first"));
+
+        EmploymentService.Transfer transfer = service.transfer(old, new TransferRequest("company-z", "2027-04-01",
+                null, null));
+
+        String first = transfer.assignmentIds().get(0);
+        Assignment moved = assignments.rows(transfer.assignmentIds().get(1)).getFirst();
+        assertEquals("first", assignments.rows(first).getFirst().continuesAssignmentId());
+        assertEquals(first, moved.continuesAssignmentId());
+        // The old assignment of July is gone, so its copy keeps its ID of the other system.
+        assertEquals(List.of(), assignments.rows("moved"));
+        assertEquals("M-1", moved.externalId());
+        assertEquals("hr", moved.source());
+        assertNull(assignments.rows(first).getFirst().externalId());
+    }
+
     private Assignment assignment(String rowId, String assignmentId, String employmentId, String from, String to) {
         Assignment row = new Assignment(rowId, assignmentId, employmentId, "unit", new ValidPeriod(
                 LocalDate.parse(from), to == null ? null : LocalDate.parse(to)), null, null, null, false, false, null,
