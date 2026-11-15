@@ -126,6 +126,7 @@ class ProjectionIT {
                 statement.setString(1, nurse);
                 statement.execute();
             }
+            String holder = KeycloakEnvironment.value(connection, "select pg_backend_pid()");
             first = CompletableFuture.supplyAsync(() -> {
                 try {
                     return api.post("/projection/rebuild", "");
@@ -136,7 +137,9 @@ class ProjectionIT {
             String waiting = "0";
             for (int i = 0; i < 300 && waiting.equals("0"); i++) {
                 Thread.sleep(100);
-                waiting = KeycloakEnvironment.sql("select count(*) from pg_stat_activity where wait_event_type = 'Lock'");
+                // Other test classes run at the same time, so only a wait for this connection counts.
+                waiting = KeycloakEnvironment.sql("select count(*) from pg_stat_activity where " + holder
+                        + " = any(pg_blocking_pids(pid))");
             }
             assertTrue(!waiting.equals("0"), "the first rebuild never waited");
 

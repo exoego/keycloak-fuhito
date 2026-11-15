@@ -66,8 +66,14 @@ final class KeycloakEnvironment {
     // JDBC, not psql in the container. A docker exec sometimes never reports that it ended.
     static String run(PostgreSQLContainer postgres, String sql) throws SQLException {
         try (Connection connection = DriverManager.getConnection(postgres.getJdbcUrl(), postgres.getUsername(),
-                postgres.getPassword());
-                Statement statement = connection.createStatement()) {
+                postgres.getPassword())) {
+            return value(connection, sql);
+        }
+    }
+
+    /** Runs a statement on a connection and returns the first column of its first row, or an empty text. */
+    static String value(Connection connection, String sql) throws SQLException {
+        try (Statement statement = connection.createStatement()) {
             if (!statement.execute(sql)) {
                 return "";
             }

@@ -12,6 +12,7 @@ import java.util.Map;
 import com.fasterxml.jackson.databind.JsonNode;
 import dasniko.testcontainers.keycloak.KeycloakContainer;
 import jakarta.ws.rs.core.Response;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.keycloak.admin.client.CreatedResponseUtil;
 import org.keycloak.admin.client.Keycloak;
@@ -26,6 +27,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * A Keycloak of its own with a short interval. The shared one keeps the default, so that its tests see no
  * rebuild that they did not ask for.
  */
+@Order(2)
 class ProjectionScheduleIT {
 
     private static final HttpClient HTTP = HttpClient.newHttpClient();
