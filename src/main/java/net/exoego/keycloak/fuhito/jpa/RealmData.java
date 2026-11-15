@@ -23,6 +23,7 @@ public final class RealmData {
             EmploymentTermsEntity.class,
             EmploymentEntity.class,
             PersonEntity.class,
+            OrgUnitSuccessionEntity.class,
             OrgUnitLinkEntity.class,
             OrgUnitVersionEntity.class,
             OrgUnitEntity.class,

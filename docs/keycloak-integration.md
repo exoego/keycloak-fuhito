@@ -343,6 +343,7 @@ The database applies the filters, the order, and the page.
 | `/ref-items` | The lists that a realm defines, such as unit types and occupations |
 | `/org-units` | Org units. The list has the roots of a date, or the legal entities |
 | `/org-units/{id}/children`, `/subtree`, `/path` | The tree of a date, one level, one branch, or the way up |
+| `/org-units/{id}/succession` | The org units that a unit follows after a merger or a split, and the ones that follow it |
 | `/people` | The people that the realm knows, with or without a Keycloak user |
 | `/employments` | Employments of people, with their terms over time |
 | `/assignments` | Assignments of employments to org units |

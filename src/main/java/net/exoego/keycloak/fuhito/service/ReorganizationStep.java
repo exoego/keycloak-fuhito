@@ -1,18 +1,19 @@
 package net.exoego.keycloak.fuhito.service;
 
+import java.util.List;
 import java.util.Map;
 
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 
 @Schema(name = "ReorganizationStep", description = "One operation of a reorganization.", requiredProperties = {"op"})
 public record ReorganizationStep(
-        @Schema(enumeration = {"create", "change", "move", "end"})
+        @Schema(enumeration = {"create", "change", "move", "end", "succeed"})
         String op,
         @Schema(
                 description = "A name that later steps of the same request can use for the unit that a create step "
                         + "makes.")
         String ref,
-        @Schema(description = "The ID of the unit to change, move, or end.")
+        @Schema(description = "The ID of the unit to change, move, end, or succeed.")
         String id,
         @Schema(description = "The `ref` of an earlier create step, in place of `id`.")
         String unitRef,
@@ -37,5 +38,9 @@ public record ReorganizationStep(
         @Schema(description = "The position among siblings.", defaultValue = "0")
         Integer displayOrder,
         @Schema(description = "Free values that the realm defines.")
-        Map<String, Object> attributes) {
+        Map<String, Object> attributes,
+        @Schema(description = "For a succeed step, the IDs of the units that follow the unit that ends.")
+        List<String> successorIds,
+        @Schema(description = "For a succeed step, the `ref` of earlier create steps, in place of `successorIds`.")
+        List<String> successorRefs) {
 }

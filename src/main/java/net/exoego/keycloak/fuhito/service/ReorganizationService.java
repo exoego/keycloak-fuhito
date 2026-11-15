@@ -18,9 +18,20 @@ public class ReorganizationService {
      * What one step did.
      *
      * @param op the operation of the step
-     * @param unit the unit after the step. For an end, it is the unit on its last date.
+     * @param unit the unit after the step. For an end and a succession, it is the unit on its last date.
+     * @param successions for a succession, the units before and after the unit that ended. Null otherwise.
      */
-    public record Result(String op, OrgUnitState unit) {
+    public record Result(String op, OrgUnitState unit, OrgUnitSuccessions successions) {
+
+        /**
+         * Makes the result of a step that is not a succession.
+         *
+         * @param op the operation of the step
+         * @param unit the unit after the step
+         */
+        public Result(String op, OrgUnitState unit) {
+            this(op, unit, null);
+        }
     }
 
     private final OrgUnitService orgUnits;
@@ -84,6 +95,18 @@ public class ReorganizationService {
             case "move" -> new Result(op, orgUnits.move(target(step, created),
                     resolve("parent", step.parentId(), step.parentRef(), created), date));
             case "end" -> new Result(op, orgUnits.end(target(step, created), date));
+            case "succeed" -> {
+                String id = target(step, created);
+                List<String> successors = new ArrayList<>();
+                if (step.successorIds() != null) {
+                    successors.addAll(step.successorIds());
+                }
+                if (step.successorRefs() != null) {
+                    step.successorRefs().forEach(ref -> successors.add(resolve("successor", null, ref, created)));
+                }
+                OrgUnitState ended = orgUnits.succeed(id, date, successors);
+                yield new Result(op, ended, orgUnits.successions(id));
+            }
             default -> throw FuhitoException.invalid("invalid.choice", Map.of("field", "op", "value", op));
         };
     }

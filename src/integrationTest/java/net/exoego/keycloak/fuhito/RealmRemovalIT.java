@@ -10,7 +10,7 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 class RealmRemovalIT {
 
     private static final List<String> TABLES = List.of("fuhito_hierarchy", "fuhito_ref_item", "fuhito_org_unit",
-            "fuhito_org_unit_version", "fuhito_org_unit_link", "fuhito_employment", "fuhito_employment_terms",
+            "fuhito_org_unit_version", "fuhito_org_unit_link", "fuhito_org_unit_succession", "fuhito_employment", "fuhito_employment_terms",
             "fuhito_assignment", "fuhito_change_order", "fuhito_change_log", "fuhito_change_log_counter", "fuhito_qualification",
             "fuhito_reporting_line", "fuhito_user_mask", "fuhito_person");
 
@@ -52,6 +52,12 @@ class RealmRemovalIT {
         assertEquals(201, parent.statusCode(), parent.body());
         assertEquals(201, api.post("/org-units", "{\"name\": \"C\", \"parentId\": \""
                 + Api.json(parent).get("id").asText() + "\", \"validFrom\": \"2026-04-01\"}").statusCode());
+        var old = api.post("/org-units", "{\"name\": \"Old\", \"validFrom\": \"2026-04-01\"}");
+        assertEquals(201, old.statusCode(), old.body());
+        var succession = api.post("/reorganizations", "{\"effectiveDate\": \"2027-04-01\", \"steps\": [{\"op\": "
+                + "\"succeed\", \"id\": \"" + Api.json(old).get("id").asText() + "\", \"successorIds\": [\""
+                + Api.json(parent).get("id").asText() + "\"]}]}");
+        assertEquals(200, succession.statusCode(), succession.body());
         assertEquals(201, api.post("/change-orders",
                 "{\"title\": \"Order\", \"effectiveDate\": \"2026-04-01\"}").statusCode());
         assertEquals(201, api.post("/people", "{\"name\": \"Visitor\"}").statusCode());
