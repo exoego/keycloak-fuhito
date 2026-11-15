@@ -1,6 +1,7 @@
 package net.exoego.keycloak.fuhito.service;
 
 import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.time.Clock;
 import java.util.Arrays;
 import java.util.List;
@@ -216,14 +217,31 @@ class CsvImportServiceTest {
                 外部ID,attributes.beds,attributes.open
                 W,30,はい
                 """)));
-        assertEquals(Map.of("note", "kept", "beds", new BigDecimal("30"), "open", true),
+        // The value has the type that it gets when it is read back from JSON.
+        assertEquals(Map.of("note", "kept", "beds", 30, "open", true),
                 unit("W", "2026-05-01").version().attributes());
         assertEquals(List.of(), errors(load("orgUnits", "2026-05-15", """
                 外部ID,attributes.open
                 W,#CLEAR
                 """)));
-        assertEquals(Map.of("note", "kept", "beds", new BigDecimal("30")), unit("W", "2026-05-15").version()
+        assertEquals(Map.of("note", "kept", "beds", 30), unit("W", "2026-05-15").version()
                 .attributes());
+        load("orgUnits", "2026-05-20", """
+                外部ID,attributes.beds
+                W,30.50
+                """);
+        assertEquals(30.5, unit("W", "2026-05-20").version().attributes().get("beds"));
+        load("orgUnits", "2026-05-25", """
+                外部ID,attributes.beds
+                W,99999999999
+                """);
+        assertEquals(99_999_999_999L, unit("W", "2026-05-25").version().attributes().get("beds"));
+        load("orgUnits", "2026-05-26", """
+                外部ID,attributes.beds
+                W,99999999999999999999
+                """);
+        assertEquals(new BigInteger("99999999999999999999"),
+                unit("W", "2026-05-26").version().attributes().get("beds"));
         assertEquals(List.of("line 2 row 0 csv.bad_number"), errors(load("orgUnits", "2026-06-01", """
                 外部ID,attributes.beds
                 W,many

@@ -3,6 +3,7 @@ package net.exoego.keycloak.fuhito.jpa;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -52,6 +53,8 @@ public class JpaUserDataMasker implements UserDataMasker {
 
     @Override
     public void mask(String personId, Instant now) {
+        // Also the rows that are gone, so that their copies in the change log are masked too.
+        PersonTrail trail = PersonTrail.of(em, realmId, personId);
         List<EmploymentEntity> employments = em.createQuery("""
                         select e from EmploymentEntity e
                         where e.realmId = :realmId and e.personId = :personId""", EmploymentEntity.class)
@@ -93,6 +96,7 @@ public class JpaUserDataMasker implements UserDataMasker {
             qualification.externalId = null;
         }
         PersonEntity person = Rows.require(em, PersonEntity.class, personId, realmId, found -> found.realmId);
+        trail.clearStoredResponses(em, realmId, personId, person.userId);
         person.name = null;
         person.names = new LinkedHashMap<>();
         person.phoneticName = null;
@@ -102,11 +106,13 @@ public class JpaUserDataMasker implements UserDataMasker {
         externalIds.addAll(removeExternalIds("EMPLOYMENT", employmentIds));
         externalIds.addAll(removeExternalIds("ASSIGNMENT", assignmentIds));
         externalIds.addAll(removeExternalIds("QUALIFICATION", qualificationIds));
-        maskChangeLog("FUHITO_EXTERNAL_ID", externalIds);
-        maskChangeLog("FUHITO_PERSON", List.of(personId));
-        maskChangeLog("FUHITO_EMPLOYMENT", employmentIds);
-        maskChangeLog("FUHITO_ASSIGNMENT", assignmentIds);
-        maskChangeLog("FUHITO_QUALIFICATION", qualificationIds);
+        Set<String> loggedIds = new LinkedHashSet<>(externalIds);
+        loggedIds.addAll(trail.externalIds());
+        maskChangeLog("FUHITO_EXTERNAL_ID", loggedIds);
+        maskChangeLog("FUHITO_PERSON", Set.of(personId));
+        maskChangeLog("FUHITO_EMPLOYMENT", trail.employments());
+        maskChangeLog("FUHITO_ASSIGNMENT", trail.assignments());
+        maskChangeLog("FUHITO_QUALIFICATION", trail.qualifications());
 
         if (maskedAt(personId).isEmpty()) {
             UserMaskEntity mark = new UserMaskEntity();
@@ -135,7 +141,7 @@ public class JpaUserDataMasker implements UserDataMasker {
     }
 
     // The change log holds copies of the state after each write. The same fields are cleared there.
-    private void maskChangeLog(String resourceType, List<String> resourceIds) {
+    private void maskChangeLog(String resourceType, Set<String> resourceIds) {
         if (resourceIds.isEmpty()) {
             return;
         }

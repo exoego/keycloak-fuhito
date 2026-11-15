@@ -49,6 +49,11 @@ class AttributeDefinitionsIT {
         assertEquals(200, csv.statusCode(), csv.body());
         assertEquals(40, Api.json(api.get("/org-units/" + ward.get("id").asText() + "?asOf=2026-05-01"))
                 .get("attributes").get("beds").asInt());
+        // The same file again matches what is stored.
+        HttpResponse<String> again = api.postBytes("/imports/csv/org-units?effectiveDate=2026-05-01",
+                "text/csv; charset=UTF-8", "externalId,name,attributes.beds\nW,1病棟,40\n"
+                        .getBytes(StandardCharsets.UTF_8));
+        assertEquals(1, Api.json(again).get("counts").get("orgUnits").get("unchanged").asInt(), again.body());
 
         assertEquals(200, api.put("/attribute-definitions/" + beds.get("id").asText(),
                 "{\"type\": \"NUMBER\", \"required\": false}").statusCode());
