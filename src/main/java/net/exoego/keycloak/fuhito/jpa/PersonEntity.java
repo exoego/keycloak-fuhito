@@ -35,6 +35,11 @@ public class PersonEntity {
     @Column(name = "PHONETIC_NAME", length = 255)
     String phoneticName;
 
+    // The name, the phonetic name, and the names in other languages, in lowercase with one on each line, for the
+    // search. A mask clears it with the names.
+    @Column(name = "SEARCH_NAMES")
+    String searchNames;
+
     @Column(name = "ATTRIBUTES", nullable = false)
     @Convert(converter = JsonConverters.ValueMap.class)
     Map<String, Object> attributes;
