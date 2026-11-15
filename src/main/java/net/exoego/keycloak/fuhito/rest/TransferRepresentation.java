@@ -32,14 +32,18 @@ public record TransferRepresentation(
         @Schema(description = "The assignments that the new employment got.", readOnly = true)
         List<AssignmentRepresentation> assignments,
         @Schema(description = "The reporting lines that the new assignments got.", readOnly = true)
-        List<ReportingLineRepresentation> reportingLines) {
+        List<ReportingLineRepresentation> reportingLines,
+        @Schema(description = "The roles over org units that the new employment got.", readOnly = true)
+        List<UnitRoleRepresentation> unitRoles) {
 
     TransferRequest toRequest() {
         return new TransferRequest(employerId, validFrom, staffNumber, endReason);
     }
 
     static TransferRepresentation of(EmploymentRepresentation ended, EmploymentRepresentation started,
-            List<AssignmentRepresentation> assignments, List<ReportingLineRepresentation> reportingLines) {
-        return new TransferRepresentation(null, null, null, null, ended, started, assignments, reportingLines);
+            List<AssignmentRepresentation> assignments, List<ReportingLineRepresentation> reportingLines,
+            List<UnitRoleRepresentation> unitRoles) {
+        return new TransferRepresentation(null, null, null, null, ended, started, assignments, reportingLines,
+                unitRoles);
     }
 }

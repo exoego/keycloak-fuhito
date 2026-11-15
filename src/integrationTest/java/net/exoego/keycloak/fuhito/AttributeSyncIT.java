@@ -76,7 +76,9 @@ class AttributeSyncIT {
     private JsonNode run(String query) throws Exception {
         HttpResponse<String> response = api.post("/attribute-sync/run" + query, "");
         assertEquals(200, response.statusCode(), response.body());
-        assertEquals("DONE", Api.json(api.get("/attribute-sync/last-run")).get("state").asText());
+        if (!query.contains("dryRun=true")) {
+            assertEquals("DONE", Api.json(api.get("/attribute-sync/last-run")).get("state").asText());
+        }
         return Api.json(response);
     }
 
@@ -101,6 +103,8 @@ class AttributeSyncIT {
         assertTrue(dryRun.get("dryRun").asBoolean());
         assertEquals(3, dryRun.get("assignmentsAdded").asInt());
         assertEquals(0, assignmentsOf(alice).size());
+        // A dry run wrote nothing, so it is not the last run.
+        assertEquals(404, api.get("/attribute-sync/last-run").statusCode());
 
         JsonNode first = run("");
 
@@ -131,6 +135,9 @@ class AttributeSyncIT {
         // The writes are in the change log, like any other write.
         String aliceAssignment = assignmentsOf(alice).get(0).get("assignmentId").asText();
         assertEquals(List.of("CREATE"), Api.json(api.get("/change-log?resourceType=FUHITO_ASSIGNMENT&resourceId=" + aliceAssignment)).findValuesAsText("operation"));
+        JsonNode lineEntries = Api.json(api.get("/change-log?resourceType=FUHITO_REPORTING_LINE"));
+        assertEquals(List.of("CREATE"), lineEntries.findValuesAsText("operation"));
+        assertEquals(boss, lineEntries.get(0).get("representation").get("managerUserId").asText());
 
         JsonNode again = run("");
         for (String count : List.of("employmentsStarted", "assignmentsAdded", "assignmentsMoved", "assignmentsChanged",

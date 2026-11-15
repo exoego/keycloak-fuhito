@@ -53,7 +53,7 @@ class PermissionsIT {
         reader = administrator(admin, REALM, "master-realm", "people-reader", "view-users");
     }
 
-    private static Api administrator(Keycloak admin, String realm, String adminClient, String username,
+    static Api administrator(Keycloak admin, String realm, String adminClient, String username,
             String role) {
         var credential = new CredentialRepresentation();
         credential.setType(CredentialRepresentation.PASSWORD);
