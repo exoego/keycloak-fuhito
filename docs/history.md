@@ -100,10 +100,18 @@ When an assignment has no solid line on a date, the manager is derived from the 
 - A member of a unit with no head does the same.
 - Two heads of one unit are not each other's managers.
 
+A head can be away, and another person can stand in.
+
+- A head is absent on a date when the terms of the employment have the status `ON_LEAVE` or `SUSPENDED`. An absent head is nobody's derived manager, and reports to the head above.
+- An acting head is an assignment with `head=true` and an assignment kind with the mark `actingHead`.
+- The heads of a unit are its present heads that are not acting. When there is none, they are its present acting heads. When there is none either, the unit has no head on that date.
+- An acting head while the head is present is a member, and reports to the head.
+- Stored lines do not change. A line to a manager on leave stays.
+
 `GET /people/{id}/managers` and `GET /people/{id}/reports` use these rules.
 Each entry says whether it is stored or derived.
 
-Checked by `ReportingLinesIT.derivesManagersAndReportsFromTheHeadsOfTheTree` and `ReportingLinesIT.storedLinesChangeTheAnswerFromTheirDate`.
+Checked by `ReportingLinesIT.derivesManagersAndReportsFromTheHeadsOfTheTree`, `ReportingLinesIT.storedLinesChangeTheAnswerFromTheirDate`, and `ReportingLinesIT.aHeadOnLeaveHandsTheUnitToTheActingHead`.
 
 ## Rules that hold on every date
 

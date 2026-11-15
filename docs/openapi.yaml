@@ -807,6 +807,10 @@ components:
           type: boolean
           description: True for a unit type whose org units are legal entities. A
             row that leaves it out keeps the mark of a stored item.
+        actingHead:
+          type: boolean
+          description: True for an assignment kind whose heads stand in for an absent
+            head. A row that leaves it out keeps the mark of a stored item.
     ImportReport:
       required:
       - dryRun
@@ -1482,6 +1486,11 @@ components:
           type: boolean
           description: "True for a unit type whose org units are legal entities, such\
             \ as a company. Only the kind `UNIT_TYPE` can have it."
+          default: false
+        actingHead:
+          type: boolean
+          description: True for an assignment kind whose heads stand in for an absent
+            head. Only the kind `ASSIGNMENT_KIND` can have it.
           default: false
     RefKind:
       type: string

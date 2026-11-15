@@ -12,8 +12,10 @@ import java.util.UUID;
 import net.exoego.keycloak.fuhito.domain.Assignment;
 import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.Employment;
+import net.exoego.keycloak.fuhito.domain.EmploymentStatus;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.Person;
+import net.exoego.keycloak.fuhito.domain.RefItem;
 import net.exoego.keycloak.fuhito.domain.ReportingLine.Kind;
 import net.exoego.keycloak.fuhito.domain.ReportingLine;
 import net.exoego.keycloak.fuhito.domain.ValidPeriod;
@@ -159,6 +161,8 @@ public class ReportingLineService {
      * Lists the managers of a user on a date, for each assignment of the user.
      * A stored line gives the manager. An assignment with no solid line takes the head of its org unit.
      * A head, and a member of a unit with no head, take the head of the nearest unit above that has one.
+     * A head is absent while the status of the employment is not {@code ACTIVE}. An acting head counts only while
+     * no other head is present. An acting head while a head is present is a member.
      *
      * @param userId the ID of the user
      * @param asOf the date as {@code YYYY-MM-DD}, or null for today
@@ -293,15 +297,30 @@ public class ReportingLineService {
                     .toList();
         }
 
-        private List<Assignment> headsOf(String orgUnitId) {
-            return sources.assignments().rowsOn(List.of(orgUnitId), date).stream()
-                    .filter(Assignment::head)
-                    .toList();
+        private boolean present(Assignment row) {
+            return sources.employments().terms(row.employmentId()).stream()
+                    .anyMatch(terms -> terms.period().contains(date) && terms.status() == EmploymentStatus.ACTIVE);
         }
 
-        private boolean isHeadOf(String orgUnitId, String personId) {
+        private boolean acting(Assignment row) {
+            return row.kindId() != null && sources.refItems().find(row.kindId()).map(RefItem::actingHead)
+                    .orElse(false);
+        }
+
+        private List<Assignment> headsOf(String orgUnitId) {
+            List<Assignment> present = sources.assignments().rowsOn(List.of(orgUnitId), date).stream()
+                    .filter(row -> row.head() && present(row))
+                    .toList();
+            List<Assignment> regular = present.stream().filter(row -> !acting(row)).toList();
+            return regular.isEmpty() ? present : regular;
+        }
+
+        // A head who leads the unit or is away looks above it. An acting head beside a present head does not.
+        private boolean looksAbove(String orgUnitId, String personId) {
+            List<Assignment> heads = headsOf(orgUnitId);
             return sources.assignments().rowsOn(List.of(orgUnitId), date).stream()
-                    .anyMatch(row -> row.head() && personId.equals(personOf(row)));
+                    .filter(row -> row.head() && personId.equals(personOf(row)))
+                    .anyMatch(row -> heads.contains(row) || !present(row));
         }
 
         // The heads of the unit, or of the nearest unit above that has a head. A head looks above its own unit.
@@ -311,7 +330,7 @@ public class ReportingLineService {
             for (int i = path.size() - 1; i >= 0; i--) {
                 String unitId = path.get(i).unit().id();
                 // The person is no head of this unit from here on, so none of its heads is the person.
-                if (isHeadOf(unitId, personId)) {
+                if (looksAbove(unitId, personId)) {
                     continue;
                 }
                 List<Assignment> heads = headsOf(unitId);

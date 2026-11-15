@@ -189,6 +189,59 @@ class ReportingLinesIT {
     }
 
     @Test
+    void aHeadOnLeaveHandsTheUnitToTheActingHead() throws Exception {
+        TestRealm scratch = TestRealm.withEmployer("reporting-acting");
+        Api scratchApi = scratch.api;
+        assertEquals(201, scratchApi.post("/ref-items", "{\"kind\": \"ASSIGNMENT_KIND\", \"code\": \"acting\", "
+                + "\"name\": \"事務取扱\", \"actingHead\": true}").statusCode());
+        String hospital = id(scratchApi.post("/org-units", "{\"name\": \"病院\", \"validFrom\": \"2026-04-01\"}"));
+        String nursing = id(scratchApi.post("/org-units", "{\"name\": \"看護部\", \"parentId\": \"" + hospital
+                + "\", \"validFrom\": \"2026-04-01\"}"));
+        Map<String, String> users = new LinkedHashMap<>();
+        Map<String, String> employments = new LinkedHashMap<>();
+        for (String[] person : new String[][] {{"director", hospital, "true"}, {"head-nurse", nursing, "true"},
+                {"nurse", nursing, "false"}}) {
+            users.put(person[0], scratch.user(person[0]));
+            HttpResponse<String> response = scratchApi.post("/staff", "{\"userId\": \"" + users.get(person[0])
+                    + "\", \"orgUnitId\": \"" + person[1] + "\", \"validFrom\": \"2026-04-01\", \"head\": "
+                    + person[2] + "}");
+            assertEquals(201, response.statusCode(), response.body());
+            employments.put(person[0], Api.json(response).get("employment").get("id").asText());
+        }
+        users.put("acting", scratch.user("acting"));
+        String acting = id(scratchApi.post("/employments", "{\"userId\": \"" + users.get("acting")
+                + "\", \"validFrom\": \"2026-04-01\"}"));
+        id(scratchApi.post("/assignments", "{\"employmentId\": \"" + acting + "\", \"orgUnitId\": \"" + nursing
+                + "\", \"validFrom\": \"2026-04-01\", \"kind\": \"acting\", \"head\": true}"));
+        assertEquals(200, scratchApi.post("/employments/" + employments.get("head-nurse") + "/leave",
+                "{\"validFrom\": \"2026-06-01\"}").statusCode());
+        Map<String, String> names = new LinkedHashMap<>();
+        users.forEach((name, userId) -> names.put(userId, name));
+        java.util.function.BiFunction<String, String, List<String>> read = (path, date) -> {
+            try {
+                return Api.json(scratchApi.get(path + "?asOf=" + date)).findValuesAsText("userId").stream()
+                        .map(names::get).sorted().toList();
+            } catch (Exception e) {
+                throw new IllegalStateException(e);
+            }
+        };
+
+        // Before the leave, the acting head is a member of the department.
+        assertEquals(List.of("head-nurse"), read.apply("/users/" + users.get("acting") + "/managers", "2026-05-01"));
+        assertEquals(List.of("acting", "nurse"), read.apply("/users/" + users.get("head-nurse") + "/reports",
+                "2026-05-01"));
+
+        // During the leave, the acting head leads the department and both heads report to the director.
+        assertEquals(List.of("acting"), read.apply("/users/" + users.get("nurse") + "/managers", "2026-07-01"));
+        assertEquals(List.of("nurse"), read.apply("/users/" + users.get("acting") + "/reports", "2026-07-01"));
+        assertEquals(List.of(), read.apply("/users/" + users.get("head-nurse") + "/reports", "2026-07-01"));
+        assertEquals(List.of("director"), read.apply("/users/" + users.get("head-nurse") + "/managers",
+                "2026-07-01"));
+        assertEquals(List.of("acting", "head-nurse"), read.apply("/users/" + users.get("director") + "/reports",
+                "2026-07-01"));
+    }
+
+    @Test
     void theDatabaseFindsTheReportsDownToTheNextHeadAndPagesThem() throws Exception {
         TestRealm scratch = TestRealm.withEmployer("reporting-down");
         Api scratchApi = scratch.api;

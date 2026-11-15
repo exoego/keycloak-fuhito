@@ -175,10 +175,30 @@ public record ImportDocument(
             Boolean active,
             @Schema(description = "True for a unit type whose org units are legal entities. A row that leaves it "
                     + "out keeps the mark of a stored item.")
-            Boolean legalEntity) {
+            Boolean legalEntity,
+            @Schema(description = "True for an assignment kind whose heads stand in for an absent head. A row "
+                    + "that leaves it out keeps the mark of a stored item.")
+            Boolean actingHead) {
 
         /**
-         * Makes a row that does not speak about the mark of a legal entity.
+         * Makes a row that speaks about the mark of a legal entity only.
+         *
+         * @param kind the kind
+         * @param code the code
+         * @param name the default name
+         * @param names the names in other languages, or null
+         * @param displayOrder the position in lists, or null
+         * @param attributes free values, or null
+         * @param active false to stop the use of the item for new data, or null
+         * @param legalEntity true for a unit type whose org units are legal entities, or null
+         */
+        public RefItemRow(String kind, String code, String name, Map<String, String> names, Integer displayOrder,
+                Map<String, Object> attributes, Boolean active, Boolean legalEntity) {
+            this(kind, code, name, names, displayOrder, attributes, active, legalEntity, null);
+        }
+
+        /**
+         * Makes a row that does not speak about the marks.
          *
          * @param kind the kind
          * @param code the code
@@ -190,7 +210,7 @@ public record ImportDocument(
          */
         public RefItemRow(String kind, String code, String name, Map<String, String> names, Integer displayOrder,
                 Map<String, Object> attributes, Boolean active) {
-            this(kind, code, name, names, displayOrder, attributes, active, null);
+            this(kind, code, name, names, displayOrder, attributes, active, null, null);
         }
     }
 

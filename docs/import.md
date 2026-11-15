@@ -61,6 +61,7 @@ The lists are applied in the order reference items, org units, employments, assi
 - A new employment names its employer by `employerExternalId`. It is the external ID of an org unit that is a legal entity. A row can leave it out when the realm has exactly one legal entity.
 - The employer of a stored employment never changes. A row that names another employer is rejected.
 - A row of a unit type can carry `legalEntity`. The CSV header is `法人`. A row that leaves it out keeps the mark of a stored item.
+- A row of an assignment kind can carry `actingHead`. The CSV header is `代行`. A row that leaves it out keeps the mark of a stored item.
 - The user of an employment is named by `username` or by `userId`. The user must exist.
 - The employment belongs to the person of that user. The import creates the person when the user has none.
 
