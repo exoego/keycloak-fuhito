@@ -87,9 +87,9 @@ class MembershipServiceTest {
     @Test
     void aPersonWhoWorksOutsideTheEmployerIsSeconded() {
         // The hospital employs the nurse, and the other hospital employs the doctor. Both work in the ward.
-        String ownStaff = employments.start(new NewEmployment("nurse", "2026-04-01", null, null, null, null, null,
+        String ownStaff = employments.start(new NewEmployment("nurse", "2026-04-01", null, null, null, null, null, null,
                 null, null, null, null, hospital)).employment().id();
-        String guest = employments.start(new NewEmployment("doctor", "2026-04-01", null, null, null, null, null,
+        String guest = employments.start(new NewEmployment("doctor", "2026-04-01", null, null, null, null, null, null,
                 null, null, null, null, otherHospital)).employment().id();
         assign(ownStaff, ward, "2026-04-01", null, null, true, 1);
         assign(guest, ward, "2026-04-01", null, null, false, 2);
@@ -269,7 +269,7 @@ class MembershipServiceTest {
     @Test
     void withAPrimaryAssignmentInEachEmploymentTheOldestEmploymentComesFirst() {
         // The doctor works for the hospital from April, and also for the other hospital from May.
-        String second = employments.start(new NewEmployment("doctor", "2026-05-01", null, null, null, null, null,
+        String second = employments.start(new NewEmployment("doctor", "2026-05-01", null, null, null, null, null, null,
                 null, null, null, null, otherHospital)).employment().id();
         assign(second, otherHospital, "2026-05-01", null, null, true, 0);
         assign(second, hospital, "2026-05-01", null, null, false, 0);

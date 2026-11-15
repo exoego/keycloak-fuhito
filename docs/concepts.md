@@ -36,10 +36,11 @@ Reads, the mask, and the erase work by person. Each has a shortcut by the ID of 
 |---|---|---|
 | Person | 人 | Someone the realm knows. The link to a Keycloak user is optional. One user is linked to at most one person. |
 | Employment | 雇用、在籍 | The relationship between a person and a legal entity, for a period. The legal entity is the employer. It never changes for one employment. It also covers people who are not direct employees, such as agency staff and contractors. Leaving ends the employment. |
-| Employment Terms | 雇用条件 | The conditions of an employment that change over time. They are the employment type, the grade, the status, and the work ratio. |
+| Employment Terms | 雇用条件 | The conditions of an employment that change over time. They are the employment type, the grade, the status with its leave reason, and the work ratio. |
 | Employment Type | 雇用形態 | The category of the contract, for example full-time, part-time, or temporary. |
 | Grade | 等級 | A rank level used for pay or seniority. |
 | Status | 状態 | Whether the person is active, on leave, or suspended. |
+| Leave Reason | 休職理由 | Why a person is on leave, for example parental leave or sick leave. Only terms with the status "on leave" have one. |
 | End Reason | 終了理由 | Why an employment ended, for example resignation or retirement at the age limit. |
 | Assignment | 所属、配属 | The placement of an employment in an org unit, for a period. |
 | Primary Assignment | 主務、本務 | The one assignment marked as the main one. It is optional. |
@@ -84,7 +85,7 @@ When a reader must know that something happened, the field is an `At` field that
 
 ## Reference data
 
-Unit types, job titles, occupations, employment types, grades, end reasons, assignment kinds, and qualification kinds are reference data.
+Unit types, job titles, occupations, employment types, grades, end reasons, assignment kinds, qualification kinds, and leave reasons are reference data.
 Each realm defines its own items.
 An item has a code, a name, and optional names in other languages.
 
@@ -108,7 +109,8 @@ It is not a translation.
 - Each hospital has departments, wards, and committees below it.
 - A physician has a primary assignment in one hospital and a concurrent assignment in another.
 - A part-time nurse has employment terms with a part-time employment type and a work ratio.
-- A nurse on parental leave has the status "on leave". The assignment stays.
+- A nurse on parental leave has the status "on leave" and the leave reason "parental leave". The assignment stays.
+- A nurse who accepted an offer has an employment that starts on the first day. Reads before that date do not show the nurse as a member.
 - A reorganization on April 1 is one change order that renames and moves many units on that date.
 
 ### A general company

@@ -20,7 +20,8 @@ public record EmploymentView(Employment employment, String endReason, List<Terms
      * @param terms the terms
      * @param employmentType the code of the employment type, or null
      * @param grade the code of the grade, or null
+     * @param leaveReason the code of the leave reason, or null
      */
-    public record TermsView(EmploymentTerms terms, String employmentType, String grade) {
+    public record TermsView(EmploymentTerms terms, String employmentType, String grade, String leaveReason) {
     }
 }

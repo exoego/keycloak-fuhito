@@ -130,6 +130,7 @@ Employments.
 | `employmentType` | `雇用形態` |
 | `grade` | `等級` |
 | `status` | `状態` |
+| `leaveReason` | `休職理由` |
 | `workPercent` | `勤務割合` |
 | `validFrom` | `開始日` |
 | `validTo` | `終了日` |
@@ -155,6 +156,7 @@ Assignments.
 | `validTo` | `終了日` |
 
 A row for a stored employment may leave out the user.
+A row that leaves out `leaveReason` keeps the stored reason while the status stays `ON_LEAVE`.
 A row for a stored assignment may leave out the employment and the org unit.
 
 ## The report

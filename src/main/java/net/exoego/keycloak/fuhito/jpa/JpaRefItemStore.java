@@ -19,6 +19,7 @@ public class JpaRefItemStore implements RefItemStore {
             "select count(e) from EmploymentEntity e where e.endReasonId = :id and e.realmId = :realmId",
             "select count(e) from EmploymentTermsEntity e where e.employmentTypeId = :id and e.realmId = :realmId",
             "select count(e) from EmploymentTermsEntity e where e.gradeId = :id and e.realmId = :realmId",
+            "select count(e) from EmploymentTermsEntity e where e.leaveReasonId = :id and e.realmId = :realmId",
             "select count(e) from AssignmentEntity e where e.jobTitleId = :id and e.realmId = :realmId",
             "select count(e) from AssignmentEntity e where e.occupationId = :id and e.realmId = :realmId",
             "select count(e) from AssignmentEntity e where e.kindId = :id and e.realmId = :realmId",

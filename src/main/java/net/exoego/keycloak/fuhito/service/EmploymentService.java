@@ -76,7 +76,7 @@ public class EmploymentService {
         ValidPeriod period = Checks.period(from, Checks.optionalDate("validTo", request.validTo()));
         String staffNumber = Checks.optionalCode("staffNumber", request.staffNumber());
         TermsChange firstTerms = new TermsChange(request.validFrom(), request.employmentType(), request.grade(),
-                request.status(), request.workPercent(), request.attributes());
+                request.status(), request.leaveReason(), request.workPercent(), request.attributes());
         EmploymentTerms terms = terms(newId(), null, period, firstTerms, null);
         Person person = people.find(personId).orElseThrow(
                 () -> FuhitoException.invalid("employment.person_unknown", Map.of("personId", personId)));
@@ -86,8 +86,7 @@ public class EmploymentService {
         Employment employment = new Employment(newId(), personId, person.userId(), employerId, period, staffNumber,
                 null, request.externalId(), request.source(), null);
         store.insert(employment);
-        store.insertTerms(new EmploymentTerms(terms.id(), employment.id(), terms.period(), terms.employmentTypeId(),
-                terms.gradeId(), terms.status(), terms.workPercent(), terms.attributes()));
+        store.insertTerms(terms.copy(terms.id(), employment.id(), terms.period()));
         return get(employment.id());
     }
 
@@ -118,8 +117,7 @@ public class EmploymentService {
             List<ValidPeriod> parts = current.period().splitAt(from);
             // Build the new terms first, so that a bad value fails before anything is written.
             EmploymentTerms next = terms(newId(), id, parts.get(1), request, current);
-            store.updateTerms(new EmploymentTerms(current.id(), id, parts.getFirst(), current.employmentTypeId(),
-                    current.gradeId(), current.status(), current.workPercent(), current.attributes()));
+            store.updateTerms(current.withPeriod(parts.getFirst()));
             store.insertTerms(next);
         }
         return get(id);
@@ -133,8 +131,14 @@ public class EmploymentService {
         RefItem employmentType = usableItem(RefKind.EMPLOYMENT_TYPE, values.employmentType(),
                 current == null ? null : current.employmentTypeId());
         RefItem grade = usableItem(RefKind.GRADE, values.grade(), current == null ? null : current.gradeId());
+        RefItem leaveReason = usableItem(RefKind.LEAVE_REASON, values.leaveReason(),
+                current == null ? null : current.leaveReasonId());
+        if (leaveReason != null && status != EmploymentStatus.ON_LEAVE) {
+            throw FuhitoException.invalid("employment.leave_reason_not_on_leave",
+                    Map.of("leaveReason", values.leaveReason(), "status", status.name()));
+        }
         return new EmploymentTerms(termsId, employmentId, period, idOf(employmentType), idOf(grade), status,
-                Checks.optionalPercent("workPercent", values.workPercent()),
+                idOf(leaveReason), Checks.optionalPercent("workPercent", values.workPercent()),
                 values.attributes() == null ? Map.of() : values.attributes());
     }
 
@@ -216,8 +220,7 @@ public class EmploymentService {
         Employment started = new Employment(newId(), old.personId(), old.userId(), employerId,
                 from(date, old.period()), staffNumber, null, null, null, id);
         store.insert(started);
-        terms.forEach(t -> store.insertTerms(new EmploymentTerms(newId(), started.id(), from(date, t.period()),
-                t.employmentTypeId(), t.gradeId(), t.status(), t.workPercent(), t.attributes())));
+        terms.forEach(t -> store.insertTerms(t.copy(newId(), started.id(), from(date, t.period()))));
         // Each old assignment becomes one new assignment, with every period from the date on.
         Map<String, String> newAssignmentIds = new LinkedHashMap<>();
         for (Assignment row : rows) {
@@ -316,8 +319,7 @@ public class EmploymentService {
                 .filter(t -> to == null || t.period().from().isBefore(to))
                 .reduce((first, second) -> second)
                 .orElseThrow();
-        store.updateTerms(new EmploymentTerms(last.id(), id, last.period().endingAt(to), last.employmentTypeId(),
-                last.gradeId(), last.status(), last.workPercent(), last.attributes()));
+        store.updateTerms(last.withPeriod(last.period().endingAt(to)));
 
         if (to == null) {
             return;
@@ -344,7 +346,8 @@ public class EmploymentService {
         Employment employment = store.find(id)
                 .orElseThrow(() -> FuhitoException.notFound("employment.not_found", Map.of("id", id)));
         return new EmploymentView(employment, codeOf(employment.endReasonId()), store.terms(id).stream()
-                .map(t -> new EmploymentView.TermsView(t, codeOf(t.employmentTypeId()), codeOf(t.gradeId())))
+                .map(t -> new EmploymentView.TermsView(t, codeOf(t.employmentTypeId()), codeOf(t.gradeId()),
+                        codeOf(t.leaveReasonId())))
                 .toList());
     }
 

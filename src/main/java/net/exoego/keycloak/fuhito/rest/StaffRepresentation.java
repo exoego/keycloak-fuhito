@@ -64,8 +64,8 @@ public record StaffRepresentation(
         AssignmentRepresentation assignment) {
 
     NewEmployment toNewEmployment(String person) {
-        return new NewEmployment(person, validFrom, validTo, staffNumber, employmentType, grade, null, workPercent,
-                null, null, null, employerId);
+        return new NewEmployment(person, validFrom, validTo, staffNumber, employmentType, grade, null, null,
+                workPercent, null, null, null, employerId);
     }
 
     // The first assignment of a new employment is its primary one unless the request says otherwise.

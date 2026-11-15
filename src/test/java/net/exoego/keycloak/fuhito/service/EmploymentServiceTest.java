@@ -109,7 +109,7 @@ class EmploymentServiceTest {
 
     @Test
     void anEmploymentKeepsItsEmployerAndEachEmployerGivesItsOwnStaffNumbers() {
-        EmploymentView atA = service.start(new NewEmployment("alice", "2020-04-01", null, "1001", null, null, null,
+        EmploymentView atA = service.start(new NewEmployment("alice", "2020-04-01", null, "1001", null, null, null, null,
                 null, null, null, null, "company-a"));
         EmploymentView unnamed = service.start(minimal("bob", "2010-04-01"));
 
@@ -118,13 +118,13 @@ class EmploymentServiceTest {
         assertEquals("company-a", service.end(atA.employment().id(), "2030-04-01", null).employment().employerId());
 
         // Another company may give the same number to another person. The same company may not.
-        EmploymentView atB = service.start(new NewEmployment("bob", "2020-04-01", null, "1001", null, null, null,
+        EmploymentView atB = service.start(new NewEmployment("bob", "2020-04-01", null, "1001", null, null, null, null,
                 null, null, null, null, "company-b"));
         assertEquals("company-b", atB.employment().employerId());
         assertEquals("employment.staff_number_taken", failure(new NewEmployment("bob", "2021-04-01", null, "1001",
-                null, null, null, null, null, null, null, "company-a")).code());
+                null, null, null, null, null, null, null, null, "company-a")).code());
         // The same person keeps the number in a second employment at the same company.
-        service.start(new NewEmployment("alice", "2031-04-01", null, "1001", null, null, null, null, null, null,
+        service.start(new NewEmployment("alice", "2031-04-01", null, "1001", null, null, null, null, null, null, null,
                 null, "company-a"));
     }
 
@@ -315,7 +315,7 @@ class EmploymentServiceTest {
         item(RefKind.EMPLOYMENT_TYPE, "full-time", true);
         item(RefKind.END_REASON, "transfer", true);
         String old = service.start(new NewEmployment("alice", "2020-04-01", "2030-04-01", "Y-1001", "full-time", null,
-                null, new BigDecimal("80"), Map.of("desk", "3F"), "HR-1", "hr", "company-y")).employment().id();
+                null, null, new BigDecimal("80"), Map.of("desk", "3F"), "HR-1", "hr", "company-y")).employment().id();
         service.changeTerms(old, status("2029-04-01", "ON_LEAVE"));
         assignment("ward-row", "ward", old, "2020-04-01", null);
         assignment("past-row", "past", old, "2020-04-01", "2025-04-01");
@@ -371,16 +371,16 @@ class EmploymentServiceTest {
 
     @Test
     void aMergerMovesEveryPersonOfOneEmployerToAnother() {
-        String alice = service.start(new NewEmployment("alice", "2020-04-01", null, "1001", null, null, null, null,
+        String alice = service.start(new NewEmployment("alice", "2020-04-01", null, "1001", null, null, null, null, null,
                 null, null, null, "company-y")).employment().id();
-        String bob = service.start(new NewEmployment("bob", "2021-04-01", null, "1002", null, null, null, null,
+        String bob = service.start(new NewEmployment("bob", "2021-04-01", null, "1002", null, null, null, null, null,
                 null, null, null, "company-y")).employment().id();
         // These stay. One left before the date, one starts on the date, and one has another employer.
-        String left = service.start(new NewEmployment("alice", "2010-04-01", "2015-04-01", "0900", null, null, null,
+        String left = service.start(new NewEmployment("alice", "2010-04-01", "2015-04-01", "0900", null, null, null, null,
                 null, null, null, null, "company-y")).employment().id();
-        String starting = service.start(new NewEmployment("bob", "2027-04-01", null, "1003", null, null, null, null,
+        String starting = service.start(new NewEmployment("bob", "2027-04-01", null, "1003", null, null, null, null, null,
                 null, null, null, "company-y")).employment().id();
-        String elsewhere = service.start(new NewEmployment("bob", "2020-04-01", null, "5000", null, null, null,
+        String elsewhere = service.start(new NewEmployment("bob", "2020-04-01", null, "5000", null, null, null, null,
                 null, null, null, null, "company-z")).employment().id();
 
         List<EmploymentService.Transfer> transfers = service.transferAll(new TransferAllRequest("company-y",
@@ -399,7 +399,7 @@ class EmploymentServiceTest {
         assertEquals(7, store.employments.size());
 
         // Without the wish to keep them, the people get no staff number.
-        String carol = service.start(new NewEmployment("alice", "2028-04-01", null, "7001", null, null, null, null,
+        String carol = service.start(new NewEmployment("alice", "2028-04-01", null, "7001", null, null, null, null, null,
                 null, null, null, "company-z")).employment().id();
         assertNull(service.transferAll(new TransferAllRequest("company-z", "company-w", "2029-04-01", null, false,
                 null)).stream().filter(t -> t.ended().employment().id().equals(carol)).findFirst().orElseThrow()
@@ -408,9 +408,9 @@ class EmploymentServiceTest {
 
     @Test
     void aMergerIsRejectedAsAWholeWhenOnePartCannotHappen() {
-        String alice = service.start(new NewEmployment("alice", "2020-04-01", null, "1001", null, null, null, null,
+        String alice = service.start(new NewEmployment("alice", "2020-04-01", null, "1001", null, null, null, null, null,
                 null, null, null, "company-y")).employment().id();
-        service.start(new NewEmployment("bob", "2020-04-01", null, "1001", null, null, null, null, null, null, null,
+        service.start(new NewEmployment("bob", "2020-04-01", null, "1001", null, null, null, null, null, null, null, null,
                 "company-x"));
 
         assertEquals("employment.staff_number_taken", assertThrows(FuhitoException.class,
@@ -433,9 +433,9 @@ class EmploymentServiceTest {
 
     @Test
     void aTransferIsRejectedWhenItCannotHappen() {
-        String old = service.start(new NewEmployment("alice", "2020-04-01", "2030-04-01", "1001", null, null, null,
+        String old = service.start(new NewEmployment("alice", "2020-04-01", "2030-04-01", "1001", null, null, null, null,
                 null, null, null, null, "company-y")).employment().id();
-        service.start(new NewEmployment("bob", "2020-04-01", null, "2040", null, null, null, null, null, null, null,
+        service.start(new NewEmployment("bob", "2020-04-01", null, "2040", null, null, null, null, null, null, null, null,
                 "company-x"));
 
         assertEquals("employment.same_employer", assertThrows(FuhitoException.class,

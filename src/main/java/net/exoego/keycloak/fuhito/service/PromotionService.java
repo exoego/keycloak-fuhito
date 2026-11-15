@@ -72,7 +72,8 @@ public class PromotionService {
         if (request.grade() != null) {
             EmploymentTerms terms = current.terms();
             employments.changeTerms(employmentId, new TermsChange(request.validFrom(), current.employmentType(),
-                    request.grade(), terms.status().name(), terms.workPercent(), terms.attributes()));
+                    request.grade(), terms.status().name(), current.leaveReason(), terms.workPercent(),
+                    terms.attributes()));
         }
         AssignmentView assignment = null;
         if (assignmentId != null) {

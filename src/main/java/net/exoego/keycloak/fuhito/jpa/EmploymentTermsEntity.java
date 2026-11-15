@@ -42,6 +42,9 @@ public class EmploymentTermsEntity {
     @Column(name = "STATUS", nullable = false, length = 16)
     String status;
 
+    @Column(name = "LEAVE_REASON_ID", length = 36)
+    String leaveReasonId;
+
     @Column(name = "WORK_PERCENT", precision = 5, scale = 2)
     BigDecimal workPercent;
 

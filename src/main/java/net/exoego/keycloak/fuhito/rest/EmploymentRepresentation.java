@@ -60,6 +60,8 @@ public record EmploymentRepresentation(
                 defaultValue = "ACTIVE",
                 writeOnly = true)
         String status,
+        @Schema(description = "The code of the first leave reason.", writeOnly = true)
+        String leaveReason,
         @Schema(
                 description = "The first share of full-time work in percent.",
                 minimum = "0",
@@ -90,6 +92,8 @@ public record EmploymentRepresentation(
             String grade,
             @Schema(ref = "EmploymentStatus", defaultValue = "ACTIVE")
             String status,
+            @Schema(description = "The code of the leave reason. Only the status `ON_LEAVE` may have one.")
+            String leaveReason,
             @Schema(
                     description = "The share of full-time work in percent.",
                     minimum = "0",
@@ -111,17 +115,17 @@ public record EmploymentRepresentation(
         return new EmploymentRepresentation(e.id(), e.personId(), e.userId(), e.employerId(),
                 e.period().from().toString(), text(e.period().to()),
                 e.staffNumber(), view.endReason(), e.externalId(), e.source(), e.continuesEmploymentId(), null, null,
-                null, null, null,
+                null, null, null, null,
                 view.terms().stream()
                         .map(t -> new Terms(t.terms().period().from().toString(), text(t.terms().period().to()),
-                                t.employmentType(), t.grade(), t.terms().status().name(), Numbers.plain(t.terms().workPercent()),
-                                t.terms().attributes()))
+                                t.employmentType(), t.grade(), t.terms().status().name(), t.leaveReason(),
+                                Numbers.plain(t.terms().workPercent()), t.terms().attributes()))
                         .toList());
     }
 
     NewEmployment toNewEmployment(String person) {
-        return new NewEmployment(person, validFrom, validTo, staffNumber, employmentType, grade, status, workPercent,
-                attributes, externalId, source, employerId);
+        return new NewEmployment(person, validFrom, validTo, staffNumber, employmentType, grade, status, leaveReason,
+                workPercent, attributes, externalId, source, employerId);
     }
 
     private static String text(Object value) {
