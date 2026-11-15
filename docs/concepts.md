@@ -32,6 +32,7 @@ So staff who never log in, and people who left long ago, can be stored too.
 An employment and a qualification belong to a person. The manager of a reporting line is a person.
 A write can name the person by the ID of a Keycloak user. The person of that user is then used, and created when the user has none.
 Reads, the mask, and the erase work by person. Each has a shortcut by the ID of a Keycloak user.
+`GET /people?q=` finds people by a part of a name, the phonetic name, or a name in another language, in any case. A person with a Keycloak user is also found by the first name, the last name, the username, or the email of the user. `GET /people?staffNumber=` finds the people with an employment that has the number. A masked person has no name to find.
 
 | Term | Japanese | Meaning |
 |---|---|---|
