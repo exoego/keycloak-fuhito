@@ -236,9 +236,13 @@ public class EmploymentService {
 
         // These are read before the end, because the end cuts them and removes what would start later.
         List<EmploymentTerms> terms = store.terms(id).stream().filter(t -> t.period().endsAfter(date)).toList();
-        List<Assignment> rows = assignments.rowsOfEmployment(id).stream()
-                .filter(row -> row.period().endsAfter(date))
-                .toList();
+        List<Assignment> all = assignments.rowsOfEmployment(id);
+        List<Assignment> rows = all.stream().filter(row -> row.period().endsAfter(date)).toList();
+        // An assignment that started before the date stays with its history. The end removes any other one.
+        Set<String> kept = all.stream()
+                .filter(row -> row.period().from().isBefore(date))
+                .map(Assignment::assignmentId)
+                .collect(Collectors.toSet());
         List<UnitRole> roles = unitRoles.findByEmployment(id).stream()
                 .filter(role -> role.period().endsAfter(date))
                 .toList();
@@ -256,13 +260,17 @@ public class EmploymentService {
         terms.forEach(t -> store.insertTerms(t.copy(newId(), started.id(), from(date, t.period()))));
         // Each old assignment becomes one new assignment, with every period from the date on.
         Map<String, String> newAssignmentIds = new LinkedHashMap<>();
+        rows.forEach(row -> newAssignmentIds.computeIfAbsent(row.assignmentId(), oldId -> newId()));
         for (Assignment row : rows) {
-            String assignmentId = newAssignmentIds.computeIfAbsent(row.assignmentId(), oldId -> newId());
-            // The external ID stays with the old assignment, so that an import still finds that one.
-            assignments.insert(new Assignment(newId(), assignmentId, started.id(), row.orgUnitId(),
-                    from(date, row.period()), row.jobTitleId(), row.occupationId(), row.kindId(), row.head(),
-                    row.primary(), row.allocationPercent(), row.displayOrder(), row.attributes(), null, null,
-                    row.assignmentId()));
+            boolean stays = kept.contains(row.assignmentId());
+            // A copy continues the old assignment that stays. A copy of one that the end removed continues the
+            // copy of what the old one continued, and takes its external ID, so that an import still finds it.
+            String continues = stays ? row.assignmentId()
+                    : newAssignmentIds.getOrDefault(row.continuesAssignmentId(), row.continuesAssignmentId());
+            assignments.insert(new Assignment(newId(), newAssignmentIds.get(row.assignmentId()), started.id(),
+                    row.orgUnitId(), from(date, row.period()), row.jobTitleId(), row.occupationId(), row.kindId(),
+                    row.head(), row.primary(), row.allocationPercent(), row.displayOrder(), row.attributes(),
+                    stays ? null : row.externalId(), stays ? null : row.source(), continues));
         }
         List<ReportingLine> newLines = new ArrayList<>();
         lines.forEach((oldAssignmentId, ofAssignment) -> ofAssignment.forEach(line -> {
