@@ -1,6 +1,7 @@
 package net.exoego.keycloak.fuhito.service;
 
 import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.time.Clock;
 import java.util.Arrays;
 import java.util.List;
@@ -162,6 +163,33 @@ class CsvImportServiceTest {
     }
 
     @Test
+    void aBlankParentKeepsAParentThatHasNoExternalIdOfTheSource() {
+        String hospital = orgUnits.create(new NewOrgUnit(null, "Hospital", null, null, null, null, null, null,
+                "2026-04-01", null, null, null, null)).unit().id();
+        // A parent with an ID of another system, which a unit of the source has too.
+        String clinic = orgUnits.create(new NewOrgUnit(null, "Clinic", null, null, null, null, null, null,
+                "2026-04-01", null, null, "X", "hr")).unit().id();
+        orgUnits.create(new NewOrgUnit(null, "Not the parent", null, null, null, null, null, null, "2026-04-01",
+                null, null, "X", "sheet"));
+        load("orgUnits", "2026-04-01", "外部ID,名称,ソース\nW1,1病棟,sheet\nW2,2病棟,sheet\n");
+        String first = orgUnitStore.findUnitByExternalId("sheet", "W1").orElseThrow().id();
+        String second = orgUnitStore.findUnitByExternalId("sheet", "W2").orElseThrow().id();
+        orgUnits.move(first, hospital, "2026-04-01");
+        orgUnits.move(second, clinic, "2026-04-01");
+
+        CsvImportService.Result renamed = load("orgUnits", "2026-10-01",
+                "外部ID,名称,ソース\nW1,第1病棟,sheet\nW2,第2病棟,sheet\n");
+
+        assertEquals(List.of(), errors(renamed));
+        assertEquals(hospital, orgUnits.get(first, "2026-10-01").parentId());
+        assertEquals("第1病棟", orgUnits.get(first, "2026-10-01").version().name());
+        assertEquals(clinic, orgUnits.get(second, "2026-10-01").parentId());
+        // The cell #CLEAR still makes it a root.
+        load("orgUnits", "2027-04-01", "外部ID,親の外部ID,ソース\nW1,#CLEAR,sheet\n");
+        assertNull(orgUnits.get(first, "2027-04-01").parentId());
+    }
+
+    @Test
     void aReasonStaysWithTheLeaveAndGoesWithTheReturn() {
         item(RefKind.LEAVE_REASON, "parental");
         load("orgUnits", "2026-04-01", "外部ID,名称\nH,X病院\n");
@@ -189,14 +217,31 @@ class CsvImportServiceTest {
                 外部ID,attributes.beds,attributes.open
                 W,30,はい
                 """)));
-        assertEquals(Map.of("note", "kept", "beds", new BigDecimal("30"), "open", true),
+        // The value has the type that it gets when it is read back from JSON.
+        assertEquals(Map.of("note", "kept", "beds", 30, "open", true),
                 unit("W", "2026-05-01").version().attributes());
         assertEquals(List.of(), errors(load("orgUnits", "2026-05-15", """
                 外部ID,attributes.open
                 W,#CLEAR
                 """)));
-        assertEquals(Map.of("note", "kept", "beds", new BigDecimal("30")), unit("W", "2026-05-15").version()
+        assertEquals(Map.of("note", "kept", "beds", 30), unit("W", "2026-05-15").version()
                 .attributes());
+        load("orgUnits", "2026-05-20", """
+                外部ID,attributes.beds
+                W,30.50
+                """);
+        assertEquals(30.5, unit("W", "2026-05-20").version().attributes().get("beds"));
+        load("orgUnits", "2026-05-25", """
+                外部ID,attributes.beds
+                W,99999999999
+                """);
+        assertEquals(99_999_999_999L, unit("W", "2026-05-25").version().attributes().get("beds"));
+        load("orgUnits", "2026-05-26", """
+                外部ID,attributes.beds
+                W,99999999999999999999
+                """);
+        assertEquals(new BigInteger("99999999999999999999"),
+                unit("W", "2026-05-26").version().attributes().get("beds"));
         assertEquals(List.of("line 2 row 0 csv.bad_number"), errors(load("orgUnits", "2026-06-01", """
                 外部ID,attributes.beds
                 W,many

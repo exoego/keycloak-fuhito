@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class UserRemovalIT {
 
@@ -166,6 +167,39 @@ class UserRemovalIT {
                 "fuhito_external_id")) {
             assertEquals("0", rows(table, realmId), table);
         }
+    }
+
+    @Test
+    void aMaskAndAnEraseReachTheCopiesOfRowsThatAreGone() throws Exception {
+        TestRealm realm = TestRealm.withEmployer("user-erase-trail");
+        Api api = realm.api;
+        String unit = Api.json(api.post("/org-units", "{\"name\": \"課\", \"validFrom\": \"2020-04-01\"}")).get("id").asText();
+        realm.refItem("QUALIFICATION", "license", "免許");
+        String user = realm.user("leaver");
+        assertEquals(201, api.post("/staff", "{\"userId\": \"" + user + "\", \"orgUnitId\": \"" + unit
+                + "\", \"validFrom\": \"2020-04-01\"}").statusCode());
+        String person = Api.json(api.get("/users/" + user + "/history")).get("personId").asText();
+        // A qualification that is deleted, and an employment that never starts because the user goes.
+        String license = Api.json(api.post("/qualifications", "{\"userId\": \"" + user + "\", \"kind\": \"license\", "
+                + "\"number\": \"L-777\", \"validFrom\": \"2010-05-01\"}")).get("id").asText();
+        assertEquals(204, api.delete("/qualifications/" + license).statusCode());
+        assertEquals(201, api.post("/employments", "{\"userId\": \"" + user + "\", \"staffNumber\": \"S-555\", "
+                + "\"validFrom\": \"" + TOMORROW + "\"}").statusCode());
+        realm.removeUser(user);
+        assertTrue(api.get("/change-log").body().contains("L-777"));
+        assertTrue(api.get("/change-log").body().contains("S-555"));
+
+        assertEquals(200, api.post("/people/" + person + "/mask", "").statusCode());
+
+        String masked = api.get("/change-log").body();
+        assertFalse(masked.contains("L-777"), masked);
+        assertFalse(masked.contains("S-555"), masked);
+
+        assertEquals(204, api.delete("/people/" + person + "/data").statusCode());
+
+        JsonNode left = Api.json(api.get("/change-log"));
+        assertFalse(left.findValuesAsText("resourceType").contains("FUHITO_QUALIFICATION"), left.toString());
+        assertFalse(left.findValuesAsText("resourceType").contains("FUHITO_EMPLOYMENT"), left.toString());
     }
 
     @Test

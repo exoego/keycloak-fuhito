@@ -132,6 +132,44 @@ class RealmExportIT {
     }
 
     @Test
+    void aRestoreChecksTheExportBeforeItWrites() throws Exception {
+        TestRealm source = TestRealm.withEmployer("export-copy");
+        String person = Api.json(source.api.post("/people", "{\"name\": \"Ann\"}")).get("id").asText();
+        ObjectNode copy = export(source.api);
+        TestRealm target = TestRealm.create("export-copy-target");
+
+        // The first realm is still there, so its IDs are taken in this database.
+        assertEquals("restore.id_taken", error(target.api.post("/restore", JSON.writeValueAsString(copy))));
+
+        // A row may name only rows of the same export, not those of another realm.
+        ObjectNode foreign = JSON.createObjectNode().put("format", "fuhito.export.v1");
+        foreign.putArray("qualifications").addObject().put("id", "q-1").put("personId", person)
+                .put("kindId", "k-1").put("validFrom", "2020-04-01");
+        HttpResponse<String> named = target.api.post("/restore", JSON.writeValueAsString(foreign));
+        assertEquals(400, named.statusCode(), named.body());
+        assertEquals("restore.reference_unknown", Api.json(named).get("error").asText());
+        assertEquals("personId", Api.json(named).get("params").get("field").asText());
+
+        // A date that cannot be read, and a unit with no list of versions.
+        ObjectNode badDate = JSON.createObjectNode().put("format", "fuhito.export.v1");
+        ObjectNode unit = badDate.putArray("orgUnits").addObject().put("id", "u-1");
+        unit.putArray("versions").addObject().put("id", "v-1").put("validFrom", "someday").put("name", "X");
+        unit.putArray("parents");
+        unit.putArray("successors");
+        assertEquals("restore.bad_value", error(target.api.post("/restore", JSON.writeValueAsString(badDate))));
+        ObjectNode noVersions = JSON.createObjectNode().put("format", "fuhito.export.v1");
+        noVersions.putArray("orgUnits").addObject().put("id", "u-2");
+        assertEquals("restore.bad_value", error(target.api.post("/restore", JSON.writeValueAsString(noVersions))));
+        // Nothing was written.
+        assertEquals(0, Api.json(target.api.get("/export/org-units")).size());
+    }
+
+    private static String error(HttpResponse<String> response) throws Exception {
+        assertTrue(response.statusCode() == 400 || response.statusCode() == 409, response.body());
+        return Api.json(response).get("error").asText();
+    }
+
+    @Test
     void aRestoreNeedsTheUsersAndTheFormat() throws Exception {
         TestRealm target = TestRealm.create("export-users");
         ObjectNode document = JSON.createObjectNode().put("format", "fuhito.export.v1");

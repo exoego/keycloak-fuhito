@@ -66,6 +66,7 @@ The lists are applied in the order reference items, org units, employments, assi
 ```
 
 - Rows of org units can come in any order. A parent is applied before its children.
+- A parent with no external ID of the same source can be named by `parentId`, the ID of the unit. A row gives `parentExternalId` or `parentId`, not both.
 - A new row can have its own `validFrom`. An existing row ignores it.
 - A row with `validTo` ends the thing on that date. An employment can also carry `endReason`.
 - A row replaces all details of an existing thing. A missing optional value clears it.
@@ -97,7 +98,7 @@ curl -X POST \
 - A column that is not needed can be left out.
 - The file is UTF-8, with or without a byte order mark. For another encoding, name it in the content type, for example `text/csv; charset=Shift_JIS`.
 - A cell can be in double quotes. A quoted cell can hold commas and line breaks.
-- **A blank cell keeps the stored value.** This differs from JSON, where a missing value clears it.
+- **A blank cell keeps the stored value.** This differs from JSON, where a missing value clears it. A blank parent keeps the stored parent, also one with no external ID of the source.
 - The cell `#CLEAR` removes the stored value.
 - True is `true`, `1`, `yes`, `はい`, or `○`. False is `false`, `0`, `no`, `いいえ`, or `×`.
 - A name in another language has its own column, for example `name:en` or `名称:en`.
@@ -226,6 +227,9 @@ This copies a realm to a test environment, moves it to another Keycloak, or brin
 - Put the lists together under their names in camel case, such as `refKinds`, with `"format": "fuhito.export.v1"`. `POST /restore` takes that document.
 - A restore keeps every ID, so products that stored IDs find the same resources. It writes all or nothing.
 - It fails with `restore.realm_not_empty` when the realm has any data of the extension. So it cannot load into a realm of the same database that the export came from while that realm still has the rows.
+- It checks the export before it writes. A row that names a row that the export does not have fails with 400 and `restore.reference_unknown`. So a restore never links to the rows of another realm.
+- A value that is missing or cannot be read fails with 400 and `restore.bad_value`.
+- An ID that a row of the database has already, in any realm, fails with 409 and `restore.id_taken`. This happens for a copy into a second realm of the same database while the first realm still has the rows.
 - Rows name Keycloak users by username. A restore fails with `restore.username_unknown` when the target realm has no user with that name. A person whose user Keycloak no longer had is exported with no username, and is restored with no link.
 - Masked data stays masked, with the time of the mask. Erased data is not in an export.
 - The change log, the admin events, the links to Keycloak organizations, and the idempotency keys are not part of an export. The restore records one entry, `FUHITO_RESTORE`.

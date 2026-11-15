@@ -423,6 +423,9 @@ public class OrgUnitsResource {
         context.requireWrite();
         return Calls.guarded(context, () -> state(id), () -> {
             Checks.required("body", body);
+            // A link decides who is a member of the organization, as the admin API of Keycloak does.
+            organizationLinks.organizationOf(id).ifPresent(context::requireManageOrganization);
+            context.requireManageOrganization(body.organizationId());
             var unit = organizationLinks.link(id, body.organizationId());
             var link = new OrganizationLinkRepresentation(unit.id(), unit.keycloakOrganizationId());
             context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, path(id) + "/organization", link);
@@ -445,6 +448,7 @@ public class OrgUnitsResource {
             @PathParam("id") String id) {
         context.requireWrite();
         return Calls.guarded(context, () -> state(id), () -> {
+            organizationLinks.organizationOf(id).ifPresent(context::requireManageOrganization);
             var unit = organizationLinks.unlink(id);
             var link = new OrganizationLinkRepresentation(unit.id(), null);
             context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, path(id) + "/organization", link);

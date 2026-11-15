@@ -1,6 +1,7 @@
 package net.exoego.keycloak.fuhito.service;
 
 import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -9,6 +10,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
@@ -268,10 +270,13 @@ public class CsvImportService {
                     .flatMap(unit -> quietly(() -> orgUnitService.get(unit.id(), date.toString())));
         }
         var version = stored.map(OrgUnitState::version);
-        String storedParent = stored.map(OrgUnitState::parentId)
-                .flatMap(orgUnits::findUnit)
-                .map(OrgUnit::externalId)
+        String rowSource = source == null ? defaultSource : source;
+        Optional<OrgUnit> parent = stored.map(OrgUnitState::parentId).flatMap(orgUnits::findUnit);
+        // A blank cell keeps the stored parent. One with no external ID of the source is kept by its ID.
+        String storedParent = parent.filter(unit -> Objects.equals(rowSource, unit.source())).map(OrgUnit::externalId)
                 .orElse(null);
+        String keptParentId = storedParent == null && cells.blank("parentExternalId")
+                ? parent.map(OrgUnit::id).orElse(null) : null;
         return new OrgUnitRow(source, externalId, cells.text("code", version.map(v -> v.code()).orElse(null)),
                 cells.text("name", version.map(v -> v.name()).orElse(null)),
                 cells.localized("name", version.map(v -> v.names()).orElse(Map.of())),
@@ -279,7 +284,7 @@ public class CsvImportService {
                 cells.localized("shortName", version.map(v -> v.shortNames()).orElse(Map.of())),
                 cells.text("phoneticName", version.map(v -> v.phoneticName()).orElse(null)),
                 cells.text("unitType", stored.map(OrgUnitState::unitType).orElse(null)),
-                cells.text("parentExternalId", storedParent),
+                cells.text("parentExternalId", storedParent), keptParentId,
                 cells.integer("displayOrder", version.map(v -> v.displayOrder()).orElse(null)),
                 cells.attributes(version.map(v -> v.attributes()).orElse(null)),
                 cells.text("validFrom", null), cells.text("validTo", null));
@@ -381,7 +386,7 @@ public class CsvImportService {
             for (AttributeDefinition definition : defined) {
                 String column = ATTRIBUTE_COLUMN + definition.name();
                 Object value = switch (definition.type()) {
-                    case NUMBER -> decimal(column, null);
+                    case NUMBER -> asJson(decimal(column, null));
                     case BOOLEAN -> bool(column, null);
                     default -> text(column, null);
                 };
@@ -392,6 +397,27 @@ public class CsvImportService {
                 }
             }
             return result;
+        }
+
+        // A stored attribute reads back from JSON as Integer, Long, BigInteger, or Double. A value of the same
+        // type compares equal to it, so a row that matches what is stored changes nothing.
+        private static Object asJson(BigDecimal value) {
+            if (value == null) {
+                return null;
+            }
+            BigDecimal stripped = value.stripTrailingZeros();
+            if (stripped.scale() > 0) {
+                return value.doubleValue();
+            }
+            BigInteger whole = stripped.toBigIntegerExact();
+            if (whole.bitLength() < Integer.SIZE) {
+                return whole.intValue();
+            }
+            return whole.bitLength() < Long.SIZE ? (Object) whole.longValue() : whole;
+        }
+
+        boolean blank(String field) {
+            return values.getOrDefault(field, "").isEmpty();
         }
 
         String text(String field, String stored) {
