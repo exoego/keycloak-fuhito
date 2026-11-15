@@ -5,6 +5,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
 import jakarta.ws.rs.Consumes;
+import jakarta.ws.rs.GET;
 import jakarta.ws.rs.HeaderParam;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
@@ -15,6 +16,7 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
+import net.exoego.keycloak.fuhito.service.CsvExportService;
 import net.exoego.keycloak.fuhito.service.CsvImportService;
 import net.exoego.keycloak.fuhito.service.ImportDocument;
 import net.exoego.keycloak.fuhito.service.ImportReport;
@@ -39,6 +41,7 @@ public class ImportsResource {
     private final RequestContext context;
     private final ImportService service;
     private final CsvImportService csvService;
+    private final CsvExportService csvExport;
 
     /**
      * Creates the resource for one request.
@@ -46,11 +49,43 @@ public class ImportsResource {
      * @param context the request and its caller
      * @param service the operations on the realm of the request
      * @param csvService the import of CSV files into the realm of the request
+     * @param csvExport the CSV files of the lists of the realm of the request
      */
-    public ImportsResource(RequestContext context, ImportService service, CsvImportService csvService) {
+    public ImportsResource(RequestContext context, ImportService service, CsvImportService csvService,
+            CsvExportService csvExport) {
         this.context = context;
         this.service = service;
         this.csvService = csvService;
+        this.csvExport = csvExport;
+    }
+
+    @GET
+    @Path("csv/{list}")
+    @Produces("text/csv")
+    @Operation(
+            operationId = "exportCsv",
+            summary = "Returns a list on a date as a CSV that the import loads again.",
+            description = "Each row has the column `id`, so that a row of a thing with no external ID comes back "
+                    + "too. The org units are the only list for now.")
+    @APIResponse(responseCode = "200", description = "The CSV, in UTF-8 with a byte order mark.")
+    @BadRequest
+    @ApiErrors
+    public Response exportCsv(
+            @Parameter(description = "The kind of rows.", schema = @Schema(enumeration = {"org-units"}))
+            @PathParam("list") String list,
+            @Parameter(
+                    description = "The date of the state. The default is today in the time zone of the realm.",
+                    schema = @Schema(format = "date"))
+            @QueryParam("asOf") String asOf,
+            @Parameter(
+                    description = "`ja` for the Japanese names of the columns. The default is the English ones.",
+                    schema = @Schema(enumeration = {"en", "ja"}))
+            @QueryParam("header") String header) {
+        context.requireRead();
+        return Calls.run(context, () -> Response.ok(csvExport.write(list, asOf, "ja".equals(header)))
+                .type("text/csv; charset=UTF-8")
+                .header("Content-Disposition", "attachment; filename=\"" + list + ".csv\"")
+                .build());
     }
 
     @POST

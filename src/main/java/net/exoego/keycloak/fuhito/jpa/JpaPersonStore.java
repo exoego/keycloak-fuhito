@@ -48,6 +48,19 @@ public class JpaPersonStore implements PersonStore {
     }
 
     @Override
+    public boolean externalIdTaken(String source, String externalId, String exceptId) {
+        return PersonStore.super.externalIdTaken(source, externalId, exceptId) || em.createQuery("""
+                        select count(x) from ExternalIdEntity x, PersonEntity p where x.realmId = :realmId
+                        and p.realmId = :realmId and x.kind = 'PERSON' and p.id = x.resourceId
+                        and x.source = :source and x.externalId = :externalId and p.id <> :exceptId""", Long.class)
+                .setParameter("realmId", realmId)
+                .setParameter("source", source)
+                .setParameter("externalId", externalId)
+                .setParameter("exceptId", exceptId == null ? "" : exceptId)
+                .getSingleResult() > 0;
+    }
+
+    @Override
     public Optional<Person> findByExternalId(String source, String externalId) {
         return em.createQuery("""
                         select p from PersonEntity p where p.realmId = :realmId

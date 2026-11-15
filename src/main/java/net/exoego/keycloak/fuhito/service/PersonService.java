@@ -112,8 +112,8 @@ public class PersonService {
         Checks.required("body", request);
         get(id);
         String source = Checks.code("source", request.source());
-        String externalId = Checks.required("externalId", request.externalId());
-        if (store.findByExternalId(source, externalId).filter(other -> !other.id().equals(id)).isPresent()) {
+        String externalId = ExternalIdService.value(Checks.required("externalId", request.externalId()));
+        if (store.externalIdTaken(source, externalId, id)) {
             throw FuhitoException.conflict("person.external_id_taken",
                     Map.of("source", source, "externalId", externalId));
         }
@@ -132,9 +132,10 @@ public class PersonService {
     public PersonView create(PersonValues request) {
         Checks.required("body", request);
         String source = Checks.optionalCode("source", request.source());
-        Person person = checked(UUID.randomUUID().toString(), request, request.externalId(), source);
+        Person person = checked(UUID.randomUUID().toString(), request, ExternalIdService.value(request.externalId()),
+                source);
         if (source != null && person.externalId() != null
-                && store.findByExternalId(source, person.externalId()).isPresent()) {
+                && store.externalIdTaken(source, person.externalId(), null)) {
             throw FuhitoException.conflict("person.external_id_taken",
                     Map.of("source", source, "externalId", person.externalId()));
         }

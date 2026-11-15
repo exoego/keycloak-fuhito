@@ -53,6 +53,7 @@ public class JpaReportingLineStore implements ReportingLineStore {
                 acting(row, row + "2k"), regularPresent(row, row + "2"));
     }
 
+    // A unit that the manager leads below another one is reached twice in Down. Units counts it once, from the top.
     // The database goes down from the line units that the manager leads. It does not go below an org unit that
     // has a head of its own, nor into a group. So a read of one page does not load the tree or the people of the whole realm.
     private static final String REPORTS = """
@@ -74,7 +75,8 @@ public class JpaReportingLineStore implements ReportingLineStore {
                 join OrgUnitVersionEntity v on v.orgUnitId = l.childId and v.realmId = :realmId and v.%4$s
                 where d.open = 1 and not exists (select 1 from RefItemEntity g where g.id = v.unitTypeId
                     and g.groupUnit = true)
-            )
+            ),
+            Units as (select d.id as id, min(d.depth) as depth, max(d.open) as open from Down d group by d.id)
             select 0 as derived, 0 as depth, a.orgUnitId as orgUnitId, a.assignmentId as assignmentId,
                 l.id as lineId, l.kind as kind, e.personId as personId, p.userId as userId
             from ReportingLineEntity l
@@ -85,7 +87,7 @@ public class JpaReportingLineStore implements ReportingLineStore {
             union all
             select 1 as derived, d.depth as depth, a.orgUnitId as orgUnitId, a.assignmentId as assignmentId,
                 cast(null as String) as lineId, 'SOLID' as kind, e.personId as personId, p.userId as userId
-            from Down d
+            from Units d
             join AssignmentEntity a on a.orgUnitId = d.id and a.realmId = :realmId and a.%1$s
             join EmploymentEntity e on e.id = a.employmentId
             join PersonEntity p on p.id = e.personId

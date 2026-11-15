@@ -6,6 +6,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
 
@@ -80,14 +81,12 @@ public class JpaRealmExportStore implements RealmExportStore {
         return page(AttributeDefinitionEntity.class, "id", JpaAttributeDefinitionStore::toDomain);
     }
 
-    // Every realm has its own default hierarchy, so it is not part of an export.
     @Override
     public Page<Hierarchy> hierarchies() {
         return (afterId, max) -> em.createQuery("""
-                        select h from HierarchyEntity h where h.realmId = :realmId and h.code <> :code
+                        select h from HierarchyEntity h where h.realmId = :realmId
                         and h.id > :after order by h.id""", HierarchyEntity.class)
                 .setParameter("realmId", realmId)
-                .setParameter("code", Hierarchy.DEFAULT_CODE)
                 .setParameter("after", afterId == null ? "" : afterId)
                 .setMaxResults(max)
                 .getResultStream()
@@ -217,6 +216,11 @@ public class JpaRealmExportStore implements RealmExportStore {
         return page(ChangeOrderEntity.class, "id", JpaChangeOrderStore::toDomain);
     }
 
+    // The last runs of the jobs and the keys of repeated requests are not data, and an export has none of them.
+    // A job can run in a new realm before the restore, for example the timer of the projection.
+    private static final Set<Class<?>> NOT_DATA = Set.of(HierarchyEntity.class, IdempotencyKeyEntity.class,
+            JobRunEntity.class);
+
     // The table of each list of an export.
     private static final Map<String, Class<?>> TABLES = Map.ofEntries(
             Map.entry("ref-kinds", RealmKindEntity.class),
@@ -254,7 +258,7 @@ public class JpaRealmExportStore implements RealmExportStore {
     @Override
     public boolean isEmpty() {
         for (Class<?> entity : RealmData.ENTITIES) {
-            if (entity != HierarchyEntity.class && count(entity) > 0) {
+            if (!NOT_DATA.contains(entity) && count(entity) > 0) {
                 return false;
             }
         }

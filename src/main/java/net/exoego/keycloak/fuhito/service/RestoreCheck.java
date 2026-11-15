@@ -10,7 +10,6 @@ import java.util.Set;
 import java.util.function.Function;
 
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
-import net.exoego.keycloak.fuhito.domain.Hierarchy;
 
 /**
  * Checks an export before a restore writes it. A row may name only rows of the same export, so that a restore
@@ -55,9 +54,7 @@ final class RestoreCheck {
         ids.put("ref-kinds", ids(document.refKinds(), RealmExport.Kind::id));
         ids.put("ref-items", ids(document.refItems(), RealmExport.Item::id));
         ids.put("attribute-definitions", ids(document.attributeDefinitions(), RealmExport.Definition::id));
-        // The default hierarchy is not written. The realm has its own.
-        ids.put("hierarchies", ids(all(document.hierarchies()).stream()
-                .filter(h -> !Hierarchy.DEFAULT_CODE.equals(h.code())).toList(), RealmExport.HierarchyRow::id));
+        ids.put("hierarchies", ids(document.hierarchies(), RealmExport.HierarchyRow::id));
         List<RealmExport.Unit> units = all(document.orgUnits());
         ids.put("org-units", ids(units, RealmExport.Unit::id));
         ids.put("org-unit-versions", ids(units.stream().flatMap(u -> all(u.versions()).stream()).toList(),

@@ -238,6 +238,24 @@ class OrgUnitServiceTest {
     }
 
     @Test
+    void rejectsAnExternalIdThatIsTakenOrBad() {
+        service.create(new NewOrgUnit(null, "Ward", null, null, null, null, null, null, "2026-04-01", null, null,
+                "H-1", "hr"));
+
+        assertEquals("org_unit.external_id_taken", failure(new NewOrgUnit(null, "Other", null, null, null, null, null,
+                null, "2026-04-01", null, null, "H-1", "hr")).code());
+        assertEquals("invalid.code", failure(new NewOrgUnit(null, "Other", null, null, null, null, null, null,
+                "2026-04-01", null, null, "H-2", "bad source")).code());
+        assertEquals("external_id.bad_value", failure(new NewOrgUnit(null, "Other", null, null, null, null, null,
+                null, "2026-04-01", null, null, " ", "hr")).code());
+        assertEquals("external_id.bad_value", failure(new NewOrgUnit(null, "Other", null, null, null, null, null,
+                null, "2026-04-01", null, null, "x".repeat(256), "hr")).code());
+        // The same ID of another system is free.
+        service.create(new NewOrgUnit(null, "Other", null, null, null, null, null, null, "2026-04-01", null, null,
+                "H-1", "payroll"));
+    }
+
+    @Test
     void rejectsACodeThatIsTaken() {
         NewOrgUnit request = new NewOrgUnit("hq", "x", null, null, null, null, null, null, "2026-04-01", null, null,
                 null, null);
@@ -660,6 +678,10 @@ class OrgUnitServiceTest {
                 () -> service.removeEnd(unit)).code());
         assertEquals("org_unit.already_ended", assertThrows(FuhitoException.class,
                 () -> service.succeed(unit, "2032-04-01", List.of(next))).code());
+        // The unit that follows must exist on the date of the succession.
+        assertEquals("org_unit.follows_others", endFailure(next, "2031-04-01").code());
+        assertEquals("org_unit.follows_others", endFailure(next, "2030-06-01").code());
+        assertEquals("2031-04-02", service.end(next, "2031-04-02").version().period().to().toString());
     }
 
     private void assign(String assignmentId, String orgUnitId, String from, String to) {
