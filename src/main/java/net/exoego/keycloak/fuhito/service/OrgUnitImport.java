@@ -97,8 +97,15 @@ final class OrgUnitImport {
 
     // Applies the parent row first when the parent is in the same document.
     private String parentId(OrgUnitRow row, String source) {
+        if (row.parentExternalId() != null && row.parentId() != null) {
+            throw FuhitoException.invalid("import.parent_twice",
+                    Map.of("parentExternalId", row.parentExternalId(), "parentId", row.parentId()));
+        }
         if (row.parentExternalId() == null) {
-            return null;
+            if (row.parentId() != null && orgUnits.findUnit(row.parentId()).isEmpty()) {
+                throw FuhitoException.invalid("import.parent_id_unknown", Map.of("parentId", row.parentId()));
+            }
+            return row.parentId();
         }
         Integer parentRow = rowByKey.get(source + "\\u0000" + row.parentExternalId());
         if (parentRow != null) {
