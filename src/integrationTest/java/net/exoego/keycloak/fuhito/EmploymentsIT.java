@@ -319,12 +319,30 @@ class EmploymentsIT {
     }
 
     @Test
+    void anEmploymentEndsByTheEndOfItsEmployer() throws Exception {
+        TestRealm closing = TestRealm.create("employments-closing");
+        String company = closing.legalEntity("閉鎖予定の会社");
+        assertEquals(200, closing.api.put("/org-units/" + company + "/end", "{\"validTo\": \"2030-04-01\"}")
+                .statusCode());
+        String user = closing.user("staff-of-closing");
+
+        assertEquals("employment.employer_ends", errorOf(409, closing.api.post("/employments",
+                "{\"userId\": \"" + user + "\", \"validFrom\": \"2026-04-01\"}")));
+        String id = created(closing.api.post("/employments", "{\"userId\": \"" + user
+                + "\", \"validFrom\": \"2026-04-01\", \"validTo\": \"2030-04-01\"}")).get("id").asText();
+        assertEquals("employment.employer_ends", errorOf(409, closing.api.delete("/employments/" + id + "/end")));
+        assertEquals("employment.employer_ends", errorOf(409, closing.api.put("/employments/" + id + "/end",
+                "{\"validTo\": \"2031-04-01\"}")));
+    }
+
+    @Test
     void aTransferMovesAPersonToAnotherEmployerInOneWrite() throws Exception {
         TestRealm group = TestRealm.create("employments-transfer");
         Api groupApi = group.api;
         String corporation = group.legalEntity("医療法人X会");
         String company = group.legalEntity("株式会社Yサービス");
         group.refItem("END_REASON", "transfer", "転籍");
+        group.refItem("UNIT_ROLE", "hr-contact", "人事担当");
         String kitchen = created(groupApi.post("/org-units", "{\"name\": \"栄養科\", \"parentId\": \"" + corporation
                 + "\", \"validFrom\": \"2020-04-01\"}")).get("id").asText();
         String suzuki = group.user("suzuki");
@@ -335,6 +353,8 @@ class EmploymentsIT {
         String oldAssignment = hired.get("assignment").get("id").asText();
         created(groupApi.post("/reporting-lines", "{\"assignmentId\": \"" + oldAssignment + "\", \"managerUserId\": \""
                 + chief + "\", \"validFrom\": \"2020-04-01\"}"));
+        created(groupApi.post("/unit-roles", "{\"employmentId\": \"" + old + "\", \"orgUnitId\": \"" + kitchen
+                + "\", \"role\": \"hr-contact\", \"validFrom\": \"2020-04-01\"}"));
         // A leave that is planned for 2029 must not get lost.
         assertEquals(200, groupApi.put("/employments/" + old + "/terms",
                 "{\"validFrom\": \"2029-04-01\", \"status\": \"ON_LEAVE\"}").statusCode());
@@ -375,6 +395,12 @@ class EmploymentsIT {
         assertEquals("2027-04-01", assignment.get("validFrom").asText());
         assertEquals(1, transfer.get("reportingLines").size());
         assertEquals(assignment.get("id").asText(), transfer.get("reportingLines").get(0).get("assignmentId").asText());
+        // The role goes over too, and the change log has it like every other part.
+        JsonNode role = transfer.get("unitRoles").get(0);
+        assertEquals(next, role.get("employmentId").asText());
+        assertEquals("hr-contact", role.get("role").asText());
+        assertEquals(List.of("CREATE"), Api.json(groupApi.get("/change-log?resourceType=FUHITO_UNIT_ROLE&resourceId="
+                + role.get("id").asText())).findValuesAsText("operation"));
         assertEquals(1, Api.json(groupApi.get("/users/" + suzuki + "/assignments?asOf=2027-03-31")).size());
         assertEquals(1, Api.json(groupApi.get("/users/" + suzuki + "/assignments?asOf=2027-04-01")).size());
         assertEquals(List.of(chief),

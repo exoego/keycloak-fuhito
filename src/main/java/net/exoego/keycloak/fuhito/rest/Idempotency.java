@@ -76,6 +76,10 @@ final class Idempotency {
             }
             return (T) response.build();
         }
+        // A mask or an erase cleared a body that named a person. The request still writes nothing again.
+        if (first.body() == null) {
+            return null;
+        }
         return Unchecked.io(() -> JSON.readValue(first.body(), type));
     }
 

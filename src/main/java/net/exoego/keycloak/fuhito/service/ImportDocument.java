@@ -296,6 +296,9 @@ public record ImportDocument(
                     format = "date")
             String validFrom,
             @Schema(description = "The first date on which the unit no longer exists.", format = "date")
-            String validTo) {
+            String validTo,
+            @Schema(description = "The ID of a stored unit, for a row of a unit with no external ID. A CSV export has "
+                    + "it in every row. A new unit has none.")
+            String id) {
     }
 }
