@@ -9,6 +9,7 @@ import net.exoego.keycloak.fuhito.domain.ChangeLogEntry;
 import net.exoego.keycloak.fuhito.jpa.JpaAssignmentStore;
 import net.exoego.keycloak.fuhito.jpa.JpaChangeLogStore;
 import net.exoego.keycloak.fuhito.jpa.JpaEmploymentStore;
+import net.exoego.keycloak.fuhito.jpa.JpaExternalIdStore;
 import net.exoego.keycloak.fuhito.jpa.JpaOrgUnitStore;
 import net.exoego.keycloak.fuhito.jpa.JpaPersonStore;
 import net.exoego.keycloak.fuhito.jpa.JpaRefItemStore;
@@ -39,7 +40,8 @@ final class UserRemovalHandler {
                 new LegalEntityEmployers(new JpaOrgUnitStore(em, realmId), new JpaRefItemStore(em, realmId)));
         var changeLog = new JpaChangeLogStore(em, realmId);
         for (EmploymentView ended : new UserRetirement(employments, employmentService, assignments, lines,
-                new JpaPersonStore(em, realmId), RealmTime.clockOrUtc(realm)).retire(userId)) {
+                new JpaPersonStore(em, realmId), new JpaUnitRoleStore(em, realmId), new JpaExternalIdStore(em, realmId),
+                RealmTime.clockOrUtc(realm)).retire(userId)) {
             String id = ended.employment().id();
             // No administrator did this write. The removal of the user did.
             changeLog.append(new ChangeLogEntry(UUID.randomUUID().toString(), 0,

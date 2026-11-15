@@ -61,6 +61,7 @@ Masking removes what identifies the person directly, and keeps the structure of 
 ### Erase
 
 Erasing removes the person record, and every row and every change log entry about the person.
+That includes the entries of rows that are gone, for example a qualification that was deleted. They are found by the IDs that the entries name: the person, the employments of the person, and their assignments. A mask finds the entries to clear the same way.
 The change log keeps one entry that says who erased the data of which person ID.
 
 An export of the realm has the data of people as it is stored. An export taken before a mask or an erase still has what they removed.
