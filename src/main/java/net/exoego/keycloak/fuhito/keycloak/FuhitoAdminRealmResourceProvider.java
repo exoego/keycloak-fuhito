@@ -69,6 +69,12 @@ public class FuhitoAdminRealmResourceProvider implements AdminRealmResourceProvi
                     }
 
                     @Override
+                    public Optional<String> username(String userId) {
+                        return Optional.ofNullable(session.users().getUserById(realm, userId))
+                                .map(UserModel::getUsername);
+                    }
+
+                    @Override
                     public Optional<String> displayName(String userId) {
                         return Optional.ofNullable(session.users().getUserById(realm, userId))
                                 .map(user -> UserNames.of(user.getFirstName(), user.getLastName(),

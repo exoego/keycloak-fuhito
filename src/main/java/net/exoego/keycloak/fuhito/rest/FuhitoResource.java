@@ -25,6 +25,7 @@ import net.exoego.keycloak.fuhito.jpa.JpaExternalIdStore;
 import net.exoego.keycloak.fuhito.jpa.JpaHierarchyStore;
 import net.exoego.keycloak.fuhito.jpa.JpaOrgUnitStore;
 import net.exoego.keycloak.fuhito.jpa.JpaPersonStore;
+import net.exoego.keycloak.fuhito.jpa.JpaRealmExportStore;
 import net.exoego.keycloak.fuhito.jpa.JpaRealmKindStore;
 import net.exoego.keycloak.fuhito.jpa.JpaQualificationStore;
 import net.exoego.keycloak.fuhito.jpa.JpaRefItemStore;
@@ -51,6 +52,7 @@ import net.exoego.keycloak.fuhito.service.PersonService;
 import net.exoego.keycloak.fuhito.service.LeaveService;
 import net.exoego.keycloak.fuhito.service.ProjectionService;
 import net.exoego.keycloak.fuhito.service.PromotionService;
+import net.exoego.keycloak.fuhito.service.RealmExportService;
 import net.exoego.keycloak.fuhito.service.RealmKindService;
 import net.exoego.keycloak.fuhito.service.QualificationService;
 import net.exoego.keycloak.fuhito.service.RefItemService;
@@ -161,6 +163,11 @@ public class FuhitoResource {
             @Override
             public Optional<String> findIdByUsername(String username) {
                 return users.findIdByUsername(username);
+            }
+
+            @Override
+            public Optional<String> username(String userId) {
+                return users.username(userId);
             }
 
             @Override
@@ -301,6 +308,38 @@ public class FuhitoResource {
     public ExternalIdsResource externalIds() {
         return new ExternalIdsResource(context, new ExternalIdService(new JpaExternalIdStore(entityManager,
                 realmId)));
+    }
+
+    /**
+     * Returns the export of every stored row of the realm.
+     *
+     * @return the sub-resource
+     */
+    @Path("export")
+    public ExportResource export() {
+        return new ExportResource(context, realmExport());
+    }
+
+    /**
+     * Returns the restore of an export into the realm.
+     *
+     * @return the sub-resource
+     */
+    @Path("restore")
+    public RestoreResource restore() {
+        return new RestoreResource(context, realmExport(), realmId);
+    }
+
+    private RealmExportService realmExport() {
+        return new RealmExportService(new RealmExportService.Stores(
+                new JpaRealmExportStore(entityManager, realmId), new JpaRealmKindStore(entityManager, realmId),
+                new JpaRefItemStore(entityManager, realmId), new JpaAttributeDefinitionStore(entityManager, realmId),
+                new JpaHierarchyStore(entityManager, realmId), new JpaOrgUnitStore(entityManager, realmId),
+                new JpaPersonStore(entityManager, realmId), new JpaEmploymentStore(entityManager, realmId),
+                new JpaAssignmentStore(entityManager, realmId), new JpaReportingLineStore(entityManager, realmId),
+                new JpaUnitRoleStore(entityManager, realmId), new JpaQualificationStore(entityManager, realmId),
+                new JpaExternalIdStore(entityManager, realmId), new JpaChangeOrderStore(entityManager, realmId),
+                users));
     }
 
     private RemovalService removals() {

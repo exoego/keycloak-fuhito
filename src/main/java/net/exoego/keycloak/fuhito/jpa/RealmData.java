@@ -12,7 +12,7 @@ import jakarta.persistence.criteria.CriteriaDelete;
 public final class RealmData {
 
     // Children come before the rows they refer to.
-    private static final List<Class<?>> ENTITIES = List.of(
+    static final List<Class<?>> ENTITIES = List.of(
             UserMaskEntity.class,
             ReportingLineEntity.class,
             UnitRoleEntity.class,

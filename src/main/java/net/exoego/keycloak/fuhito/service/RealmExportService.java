@@ -1,0 +1,381 @@
+package net.exoego.keycloak.fuhito.service;
+
+import java.time.Instant;
+import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+
+import net.exoego.keycloak.fuhito.domain.Assignment;
+import net.exoego.keycloak.fuhito.domain.AttributeDefinition;
+import net.exoego.keycloak.fuhito.domain.ChangeOrder;
+import net.exoego.keycloak.fuhito.domain.Checks;
+import net.exoego.keycloak.fuhito.domain.Employment;
+import net.exoego.keycloak.fuhito.domain.EmploymentStatus;
+import net.exoego.keycloak.fuhito.domain.EmploymentTerms;
+import net.exoego.keycloak.fuhito.domain.ExternalId;
+import net.exoego.keycloak.fuhito.domain.FuhitoException;
+import net.exoego.keycloak.fuhito.domain.Hierarchy;
+import net.exoego.keycloak.fuhito.domain.OrgUnit;
+import net.exoego.keycloak.fuhito.domain.OrgUnitLink;
+import net.exoego.keycloak.fuhito.domain.OrgUnitSuccession;
+import net.exoego.keycloak.fuhito.domain.OrgUnitVersion;
+import net.exoego.keycloak.fuhito.domain.Person;
+import net.exoego.keycloak.fuhito.domain.Qualification;
+import net.exoego.keycloak.fuhito.domain.RealmKind;
+import net.exoego.keycloak.fuhito.domain.RefItem;
+import net.exoego.keycloak.fuhito.domain.ReportingLine;
+import net.exoego.keycloak.fuhito.domain.UnitRole;
+import net.exoego.keycloak.fuhito.domain.ValidPeriod;
+import net.exoego.keycloak.fuhito.service.RealmExport.AssignmentRows;
+import net.exoego.keycloak.fuhito.service.RealmExport.EmploymentRow;
+import net.exoego.keycloak.fuhito.service.RealmExport.PersonRow;
+import net.exoego.keycloak.fuhito.service.RealmExport.QualificationRow;
+import net.exoego.keycloak.fuhito.store.AssignmentStore;
+import net.exoego.keycloak.fuhito.store.AttributeDefinitionStore;
+import net.exoego.keycloak.fuhito.store.ChangeOrderStore;
+import net.exoego.keycloak.fuhito.store.EmploymentStore;
+import net.exoego.keycloak.fuhito.store.ExternalIdStore;
+import net.exoego.keycloak.fuhito.store.HierarchyStore;
+import net.exoego.keycloak.fuhito.store.OrgUnitStore;
+import net.exoego.keycloak.fuhito.store.PersonStore;
+import net.exoego.keycloak.fuhito.store.QualificationStore;
+import net.exoego.keycloak.fuhito.store.RealmExportStore;
+import net.exoego.keycloak.fuhito.store.RealmKindStore;
+import net.exoego.keycloak.fuhito.store.RefItemStore;
+import net.exoego.keycloak.fuhito.store.ReportingLineStore;
+import net.exoego.keycloak.fuhito.store.UnitRoleStore;
+import net.exoego.keycloak.fuhito.store.UserDirectory;
+
+/**
+ * Takes every stored row of one realm out page by page, and loads such rows into a realm with no data.
+ */
+public class RealmExportService {
+
+    /**
+     * The stores that an export reads and a restore writes.
+     *
+     * @param export the reads of every row and the writes that the other stores do not have
+     * @param refKinds the kinds of reference data of the realm
+     * @param refItems the reference items
+     * @param attributeDefinitions the definitions of free attributes
+     * @param hierarchies the hierarchies
+     * @param orgUnits the org units
+     * @param people the people
+     * @param employments the employments
+     * @param assignments the assignments
+     * @param reportingLines the reporting lines
+     * @param unitRoles the roles over org units
+     * @param qualifications the qualifications
+     * @param externalIds the IDs of other systems
+     * @param changeOrders the change orders
+     * @param users the users of the realm
+     */
+    public record Stores(RealmExportStore export, RealmKindStore refKinds, RefItemStore refItems,
+            AttributeDefinitionStore attributeDefinitions, HierarchyStore hierarchies, OrgUnitStore orgUnits,
+            PersonStore people, EmploymentStore employments, AssignmentStore assignments,
+            ReportingLineStore reportingLines, UnitRoleStore unitRoles, QualificationStore qualifications,
+            ExternalIdStore externalIds, ChangeOrderStore changeOrders, UserDirectory users) {
+    }
+
+    /**
+     * One page of one list of an export.
+     *
+     * @param rows the rows
+     * @param lastId the ID of the last row, after which the next page starts, or null for an empty page
+     */
+    public record ExportPage(List<?> rows, String lastId) {
+    }
+
+    private final Stores stores;
+
+    /**
+     * Creates the service.
+     *
+     * @param stores the stores of the realm
+     */
+    public RealmExportService(Stores stores) {
+        this.stores = stores;
+    }
+
+    /**
+     * Reads one page of one list.
+     *
+     * @param list the name of the list, one of {@link RealmExport#LISTS}
+     * @param afterId the ID after which the page starts, or null for the start
+     * @param max the largest number of rows
+     * @return the page
+     * @throws FuhitoException when the list is unknown
+     */
+    public ExportPage page(String list, String afterId, int max) {
+        RealmExportStore export = stores.export();
+        return switch (Checks.required("list", list)) {
+            case "ref-kinds" -> page(export.refKinds().read(afterId, max), RealmKind::id,
+                    kind -> new RealmExport.Kind(kind.id(), kind.code(), kind.name(), kind.names()));
+            case "ref-items" -> page(export.refItems().read(afterId, max), RefItem::id, RealmExportService::item);
+            case "attribute-definitions" -> page(export.attributeDefinitions().read(afterId, max),
+                    AttributeDefinition::id, d -> new RealmExport.Definition(d.id(), d.target().name(), d.name(),
+                            d.type().name(), d.refKind(), d.required()));
+            case "hierarchies" -> page(export.hierarchies().read(afterId, max), Hierarchy::id,
+                    h -> new RealmExport.HierarchyRow(h.id(), h.code(), h.name()));
+            case "org-units" -> orgUnits(export.orgUnits().read(afterId, max));
+            case "people" -> people(export.people().read(afterId, max));
+            case "employments" -> employments(export.employments().read(afterId, max));
+            case "assignments" -> assignments(export.assignmentIds().read(afterId, max));
+            case "reporting-lines" -> page(export.reportingLines().read(afterId, max), ReportingLine::id,
+                    l -> new RealmExport.Line(l.id(), l.assignmentId(), l.managerPersonId(), l.kind().name(),
+                            from(l.period()), to(l.period())));
+            case "unit-roles" -> page(export.unitRoles().read(afterId, max), UnitRole::id,
+                    r -> new RealmExport.Role(r.id(), r.employmentId(), r.orgUnitId(), r.roleId(),
+                            r.includesDescendants(), from(r.period()), to(r.period())));
+            case "qualifications" -> page(export.qualifications().read(afterId, max), Qualification::id,
+                    q -> new QualificationRow(q.id(), q.personId(), q.kindId(), q.number(), from(q.period()),
+                            to(q.period()), q.attributes(), q.externalId(), q.source()));
+            case "external-ids" -> page(export.externalIds().read(afterId, max), ExternalId::id,
+                    x -> new RealmExport.ExternalIdRow(x.id(), x.kind().name(), x.resourceId(), x.source(),
+                            x.externalId()));
+            case "change-orders" -> page(export.changeOrders().read(afterId, max), ChangeOrder::id, this::order);
+            default -> throw FuhitoException.notFound("export.list_unknown", Map.of("list", list));
+        };
+    }
+
+    private static <T, R> ExportPage page(List<T> found, Function<T, String> idOf, Function<T, R> toRow) {
+        return new ExportPage(found.stream().map(toRow).toList(), found.isEmpty() ? null : idOf.apply(found.getLast()));
+    }
+
+    private static RealmExport.Item item(RefItem i) {
+        return new RealmExport.Item(i.id(), i.kind(), i.code(), i.name(), i.names(), i.displayOrder(), i.attributes(),
+                i.active(), i.legalEntity(), i.actingHead(), i.group());
+    }
+
+    private ExportPage orgUnits(List<OrgUnit> units) {
+        List<String> ids = units.stream().map(OrgUnit::id).toList();
+        if (ids.isEmpty()) {
+            return new ExportPage(List.of(), null);
+        }
+        Map<String, String> codes = stores.orgUnits().hierarchyCodes();
+        Map<String, List<OrgUnitVersion>> versions = stores.export().versionsOf(ids).stream()
+                .collect(Collectors.groupingBy(OrgUnitVersion::orgUnitId));
+        Map<String, List<OrgUnitLink>> links = stores.export().parentLinksOf(ids).stream()
+                .collect(Collectors.groupingBy(OrgUnitLink::childId));
+        Map<String, List<OrgUnitSuccession>> successions = stores.export().successionsOf(ids).stream()
+                .collect(Collectors.groupingBy(OrgUnitSuccession::predecessorId));
+        return page(units, OrgUnit::id, unit -> new RealmExport.Unit(unit.id(), unit.externalId(), unit.source(),
+                unit.timeZone(), unit.dayStart(),
+                versions.getOrDefault(unit.id(), List.of()).stream()
+                        .map(v -> new RealmExport.Version(v.id(), from(v.period()), to(v.period()), v.code(),
+                                v.name(), v.names(), v.shortName(), v.shortNames(), v.phoneticName(),
+                                v.unitTypeId(), v.displayOrder(), v.attributes()))
+                        .toList(),
+                links.getOrDefault(unit.id(), List.of()).stream()
+                        .map(l -> new RealmExport.Parent(l.id(), codes.get(l.hierarchyId()), l.parentId(),
+                                from(l.period()), to(l.period())))
+                        .toList(),
+                successions.getOrDefault(unit.id(), List.of()).stream()
+                        .map(s -> new RealmExport.Succession(s.id(), s.successorId(), s.effectiveDate().toString()))
+                        .toList()));
+    }
+
+    private ExportPage people(List<Person> found) {
+        Map<String, Instant> masks = found.isEmpty() ? Map.of()
+                : stores.export().maskedAt(found.stream().map(Person::id).toList());
+        return page(found, Person::id, p -> new PersonRow(p.id(), username(p.userId()), p.name(), p.names(),
+                p.phoneticName(), p.attributes(), p.externalId(), p.source(),
+                Optional.ofNullable(masks.get(p.id())).map(Instant::toString).orElse(null)));
+    }
+
+    private ExportPage employments(List<Employment> found) {
+        Map<String, List<EmploymentTerms>> terms = found.isEmpty() ? Map.of()
+                : stores.export().termsOf(found.stream().map(Employment::id).toList()).stream()
+                        .collect(Collectors.groupingBy(EmploymentTerms::employmentId));
+        return page(found, Employment::id, e -> new EmploymentRow(e.id(), e.personId(), e.employerId(),
+                from(e.period()), to(e.period()), e.staffNumber(), e.endReasonId(), e.externalId(), e.source(),
+                e.continuesEmploymentId(), terms.getOrDefault(e.id(), List.of()).stream()
+                        .map(t -> new RealmExport.Terms(t.id(), from(t.period()), to(t.period()),
+                                t.employmentTypeId(), t.gradeId(), t.status().name(), t.leaveReasonId(),
+                                t.workPercent(), t.attributes()))
+                        .toList()));
+    }
+
+    private ExportPage assignments(List<String> ids) {
+        Map<String, List<Assignment>> rows = ids.isEmpty() ? Map.of()
+                : stores.export().rowsOf(ids).stream().collect(Collectors.groupingBy(Assignment::assignmentId));
+        return page(ids, Function.identity(), id -> new AssignmentRows(id, rows.getOrDefault(id, List.of()).stream()
+                .map(a -> new RealmExport.Period(a.rowId(), a.employmentId(), a.orgUnitId(), from(a.period()),
+                        to(a.period()), a.jobTitleId(), a.occupationId(), a.kindId(), a.head(), a.primary(),
+                        a.allocationPercent(), a.displayOrder(), a.attributes(), a.externalId(), a.source(),
+                        a.continuesAssignmentId()))
+                .toList()));
+    }
+
+    private RealmExport.Order order(ChangeOrder o) {
+        return new RealmExport.Order(o.id(), o.number(), o.kind(), o.title(), o.note(), text(o.orderDate()),
+                text(o.effectiveDate()), username(o.approverUserId()), username(o.requesterUserId()),
+                o.externalReference(), text(o.createdAt()), text(o.announcedAt()), username(o.announcedByUserId()));
+    }
+
+    // A user that Keycloak no longer has gives no username. The restored record then has no link.
+    private String username(String userId) {
+        return userId == null ? null : stores.users().username(userId).orElse(null);
+    }
+
+    private static String from(ValidPeriod period) {
+        return period.from().toString();
+    }
+
+    private static String to(ValidPeriod period) {
+        return text(period.to());
+    }
+
+    private static String text(Object value) {
+        return Objects.toString(value, null);
+    }
+
+    /**
+     * Loads every list of an export into the realm, with the IDs of the export, all or nothing.
+     *
+     * @param document the export
+     * @return the number of rows of each list
+     * @throws FuhitoException when the format is unknown, the realm has data, or a username has no user
+     */
+    public Map<String, Integer> restore(RealmExport document) {
+        Checks.required("body", document);
+        if (!RealmExport.FORMAT.equals(document.format())) {
+            throw FuhitoException.invalid("restore.format", Map.of("format", String.valueOf(document.format())));
+        }
+        if (!stores.export().isEmpty()) {
+            throw FuhitoException.conflict("restore.realm_not_empty", Map.of());
+        }
+        Map<String, Integer> counts = new LinkedHashMap<>();
+        counts.put("ref-kinds", each(document.refKinds(), k -> stores.refKinds().insert(
+                new RealmKind(k.id(), k.code(), k.name(), k.names()))));
+        counts.put("ref-items", each(document.refItems(), i -> stores.refItems().insert(new RefItem(i.id(), i.kind(),
+                i.code(), i.name(), i.names(), i.displayOrder(), i.attributes(), i.active(), i.legalEntity(),
+                i.actingHead(), i.group()))));
+        counts.put("attribute-definitions", each(document.attributeDefinitions(), d -> stores.attributeDefinitions()
+                .insert(new AttributeDefinition(d.id(), AttributeDefinition.Target.valueOf(d.target()), d.name(),
+                        AttributeDefinition.Type.valueOf(d.type()), d.refKind(), d.required()))));
+        Map<String, String> hierarchyIds = new HashMap<>();
+        hierarchyIds.put(Hierarchy.DEFAULT_CODE, stores.hierarchies().defaultId());
+        counts.put("hierarchies", each(document.hierarchies(), h -> {
+            if (!h.code().equals(Hierarchy.DEFAULT_CODE)) {
+                stores.hierarchies().insert(new Hierarchy(h.id(), h.code(), h.name()));
+                hierarchyIds.put(h.code(), h.id());
+            }
+        }));
+        restoreOrgUnits(Optional.ofNullable(document.orgUnits()).orElse(List.of()), hierarchyIds, counts);
+        counts.put("people", each(document.people(), p -> {
+            stores.people().insert(new Person(p.id(), userId(p.username()), p.name(), p.names(), p.phoneticName(),
+                    p.attributes(), p.externalId(), p.source()));
+            if (p.maskedAt() != null) {
+                stores.export().restoreMask(p.id(), Instant.parse(p.maskedAt()));
+            }
+        }));
+        restoreEmployments(Optional.ofNullable(document.employments()).orElse(List.of()), counts);
+        restoreAssignments(Optional.ofNullable(document.assignments()).orElse(List.of()), counts);
+        counts.put("reporting-lines", each(document.reportingLines(), l -> stores.reportingLines().insert(
+                new ReportingLine(l.id(), l.assignmentId(), l.managerPersonId(), null,
+                        ReportingLine.Kind.valueOf(l.kind()), period(l.validFrom(), l.validTo())))));
+        counts.put("unit-roles", each(document.unitRoles(), r -> stores.unitRoles().insert(new UnitRole(r.id(),
+                r.employmentId(), null, null, r.orgUnitId(), r.roleId(), r.includesDescendants(),
+                period(r.validFrom(), r.validTo())))));
+        counts.put("qualifications", each(document.qualifications(), q -> stores.qualifications().insert(
+                new Qualification(q.id(), q.personId(), null, q.kindId(), q.number(), period(q.validFrom(),
+                        q.validTo()), q.attributes(), q.externalId(), q.source()))));
+        counts.put("external-ids", each(document.externalIds(), x -> stores.externalIds().insert(new ExternalId(
+                x.id(), ExternalId.Kind.valueOf(x.resourceType()), x.resourceId(), x.source(), x.externalId()))));
+        counts.put("change-orders", each(document.changeOrders(), o -> stores.changeOrders().insert(new ChangeOrder(
+                o.id(), o.number(), o.kind(), o.title(), o.note(), date(o.orderDate()), date(o.effectiveDate()),
+                userId(o.approver()), userId(o.requester()), o.externalReference(), instant(o.createdAt()),
+                instant(o.announcedAt()), userId(o.announcedBy())))));
+        return counts;
+    }
+
+    // Every unit comes first, so that a parent or a successor exists when a link names it.
+    private void restoreOrgUnits(List<RealmExport.Unit> units, Map<String, String> hierarchyIds,
+            Map<String, Integer> counts) {
+        OrgUnitStore store = stores.orgUnits();
+        units.forEach(u -> store.insertUnit(new OrgUnit(u.id(), u.externalId(), u.source(), null, u.timeZone(),
+                u.dayStart())));
+        for (RealmExport.Unit u : units) {
+            u.versions().forEach(v -> store.insertVersion(new OrgUnitVersion(v.id(), u.id(), period(v.validFrom(),
+                    v.validTo()), v.code(), v.name(), v.names(), v.shortName(), v.shortNames(), v.phoneticName(),
+                    v.unitTypeId(), v.displayOrder(), v.attributes())));
+        }
+        for (RealmExport.Unit u : units) {
+            for (RealmExport.Parent p : u.parents()) {
+                String hierarchyId = Optional.ofNullable(hierarchyIds.get(p.hierarchy())).orElseThrow(
+                        () -> FuhitoException.invalid("restore.hierarchy_unknown", Map.of("code", p.hierarchy())));
+                store.insertLink(new OrgUnitLink(p.id(), hierarchyId, u.id(), p.parentId(),
+                        period(p.validFrom(), p.validTo())));
+            }
+            u.successors().forEach(s -> store.insertSuccession(new OrgUnitSuccession(s.id(), u.id(),
+                    s.successorId(), LocalDate.parse(s.effectiveDate()))));
+        }
+        counts.put("org-units", units.size());
+    }
+
+    // An employment that continues another comes after it.
+    private void restoreEmployments(List<EmploymentRow> rows, Map<String, Integer> counts) {
+        List<EmploymentRow> ordered = new ArrayList<>(rows);
+        ordered.sort(Comparator.comparing((EmploymentRow e) -> e.continuesEmploymentId() != null)
+                .thenComparing(EmploymentRow::validFrom));
+        for (EmploymentRow e : ordered) {
+            stores.employments().insert(new Employment(e.id(), e.personId(), null, e.employerId(),
+                    period(e.validFrom(), e.validTo()), e.staffNumber(), e.endReasonId(), e.externalId(), e.source(),
+                    e.continuesEmploymentId()));
+            e.terms().forEach(t -> stores.employments().insertTerms(new EmploymentTerms(t.id(), e.id(),
+                    period(t.validFrom(), t.validTo()), t.employmentTypeId(), t.gradeId(),
+                    EmploymentStatus.valueOf(t.status()), t.leaveReasonId(), t.workPercent(), t.attributes())));
+        }
+        counts.put("employments", rows.size());
+    }
+
+    // A row that continues another assignment comes after it.
+    private void restoreAssignments(List<AssignmentRows> assignments, Map<String, Integer> counts) {
+        List<RealmExport.Period> rows = new ArrayList<>(assignments.stream()
+                .flatMap(a -> a.periods().stream()).toList());
+        rows.sort(Comparator.comparing((RealmExport.Period r) -> r.continuesAssignmentId() != null)
+                .thenComparing(RealmExport.Period::validFrom));
+        Map<String, String> assignmentOfRow = new HashMap<>();
+        assignments.forEach(a -> a.periods().forEach(r -> assignmentOfRow.put(r.rowId(), a.assignmentId())));
+        rows.forEach(r -> stores.assignments().insert(new Assignment(r.rowId(), assignmentOfRow.get(r.rowId()),
+                r.employmentId(), r.orgUnitId(), period(r.validFrom(), r.validTo()), r.jobTitleId(),
+                r.occupationId(), r.kindId(), r.head(), r.primary(), r.allocationPercent(), r.displayOrder(),
+                r.attributes(), r.externalId(), r.source(), r.continuesAssignmentId())));
+        counts.put("assignments", assignments.size());
+    }
+
+    private static <T> int each(List<T> rows, java.util.function.Consumer<T> write) {
+        List<T> all = rows == null ? List.of() : rows;
+        all.forEach(write);
+        return all.size();
+    }
+
+    private String userId(String username) {
+        if (username == null) {
+            return null;
+        }
+        return stores.users().findIdByUsername(username).orElseThrow(() -> FuhitoException.invalid(
+                "restore.username_unknown", Map.of("username", username)));
+    }
+
+    private static ValidPeriod period(String from, String to) {
+        return new ValidPeriod(LocalDate.parse(from), to == null ? null : LocalDate.parse(to));
+    }
+
+    private static LocalDate date(String text) {
+        return text == null ? null : LocalDate.parse(text);
+    }
+
+    private static Instant instant(String text) {
+        return text == null ? null : Instant.parse(text);
+    }
+}

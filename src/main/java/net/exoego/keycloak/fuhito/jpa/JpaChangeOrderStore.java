@@ -105,7 +105,7 @@ public class JpaChangeOrderStore implements ChangeOrderStore {
         entity.announcedByUserId = order.announcedByUserId();
     }
 
-    private static ChangeOrder toDomain(ChangeOrderEntity e) {
+    static ChangeOrder toDomain(ChangeOrderEntity e) {
         return new ChangeOrder(e.id, e.number, e.kind, e.title, e.note, e.orderDate, e.effectiveDate,
                 e.approverUserId, e.requesterUserId, e.externalReference, e.createdAt, e.announcedAt,
                 e.announcedByUserId);
