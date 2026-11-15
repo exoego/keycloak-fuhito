@@ -2,10 +2,14 @@ package net.exoego.keycloak.fuhito.service;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
 
+import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.domain.ReportingLine;
+import net.exoego.keycloak.fuhito.domain.UnitRole;
+import net.exoego.keycloak.fuhito.domain.ValidPeriod;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -22,8 +26,10 @@ class UserRetirementTest {
     private final MemoryOrgUnitStore orgUnitStore = new MemoryOrgUnitStore();
     private final MemoryRefItemStore refItems = new MemoryRefItemStore();
     private final MemoryPersonStore people = MemoryPersonStore.anyUser();
+    private final MemoryUnitRoleStore unitRoles = new MemoryUnitRoleStore();
+    private final MemoryExternalIdStore externalIds = new MemoryExternalIdStore();
     private final EmploymentService employments =
-            new EmploymentService(employmentStore, assignmentStore, refItems, people, lines, new MemoryUnitRoleStore(), new AnyEmployer());
+            new EmploymentService(employmentStore, assignmentStore, refItems, people, lines, unitRoles, new AnyEmployer());
     private final AssignmentService assignments =
             new AssignmentService(assignmentStore, employmentStore, orgUnitStore, refItems, lines);
     private final ReportingLineService lineService = new ReportingLineService(lines,
@@ -31,7 +37,8 @@ class UserRetirementTest {
                     people),
             CLOCK);
     private final UserRetirement retirement =
-            new UserRetirement(employmentStore, employments, assignmentStore, lines, people, CLOCK);
+            new UserRetirement(employmentStore, employments, assignmentStore, lines, people, unitRoles, externalIds,
+                    CLOCK);
 
     private String unit;
 
@@ -108,6 +115,26 @@ class UserRetirementTest {
         assertEquals(1, assignmentStore.rows.size());
         assertEquals(1, employmentStore.terms.size());
         assertEquals(List.of(), allLines());
+    }
+
+    @Test
+    void anEmploymentThatNeverHeldGoesWithItsRolesItsIdsAndWhatContinuesIt() {
+        String joins = employ("alice", "2026-07-01", null);
+        String assignment = assign(joins, "2026-07-01");
+        unitRoles.insert(new UnitRole("role-1", joins, null, "alice", unit, "hr-contact", false,
+                ValidPeriod.startingAt(LocalDate.parse("2026-07-01"))));
+        externalIds.insert(new ExternalId("x-1", ExternalId.Kind.EMPLOYMENT, joins, "payroll", "P-1"));
+        externalIds.insert(new ExternalId("x-2", ExternalId.Kind.ASSIGNMENT, assignment, "payroll", "A-1"));
+        String next = employments.transfer(joins, new TransferRequest("other", "2026-10-01", null, null))
+                .started().employment().id();
+
+        retirement.retire("alice");
+
+        assertEquals(List.of(), employmentsOf("alice"));
+        assertEquals(List.of(), unitRoles.findByEmployment(joins));
+        assertEquals(List.of(), unitRoles.findByEmployment(next));
+        assertEquals(List.of(), externalIds.rows);
+        assertEquals(0, assignmentStore.rows.size());
     }
 
     @Test
