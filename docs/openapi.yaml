@@ -1208,6 +1208,10 @@ components:
           type: string
           description: The external ID of the parent with the same source. A root
             has none.
+        parentId:
+          type: string
+          description: "The ID of the parent, for a parent that has no external ID\
+            \ with the same source. Give this or `parentExternalId`, not both."
         displayOrder:
           type: integer
           format: int32

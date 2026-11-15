@@ -66,6 +66,7 @@ The lists are applied in the order reference items, org units, employments, assi
 ```
 
 - Rows of org units can come in any order. A parent is applied before its children.
+- A parent with no external ID of the same source can be named by `parentId`, the ID of the unit. A row gives `parentExternalId` or `parentId`, not both.
 - A new row can have its own `validFrom`. An existing row ignores it.
 - A row with `validTo` ends the thing on that date. An employment can also carry `endReason`.
 - A row replaces all details of an existing thing. A missing optional value clears it.
@@ -98,7 +99,7 @@ curl -X POST \
 - A column that is not needed can be left out.
 - The file is UTF-8, with or without a byte order mark. For another encoding, name it in the content type, for example `text/csv; charset=Shift_JIS`.
 - A cell can be in double quotes. A quoted cell can hold commas and line breaks.
-- **A blank cell keeps the stored value.** This differs from JSON, where a missing value clears it.
+- **A blank cell keeps the stored value.** This differs from JSON, where a missing value clears it. A blank parent keeps the stored parent, also one with no external ID of the source.
 - The cell `#CLEAR` removes the stored value.
 - True is `true`, `1`, `yes`, `はい`, or `○`. False is `false`, `0`, `no`, `いいえ`, or `×`.
 - A name in another language has its own column, for example `name:en` or `名称:en`.
