@@ -78,8 +78,10 @@ public class UserRetirement {
                 .forEach(employment -> removeNeverHeld(employment, written));
         for (Employment employment : all) {
             if (employment.period().from().isBefore(today) && employment.period().endsAfter(today)) {
+                // A reason that was stored with a later end stays.
+                String reason = employmentService.get(employment.id()).endReason();
                 written.add(new Write.OfEmployment(false, "/end",
-                        employmentService.end(employment.id(), today.toString(), null)));
+                        employmentService.end(employment.id(), today.toString(), reason)));
             }
         }
         List<ReportingLine> managed = people.findByUser(userId).map(person -> lines.findByManager(person.id()))
