@@ -90,6 +90,39 @@ public class PersonService {
     }
 
     /**
+     * Finds the person that has an ID of the system it came from.
+     *
+     * @param source the name of the system
+     * @param externalId the ID in that system
+     * @return the person, or empty when no person has the ID
+     */
+    public Optional<Person> ofExternalId(String source, String externalId) {
+        return store.findByExternalId(source, externalId);
+    }
+
+    /**
+     * Gives a person with no external ID the ID of the system it came from, and replaces its values.
+     *
+     * @param id the ID of the person
+     * @param request the new values, with the source and the external ID
+     * @return the changed person
+     * @throws FuhitoException when the person does not exist, a value is bad, or another person has the ID
+     */
+    public PersonView adopt(String id, PersonValues request) {
+        Checks.required("body", request);
+        get(id);
+        String source = Checks.code("source", request.source());
+        String externalId = Checks.required("externalId", request.externalId());
+        if (store.findByExternalId(source, externalId).filter(other -> !other.id().equals(id)).isPresent()) {
+            throw FuhitoException.conflict("person.external_id_taken",
+                    Map.of("source", source, "externalId", externalId));
+        }
+        Person changed = checked(id, request, externalId, source);
+        store.update(changed);
+        return view(changed);
+    }
+
+    /**
      * Creates a person.
      *
      * @param request the values of the request

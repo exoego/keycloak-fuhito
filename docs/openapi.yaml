@@ -711,6 +711,12 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ImportAssignmentRow"
+        people:
+          type: array
+          items:
+            $ref: "#/components/schemas/ImportPersonRow"
+          description: "The people. They come before the employments, which can name\
+            \ them."
     ImportEmploymentRow:
       type: object
       required:
@@ -728,8 +734,8 @@ components:
           description: The ID of the employment in that system.
         username:
           type: string
-          description: The username of the Keycloak user. Either this or `userId`
-            is required.
+          description: "The username of the Keycloak user. A row needs this, `userId`,\
+            \ or `personExternalId`, except for a stored employment."
         userId:
           type: string
           description: The ID of the Keycloak user.
@@ -778,6 +784,11 @@ components:
           description: "The external ID of the org unit that employs the person. It\
             \ is a legal entity. Leave it out when the realm has exactly one. A stored\
             \ employment keeps its employer, so the value must name that one."
+        personExternalId:
+          type: string
+          description: "The external ID of the person with the same source, for a\
+            \ person from the list of people. It names a person with no Keycloak user\
+            \ too."
     ImportOrgUnitRow:
       type: object
       required:
@@ -847,6 +858,46 @@ components:
           type: string
           description: The first date on which the unit no longer exists.
           format: date
+    ImportPersonRow:
+      type: object
+      required:
+      - externalId
+      description: "A person, also one with no Keycloak user. It is matched by source\
+        \ and external ID."
+      properties:
+        source:
+          type: string
+          maxLength: 64
+          pattern: "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
+          description: The name of the system that the row comes from. The default
+            is the source of the document.
+        externalId:
+          type: string
+          description: The ID of the person in that system.
+        username:
+          type: string
+          description: The username of a Keycloak user to link. A row that names no
+            user keeps the link that is stored.
+        userId:
+          type: string
+          description: The ID of a Keycloak user to link.
+        name:
+          type: string
+          maxLength: 255
+          description: The default name. A person with no user needs it.
+        names:
+          type: object
+          additionalProperties:
+            type: string
+          description: "Names in other languages, by language tag."
+        phoneticName:
+          type: string
+          maxLength: 255
+          description: The reading of the name for sorting.
+        attributes:
+          type: object
+          additionalProperties: {}
+          description: Free values of the person.
     ImportRefItemRow:
       type: object
       required:
@@ -4079,6 +4130,7 @@ paths:
           enum:
           - ref-items
           - org-units
+          - people
           - employments
           - assignments
         name: list
