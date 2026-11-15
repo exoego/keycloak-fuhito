@@ -483,7 +483,9 @@ public class FuhitoResource {
         var definitions = new JpaAttributeDefinitionStore(entityManager, realmId);
         return new ImportsResource(context, importService, new CsvImportService(importService, refItemStore,
                 orgUnitStore, orgUnitService(), people, definitions::list),
-                new CsvExportService(orgUnitService(), personService(), definitions::list));
+                new CsvExportService(refItemService(), () -> realmKinds().list().stream()
+                        .map(RealmKindService.View::code).toList(), orgUnitService(), personService(),
+                        definitions::list));
     }
 
     private OrgUnitService orgUnitService() {

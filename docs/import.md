@@ -86,6 +86,8 @@ The lists are applied in the order reference items, org units, employments, assi
 
 `GET /imports/csv/org-units?asOf=` gives the org units of a date as such a file, for a change in a spreadsheet. Each row has the column `id`, so a unit with no external ID loads again too. The parent is in the column `parentId`. With `header=ja`, the names of the columns are in Japanese. The file is UTF-8 with a byte order mark, which spreadsheets need to read it as UTF-8. The same file loaded on the same date changes nothing.
 
+`GET /imports/csv/ref-items` gives the reference items of every kind the same way, the inactive ones too. It takes no `asOf`. An item is matched by kind and code, so the file has no `id`. A mark such as `legalEntity` is blank for a kind that cannot have it.
+
 `GET /imports/csv/people` gives the people the same way. A person has no date, so it takes no `asOf`. The file leaves out the link to a Keycloak user: a blank cell keeps the stored link, and the ID of a user who was removed from Keycloak would not load again.
 The query has `effectiveDate`, and optionally `dryRun` and `source`.
 The content type is `text/csv`.

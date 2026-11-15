@@ -9,11 +9,14 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import net.exoego.keycloak.fuhito.domain.AttributeDefinition;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.OrgUnitVersion;
 import net.exoego.keycloak.fuhito.domain.Person;
+import net.exoego.keycloak.fuhito.domain.RefItem;
+import net.exoego.keycloak.fuhito.domain.RefKind;
 
 /**
  * Writes a list of the realm on a date as a CSV that the CSV import loads again with no change.
@@ -24,6 +27,8 @@ public class CsvExportService {
     private static final String BYTE_ORDER_MARK = "﻿";
     private static final int ROWS_AT_A_TIME = 1000;
 
+    private final RefItemService refItems;
+    private final Supplier<List<String>> kinds;
     private final OrgUnitService orgUnits;
     private final PersonService people;
     private final Function<AttributeDefinition.Target, List<AttributeDefinition>> definitions;
@@ -31,12 +36,16 @@ public class CsvExportService {
     /**
      * Creates the service.
      *
+     * @param refItems the operations on reference items of the realm
+     * @param kinds the codes of the kinds of reference items, the fixed ones and the ones of the realm
      * @param orgUnits the operations on org units of the realm
      * @param people the operations on people of the realm
      * @param definitions the definitions of free attributes of the realm, by the resource that has them
      */
-    public CsvExportService(OrgUnitService orgUnits, PersonService people,
-            Function<AttributeDefinition.Target, List<AttributeDefinition>> definitions) {
+    public CsvExportService(RefItemService refItems, Supplier<List<String>> kinds, OrgUnitService orgUnits,
+            PersonService people, Function<AttributeDefinition.Target, List<AttributeDefinition>> definitions) {
+        this.refItems = refItems;
+        this.kinds = kinds;
         this.orgUnits = orgUnits;
         this.people = people;
         this.definitions = definitions;
@@ -53,10 +62,55 @@ public class CsvExportService {
      */
     public String write(String list, String asOf, boolean japanese) {
         return switch (String.valueOf(list)) {
+            case "ref-items" -> refItems(japanese);
             case "org-units" -> orgUnits(asOf, japanese);
             case "people" -> people(japanese);
             default -> throw FuhitoException.invalid("csv.export_list_unknown", Map.of("list", String.valueOf(list)));
         };
+    }
+
+    // A mark is left blank for a kind that cannot have it, as a blank cell means no mark for a new item.
+    private String refItems(boolean japanese) {
+        List<RefItem> items = new ArrayList<>();
+        for (String kind : kinds.get()) {
+            for (int first = 0;; first += ROWS_AT_A_TIME) {
+                List<RefItem> page = refItems.list(kind, true, Page.of(first, ROWS_AT_A_TIME));
+                items.addAll(page);
+                if (page.size() < ROWS_AT_A_TIME) {
+                    break;
+                }
+            }
+        }
+        SortedSet<String> languages = new TreeSet<>();
+        items.forEach(item -> languages.addAll(item.names().keySet()));
+        List<String> attributes = definitions.apply(AttributeDefinition.Target.REF_ITEM).stream()
+                .map(AttributeDefinition::name)
+                .toList();
+        List<String> header = new ArrayList<>();
+        for (String field : List.of("kind", "code", "name")) {
+            header.add(column(field, japanese));
+        }
+        languages.forEach(language -> header.add(column("name", japanese) + ":" + language));
+        for (String field : List.of("displayOrder", "active", "legalEntity", "actingHead", "group")) {
+            header.add(column(field, japanese));
+        }
+        attributes.forEach(attribute -> header.add(CsvImportService.ATTRIBUTE_COLUMN + attribute));
+        StringBuilder csv = new StringBuilder(BYTE_ORDER_MARK);
+        line(csv, header);
+        for (RefItem item : items) {
+            List<String> cells = new ArrayList<>(List.of(item.kind(), item.code(), item.name()));
+            languages.forEach(language -> cells.add(text(item.names().get(language))));
+            cells.add(Integer.toString(item.displayOrder()));
+            cells.add(Boolean.toString(item.active()));
+            boolean unitType = item.is(RefKind.UNIT_TYPE);
+            cells.add(unitType ? Boolean.toString(item.legalEntity()) : "");
+            cells.add(item.is(RefKind.ASSIGNMENT_KIND) ? Boolean.toString(item.actingHead()) : "");
+            cells.add(unitType ? Boolean.toString(item.group()) : "");
+            attributes.forEach(attribute -> cells.add(text(Optional.ofNullable(item.attributes())
+                    .map(values -> values.get(attribute)).orElse(null))));
+            line(csv, cells);
+        }
+        return csv.toString();
     }
 
     // The list of people can be large. It is read twice in pages, first for the languages of the names. The link
