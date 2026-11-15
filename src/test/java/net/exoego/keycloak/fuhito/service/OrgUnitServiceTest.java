@@ -238,6 +238,24 @@ class OrgUnitServiceTest {
     }
 
     @Test
+    void rejectsAnExternalIdThatIsTakenOrBad() {
+        service.create(new NewOrgUnit(null, "Ward", null, null, null, null, null, null, "2026-04-01", null, null,
+                "H-1", "hr"));
+
+        assertEquals("org_unit.external_id_taken", failure(new NewOrgUnit(null, "Other", null, null, null, null, null,
+                null, "2026-04-01", null, null, "H-1", "hr")).code());
+        assertEquals("invalid.code", failure(new NewOrgUnit(null, "Other", null, null, null, null, null, null,
+                "2026-04-01", null, null, "H-2", "bad source")).code());
+        assertEquals("external_id.bad_value", failure(new NewOrgUnit(null, "Other", null, null, null, null, null,
+                null, "2026-04-01", null, null, " ", "hr")).code());
+        assertEquals("external_id.bad_value", failure(new NewOrgUnit(null, "Other", null, null, null, null, null,
+                null, "2026-04-01", null, null, "x".repeat(256), "hr")).code());
+        // The same ID of another system is free.
+        service.create(new NewOrgUnit(null, "Other", null, null, null, null, null, null, "2026-04-01", null, null,
+                "H-1", "payroll"));
+    }
+
+    @Test
     void rejectsACodeThatIsTaken() {
         NewOrgUnit request = new NewOrgUnit("hq", "x", null, null, null, null, null, null, "2026-04-01", null, null,
                 null, null);
