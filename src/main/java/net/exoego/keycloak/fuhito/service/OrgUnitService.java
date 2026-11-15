@@ -462,6 +462,53 @@ public class OrgUnitService {
     }
 
     /**
+     * The values of a search of org units. They are not checked yet. A value that is null keeps everything.
+     *
+     * @param q a part of a name, a short name, or the phonetic name, in any language, with no regard to case
+     * @param code the code
+     * @param unitType the code of the unit type
+     * @param group true for groups only, false for line units only
+     * @param asOf the date as {@code YYYY-MM-DD}, or null for today of the realm
+     */
+    public record Search(String q, String code, String unitType, Boolean group, String asOf) {
+    }
+
+    /**
+     * Lists a page of the org units of a date that match a search, each with its parent in the default
+     * hierarchy. They follow the display order, then the phonetic name, then the name.
+     *
+     * @param search what to keep and the date
+     * @param page the part of the list to return
+     * @return the units of the page
+     * @throws FuhitoException when a value is bad or the unit type is unknown
+     */
+    public List<OrgUnitState> search(Search search, Page page) {
+        return states(store.searchOn(store.defaultHierarchyId(), storeSearch(search), dateOrToday(search.asOf(), null),
+                page.first(), page.max()));
+    }
+
+    /**
+     * Counts the org units of a date that match a search.
+     *
+     * @param search what to keep and the date
+     * @return the number of units
+     * @throws FuhitoException when a value is bad or the unit type is unknown
+     */
+    public long countSearch(Search search) {
+        return store.countSearchOn(storeSearch(search), dateOrToday(search.asOf(), null));
+    }
+
+    private OrgUnitStore.Search storeSearch(Search search) {
+        String unitTypeId = search.unitType() == null ? null : refItems.findByCode(RefKind.UNIT_TYPE,
+                        search.unitType())
+                .map(RefItem::id)
+                .orElseThrow(() -> FuhitoException.invalid("org_unit.unit_type_unknown",
+                        Map.of("unitType", search.unitType())));
+        String text = search.q() == null || search.q().isBlank() ? null : search.q().strip();
+        return new OrgUnitStore.Search(text, search.code(), unitTypeId, search.group());
+    }
+
+    /**
      * Lists a page of the org units that are legal entities on a date. An org unit is one when its unit type
      * says so. The order is the display order, then the phonetic name, then the name.
      *

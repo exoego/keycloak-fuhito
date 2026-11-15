@@ -5,12 +5,14 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.TypedQuery;
 import net.exoego.keycloak.fuhito.domain.Hierarchy;
 import net.exoego.keycloak.fuhito.domain.OrgUnit;
 import net.exoego.keycloak.fuhito.domain.OrgUnitLink;
@@ -265,6 +267,72 @@ public class JpaOrgUnitStore implements OrgUnitStore {
                 .map(row -> new PlacedOrgUnit(toDomain((OrgUnitEntity) row[0]),
                         toDomain((OrgUnitVersionEntity) row[1]), (String) row[2]))
                 .toList();
+    }
+
+    // Each piece is a fixed text. The values of the search go in as parameters.
+    private static String searchText(OrgUnitStore.Search search, boolean count) {
+        StringBuilder text = new StringBuilder(count ? "select count(v)" : """
+                select u, v, (select l.parentId from OrgUnitLinkEntity l where l.realmId = :realmId
+                    and l.hierarchyId = :hierarchyId and l.childId = v.orgUnitId and l.%s)""".formatted(
+                TreeQuery.onDate("l")));
+        text.append("""
+                 from OrgUnitVersionEntity v join OrgUnitEntity u on u.id = v.orgUnitId
+                where v.realmId = :realmId and v.""").append(TreeQuery.onDate("v"));
+        if (search.text() != null) {
+            text.append("""
+                     and (lower(v.name) like :text escape '!' or lower(v.shortName) like :text escape '!'
+                    or lower(v.phoneticName) like :text escape '!'
+                    or lower(cast(v.names as String)) like :text escape '!'
+                    or lower(cast(v.shortNames as String)) like :text escape '!')""");
+        }
+        if (search.code() != null) {
+            text.append(" and v.code = :code");
+        }
+        if (search.unitTypeId() != null) {
+            text.append(" and v.unitTypeId = :unitTypeId");
+        }
+        text.append(nature(search.group()));
+        if (!count) {
+            text.append(" order by v.displayOrder, v.phoneticName nulls last, v.name, v.orgUnitId");
+        }
+        return text.toString();
+    }
+
+    private static void bind(TypedQuery<?> query, OrgUnitStore.Search search) {
+        if (search.text() != null) {
+            String escaped = search.text().toLowerCase(Locale.ROOT).replace("!", "!!").replace("%", "!%")
+                    .replace("_", "!_");
+            query.setParameter("text", "%" + escaped + "%");
+        }
+        if (search.code() != null) {
+            query.setParameter("code", search.code());
+        }
+        if (search.unitTypeId() != null) {
+            query.setParameter("unitTypeId", search.unitTypeId());
+        }
+    }
+
+    @Override
+    public List<PlacedOrgUnit> searchOn(String hierarchyId, OrgUnitStore.Search search, LocalDate date, int first,
+            int max) {
+        TypedQuery<Object[]> query = em.createQuery(searchText(search, false), Object[].class)
+                .setParameter("realmId", realmId)
+                .setParameter("hierarchyId", hierarchyId)
+                .setParameter("date", date);
+        bind(query, search);
+        return query.setFirstResult(first).setMaxResults(max).getResultStream()
+                .map(row -> new PlacedOrgUnit(toDomain((OrgUnitEntity) row[0]),
+                        toDomain((OrgUnitVersionEntity) row[1]), (String) row[2]))
+                .toList();
+    }
+
+    @Override
+    public long countSearchOn(OrgUnitStore.Search search, LocalDate date) {
+        TypedQuery<Long> query = em.createQuery(searchText(search, true), Long.class)
+                .setParameter("realmId", realmId)
+                .setParameter("date", date);
+        bind(query, search);
+        return query.getSingleResult();
     }
 
     @Override

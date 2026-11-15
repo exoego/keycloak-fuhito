@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Optional;
 
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.TypedQuery;
 import net.exoego.keycloak.fuhito.domain.Assignment;
 import net.exoego.keycloak.fuhito.domain.MemberCursor;
 import net.exoego.keycloak.fuhito.domain.MemberFilter;
@@ -98,15 +99,32 @@ public class JpaAssignmentStore implements AssignmentStore {
 
     @Override
     public List<Assignment> membersOn(MemberFilter filter, MemberCursor after, int first, int max) {
+        var query = em.createQuery(membersText(filter, after, false), AssignmentEntity.class);
+        bind(query, filter, after);
+        return query.setFirstResult(first).setMaxResults(max).getResultStream()
+                .map(JpaAssignmentStore::toDomain)
+                .toList();
+    }
+
+    @Override
+    public long countMembersOn(MemberFilter filter) {
+        var query = em.createQuery(membersText(filter, null, true), Long.class);
+        bind(query, filter, null);
+        return query.getSingleResult();
+    }
+
+    private static String membersText(MemberFilter filter, MemberCursor after, boolean count) {
         // Each piece is a fixed text. The values of the request go in as parameters.
+        String selected = count ? "select count(a)" : "select a";
         StringBuilder text = new StringBuilder();
         if (filter.includeDescendants()) {
-            text.append(TreeQuery.SUBTREE).append(filter.seconded() == null ? "" : ", " + OWNED).append("""
-                    select a from AssignmentEntity a join Tree t on t.id = a.orgUnitId
+            text.append(TreeQuery.SUBTREE).append(filter.seconded() == null ? "" : ", " + OWNED).append(selected)
+                    .append("""
+                     from AssignmentEntity a join Tree t on t.id = a.orgUnitId
                     where a.realmId = :realmId""");
         } else {
-            text.append(filter.seconded() == null ? "" : "with " + OWNED)
-                    .append("select a from AssignmentEntity a where a.realmId = :realmId and a.orgUnitId = :rootId");
+            text.append(filter.seconded() == null ? "" : "with " + OWNED).append(selected)
+                    .append(" from AssignmentEntity a where a.realmId = :realmId and a.orgUnitId = :rootId");
         }
         text.append(" and a.").append(TreeQuery.onDate("a"));
         if (filter.occupationId() != null) {
@@ -145,11 +163,15 @@ public class JpaAssignmentStore implements AssignmentStore {
                 text.append(" and ").append(laterInUnit);
             }
         }
-        text.append(" order by ").append(filter.includeDescendants() ? "t.position, " : "")
-                .append("a.displayOrder, a.validFrom, a.assignmentId");
+        if (!count) {
+            text.append(" order by ").append(filter.includeDescendants() ? "t.position, " : "")
+                    .append("a.displayOrder, a.validFrom, a.assignmentId");
+        }
+        return text.toString();
+    }
 
-        var query = em.createQuery(text.toString(), AssignmentEntity.class)
-                .setParameter("realmId", realmId)
+    private void bind(TypedQuery<?> query, MemberFilter filter, MemberCursor after) {
+        query.setParameter("realmId", realmId)
                 .setParameter("rootId", filter.orgUnitId())
                 .setParameter("date", filter.date());
         if (filter.includeDescendants()) {
@@ -175,9 +197,6 @@ public class JpaAssignmentStore implements AssignmentStore {
                 query.setParameter("afterUnit", after.orgUnitId());
             }
         }
-        return query.setFirstResult(first).setMaxResults(max).getResultStream()
-                .map(JpaAssignmentStore::toDomain)
-                .toList();
     }
 
     @Override

@@ -62,6 +62,14 @@ public interface AssignmentStore {
     List<Assignment> membersOn(MemberFilter filter, MemberCursor after, int first, int max);
 
     /**
+     * Counts the assignments that the same filter as {@link #membersOn} keeps, on all pages.
+     *
+     * @param filter the unit, the date, and what to keep
+     * @return the number of assignments
+     */
+    long countMembersOn(MemberFilter filter);
+
+    /**
      * Finds the ID of an assignment by the ID it has in the system it came from.
      *
      * @param source the name of that system

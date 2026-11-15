@@ -246,6 +246,8 @@ class MembershipServiceTest {
                 new MemberQuery("2026-04-01", false, null, null, null, -1, 0))));
         assertEquals(List.of("doctor"), userIds(service.members(ward,
                 new MemberQuery("2026-04-01", false, null, null, null, -1, 1))));
+        // The count is the same for every page.
+        assertEquals(3, service.countMembers(ward, new MemberQuery("2026-04-01", false, null, null, null, 2, 1)));
     }
 
     @Test

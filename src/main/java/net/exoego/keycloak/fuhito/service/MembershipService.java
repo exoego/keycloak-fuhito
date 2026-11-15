@@ -90,6 +90,36 @@ public class MembershipService {
      * @throws FuhitoException when the unit does not exist on the date or a filter is bad
      */
     public List<Member> members(String orgUnitId, MemberQuery query) {
+        MemberFilter filter = filter(orgUnitId, query);
+        LocalDate date = filter.date();
+        String hierarchy = filter.hierarchyId();
+        Cursor.requireAlone(query.after(), query.first());
+        Page page = Page.of(query.first(), query.max());
+        List<Assignment> rows = assignments.membersOn(filter, cursor(query.after()), page.first(), page.max());
+
+        Map<String, OrgUnitState> units = new HashMap<>();
+        Map<String, Optional<RefItem>> unitTypes = new HashMap<>();
+        orgUnits.placedOn(hierarchy, rows.stream().map(Assignment::orgUnitId).distinct().toList(), date)
+                .forEach(placed -> units.put(placed.unit().id(), OrgUnitState.of(placed.unit(), placed.version(),
+                        placed.version().unitTypeId() == null ? null
+                                : unitTypes.computeIfAbsent(placed.version().unitTypeId(), refItems::find)
+                                        .orElse(null), placed.parentId())));
+        return toMembers(rows, date, units::get, null);
+    }
+
+    /**
+     * Counts the members that {@link #members} lists on all pages together.
+     *
+     * @param orgUnitId the ID of the org unit
+     * @param query the date and the filters. The paging values do not count.
+     * @return the number of members
+     * @throws FuhitoException when the unit does not exist on the date or a filter is bad
+     */
+    public long countMembers(String orgUnitId, MemberQuery query) {
+        return assignments.countMembersOn(filter(orgUnitId, query));
+    }
+
+    private MemberFilter filter(String orgUnitId, MemberQuery query) {
         LocalDate date = query.asOf() == null ? today.ofUnit(orgUnitId)
                 : Checks.optionalDate("asOf", query.asOf());
         if (orgUnits.findUnit(orgUnitId).isEmpty()) {
@@ -100,24 +130,11 @@ public class MembershipService {
             throw FuhitoException.notFound("org_unit.not_valid_on",
                     Map.of("id", orgUnitId, "date", date.toString()));
         }
-        Cursor.requireAlone(query.after(), query.first());
-        Page page = Page.of(query.first(), query.max());
-        List<Assignment> rows = assignments.membersOn(new MemberFilter(hierarchy, orgUnitId,
-                query.includeDescendants(), date, filterId(RefKind.OCCUPATION, query.occupation()),
-                filterId(RefKind.JOB_TITLE, query.jobTitle()),
+        return new MemberFilter(hierarchy, orgUnitId, query.includeDescendants(), date,
+                filterId(RefKind.OCCUPATION, query.occupation()), filterId(RefKind.JOB_TITLE, query.jobTitle()),
                 Checks.optionalEnum("status", EmploymentStatus.class, query.status(), null),
                 query.seconded() == null ? null
-                        : new MemberFilter.Seconded(query.seconded(), orgUnits.defaultHierarchyId())),
-                cursor(query.after()), page.first(), page.max());
-
-        Map<String, OrgUnitState> units = new HashMap<>();
-        Map<String, Optional<RefItem>> unitTypes = new HashMap<>();
-        orgUnits.placedOn(hierarchy, rows.stream().map(Assignment::orgUnitId).distinct().toList(), date)
-                .forEach(placed -> units.put(placed.unit().id(), OrgUnitState.of(placed.unit(), placed.version(),
-                        placed.version().unitTypeId() == null ? null
-                                : unitTypes.computeIfAbsent(placed.version().unitTypeId(), refItems::find)
-                                        .orElse(null), placed.parentId())));
-        return toMembers(rows, date, units::get, null);
+                        : new MemberFilter.Seconded(query.seconded(), orgUnits.defaultHierarchyId()));
     }
 
     /**

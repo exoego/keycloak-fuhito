@@ -23,6 +23,11 @@ final class MemoryAssignmentStore implements AssignmentStore {
     MemoryEmploymentStore employments;
 
     @Override
+    public long countMembersOn(MemberFilter filter) {
+        return membersOn(filter, null, 0, Integer.MAX_VALUE).size();
+    }
+
+    @Override
     public List<Assignment> membersOn(MemberFilter filter, MemberCursor after, int first, int max) {
         List<String> unitIds = filter.includeDescendants()
                 ? orgUnits.treeOn(filter.hierarchyId(), filter.orgUnitId(), null, filter.date(), 0,

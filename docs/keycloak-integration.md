@@ -310,7 +310,9 @@ A list that has a cursor is better read with it. These are the list of people an
 - The name says which list the cursor belongs to. A cursor of another list gets 400 with `invalid.cursor`.
 - When the order of a list changes, its format gets a new version. A cursor of the old version gets 400, and the caller starts again from the first page.
 - A request gives `after` or `first`, not both.
-These are the lists of roots, children, subtrees, members, people, reference items, change orders, the change log, and the effective changes.
+These are the lists of roots, children, subtrees, the search of org units, members, people, reference items, change orders, the change log, and the effective changes.
+
+The members of an org unit and the search of org units take `count=true`. The response then has the header `X-Total-Count` with the number of entries on all pages. It costs one more query, so a caller that only follows the pages leaves it out.
 
 The lists of one person and the history of one resource are returned whole. The reports of a person are the exception. They are read in pages, because the head of a large org unit has many.
 
@@ -344,6 +346,7 @@ The database applies the filters, the order, and the page.
 | `/ref-items` | The lists that a realm defines, such as unit types and occupations |
 | `/org-units` | Org units. The list has the roots of a date, or the legal entities |
 | `/org-units/{id}/children`, `/subtree`, `/path` | The tree of a date, one level, one branch, or the way up |
+| `/org-units/search` | Every org unit of a date whose name, short name, or phonetic name has a text, with a code, or of a unit type |
 | `/org-units/{id}/succession` | The org units that a unit follows after a merger or a split, and the ones that follow it |
 | `/people` | The people that the realm knows, with or without a Keycloak user |
 | `/employments` | Employments of people, with their terms over time |

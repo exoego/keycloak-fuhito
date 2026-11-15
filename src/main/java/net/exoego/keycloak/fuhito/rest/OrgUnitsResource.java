@@ -201,6 +201,64 @@ public class OrgUnitsResource {
     }
 
     @GET
+    @Path("search")
+    @Operation(
+            operationId = "searchOrgUnits",
+            summary = "Lists the org units of a date that match a search, at any depth.",
+            description = "Each unit comes with its parent in the default hierarchy. The order is the display "
+                    + "order, then the phonetic name, then the name.")
+    @APIResponse(
+            responseCode = "200",
+            description = "The units that match.",
+            headers = @Header(
+                    name = "X-Total-Count",
+                    description = "The number of units on all pages. It is there with `count=true`.",
+                    schema = @Schema(type = SchemaType.INTEGER)),
+            content = @Content(mediaType = "application/json",
+                    schema = @Schema(type = SchemaType.ARRAY, implementation = OrgUnitRepresentation.class)))
+    @BadRequest
+    @ApiErrors
+    public Response search(
+            @Parameter(
+                    description = "A part of the name, of the short name, or of the phonetic name, in any language, "
+                            + "with no regard to case.")
+            @QueryParam("q") String q,
+            @Parameter(description = "The code of the unit on the date.")
+            @QueryParam("code") String code,
+            @Parameter(description = "The code of the unit type.")
+            @QueryParam("unitType") String unitType,
+            @Parameter(
+                    description = "True for groups outside the line organization only. False for line units only. "
+                            + "Leave it out for both.")
+            @QueryParam("group") Boolean group,
+            @Parameter(
+                    description = "The date to read. The default is today in the time zone of the realm.",
+                    schema = @Schema(format = "date"))
+            @QueryParam("asOf") String asOf,
+            @Parameter(
+                    description = "The number of entries to skip.",
+                    schema = @Schema(minimum = "0", defaultValue = "0"))
+            @QueryParam("first") Integer first,
+            @Parameter(
+                    description = "The largest number of entries to return.",
+                    schema = @Schema(minimum = "0", maximum = "1000", defaultValue = "100"))
+            @QueryParam("max") Integer max,
+            @Parameter(
+                    description = "True to get the number of units on all pages in the header `X-Total-Count`.",
+                    schema = @Schema(defaultValue = "false"))
+            @QueryParam("count") boolean count) {
+        context.requireReadStructure();
+        return Calls.run(context, () -> {
+            OrgUnitService.Search search = new OrgUnitService.Search(q, code, unitType, group, asOf);
+            Response.ResponseBuilder response = Response.ok(represent(service.search(search, Page.of(first, max))));
+            if (count) {
+                response.header(Pages.TOTAL, service.countSearch(search));
+            }
+            return response.build();
+        });
+    }
+
+    @GET
     @Path("{id}/children")
     @Operation(operationId = "listOrgUnitChildren", summary = "Lists the direct children of an org unit on a date.")
     @APIResponse(responseCode = "200", description = "The children on the date.")
@@ -378,11 +436,16 @@ public class OrgUnitsResource {
     @APIResponse(
             responseCode = "200",
             description = "The members on the date.",
-            headers = @Header(
-                    name = "Link",
-                    description = "The URL of the next page, with `rel=\"next\"`. It is there when the page is "
-                            + "full. A full page can be the last one, and the next page is then empty.",
-                    schema = @Schema(type = SchemaType.STRING)),
+            headers = {
+                @Header(
+                        name = "Link",
+                        description = "The URL of the next page, with `rel=\"next\"`. It is there when the page "
+                                + "is full. A full page can be the last one, and the next page is then empty.",
+                        schema = @Schema(type = SchemaType.STRING)),
+                @Header(
+                        name = "X-Total-Count",
+                        description = "The number of members on all pages. It is there with `count=true`.",
+                        schema = @Schema(type = SchemaType.INTEGER))},
             content = @Content(mediaType = "application/json",
                     schema = @Schema(type = SchemaType.ARRAY, implementation = MemberRepresentation.class)))
     @BadRequest
@@ -423,15 +486,23 @@ public class OrgUnitsResource {
             @QueryParam("max") Integer max,
             @Parameter(description = "The cursor from the `Link` header of the page before. It is the name of its format "
                     + "and the values of the last row of that page. It cannot be used with `first`.")
-            @QueryParam("after") String after) {
+            @QueryParam("after") String after,
+            @Parameter(
+                    description = "True to get the number of members on all pages in the header `X-Total-Count`. "
+                            + "It costs one more query.",
+                    schema = @Schema(defaultValue = "false"))
+            @QueryParam("count") boolean count) {
         context.requireRead();
-        return Calls.run(context, () -> Pages.of(context,
-                membership.members(id, new MemberQuery(asOf, includeDescendants, occupation, jobTitle, status,
-                        first, max, hierarchy, after, seconded)).stream().map(MemberRepresentation::of).toList(),
-                Page.of(first, max).max(),
-                // The values that the order of the list uses, as MembershipService reads them back.
-                member -> Cursor.encode(Cursor.MEMBERS, member.orgUnitId(), Integer.toString(member.displayOrder()),
-                        member.validFrom(), member.assignmentId())));
+        return Calls.run(context, () -> {
+            MemberQuery query = new MemberQuery(asOf, includeDescendants, occupation, jobTitle, status, first, max,
+                    hierarchy, after, seconded);
+            return Pages.of(context, membership.members(id, query).stream().map(MemberRepresentation::of).toList(),
+                    Page.of(first, max).max(),
+                    // The values that the order of the list uses, as MembershipService reads them back.
+                    member -> Cursor.encode(Cursor.MEMBERS, member.orgUnitId(),
+                            Integer.toString(member.displayOrder()), member.validFrom(), member.assignmentId()),
+                    count ? membership.countMembers(id, query) : null);
+        });
     }
 
     @GET

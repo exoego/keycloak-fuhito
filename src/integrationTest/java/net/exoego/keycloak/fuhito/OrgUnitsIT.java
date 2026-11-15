@@ -52,6 +52,44 @@ class OrgUnitsIT {
     }
 
     @Test
+    void searchesUnitsAndCountsMembers() throws Exception {
+        TestRealm realm = TestRealm.withEmployer("org-unit-search");
+        Api search = realm.api;
+        realm.refItem("UNIT_TYPE", "ward", "病棟");
+        String hospital = created(search.post("/org-units", "{\"name\": \"X病院\", \"validFrom\": \"2026-04-01\"}"))
+                .get("id").asText();
+        String ward = created(search.post("/org-units", "{\"code\": \"W1\", \"name\": \"1病棟\", \"names\": "
+                + "{\"en\": \"Ward One\"}, \"unitType\": \"ward\", \"parentId\": \"" + hospital
+                + "\", \"validFrom\": \"2026-04-01\"}")).get("id").asText();
+        created(search.post("/org-units", "{\"name\": \"50%病棟\", \"parentId\": \"" + hospital
+                + "\", \"validFrom\": \"2026-04-01\"}"));
+        String on = "&asOf=2026-05-01";
+
+        assertEquals(List.of(ward), Api.json(search.get("/org-units/search?q=ward%20one" + on)).findValuesAsText("id"));
+        assertEquals(List.of(hospital), Api.json(search.get("/org-units/search?q=ward%20one" + on))
+                .findValuesAsText("parentId"));
+        assertEquals(List.of("50%病棟"), Api.json(search.get("/org-units/search?q=50%25" + on))
+                .findValuesAsText("name"));
+        assertEquals(List.of("1病棟"), Api.json(search.get("/org-units/search?unitType=ward&code=W1" + on))
+                .findValuesAsText("name"));
+        HttpResponse<String> counted = search.get("/org-units/search?q=%E7%97%85%E6%A3%9F&max=1&count=true" + on);
+        assertEquals(1, Api.json(counted).size());
+        assertEquals("2", counted.headers().firstValue("X-Total-Count").orElseThrow());
+
+        for (String name : List.of("nurse-a", "nurse-b")) {
+            HttpResponse<String> staff = search.post("/staff", "{\"userId\": \"" + realm.user(name)
+                    + "\", \"orgUnitId\": \"" + ward + "\", \"validFrom\": \"2026-04-01\"}");
+            assertEquals(201, staff.statusCode(), staff.body());
+        }
+        HttpResponse<String> members = search.get("/org-units/" + hospital
+                + "/members?includeDescendants=true&max=1&count=true" + on);
+        assertEquals(1, Api.json(members).size());
+        assertEquals("2", members.headers().firstValue("X-Total-Count").orElseThrow());
+        assertTrue(search.get("/org-units/" + hospital + "/members" + on.replace('&', '?')).headers()
+                .firstValue("X-Total-Count").isEmpty());
+    }
+
+    @Test
     void keepsGroupsApartFromTheLineOrganization() throws Exception {
         TestRealm realm = TestRealm.create("org-unit-groups");
         Api groups = realm.api;

@@ -56,6 +56,38 @@ class OrgUnitServiceTest {
     }
 
     @Test
+    void searchesUnitsAtAnyDepthByNameCodeAndType() {
+        RefItem ward = unitType("ward", true);
+        String hospital = service.create(named("X病院", null, "2026-04-01")).unit().id();
+        service.create(new NewOrgUnit("W1", "1病棟", Map.of("en", "Ward One"), null, null, "いちびょうとう", "ward",
+                hospital, "2026-04-01", null, null, null, null));
+        service.create(new NewOrgUnit("W2", "2病棟", null, "二病", null, null, "ward", hospital, "2026-04-01", null,
+                null, null, null));
+        Page all = Page.of(null, null);
+
+        assertEquals(List.of("1病棟", "2病棟"), names(service.search(new OrgUnitService.Search("病棟", null, null,
+                null, null), all)));
+        assertEquals(List.of("1病棟"), names(service.search(new OrgUnitService.Search("ward ONE", null, null, null,
+                null), all)));
+        assertEquals(List.of("1病棟"), names(service.search(new OrgUnitService.Search("いち", null, null, null,
+                null), all)));
+        assertEquals(List.of("2病棟"), names(service.search(new OrgUnitService.Search("二病", null, null, null,
+                null), all)));
+        assertEquals(List.of("2病棟"), names(service.search(new OrgUnitService.Search(null, "W2", null, null, null),
+                all)));
+        assertEquals(2, service.countSearch(new OrgUnitService.Search(null, null, "ward", null, null)));
+        assertEquals(3, service.countSearch(new OrgUnitService.Search(" ", null, null, null, null)));
+        // A unit with a phonetic name comes before the units with none.
+        assertEquals(List.of("1病棟"), names(service.search(new OrgUnitService.Search(null, null, null, null, null),
+                Page.of(0, 1))));
+        assertEquals(0, service.countSearch(new OrgUnitService.Search("病棟", null, null, null, "2026-03-31")));
+        assertEquals(ward.id(), store.versions(service.search(new OrgUnitService.Search(null, "W1", null, null,
+                null), all).getFirst().unit().id()).getFirst().unitTypeId());
+        assertEquals("org_unit.unit_type_unknown", assertThrows(FuhitoException.class,
+                () -> service.search(new OrgUnitService.Search(null, null, "room", null, null), all)).code());
+    }
+
+    @Test
     void aGroupMaySitAnywhereButNoLineUnitIsBelowAGroup() {
         store.refItems = refItems;
         refItems.insert(new RefItem("type-committee", RefKind.UNIT_TYPE, "committee", "committee", Map.of(), 0,

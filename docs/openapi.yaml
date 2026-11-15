@@ -3964,6 +3964,89 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+  /org-units/search:
+    get:
+      summary: "Lists the org units of a date that match a search, at any depth."
+      description: "Each unit comes with its parent in the default hierarchy. The\
+        \ order is the display order, then the phonetic name, then the name."
+      operationId: searchOrgUnits
+      tags:
+      - org-units
+      parameters:
+      - description: The date to read. The default is today in the time zone of the
+          realm.
+        schema:
+          type: string
+          format: date
+        name: asOf
+        in: query
+      - description: The code of the unit on the date.
+        name: code
+        in: query
+        schema:
+          type: string
+      - description: True to get the number of units on all pages in the header `X-Total-Count`.
+        schema:
+          type: boolean
+          default: false
+        name: count
+        in: query
+      - description: The number of entries to skip.
+        schema:
+          type: integer
+          format: int32
+          minimum: 0
+          default: 0
+        name: first
+        in: query
+      - description: True for groups outside the line organization only. False for
+          line units only. Leave it out for both.
+        name: group
+        in: query
+        schema:
+          type: boolean
+      - description: The largest number of entries to return.
+        schema:
+          type: integer
+          format: int32
+          maximum: 1000
+          minimum: 0
+          default: 100
+        name: max
+        in: query
+      - description: "A part of the name, of the short name, or of the phonetic name,\
+          \ in any language, with no regard to case."
+        name: q
+        in: query
+        schema:
+          type: string
+      - description: The code of the unit type.
+        name: unitType
+        in: query
+        schema:
+          type: string
+      responses:
+        "200":
+          description: The units that match.
+          headers:
+            X-Total-Count:
+              description: The number of units on all pages. It is there with `count=true`.
+              schema:
+                type: integer
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/OrgUnit"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
   /org-units/{id}:
     get:
       summary: Returns an org unit as it is on a date.
@@ -4208,6 +4291,13 @@ paths:
           format: date
         name: asOf
         in: query
+      - description: True to get the number of members on all pages in the header
+          `X-Total-Count`. It costs one more query.
+        schema:
+          type: boolean
+          default: false
+        name: count
+        in: query
       - description: The number of entries to skip.
         schema:
           type: integer
@@ -4267,6 +4357,10 @@ paths:
                 \ next page is then empty."
               schema:
                 type: string
+            X-Total-Count:
+              description: The number of members on all pages. It is there with `count=true`.
+              schema:
+                type: integer
           content:
             application/json:
               schema:
