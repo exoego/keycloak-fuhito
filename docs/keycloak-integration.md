@@ -162,6 +162,7 @@ The projection goes one way. The tables of this extension stay the source of tru
 - A member that someone added by hand to such a group is taken out at the next rebuild.
 - A group that someone made by hand has no such attribute. The projection leaves it and its members alone, unless it sits below a group that the projection removes.
 - The projection never takes a user out of an organization. A person who left stays a member of the organization until an administrator removes them.
+- An organization that no unit links on its date loses every group that the projection made there, for example when the linked unit ends or its link is taken away. Its members stay.
 - Two units below one parent must have different names, because Keycloak requires it for groups. A rebuild fails with `projection.duplicate_name` otherwise, and changes nothing in that organization. The organizations that the rebuild handled before it stay as the rebuild left them.
 
 The projection records no admin events and no change log entries. It changes data of Keycloak, not data of the extension.
