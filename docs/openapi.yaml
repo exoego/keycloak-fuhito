@@ -3739,11 +3739,20 @@ paths:
   /people:
     get:
       summary: "Lists the people of the realm, ordered by ID."
+      description: "To read every person, follow the `Link` header of each response.\
+        \ A late page then costs as much as the first one. With `first`, the database\
+        \ counts past the skipped people."
       operationId: listPeople
       tags:
       - people
       parameters:
-      - description: The number of entries to skip.
+      - description: "The cursor from the `Link` header of the page before. Its form\
+          \ can change, so take it from there and do not build it."
+        name: after
+        in: query
+        schema:
+          type: string
+      - description: The number of entries to skip. It cannot be used with `after`.
         schema:
           type: integer
           format: int32
@@ -3769,12 +3778,21 @@ paths:
       responses:
         "200":
           description: The people.
+          headers:
+            Link:
+              description: "The URL of the next page, with `rel=\"next\"`. It is there\
+                \ when the page is full. A full page can be the last one, and the\
+                \ next page is then empty."
+              schema:
+                type: string
           content:
             application/json:
               schema:
                 type: array
                 items:
                   $ref: "#/components/schemas/Person"
+        "400":
+          $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":

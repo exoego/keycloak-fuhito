@@ -119,6 +119,15 @@ final class KeycloakRequestContext implements RequestContext {
                 resourceId, change.name(), resourcePath, changeOrderId(), toJson(representation)));
     }
 
+    @Override
+    public String nextPage(String cursor) {
+        return session.getContext().getUri().getRequestUriBuilder()
+                .replaceQueryParam("first")
+                .replaceQueryParam("after", cursor)
+                .build()
+                .toString();
+    }
+
     private String changeOrderId() {
         return session.getContext().getUri().getQueryParameters().getFirst(CHANGE_ORDER_PARAMETER);
     }

@@ -57,10 +57,15 @@ public class JpaPersonStore implements PersonStore {
     }
 
     @Override
-    public List<Person> list(int first, int max) {
-        return em.createQuery("select p from PersonEntity p where p.realmId = :realmId order by p.id",
+    public List<Person> list(String afterId, int first, int max) {
+        // The cursor makes the database start in the index at the ID, so a late page costs as much as the first.
+        var query = afterId == null
+                ? em.createQuery("select p from PersonEntity p where p.realmId = :realmId order by p.id",
                         PersonEntity.class)
-                .setParameter("realmId", realmId)
+                : em.createQuery("""
+                        select p from PersonEntity p where p.realmId = :realmId and p.id > :afterId
+                        order by p.id""", PersonEntity.class).setParameter("afterId", afterId);
+        return query.setParameter("realmId", realmId)
                 .setFirstResult(first)
                 .setMaxResults(max)
                 .getResultStream()

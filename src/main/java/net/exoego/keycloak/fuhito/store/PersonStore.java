@@ -38,11 +38,12 @@ public interface PersonStore {
     /**
      * Lists the people of the realm, ordered by ID.
      *
+     * @param afterId the ID of the person that the list goes on after, or null to start at the first one
      * @param first the number of people to skip
      * @param max the largest number of people to return
      * @return the people
      */
-    List<Person> list(int first, int max);
+    List<Person> list(String afterId, int first, int max);
 
     /**
      * Stores a new person.

@@ -27,6 +27,14 @@ public interface RequestContext {
     void requireWrite();
 
     /**
+     * Returns the URL of the request with another cursor, for the link to the next page of a list.
+     *
+     * @param cursor the cursor of the next page
+     * @return the URL, with `after` set to the cursor and without `first`
+     */
+    String nextPage(String cursor);
+
+    /**
      * Returns the language for messages.
      *
      * @return the locale

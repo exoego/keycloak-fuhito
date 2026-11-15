@@ -53,8 +53,11 @@ final class MemoryPersonStore implements PersonStore {
     }
 
     @Override
-    public List<Person> list(int first, int max) {
-        return people.values().stream().skip(first).limit(max).toList();
+    public List<Person> list(String afterId, int first, int max) {
+        return people.values().stream()
+                .sorted(java.util.Comparator.comparing(Person::id))
+                .filter(person -> afterId == null || person.id().compareTo(afterId) > 0)
+                .skip(first).limit(max).toList();
     }
 
     @Override
