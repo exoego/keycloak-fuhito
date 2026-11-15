@@ -102,10 +102,11 @@ public class FuhitoResource {
          *
          * @param <T> the type of the result
          * @param job the name of the job, which is also the start of the error code
+         * @param record true to keep the state of the run as the last run of the job. A dry run is not kept.
          * @param run the job
          * @return the result of the job
          */
-        <T> T alone(String job, Supplier<T> run);
+        <T> T alone(String job, boolean record, Supplier<T> run);
     }
 
     private static final String VERSION = loadVersion();
@@ -452,7 +453,7 @@ public class FuhitoResource {
 
             @Override
             public <T> T alone(Supplier<T> run) {
-                return pieces.alone("sync", run);
+                return pieces.alone("sync", !dryRun, run);
             }
         }), new JpaJobRunStore(entityManager, realmId));
     }

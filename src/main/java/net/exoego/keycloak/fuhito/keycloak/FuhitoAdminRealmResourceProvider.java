@@ -102,9 +102,9 @@ public class FuhitoAdminRealmResourceProvider implements AdminRealmResourceProvi
                 new ProjectionTransactions(session.getKeycloakSessionFactory(), realm.getId(), rule, request),
                 new FuhitoResource.Pieces() {
                     @Override
-                    public <T> T alone(String job, Supplier<T> run) {
+                    public <T> T alone(String job, boolean record, Supplier<T> run) {
                         return OneAtATime.outsideTransaction(request, () -> OneAtATime.run(
-                                session.getKeycloakSessionFactory(), job, realm.getId(), run));
+                                session.getKeycloakSessionFactory(), job, realm.getId(), record, run));
                     }
 
                     @Override

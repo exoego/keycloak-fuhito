@@ -61,11 +61,27 @@ final class OneAtATime {
      * @throws FuhitoException with the code of the job and ".running" when another run is going on
      */
     static <T> T run(KeycloakSessionFactory factory, String job, String realmId, Supplier<T> run) {
+        return run(factory, job, realmId, true, run);
+    }
+
+    /**
+     * Runs a job, unless another run of it for the realm is going on.
+     *
+     * @param <T> the type of the result
+     * @param factory the factory of sessions
+     * @param job the name of the job, which is also the start of the error code
+     * @param realmId the ID of the realm
+     * @param record true to keep the state of the run as the last run of the job. A dry run is not kept.
+     * @param run the job
+     * @return the result of the job
+     * @throws FuhitoException with the code of the job and ".running" when another run is going on
+     */
+    static <T> T run(KeycloakSessionFactory factory, String job, String realmId, boolean record, Supplier<T> run) {
         // The session has no transaction, so no timeout of a transaction ends a long run.
         try (KeycloakSession session = factory.create()) {
             ExecutionResult<T> result = session.getProvider(ClusterProvider.class)
                     .executeIfNotExecuted("fuhito-" + job + "-" + realmId, LOCK_SECONDS,
-                            () -> recorded(factory, job, realmId, run));
+                            () -> record ? recorded(factory, job, realmId, run) : run.get());
             if (!result.isExecuted()) {
                 throw FuhitoException.conflict(job + ".running", Map.of());
             }
