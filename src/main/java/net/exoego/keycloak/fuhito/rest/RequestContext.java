@@ -37,6 +37,14 @@ public interface RequestContext {
     void requireWrite();
 
     /**
+     * Requires the permission to manage the members of a Keycloak organization. Throws when the caller lacks it.
+     * An organization that does not exist asks for nothing here, and fails where it is used.
+     *
+     * @param organizationId the ID of the organization
+     */
+    void requireManageOrganization(String organizationId);
+
+    /**
      * Returns the URL of the request with another cursor, for the link to the next page of a list.
      *
      * @param cursor the cursor of the next page

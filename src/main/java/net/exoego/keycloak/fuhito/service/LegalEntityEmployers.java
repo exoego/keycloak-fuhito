@@ -7,6 +7,7 @@ import java.util.Map;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.PlacedOrgUnit;
 import net.exoego.keycloak.fuhito.domain.RefItem;
+import net.exoego.keycloak.fuhito.domain.ValidPeriod;
 import net.exoego.keycloak.fuhito.store.OrgUnitStore;
 import net.exoego.keycloak.fuhito.store.RefItemStore;
 
@@ -54,5 +55,14 @@ public class LegalEntityEmployers implements Employers {
                     Map.of("employerId", requestedId, "name", unit.version().name()));
         }
         return requestedId;
+    }
+
+    @Override
+    public void requireCovers(String employerId, ValidPeriod period) {
+        LocalDate end = orgUnits.versions(employerId).getLast().period().to();
+        if (end != null && (period.to() == null || period.to().isAfter(end))) {
+            throw FuhitoException.conflict("employment.employer_ends",
+                    Map.of("employerId", employerId, "date", end.toString()));
+        }
     }
 }

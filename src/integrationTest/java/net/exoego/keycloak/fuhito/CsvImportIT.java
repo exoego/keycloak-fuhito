@@ -31,6 +31,42 @@ class CsvImportIT {
     }
 
     @Test
+    void anExportOfOrgUnitsLoadsAgainWithNoChange() throws Exception {
+        TestRealm realm = TestRealm.withEmployer("csv-export");
+        Api api = realm.api;
+        realm.refItem("UNIT_TYPE", "ward", "病棟");
+        assertEquals(201, api.post("/attribute-definitions", "{\"target\": \"ORG_UNIT\", \"name\": \"beds\", "
+                + "\"type\": \"NUMBER\"}").statusCode());
+        // One unit made through REST has no external ID, and one comes from another system.
+        String hospital = Api.json(api.post("/org-units", "{\"name\": \"X病院, 本院\", \"validFrom\": \"2020-04-01\"}"))
+                .get("id").asText();
+        assertEquals(201, api.post("/org-units", "{\"name\": \"1病棟\", \"names\": {\"en\": \"Ward One\"}, "
+                + "\"shortName\": \"1W\", \"unitType\": \"ward\", \"parentId\": \"" + hospital + "\", "
+                + "\"attributes\": {\"beds\": 30}, \"externalId\": \"W1\", \"source\": \"hr\", "
+                + "\"validFrom\": \"2020-04-01\"}").statusCode());
+
+        for (String header : List.of("en", "ja")) {
+            HttpResponse<String> exported = api.get("/imports/csv/org-units?asOf=2026-05-01&header=" + header);
+            assertEquals(200, exported.statusCode(), exported.body());
+            assertTrue(exported.headers().firstValue("Content-Type").orElseThrow().startsWith("text/csv"));
+            assertTrue(exported.body().startsWith("\uFEFF" + (header.equals("en") ? "id,externalId,source,code,name,"
+                    + "name:en,shortName" : "ID,外部ID,ソース,コード,名称,名称:en,略称")), exported.body());
+            assertTrue(exported.body().contains("\"X病院, 本院\""), exported.body());
+
+            JsonNode again = load(api, "org-units", "effectiveDate=2026-05-01", exported.body());
+
+            JsonNode counts = again.get("counts").get("orgUnits");
+            assertEquals(0, counts.get("created").asInt() + counts.get("changed").asInt(), again.toString());
+        }
+        // A change in the file is a change of the unit, also of one with no external ID.
+        String changed = api.get("/imports/csv/org-units?asOf=2026-05-01").body().replace("X病院, 本院", "X病院");
+        assertEquals(1, load(api, "org-units", "effectiveDate=2026-06-01", changed).get("counts").get("orgUnits")
+                .get("changed").asInt());
+        assertEquals("X病院", Api.json(api.get("/org-units/" + hospital + "?asOf=2026-06-01")).get("name").asText());
+        assertEquals(400, api.get("/imports/csv/people").statusCode());
+    }
+
+    @Test
     void loadsOrgUnitsAndStaffFromCsvFilesWithJapaneseHeaders() throws Exception {
         TestRealm realm = TestRealm.withEmployer("csv");
         Api api = realm.api;

@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Map;
 
 import net.exoego.keycloak.fuhito.domain.Assignment;
+import net.exoego.keycloak.fuhito.domain.Employment;
 import net.exoego.keycloak.fuhito.domain.BusinessDay;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.RefItem;
@@ -182,8 +183,25 @@ class AttributeSyncServiceTest {
         assertEquals("scim", employment.source());
         assertEquals("alice", employment.externalId());
         assertEquals(List.of("FUHITO_PERSON", "FUHITO_EMPLOYMENT", "FUHITO_ASSIGNMENT", "FUHITO_PERSON",
-                        "FUHITO_EMPLOYMENT", "FUHITO_ASSIGNMENT"),
+                        "FUHITO_EMPLOYMENT", "FUHITO_ASSIGNMENT", "FUHITO_REPORTING_LINE"),
                 report.writes().stream().map(ImportReport.Write::resourceType).toList());
+    }
+
+    @Test
+    void aPersonWithNoUserKeepsTheirAssignmentAndStopsNoOne() {
+        set("boss", "med", "director", null, null);
+        set("alice", "med", null, "boss", null);
+        run();
+        var employment = employmentStore.findByUser("alice").getFirst();
+        // The person of alice lost the link to the Keycloak user.
+        employmentStore.employments.put(employment.id(), new Employment(employment.id(), employment.personId(), null,
+                employment.employerId(), employment.period(), employment.staffNumber(), employment.endReasonId(),
+                employment.externalId(), employment.source(), employment.continuesEmploymentId()));
+
+        SyncReport again = run();
+
+        assertEquals(2, again.users());
+        assertEquals(1, assignmentStore.rowsOfEmployment(employment.id()).size());
     }
 
     @Test
@@ -229,10 +247,15 @@ class AttributeSyncServiceTest {
         run();
         set("alice", "Surgery", null, "chief", null);
 
-        run();
+        SyncReport moved = run();
 
         assertEquals(List.of("Surgery 2026-06-15 null - primary"), assignmentsOf("alice"));
         assertEquals(List.of("chief 2026-06-15 null"), managersOf("alice"));
+        // Every write is in the change log, the removals too.
+        assertEquals(List.of("DELETE FUHITO_REPORTING_LINE", "DELETE FUHITO_ASSIGNMENT", "CREATE FUHITO_ASSIGNMENT",
+                "CREATE FUHITO_REPORTING_LINE"), moved.writes().stream()
+                .map(w -> (w.deleted() ? "DELETE" : w.created() ? "CREATE" : "UPDATE") + " " + w.resourceType())
+                .toList());
 
         set("alice", "Surgery", null, "boss", null);
         run();

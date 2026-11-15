@@ -5,6 +5,7 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.ws.rs.core.Response;
@@ -15,6 +16,7 @@ import org.keycloak.admin.client.CreatedResponseUtil;
 import org.keycloak.admin.client.Keycloak;
 import org.keycloak.admin.client.KeycloakBuilder;
 import org.keycloak.representations.idm.CredentialRepresentation;
+import org.keycloak.representations.idm.RealmRepresentation;
 import org.keycloak.representations.idm.UserRepresentation;
 
 import static net.exoego.keycloak.fuhito.KeycloakEnvironment.KEYCLOAK;
@@ -159,6 +161,36 @@ class PermissionsIT {
             assertEquals(200, everything.get("/org-units/" + unit).statusCode());
         } finally {
             realm.remove();
+        }
+    }
+
+    @Test
+    void aLinkToAnOrganizationAsksForThePermissionToManageIt() throws Exception {
+        Keycloak admin = KEYCLOAK.getKeycloakAdminClient();
+        var representation = new RealmRepresentation();
+        representation.setRealm("organization-permission-" + UUID.randomUUID());
+        representation.setEnabled(true);
+        representation.setOrganizationsEnabled(true);
+        TestRealm.withTimeZone(representation);
+        TestRealm.createRealm(admin, representation);
+        String realm = representation.getRealm();
+        try {
+            Api all = new Api(realm, admin.tokenManager().getAccessTokenString());
+            String organization = OrganizationLinkIT.createOrganization(admin, realm, "permission-org");
+            String unit = unit(all, "Linked");
+            Api userAdmin = administrator(admin, realm, "realm-management", "user-admin", "manage-users");
+            String link = "/org-units/" + unit + "/organization";
+            String body = "{\"organizationId\": \"" + organization + "\"}";
+
+            assertEquals(403, userAdmin.put(link, body).statusCode());
+            assertEquals(200, all.put(link, body).statusCode());
+            assertEquals(403, userAdmin.delete(link).statusCode());
+            // The other writes stay with the permission to manage users.
+            assertEquals(201, userAdmin.post("/org-units", "{\"name\": \"Other\", \"validFrom\": \"2020-04-01\"}")
+                    .statusCode());
+            assertEquals(200, all.delete(link).statusCode());
+        } finally {
+            admin.realm(realm).remove();
         }
     }
 

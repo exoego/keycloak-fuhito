@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 
 import static net.exoego.keycloak.fuhito.KeycloakEnvironment.KEYCLOAK;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
 class ConditionalWritesIT {
@@ -55,6 +56,29 @@ class ConditionalWritesIT {
         assertNotEquals(ofUnit, etag(api.get("/org-units/" + unitId + "?asOf=2026-05-01")));
         assertEquals(412, api.put("/org-units/" + unitId + "/end", "{\"validTo\": \"2028-04-01\"}", "If-Match", ofUnit)
                 .statusCode());
+    }
+
+    @Test
+    void anEraseClearsTheStoredResponsesThatNameThePerson() throws Exception {
+        TestRealm realm = TestRealm.withEmployer("idempotency-erase");
+        Api api = realm.api;
+        String body = "{\"name\": \"山田 花子\"}";
+        HttpResponse<String> first = api.post("/people", body, "Idempotency-Key", "person-1");
+        assertEquals(201, first.statusCode(), first.body());
+        String person = Api.json(first).get("id").asText();
+        HttpResponse<String> other = api.post("/people", "{\"name\": \"Other\"}", "Idempotency-Key", "person-2");
+
+        assertEquals(204, api.delete("/people/" + person + "/data").statusCode());
+
+        // The same request again still writes nothing, and its answer no longer has the name.
+        HttpResponse<String> again = api.post("/people", body, "Idempotency-Key", "person-1");
+        assertEquals(201, again.statusCode(), again.body());
+        assertFalse(again.body().contains("山田"), again.body());
+        assertEquals(first.headers().firstValue("Location"), again.headers().firstValue("Location"));
+        assertEquals(1, Api.json(api.get("/people")).size());
+        // The response about another person stays.
+        assertEquals(Api.json(other), Api.json(api.post("/people", "{\"name\": \"Other\"}", "Idempotency-Key",
+                "person-2")));
     }
 
     @Test
