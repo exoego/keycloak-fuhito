@@ -150,6 +150,23 @@ What the runs showed.
 
 The first run still costs about 1 ms for each write. The writes go through the API of Keycloak, so that its caches and its events stay right.
 
+## The sync from user attributes
+
+`BATCH=1 scripts/bench/run.sh` also runs `POST /attribute-sync/run` twice. Each of the 50,000 users has a department. The first run adds 50,000 assignments.
+
+| Version | First run | Nothing changed |
+|---|---|---|
+| One transaction | fails | fails |
+| Pieces of 100 users, each in its own transaction | fails | fails |
+| The attributes of all users read in one query | 84 s | 16 s |
+
+What the runs showed.
+
+- The time went into the read of the users, before any write. The API of Keycloak loads one user at a time, and each load first looked through every user that the transaction had loaded. The run passed the 300 seconds of a transaction in that read alone.
+- One query on the tables of Keycloak now reads the attributes that the sync needs.
+- The pieces keep each transaction short. A first run writes an assignment, and often a person and an employment, for each user through the services.
+- With nothing to change, a run still asks for the employments and the reporting line of each user. That is the 16 seconds.
+
 ## What the numbers say
 
 - A read about one org unit, one person, or one page of people does not grow with the realm.
@@ -161,6 +178,5 @@ The first run still costs about 1 ms for each write. The writes go through the A
 ## Not measured
 
 - The token mapper.
-- The sync from user attributes. `BATCH=1` runs it. With 50,000 people it does not end within the 300 seconds of a transaction yet.
 - Writes.
 - More than one request at the same time.

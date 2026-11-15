@@ -78,6 +78,13 @@ The reason is `unknown` when nothing has the value, and `ambiguous` when more th
 
 Every write of the sync is in the change log, like any other write.
 
+A run does its work in pieces of 100 users, and each piece is one transaction. One transaction for a large realm would run into the transaction timeout of Keycloak.
+So a run that fails in the middle keeps the pieces that it finished, with their entries in the change log. The next run does the rest.
+A dry run works in the same pieces, and undoes each piece at its end.
+
+A run reads the attributes of all users from the tables of Keycloak in one query.
+A user that only a user storage provider holds is not in those tables. A user that Keycloak imported, for example from LDAP, is in them.
+
 A change that the sync makes and takes back on the same day leaves no trace.
 An assignment that started today is removed, not ended, because it never held.
 

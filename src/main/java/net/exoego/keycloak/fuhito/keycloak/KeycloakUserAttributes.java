@@ -1,12 +1,17 @@
 package net.exoego.keycloak.fuhito.keycloak;
 
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
+import jakarta.persistence.EntityManager;
+import net.exoego.keycloak.fuhito.jpa.UserAttributeValues;
 import net.exoego.keycloak.fuhito.store.UserAttributeSource;
+import org.keycloak.connections.jpa.JpaConnectionProvider;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.RealmModel;
-import org.keycloak.models.UserModel;
 
 /**
  * Reads the settings of the sync from realm attributes, and the values from user attributes.
@@ -41,19 +46,24 @@ final class KeycloakUserAttributes implements UserAttributeSource {
 
     @Override
     public List<Values> usersWithDepartment(Settings settings) {
-        return session.users()
-                .searchForUserStream(realm, Map.of(UserModel.INCLUDE_SERVICE_ACCOUNT, "false"))
-                .map(user -> new Values(user.getId(), value(user, settings.department()),
-                        value(user, settings.title()), value(user, settings.manager()),
-                        value(user, settings.employeeNumber())))
-                .filter(values -> values.department() != null)
-                .toList();
+        EntityManager em = session.getProvider(JpaConnectionProvider.class).getEntityManager();
+        // Two fields can read one attribute.
+        Set<String> names = new HashSet<>(List.of(settings.department(), settings.title(), settings.manager(),
+                settings.employeeNumber()));
+        List<Values> result = new ArrayList<>();
+        UserAttributeValues.ofRealm(em, realm.getId(), names).forEach((userId, values) -> {
+            String department = value(values, settings.department());
+            if (department != null) {
+                result.add(new Values(userId, department, value(values, settings.title()),
+                        value(values, settings.manager()), value(values, settings.employeeNumber())));
+            }
+        });
+        return result;
     }
 
-    private static String value(UserModel user, String attribute) {
-        String value = user.getFirstAttribute(attribute);
-        // Keycloak itself stores no value of only spaces. A user store that is federated, such as LDAP,
-        // can hand one over.
+    private static String value(Map<String, String> values, String attribute) {
+        String value = values.get(attribute);
+        // Keycloak itself stores no value of only spaces. Another writer to its tables can.
         return value == null || value.isBlank() ? null : value.strip();
     }
 }

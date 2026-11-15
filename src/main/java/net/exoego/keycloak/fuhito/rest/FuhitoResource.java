@@ -5,6 +5,7 @@ import java.time.Clock;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 import jakarta.persistence.EntityManager;
 import jakarta.ws.rs.GET;
@@ -63,6 +64,23 @@ import org.eclipse.microprofile.openapi.annotations.tags.Tag;
         bearerFormat = "JWT", description = "An access token for the admin API of Keycloak.")
 public class FuhitoResource {
 
+    /**
+     * Runs work that is too large for the transaction of the request.
+     */
+    public interface Pieces {
+
+        /**
+         * Runs one piece with a resource of its own, bound to a session and a transaction of its own.
+         * The writes of the piece are recorded in that transaction.
+         *
+         * @param <T> the type of the result
+         * @param rollBack true to undo the writes of the piece at its end
+         * @param piece the piece
+         * @return the result of the piece
+         */
+        <T> T inNewTransaction(boolean rollBack, Function<FuhitoResource, T> piece);
+    }
+
     private static final String VERSION = loadVersion();
 
     private final String realmId;
@@ -75,6 +93,7 @@ public class FuhitoResource {
     private final UserAttributeSource userAttributes;
     private final Consumer<String> erasePerson;
     private final ProjectionService.Work projectionWork;
+    private final Pieces pieces;
 
     /**
      * Creates the resource for one request.
@@ -88,13 +107,15 @@ public class FuhitoResource {
      * @param userAttributes the user attributes that an identity provider fills
      * @param erasePerson removes every row and every change log entry about one person
      * @param projectionWork runs each piece of a rebuild of the projection in a transaction of its own
+     * @param pieces runs each piece of a sync in a transaction of its own
      */
     public FuhitoResource(String realmId, RequestContext context, EntityManager entityManager, BusinessDay.Rule rule,
             UserDirectory users,
             OrganizationDirectory organizations,
             UserAttributeSource userAttributes, Consumer<String> erasePerson,
-            ProjectionService.Work projectionWork) {
+            ProjectionService.Work projectionWork, Pieces pieces) {
         this.projectionWork = projectionWork;
+        this.pieces = pieces;
         this.userAttributes = userAttributes;
         this.erasePerson = erasePerson;
         this.organizations = organizations;
@@ -284,12 +305,21 @@ public class FuhitoResource {
      */
     @Path("attribute-sync")
     public AttributeSyncResource attributeSync() {
-        return new AttributeSyncResource(context, new AttributeSyncService(new AttributeSyncService.Sources(
+        return new AttributeSyncResource(context, dryRun -> new AttributeSyncService(new AttributeSyncService.Work() {
+            @Override
+            public <T> T inNewTransaction(Function<AttributeSyncService.Parts, T> piece) {
+                return pieces.inNewTransaction(dryRun, resource -> piece.apply(resource.syncParts()));
+            }
+        }));
+    }
+
+    private AttributeSyncService.Parts syncParts() {
+        return new AttributeSyncService.Parts(new AttributeSyncService.Sources(
                 userAttributes, users, new JpaOrgUnitStore(entityManager, realmId),
                 new JpaRefItemStore(entityManager, realmId), new JpaEmploymentStore(entityManager, realmId),
                 employmentService(), new JpaAssignmentStore(entityManager, realmId), assignmentService(),
                 new JpaReportingLineStore(entityManager, realmId), reportingLineService(), personService()),
-                today()));
+                today(), write -> Writes.record(context, write));
     }
 
     /**

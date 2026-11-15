@@ -2213,7 +2213,9 @@ paths:
     post:
       summary: Makes the assignments and reporting lines of the sync match the user
         attributes of now.
-      description: Running it again with no change in between changes nothing.
+      description: "Running it again with no change in between changes nothing. The\
+        \ run works in pieces of users. When it fails in the middle, the pieces before\
+        \ the failure stay, and the next run does the rest."
       operationId: runAttributeSync
       tags:
       - keycloak

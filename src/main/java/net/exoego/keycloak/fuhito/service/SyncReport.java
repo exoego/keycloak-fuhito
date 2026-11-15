@@ -15,7 +15,7 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
  * @param assignmentsEnded the number of assignments that ended because the department was removed
  * @param reportingLinesChanged the number of users whose reporting line was added, replaced, or ended
  * @param unmatched the values that matched nothing
- * @param writes the writes that the sync did, for the event log and the change log
+ * @param writes the writes that the sync did, when it ran in the transaction of the caller
  */
 public record SyncReport(int users, int employmentsStarted, int assignmentsAdded, int assignmentsMoved,
         int assignmentsChanged, int assignmentsEnded, int reportingLinesChanged, List<Unmatched> unmatched,
