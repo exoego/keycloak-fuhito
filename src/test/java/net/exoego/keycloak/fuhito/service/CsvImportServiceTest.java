@@ -49,9 +49,10 @@ class CsvImportServiceTest {
     private final ImportService.People people =
             new ImportService.People(employments, employmentStore, assignments, assignmentStore, users,
                     new PersonService(personStore, users, id -> false));
+    private final MemoryAttributeDefinitionStore definitions = new MemoryAttributeDefinitionStore();
     private final CsvImportService service = new CsvImportService(
             new ImportService(new RefItemService(refItems), refItems, orgUnits, orgUnitStore, people), refItems,
-            orgUnitStore, orgUnits, people);
+            orgUnitStore, orgUnits, people, definitions::list);
 
     private CsvImportService.Result load(String list, String effectiveDate, String csv) {
         return service.apply(list, csv, effectiveDate, false, null);
@@ -174,6 +175,30 @@ class CsvImportServiceTest {
 
         var terms = employments.get(employmentStore.findByExternalId("import", "E1").orElseThrow().id()).terms();
         assertEquals(Arrays.asList(null, "parental", null), terms.stream().map(t -> t.leaveReason()).toList());
+    }
+
+    @Test
+    void aColumnSetsADefinedAttributeAndKeepsTheOthers() {
+        new AttributeDefinitionService(definitions, refItems, false).create("ORG_UNIT", "beds", "NUMBER", null, null);
+        new AttributeDefinitionService(definitions, refItems, false).create("ORG_UNIT", "open", "BOOLEAN", null,
+                null);
+        orgUnits.create(new NewOrgUnit(null, "1病棟", null, null, null, null, null, null, "2026-04-01", null,
+                Map.of("note", "kept"), "W", "import"));
+
+        assertEquals(List.of(), errors(load("orgUnits", "2026-05-01", """
+                外部ID,attributes.beds,attributes.open
+                W,30,はい
+                """)));
+        assertEquals(Map.of("note", "kept", "beds", new BigDecimal("30"), "open", true),
+                unit("W", "2026-05-01").version().attributes());
+        assertEquals(List.of("line 2 row 0 csv.bad_number"), errors(load("orgUnits", "2026-06-01", """
+                外部ID,attributes.beds
+                W,many
+                """)));
+        assertEquals("csv.bad_column", assertThrows(FuhitoException.class, () -> load("orgUnits", "2026-06-01", """
+                外部ID,attributes.rooms
+                W,3
+                """)).code());
     }
 
     @Test

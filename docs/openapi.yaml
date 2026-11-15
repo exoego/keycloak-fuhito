@@ -7,7 +7,8 @@ tags:
 - name: ref-items
   summary: Reference items
   kind: nav
-  description: "The lists that a realm defines, such as unit types and occupations."
+  description: "The lists that a realm defines, such as unit types and occupations,\
+    \ and the definitions of free attributes."
 - name: org-units
   summary: Org units
   kind: nav
@@ -190,6 +191,46 @@ components:
           type: object
           additionalProperties: {}
           description: Free values that the realm defines.
+    AttributeDefinition:
+      required:
+      - target
+      - name
+      - type
+      description: The definition of one free attribute of one kind of resource.
+      type: object
+      properties:
+        id:
+          type: string
+          readOnly: true
+        target:
+          type: string
+          description: The kind of resource. Only a create request reads it.
+          enum:
+          - ORG_UNIT
+          - PERSON
+          - EMPLOYMENT_TERMS
+          - ASSIGNMENT
+          - QUALIFICATION
+          - REF_ITEM
+        name:
+          type: string
+          maxLength: 64
+          description: The name in `attributes`. Only a create request reads it.
+        type:
+          type: string
+          enum:
+          - STRING
+          - NUMBER
+          - BOOLEAN
+          - DATE
+          - REF_ITEM
+        refKind:
+          $ref: "#/components/schemas/RefKind"
+          description: The kind of reference data. Only the type `REF_ITEM` has it.
+        required:
+          type: boolean
+          description: True when every write of the resource must give a value.
+          default: false
     ChangeLogEntry:
       required:
       - id
@@ -2423,6 +2464,164 @@ paths:
                 $ref: "#/components/schemas/Move"
         "400":
           $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /attribute-definitions:
+    get:
+      summary: "Lists the definitions of free attributes, by kind of resource and\
+        \ name."
+      operationId: listAttributeDefinitions
+      tags:
+      - ref-items
+      parameters:
+      - description: The kind of resource to keep.
+        schema:
+          type: string
+          enum:
+          - ORG_UNIT
+          - PERSON
+          - EMPLOYMENT_TERMS
+          - ASSIGNMENT
+          - QUALIFICATION
+          - REF_ITEM
+        name: target
+        in: query
+      responses:
+        "200":
+          description: The definitions.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AttributeDefinition"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+    post:
+      summary: Defines a free attribute of a kind of resource.
+      description: Later writes of the resource are checked against it. Stored values
+        are not checked until their next write.
+      operationId: createAttributeDefinition
+      tags:
+      - ref-items
+      parameters:
+      - $ref: "#/components/parameters/changeOrder"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AttributeDefinition"
+        required: true
+      responses:
+        "201":
+          description: The new definition.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AttributeDefinition"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /attribute-definitions/{id}:
+    put:
+      summary: Replaces the type and the rule of a definition.
+      description: The kind of resource and the name never change. Stored values stay
+        as they are.
+      operationId: replaceAttributeDefinition
+      tags:
+      - ref-items
+      parameters:
+      - description: The ID of the resource.
+        name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      - $ref: "#/components/parameters/changeOrder"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AttributeDefinition"
+        required: true
+      responses:
+        "200":
+          description: The changed definition.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AttributeDefinition"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+    get:
+      summary: Returns one definition.
+      operationId: getAttributeDefinition
+      tags:
+      - ref-items
+      parameters:
+      - description: The ID of the resource.
+        name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: The definition.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AttributeDefinition"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+    delete:
+      summary: Deletes a definition.
+      description: Stored values stay as they are.
+      operationId: deleteAttributeDefinition
+      tags:
+      - ref-items
+      parameters:
+      - description: The ID of the resource.
+        name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      - $ref: "#/components/parameters/changeOrder"
+      responses:
+        "204":
+          description: The definition is gone.
         "404":
           $ref: "#/components/responses/NotFound"
         "401":

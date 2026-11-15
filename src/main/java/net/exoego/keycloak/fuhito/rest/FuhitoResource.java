@@ -16,6 +16,7 @@ import jakarta.ws.rs.core.MediaType;
 import net.exoego.keycloak.fuhito.domain.BusinessDay;
 import net.exoego.keycloak.fuhito.domain.Unchecked;
 import net.exoego.keycloak.fuhito.jpa.JpaAssignmentStore;
+import net.exoego.keycloak.fuhito.jpa.JpaAttributeDefinitionStore;
 import net.exoego.keycloak.fuhito.jpa.JpaChangeLogStore;
 import net.exoego.keycloak.fuhito.jpa.JpaChangeOrderStore;
 import net.exoego.keycloak.fuhito.jpa.JpaEffectiveChangeStore;
@@ -29,6 +30,7 @@ import net.exoego.keycloak.fuhito.jpa.JpaReportingLineStore;
 import net.exoego.keycloak.fuhito.jpa.JpaUnitRoleStore;
 import net.exoego.keycloak.fuhito.jpa.JpaUserDataMasker;
 import net.exoego.keycloak.fuhito.service.AssignmentService;
+import net.exoego.keycloak.fuhito.service.AttributeDefinitionService;
 import net.exoego.keycloak.fuhito.service.AttributeSyncService;
 import net.exoego.keycloak.fuhito.service.ChangeLogService;
 import net.exoego.keycloak.fuhito.service.ChangeOrderService;
@@ -109,6 +111,7 @@ public class FuhitoResource {
     private final Consumer<String> erasePerson;
     private final ProjectionService.Work projectionWork;
     private final Pieces pieces;
+    private final boolean rejectUnknownAttributes;
 
     /**
      * Creates the resource for one request.
@@ -123,12 +126,14 @@ public class FuhitoResource {
      * @param erasePerson removes every row and every change log entry about one person
      * @param projectionWork runs each piece of a rebuild of the projection in a transaction of its own
      * @param pieces runs each piece of a sync in a transaction of its own
+     * @param rejectUnknownAttributes true when the realm rejects free attributes with no definition
      */
     public FuhitoResource(String realmId, RequestContext context, EntityManager entityManager, BusinessDay.Rule rule,
             UserDirectory users,
             OrganizationDirectory organizations,
             UserAttributeSource userAttributes, Consumer<String> erasePerson,
-            ProjectionService.Work projectionWork, Pieces pieces) {
+            ProjectionService.Work projectionWork, Pieces pieces, boolean rejectUnknownAttributes) {
+        this.rejectUnknownAttributes = rejectUnknownAttributes;
         this.projectionWork = projectionWork;
         this.pieces = pieces;
         this.userAttributes = userAttributes;
@@ -247,21 +252,39 @@ public class FuhitoResource {
      */
     @Path("ref-items")
     public RefItemsResource refItems() {
-        return new RefItemsResource(context, new RefItemService(new JpaRefItemStore(entityManager, realmId)));
+        return new RefItemsResource(context, new RefItemService(new JpaRefItemStore(entityManager, realmId),
+                attributeRules()));
+    }
+
+    /**
+     * Returns the definitions of free attributes of the realm.
+     *
+     * @return the sub-resource
+     */
+    @Path("attribute-definitions")
+    public AttributeDefinitionsResource attributeDefinitions() {
+        return new AttributeDefinitionsResource(context, attributeRules());
+    }
+
+    private AttributeDefinitionService attributeRules() {
+        return new AttributeDefinitionService(new JpaAttributeDefinitionStore(entityManager, realmId),
+                new JpaRefItemStore(entityManager, realmId), rejectUnknownAttributes);
     }
 
     private AssignmentService assignmentService() {
         return new AssignmentService(new JpaAssignmentStore(entityManager, realmId),
                 new JpaEmploymentStore(entityManager, realmId), new JpaOrgUnitStore(entityManager, realmId),
-                new JpaRefItemStore(entityManager, realmId), new JpaReportingLineStore(entityManager, realmId));
+                new JpaRefItemStore(entityManager, realmId), new JpaReportingLineStore(entityManager, realmId),
+                attributeRules());
     }
 
     private EmploymentService employmentService() {
         return new EmploymentService(new JpaEmploymentStore(entityManager, realmId),
                 new JpaAssignmentStore(entityManager, realmId), new JpaRefItemStore(entityManager, realmId),
-                new JpaPersonStore(entityManager, realmId), new JpaReportingLineStore(entityManager, realmId), new JpaUnitRoleStore(entityManager, realmId),
+                new JpaPersonStore(entityManager, realmId), new JpaReportingLineStore(entityManager, realmId),
+                new JpaUnitRoleStore(entityManager, realmId),
                 new LegalEntityEmployers(new JpaOrgUnitStore(entityManager, realmId),
-                        new JpaRefItemStore(entityManager, realmId)));
+                        new JpaRefItemStore(entityManager, realmId)), attributeRules());
     }
 
     /**
@@ -371,16 +394,17 @@ public class FuhitoResource {
         var orgUnitStore = new JpaOrgUnitStore(entityManager, realmId);
         var people = new ImportService.People(employmentService(), new JpaEmploymentStore(entityManager, realmId),
                 assignmentService(), new JpaAssignmentStore(entityManager, realmId), users, personService());
-        var importService = new ImportService(new RefItemService(refItemStore), refItemStore, orgUnitService(),
-                orgUnitStore, people);
-        return new ImportsResource(context, importService,
-                new CsvImportService(importService, refItemStore, orgUnitStore, orgUnitService(), people));
+        var importService = new ImportService(new RefItemService(refItemStore, attributeRules()), refItemStore,
+                orgUnitService(), orgUnitStore, people);
+        var definitions = new JpaAttributeDefinitionStore(entityManager, realmId);
+        return new ImportsResource(context, importService, new CsvImportService(importService, refItemStore,
+                orgUnitStore, orgUnitService(), people, definitions::list));
     }
 
     private OrgUnitService orgUnitService() {
         return new OrgUnitService(new JpaOrgUnitStore(entityManager, realmId),
                 new JpaAssignmentStore(entityManager, realmId), new JpaRefItemStore(entityManager, realmId),
-                today());
+                today(), attributeRules());
     }
 
     // A new one for each service, so that none of them sees the tree as another one loaded it.
@@ -422,7 +446,8 @@ public class FuhitoResource {
         return new PersonService(new JpaPersonStore(entityManager, realmId), users,
                 personId -> !new JpaEmploymentStore(entityManager, realmId).findByPerson(personId).isEmpty()
                         || !new JpaQualificationStore(entityManager, realmId).findByPerson(personId).isEmpty()
-                        || !new JpaReportingLineStore(entityManager, realmId).findByManager(personId).isEmpty());
+                        || !new JpaReportingLineStore(entityManager, realmId).findByManager(personId).isEmpty(),
+                attributeRules());
     }
 
     /**
@@ -438,7 +463,7 @@ public class FuhitoResource {
     private QualificationService qualificationService() {
         return new QualificationService(new JpaQualificationStore(entityManager, realmId),
                 new JpaRefItemStore(entityManager, realmId), new JpaPersonStore(entityManager, realmId), users,
-                clock);
+                clock, attributeRules());
     }
 
     private MembershipService membershipService() {

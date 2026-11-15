@@ -15,6 +15,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 import net.exoego.keycloak.fuhito.domain.Assignment;
+import net.exoego.keycloak.fuhito.domain.AttributeDefinition;
 import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.Csv;
 import net.exoego.keycloak.fuhito.domain.Employment;
@@ -77,14 +78,19 @@ public class CsvImportService {
             Map.entry("group", "グループ"),
             Map.entry("head", "長"), Map.entry("primary", "主務"), Map.entry("allocationPercent", "配分割合"));
 
-    // The lists that a file can hold.
+    // The lists that a file can hold, each with the resource whose attributes it sets.
     private enum Kind {
-        REF_ITEMS("refItems"), ORG_UNITS("orgUnits"), EMPLOYMENTS("employments"), ASSIGNMENTS("assignments");
+        REF_ITEMS("refItems", AttributeDefinition.Target.REF_ITEM),
+        ORG_UNITS("orgUnits", AttributeDefinition.Target.ORG_UNIT),
+        EMPLOYMENTS("employments", AttributeDefinition.Target.EMPLOYMENT_TERMS),
+        ASSIGNMENTS("assignments", AttributeDefinition.Target.ASSIGNMENT);
 
         private final String list;
+        private final AttributeDefinition.Target target;
 
-        Kind(String list) {
+        Kind(String list, AttributeDefinition.Target target) {
             this.list = list;
+            this.target = target;
         }
 
         static Kind of(String list) {
@@ -109,9 +115,11 @@ public class CsvImportService {
                     "validFrom", "validTo"));
 
     private static final Set<String> LOCALIZED = Set.of("name", "shortName");
+    private static final String ATTRIBUTE_COLUMN = "attributes.";
     private static final Set<String> TRUE = Set.of("true", "1", "yes", "y", "はい", "○", "〇");
     private static final Set<String> FALSE = Set.of("false", "0", "no", "n", "いいえ", "×");
 
+    private final Function<AttributeDefinition.Target, List<AttributeDefinition>> definitions;
     private final ImportService importService;
     private final RefItemStore refItems;
     private final OrgUnitStore orgUnits;
@@ -129,6 +137,23 @@ public class CsvImportService {
      */
     public CsvImportService(ImportService importService, RefItemStore refItems, OrgUnitStore orgUnits,
             OrgUnitService orgUnitService, ImportService.People people) {
+        this(importService, refItems, orgUnits, orgUnitService, people, target -> List.of());
+    }
+
+    /**
+     * Creates the service with the defined attributes of the realm, which a file can set in its own columns.
+     *
+     * @param importService the import that writes the rows
+     * @param refItems the reference items of the realm
+     * @param orgUnits the storage of org units of the realm
+     * @param orgUnitService the operations on org units of the realm
+     * @param people the stores and services of people of the realm
+     * @param definitions the definitions of attributes, by kind of resource
+     */
+    public CsvImportService(ImportService importService, RefItemStore refItems, OrgUnitStore orgUnits,
+            OrgUnitService orgUnitService, ImportService.People people,
+            Function<AttributeDefinition.Target, List<AttributeDefinition>> definitions) {
+        this.definitions = definitions;
         this.importService = importService;
         this.refItems = refItems;
         this.orgUnits = orgUnits;
@@ -156,29 +181,30 @@ public class CsvImportService {
         if (rows.isEmpty()) {
             throw FuhitoException.invalid("csv.no_header", Map.of());
         }
-        List<String> columns = columns(rows.getFirst().cells(), FIELDS.get(kind));
+        List<AttributeDefinition> defined = definitions.apply(kind.target);
+        List<String> columns = columns(rows.getFirst().cells(), FIELDS.get(kind), defined);
         List<Csv.Row> data = rows.subList(1, rows.size());
 
         // Each list has its own type of row, so the rows keep that type from the cells to the import.
         return switch (kind) {
-            case REF_ITEMS -> run(data, columns, this::refItem,
+            case REF_ITEMS -> run(data, columns, defined, this::refItem,
                     typed -> new ImportDocument(effectiveDate, dryRun, defaultSource, typed, null, null, null));
-            case ORG_UNITS -> run(data, columns, cells -> orgUnit(cells, date, defaultSource),
+            case ORG_UNITS -> run(data, columns, defined, cells -> orgUnit(cells, date, defaultSource),
                     typed -> new ImportDocument(effectiveDate, dryRun, defaultSource, null, typed, null, null));
-            case EMPLOYMENTS -> run(data, columns, cells -> employment(cells, date, defaultSource),
+            case EMPLOYMENTS -> run(data, columns, defined, cells -> employment(cells, date, defaultSource),
                     typed -> new ImportDocument(effectiveDate, dryRun, defaultSource, null, null, typed, null));
-            case ASSIGNMENTS -> run(data, columns, cells -> assignment(cells, date, defaultSource),
+            case ASSIGNMENTS -> run(data, columns, defined, cells -> assignment(cells, date, defaultSource),
                     typed -> new ImportDocument(effectiveDate, dryRun, defaultSource, null, null, null, typed));
         };
     }
 
-    private <R> Result run(List<Csv.Row> data, List<String> columns, Function<Cells, R> parse,
-            Function<List<R>, ImportDocument> document) {
+    private <R> Result run(List<Csv.Row> data, List<String> columns, List<AttributeDefinition> defined,
+            Function<Cells, R> parse, Function<List<R>, ImportDocument> document) {
         Map<Integer, FuhitoException> conversionErrors = new HashMap<>();
         List<R> converted = new ArrayList<>();
         for (int i = 0; i < data.size(); i++) {
             try {
-                converted.add(parse.apply(Cells.of(columns, data.get(i).cells())));
+                converted.add(parse.apply(Cells.of(columns, data.get(i).cells(), defined)));
             } catch (FuhitoException e) {
                 // The row keeps its place as null. The import reports a missing row there, and the cause
                 // from here replaces that error below.
@@ -194,7 +220,7 @@ public class CsvImportService {
         return new Result(report, errors);
     }
 
-    private static List<String> columns(List<String> header, Set<String> fields) {
+    private static List<String> columns(List<String> header, Set<String> fields, List<AttributeDefinition> defined) {
         Map<String, String> byName = new HashMap<>();
         HEADERS.forEach((field, japanese) -> {
             byName.put(field.toLowerCase(Locale.ROOT), field);
@@ -203,6 +229,15 @@ public class CsvImportService {
         List<String> columns = new ArrayList<>();
         for (String cell : header) {
             String name = cell.strip();
+            if (name.startsWith(ATTRIBUTE_COLUMN)) {
+                String attribute = name.substring(ATTRIBUTE_COLUMN.length());
+                if (defined.stream().noneMatch(definition -> definition.name().equals(attribute))
+                        || columns.contains(name)) {
+                    throw FuhitoException.invalid("csv.bad_column", Map.of("column", name));
+                }
+                columns.add(name);
+                continue;
+            }
             int colon = name.indexOf(':');
             String base = colon < 0 ? name : name.substring(0, colon);
             String field = byName.get(base);
@@ -230,7 +265,7 @@ public class CsvImportService {
         return new RefItemRow(kind, code, cells.text("name", stored.map(RefItem::name).orElse(null)),
                 cells.localized("name", stored.map(RefItem::names).orElse(Map.of())),
                 cells.integer("displayOrder", stored.map(RefItem::displayOrder).orElse(null)),
-                stored.map(RefItem::attributes).orElse(null),
+                cells.attributes(stored.map(RefItem::attributes).orElse(null)),
                 cells.bool("active", stored.map(RefItem::active).orElse(null)),
                 cells.bool("legalEntity", null), cells.bool("actingHead", null), cells.bool("group", null));
     }
@@ -257,7 +292,7 @@ public class CsvImportService {
                 cells.text("unitType", stored.map(OrgUnitState::unitType).orElse(null)),
                 cells.text("parentExternalId", storedParent),
                 cells.integer("displayOrder", version.map(v -> v.displayOrder()).orElse(null)),
-                version.map(v -> v.attributes()).orElse(null),
+                cells.attributes(version.map(v -> v.attributes()).orElse(null)),
                 cells.text("validFrom", null), cells.text("validTo", null));
     }
 
@@ -283,7 +318,7 @@ public class CsvImportService {
                 cells.text("employmentType", terms.map(EmploymentView.TermsView::employmentType).orElse(null)),
                 cells.text("grade", terms.map(EmploymentView.TermsView::grade).orElse(null)), status, leaveReason,
                 cells.decimal("workPercent", terms.map(t -> t.terms().workPercent()).orElse(null)),
-                terms.map(t -> t.terms().attributes()).orElse(null),
+                cells.attributes(terms.map(t -> t.terms().attributes()).orElse(null)),
                 cells.text("validFrom", null), cells.text("validTo", null), cells.text("endReason", null),
                 cells.text("employerExternalId", null));
     }
@@ -310,7 +345,7 @@ public class CsvImportService {
                 cells.bool("primary", row.map(Assignment::primary).orElse(null)),
                 cells.decimal("allocationPercent", row.map(Assignment::allocationPercent).orElse(null)),
                 cells.integer("displayOrder", row.map(Assignment::displayOrder).orElse(null)),
-                row.map(Assignment::attributes).orElse(null),
+                cells.attributes(row.map(Assignment::attributes).orElse(null)),
                 cells.text("validFrom", null), cells.text("validTo", null));
     }
 
@@ -326,14 +361,36 @@ public class CsvImportService {
     /**
      * The cells of one row by column.
      */
-    private record Cells(Map<String, String> values) {
+    private record Cells(Map<String, String> values, List<AttributeDefinition> defined) {
 
-        static Cells of(List<String> columns, List<String> cells) {
+        static Cells of(List<String> columns, List<String> cells, List<AttributeDefinition> defined) {
             Map<String, String> values = new LinkedHashMap<>();
             for (int i = 0; i < columns.size(); i++) {
                 values.put(columns.get(i), i < cells.size() ? cells.get(i).strip() : "");
             }
-            return new Cells(values);
+            return new Cells(values, defined);
+        }
+
+        // A column of a defined attribute sets it. The other attributes keep what is stored.
+        Map<String, Object> attributes(Map<String, Object> stored) {
+            if (defined.stream().noneMatch(definition -> values.containsKey(ATTRIBUTE_COLUMN + definition.name()))) {
+                return stored;
+            }
+            Map<String, Object> result = stored == null ? new LinkedHashMap<>() : new LinkedHashMap<>(stored);
+            for (AttributeDefinition definition : defined) {
+                String column = ATTRIBUTE_COLUMN + definition.name();
+                Object value = switch (definition.type()) {
+                    case NUMBER -> decimal(column, null);
+                    case BOOLEAN -> bool(column, null);
+                    default -> text(column, null);
+                };
+                if (value != null) {
+                    result.put(definition.name(), value);
+                } else if (values.getOrDefault(column, "").equals(CLEAR)) {
+                    result.remove(definition.name());
+                }
+            }
+            return result;
         }
 
         String text(String field, String stored) {

@@ -894,4 +894,29 @@
             daterange(VALID_FROM, VALID_TO) WITH &amp;&amp;)
         </sql>
     </changeSet>
+    <changeSet id="0.1.0-attribute-definition" author="keycloak-fuhito">
+        <createTable tableName="FUHITO_ATTRIBUTE_DEFINITION">
+            <column name="ID" type="VARCHAR(36)">
+                <constraints primaryKey="true" primaryKeyName="PK_FUHITO_ATTRIBUTE_DEFINITION" nullable="false"/>
+            </column>
+            <column name="REALM_ID" type="VARCHAR(36)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="TARGET" type="VARCHAR(32)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="NAME" type="VARCHAR(64)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="VALUE_TYPE" type="VARCHAR(16)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="REF_KIND" type="VARCHAR(32)"/>
+            <column name="REQUIRED" type="BOOLEAN" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        <addUniqueConstraint tableName="FUHITO_ATTRIBUTE_DEFINITION" columnNames="REALM_ID, TARGET, NAME"
+                             constraintName="UK_FUHITO_ATTRIBUTE_DEFINITION_NAME"/>
+    </changeSet>
 </databaseChangeLog>

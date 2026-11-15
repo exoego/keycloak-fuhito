@@ -29,6 +29,7 @@ public final class RealmData {
             OrgUnitVersionEntity.class,
             OrgUnitEntity.class,
             RefItemEntity.class,
+            AttributeDefinitionEntity.class,
             HierarchyEntity.class);
 
     private RealmData() {
