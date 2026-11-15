@@ -1163,6 +1163,11 @@ components:
             $ref: "#/components/schemas/ImportAttributeDefinitionRow"
           description: "The definitions of free attributes. They come after the kinds\
             \ and before the reference items, whose attributes they check."
+        hierarchies:
+          type: array
+          items:
+            $ref: "#/components/schemas/ImportHierarchyRow"
+          description: The hierarchies. They come before the org units.
     ImportEmploymentRow:
       type: object
       description: "An employment. It is matched by source and external ID, or by\
@@ -1247,6 +1252,21 @@ components:
           description: "The ID of a stored employment, for a row of an employment\
             \ with no external ID. A CSV export has it in every row. A new employment\
             \ has none."
+    ImportHierarchyRow:
+      type: object
+      required:
+      - code
+      - name
+      description: A hierarchy. It is matched by code. A row of a stored hierarchy
+        changes its name. The code `default` names the default hierarchy.
+      properties:
+        code:
+          type: string
+          maxLength: 64
+          pattern: "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
+        name:
+          type: string
+          maxLength: 255
     ImportOrgUnitRow:
       type: object
       required:
@@ -4770,7 +4790,8 @@ paths:
       summary: Loads many rows in one transaction.
       description: "All rows are written, or none. A dry run does all checks and writes\
         \ nothing. The lists are applied in the order kinds of reference data, definitions\
-        \ of attributes, reference items, org units, people, employments, assignments."
+        \ of attributes, reference items, hierarchies, org units, people, employments,\
+        \ assignments."
       operationId: applyImport
       tags:
       - bulk
@@ -4804,7 +4825,7 @@ paths:
       description: "The lists are the same as for the import. A row of a thing that\
         \ has an ID has the column `id`, so that a row of a thing with no external\
         \ ID comes back too. The kinds, the definitions of attributes, the reference\
-        \ items, and the people have no date."
+        \ items, the hierarchies, and the people have no date."
       operationId: exportCsv
       tags:
       - bulk
@@ -4816,6 +4837,7 @@ paths:
           - ref-kinds
           - attribute-definitions
           - ref-items
+          - hierarchies
           - org-units
           - people
           - employments
@@ -4868,6 +4890,7 @@ paths:
           - ref-kinds
           - attribute-definitions
           - ref-items
+          - hierarchies
           - org-units
           - people
           - employments

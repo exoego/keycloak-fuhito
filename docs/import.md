@@ -21,6 +21,7 @@ Every bad row is reported, not only the first one.
 |---|---|
 | Kinds of reference data | Code |
 | Attribute definitions | Target and name |
+| Hierarchies | Code |
 | Reference items | Kind and code |
 | Org units | Source and external ID, or ID |
 | People | Source and external ID, or ID |
@@ -44,7 +45,7 @@ The list `people` loads people, also those with no Keycloak user, such as staff 
 ## JSON
 
 `POST /imports` takes one document with several lists.
-The lists are applied in the order kinds of reference data, attribute definitions, reference items, org units, people, employments, assignments.
+The lists are applied in the order kinds of reference data, attribute definitions, reference items, hierarchies, org units, people, employments, assignments.
 
 ```json
 {
@@ -70,6 +71,7 @@ The lists are applied in the order kinds of reference data, attribute definition
 
 - The list `refKinds` adds kinds of reference data to the realm. A row has `code`, `name`, and `names`. A row of a stored kind changes its names. A fixed kind such as `UNIT_TYPE` is in every realm and cannot be a row.
 - The list `attributeDefinitions` defines free attributes. A row has `target`, `name`, `type`, `refKind`, and `required`. A row of a stored definition changes the type, the kind, and `required`, as `PUT /attribute-definitions/{id}` does. Stored values stay as they are. The definitions come before the reference items, so that a row of a reference item can set an attribute that the same document defines.
+- The list `hierarchies` adds hierarchies. A row has `code` and `name`. A row of a stored hierarchy changes its name. The code `default` names the default hierarchy.
 - Rows of org units can come in any order. A parent is applied before its children.
 - A parent with no external ID of the same source can be named by `parentId`, the ID of the unit. A row gives `parentExternalId` or `parentId`, not both.
 - A row of a stored org unit can name it by `id`, also when the unit has no external ID. An external ID beside it must be the one of that unit.
@@ -90,11 +92,11 @@ The lists are applied in the order kinds of reference data, attribute definition
 
 ## CSV
 
-`POST /imports/csv/{list}` takes one file. The list is `ref-kinds`, `attribute-definitions`, `ref-items`, `org-units`, `people`, `employments`, or `assignments`.
+`POST /imports/csv/{list}` takes one file. The list is `ref-kinds`, `attribute-definitions`, `ref-items`, `hierarchies`, `org-units`, `people`, `employments`, or `assignments`.
 
 `GET /imports/csv/org-units?asOf=` gives the org units of a date as such a file, for a change in a spreadsheet. Each row has the column `id`, so a unit with no external ID loads again too. The parent is in the column `parentId`. With `header=ja`, the names of the columns are in Japanese. The file is UTF-8 with a byte order mark, which spreadsheets need to read it as UTF-8. The same file loaded on the same date changes nothing.
 
-`GET /imports/csv/ref-kinds` gives the kinds that the realm added the same way. It takes no `asOf`. `GET /imports/csv/attribute-definitions` gives the definitions of attributes the same way.
+`GET /imports/csv/ref-kinds` gives the kinds that the realm added the same way. It takes no `asOf`. `GET /imports/csv/attribute-definitions` gives the definitions of attributes the same way. `GET /imports/csv/hierarchies` gives the hierarchies the same way, the default one too.
 
 `GET /imports/csv/ref-items` gives the reference items of every kind the same way, the inactive ones too. It takes no `asOf`. An item is matched by kind and code, so the file has no `id`. A mark such as `legalEntity` is blank for a kind that cannot have it.
 
@@ -145,6 +147,13 @@ Attribute definitions.
 | `type` | `型` |
 | `refKind` | `参照の種類` |
 | `required` | `必須` |
+
+Hierarchies.
+
+| English | Japanese |
+|---|---|
+| `code` | `コード` |
+| `name` | `名称` |
 
 Reference items.
 

@@ -2,6 +2,7 @@ package net.exoego.keycloak.fuhito.service;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 import net.exoego.keycloak.fuhito.domain.Checks;
@@ -45,6 +46,17 @@ public class HierarchyService {
      */
     public Hierarchy get(String id) {
         return store.find(id).orElseThrow(() -> FuhitoException.notFound("hierarchy.not_found", Map.of("id", id)));
+    }
+
+    /**
+     * Finds a hierarchy by code. The default hierarchy is always there.
+     *
+     * @param code the code
+     * @return the hierarchy, or empty when the realm has none with the code
+     */
+    public Optional<Hierarchy> find(String code) {
+        store.defaultId();
+        return store.findByCode(code);
     }
 
     /**

@@ -121,6 +121,29 @@ class CsvImportIT {
     }
 
     @Test
+    void anExportOfHierarchiesLoadsAgainWithNoChange() throws Exception {
+        TestRealm realm = TestRealm.create("csv-export-hierarchies");
+        Api api = realm.api;
+        assertEquals(201, api.post("/hierarchies", "{\"code\": \"project\", \"name\": \"プロジェクト\"}")
+                .statusCode());
+
+        for (String header : List.of("en", "ja")) {
+            HttpResponse<String> exported = api.get("/imports/csv/hierarchies?header=" + header);
+            assertEquals(200, exported.statusCode(), exported.body());
+            assertEquals("﻿" + (header.equals("en") ? "code,name" : "コード,名称")
+                    + "\r\ndefault,Default\r\nproject,プロジェクト\r\n", exported.body());
+            JsonNode counts = load(api, "hierarchies", "effectiveDate=2026-05-01", exported.body()).get("counts")
+                    .get("hierarchies");
+            assertEquals(0, counts.get("created").asInt() + counts.get("changed").asInt(), counts.toString());
+        }
+        load(api, "hierarchies", "effectiveDate=2026-05-01", "code,name\r\ndefault,組織図\r\nfinance,管理会計\r\n");
+        assertEquals(List.of("default", "finance", "project"),
+                Api.json(api.get("/hierarchies")).findValuesAsText("code"));
+        assertEquals(List.of("組織図", "管理会計", "プロジェクト"),
+                Api.json(api.get("/hierarchies")).findValuesAsText("name"));
+    }
+
+    @Test
     void anExportOfReferenceItemsLoadsAgainWithNoChange() throws Exception {
         TestRealm realm = TestRealm.withEmployer("csv-export-items");
         Api api = realm.api;
