@@ -52,6 +52,11 @@ public class OrgUnitVersionEntity {
     @Column(name = "PHONETIC_NAME", length = 255)
     String phoneticName;
 
+    // The names in other languages and the short names, in lowercase with one on each line. The search reads
+    // these, so that it never matches the keys of the JSON.
+    @Column(name = "SEARCH_NAMES")
+    String searchNames;
+
     @Column(name = "UNIT_TYPE_ID", length = 36)
     String unitTypeId;
 
