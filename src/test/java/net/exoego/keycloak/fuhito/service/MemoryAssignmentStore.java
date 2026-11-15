@@ -39,6 +39,7 @@ final class MemoryAssignmentStore implements AssignmentStore {
                 .filter(row -> filter.status() == null
                         || employments.termsOn(List.of(row.employmentId()), filter.date()).stream()
                                 .anyMatch(terms -> terms.status() == filter.status()))
+                .filter(row -> filter.seconded() == null || filter.seconded().wanted() == seconded(row, filter))
                 .sorted(order)
                 .filter(row -> after == null || order.compare(row, new Assignment(null, after.assignmentId(), null,
                         after.orgUnitId(), ValidPeriod.startingAt(after.validFrom()), null, null, null, false,
@@ -46,6 +47,12 @@ final class MemoryAssignmentStore implements AssignmentStore {
                 .skip(first)
                 .limit(max)
                 .toList();
+    }
+
+    private boolean seconded(Assignment row, MemberFilter filter) {
+        String employerId = employments.findAll(List.of(row.employmentId())).getFirst().employerId();
+        return employerId != null && !orgUnits.ancestorsOn(filter.seconded().hierarchyId(),
+                List.of(row.orgUnitId()), filter.date()).get(row.orgUnitId()).contains(employerId);
     }
 
     @Override

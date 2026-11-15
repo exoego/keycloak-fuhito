@@ -105,7 +105,9 @@ public class MembershipService {
         List<Assignment> rows = assignments.membersOn(new MemberFilter(hierarchy, orgUnitId,
                 query.includeDescendants(), date, filterId(RefKind.OCCUPATION, query.occupation()),
                 filterId(RefKind.JOB_TITLE, query.jobTitle()),
-                Checks.optionalEnum("status", EmploymentStatus.class, query.status(), null)),
+                Checks.optionalEnum("status", EmploymentStatus.class, query.status(), null),
+                query.seconded() == null ? null
+                        : new MemberFilter.Seconded(query.seconded(), orgUnits.defaultHierarchyId())),
                 cursor(query.after()), page.first(), page.max());
 
         Map<String, OrgUnitState> units = new HashMap<>();

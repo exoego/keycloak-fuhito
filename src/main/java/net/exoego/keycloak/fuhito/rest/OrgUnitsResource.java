@@ -391,6 +391,9 @@ public class OrgUnitsResource {
                     description = "An employment status to keep.",
                     schema = @Schema(ref = "EmploymentStatus"))
             @QueryParam("status") String status,
+            @Parameter(description = "True to keep only the people who work outside the legal entity that employs "
+                    + "them. False to keep everyone else. The default is everyone.")
+            @QueryParam("seconded") Boolean seconded,
             @Parameter(
                     description = "The number of entries to skip.",
                     schema = @Schema(minimum = "0", defaultValue = "0"))
@@ -405,7 +408,7 @@ public class OrgUnitsResource {
         context.requireRead();
         return Calls.run(context, () -> Pages.of(context,
                 membership.members(id, new MemberQuery(asOf, includeDescendants, occupation, jobTitle, status,
-                        first, max, hierarchy, after)).stream().map(MemberRepresentation::of).toList(),
+                        first, max, hierarchy, after, seconded)).stream().map(MemberRepresentation::of).toList(),
                 Page.of(first, max).max(),
                 // The values that the order of the list uses, as MembershipService reads them back.
                 member -> Cursor.encode(Cursor.MEMBERS, member.orgUnitId(), Integer.toString(member.displayOrder()),

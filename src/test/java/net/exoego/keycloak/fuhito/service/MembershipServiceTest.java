@@ -101,10 +101,22 @@ class MembershipServiceTest {
         assertEquals(List.of(hospital, otherHospital),
                 inWard.stream().map(member -> member.employment().employerId()).toList());
 
+        // The list can keep one side only.
+        assertEquals(List.of("doctor"), userIds(service.members(ward, seconded(true, false))));
+        assertEquals(List.of("nurse"), userIds(service.members(ward, seconded(false, false))));
+        assertEquals(List.of("doctor"), userIds(service.members(hospital, seconded(true, true))));
+        assertEquals(List.of("nurse"), userIds(service.members(hospital, seconded(false, true))));
+        assertEquals(List.of("doctor"), userIds(service.members(otherHospital, seconded(false, true))));
+        assertEquals(List.of(), userIds(service.members(otherHospital, seconded(true, true))));
+
         // The doctor is seconded in the ward, and not in the hospital that employs the doctor.
         List<Member> ofDoctor = service.assignmentsOf("doctor", "2026-04-01", false);
         assertEquals(List.of(otherHospital, ward), ofDoctor.stream().map(m -> m.orgUnit().unit().id()).toList());
         assertEquals(List.of(false, true), ofDoctor.stream().map(Member::seconded).toList());
+    }
+
+    private static MemberQuery seconded(boolean wanted, boolean includeDescendants) {
+        return new MemberQuery("2026-04-01", includeDescendants, null, null, null, null, null, null, null, wanted);
     }
 
     @Test
@@ -123,22 +135,22 @@ class MembershipServiceTest {
                 second.period().from().toString(), second.assignmentId());
 
         assertEquals(List.of("clerk", "nurse"), userIds(service.members(hospital,
-                new MemberQuery("2026-04-01", true, null, null, null, null, null, null, afterFirst))));
+                new MemberQuery("2026-04-01", true, null, null, null, null, null, null, afterFirst, null))));
         assertEquals(List.of("nurse"), userIds(service.members(hospital,
-                new MemberQuery("2026-04-01", true, null, null, null, null, 5, null, afterSecond))));
+                new MemberQuery("2026-04-01", true, null, null, null, null, 5, null, afterSecond, null))));
         // In one org unit, the cursor uses the display order and what comes after it.
         assertEquals(List.of("nurse"), userIds(service.members(ward,
-                new MemberQuery("2026-04-01", false, null, null, null, null, null, null, afterSecond))));
+                new MemberQuery("2026-04-01", false, null, null, null, null, null, null, afterSecond, null))));
 
         assertEquals("invalid.cursor_with_first", assertThrows(FuhitoException.class, () -> service.members(hospital,
-                new MemberQuery("2026-04-01", true, null, null, null, 1, null, null, afterFirst))).code());
+                new MemberQuery("2026-04-01", true, null, null, null, 1, null, null, afterFirst, null))).code());
         for (String bad : List.of(Cursor.encode(Cursor.MEMBERS, "one"),
                 Cursor.encode(Cursor.MEMBERS, "u", "x", "2026-04-01", "a"),
                 Cursor.encode(Cursor.MEMBERS, "u", "1", "soon", "a"),
                 // A cursor of the list of people does not fit this list.
                 Cursor.encode(Cursor.PEOPLE, "p"))) {
             assertEquals("invalid.cursor", assertThrows(FuhitoException.class, () -> service.members(hospital,
-                    new MemberQuery("2026-04-01", true, null, null, null, null, null, null, bad))).code());
+                    new MemberQuery("2026-04-01", true, null, null, null, null, null, null, bad, null))).code());
         }
     }
 

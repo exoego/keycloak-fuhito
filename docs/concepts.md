@@ -133,6 +133,7 @@ Every employment names its employer. The employer is an org unit that is a legal
 - A staff number is unique for one employer. Two legal entities can give the same number to two people.
 - A person who is employed by one legal entity and works in an org unit of another is seconded. The employment names the first, and the assignment names the org unit.
 - The reads of members and of the assignments of a person have `employerId` and `seconded`. An assignment is a secondment when its org unit is not the employer and not below it in the default hierarchy.
+- `GET /org-units/{id}/members` takes `seconded=true` for only the seconded people, and `seconded=false` for everyone else. The database applies the filter, so the pages stay right.
 
 ## Out of scope
 
