@@ -64,19 +64,27 @@ final class MemoryOrgUnitStore implements OrgUnitStore {
         units.put(unit.id(), unit);
     }
 
+    /** The unit types that tell groups from line units. A test of groups sets it. */
+    MemoryRefItemStore refItems = new MemoryRefItemStore();
+
     @Override
-    public List<PlacedOrgUnit> treeOn(String hierarchyId, String rootId, LocalDate date, int first, int max) {
-        return placed(new OrgUnitTree(this, new MemoryRefItemStore(), date, hierarchyId).subtree(rootId), first, max);
+    public List<PlacedOrgUnit> treeOn(String hierarchyId, String rootId, Boolean group, LocalDate date, int first,
+            int max) {
+        return placed(of(group, new OrgUnitTree(this, refItems, date, hierarchyId).subtree(rootId)), first, max);
     }
 
     @Override
-    public List<PlacedOrgUnit> childrenOn(String hierarchyId, String parentId, boolean linkedOnly, LocalDate date,
-            int first, int max) {
-        OrgUnitTree tree = new OrgUnitTree(this, new MemoryRefItemStore(), date, hierarchyId);
+    public List<PlacedOrgUnit> childrenOn(String hierarchyId, String parentId, boolean linkedOnly, Boolean group,
+            LocalDate date, int first, int max) {
+        OrgUnitTree tree = new OrgUnitTree(this, refItems, date, hierarchyId);
         if (parentId != null) {
-            return placed(tree.children(parentId), first, max);
+            return placed(of(group, tree.children(parentId)), first, max);
         }
-        return placed(linkedOnly ? tree.linkedRoots() : tree.roots(), first, max);
+        return placed(of(group, linkedOnly ? tree.linkedRoots() : tree.roots()), first, max);
+    }
+
+    private static List<OrgUnitState> of(Boolean group, List<OrgUnitState> states) {
+        return states.stream().filter(state -> group == null || state.group() == group).toList();
     }
 
     @Override
@@ -203,6 +211,14 @@ final class MemoryOrgUnitStore implements OrgUnitStore {
     public List<OrgUnitLink> parentLinks(String hierarchyId, String childId) {
         return links.stream()
                 .filter(l -> l.hierarchyId().equals(hierarchyId) && l.childId().equals(childId))
+                .sorted(Comparator.comparing(l -> l.period().from()))
+                .toList();
+    }
+
+    @Override
+    public List<OrgUnitLink> childLinks(String hierarchyId, String parentId) {
+        return links.stream()
+                .filter(l -> l.hierarchyId().equals(hierarchyId) && parentId.equals(l.parentId()))
                 .sorted(Comparator.comparing(l -> l.period().from()))
                 .toList();
     }

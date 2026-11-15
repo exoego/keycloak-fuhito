@@ -81,11 +81,13 @@ public class OrgUnitService {
             throw FuhitoException.conflict("org_unit.code_taken", Map.of("code", code));
         }
         RefItem unitType = request.unitType() == null ? null : activeUnitType(request.unitType());
+        OrgUnit unit = new OrgUnit(newId(), code, request.externalId(), request.source(), null);
         if (request.parentId() != null) {
             requireParentCovers(request.parentId(), period);
+            requireLineParent(unit.id(), List.of(new Nature(period, unitType != null && unitType.group())),
+                    request.parentId(), natures(request.parentId()), period);
         }
 
-        OrgUnit unit = new OrgUnit(newId(), code, request.externalId(), request.source(), null);
         OrgUnitVersion version = version(newId(), unit.id(), period, new OrgUnitChange(request.validFrom(),
                 request.name(), request.names(), request.shortName(), request.shortNames(), request.phoneticName(),
                 request.unitType(), request.displayOrder(), request.attributes()), unitType);
@@ -121,6 +123,17 @@ public class OrgUnitService {
                 throw FuhitoException.conflict("org_unit.is_employer",
                         Map.of("id", id, "validFrom", request.validFrom(), "count", Long.toString(employments)));
             }
+        }
+
+        ValidPeriod changed = current.period().from().equals(from) ? current.period()
+                : current.period().splitAt(from).get(1);
+        List<Nature> nature = List.of(new Nature(changed, unitType != null && unitType.group()));
+        String hierarchyId = store.defaultHierarchyId();
+        for (OrgUnitLink link : store.parentLinks(hierarchyId, id)) {
+            requireLineParent(id, nature, link.parentId(), natures(link.parentId()), link.period());
+        }
+        for (OrgUnitLink link : store.childLinks(hierarchyId, id)) {
+            requireLineParent(link.childId(), natures(link.childId()), id, nature, link.period());
         }
 
         if (current.period().from().equals(from)) {
@@ -179,6 +192,9 @@ public class OrgUnitService {
         if (parentId != null) {
             requireParentCovers(parentId, period);
             requireNoCycle(hierarchyId, id, parentId, period);
+            if (hierarchyId.equals(store.defaultHierarchyId())) {
+                requireLineParent(id, natures(id), parentId, natures(parentId), period);
+            }
         }
         if (current != null && current.period().from().equals(from)) {
             if (parentId == null) {
@@ -379,15 +395,16 @@ public class OrgUnitService {
      *
      * @param asOf the date as {@code YYYY-MM-DD}, or null for today
      * @param hierarchy the code of the hierarchy, or null for the default one
+     * @param group true for groups only, false for line units only, or null for both
      * @param page the part of the list to return
      * @return the roots of the page on the date
      * @throws FuhitoException when the date is bad or the hierarchy does not exist
      */
-    public List<OrgUnitState> roots(String asOf, String hierarchy, Page page) {
+    public List<OrgUnitState> roots(String asOf, String hierarchy, Boolean group, Page page) {
         LocalDate date = dateOrToday(asOf, null);
         String hierarchyId = hierarchyId(hierarchy);
         boolean linkedOnly = !hierarchyId.equals(store.defaultHierarchyId());
-        return states(store.childrenOn(hierarchyId, null, linkedOnly, date, page.first(), page.max()));
+        return states(store.childrenOn(hierarchyId, null, linkedOnly, group, date, page.first(), page.max()));
     }
 
     /**
@@ -396,13 +413,15 @@ public class OrgUnitService {
      * @param id the ID
      * @param asOf the date as {@code YYYY-MM-DD}, or null for today
      * @param hierarchy the code of the hierarchy, or null for the default one
+     * @param group true for groups only, false for line units only, or null for both
      * @param page the part of the list to return
      * @return the children of the page on the date
      * @throws FuhitoException when the unit or the hierarchy does not exist, or the unit does not exist on the date
      */
-    public List<OrgUnitState> children(String id, String asOf, String hierarchy, Page page) {
+    public List<OrgUnitState> children(String id, String asOf, String hierarchy, Boolean group, Page page) {
         LocalDate date = dateOfUnit(id, asOf);
-        return states(store.childrenOn(hierarchyId(hierarchy), id, false, date, page.first(), page.max()));
+        return states(store.childrenOn(hierarchyId(hierarchy), id, false, group, date, page.first(),
+                page.max()));
     }
 
     /**
@@ -411,13 +430,14 @@ public class OrgUnitService {
      * @param id the ID
      * @param asOf the date as {@code YYYY-MM-DD}, or null for today
      * @param hierarchy the code of the hierarchy, or null for the default one
+     * @param group true for groups only, false for line units only, or null for both
      * @param page the part of the list to return
      * @return the units of the page on the date
      * @throws FuhitoException when the unit or the hierarchy does not exist, or the unit does not exist on the date
      */
-    public List<OrgUnitState> subtree(String id, String asOf, String hierarchy, Page page) {
+    public List<OrgUnitState> subtree(String id, String asOf, String hierarchy, Boolean group, Page page) {
         LocalDate date = dateOfUnit(id, asOf);
-        return states(store.treeOn(hierarchyId(hierarchy), id, date, page.first(), page.max()));
+        return states(store.treeOn(hierarchyId(hierarchy), id, group, date, page.first(), page.max()));
     }
 
     /**
@@ -542,6 +562,35 @@ public class OrgUnitService {
         return refItems.findByCode(RefKind.UNIT_TYPE, code)
                 .filter(RefItem::active)
                 .orElseThrow(() -> FuhitoException.invalid("org_unit.unit_type_unknown", Map.of("unitType", code)));
+    }
+
+    // Whether a unit is a group in a period of its details.
+    private record Nature(ValidPeriod period, boolean group) {
+    }
+
+    private List<Nature> natures(String unitId) {
+        return store.versions(unitId).stream()
+                .map(v -> new Nature(v.period(), v.unitTypeId() != null
+                        && refItems.find(v.unitTypeId()).map(RefItem::group).orElse(false)))
+                .toList();
+    }
+
+    // In the default hierarchy, the parent of a line unit is a line unit on every date. A group may be anywhere.
+    private static void requireLineParent(String childId, List<Nature> child, String parentId, List<Nature> parent,
+            ValidPeriod link) {
+        for (Nature below : child) {
+            for (Nature above : parent) {
+                if (below.group() || !above.group()) {
+                    continue;
+                }
+                Optional<ValidPeriod> both = link.intersection(below.period())
+                        .flatMap(period -> period.intersection(above.period()));
+                if (both.isPresent()) {
+                    throw FuhitoException.conflict("org_unit.line_below_group", Map.of("id", childId,
+                            "parentId", parentId, "date", both.get().from().toString()));
+                }
+            }
+        }
     }
 
     // The parent must exist on every date of the child. Versions of one unit have no gaps.

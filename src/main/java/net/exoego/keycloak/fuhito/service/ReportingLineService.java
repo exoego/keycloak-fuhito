@@ -161,6 +161,7 @@ public class ReportingLineService {
      * Lists the managers of a user on a date, for each assignment of the user.
      * A stored line gives the manager. An assignment with no solid line takes the head of its org unit.
      * A head, and a member of a unit with no head, take the head of the nearest unit above that has one.
+     * An assignment in a group gets no derived manager, and the head of a group is nobody's derived manager.
      * A head is absent while the status of the employment is not {@code ACTIVE}. An acting head counts only while
      * no other head is present. An acting head while a head is present is a member.
      *
@@ -327,6 +328,11 @@ public class ReportingLineService {
         List<Assignment> headsAbove(String orgUnitId, String personId) {
             List<OrgUnitState> path = OrgUnitPaths.on(sources.orgUnits(), sources.refItems(),
                     sources.orgUnits().defaultHierarchyId(), orgUnitId, date);
+            // A group is outside the line organization. No line unit is below a group, so the rest of the path is
+            // made of line units.
+            if (path.getLast().group()) {
+                return List.of();
+            }
             for (int i = path.size() - 1; i >= 0; i--) {
                 String unitId = path.get(i).unit().id();
                 // The person is no head of this unit from here on, so none of its heads is the person.

@@ -102,12 +102,13 @@ public interface OrgUnitStore {
      *
      * @param hierarchyId the ID of the hierarchy
      * @param rootId the ID of the unit to start from
+     * @param group true for groups only, false for line units only, or null for both
      * @param date the date
      * @param first the number of units to skip
      * @param max the largest number of units to return
      * @return the units of the page
      */
-    List<PlacedOrgUnit> treeOn(String hierarchyId, String rootId, LocalDate date, int first, int max);
+    List<PlacedOrgUnit> treeOn(String hierarchyId, String rootId, Boolean group, LocalDate date, int first, int max);
 
     /**
      * Lists a page of the direct children of a unit on a date, in the order of siblings.
@@ -116,13 +117,14 @@ public interface OrgUnitStore {
      * @param parentId the ID of the parent, or null for the units with no parent
      * @param linkedOnly true to take only roots that have a child in the hierarchy. It has no effect with a
      *        {@code parentId}.
+     * @param group true for groups only, false for line units only, or null for both
      * @param date the date
      * @param first the number of units to skip
      * @param max the largest number of units to return
      * @return the units of the page
      */
-    List<PlacedOrgUnit> childrenOn(String hierarchyId, String parentId, boolean linkedOnly, LocalDate date,
-            int first, int max);
+    List<PlacedOrgUnit> childrenOn(String hierarchyId, String parentId, boolean linkedOnly, Boolean group,
+            LocalDate date, int first, int max);
 
     /**
      * Lists a page of the units that are legal entities on a date. A unit is one when its unit type says so.
@@ -252,6 +254,15 @@ public interface OrgUnitStore {
      * @return the links
      */
     List<OrgUnitLink> parentLinks(String childId);
+
+    /**
+     * Lists the links of a hierarchy to the children of a unit, over all time.
+     *
+     * @param hierarchyId the ID of the hierarchy
+     * @param parentId the ID of the parent
+     * @return the links, oldest first
+     */
+    List<OrgUnitLink> childLinks(String hierarchyId, String parentId);
 
     /**
      * Counts the units that have a unit as their parent on a date or after it, in any hierarchy.

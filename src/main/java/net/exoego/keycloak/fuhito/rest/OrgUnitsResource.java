@@ -179,6 +179,10 @@ public class OrgUnitsResource {
             @Parameter(description = "The code of the hierarchy. The default is the hierarchy `default`.")
             @QueryParam("hierarchy") String hierarchy,
             @Parameter(
+                    description = "True for groups outside the line organization only, such as committees. False for "
+                            + "line units only. Leave it out for both.")
+            @QueryParam("group") Boolean group,
+            @Parameter(
                     description = "The number of entries to skip.",
                     schema = @Schema(minimum = "0", defaultValue = "0"))
             @QueryParam("first") Integer first,
@@ -188,7 +192,7 @@ public class OrgUnitsResource {
             @QueryParam("max") Integer max) {
         context.requireReadStructure();
         return Calls.run(context, () -> represent(legalEntity ? service.legalEntities(asOf, Page.of(first, max))
-                : service.roots(asOf, hierarchy, Page.of(first, max))));
+                : service.roots(asOf, hierarchy, group, Page.of(first, max))));
     }
 
     @GET
@@ -209,6 +213,10 @@ public class OrgUnitsResource {
             @Parameter(description = "The code of the hierarchy. The default is the hierarchy `default`.")
             @QueryParam("hierarchy") String hierarchy,
             @Parameter(
+                    description = "True for groups outside the line organization only, such as committees. False for "
+                            + "line units only. Leave it out for both.")
+            @QueryParam("group") Boolean group,
+            @Parameter(
                     description = "The number of entries to skip.",
                     schema = @Schema(minimum = "0", defaultValue = "0"))
             @QueryParam("first") Integer first,
@@ -217,7 +225,8 @@ public class OrgUnitsResource {
                     schema = @Schema(minimum = "0", maximum = "1000", defaultValue = "100"))
             @QueryParam("max") Integer max) {
         context.requireReadStructure();
-        return Calls.run(context, () -> represent(service.children(id, asOf, hierarchy, Page.of(first, max))));
+        return Calls.run(context, () -> represent(service.children(id, asOf, hierarchy, group,
+                Page.of(first, max))));
     }
 
     @GET
@@ -241,6 +250,10 @@ public class OrgUnitsResource {
             @Parameter(description = "The code of the hierarchy. The default is the hierarchy `default`.")
             @QueryParam("hierarchy") String hierarchy,
             @Parameter(
+                    description = "True for groups outside the line organization only, such as committees. False for "
+                            + "line units only. Leave it out for both.")
+            @QueryParam("group") Boolean group,
+            @Parameter(
                     description = "The number of entries to skip.",
                     schema = @Schema(minimum = "0", defaultValue = "0"))
             @QueryParam("first") Integer first,
@@ -249,7 +262,8 @@ public class OrgUnitsResource {
                     schema = @Schema(minimum = "0", maximum = "1000", defaultValue = "100"))
             @QueryParam("max") Integer max) {
         context.requireReadStructure();
-        return Calls.run(context, () -> represent(service.subtree(id, asOf, hierarchy, Page.of(first, max))));
+        return Calls.run(context, () -> represent(service.subtree(id, asOf, hierarchy, group,
+                Page.of(first, max))));
     }
 
     @GET

@@ -115,11 +115,12 @@ public class ImportService {
         String code = Checks.code("code", row.code());
         Optional<RefItem> stored = refItems.findByCode(kind, code);
         if (stored.isEmpty()) {
+            RefItemService.Marks marks = new RefItemService.Marks(row.legalEntity(), row.actingHead(), row.group());
             RefItem created = refItemService.create(kind, code, row.name(), row.names(), row.displayOrder(),
-                    row.attributes(), row.legalEntity(), row.actingHead());
+                    row.attributes(), marks);
             RefItem item = Boolean.FALSE.equals(row.active())
                     ? refItemService.update(created.id(), row.name(), row.names(), row.displayOrder(),
-                            row.attributes(), false, row.legalEntity(), row.actingHead())
+                            row.attributes(), false, marks)
                     : created;
             report.write(new Write.OfRefItem(true, item));
             return Outcome.CREATED;
@@ -129,12 +130,14 @@ public class ImportService {
                 Checks.localizedNames("names", row.names()), row.displayOrder() == null ? 0 : row.displayOrder(),
                 row.attributes() == null ? Map.of() : row.attributes(), row.active() == null || row.active(),
                 row.legalEntity() == null ? before.legalEntity() : row.legalEntity(),
-                row.actingHead() == null ? before.actingHead() : row.actingHead());
+                row.actingHead() == null ? before.actingHead() : row.actingHead(),
+                row.group() == null ? before.group() : row.group());
         if (wanted.equals(before)) {
             return Outcome.UNCHANGED;
         }
         RefItem item = refItemService.update(before.id(), row.name(), row.names(), row.displayOrder(),
-                row.attributes(), row.active(), wanted.legalEntity(), wanted.actingHead());
+                row.attributes(), row.active(), new RefItemService.Marks(wanted.legalEntity(), wanted.actingHead(),
+                        wanted.group()));
         report.write(new Write.OfRefItem(false, item));
         return Outcome.CHANGED;
     }

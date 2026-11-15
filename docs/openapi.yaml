@@ -811,6 +811,11 @@ components:
           type: boolean
           description: True for an assignment kind whose heads stand in for an absent
             head. A row that leaves it out keeps the mark of a stored item.
+        group:
+          type: boolean
+          description: True for a unit type whose org units are groups outside the
+            line organization. A row that leaves it out keeps the mark of a stored
+            item.
     ImportReport:
       required:
       - dryRun
@@ -1109,6 +1114,11 @@ components:
           type: boolean
           description: "True when the unit type marks the unit as a legal entity,\
             \ such as a company."
+          readOnly: true
+        group:
+          type: boolean
+          description: "True when the unit type marks the unit as a group outside\
+            \ the line organization, such as a committee."
           readOnly: true
         parentId:
           type: string
@@ -1491,6 +1501,13 @@ components:
           type: boolean
           description: True for an assignment kind whose heads stand in for an absent
             head. Only the kind `ASSIGNMENT_KIND` can have it.
+          default: false
+        group:
+          type: boolean
+          description: "True for a unit type whose org units are groups outside the\
+            \ line organization, such as a committee or a project team. Only the kind\
+            \ `UNIT_TYPE` can have it. It cannot change while an org unit has the\
+            \ type."
           default: false
     RefKind:
       type: string
@@ -3430,6 +3447,12 @@ paths:
           default: 0
         name: first
         in: query
+      - description: "True for groups outside the line organization only, such as\
+          \ committees. False for line units only. Leave it out for both."
+        name: group
+        in: query
+        schema:
+          type: boolean
       - description: The code of the hierarchy. The default is the hierarchy `default`.
         name: hierarchy
         in: query
@@ -3609,6 +3632,12 @@ paths:
           default: 0
         name: first
         in: query
+      - description: "True for groups outside the line organization only, such as\
+          \ committees. False for line units only. Leave it out for both."
+        name: group
+        in: query
+        schema:
+          type: boolean
       - description: The code of the hierarchy. The default is the hierarchy `default`.
         name: hierarchy
         in: query
@@ -3997,6 +4026,12 @@ paths:
           default: 0
         name: first
         in: query
+      - description: "True for groups outside the line organization only, such as\
+          \ committees. False for line units only. Leave it out for both."
+        name: group
+        in: query
+        schema:
+          type: boolean
       - description: The code of the hierarchy. The default is the hierarchy `default`.
         name: hierarchy
         in: query

@@ -203,6 +203,23 @@ class ReportingLineServiceTest {
     }
 
     @Test
+    void aGroupGivesNoManager() {
+        refItems.insert(new RefItem("committee", RefKind.UNIT_TYPE, "committee", "Committee", Map.of(), 0, Map.of(),
+                true, false, false, true));
+        orgUnitStore.refItems = refItems;
+        String committee = orgUnits.create(new NewOrgUnit(null, "Safety", null, null, null, null, "committee",
+                hospital, "2026-04-01", null, null, null, null)).unit().id();
+        assign(employ("idle"), committee, true);
+        assign(nurseAEmployment, committee, false);
+
+        assertEquals(List.of("head-nurse SOLID derived"), summary(service.managersOf("nurse-a", null)));
+        assertEquals(List.of(), summary(service.managersOf("idle", null)));
+        assertEquals(List.of(), summary(service.reportsOf("idle", null, Page.of(null, null))));
+        assertEquals(List.of("head-nurse SOLID derived"),
+                summary(service.reportsOf("director", null, Page.of(null, null))));
+    }
+
+    @Test
     void anAssignmentHasOneSolidLineAtATime() {
         ReportingLine first = service.add(nurseA, "director", "SOLID", "2026-04-01", "2027-04-01");
 
