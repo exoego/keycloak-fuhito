@@ -124,7 +124,7 @@ public class PeopleResource {
             @Parameter(description = "The ID of the resource.")
             @PathParam("id") String id) {
         context.requireRead();
-        return Calls.run(context, () -> PersonRepresentation.of(service.get(id)));
+        return Calls.tagged(context, () -> PersonRepresentation.of(service.get(id)));
     }
 
     @PUT
@@ -143,7 +143,7 @@ public class PeopleResource {
             @PathParam("id") String id,
             PersonRepresentation body) {
         context.requireWrite();
-        return Calls.run(context, () -> {
+        return Calls.guarded(context, () -> state(id), () -> {
             Checks.required("body", body);
             var person = PersonRepresentation.of(service.replace(id, body.toValues()));
             context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, path(id), person);
@@ -163,7 +163,7 @@ public class PeopleResource {
             @Parameter(description = "The ID of the resource.")
             @PathParam("id") String id) {
         context.requireWrite();
-        return Calls.run(context, () -> {
+        return Calls.guardedRemoval(context, () -> state(id), () -> {
             service.delete(id);
             context.recordChange(Change.DELETE, RESOURCE_TYPE, id, path(id), null);
             return Response.noContent().build();
@@ -376,5 +376,10 @@ public class PeopleResource {
 
     private static String path(String id) {
         return "fuhito/people/" + id;
+    }
+
+    // The whole stored state of one resource, which its ETag covers.
+    private Object state(String id) {
+        return PersonRepresentation.of(service.get(id));
     }
 }

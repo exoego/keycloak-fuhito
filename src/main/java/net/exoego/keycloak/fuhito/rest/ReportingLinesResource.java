@@ -85,7 +85,7 @@ public class ReportingLinesResource {
             @Parameter(description = "The ID of the resource.")
             @PathParam("id") String id) {
         context.requireRead();
-        return Calls.run(context, () -> ReportingLineRepresentation.of(service.get(id)));
+        return Calls.tagged(context, () -> ReportingLineRepresentation.of(service.get(id)));
     }
 
     @PUT
@@ -101,7 +101,7 @@ public class ReportingLinesResource {
             @PathParam("id") String id,
             EndRepresentation body) {
         context.requireWrite();
-        return Calls.run(context, () -> {
+        return Calls.guarded(context, () -> state(id), () -> {
             Checks.required("body", body);
             var line = ReportingLineRepresentation.of(service.end(id, body.validTo()));
             context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, path(id) + "/end", line);
@@ -123,7 +123,7 @@ public class ReportingLinesResource {
             @Parameter(description = "The ID of the resource.")
             @PathParam("id") String id) {
         context.requireWrite();
-        return Calls.run(context, () -> {
+        return Calls.guardedRemoval(context, () -> state(id), () -> {
             service.delete(id);
             context.recordChange(Change.DELETE, RESOURCE_TYPE, id, path(id), null);
             return Response.noContent().build();
@@ -132,5 +132,10 @@ public class ReportingLinesResource {
 
     private static String path(String id) {
         return "fuhito/reporting-lines/" + id;
+    }
+
+    // The whole stored state of one resource, which its ETag covers.
+    private Object state(String id) {
+        return ReportingLineRepresentation.of(service.get(id));
     }
 }

@@ -324,6 +324,16 @@ The database orders the names, so the order of two names follows the collation o
 The database also walks the subtree, so a read of one page does not load it into memory.
 The path of an org unit is read with a walk upward from the unit. The assignments of a person and the managers of a person use the same walk.
 
+### Writes of two products at once
+
+A read of one resource has the header `ETag`. It is a hash of the whole stored state of the resource.
+For an org unit, it covers every period of the details and every parent, so a read of any date has the same ETag.
+
+- A write to one resource can send that value in `If-Match`. When the resource changed since the read, the write fails with 412 and `etag.mismatch`, and nothing is written. The caller reads again and decides.
+- `If-Match: *` matches any state. A write with no `If-Match` goes on as before.
+- A write to one resource answers with the ETag of the new state.
+- The writes are those of `PUT`, `POST`, and `DELETE` below the path of the resource, for example `PUT /employments/{id}/terms` and `POST /employments/{id}/leave`.
+
 ### Hierarchies
 
 Every realm has the hierarchy `default`. A realm can create more with `POST /hierarchies`, for another view of the same org units.

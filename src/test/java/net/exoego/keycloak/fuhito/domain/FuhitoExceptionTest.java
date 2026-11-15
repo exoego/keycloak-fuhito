@@ -25,7 +25,8 @@ class FuhitoExceptionTest {
 
     @Test
     void namesEveryReasonAndKind() {
-        assertEquals(3, FuhitoException.Reason.values().length);
+        assertEquals(4, FuhitoException.Reason.values().length);
+        assertEquals(FuhitoException.Reason.PRECONDITION, FuhitoException.precondition("x", Map.of()).reason());
         assertEquals(List.of("UNIT_TYPE", "JOB_TITLE", "OCCUPATION", "EMPLOYMENT_TYPE", "GRADE", "END_REASON",
                 "ASSIGNMENT_KIND", "QUALIFICATION", "LEAVE_REASON",
                 "UNIT_ROLE"), Arrays.stream(RefKind.values()).map(RefKind::name).toList());

@@ -114,7 +114,7 @@ public class ChangeOrdersResource {
             @Parameter(description = "The ID of the resource.")
             @PathParam("id") String id) {
         context.requireRead();
-        return Calls.run(context, () -> ChangeOrderRepresentation.of(service.get(id)));
+        return Calls.tagged(context, () -> ChangeOrderRepresentation.of(service.get(id)));
     }
 
     @POST
@@ -150,7 +150,7 @@ public class ChangeOrdersResource {
             @PathParam("id") String id,
             ChangeOrderRepresentation body) {
         context.requireWrite();
-        return Calls.run(context, () -> {
+        return Calls.guarded(context, () -> state(id), () -> {
             Checks.required("body", body);
             var order = ChangeOrderRepresentation.of(service.update(id, body.toValues()));
             context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, path(id), order);
@@ -175,7 +175,7 @@ public class ChangeOrdersResource {
             @Parameter(description = "The ID of the resource.")
             @PathParam("id") String id) {
         context.requireWrite();
-        return Calls.run(context, () -> {
+        return Calls.guarded(context, () -> state(id), () -> {
             var order = ChangeOrderRepresentation.of(service.announce(id, context.callerUserId()));
             context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, path(id) + "/announce", order);
             return order;
@@ -197,7 +197,7 @@ public class ChangeOrdersResource {
             @Parameter(description = "The ID of the resource.")
             @PathParam("id") String id) {
         context.requireWrite();
-        return Calls.run(context, () -> {
+        return Calls.guardedRemoval(context, () -> state(id), () -> {
             service.delete(id);
             context.recordChange(Change.DELETE, RESOURCE_TYPE, id, path(id), null);
             return Response.noContent().build();
@@ -206,5 +206,10 @@ public class ChangeOrdersResource {
 
     private static String path(String id) {
         return "fuhito/change-orders/" + id;
+    }
+
+    // The whole stored state of one resource, which its ETag covers.
+    private Object state(String id) {
+        return ChangeOrderRepresentation.of(service.get(id));
     }
 }

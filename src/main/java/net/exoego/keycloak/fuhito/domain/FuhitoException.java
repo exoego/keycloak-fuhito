@@ -18,7 +18,9 @@ public class FuhitoException extends RuntimeException {
         /** The target does not exist. */
         NOT_FOUND,
         /** The request conflicts with existing data. */
-        CONFLICT
+        CONFLICT,
+        /** The request was made for another state of the target. */
+        PRECONDITION
     }
 
     /**
@@ -89,6 +91,17 @@ public class FuhitoException extends RuntimeException {
      */
     public static FuhitoException conflict(String code, Map<String, String> params) {
         return new FuhitoException(Reason.CONFLICT, code, params);
+    }
+
+    /**
+     * Creates an exception for a request that was made for another state of the target.
+     *
+     * @param code the stable error code
+     * @param params the values that the message refers to
+     * @return the exception
+     */
+    public static FuhitoException precondition(String code, Map<String, String> params) {
+        return new FuhitoException(Reason.PRECONDITION, code, params);
     }
 
     /**

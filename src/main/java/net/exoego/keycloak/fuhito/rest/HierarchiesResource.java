@@ -79,7 +79,7 @@ public class HierarchiesResource {
             @Parameter(description = "The ID of the resource.")
             @PathParam("id") String id) {
         context.requireReadStructure();
-        return Calls.run(context, () -> HierarchyRepresentation.of(service.get(id)));
+        return Calls.tagged(context, () -> HierarchyRepresentation.of(service.get(id)));
     }
 
     @POST
@@ -122,7 +122,7 @@ public class HierarchiesResource {
             @PathParam("id") String id,
             HierarchyRepresentation body) {
         context.requireWrite();
-        return Calls.run(context, () -> {
+        return Calls.guarded(context, () -> state(id), () -> {
             Checks.required("body", body);
             var hierarchy = HierarchyRepresentation.of(service.rename(id, body.name()));
             context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, path(id), hierarchy);
@@ -145,7 +145,7 @@ public class HierarchiesResource {
             @Parameter(description = "The ID of the resource.")
             @PathParam("id") String id) {
         context.requireWrite();
-        return Calls.run(context, () -> {
+        return Calls.guardedRemoval(context, () -> state(id), () -> {
             service.delete(id);
             context.recordChange(Change.DELETE, RESOURCE_TYPE, id, path(id), null);
             return Response.noContent().build();
@@ -154,5 +154,10 @@ public class HierarchiesResource {
 
     private static String path(String id) {
         return "fuhito/hierarchies/" + id;
+    }
+
+    // The whole stored state of one resource, which its ETag covers.
+    private Object state(String id) {
+        return HierarchyRepresentation.of(service.get(id));
     }
 }

@@ -173,7 +173,7 @@ public class EmploymentsResource {
             @PathParam("id") String id,
             EmploymentRepresentation.Terms body) {
         context.requireWrite();
-        return Calls.run(context, () -> {
+        return Calls.guarded(context, () -> state(id), () -> {
             Checks.required("body", body);
             var employment = EmploymentRepresentation.of(service.changeTerms(id, new TermsChange(body.validFrom(),
                     body.employmentType(), body.grade(), body.status(), body.leaveReason(), body.workPercent(),
@@ -200,7 +200,7 @@ public class EmploymentsResource {
             @PathParam("id") String id,
             EndRepresentation body) {
         context.requireWrite();
-        return Calls.run(context, () -> {
+        return Calls.guarded(context, () -> state(id), () -> {
             Checks.required("body", body);
             var employment = EmploymentRepresentation.of(service.end(id, body.validTo(), body.endReason()));
             context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, "fuhito/employments/" + id + "/end", employment);
@@ -230,7 +230,7 @@ public class EmploymentsResource {
             @PathParam("id") String id,
             PromotionRepresentation body) {
         context.requireWrite();
-        return Calls.run(context, () -> {
+        return Calls.guarded(context, () -> state(id), () -> {
             Checks.required("body", body);
             PromotionService.Promotion promotion = promotions.promote(id, body.toRequest());
             var employment = EmploymentRepresentation.of(promotion.employment());
@@ -264,7 +264,7 @@ public class EmploymentsResource {
             @PathParam("id") String id,
             LeaveRepresentation body) {
         context.requireWrite();
-        return Calls.run(context, () -> {
+        return Calls.guarded(context, () -> state(id), () -> {
             Checks.required("body", body);
             var employment = EmploymentRepresentation.of(leaves.start(id, body.validFrom(), body.validTo(),
                     body.reason()));
@@ -290,7 +290,7 @@ public class EmploymentsResource {
             @PathParam("id") String id,
             ReturnRepresentation body) {
         context.requireWrite();
-        return Calls.run(context, () -> {
+        return Calls.guarded(context, () -> state(id), () -> {
             Checks.required("body", body);
             var employment = EmploymentRepresentation.of(leaves.end(id, body.validFrom()));
             context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, "fuhito/employments/" + id + "/return", employment);
@@ -321,7 +321,7 @@ public class EmploymentsResource {
             @PathParam("id") String id,
             TransferRepresentation body) {
         context.requireWrite();
-        return Calls.run(context, () -> {
+        return Calls.guarded(context, () -> state(id), () -> {
             Checks.required("body", body);
             return Response.status(Response.Status.CREATED)
                     .entity(record(service.transfer(id, body.toRequest())))
@@ -402,7 +402,7 @@ public class EmploymentsResource {
             @Parameter(description = "The ID of the resource.")
             @PathParam("id") String id) {
         context.requireWrite();
-        return Calls.run(context, () -> {
+        return Calls.guarded(context, () -> state(id), () -> {
             var employment = EmploymentRepresentation.of(service.removeEnd(id));
             context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, "fuhito/employments/" + id + "/end", employment);
             return employment;
@@ -419,6 +419,11 @@ public class EmploymentsResource {
             @Parameter(description = "The ID of the resource.")
             @PathParam("id") String id) {
         context.requireRead();
-        return Calls.run(context, () -> EmploymentRepresentation.of(service.get(id)));
+        return Calls.tagged(context, () -> EmploymentRepresentation.of(service.get(id)));
+    }
+
+    // The whole stored state of one resource, which its ETag covers.
+    private Object state(String id) {
+        return EmploymentRepresentation.of(service.get(id));
     }
 }

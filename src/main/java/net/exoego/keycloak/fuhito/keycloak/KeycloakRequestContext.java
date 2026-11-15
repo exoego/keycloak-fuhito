@@ -94,6 +94,16 @@ final class KeycloakRequestContext implements RequestContext {
     }
 
     @Override
+    public String header(String name) {
+        return session.getContext().getHttpRequest().getHttpHeaders().getHeaderString(name);
+    }
+
+    @Override
+    public void responseHeader(String name, String value) {
+        session.getContext().getHttpResponse().setHeader(name, value);
+    }
+
+    @Override
     public Locale locale() {
         return session.getContext().getHttpRequest().getHttpHeaders().getAcceptableLanguages().stream()
                 .filter(locale -> !"*".equals(locale.getLanguage()))

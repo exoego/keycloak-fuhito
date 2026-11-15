@@ -148,7 +148,7 @@ public class AssignmentsResource {
             @Parameter(description = "The ID of the resource.")
             @PathParam("id") String id) {
         context.requireRead();
-        return Calls.run(context, () -> AssignmentRepresentation.of(service.get(id)));
+        return Calls.tagged(context, () -> AssignmentRepresentation.of(service.get(id)));
     }
 
     @PUT
@@ -167,7 +167,7 @@ public class AssignmentsResource {
             @PathParam("id") String id,
             AssignmentRepresentation.Details body) {
         context.requireWrite();
-        return Calls.run(context, () -> {
+        return Calls.guarded(context, () -> state(id), () -> {
             Checks.required("body", body);
             var assignment = AssignmentRepresentation.of(service.changeDetails(id, body.toValues()));
             context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, path(id) + "/details", assignment);
@@ -191,7 +191,7 @@ public class AssignmentsResource {
             @PathParam("id") String id,
             EndRepresentation body) {
         context.requireWrite();
-        return Calls.run(context, () -> {
+        return Calls.guarded(context, () -> state(id), () -> {
             Checks.required("body", body);
             var assignment = AssignmentRepresentation.of(service.end(id, body.validTo()));
             context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, path(id) + "/end", assignment);
@@ -224,7 +224,7 @@ public class AssignmentsResource {
             @PathParam("id") String id,
             MoveRepresentation body) {
         context.requireWrite();
-        return Calls.run(context, () -> {
+        return Calls.guarded(context, () -> state(id), () -> {
             Checks.required("body", body);
             AssignmentService.Move move = service.move(id, body.toRequest());
             var ended = AssignmentRepresentation.of(move.ended());
@@ -250,7 +250,7 @@ public class AssignmentsResource {
             @Parameter(description = "The ID of the resource.")
             @PathParam("id") String id) {
         context.requireWrite();
-        return Calls.run(context, () -> {
+        return Calls.guarded(context, () -> state(id), () -> {
             var assignment = AssignmentRepresentation.of(service.removeEnd(id));
             context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, path(id) + "/end", assignment);
             return assignment;
@@ -259,5 +259,10 @@ public class AssignmentsResource {
 
     private static String path(String id) {
         return "fuhito/assignments/" + id;
+    }
+
+    // The whole stored state of one resource, which its ETag covers.
+    private Object state(String id) {
+        return AssignmentRepresentation.of(service.get(id));
     }
 }
