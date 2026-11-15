@@ -286,12 +286,12 @@ public class JpaEmploymentStore implements EmploymentStore {
         entity.attributes = terms.attributes();
     }
 
-    private static Employment toDomain(EmploymentEntity e) {
+    static Employment toDomain(EmploymentEntity e) {
         return new Employment(e.id, e.personId, e.person.userId, e.employerId, new ValidPeriod(e.validFrom, e.validTo),
                 e.staffNumber, e.endReasonId, e.externalId, e.source, e.continuesEmploymentId);
     }
 
-    private static EmploymentTerms toDomain(EmploymentTermsEntity e) {
+    static EmploymentTerms toDomain(EmploymentTermsEntity e) {
         return new EmploymentTerms(e.id, e.employmentId, new ValidPeriod(e.validFrom, e.validTo), e.employmentTypeId,
                 e.gradeId, EmploymentStatus.valueOf(e.status), e.leaveReasonId, e.workPercent, e.attributes);
     }

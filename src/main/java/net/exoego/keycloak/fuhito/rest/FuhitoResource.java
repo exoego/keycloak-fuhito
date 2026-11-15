@@ -25,6 +25,8 @@ import net.exoego.keycloak.fuhito.jpa.JpaExternalIdStore;
 import net.exoego.keycloak.fuhito.jpa.JpaHierarchyStore;
 import net.exoego.keycloak.fuhito.jpa.JpaOrgUnitStore;
 import net.exoego.keycloak.fuhito.jpa.JpaPersonStore;
+import net.exoego.keycloak.fuhito.jpa.JpaRealmExportStore;
+import net.exoego.keycloak.fuhito.jpa.JpaRealmKindStore;
 import net.exoego.keycloak.fuhito.jpa.JpaQualificationStore;
 import net.exoego.keycloak.fuhito.jpa.JpaRefItemStore;
 import net.exoego.keycloak.fuhito.jpa.JpaResourceRemoval;
@@ -50,6 +52,8 @@ import net.exoego.keycloak.fuhito.service.PersonService;
 import net.exoego.keycloak.fuhito.service.LeaveService;
 import net.exoego.keycloak.fuhito.service.ProjectionService;
 import net.exoego.keycloak.fuhito.service.PromotionService;
+import net.exoego.keycloak.fuhito.service.RealmExportService;
+import net.exoego.keycloak.fuhito.service.RealmKindService;
 import net.exoego.keycloak.fuhito.service.QualificationService;
 import net.exoego.keycloak.fuhito.service.RefItemService;
 import net.exoego.keycloak.fuhito.service.RemovalService;
@@ -162,6 +166,11 @@ public class FuhitoResource {
             }
 
             @Override
+            public Optional<String> username(String userId) {
+                return users.username(userId);
+            }
+
+            @Override
             public Optional<String> displayName(String userId) {
                 return users.displayName(userId);
             }
@@ -257,8 +266,27 @@ public class FuhitoResource {
      */
     @Path("ref-items")
     public RefItemsResource refItems() {
-        return new RefItemsResource(context, new RefItemService(new JpaRefItemStore(entityManager, realmId),
-                attributeRules()));
+        return new RefItemsResource(context, refItemService());
+    }
+
+    private RefItemService refItemService() {
+        return new RefItemService(new JpaRefItemStore(entityManager, realmId), attributeRules(),
+                realmKinds()::isKnown);
+    }
+
+    /**
+     * Returns the kinds of reference data of the realm.
+     *
+     * @return the sub-resource
+     */
+    @Path("ref-kinds")
+    public RefKindsResource refKinds() {
+        return new RefKindsResource(context, realmKinds());
+    }
+
+    private RealmKindService realmKinds() {
+        return new RealmKindService(new JpaRealmKindStore(entityManager, realmId),
+                new JpaRefItemStore(entityManager, realmId));
     }
 
     /**
@@ -282,13 +310,45 @@ public class FuhitoResource {
                 realmId)));
     }
 
+    /**
+     * Returns the export of every stored row of the realm.
+     *
+     * @return the sub-resource
+     */
+    @Path("export")
+    public ExportResource export() {
+        return new ExportResource(context, realmExport());
+    }
+
+    /**
+     * Returns the restore of an export into the realm.
+     *
+     * @return the sub-resource
+     */
+    @Path("restore")
+    public RestoreResource restore() {
+        return new RestoreResource(context, realmExport(), realmId);
+    }
+
+    private RealmExportService realmExport() {
+        return new RealmExportService(new RealmExportService.Stores(
+                new JpaRealmExportStore(entityManager, realmId), new JpaRealmKindStore(entityManager, realmId),
+                new JpaRefItemStore(entityManager, realmId), new JpaAttributeDefinitionStore(entityManager, realmId),
+                new JpaHierarchyStore(entityManager, realmId), new JpaOrgUnitStore(entityManager, realmId),
+                new JpaPersonStore(entityManager, realmId), new JpaEmploymentStore(entityManager, realmId),
+                new JpaAssignmentStore(entityManager, realmId), new JpaReportingLineStore(entityManager, realmId),
+                new JpaUnitRoleStore(entityManager, realmId), new JpaQualificationStore(entityManager, realmId),
+                new JpaExternalIdStore(entityManager, realmId), new JpaChangeOrderStore(entityManager, realmId),
+                users));
+    }
+
     private RemovalService removals() {
         return new RemovalService(new JpaResourceRemoval(entityManager, realmId));
     }
 
     private AttributeDefinitionService attributeRules() {
         return new AttributeDefinitionService(new JpaAttributeDefinitionStore(entityManager, realmId),
-                new JpaRefItemStore(entityManager, realmId), rejectUnknownAttributes);
+                new JpaRefItemStore(entityManager, realmId), rejectUnknownAttributes, realmKinds()::isKnown);
     }
 
     private AssignmentService assignmentService() {
@@ -414,7 +474,7 @@ public class FuhitoResource {
         var orgUnitStore = new JpaOrgUnitStore(entityManager, realmId);
         var people = new ImportService.People(employmentService(), new JpaEmploymentStore(entityManager, realmId),
                 assignmentService(), new JpaAssignmentStore(entityManager, realmId), users, personService());
-        var importService = new ImportService(new RefItemService(refItemStore, attributeRules()), refItemStore,
+        var importService = new ImportService(refItemService(), refItemStore,
                 orgUnitService(), orgUnitStore, people);
         var definitions = new JpaAttributeDefinitionStore(entityManager, realmId);
         return new ImportsResource(context, importService, new CsvImportService(importService, refItemStore,

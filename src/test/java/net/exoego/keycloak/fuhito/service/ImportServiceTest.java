@@ -9,11 +9,13 @@ import java.util.Map;
 import java.util.Optional;
 
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
+import net.exoego.keycloak.fuhito.domain.Person;
 import net.exoego.keycloak.fuhito.domain.RefItem;
 import net.exoego.keycloak.fuhito.domain.RefKind;
 import net.exoego.keycloak.fuhito.service.ImportDocument.AssignmentRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.EmploymentRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.OrgUnitRow;
+import net.exoego.keycloak.fuhito.service.ImportDocument.PersonRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.RefItemRow;
 import net.exoego.keycloak.fuhito.service.ImportReport.Counts;
 import net.exoego.keycloak.fuhito.store.UserDirectory;
@@ -132,7 +134,7 @@ class ImportServiceTest {
 
         ImportReport report = service.apply(doc("2026-04-01", false, null, rows, null));
 
-        assertEquals(List.of("refItems[1] invalid.choice", "refItems[2] invalid.required",
+        assertEquals(List.of("refItems[1] invalid.kind", "refItems[2] invalid.required",
                 "refItems[3] invalid.required", "refItems[4] invalid.code", "refItems[5] invalid.name"),
                 errors(report));
         assertEquals(Map.of("refItems", new Counts(1, 0, 0)), report.counts());
@@ -289,6 +291,52 @@ class ImportServiceTest {
             List<AssignmentRow> assignmentRows) {
         return service.apply(new ImportDocument(effectiveDate, false, null, null, null, employmentRows,
                 assignmentRows));
+    }
+
+    @Test
+    void importsPeopleAlsoWithNoUserAndNamesThemFromEmployments() {
+        importTwoUnits();
+        // The nurse has a person already, made for the user by an earlier employment.
+        importPeople("2026-04-01", List.of(employment("E0", "nurse", null, null, null)), null);
+        List<PersonRow> rows = List.of(
+                new PersonRow(null, "P1", null, null, "山田 花子", Map.of("en", "Hanako Yamada"), "やまだ はなこ",
+                        Map.of("note", "retired")),
+                new PersonRow(null, "P2", "nurse", null, null, null, null, null));
+
+        ImportReport first = service.apply(new ImportDocument("2026-04-01", false, null, null, null, null, null, rows));
+
+        assertEquals(new Counts(1, 1, 0), first.counts().get("people"));
+        Person retired = personStore.findByExternalId("import", "P1").orElseThrow();
+        assertEquals(null, retired.userId());
+        assertEquals("やまだ はなこ", retired.phoneticName());
+        assertEquals(personStore.findByUser(users.findIdByUsername("nurse").orElseThrow()).orElseThrow().id(),
+                personStore.findByExternalId("import", "P2").orElseThrow().id());
+        assertEquals(new Counts(0, 0, 2), service.apply(new ImportDocument("2026-04-01", false, null, null, null,
+                null, null, rows)).counts().get("people"));
+
+        // An employment row names the person with no user.
+        EmploymentRow old = new EmploymentRow(null, "E9", null, null, null, null, null, null, null, null, null,
+                "1990-04-01", "2000-04-01", null, null, "P1");
+        assertEquals(List.of(), service.apply(new ImportDocument("2026-04-01", false, null, null, null, List.of(old),
+                null)).errors());
+        assertEquals(retired.id(), employmentStore.findByExternalId("import", "E9").orElseThrow().personId());
+        // A row for that stored employment may name nobody.
+        EmploymentRow again = new EmploymentRow(null, "E9", null, null, null, null, null, null, null, null, null,
+                null, "2000-04-01", null, null, null);
+        assertEquals(new Counts(0, 0, 1), service.apply(new ImportDocument("2026-04-01", false, null, null, null,
+                List.of(again), null)).counts().get("employments"));
+
+        EmploymentRow unknown = new EmploymentRow(null, "E8", null, null, null, null, null, null, null, null, null,
+                "1990-04-01", null, null, null, "P7");
+        assertEquals("import.person_unknown", service.apply(new ImportDocument("2026-04-01", false, null, null, null,
+                List.of(unknown), null)).errors().getFirst().error().code());
+        EmploymentRow mismatch = new EmploymentRow(null, "E7", "nurse", null, null, null, null, null, null, null,
+                null, "1990-04-01", null, null, null, "P1");
+        assertEquals("import.user_mismatch", service.apply(new ImportDocument("2026-04-01", false, null, null,
+                null, List.of(mismatch), null)).errors().getFirst().error().code());
+        PersonRow renamed = new PersonRow(null, "P1", null, null, "山田 華子", null, null, null);
+        assertEquals(new Counts(0, 1, 0), service.apply(new ImportDocument("2026-04-01", false, null, null, null,
+                null, null, List.of(renamed))).counts().get("people"));
     }
 
     private void importTwoUnits() {

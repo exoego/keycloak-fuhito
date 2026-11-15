@@ -1,8 +1,10 @@
 package net.exoego.keycloak.fuhito.service;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Predicate;
 
 import net.exoego.keycloak.fuhito.domain.AttributeDefinition;
 import net.exoego.keycloak.fuhito.domain.Checks;
@@ -18,6 +20,7 @@ public class RefItemService {
 
     private final RefItemStore store;
     private final AttributeRules attributeRules;
+    private final Predicate<String> knownKinds;
 
     /**
      * Creates the service.
@@ -35,8 +38,20 @@ public class RefItemService {
      * @param attributeRules the check of free attributes against the definitions of the realm
      */
     public RefItemService(RefItemStore store, AttributeRules attributeRules) {
+        this(store, attributeRules, code -> Arrays.stream(RefKind.values()).anyMatch(kind -> kind.name().equals(code)));
+    }
+
+    /**
+     * Creates the service with a check of free attributes and the kinds of the realm.
+     *
+     * @param store the storage of the realm
+     * @param attributeRules the check of free attributes against the definitions of the realm
+     * @param knownKinds tells whether a code is a fixed kind or a kind of the realm
+     */
+    public RefItemService(RefItemStore store, AttributeRules attributeRules, Predicate<String> knownKinds) {
         this.store = store;
         this.attributeRules = attributeRules;
+        this.knownKinds = knownKinds;
     }
 
     /**
@@ -48,7 +63,28 @@ public class RefItemService {
      * @return the items of the page, ordered by display order and then by code
      */
     public List<RefItem> list(RefKind kind, boolean includeInactive, Page page) {
-        return store.list(Checks.required("kind", kind), includeInactive, page.first(), page.max());
+        return list(Checks.required("kind", kind).name(), includeInactive, page);
+    }
+
+    /**
+     * Lists a page of the items of a fixed kind or of a kind of the realm.
+     *
+     * @param kind the code of the kind
+     * @param includeInactive true to also return inactive items
+     * @param page the part of the list to return
+     * @return the items of the page, ordered by display order and then by code
+     * @throws FuhitoException when the kind is unknown
+     */
+    public List<RefItem> list(String kind, boolean includeInactive, Page page) {
+        return store.list(knownKind(kind), includeInactive, page.first(), page.max());
+    }
+
+    private String knownKind(String kind) {
+        Checks.required("kind", kind);
+        if (!knownKinds.test(kind)) {
+            throw FuhitoException.invalid("invalid.kind", Map.of("value", kind));
+        }
+        return kind;
     }
 
     /**
@@ -112,10 +148,29 @@ public class RefItemService {
      */
     public RefItem create(RefKind kind, String code, String name, Map<String, String> names, Integer displayOrder,
             Map<String, Object> attributes, Marks marks) {
-        Checks.required("kind", kind);
+        return create(Checks.required("kind", kind).name(), code, name, names, displayOrder, attributes, marks);
+    }
+
+    /**
+     * Creates an item of a fixed kind or of a kind of the realm, with its marks.
+     *
+     * @param kind the code of the kind
+     * @param code the code
+     * @param name the default name
+     * @param names the names in other languages, or null
+     * @param displayOrder the position in lists, or null for 0
+     * @param attributes free values, or null
+     * @param marks the marks
+     * @return the new item
+     * @throws FuhitoException when a value is bad, the kind is unknown, the code is taken, or the kind cannot have a
+     *         mark
+     */
+    public RefItem create(String kind, String code, String name, Map<String, String> names, Integer displayOrder,
+            Map<String, Object> attributes, Marks marks) {
+        knownKind(kind);
         Checks.code("code", code);
         if (store.findByCode(kind, code).isPresent()) {
-            throw FuhitoException.conflict("ref_item.code_taken", Map.of("kind", kind.name(), "code", code));
+            throw FuhitoException.conflict("ref_item.code_taken", Map.of("kind", kind, "code", code));
         }
         RefItem item = item(UUID.randomUUID().toString(), kind, code, name, names, displayOrder, attributes, true,
                 marks);
@@ -184,7 +239,7 @@ public class RefItemService {
         store.delete(id);
     }
 
-    private RefItem item(String id, RefKind kind, String code, String name, Map<String, String> names,
+    private RefItem item(String id, String kind, String code, String name, Map<String, String> names,
             Integer displayOrder, Map<String, Object> attributes, boolean active, Marks marks) {
         boolean legalEntity = mark(kind, RefKind.UNIT_TYPE, marks.legalEntity(), "ref_item.legal_entity_kind");
         boolean actingHead = mark(kind, RefKind.ASSIGNMENT_KIND, marks.actingHead(), "ref_item.acting_head_kind");
@@ -198,10 +253,10 @@ public class RefItemService {
                 legalEntity, actingHead, group);
     }
 
-    private static boolean mark(RefKind kind, RefKind allowed, Boolean value, String error) {
+    private static boolean mark(String kind, RefKind allowed, Boolean value, String error) {
         boolean marked = Boolean.TRUE.equals(value);
-        if (marked && kind != allowed) {
-            throw FuhitoException.invalid(error, Map.of("kind", kind.name()));
+        if (marked && !kind.equals(allowed.name())) {
+            throw FuhitoException.invalid(error, Map.of("kind", kind));
         }
         return marked;
     }

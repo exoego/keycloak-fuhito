@@ -5,7 +5,8 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
 @Schema(
         name = "ProjectionReport",
         description = "What a rebuild of the projection changed in Keycloak.",
-        requiredProperties = {"organizations", "groupsCreated", "groupsRenamed", "groupsMoved", "groupsRemoved", "membersJoined", "membersLeft", "organizationMembersAdded"})
+        requiredProperties = {"organizations", "groupsCreated", "groupsRenamed", "groupsMoved", "groupsRemoved", "membersJoined", "membersLeft", "organizationMembersAdded",
+            "realmGroupTrees"})
 public record ProjectionReport(
         @Schema(description = "The number of linked organizations that were projected.")
         int organizations,
@@ -22,5 +23,7 @@ public record ProjectionReport(
         @Schema(description = "The number of group memberships that were removed.")
         int membersLeft,
         @Schema(description = "The number of users who became members of an organization.")
-        int organizationMembersAdded) {
+        int organizationMembersAdded,
+        @Schema(description = "1 when the tree was mirrored into realm groups, 0 when the realm does not do it.")
+        int realmGroupTrees) {
 }

@@ -176,7 +176,7 @@ public class JpaReportingLineStore implements ReportingLineStore {
         return entity != null && entity.realmId.equals(realmId) ? Optional.of(entity) : Optional.empty();
     }
 
-    private static ReportingLine toDomain(ReportingLineEntity e) {
+    static ReportingLine toDomain(ReportingLineEntity e) {
         return new ReportingLine(e.id, e.assignmentId, e.managerPersonId, e.manager.userId,
                 ReportingLine.Kind.valueOf(e.kind),
                 new ValidPeriod(e.validFrom, e.validTo));

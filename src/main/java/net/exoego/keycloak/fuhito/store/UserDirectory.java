@@ -37,6 +37,16 @@ public interface UserDirectory {
     }
 
     /**
+     * Finds the username of a user.
+     *
+     * @param userId the ID of the user
+     * @return the username, or empty when the realm has no such user
+     */
+    default Optional<String> username(String userId) {
+        return Optional.empty();
+    }
+
+    /**
      * Returns the name of a user as Keycloak has it, for a person record that has no name of its own.
      *
      * @param userId the ID of the user

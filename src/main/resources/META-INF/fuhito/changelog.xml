@@ -978,4 +978,25 @@
             <column name="CREATED_AT"/>
         </createIndex>
     </changeSet>
+    <changeSet id="0.1.0-ref-kind" author="keycloak-fuhito">
+        <createTable tableName="FUHITO_REF_KIND">
+            <column name="ID" type="VARCHAR(36)">
+                <constraints primaryKey="true" primaryKeyName="PK_FUHITO_REF_KIND" nullable="false"/>
+            </column>
+            <column name="REALM_ID" type="VARCHAR(36)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="CODE" type="VARCHAR(32)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="NAME" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="NAMES_I18N" type="CLOB">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        <addUniqueConstraint tableName="FUHITO_REF_KIND" columnNames="REALM_ID, CODE"
+                             constraintName="UK_FUHITO_REF_KIND_CODE"/>
+    </changeSet>
 </databaseChangeLog>

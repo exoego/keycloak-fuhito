@@ -21,12 +21,22 @@ Every bad row is reported, not only the first one.
 |---|---|
 | Reference items | Kind and code |
 | Org units | Source and external ID |
+| People | Source and external ID |
 | Employments | Source and external ID |
 | Assignments | Source and external ID |
 
 The source is the name of the system or the sheet that the rows come from.
 It keeps the external IDs of two systems apart. The default is `import`.
 The import matches by the pair that a resource itself has. The IDs that `/external-ids` adds do not match rows.
+
+## People
+
+The list `people` loads people, also those with no Keycloak user, such as staff who left long ago or never log in. It comes before the employments.
+
+- A row has the names, the phonetic name, and the attributes. It can link a user with `username` or `userId`. A row that names no user keeps the link that is stored.
+- A row that links a user whose person the import made earlier, with no external ID, gives that person its external ID. A user whose person has another external ID fails with `import.user_mismatch`.
+- A row of an employment can name its person by `personExternalId`, with the same source. A person with no user is named this way. With a user as well, the user must be the one of that person.
+- A row for a stored employment may name no person and no user. The employment keeps its person.
 
 ## JSON
 
@@ -69,7 +79,7 @@ The lists are applied in the order reference items, org units, employments, assi
 
 ## CSV
 
-`POST /imports/csv/{list}` takes one file. The list is `ref-items`, `org-units`, `employments`, or `assignments`.
+`POST /imports/csv/{list}` takes one file. The list is `ref-items`, `org-units`, `people`, `employments`, or `assignments`.
 The query has `effectiveDate`, and optionally `dryRun` and `source`.
 The content type is `text/csv`.
 
@@ -121,6 +131,17 @@ Org units.
 | `validFrom` | `開始日` |
 | `validTo` | `終了日` |
 
+People.
+
+| English | Japanese |
+|---|---|
+| `externalId` | `外部ID` |
+| `source` | `ソース` |
+| `username` | `ユーザー名` |
+| `userId` | `ユーザーID` |
+| `name` | `名称` |
+| `phoneticName` | `よみがな` |
+
 Employments.
 
 | English | Japanese |
@@ -139,6 +160,7 @@ Employments.
 | `validTo` | `終了日` |
 | `endReason` | `終了理由` |
 | `employerExternalId` | `雇用主の外部ID` |
+| `personExternalId` | `人の外部ID` |
 
 Assignments.
 
@@ -194,3 +216,19 @@ Each write has its own entry in the change log.
 - It does not remove an end date.
 - It does not move an assignment to another org unit. End it and add a new one.
 - One CSV file is one transaction. Four files are four transactions. Use JSON to load several lists at once.
+
+## Export and restore
+
+An export takes every stored row of a realm out, with every period. A restore loads it into a realm that has no data of the extension.
+This copies a realm to a test environment, moves it to another Keycloak, or brings it back after its data was lost. It is not the import above, which describes one date.
+
+- `GET /export/{list}` reads one list in pages, ordered by ID. Follow the `Link` header to the end. The lists are `ref-kinds`, `ref-items`, `attribute-definitions`, `hierarchies`, `org-units`, `people`, `employments`, `assignments`, `reporting-lines`, `unit-roles`, `qualifications`, `external-ids`, and `change-orders`.
+- Put the lists together under their names in camel case, such as `refKinds`, with `"format": "fuhito.export.v1"`. `POST /restore` takes that document.
+- A restore keeps every ID, so products that stored IDs find the same resources. It writes all or nothing.
+- It fails with `restore.realm_not_empty` when the realm has any data of the extension. So it cannot load into a realm of the same database that the export came from while that realm still has the rows.
+- Rows name Keycloak users by username. A restore fails with `restore.username_unknown` when the target realm has no user with that name. A person whose user Keycloak no longer had is exported with no username, and is restored with no link.
+- Masked data stays masked, with the time of the mask. Erased data is not in an export.
+- The change log, the admin events, the links to Keycloak organizations, and the idempotency keys are not part of an export. The restore records one entry, `FUHITO_RESTORE`.
+- The export needs the full read permission, because it has the data of people. The restore needs the permission to write.
+
+Checked by `RealmExportIT.anExportLoadsIntoAnEmptyRealmAndGivesTheSameExportAgain`.

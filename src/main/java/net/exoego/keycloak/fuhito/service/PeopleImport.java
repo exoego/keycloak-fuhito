@@ -21,12 +21,15 @@ import net.exoego.keycloak.fuhito.service.ImportDocument.EmploymentRow;
 import net.exoego.keycloak.fuhito.service.ImportReport.Outcome;
 import net.exoego.keycloak.fuhito.service.ImportReport.Write;
 import net.exoego.keycloak.fuhito.store.OrgUnitStore;
+import net.exoego.keycloak.fuhito.domain.Person;
+import net.exoego.keycloak.fuhito.service.ImportDocument.PersonRow;
 
 /**
- * The employments and the assignments of one document.
+ * The people, the employments, and the assignments of one document.
  */
 final class PeopleImport {
 
+    private static final String PEOPLE = "people";
     private static final String EMPLOYMENTS = "employments";
     private static final String ASSIGNMENTS = "assignments";
 
@@ -43,6 +46,62 @@ final class PeopleImport {
         this.effectiveDate = effectiveDate;
         this.defaultSource = defaultSource;
         this.report = report;
+    }
+
+    void people(List<PersonRow> rows) {
+        report.startList(PEOPLE);
+        Set<String> seen = new HashSet<>();
+        for (int i = 0; i < rows.size(); i++) {
+            try {
+                PersonRow row = Checks.required("row", rows.get(i));
+                requireFirst(seen, row.source(), row.externalId());
+                report.count(PEOPLE, importPerson(row));
+            } catch (FuhitoException e) {
+                report.error(PEOPLE, i, e);
+            }
+        }
+    }
+
+    // A person whom the import made for a user before, with no external ID, takes the ID of the row.
+    private Outcome importPerson(PersonRow row) {
+        String source = Checks.code("source", row.source() == null ? defaultSource : row.source());
+        PersonService service = people.personService();
+        String userId = row.userId() != null || row.username() != null
+                ? userId(row.userId(), row.username()) : null;
+        Optional<Person> stored = service.ofExternalId(source, row.externalId());
+        if (stored.isEmpty() && userId != null) {
+            Optional<Person> ofUser = service.ofUser(userId);
+            if (ofUser.isPresent()) {
+                if (ofUser.get().externalId() != null) {
+                    throw FuhitoException.conflict("import.user_mismatch", Map.of("externalId", row.externalId()));
+                }
+                report.write(new Write.OfPerson(false, service.adopt(ofUser.get().id(), values(row, userId,
+                        source))));
+                return Outcome.CHANGED;
+            }
+        }
+        if (stored.isEmpty()) {
+            report.write(new Write.OfPerson(true, service.create(values(row, userId, source))));
+            return Outcome.CREATED;
+        }
+        Person person = stored.get();
+        String linked = userId != null ? userId : person.userId();
+        PersonValues wanted = values(row, linked, source);
+        boolean same = Objects.equals(linked, person.userId())
+                && Objects.equals(Checks.optionalName("name", wanted.name()), person.name())
+                && Checks.localizedNames("names", wanted.names()).equals(person.names())
+                && Objects.equals(Checks.optionalName("phoneticName", wanted.phoneticName()), person.phoneticName())
+                && (wanted.attributes() == null ? Map.of() : wanted.attributes()).equals(person.attributes());
+        if (same) {
+            return Outcome.UNCHANGED;
+        }
+        report.write(new Write.OfPerson(false, service.replace(person.id(), wanted)));
+        return Outcome.CHANGED;
+    }
+
+    private static PersonValues values(PersonRow row, String userId, String source) {
+        return new PersonValues(userId, row.name(), row.names(), row.phoneticName(), row.attributes(),
+                row.externalId(), source);
     }
 
     void employments(List<EmploymentRow> rows) {
@@ -88,8 +147,8 @@ final class PeopleImport {
     private Outcome importEmployment(EmploymentRow row, Set<String> seen) {
         requireFirst(seen, row.source(), row.externalId());
         String source = Checks.code("source", row.source() == null ? defaultSource : row.source());
-        String personId = personId(row);
         Optional<Employment> stored = people.employments().findByExternalId(source, row.externalId());
+        String personId = personId(row, source, stored);
         String employerId = row.employerExternalId() == null ? null
                 : orgUnits.findUnitByExternalId(source, row.employerExternalId())
                         .map(OrgUnit::id)
@@ -145,22 +204,36 @@ final class PeopleImport {
         return changed ? Outcome.CHANGED : Outcome.UNCHANGED;
     }
 
-    // A row names a Keycloak user. The person of the user is used, and created when the user has none.
-    private String personId(EmploymentRow row) {
-        PersonService.Resolved resolved = people.personService().forUser(userId(row));
+    // A row names a person of the list of people, or a Keycloak user. The person of a user is used, and created
+    // when the user has none. A row for a stored employment may name nobody.
+    private String personId(EmploymentRow row, String source, Optional<Employment> stored) {
+        boolean namesUser = row.userId() != null || row.username() != null;
+        if (row.personExternalId() != null) {
+            Person person = people.personService().ofExternalId(source, row.personExternalId())
+                    .orElseThrow(() -> FuhitoException.invalid("import.person_unknown",
+                            Map.of("personExternalId", row.personExternalId())));
+            if (namesUser && !userId(row.userId(), row.username()).equals(person.userId())) {
+                throw FuhitoException.conflict("import.user_mismatch", Map.of("externalId", row.externalId()));
+            }
+            return person.id();
+        }
+        if (!namesUser && stored.isPresent()) {
+            return stored.get().personId();
+        }
+        PersonService.Resolved resolved = people.personService().forUser(userId(row.userId(), row.username()));
         if (resolved.created() != null) {
             report.write(new Write.OfPerson(resolved.created()));
         }
         return resolved.person().id();
     }
 
-    private String userId(EmploymentRow row) {
-        if (row.userId() != null) {
-            return row.userId();
+    private String userId(String userId, String username) {
+        if (userId != null) {
+            return userId;
         }
-        String username = Checks.required("username", row.username());
-        return people.users().findIdByUsername(username)
-                .orElseThrow(() -> FuhitoException.invalid("import.username_unknown", Map.of("username", username)));
+        String name = Checks.required("username", username);
+        return people.users().findIdByUsername(name)
+                .orElseThrow(() -> FuhitoException.invalid("import.username_unknown", Map.of("username", name)));
     }
 
     private static boolean sameTerms(EmploymentRow row, EmploymentView.TermsView terms) {

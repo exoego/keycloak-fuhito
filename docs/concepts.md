@@ -92,6 +92,13 @@ Unit types, job titles, occupations, employment types, grades, end reasons, assi
 Each realm defines its own items.
 An item has a code, a name, and optional names in other languages.
 
+These kinds are fixed, because fields of the resources point to them. A realm can add kinds of its own with `POST /ref-kinds`, for example a work location or a cost center.
+
+- The items of such a kind are reference items like the others. `/ref-items?kind=<code>` reads and writes them, and the import takes them.
+- A free attribute of the type `REF_ITEM` can point to such a kind, so that its value is the code of one of its items.
+- A work location is such an attribute of assignments for now. A field of its own can come when a product needs to filter by it.
+- A kind of the realm can be removed when it has no items.
+
 ## IDs in other systems
 
 An org unit, a person, an employment, an assignment, and a qualification have one pair of `source` and `externalId`. It is the ID in the system that made the resource, and the import matches rows by it.

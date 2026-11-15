@@ -90,6 +90,9 @@ public class ImportService {
         }
         PeopleImport peopleImport =
                 new PeopleImport(people, orgUnits, document.effectiveDate(), defaultSource, report);
+        if (document.people() != null) {
+            peopleImport.people(document.people());
+        }
         if (document.employments() != null) {
             peopleImport.employments(document.employments());
         }
@@ -111,7 +114,7 @@ public class ImportService {
     }
 
     private Outcome importRefItem(RefItemRow row, ImportReport report) {
-        RefKind kind = Checks.optionalEnum("kind", RefKind.class, Checks.required("kind", row.kind()), null);
+        String kind = Checks.required("kind", row.kind());
         String code = Checks.code("code", row.code());
         Optional<RefItem> stored = refItems.findByCode(kind, code);
         if (stored.isEmpty()) {

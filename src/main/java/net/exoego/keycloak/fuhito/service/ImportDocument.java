@@ -25,7 +25,53 @@ public record ImportDocument(
         List<RefItemRow> refItems,
         List<OrgUnitRow> orgUnits,
         List<EmploymentRow> employments,
-        List<AssignmentRow> assignments) {
+        List<AssignmentRow> assignments,
+        @Schema(description = "The people. They come before the employments, which can name them.")
+        List<PersonRow> people) {
+
+    /**
+     * Makes a document with no list of people.
+     *
+     * @param effectiveDate the date of the state, as {@code YYYY-MM-DD}
+     * @param dryRun true to do all checks and write nothing
+     * @param source the name of the system that the rows come from, or null
+     * @param refItems the reference items, or null
+     * @param orgUnits the org units, or null
+     * @param employments the employments, or null
+     * @param assignments the assignments, or null
+     */
+    public ImportDocument(String effectiveDate, boolean dryRun, String source, List<RefItemRow> refItems,
+            List<OrgUnitRow> orgUnits, List<EmploymentRow> employments, List<AssignmentRow> assignments) {
+        this(effectiveDate, dryRun, source, refItems, orgUnits, employments, assignments, null);
+    }
+
+    @Schema(
+            name = "ImportPersonRow",
+            description = "A person, also one with no Keycloak user. It is matched by source and external ID.",
+            requiredProperties = {"externalId"})
+    public record PersonRow(
+            @Schema(
+                    description = "The name of the system that the row comes from. The default is the source of the "
+                            + "document.",
+                    maxLength = 64,
+                    pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$")
+            String source,
+            @Schema(description = "The ID of the person in that system.")
+            String externalId,
+            @Schema(description = "The username of a Keycloak user to link. A row that names no user keeps the link "
+                    + "that is stored.")
+            String username,
+            @Schema(description = "The ID of a Keycloak user to link.")
+            String userId,
+            @Schema(description = "The default name. A person with no user needs it.", maxLength = 255)
+            String name,
+            @Schema(description = "Names in other languages, by language tag.")
+            Map<String, String> names,
+            @Schema(description = "The reading of the name for sorting.", maxLength = 255)
+            String phoneticName,
+            @Schema(description = "Free values of the person.")
+            Map<String, Object> attributes) {
+    }
 
     @Schema(
             name = "ImportEmploymentRow",
@@ -40,7 +86,8 @@ public record ImportDocument(
             String source,
             @Schema(description = "The ID of the employment in that system.")
             String externalId,
-            @Schema(description = "The username of the Keycloak user. Either this or `userId` is required.")
+            @Schema(description = "The username of the Keycloak user. A row needs this, `userId`, or "
+                    + "`personExternalId`, except for a stored employment.")
             String username,
             @Schema(description = "The ID of the Keycloak user.")
             String userId,
@@ -78,7 +125,10 @@ public record ImportDocument(
             @Schema(description = "The external ID of the org unit that employs the person. It is a legal entity. "
                     + "Leave it out when the realm has exactly one. A stored employment keeps its employer, so "
                     + "the value must name that one.")
-            String employerExternalId) {
+            String employerExternalId,
+            @Schema(description = "The external ID of the person with the same source, for a person from the list "
+                    + "of people. It names a person with no Keycloak user too.")
+            String personExternalId) {
 
         /**
          * Makes a row that names no employer.
@@ -101,7 +151,7 @@ public record ImportDocument(
                 String employmentType, String grade, String status, BigDecimal workPercent,
                 Map<String, Object> attributes, String validFrom, String validTo, String endReason) {
             this(source, externalId, username, userId, staffNumber, employmentType, grade, status, null,
-                    workPercent, attributes, validFrom, validTo, endReason, null);
+                    workPercent, attributes, validFrom, validTo, endReason, null, null);
         }
     }
 
@@ -159,7 +209,7 @@ public record ImportDocument(
             description = "A reference item. It is matched by kind and code.",
             requiredProperties = {"kind", "code", "name"})
     public record RefItemRow(
-            @Schema(ref = "RefKind")
+            @Schema(description = "A fixed kind such as `UNIT_TYPE`, or the code of a kind that the realm added.")
             String kind,
             @Schema(maxLength = 64, pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$")
             String code,

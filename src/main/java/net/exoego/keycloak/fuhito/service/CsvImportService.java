@@ -22,11 +22,13 @@ import net.exoego.keycloak.fuhito.domain.Employment;
 import net.exoego.keycloak.fuhito.domain.EmploymentStatus;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.OrgUnit;
+import net.exoego.keycloak.fuhito.domain.Person;
 import net.exoego.keycloak.fuhito.domain.RefItem;
 import net.exoego.keycloak.fuhito.domain.RefKind;
 import net.exoego.keycloak.fuhito.service.ImportDocument.AssignmentRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.EmploymentRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.OrgUnitRow;
+import net.exoego.keycloak.fuhito.service.ImportDocument.PersonRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.RefItemRow;
 import net.exoego.keycloak.fuhito.store.OrgUnitStore;
 import net.exoego.keycloak.fuhito.store.RefItemStore;
@@ -75,7 +77,7 @@ public class CsvImportService {
             Map.entry("employmentExternalId", "雇用の外部ID"), Map.entry("orgUnitExternalId", "組織の外部ID"),
             Map.entry("jobTitle", "役職"), Map.entry("occupation", "職種"), Map.entry("assignmentKind", "所属区分"),
             Map.entry("employerExternalId", "雇用主の外部ID"), Map.entry("legalEntity", "法人"), Map.entry("actingHead", "代行"),
-            Map.entry("group", "グループ"),
+            Map.entry("group", "グループ"), Map.entry("personExternalId", "人の外部ID"),
             Map.entry("head", "長"), Map.entry("primary", "主務"), Map.entry("allocationPercent", "配分割合"));
 
     // The lists that a file can hold, each with the resource whose attributes it sets.
@@ -83,7 +85,8 @@ public class CsvImportService {
         REF_ITEMS("refItems", AttributeDefinition.Target.REF_ITEM),
         ORG_UNITS("orgUnits", AttributeDefinition.Target.ORG_UNIT),
         EMPLOYMENTS("employments", AttributeDefinition.Target.EMPLOYMENT_TERMS),
-        ASSIGNMENTS("assignments", AttributeDefinition.Target.ASSIGNMENT);
+        ASSIGNMENTS("assignments", AttributeDefinition.Target.ASSIGNMENT),
+        PEOPLE("people", AttributeDefinition.Target.PERSON);
 
         private final String list;
         private final AttributeDefinition.Target target;
@@ -109,7 +112,8 @@ public class CsvImportService {
                     "parentExternalId", "displayOrder", "validFrom", "validTo"),
             Kind.EMPLOYMENTS, Set.of("externalId", "source", "username", "userId", "staffNumber", "employmentType",
                     "grade", "status", "leaveReason", "workPercent", "validFrom", "validTo", "endReason",
-                    "employerExternalId"),
+                    "employerExternalId", "personExternalId"),
+            Kind.PEOPLE, Set.of("externalId", "source", "username", "userId", "name", "phoneticName"),
             Kind.ASSIGNMENTS, Set.of("externalId", "source", "employmentExternalId", "orgUnitExternalId", "jobTitle",
                     "occupation", "assignmentKind", "head", "primary", "allocationPercent", "displayOrder",
                     "validFrom", "validTo"));
@@ -181,6 +185,8 @@ public class CsvImportService {
                     typed -> new ImportDocument(effectiveDate, dryRun, defaultSource, null, null, typed, null));
             case ASSIGNMENTS -> run(data, columns, defined, cells -> assignment(cells, date, defaultSource),
                     typed -> new ImportDocument(effectiveDate, dryRun, defaultSource, null, null, null, typed));
+            case PEOPLE -> run(data, columns, defined, cells -> person(cells, defaultSource),
+                    typed -> new ImportDocument(effectiveDate, dryRun, defaultSource, null, null, null, null, typed));
         };
     }
 
@@ -244,10 +250,7 @@ public class CsvImportService {
         String kind = cells.text("kind", null);
         String code = cells.text("code", null);
         // The import reports an unknown kind. Here it only means that nothing is stored.
-        Optional<RefItem> stored = code == null ? Optional.empty() : Arrays.stream(RefKind.values())
-                .filter(known -> known.name().equals(kind))
-                .findFirst()
-                .flatMap(known -> refItems.findByCode(known, code));
+        Optional<RefItem> stored = code == null || kind == null ? Optional.empty() : refItems.findByCode(kind, code);
         return new RefItemRow(kind, code, cells.text("name", stored.map(RefItem::name).orElse(null)),
                 cells.localized("name", stored.map(RefItem::names).orElse(Map.of())),
                 cells.integer("displayOrder", stored.map(RefItem::displayOrder).orElse(null)),
@@ -282,6 +285,18 @@ public class CsvImportService {
                 cells.text("validFrom", null), cells.text("validTo", null));
     }
 
+    private PersonRow person(Cells cells, String defaultSource) {
+        String source = cells.text("source", null);
+        String externalId = cells.text("externalId", null);
+        Optional<Person> stored = externalId == null ? Optional.empty()
+                : people.personService().ofExternalId(source == null ? defaultSource : source, externalId);
+        return new PersonRow(source, externalId, cells.text("username", null), cells.text("userId", null),
+                cells.text("name", stored.map(Person::name).orElse(null)),
+                cells.localized("name", stored.map(Person::names).orElse(Map.of())),
+                cells.text("phoneticName", stored.map(Person::phoneticName).orElse(null)),
+                cells.attributes(stored.map(Person::attributes).orElse(null)));
+    }
+
     private EmploymentRow employment(Cells cells, LocalDate date, String defaultSource) {
         String source = cells.text("source", null);
         String externalId = cells.text("externalId", null);
@@ -306,7 +321,7 @@ public class CsvImportService {
                 cells.decimal("workPercent", terms.map(t -> t.terms().workPercent()).orElse(null)),
                 cells.attributes(terms.map(t -> t.terms().attributes()).orElse(null)),
                 cells.text("validFrom", null), cells.text("validTo", null), cells.text("endReason", null),
-                cells.text("employerExternalId", null));
+                cells.text("employerExternalId", null), cells.text("personExternalId", null));
     }
 
     private AssignmentRow assignment(Cells cells, LocalDate date, String defaultSource) {

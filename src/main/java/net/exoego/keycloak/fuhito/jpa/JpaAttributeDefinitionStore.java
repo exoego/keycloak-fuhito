@@ -5,7 +5,6 @@ import java.util.Optional;
 
 import jakarta.persistence.EntityManager;
 import net.exoego.keycloak.fuhito.domain.AttributeDefinition;
-import net.exoego.keycloak.fuhito.domain.RefKind;
 import net.exoego.keycloak.fuhito.store.AttributeDefinitionStore;
 
 /**
@@ -77,13 +76,13 @@ public class JpaAttributeDefinitionStore implements AttributeDefinitionStore {
 
     private static void copy(AttributeDefinition definition, AttributeDefinitionEntity entity) {
         entity.type = definition.type().name();
-        entity.refKind = definition.refKind() == null ? null : definition.refKind().name();
+        entity.refKind = definition.refKind();
         entity.required = definition.required();
     }
 
-    private static AttributeDefinition toDomain(AttributeDefinitionEntity e) {
+    static AttributeDefinition toDomain(AttributeDefinitionEntity e) {
         return new AttributeDefinition(e.id, AttributeDefinition.Target.valueOf(e.target), e.name,
-                AttributeDefinition.Type.valueOf(e.type), e.refKind == null ? null : RefKind.valueOf(e.refKind),
+                AttributeDefinition.Type.valueOf(e.type), e.refKind,
                 e.required);
     }
 }

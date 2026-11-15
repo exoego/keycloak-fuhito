@@ -326,7 +326,7 @@ public class JpaAssignmentStore implements AssignmentStore {
         entity.attributes = row.attributes();
     }
 
-    private static Assignment toDomain(AssignmentEntity e) {
+    static Assignment toDomain(AssignmentEntity e) {
         return new Assignment(e.id, e.assignmentId, e.employmentId, e.orgUnitId,
                 new ValidPeriod(e.validFrom, e.validTo), e.jobTitleId, e.occupationId, e.kindId, e.head, e.primary,
                 e.allocationPercent, e.displayOrder, e.attributes, e.externalId, e.source,

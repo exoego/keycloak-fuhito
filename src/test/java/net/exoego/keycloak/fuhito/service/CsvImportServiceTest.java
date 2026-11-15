@@ -208,6 +208,30 @@ class CsvImportServiceTest {
     }
 
     @Test
+    void loadsPeopleWithNoUserFromCsv() {
+        load("orgUnits", "2026-04-01", "外部ID,名称\nH,X病院\n");
+
+        assertEquals(List.of(), errors(load("people", "2026-04-01", """
+                外部ID,名称,名称:en,よみがな
+                P1,山田 花子,Hanako Yamada,やまだ はなこ
+                """)));
+        assertEquals(List.of(), errors(load("employments", "2026-04-01", """
+                外部ID,人の外部ID,開始日,終了日
+                E1,P1,1990-04-01,2000-04-01
+                """)));
+        // A blank cell keeps the stored name.
+        assertEquals(List.of(), errors(load("people", "2026-04-01", "外部ID,よみがな\nP1,やまだ\n")));
+
+        var person = personStore.findByExternalId("import", "P1").orElseThrow();
+        assertEquals("山田 花子", person.name());
+        assertEquals("やまだ", person.phoneticName());
+        assertEquals(Map.of("en", "Hanako Yamada"), person.names());
+        assertEquals(person.id(), employmentStore.findByExternalId("import", "E1").orElseThrow().personId());
+        assertEquals(new Counts(0, 0, 1), load("employments", "2026-04-01", "外部ID,終了日\nE1,2000-04-01\n")
+                .report().counts().get("employments"));
+    }
+
+    @Test
     void reportsBadRowsWithTheirLines() {
         load("orgUnits", "2026-04-01", "外部ID,名称\nH,X病院\n");
 
@@ -241,7 +265,7 @@ class CsvImportServiceTest {
         assertEquals("csv.bad_column", failure("orgUnits", "外部ID,名称,ユーザー名\nH,x,y\n").code());
         assertEquals("csv.bad_column", failure("orgUnits", "外部ID,名称,表示順:en\nH,x,1\n").code());
         assertEquals("csv.open_quote", failure("orgUnits", "外部ID,名称\nH,\"x\n").code());
-        assertEquals("invalid.choice", failure("people", "a\n1\n").code());
+        assertEquals("invalid.choice", failure("rooms", "a\n1\n").code());
         assertEquals("invalid.required", failure(null, "a\n1\n").code());
         assertEquals("invalid.required",
                 assertThrows(FuhitoException.class, () -> service.apply("orgUnits", null, "2026-04-01", false, null))

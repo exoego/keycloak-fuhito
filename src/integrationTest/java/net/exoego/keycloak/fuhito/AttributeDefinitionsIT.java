@@ -78,4 +78,32 @@ class AttributeDefinitionsIT {
         assertEquals(201, api.post("/people", "{\"name\": \"山田 花子\", \"attributes\": {\"住所\": \"東京都\"}}")
                 .statusCode());
     }
+
+    @Test
+    void aRealmAddsAKindAndAnAttributePointsToIt() throws Exception {
+        TestRealm realm = TestRealm.create("ref-kinds");
+        Api api = realm.api;
+        JsonNode kind = created(api.post("/ref-kinds", "{\"code\": \"work-location\", \"name\": \"勤務地\"}"));
+        assertEquals(false, kind.get("fixed").asBoolean());
+        assertEquals("work-location", Api.json(api.get("/ref-kinds")).findValuesAsText("code").getLast());
+        assertEquals("ref_kind.code_taken", errorOf(409, api.post("/ref-kinds",
+                "{\"code\": \"GRADE\", \"name\": \"等級\"}")));
+
+        created(api.post("/ref-items", "{\"kind\": \"work-location\", \"code\": \"tokyo\", \"name\": \"東京\"}"));
+        HttpResponse<String> csv = api.postBytes("/imports/csv/ref-items?effectiveDate=2026-04-01",
+                "text/csv; charset=UTF-8", "kind,code,name\nwork-location,osaka,大阪\n".getBytes(StandardCharsets.UTF_8));
+        assertEquals(200, csv.statusCode(), csv.body());
+        assertEquals(List.of("osaka", "tokyo"), Api.json(api.get("/ref-items?kind=work-location"))
+                .findValuesAsText("code"));
+        assertEquals("invalid.kind", errorOf(400, api.get("/ref-items?kind=cost-center")));
+
+        created(api.post("/attribute-definitions", "{\"target\": \"PERSON\", \"name\": \"workLocation\", "
+                + "\"type\": \"REF_ITEM\", \"refKind\": \"work-location\"}"));
+        assertEquals("attribute.bad_value", errorOf(400, api.post("/people", "{\"name\": \"山田 花子\", "
+                + "\"attributes\": {\"workLocation\": \"nagoya\"}}")));
+        assertEquals(201, api.post("/people", "{\"name\": \"山田 花子\", \"attributes\": {\"workLocation\": "
+                + "\"tokyo\"}}").statusCode());
+
+        assertEquals("ref_kind.in_use", errorOf(409, api.delete("/ref-kinds/work-location")));
+    }
 }

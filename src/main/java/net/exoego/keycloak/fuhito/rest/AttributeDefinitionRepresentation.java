@@ -21,14 +21,14 @@ public record AttributeDefinitionRepresentation(
         String name,
         @Schema(enumeration = {"STRING", "NUMBER", "BOOLEAN", "DATE", "REF_ITEM"})
         String type,
-        @Schema(description = "The kind of reference data. Only the type `REF_ITEM` has it.", ref = "RefKind")
+        @Schema(description = "The kind of reference data, fixed or of the realm. Only the type `REF_ITEM` has it.")
         String refKind,
         @Schema(description = "True when every write of the resource must give a value.", defaultValue = "false")
         Boolean required) {
 
     static AttributeDefinitionRepresentation of(AttributeDefinition definition) {
         return new AttributeDefinitionRepresentation(definition.id(), definition.target().name(), definition.name(),
-                definition.type().name(), definition.refKind() == null ? null : definition.refKind().name(),
+                definition.type().name(), definition.refKind(),
                 definition.required());
     }
 }

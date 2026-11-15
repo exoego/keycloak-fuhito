@@ -5,7 +5,6 @@ import java.util.Optional;
 
 import jakarta.persistence.EntityManager;
 import net.exoego.keycloak.fuhito.domain.RefItem;
-import net.exoego.keycloak.fuhito.domain.RefKind;
 import net.exoego.keycloak.fuhito.store.RefItemStore;
 
 /**
@@ -41,18 +40,18 @@ public class JpaRefItemStore implements RefItemStore {
     }
 
     @Override
-    public List<RefItem> list(RefKind kind, boolean includeInactive) {
+    public List<RefItem> list(String kind, boolean includeInactive) {
         return list(kind, includeInactive, 0, Integer.MAX_VALUE);
     }
 
     @Override
-    public List<RefItem> list(RefKind kind, boolean includeInactive, int first, int max) {
+    public List<RefItem> list(String kind, boolean includeInactive, int first, int max) {
         return em.createQuery("""
                         select r from RefItemEntity r where r.realmId = :realmId and r.kind = :kind
                         and (r.active = true or :includeInactive = true) order by r.displayOrder, r.code""",
                         RefItemEntity.class)
                 .setParameter("realmId", realmId)
-                .setParameter("kind", kind.name())
+                .setParameter("kind", kind)
                 .setParameter("includeInactive", includeInactive)
                 .setFirstResult(first)
                 .setMaxResults(max)
@@ -67,12 +66,12 @@ public class JpaRefItemStore implements RefItemStore {
     }
 
     @Override
-    public Optional<RefItem> findByCode(RefKind kind, String code) {
+    public Optional<RefItem> findByCode(String kind, String code) {
         return em.createQuery("""
                         select r from RefItemEntity r where r.realmId = :realmId and r.kind = :kind
                         and r.code = :code""", RefItemEntity.class)
                 .setParameter("realmId", realmId)
-                .setParameter("kind", kind.name())
+                .setParameter("kind", kind)
                 .setParameter("code", code)
                 .getResultStream()
                 .findFirst()
@@ -105,7 +104,7 @@ public class JpaRefItemStore implements RefItemStore {
         RefItemEntity entity = new RefItemEntity();
         entity.id = item.id();
         entity.realmId = realmId;
-        entity.kind = item.kind().name();
+        entity.kind = item.kind();
         entity.code = item.code();
         copyChangeable(item, entity);
         em.persist(entity);
@@ -141,8 +140,8 @@ public class JpaRefItemStore implements RefItemStore {
         entity.groupUnit = item.group();
     }
 
-    private static RefItem toDomain(RefItemEntity e) {
-        return new RefItem(e.id, RefKind.valueOf(e.kind), e.code, e.name, e.names, e.displayOrder, e.attributes,
+    static RefItem toDomain(RefItemEntity e) {
+        return new RefItem(e.id, e.kind, e.code, e.name, e.names, e.displayOrder, e.attributes,
                 e.active, e.legalEntity, e.actingHead, e.groupUnit);
     }
 }

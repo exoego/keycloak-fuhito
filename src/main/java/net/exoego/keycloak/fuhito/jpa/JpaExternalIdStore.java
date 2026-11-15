@@ -141,7 +141,7 @@ public class JpaExternalIdStore implements ExternalIdStore {
         }
     }
 
-    private static ExternalId toDomain(ExternalIdEntity e) {
+    static ExternalId toDomain(ExternalIdEntity e) {
         return new ExternalId(e.id, ExternalId.Kind.valueOf(e.kind), e.resourceId, e.source, e.externalId);
     }
 }

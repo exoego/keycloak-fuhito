@@ -225,8 +225,9 @@ components:
           - DATE
           - REF_ITEM
         refKind:
-          $ref: "#/components/schemas/RefKind"
-          description: The kind of reference data. Only the type `REF_ITEM` has it.
+          type: string
+          description: "The kind of reference data, fixed or of the realm. Only the\
+            \ type `REF_ITEM` has it."
         required:
           type: boolean
           description: True when every write of the resource must give a value.
@@ -535,6 +536,374 @@ components:
           type: string
           description: The message for people. Its text can change. Its language follows
             the `Accept-Language` header.
+    ExportAssignment:
+      type: object
+      description: An assignment with the rows of every period.
+      properties:
+        assignmentId:
+          type: string
+        periods:
+          type: array
+          items:
+            $ref: "#/components/schemas/ExportAssignmentPeriod"
+    ExportAssignmentPeriod:
+      type: object
+      properties:
+        rowId:
+          type: string
+        employmentId:
+          type: string
+        orgUnitId:
+          type: string
+        validFrom:
+          type: string
+        validTo:
+          type: string
+        jobTitleId:
+          type: string
+        occupationId:
+          type: string
+        kindId:
+          type: string
+        head:
+          type: boolean
+        primary:
+          type: boolean
+        allocationPercent:
+          type: number
+        displayOrder:
+          type: integer
+          format: int32
+        attributes:
+          type: object
+          additionalProperties: {}
+        externalId:
+          type: string
+        source:
+          type: string
+        continuesAssignmentId:
+          type: string
+    ExportAttributeDefinition:
+      type: object
+      properties:
+        id:
+          type: string
+        target:
+          type: string
+        name:
+          type: string
+        type:
+          type: string
+        refKind:
+          type: string
+        required:
+          type: boolean
+    ExportChangeOrder:
+      type: object
+      description: A change order. It names its users by username.
+      properties:
+        id:
+          type: string
+        number:
+          type: string
+        kind:
+          type: string
+        title:
+          type: string
+        note:
+          type: string
+        orderDate:
+          type: string
+        effectiveDate:
+          type: string
+        approver:
+          type: string
+        requester:
+          type: string
+        externalReference:
+          type: string
+        createdAt:
+          type: string
+        announcedAt:
+          type: string
+        announcedBy:
+          type: string
+    ExportEmployment:
+      type: object
+      properties:
+        id:
+          type: string
+        personId:
+          type: string
+        employerId:
+          type: string
+        validFrom:
+          type: string
+        validTo:
+          type: string
+        staffNumber:
+          type: string
+        endReasonId:
+          type: string
+        externalId:
+          type: string
+        source:
+          type: string
+        continuesEmploymentId:
+          type: string
+        terms:
+          type: array
+          items:
+            $ref: "#/components/schemas/ExportEmploymentTerms"
+    ExportEmploymentTerms:
+      type: object
+      properties:
+        id:
+          type: string
+        validFrom:
+          type: string
+        validTo:
+          type: string
+        employmentTypeId:
+          type: string
+        gradeId:
+          type: string
+        status:
+          type: string
+        leaveReasonId:
+          type: string
+        workPercent:
+          type: number
+        attributes:
+          type: object
+          additionalProperties: {}
+    ExportExternalId:
+      type: object
+      properties:
+        id:
+          type: string
+        resourceType:
+          type: string
+        resourceId:
+          type: string
+        source:
+          type: string
+        externalId:
+          type: string
+    ExportHierarchy:
+      type: object
+      properties:
+        id:
+          type: string
+        code:
+          type: string
+        name:
+          type: string
+    ExportOrgUnit:
+      type: object
+      description: "An org unit. The link to a Keycloak organization is not part of\
+        \ it, because organizations differ between servers."
+      properties:
+        id:
+          type: string
+        externalId:
+          type: string
+        source:
+          type: string
+        timeZone:
+          type: string
+        dayStart:
+          type: string
+        versions:
+          type: array
+          items:
+            $ref: "#/components/schemas/ExportOrgUnitVersion"
+        parents:
+          type: array
+          items:
+            $ref: "#/components/schemas/ExportOrgUnitParent"
+        successors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ExportOrgUnitSuccession"
+    ExportOrgUnitParent:
+      type: object
+      description: A parent link. It names its hierarchy by code.
+      properties:
+        id:
+          type: string
+        hierarchy:
+          type: string
+        parentId:
+          type: string
+        validFrom:
+          type: string
+        validTo:
+          type: string
+    ExportOrgUnitSuccession:
+      type: object
+      properties:
+        id:
+          type: string
+        successorId:
+          type: string
+        effectiveDate:
+          type: string
+    ExportOrgUnitVersion:
+      type: object
+      properties:
+        id:
+          type: string
+        validFrom:
+          type: string
+        validTo:
+          type: string
+        code:
+          type: string
+        name:
+          type: string
+        names:
+          type: object
+          additionalProperties:
+            type: string
+        shortName:
+          type: string
+        shortNames:
+          type: object
+          additionalProperties:
+            type: string
+        phoneticName:
+          type: string
+        unitTypeId:
+          type: string
+        displayOrder:
+          type: integer
+          format: int32
+        attributes:
+          type: object
+          additionalProperties: {}
+    ExportPerson:
+      type: object
+      description: A person. It names its Keycloak user by username.
+      properties:
+        id:
+          type: string
+        username:
+          type: string
+        name:
+          type: string
+        names:
+          type: object
+          additionalProperties:
+            type: string
+        phoneticName:
+          type: string
+        attributes:
+          type: object
+          additionalProperties: {}
+        externalId:
+          type: string
+        source:
+          type: string
+        maskedAt:
+          type: string
+          description: "The time of the mask, for a person who was masked."
+    ExportQualification:
+      type: object
+      properties:
+        id:
+          type: string
+        personId:
+          type: string
+        kindId:
+          type: string
+        number:
+          type: string
+        validFrom:
+          type: string
+        validTo:
+          type: string
+        attributes:
+          type: object
+          additionalProperties: {}
+        externalId:
+          type: string
+        source:
+          type: string
+    ExportRefItem:
+      type: object
+      properties:
+        id:
+          type: string
+        kind:
+          type: string
+        code:
+          type: string
+        name:
+          type: string
+        names:
+          type: object
+          additionalProperties:
+            type: string
+        displayOrder:
+          type: integer
+          format: int32
+        attributes:
+          type: object
+          additionalProperties: {}
+        active:
+          type: boolean
+        legalEntity:
+          type: boolean
+        actingHead:
+          type: boolean
+        group:
+          type: boolean
+    ExportRefKind:
+      type: object
+      properties:
+        id:
+          type: string
+        code:
+          type: string
+        name:
+          type: string
+        names:
+          type: object
+          additionalProperties:
+            type: string
+    ExportReportingLine:
+      type: object
+      properties:
+        id:
+          type: string
+        assignmentId:
+          type: string
+        managerPersonId:
+          type: string
+        kind:
+          type: string
+        validFrom:
+          type: string
+        validTo:
+          type: string
+    ExportUnitRole:
+      type: object
+      properties:
+        id:
+          type: string
+        employmentId:
+          type: string
+        orgUnitId:
+          type: string
+        roleId:
+          type: string
+        includesDescendants:
+          type: boolean
+        validFrom:
+          type: string
+        validTo:
+          type: string
     ExternalId:
       required:
       - resourceType
@@ -710,6 +1079,12 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ImportAssignmentRow"
+        people:
+          type: array
+          items:
+            $ref: "#/components/schemas/ImportPersonRow"
+          description: "The people. They come before the employments, which can name\
+            \ them."
     ImportEmploymentRow:
       type: object
       required:
@@ -727,8 +1102,8 @@ components:
           description: The ID of the employment in that system.
         username:
           type: string
-          description: The username of the Keycloak user. Either this or `userId`
-            is required.
+          description: "The username of the Keycloak user. A row needs this, `userId`,\
+            \ or `personExternalId`, except for a stored employment."
         userId:
           type: string
           description: The ID of the Keycloak user.
@@ -777,6 +1152,11 @@ components:
           description: "The external ID of the org unit that employs the person. It\
             \ is a legal entity. Leave it out when the realm has exactly one. A stored\
             \ employment keeps its employer, so the value must name that one."
+        personExternalId:
+          type: string
+          description: "The external ID of the person with the same source, for a\
+            \ person from the list of people. It names a person with no Keycloak user\
+            \ too."
     ImportOrgUnitRow:
       type: object
       required:
@@ -846,6 +1226,46 @@ components:
           type: string
           description: The first date on which the unit no longer exists.
           format: date
+    ImportPersonRow:
+      type: object
+      required:
+      - externalId
+      description: "A person, also one with no Keycloak user. It is matched by source\
+        \ and external ID."
+      properties:
+        source:
+          type: string
+          maxLength: 64
+          pattern: "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
+          description: The name of the system that the row comes from. The default
+            is the source of the document.
+        externalId:
+          type: string
+          description: The ID of the person in that system.
+        username:
+          type: string
+          description: The username of a Keycloak user to link. A row that names no
+            user keeps the link that is stored.
+        userId:
+          type: string
+          description: The ID of a Keycloak user to link.
+        name:
+          type: string
+          maxLength: 255
+          description: The default name. A person with no user needs it.
+        names:
+          type: object
+          additionalProperties:
+            type: string
+          description: "Names in other languages, by language tag."
+        phoneticName:
+          type: string
+          maxLength: 255
+          description: The reading of the name for sorting.
+        attributes:
+          type: object
+          additionalProperties: {}
+          description: Free values of the person.
     ImportRefItemRow:
       type: object
       required:
@@ -855,7 +1275,9 @@ components:
       description: A reference item. It is matched by kind and code.
       properties:
         kind:
-          $ref: "#/components/schemas/RefKind"
+          type: string
+          description: "A fixed kind such as `UNIT_TYPE`, or the code of a kind that\
+            \ the realm added."
         code:
           type: string
           maxLength: 64
@@ -1414,6 +1836,7 @@ components:
       - membersJoined
       - membersLeft
       - organizationMembersAdded
+      - realmGroupTrees
       description: What a rebuild of the projection changed in Keycloak.
       type: object
       properties:
@@ -1449,6 +1872,11 @@ components:
           type: integer
           format: int32
           description: The number of users who became members of an organization.
+        realmGroupTrees:
+          type: integer
+          format: int32
+          description: "1 when the tree was mirrored into realm groups, 0 when the\
+            \ realm does not do it."
     Promotion:
       required:
       - validFrom
@@ -1534,6 +1962,68 @@ components:
         source:
           type: string
           description: The name of that system.
+    RealmExport:
+      description: "Every stored row of a realm, with every period. `POST /restore`\
+        \ loads it into a realm that has no data of the extension."
+      type: object
+      properties:
+        format:
+          type: string
+          description: The name and the version of the format.
+          examples:
+          - fuhito.export.v1
+        refKinds:
+          type: array
+          items:
+            $ref: "#/components/schemas/ExportRefKind"
+        refItems:
+          type: array
+          items:
+            $ref: "#/components/schemas/ExportRefItem"
+        attributeDefinitions:
+          type: array
+          items:
+            $ref: "#/components/schemas/ExportAttributeDefinition"
+        hierarchies:
+          type: array
+          items:
+            $ref: "#/components/schemas/ExportHierarchy"
+        orgUnits:
+          type: array
+          items:
+            $ref: "#/components/schemas/ExportOrgUnit"
+        people:
+          type: array
+          items:
+            $ref: "#/components/schemas/ExportPerson"
+        employments:
+          type: array
+          items:
+            $ref: "#/components/schemas/ExportEmployment"
+        assignments:
+          type: array
+          items:
+            $ref: "#/components/schemas/ExportAssignment"
+        reportingLines:
+          type: array
+          items:
+            $ref: "#/components/schemas/ExportReportingLine"
+        unitRoles:
+          type: array
+          items:
+            $ref: "#/components/schemas/ExportUnitRole"
+        qualifications:
+          type: array
+          items:
+            $ref: "#/components/schemas/ExportQualification"
+        externalIds:
+          type: array
+          items:
+            $ref: "#/components/schemas/ExportExternalId"
+        changeOrders:
+          type: array
+          items:
+            $ref: "#/components/schemas/ExportChangeOrder"
     RefItem:
       required:
       - name
@@ -1543,8 +2033,9 @@ components:
           type: string
           readOnly: true
         kind:
-          $ref: "#/components/schemas/RefKind"
-          description: Only a create request reads it.
+          type: string
+          description: "A fixed kind such as `UNIT_TYPE`, or the code of a kind that\
+            \ the realm added. Only a create request reads it."
         code:
           type: string
           maxLength: 64
@@ -1603,6 +2094,31 @@ components:
       - UNIT_ROLE
       description: The kinds of reference items. Each realm defines its own items
         for each kind.
+    RefKindDefinition:
+      required:
+      - code
+      - name
+      description: A kind of reference data.
+      type: object
+      properties:
+        code:
+          type: string
+          maxLength: 32
+          pattern: "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
+          description: The code that items name as their kind.
+        name:
+          type: string
+          maxLength: 255
+          description: The default name. A fixed kind has none.
+        names:
+          type: object
+          additionalProperties:
+            type: string
+          description: "Names in other languages, by language tag."
+        fixed:
+          type: boolean
+          description: True for a kind that every realm has.
+          readOnly: true
     Reorganization:
       required:
       - effectiveDate
@@ -3676,6 +4192,74 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+  /export/{list}:
+    get:
+      summary: "Reads one page of one list of every stored row of the realm, ordered\
+        \ by ID."
+      description: "Follow the `Link` header of each response to the end of the list.\
+        \ Put the lists together under their names in camel case, with `format`, to\
+        \ get the document that `POST /restore` takes. Rows name Keycloak users by\
+        \ username."
+      operationId: exportList
+      tags:
+      - bulk
+      parameters:
+      - description: The list.
+        schema:
+          type: string
+          enum:
+          - ref-kinds
+          - ref-items
+          - attribute-definitions
+          - hierarchies
+          - org-units
+          - people
+          - employments
+          - assignments
+          - reporting-lines
+          - unit-roles
+          - qualifications
+          - external-ids
+          - change-orders
+        name: list
+        in: path
+        required: true
+      - description: The cursor from the `Link` header of the page before.
+        name: after
+        in: query
+        schema:
+          type: string
+      - description: The largest number of entries to return.
+        schema:
+          type: integer
+          format: int32
+          maximum: 1000
+          minimum: 0
+          default: 100
+        name: max
+        in: query
+      responses:
+        "200":
+          description: The rows of the page.
+          content:
+            application/json:
+              schema: {}
+          headers:
+            Link:
+              description: "The URL of the next page, with `rel=\"next\"`. It is there\
+                \ when the page is full."
+              schema:
+                type: string
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
   /external-ids:
     put:
       summary: "Stores the ID of one system for a resource, or replaces it."
@@ -4044,6 +4628,7 @@ paths:
           enum:
           - ref-items
           - org-units
+          - people
           - employments
           - assignments
         name: list
@@ -5803,11 +6388,13 @@ paths:
           default: false
         name: includeInactive
         in: query
-      - required: true
-        schema:
-          $ref: "#/components/schemas/RefKind"
+      - description: "A fixed kind such as `UNIT_TYPE`, or the code of a kind that\
+          \ the realm added."
+        required: true
         name: kind
         in: query
+        schema:
+          type: string
       - description: The largest number of entries to return.
         schema:
           type: integer
@@ -5946,6 +6533,84 @@ paths:
           description: The item was deleted.
         "400":
           $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /ref-kinds:
+    get:
+      summary: "Lists the kinds of reference data, the fixed ones first, then the\
+        \ ones of the realm."
+      operationId: listRefKinds
+      tags:
+      - ref-items
+      responses:
+        "200":
+          description: The kinds.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RefKindDefinition"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+    post:
+      summary: "Adds a kind of reference data to the realm, such as a work location\
+        \ or a cost center."
+      description: Its items are reference items with the code as their kind. Attributes
+        of the type `REF_ITEM` can point to it.
+      operationId: createRefKind
+      tags:
+      - ref-items
+      parameters:
+      - $ref: "#/components/parameters/changeOrder"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RefKindDefinition"
+        required: true
+      responses:
+        "201":
+          description: The new kind.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RefKindDefinition"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /ref-kinds/{code}:
+    delete:
+      summary: Removes a kind of the realm that has no items.
+      operationId: deleteRefKind
+      tags:
+      - ref-items
+      parameters:
+      - description: The code of the kind.
+        name: code
+        in: path
+        required: true
+        schema:
+          type: string
+      - $ref: "#/components/parameters/changeOrder"
+      responses:
+        "204":
+          description: The kind is gone.
         "404":
           $ref: "#/components/responses/NotFound"
         "401":
@@ -6102,6 +6767,41 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "404":
           $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /restore:
+    post:
+      summary: Loads an export into a realm that has no data of the extension.
+      description: "Every row keeps its ID, so products that stored IDs find the same\
+        \ resources. The rows are written all or nothing. A username must name a user\
+        \ of this realm. Links to Keycloak organizations are not part of an export."
+      operationId: restore
+      tags:
+      - bulk
+      parameters:
+      - $ref: "#/components/parameters/changeOrder"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RealmExport"
+        required: true
+      responses:
+        "200":
+          description: The number of rows of each list.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: integer
+                  format: int32
+        "400":
+          $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
