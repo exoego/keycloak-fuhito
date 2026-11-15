@@ -58,10 +58,7 @@ public class ExternalIdService {
         ExternalId.Kind of = kind(kind);
         ExternalId.Pair own = pairOf(of, Checks.required("resourceId", resourceId));
         String system = Checks.code("source", source);
-        String value = Checks.required("externalId", externalId);
-        if (value.isBlank() || value.length() > MAX_EXTERNAL_ID_LENGTH) {
-            throw FuhitoException.invalid("external_id.bad_value", Map.of("externalId", value));
-        }
+        String value = value(Checks.required("externalId", externalId));
         if (system.equals(own.source())) {
             throw FuhitoException.conflict("external_id.own_source", Map.of("source", system));
         }
@@ -87,6 +84,20 @@ public class ExternalIdService {
             store.insert(row);
         }
         return view(row);
+    }
+
+    /**
+     * Checks an ID of a system, as the column can hold it.
+     *
+     * @param externalId the ID, or null for none
+     * @return the same ID
+     * @throws FuhitoException when the ID is blank or too long
+     */
+    static String value(String externalId) {
+        if (externalId != null && (externalId.isBlank() || externalId.length() > MAX_EXTERNAL_ID_LENGTH)) {
+            throw FuhitoException.invalid("external_id.bad_value", Map.of("externalId", externalId));
+        }
+        return externalId;
     }
 
     /**

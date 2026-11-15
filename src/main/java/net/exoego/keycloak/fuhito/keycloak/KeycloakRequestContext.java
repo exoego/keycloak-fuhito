@@ -3,6 +3,7 @@ package net.exoego.keycloak.fuhito.keycloak;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Locale;
+import java.util.List;
 import java.util.Map;
 import java.util.OptionalInt;
 import java.util.UUID;
@@ -19,6 +20,7 @@ import net.exoego.keycloak.fuhito.domain.Unchecked;
 import net.exoego.keycloak.fuhito.jpa.JpaChangeLogStore;
 import net.exoego.keycloak.fuhito.jpa.JpaChangeOrderStore;
 import net.exoego.keycloak.fuhito.jpa.JpaIdempotencyStore;
+import net.exoego.keycloak.fuhito.jpa.RowLocks;
 import net.exoego.keycloak.fuhito.rest.ErrorRepresentation;
 import net.exoego.keycloak.fuhito.rest.RequestContext;
 import net.exoego.keycloak.fuhito.store.IdempotencyStore;
@@ -140,6 +142,21 @@ final class KeycloakRequestContext implements RequestContext {
     @Override
     public String requestPath() {
         return session.getContext().getUri().getPath();
+    }
+
+    @Override
+    public void lockTarget() {
+        // The path is /admin/realms/{realm}/fuhito/{collection}/{id}/...
+        List<String> segments = List.of(requestPath().split("/"));
+        int realms = segments.indexOf("realms");
+        if (realms >= 0 && segments.size() > realms + 4) {
+            RowLocks.lock(entityManager, realm.getId(), segments.get(realms + 3), segments.get(realms + 4));
+        }
+    }
+
+    @Override
+    public String requestQuery() {
+        return session.getContext().getUri().getRequestUri().getRawQuery();
     }
 
     @Override

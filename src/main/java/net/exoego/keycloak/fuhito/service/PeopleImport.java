@@ -178,16 +178,22 @@ final class PeopleImport {
         }
         EmploymentView before = people.employmentService().get(id);
         boolean changed = false;
-        // An employment that ended before the effective date has no terms to compare on that date.
-        boolean endsBefore = employment.period().to() != null
-                && !employment.period().to().isAfter(Checks.date("effectiveDate", effectiveDate));
+        // An employment that ended by the effective date has no terms to compare. One that starts later can only
+        // come again as it is, for example in the document that made it.
+        LocalDate date = Checks.date("effectiveDate", effectiveDate);
+        boolean endsBefore = employment.period().to() != null && !employment.period().to().isAfter(date);
         if (!endsBefore) {
+            boolean later = employment.period().from().isAfter(date);
+            LocalDate on = later ? employment.period().from() : date;
             EmploymentView.TermsView terms = before.terms().stream()
-                    .filter(t -> t.terms().period().contains(Checks.date("effectiveDate", effectiveDate)))
+                    .filter(t -> t.terms().period().contains(on))
                     .findFirst()
                     .orElseThrow(() -> FuhitoException.notFound("employment.not_valid_on",
                             Map.of("id", id, "date", effectiveDate)));
             if (!sameTerms(row, terms)) {
+                if (later) {
+                    throw FuhitoException.notFound("employment.not_valid_on", Map.of("id", id, "date", effectiveDate));
+                }
                 written(false, "/terms", people.employmentService().changeTerms(id, new TermsChange(
                         effectiveDate, row.employmentType(), row.grade(), row.status(), row.leaveReason(),
                         row.workPercent(), row.attributes())));
@@ -288,12 +294,17 @@ final class PeopleImport {
         LocalDate date = Checks.date("effectiveDate", effectiveDate);
         boolean endsBefore = !before.period().endsAfter(date);
         if (!endsBefore) {
+            boolean later = before.period().from().isAfter(date);
+            LocalDate on = later ? before.period().from() : date;
             AssignmentView.Row current = before.rows().stream()
-                    .filter(r -> r.row().period().contains(date))
+                    .filter(r -> r.row().period().contains(on))
                     .findFirst()
                     .orElseThrow(() -> FuhitoException.notFound("assignment.not_valid_on",
                             Map.of("id", id, "date", effectiveDate)));
             if (!sameDetails(row, current)) {
+                if (later) {
+                    throw FuhitoException.notFound("assignment.not_valid_on", Map.of("id", id, "date", effectiveDate));
+                }
                 written(false, "/details", people.assignmentService().changeDetails(id,
                         new AssignmentValues(null, null, effectiveDate, null, row.jobTitle(), row.occupation(),
                                 row.kind(), row.head(), row.primary(), false, row.allocationPercent(),
