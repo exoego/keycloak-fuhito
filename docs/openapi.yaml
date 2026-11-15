@@ -2418,6 +2418,33 @@ paths:
         "409":
           $ref: "#/components/responses/Conflict"
   /assignments/{id}:
+    delete:
+      summary: "Deletes an assignment that nothing refers to, with all its history."
+      description: It works only when the assignment has no reporting line and no
+        assignment continues it. Every period of it goes. End an assignment that held
+        for a while instead.
+      operationId: deleteAssignment
+      tags:
+      - assignments
+      parameters:
+      - description: The ID of the resource.
+        name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      - $ref: "#/components/parameters/changeOrder"
+      responses:
+        "204":
+          description: The resource is gone.
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
     get:
       summary: Returns an assignment with the details of every period.
       operationId: getAssignment
@@ -3322,6 +3349,33 @@ paths:
         "409":
           $ref: "#/components/responses/Conflict"
   /employments/{id}:
+    delete:
+      summary: "Deletes an employment that nothing refers to, with all its history."
+      description: "It works only when the employment has no assignment and no role\
+        \ over an org unit, and no employment continues it. Its terms go with it.\
+        \ End an employment that held for a while instead."
+      operationId: deleteEmployment
+      tags:
+      - employments
+      parameters:
+      - description: The ID of the resource.
+        name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      - $ref: "#/components/parameters/changeOrder"
+      responses:
+        "204":
+          description: The resource is gone.
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
     get:
       summary: Returns an employment with the terms of every period.
       operationId: getEmployment
@@ -4222,6 +4276,34 @@ paths:
         "409":
           $ref: "#/components/responses/Conflict"
   /org-units/{id}:
+    delete:
+      summary: "Deletes an org unit that nothing refers to, with all its history."
+      description: "It works only when no unit had it as a parent, no assignment,\
+        \ employment, role, or succession names it, and it has no link to a Keycloak\
+        \ organization. Its periods and its parents go with it. End a unit that existed\
+        \ for a while instead."
+      operationId: deleteOrgUnit
+      tags:
+      - org-units
+      parameters:
+      - description: The ID of the resource.
+        name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      - $ref: "#/components/parameters/changeOrder"
+      responses:
+        "204":
+          description: The resource is gone.
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
     get:
       summary: Returns an org unit as it is on a date.
       operationId: getOrgUnit

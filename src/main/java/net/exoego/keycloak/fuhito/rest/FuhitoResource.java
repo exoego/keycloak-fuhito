@@ -27,6 +27,7 @@ import net.exoego.keycloak.fuhito.jpa.JpaOrgUnitStore;
 import net.exoego.keycloak.fuhito.jpa.JpaPersonStore;
 import net.exoego.keycloak.fuhito.jpa.JpaQualificationStore;
 import net.exoego.keycloak.fuhito.jpa.JpaRefItemStore;
+import net.exoego.keycloak.fuhito.jpa.JpaResourceRemoval;
 import net.exoego.keycloak.fuhito.jpa.JpaReportingLineStore;
 import net.exoego.keycloak.fuhito.jpa.JpaUnitRoleStore;
 import net.exoego.keycloak.fuhito.jpa.JpaUserDataMasker;
@@ -51,6 +52,7 @@ import net.exoego.keycloak.fuhito.service.ProjectionService;
 import net.exoego.keycloak.fuhito.service.PromotionService;
 import net.exoego.keycloak.fuhito.service.QualificationService;
 import net.exoego.keycloak.fuhito.service.RefItemService;
+import net.exoego.keycloak.fuhito.service.RemovalService;
 import net.exoego.keycloak.fuhito.service.ReorganizationService;
 import net.exoego.keycloak.fuhito.service.ReportingLineService;
 import net.exoego.keycloak.fuhito.service.Today;
@@ -184,7 +186,7 @@ public class FuhitoResource {
      */
     @Path("assignments")
     public AssignmentsResource assignments() {
-        return new AssignmentsResource(context, assignmentService(), membershipService());
+        return new AssignmentsResource(context, assignmentService(), membershipService(), removals());
     }
 
     /**
@@ -234,7 +236,8 @@ public class FuhitoResource {
     public EmploymentsResource employments() {
         return new EmploymentsResource(context, employmentService(), personService(), assignmentService(),
                 orgUnitService(), new PromotionService(employmentService(), assignmentService(),
-                        new JpaAssignmentStore(entityManager, realmId)), new LeaveService(employmentService()));
+                        new JpaAssignmentStore(entityManager, realmId)), new LeaveService(employmentService()),
+                removals());
     }
 
     /**
@@ -277,6 +280,10 @@ public class FuhitoResource {
     public ExternalIdsResource externalIds() {
         return new ExternalIdsResource(context, new ExternalIdService(new JpaExternalIdStore(entityManager,
                 realmId)));
+    }
+
+    private RemovalService removals() {
+        return new RemovalService(new JpaResourceRemoval(entityManager, realmId));
     }
 
     private AttributeDefinitionService attributeRules() {
@@ -344,7 +351,7 @@ public class FuhitoResource {
     public OrgUnitsResource orgUnits() {
         return new OrgUnitsResource(context, orgUnitService(), membershipService(),
                 new OrganizationLinkService(new JpaOrgUnitStore(entityManager, realmId), organizations),
-                unitRoleService());
+                unitRoleService(), removals());
     }
 
     /**

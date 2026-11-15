@@ -17,6 +17,8 @@ import net.exoego.keycloak.fuhito.service.AssignmentService;
 import net.exoego.keycloak.fuhito.service.Cursor;
 import net.exoego.keycloak.fuhito.service.MembershipService;
 import net.exoego.keycloak.fuhito.service.Page;
+import net.exoego.keycloak.fuhito.service.RemovalService;
+import net.exoego.keycloak.fuhito.store.ResourceRemoval;
 import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.enums.SchemaType;
 import org.eclipse.microprofile.openapi.annotations.headers.Header;
@@ -42,6 +44,7 @@ public class AssignmentsResource {
     private final RequestContext context;
     private final AssignmentService service;
     private final MembershipService members;
+    private final RemovalService removals;
 
     /**
      * Creates the resource for one request.
@@ -49,8 +52,11 @@ public class AssignmentsResource {
      * @param context the request and its caller
      * @param service the operations on the realm of the request
      * @param members the reads of assignments in the shape of members
+     * @param removals the removal of resources that were made by mistake
      */
-    public AssignmentsResource(RequestContext context, AssignmentService service, MembershipService members) {
+    public AssignmentsResource(RequestContext context, AssignmentService service, MembershipService members,
+            RemovalService removals) {
+        this.removals = removals;
         this.members = members;
         this.context = context;
         this.service = service;
@@ -149,6 +155,27 @@ public class AssignmentsResource {
             @PathParam("id") String id) {
         context.requireRead();
         return Calls.tagged(context, () -> AssignmentRepresentation.of(service.get(id)));
+    }
+
+    @DELETE
+    @Path("{id}")
+    @Operation(
+            operationId = "deleteAssignment",
+            summary = "Deletes an assignment that nothing refers to, with all its history.",
+            description = "It works only when the assignment has no reporting line and no assignment continues it. Every period of it goes. End an assignment that held for a while instead.")
+    @Parameter(ref = "changeOrder")
+    @APIResponse(responseCode = "204", description = "The resource is gone.")
+    @NotFound
+    @ApiErrors
+    public Response remove(
+            @Parameter(description = "The ID of the resource.")
+            @PathParam("id") String id) {
+        context.requireWrite();
+        return Calls.guardedRemoval(context, () -> state(id), () -> {
+            removals.remove(ResourceRemoval.Kind.ASSIGNMENT, id);
+            context.recordChange(Change.DELETE, RESOURCE_TYPE, id, "fuhito/assignments/" + id, null);
+            return Response.noContent().build();
+        });
     }
 
     @PUT

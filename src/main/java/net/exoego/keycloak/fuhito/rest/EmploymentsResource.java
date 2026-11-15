@@ -24,6 +24,8 @@ import net.exoego.keycloak.fuhito.service.Page;
 import net.exoego.keycloak.fuhito.service.PersonService;
 import net.exoego.keycloak.fuhito.service.PromotionService;
 import net.exoego.keycloak.fuhito.service.TermsChange;
+import net.exoego.keycloak.fuhito.service.RemovalService;
+import net.exoego.keycloak.fuhito.store.ResourceRemoval;
 import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.enums.SchemaType;
 import org.eclipse.microprofile.openapi.annotations.headers.Header;
@@ -53,6 +55,7 @@ public class EmploymentsResource {
     private final OrgUnitService orgUnits;
     private final PromotionService promotions;
     private final LeaveService leaves;
+    private final RemovalService removals;
 
     /**
      * Creates the resource for one request.
@@ -64,10 +67,12 @@ public class EmploymentsResource {
      * @param orgUnits the operations on org units of the realm
      * @param promotions the promotion of the realm
      * @param leaves the start and the end of a leave in the realm
+     * @param removals the removal of resources that were made by mistake
      */
     public EmploymentsResource(RequestContext context, EmploymentService service, PersonService people,
             AssignmentService assignments, OrgUnitService orgUnits, PromotionService promotions,
-            LeaveService leaves) {
+            LeaveService leaves, RemovalService removals) {
+        this.removals = removals;
         this.leaves = leaves;
         this.promotions = promotions;
         this.orgUnits = orgUnits;
@@ -154,6 +159,27 @@ public class EmploymentsResource {
                     employment);
             return Response.status(Response.Status.CREATED).entity(employment).build();
         }));
+    }
+
+    @DELETE
+    @Path("{id}")
+    @Operation(
+            operationId = "deleteEmployment",
+            summary = "Deletes an employment that nothing refers to, with all its history.",
+            description = "It works only when the employment has no assignment and no role over an org unit, and no employment continues it. Its terms go with it. End an employment that held for a while instead.")
+    @Parameter(ref = "changeOrder")
+    @APIResponse(responseCode = "204", description = "The resource is gone.")
+    @NotFound
+    @ApiErrors
+    public Response remove(
+            @Parameter(description = "The ID of the resource.")
+            @PathParam("id") String id) {
+        context.requireWrite();
+        return Calls.guardedRemoval(context, () -> state(id), () -> {
+            removals.remove(ResourceRemoval.Kind.EMPLOYMENT, id);
+            context.recordChange(Change.DELETE, RESOURCE_TYPE, id, "fuhito/employments/" + id, null);
+            return Response.noContent().build();
+        });
     }
 
     @PUT

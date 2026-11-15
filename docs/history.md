@@ -92,6 +92,28 @@ The end of an org unit, an assignment, or an employment can move earlier or late
 - A later end of an org unit, or no end, lengthens its last details and the parents that ended with it. Each parent must exist on the new dates.
 - The end of an org unit that other units follow after a merger or a split does not move. It fails with `org_unit.has_successors`.
 
+## A delete and an end
+
+`DELETE /org-units/{id}`, `DELETE /employments/{id}`, and `DELETE /assignments/{id}` remove a resource with every period of it.
+A read of a past date then finds nothing, as if the resource had never been there.
+An end keeps the past. A read of a date before the end still finds the resource.
+
+| | End | Delete |
+|---|---|---|
+| Path | `PUT .../end` | `DELETE` on the resource |
+| The past | Stays readable | Gone |
+| When it works | The rules of an end above | Only when nothing refers to the resource |
+| Use | A department that closes, a person who leaves, a move to another unit | A resource that should never have been stored, such as a test or a typo |
+
+- A delete works only when nothing refers to the resource. Otherwise it fails with `org_unit.in_use`, `employment.in_use`, or `assignment.in_use`, and `uses` names what refers to it.
+- An org unit must have had no children, and no assignment, employment, role, or succession may name it. It must have no link to a Keycloak organization.
+- An employment must have no assignment and no role over an org unit, and no employment may continue it.
+- An assignment must have no reporting line, and no assignment may continue it.
+- The IDs that other systems have for the resource go with it.
+- The change log keeps every entry of the resource, and gets one for the delete. A product that copied the resource learns of it there.
+
+Checked by `RemovalsIT.aResourceMadeByMistakeGoesWhenNothingRefersToIt`.
+
 Checked by `OrgUnitsIT.endsALeafAndKeepsItsHistory`, `OrgUnitsIT.rejectsABadEnd`, `AssignmentsIT.anOrgUnitWithAssignmentsCannotEndBeforeThem`, `AssignmentsIT.changesAJobTitleOnADateAndEndsTheAssignment`, and `EmploymentsIT.leavingEndsTheTermsAndTheAssignments`.
 
 ## Managers and reports
