@@ -154,6 +154,22 @@ A change of terms and a change of the details of an assignment each replace all 
 
 Checked by `StaffIT.promotesAPersonInOneWrite`.
 
+## A leave and a return
+
+A leave of absence is the status `ON_LEAVE` in the terms of an employment.
+Two operations change only that status, and keep every other value of the terms.
+
+- `POST /employments/{id}/leave` has `validFrom`. The person is on leave from that date.
+- With `validTo`, the status of before the leave comes back on that date, in the same write. Leave it out when the end is not known yet.
+- `POST /employments/{id}/return` has `validFrom`. The person is active from that date. A return that was stored for a later date stays, and changes nothing more.
+- A leave fails with `employment.already_on_leave` when the person is on leave on the date.
+- A leave fails with `employment.terms_change_stored` when a change of terms is stored for a later date. The leave would end there without a word.
+- A return fails with `employment.not_on_leave` when the person is not on leave on the date.
+
+The reason of a leave and an acting head are not part of these operations.
+
+Checked by `StaffIT.aLeaveAndAReturnChangeOnlyTheStatus`.
+
 ## The change log and change orders
 
 Every successful write adds one entry to the change log.

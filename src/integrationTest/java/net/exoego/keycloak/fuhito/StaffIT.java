@@ -98,6 +98,45 @@ class StaffIT {
     }
 
     @Test
+    void aLeaveAndAReturnChangeOnlyTheStatus() throws Exception {
+        String user = realm.user("nurse-on-leave");
+        String employmentId = Api.json(api.post("/staff", "{\"userId\": \"" + user + "\", \"orgUnitId\": \"" + clinic
+                + "\", \"validFrom\": \"2026-04-01\", \"employmentType\": \"part-time\", \"workPercent\": 50}"))
+                .get("employment").get("id").asText();
+
+        HttpResponse<String> leave = api.post("/employments/" + employmentId + "/leave",
+                "{\"validFrom\": \"2026-10-01\", \"validTo\": \"2027-04-01\"}");
+
+        assertEquals(200, leave.statusCode(), leave.body());
+        JsonNode terms = Api.json(leave).get("terms");
+        assertEquals(java.util.List.of("ACTIVE", "ON_LEAVE", "ACTIVE"), terms.findValuesAsText("status"));
+        assertEquals(java.util.List.of("2026-04-01", "2026-10-01", "2027-04-01"), terms.findValuesAsText("validFrom"));
+        assertEquals(java.util.List.of("part-time", "part-time", "part-time"), terms.findValuesAsText("employmentType"));
+        assertEquals(50, terms.get(1).get("workPercent").asInt());
+
+        // The person comes back early.
+        HttpResponse<String> back = api.post("/employments/" + employmentId + "/return",
+                "{\"validFrom\": \"2027-01-01\"}");
+        assertEquals(200, back.statusCode(), back.body());
+        assertEquals(java.util.List.of("ACTIVE", "ON_LEAVE", "ACTIVE", "ACTIVE"),
+                Api.json(back).get("terms").findValuesAsText("status"));
+        assertEquals(Api.json(back), Api.json(api.get("/employments/" + employmentId)));
+        assertEquals(java.util.List.of("fuhito/employments/" + employmentId, "fuhito/employments/" + employmentId
+                + "/leave", "fuhito/employments/" + employmentId + "/return"), Api.json(api.get(
+                "/change-log?resourceType=FUHITO_EMPLOYMENT&resourceId=" + employmentId))
+                .findValuesAsText("resourcePath"));
+
+        HttpResponse<String> notOnLeave = api.post("/employments/" + employmentId + "/return",
+                "{\"validFrom\": \"2027-02-01\"}");
+        assertEquals(409, notOnLeave.statusCode(), notOnLeave.body());
+        assertEquals("employment.not_on_leave", Api.json(notOnLeave).get("error").asText());
+        HttpResponse<String> stored = api.post("/employments/" + employmentId + "/leave",
+                "{\"validFrom\": \"2026-05-01\"}");
+        assertEquals(409, stored.statusCode(), stored.body());
+        assertEquals("employment.terms_change_stored", Api.json(stored).get("error").asText());
+    }
+
+    @Test
     void addsAPartTimeNurseForOneYear() throws Exception {
         String user = realm.user("part-time-nurse");
 
