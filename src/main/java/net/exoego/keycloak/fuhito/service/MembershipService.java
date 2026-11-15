@@ -120,7 +120,8 @@ public class MembershipService {
 
     /**
      * Lists the assignments of a user that hold on a date, across all employments of the user.
-     * The primary assignment comes first.
+     * The primary assignments come first. Within them and within the others, the assignments of the employment
+     * that started first come first.
      *
      * @param userId the ID of the user
      * @param asOf the date as {@code YYYY-MM-DD}, or null for today
@@ -168,7 +169,10 @@ public class MembershipService {
                     unit -> OrgUnitPaths.on(orgUnits, refItems, hierarchy, unit, date));
             members.addAll(toMembers(rows, date, id -> pathOf.apply(id).getLast(), includePath ? pathOf : null));
         });
+        // Each employment can have a primary assignment. The one of the oldest employment is the first.
         members.sort(Comparator.comparing((Member member) -> !member.assignment().primary())
+                .thenComparing(member -> member.employment().period().from())
+                .thenComparing(member -> member.employment().id())
                 .thenComparing(member -> member.assignment().period().from())
                 .thenComparing(member -> member.assignment().assignmentId()));
         return members;
