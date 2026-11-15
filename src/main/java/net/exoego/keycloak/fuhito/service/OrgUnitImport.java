@@ -1,5 +1,6 @@
 package net.exoego.keycloak.fuhito.service;
 
+import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -11,6 +12,7 @@ import java.util.Set;
 import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.OrgUnit;
+import net.exoego.keycloak.fuhito.domain.OrgUnitVersion;
 import net.exoego.keycloak.fuhito.service.ImportDocument.OrgUnitRow;
 import net.exoego.keycloak.fuhito.service.ImportReport.Outcome;
 import net.exoego.keycloak.fuhito.service.ImportReport.Write;
@@ -132,17 +134,30 @@ final class OrgUnitImport {
         }
         String id = stored.get().id();
         unitIdByRow.put(index, id);
-        OrgUnitState before = orgUnitService.get(id, effectiveDate);
+        List<OrgUnitVersion> versions = orgUnits.versions(id);
+        LocalDate date = Checks.date("effectiveDate", effectiveDate);
+        LocalDate end = versions.getLast().period().to();
+        LocalDate first = versions.getFirst().period().from();
         boolean changed = false;
-        if (!sameDetails(row, before)) {
-            written(false, "", orgUnitService.changeDetails(id, new OrgUnitChange(effectiveDate, row.code(), row.name(),
-                    row.names(), row.shortName(), row.shortNames(), row.phoneticName(), row.unitType(),
-                    row.displayOrder(), row.attributes())));
-            changed = true;
-        }
-        if (!Objects.equals(parentId, before.parentId())) {
-            written(false, "/parent", orgUnitService.move(id, parentId, effectiveDate));
-            changed = true;
+        // A unit that ended by the effective date keeps its details. One that starts later can only come again as
+        // it is, for example in the document that made it.
+        if (first.isAfter(date)) {
+            OrgUnitState onFirst = orgUnitService.get(id, first.toString());
+            if (!quietlySame(row, onFirst) || !Objects.equals(parentId, onFirst.parentId())) {
+                throw FuhitoException.notFound("org_unit.not_valid_on", Map.of("id", id, "date", effectiveDate));
+            }
+        } else if (end == null || end.isAfter(date)) {
+            OrgUnitState before = orgUnitService.get(id, effectiveDate);
+            if (!sameDetails(row, before)) {
+                written(false, "", orgUnitService.changeDetails(id, new OrgUnitChange(effectiveDate, row.code(),
+                        row.name(), row.names(), row.shortName(), row.shortNames(), row.phoneticName(),
+                        row.unitType(), row.displayOrder(), row.attributes())));
+                changed = true;
+            }
+            if (!Objects.equals(parentId, before.parentId())) {
+                written(false, "/parent", orgUnitService.move(id, parentId, effectiveDate));
+                changed = true;
+            }
         }
         if (row.validTo() != null && !row.validTo().equals(lastDay(id))) {
             written(false, "/end", orgUnitService.end(id, row.validTo()));
@@ -153,6 +168,15 @@ final class OrgUnitImport {
 
     private String lastDay(String id) {
         return Objects.toString(orgUnits.versions(id).getLast().period().to(), null);
+    }
+
+    // A bad value is not the same as what is stored.
+    private boolean quietlySame(OrgUnitRow row, OrgUnitState stored) {
+        try {
+            return sameDetails(row, stored);
+        } catch (FuhitoException e) {
+            return false;
+        }
     }
 
     private boolean sameDetails(OrgUnitRow row, OrgUnitState before) {

@@ -69,6 +69,7 @@ The lists are applied in the order reference items, org units, employments, assi
 - A new row can have its own `validFrom`. An existing row ignores it.
 - A row with `validTo` ends the thing on that date. An employment can also carry `endReason`.
 - A row replaces all details of an existing thing. A missing optional value clears it.
+- The same document can be sent again, for example after a timeout. A thing that ended by the effective date only compares its end. A thing that starts after the effective date must match what is stored on its first date, or the row fails with `not_valid_on`.
 - A new employment names its employer by `employerExternalId`. It is the external ID of an org unit that is a legal entity. A row can leave it out when the realm has exactly one legal entity.
 - The employer of a stored employment never changes. A row that names another employer is rejected.
 - A row of a unit type can carry `legalEntity`. The CSV header is `法人`. A row that leaves it out keeps the mark of a stored item.
