@@ -19,19 +19,53 @@ public class JpaReportingLineStore implements ReportingLineStore {
         return "validFrom <= :date and (%1$s.validTo is null or %1$s.validTo > :date)".formatted(alias);
     }
 
+    private static String present(String row, String t) {
+        return """
+                exists (select 1 from EmploymentTermsEntity %2$s where %2$s.realmId = :realmId
+                    and %2$s.employmentId = %1$s.employmentId and %2$s.status = 'ACTIVE' and %2$s.%3$s)"""
+                .formatted(row, t, onDate(t));
+    }
+
+    private static String acting(String row, String k) {
+        return "exists (select 1 from RefItemEntity %2$s where %2$s.id = %1$s.kindId and %2$s.actingHead = true)"
+                .formatted(row, k);
+    }
+
+    // True when the unit of the row has a present head that is not acting. Each use gets its own aliases.
+    private static String regularPresent(String row, String prefix) {
+        String r = prefix + "r";
+        return """
+                exists (select 1 from AssignmentEntity %2$s where %2$s.realmId = :realmId
+                    and %2$s.orgUnitId = %1$s.orgUnitId and %2$s.head = true and %2$s.%3$s
+                    and %4$s and not %5$s)"""
+                .formatted(row, r, onDate(r), present(r, prefix + "rt"), acting(r, prefix + "rk"));
+    }
+
+    // A head row of the date that counts as a head of its unit.
+    private static String leads(String row) {
+        return "(%1$s.head = true and %2$s and (not %3$s or not %4$s))".formatted(row, present(row, row + "1t"),
+                acting(row, row + "1k"), regularPresent(row, row + "1"));
+    }
+
+    // A head row of the date whose person looks above the unit. Only an acting head beside a present head does not.
+    private static String looksAbove(String row) {
+        return "(%1$s.head = true and not (%2$s and %3$s and %4$s))".formatted(row, present(row, row + "2t"),
+                acting(row, row + "2k"), regularPresent(row, row + "2"));
+    }
+
     // The database goes down from the org units that the manager leads. It does not go below an org unit that
     // has a head of its own. So a read of one page does not load the tree or the people of the whole realm.
     private static final String REPORTS = """
             with Down as (
                 select a.orgUnitId as id, 0 as depth, 1 as open
                 from AssignmentEntity a join EmploymentEntity e on e.id = a.employmentId
-                where a.realmId = :realmId and e.personId = :managerId and a.head = true and a.%1$s
+                where a.realmId = :realmId and e.personId = :managerId and a.%1$s and %6$s
                 union all
                 select l.childId as id, d.depth + 1 as depth,
                     case when exists (select 1 from AssignmentEntity h join EmploymentEntity he
                             on he.id = h.employmentId
-                        where h.realmId = :realmId and h.orgUnitId = l.childId and h.head = true
-                        and he.personId <> :managerId and h.%2$s) then 0 else 1 end as open
+                        where h.realmId = :realmId and h.orgUnitId = l.childId and he.personId <> :managerId
+                        and h.%2$s and %7$s) then 0 else 1 end as open
                 from Down d
                 join OrgUnitLinkEntity l on l.parentId = d.id and l.realmId = :realmId
                     and l.hierarchyId = :hierarchyId and l.%3$s
@@ -53,12 +87,12 @@ public class JpaReportingLineStore implements ReportingLineStore {
             join EmploymentEntity e on e.id = a.employmentId
             join PersonEntity p on p.id = e.personId
             where e.personId <> :managerId
-            and ((d.depth = 0 and a.head = false) or (d.depth > 0 and d.open = 1) or (d.depth > 0 and d.open = 0
-                and a.head = true))
+            and ((d.depth = 0 and not %8$s) or (d.depth > 0 and d.open = 1) or (d.depth > 0 and d.open = 0
+                and %8$s))
             and not exists (select 1 from ReportingLineEntity s where s.realmId = :realmId
                 and s.assignmentId = a.assignmentId and s.kind = 'SOLID' and s.%5$s)
             order by derived, depth, orgUnitId, assignmentId, lineId""".formatted(onDate("a"), onDate("h"), onDate("l"),
-            onDate("v"), onDate("s"));
+            onDate("v"), onDate("s"), leads("a"), leads("h"), looksAbove("a"));
 
     private final EntityManager em;
     private final String realmId;

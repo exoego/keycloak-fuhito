@@ -136,10 +136,11 @@ public class JpaRefItemStore implements RefItemStore {
         entity.attributes = item.attributes();
         entity.active = item.active();
         entity.legalEntity = item.legalEntity();
+        entity.actingHead = item.actingHead();
     }
 
     private static RefItem toDomain(RefItemEntity e) {
         return new RefItem(e.id, RefKind.valueOf(e.kind), e.code, e.name, e.names, e.displayOrder, e.attributes,
-                e.active, e.legalEntity);
+                e.active, e.legalEntity, e.actingHead);
     }
 }

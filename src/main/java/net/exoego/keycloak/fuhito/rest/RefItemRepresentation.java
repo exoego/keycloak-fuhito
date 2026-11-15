@@ -33,11 +33,16 @@ public record RefItemRepresentation(
                 description = "True for a unit type whose org units are legal entities, such as a company. Only "
                         + "the kind `UNIT_TYPE` can have it.",
                 defaultValue = "false")
-        Boolean legalEntity) {
+        Boolean legalEntity,
+        @Schema(
+                description = "True for an assignment kind whose heads stand in for an absent head. Only the kind "
+                        + "`ASSIGNMENT_KIND` can have it.",
+                defaultValue = "false")
+        Boolean actingHead) {
 
     static RefItemRepresentation of(RefItem item) {
         return new RefItemRepresentation(item.id(), item.kind().name(), item.code(), item.name(), item.names(),
                 item.displayOrder(), item.attributes(), item.active(),
-                item.legalEntity() ? Boolean.TRUE : null);
+                item.legalEntity() ? Boolean.TRUE : null, item.actingHead() ? Boolean.TRUE : null);
     }
 }

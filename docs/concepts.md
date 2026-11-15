@@ -47,8 +47,9 @@ Reads, the mask, and the erase work by person. Each has a shortcut by the ID of 
 | Concurrent Assignment | 兼務 | Any further assignment held at the same time. There is no limit on the number. |
 | Job Title | 役職 | A managerial or functional title held in an assignment, for example "director" or "head nurse". |
 | Occupation | 職種 | The profession or kind of work in an assignment, for example "physician", "nurse", or "clerk". |
-| Assignment Kind | 所属区分 | How the assignment is held, for example regular, acting, or support. |
+| Assignment Kind | 所属区分 | How the assignment is held, for example regular, acting, or support. A kind with the mark `actingHead` makes its heads stand in for an absent head. |
 | Head | 長 | A flag on an assignment. It marks the person who leads the org unit. |
+| Acting Head | 代行、事務取扱 | A head whose assignment kind has the mark `actingHead`. It leads the unit only while no other head is present. |
 | Reporting Line | レポートライン | A link from an assignment to a manager. It has a kind, solid or dotted, and a period. |
 | Qualification | 資格、免許 | A license or certificate that a person holds, with a number and a period. |
 
@@ -140,6 +141,6 @@ Every employment names its employer. The employer is an org unit that is a legal
 ## Out of scope
 
 - Access control. The caller decides who may do what.
-- Seats and headcount control.
+- Seats and headcount control. A vacant head post is a unit with no head. A number of posts can go into the attributes of the org unit.
 - Shift plans and daily duty rosters.
 - People who work for legal entities in different realms. Legal entities in one realm are in scope.

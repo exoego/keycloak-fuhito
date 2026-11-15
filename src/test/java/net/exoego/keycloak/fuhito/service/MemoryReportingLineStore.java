@@ -9,6 +9,8 @@ import java.util.Optional;
 import net.exoego.keycloak.fuhito.domain.Assignment;
 import net.exoego.keycloak.fuhito.domain.DirectReport;
 import net.exoego.keycloak.fuhito.domain.Employment;
+import net.exoego.keycloak.fuhito.domain.EmploymentStatus;
+import net.exoego.keycloak.fuhito.domain.RefItem;
 import net.exoego.keycloak.fuhito.domain.ReportingLine;
 import net.exoego.keycloak.fuhito.store.ReportingLineStore;
 
@@ -52,6 +54,7 @@ final class MemoryReportingLineStore implements ReportingLineStore {
     MemoryAssignmentStore assignments;
     MemoryEmploymentStore employments;
     MemoryOrgUnitStore orgUnits;
+    MemoryRefItemStore refItems = new MemoryRefItemStore();
 
     private record Found(int depth, DirectReport report) {
     }
@@ -71,7 +74,8 @@ final class MemoryReportingLineStore implements ReportingLineStore {
         }
         OrgUnitTree tree = new OrgUnitTree(orgUnits, new MemoryRefItemStore(), date, hierarchyId);
         assignments.rows.stream()
-                .filter(row -> row.head() && row.period().contains(date) && managerPersonId.equals(personOf(row)))
+                .filter(row -> row.period().contains(date) && managerPersonId.equals(personOf(row))
+                        && leads(row, date))
                 .forEach(own -> collect(tree, own.orgUnitId(), 0, managerPersonId, date, found));
         return found.stream()
                 .sorted(Comparator.comparing((Found f) -> f.report().derived())
@@ -85,18 +89,18 @@ final class MemoryReportingLineStore implements ReportingLineStore {
     }
 
     // In the unit of the manager and in units below with no head, the members report to the manager.
-    // In a unit below that has a head, only its heads do.
+    // In a unit below that has a head, only those who look above it do.
     private void collect(OrgUnitTree tree, String orgUnitId, int depth, String managerPersonId, LocalDate date,
             List<Found> found) {
         List<Assignment> rows = assignments.rowsOn(List.of(orgUnitId), date).stream()
                 .filter(row -> !managerPersonId.equals(personOf(row)))
                 .toList();
-        List<Assignment> heads = rows.stream().filter(Assignment::head).toList();
-        if (depth > 0 && !heads.isEmpty()) {
-            heads.forEach(head -> addDerived(head, depth, date, found));
+        if (depth > 0 && rows.stream().anyMatch(row -> leads(row, date))) {
+            rows.stream().filter(row -> looksAbove(row, date)).forEach(row -> addDerived(row, depth, date, found));
             return;
         }
-        rows.stream().filter(row -> !row.head()).forEach(row -> addDerived(row, depth, date, found));
+        rows.stream().filter(row -> depth > 0 || !looksAbove(row, date))
+                .forEach(row -> addDerived(row, depth, date, found));
         tree.children(orgUnitId).forEach(child -> collect(tree, child.unit().id(), depth + 1, managerPersonId, date,
                 found));
     }
@@ -113,6 +117,28 @@ final class MemoryReportingLineStore implements ReportingLineStore {
         Employment employment = employments.find(row.employmentId()).orElseThrow();
         return new DirectReport(employment.personId(), employment.userId(), kind, derived, lineId,
                 row.assignmentId(), row.orgUnitId());
+    }
+
+    private boolean present(Assignment row, LocalDate date) {
+        return employments.terms(row.employmentId()).stream()
+                .anyMatch(t -> t.period().contains(date) && t.status() == EmploymentStatus.ACTIVE);
+    }
+
+    private boolean acting(Assignment row) {
+        return row.kindId() != null && refItems.find(row.kindId()).map(RefItem::actingHead).orElse(false);
+    }
+
+    private boolean regularPresent(Assignment row, LocalDate date) {
+        return assignments.rowsOn(List.of(row.orgUnitId()), date).stream()
+                .anyMatch(other -> other.head() && present(other, date) && !acting(other));
+    }
+
+    private boolean leads(Assignment row, LocalDate date) {
+        return row.head() && present(row, date) && (!acting(row) || !regularPresent(row, date));
+    }
+
+    private boolean looksAbove(Assignment row, LocalDate date) {
+        return row.head() && !(present(row, date) && acting(row) && regularPresent(row, date));
     }
 
     private String personOf(Assignment row) {

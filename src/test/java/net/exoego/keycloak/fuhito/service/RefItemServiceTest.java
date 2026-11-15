@@ -189,4 +189,15 @@ class RefItemServiceTest {
 
         assertTrue(service.update(item.id(), "Department", null, null, Map.of("k", "v"), true).active());
     }
+
+    @Test
+    void onlyAnAssignmentKindMarksActingHeads() {
+        RefItem acting = service.create(RefKind.ASSIGNMENT_KIND, "acting", "Acting", null, null, null, null, true);
+
+        assertTrue(acting.actingHead());
+        assertTrue(service.update(acting.id(), "Acting", null, null, null, null).actingHead());
+        assertFalse(service.update(acting.id(), "Acting", null, null, null, null, null, null).actingHead());
+        assertEquals("ref_item.acting_head_kind", assertThrows(FuhitoException.class,
+                () -> service.create(RefKind.JOB_TITLE, "chief", "Chief", null, null, null, null, true)).code());
+    }
 }

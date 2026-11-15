@@ -804,4 +804,11 @@
                                  referencedTableName="FUHITO_REF_ITEM" referencedColumnNames="ID"
                                  constraintName="FK_FUHITO_EMPLOYMENT_TERMS_LEAVE_REASON"/>
     </changeSet>
+    <changeSet id="0.1.0-ref-item-acting-head" author="keycloak-fuhito">
+        <addColumn tableName="FUHITO_REF_ITEM">
+            <column name="ACTING_HEAD" type="BOOLEAN" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+    </changeSet>
 </databaseChangeLog>
