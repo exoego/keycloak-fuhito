@@ -96,7 +96,24 @@ A reader of a late page pays for all pages before it. A cursor that says "go on 
 ## What changed after these runs
 
 - The read of the whole tree, `GET /org-units` with every org unit, is gone. `GET /org-units` now lists the roots. The rows "Org units, first page" and "Org units, last page" above are from before that, and the script no longer measures them. A subtree of a root still walks the whole tree.
-- The number 333 ms for the whole tree with the two indexes does not hold in general. In a second run the planner still chose the GiST index of the exclusion constraint, and the read took 1.2 seconds. It chose the plain index only after the index was built again. Which one it takes depends on the sizes of the two indexes. A walk that does not depend on that choice is the next change.
+- The number 333 ms for the whole tree with the two indexes does not hold in general. In a second run the planner still chose the GiST index of the exclusion constraint, and the read took 1.2 seconds. It chose the plain index only after the index was built again. Which one it takes depends on the sizes of the two indexes. The section below has the walk that does not depend on that choice.
+
+## The walk down a subtree
+
+Three ways to find the version of each org unit in the walk were measured, with 50,001 org units and 500,000 people.
+
+| Read | Lookup by org unit and dates | Dates filtered once, then joined | Latest version, then by ID |
+|---|---|---|---|
+| Subtree of the company, first page | 1,245 | 237 | 424 |
+| Subtree of a division, 1,000 units | 28 | 57 | 39 |
+| Members below the company, first page | 1,525 | 494 | 763 |
+| Members below a division, 1,000 people | 126 | 153 | 121 |
+
+- The first column is the walk of before. The database served the lookup with the GiST index of the exclusion constraint. With the plain index it took 333 ms for the company, but nothing made the database take that one.
+- The second filters the versions and the links of the date once and joins them in each step. It is the fastest for the whole company. But it reads every org unit of the realm also for a small subtree.
+- The third finds the latest version that started, and then reads it by its ID. Only plain indexes can serve these two lookups, so the choice is not left to the database. The cost follows the size of the subtree.
+
+The extension uses the third. A subtree of a part of the organization is the usual read, and a read of the whole company is rare.
 
 ## What the numbers say
 
