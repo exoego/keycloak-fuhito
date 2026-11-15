@@ -74,6 +74,12 @@ public class PeopleResource {
     public Response list(
             @Parameter(description = "The ID of a Keycloak user, to return only the person that is linked to it.")
             @QueryParam("userId") String userId,
+            @Parameter(description = "A text that the name, the phonetic name, or a name in another language has, in "
+                    + "any case. For a person with a Keycloak user, also the first name, the last name, the username, "
+                    + "or the email of the user.")
+            @QueryParam("q") String q,
+            @Parameter(description = "A staff number that an employment of the person has.")
+            @QueryParam("staffNumber") String staffNumber,
             @Parameter(
                     description = "The number of entries to skip. It cannot be used with `after`.",
                     schema = @Schema(minimum = "0", defaultValue = "0"))
@@ -87,7 +93,8 @@ public class PeopleResource {
             @QueryParam("after") String after) {
         context.requireRead();
         return Calls.run(context, () -> Pages.of(context,
-                service.list(userId, first, max, after).stream().map(PersonRepresentation::of).toList(),
+                service.list(userId, q, staffNumber, first, max, after).stream().map(PersonRepresentation::of)
+                        .toList(),
                 Page.of(first, max).max(), person -> Cursor.encode(Cursor.PEOPLE, person.id())));
     }
 
@@ -348,7 +355,7 @@ public class PeopleResource {
                     schema = @Schema(defaultValue = "false"))
             @QueryParam("clearKeycloakName") boolean clearKeycloakName) {
         context.requireWrite();
-        return Calls.run(context, () -> data.mask(service.get(id).person(), clearKeycloakName));
+        return Calls.guarded(context, () -> state(id), () -> data.mask(service.get(id).person(), clearKeycloakName));
     }
 
     @DELETE
@@ -368,7 +375,7 @@ public class PeopleResource {
             @Parameter(description = "The ID of the resource.")
             @PathParam("id") String id) {
         context.requireWrite();
-        return Calls.run(context, () -> {
+        return Calls.guardedRemoval(context, () -> state(id), () -> {
             data.erase(service.get(id).person().id());
             return Response.noContent().build();
         });

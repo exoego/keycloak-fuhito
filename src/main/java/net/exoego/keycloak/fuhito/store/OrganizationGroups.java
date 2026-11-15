@@ -33,6 +33,13 @@ public interface OrganizationGroups {
     boolean projectionEnabled();
 
     /**
+     * Lists the IDs of every organization of the realm.
+     *
+     * @return the IDs
+     */
+    List<String> organizations();
+
+    /**
      * Lists all groups of an organization, at every depth. A parent comes before its children.
      *
      * @param organizationId the ID of the organization

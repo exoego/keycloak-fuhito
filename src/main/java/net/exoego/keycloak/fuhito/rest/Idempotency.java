@@ -37,7 +37,8 @@ final class Idempotency {
             throw FuhitoException.invalid("idempotency.bad_key", Map.of());
         }
         String path = context.requestPath();
-        String hash = ETags.of(body);
+        // The query, for example the change order, and the caller are part of the request, as the body is.
+        String hash = ETags.of(new Fingerprint(context.callerUserId(), context.requestQuery(), body));
         Instant now = Instant.now();
         Instant since = now.minus(LIFETIME);
         IdempotencyStore store = context.idempotency();
@@ -76,7 +77,14 @@ final class Idempotency {
             }
             return (T) response.build();
         }
+        // A mask or an erase cleared a body that named a person. The request still writes nothing again.
+        if (first.body() == null) {
+            return null;
+        }
         return Unchecked.io(() -> JSON.readValue(first.body(), type));
+    }
+
+    private record Fingerprint(String caller, String query, Object body) {
     }
 
     private static String json(Object entity) {

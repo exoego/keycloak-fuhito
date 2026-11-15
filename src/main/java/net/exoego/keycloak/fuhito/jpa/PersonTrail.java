@@ -44,6 +44,36 @@ record PersonTrail(Set<String> employments, Set<String> assignments, Set<String>
         return new PersonTrail(employments, assignments, qualifications, unitRoles, reportingLines, externalIds);
     }
 
+    /**
+     * Clears the body of every stored response of a repeated request that names the person or a record of the
+     * person. The status and the location stay, so a request sent again still writes nothing.
+     *
+     * @param em the entity manager
+     * @param realmId the ID of the realm
+     * @param personId the ID of the person
+     * @param userId the ID of the Keycloak user of the person, or null
+     */
+    void clearStoredResponses(EntityManager em, String realmId, String personId, String userId) {
+        Set<String> ids = new LinkedHashSet<>(List.of(personId));
+        if (userId != null) {
+            ids.add(userId);
+        }
+        ids.addAll(employments);
+        ids.addAll(assignments);
+        ids.addAll(qualifications);
+        ids.addAll(unitRoles);
+        ids.addAll(reportingLines);
+        ids.addAll(externalIds);
+        for (String id : ids) {
+            em.createQuery("""
+                            update IdempotencyKeyEntity k set k.body = null where k.realmId = :realmId
+                            and k.body like :pattern escape '!'""")
+                    .setParameter("realmId", realmId)
+                    .setParameter("pattern", "%\"" + Trail.escaped(id) + "\"%")
+                    .executeUpdate();
+        }
+    }
+
     private record Trail(EntityManager em, String realmId) {
 
         // The IDs of the rows of today, and the IDs of the copies that name one of the values in a field.
