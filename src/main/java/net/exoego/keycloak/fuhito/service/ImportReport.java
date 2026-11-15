@@ -6,6 +6,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import net.exoego.keycloak.fuhito.domain.AttributeDefinition;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.RefItem;
 import net.exoego.keycloak.fuhito.domain.ReportingLine;
@@ -138,6 +139,30 @@ public final class ImportReport {
             @Override
             public String path() {
                 return "fuhito/ref-kinds/" + resourceId();
+            }
+        }
+
+        /**
+         * A write of the definition of a free attribute.
+         *
+         * @param created true for a new definition, false for a change
+         * @param state the definition after the write
+         */
+        record OfAttributeDefinition(boolean created, AttributeDefinition state) implements Write {
+
+            @Override
+            public String resourceType() {
+                return "FUHITO_ATTRIBUTE_DEFINITION";
+            }
+
+            @Override
+            public String resourceId() {
+                return state.id();
+            }
+
+            @Override
+            public String path() {
+                return "fuhito/attribute-definitions/" + resourceId();
             }
         }
 

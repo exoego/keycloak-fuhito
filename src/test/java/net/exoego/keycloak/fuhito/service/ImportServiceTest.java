@@ -14,6 +14,7 @@ import net.exoego.keycloak.fuhito.domain.Person;
 import net.exoego.keycloak.fuhito.domain.RefItem;
 import net.exoego.keycloak.fuhito.domain.RefKind;
 import net.exoego.keycloak.fuhito.service.ImportDocument.AssignmentRow;
+import net.exoego.keycloak.fuhito.service.ImportDocument.AttributeDefinitionRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.EmploymentRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.OrgUnitRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.PersonRow;
@@ -57,10 +58,12 @@ class ImportServiceTest {
             new AssignmentService(assignmentStore, employmentStore, orgUnitStore, refItems,
             new MemoryReportingLineStore());
     private final RealmKindService kinds = new RealmKindService(new MemoryRealmKindStore(), refItems);
+    private final AttributeDefinitionService definitions =
+            new AttributeDefinitionService(new MemoryAttributeDefinitionStore(), refItems, false, kinds::isKnown);
     private final ImportService service = new ImportService(new RefItemService(refItems), refItems, orgUnits,
             orgUnitStore, new ImportService.People(employments, employmentStore, assignments, assignmentStore, users,
                     new PersonService(personStore, users, id -> false)),
-            new ImportService.Setup(kinds));
+            new ImportService.Setup(kinds, definitions));
 
     private static ImportDocument doc(String effectiveDate, boolean dryRun, String source, List<RefItemRow> refItems,
             List<OrgUnitRow> orgUnits) {
@@ -130,7 +133,32 @@ class ImportServiceTest {
     }
 
     private static ImportDocument kinds(List<RefKindRow> rows) {
-        return new ImportDocument("2026-04-01", false, null, null, null, null, null, null, rows);
+        return new ImportDocument("2026-04-01", false, null, null, null, null, null, null, rows, null);
+    }
+
+    @Test
+    void importsTheDefinitionsOfAttributesAndChangesTheRuleOfAStoredOne() {
+        List<AttributeDefinitionRow> rows = List.of(
+                new AttributeDefinitionRow("PERSON", "note", "STRING", null, null),
+                new AttributeDefinitionRow("ORG_UNIT", "type", "REF_ITEM", "UNIT_TYPE", true));
+
+        ImportReport first = service.apply(definitions(rows));
+        ImportReport second = service.apply(definitions(rows));
+        ImportReport changed = service.apply(definitions(List.of(
+                new AttributeDefinitionRow("PERSON", "note", "STRING", null, true),
+                new AttributeDefinitionRow("PERSON", "bad", "STRING", "UNIT_TYPE", null))));
+
+        assertEquals(Map.of("attributeDefinitions", new Counts(2, 0, 0)), first.counts());
+        assertEquals("fuhito/attribute-definitions/" + first.writes().getFirst().resourceId(),
+                first.writes().getFirst().path());
+        assertEquals(Map.of("attributeDefinitions", new Counts(0, 0, 2)), second.counts());
+        assertEquals(Map.of("attributeDefinitions", new Counts(0, 1, 0)), changed.counts());
+        assertEquals(List.of("attributeDefinitions[1] attribute.ref_kind"), errors(changed));
+        assertTrue(definitions.list("PERSON").getFirst().required());
+    }
+
+    private static ImportDocument definitions(List<AttributeDefinitionRow> rows) {
+        return new ImportDocument("2026-04-01", false, null, null, null, null, null, null, null, rows);
     }
 
     @Test

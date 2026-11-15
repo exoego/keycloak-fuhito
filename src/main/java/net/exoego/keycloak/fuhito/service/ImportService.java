@@ -2,13 +2,16 @@ package net.exoego.keycloak.fuhito.service;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Function;
 
+import net.exoego.keycloak.fuhito.domain.AttributeDefinition;
 import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.RefItem;
 import net.exoego.keycloak.fuhito.domain.RefKind;
+import net.exoego.keycloak.fuhito.service.ImportDocument.AttributeDefinitionRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.RefItemRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.RefKindRow;
 import net.exoego.keycloak.fuhito.service.ImportReport.Outcome;
@@ -32,13 +35,15 @@ public class ImportService {
 
     private static final String REF_ITEMS = "refItems";
     private static final String REF_KINDS = "refKinds";
+    private static final String ATTRIBUTE_DEFINITIONS = "attributeDefinitions";
 
     /**
      * The services that an import of the setup of a realm needs.
      *
      * @param kinds the operations on the kinds of reference data of the realm
+     * @param definitions the operations on the definitions of free attributes of the realm
      */
-    public record Setup(RealmKindService kinds) {
+    public record Setup(RealmKindService kinds, AttributeDefinitionService definitions) {
     }
 
     /**
@@ -101,6 +106,10 @@ public class ImportService {
         if (document.refKinds() != null) {
             each(REF_KINDS, document.refKinds(), report, row -> importRefKind(row, report));
         }
+        if (document.attributeDefinitions() != null) {
+            each(ATTRIBUTE_DEFINITIONS, document.attributeDefinitions(), report,
+                    row -> importAttributeDefinition(row, report));
+        }
         if (document.refItems() != null) {
             each(REF_ITEMS, document.refItems(), report, row -> importRefItem(row, report));
         }
@@ -147,6 +156,27 @@ public class ImportService {
             return Outcome.UNCHANGED;
         }
         report.write(new Write.OfRefKind(false, setup.kinds().rename(code, row.name(), row.names())));
+        return Outcome.CHANGED;
+    }
+
+    private Outcome importAttributeDefinition(AttributeDefinitionRow row, ImportReport report) {
+        AttributeDefinitionService definitions = setup.definitions();
+        String name = Checks.required("name", row.name());
+        Optional<AttributeDefinition> stored = definitions.list(Checks.required("target", row.target())).stream()
+                .filter(definition -> definition.name().equals(name))
+                .findFirst();
+        if (stored.isEmpty()) {
+            report.write(new Write.OfAttributeDefinition(true, definitions.create(row.target(), name, row.type(),
+                    row.refKind(), row.required())));
+            return Outcome.CREATED;
+        }
+        AttributeDefinition before = stored.get();
+        if (before.type().name().equals(row.type()) && Objects.equals(before.refKind(), row.refKind())
+                && before.required() == Boolean.TRUE.equals(row.required())) {
+            return Outcome.UNCHANGED;
+        }
+        report.write(new Write.OfAttributeDefinition(false, definitions.replace(before.id(), row.type(),
+                row.refKind(), row.required())));
         return Outcome.CHANGED;
     }
 

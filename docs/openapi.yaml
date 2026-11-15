@@ -1047,6 +1047,45 @@ components:
           description: "The ID of a stored assignment, for a row of an assignment\
             \ with no external ID. A CSV export has it in every row. A new assignment\
             \ has none."
+    ImportAttributeDefinitionRow:
+      type: object
+      required:
+      - target
+      - name
+      - type
+      description: "The definition of a free attribute. It is matched by target and\
+        \ name. A row of a stored definition changes the type, the kind, and whether\
+        \ a value is required."
+      properties:
+        target:
+          type: string
+          description: The kind of resource.
+          enum:
+          - ORG_UNIT
+          - PERSON
+          - EMPLOYMENT_TERMS
+          - ASSIGNMENT
+          - QUALIFICATION
+          - REF_ITEM
+        name:
+          type: string
+          maxLength: 64
+          description: The name in `attributes`.
+        type:
+          type: string
+          enum:
+          - STRING
+          - NUMBER
+          - BOOLEAN
+          - DATE
+          - REF_ITEM
+        refKind:
+          type: string
+          description: The kind of reference data. Only the type `REF_ITEM` has it.
+        required:
+          type: boolean
+          description: True when every write of the resource must give a value.
+          default: false
     ImportCounts:
       type: object
       required:
@@ -1118,6 +1157,12 @@ components:
             $ref: "#/components/schemas/ImportRefKindRow"
           description: "The kinds of reference data that the realm adds. They come\
             \ first, so that the reference items can name them."
+        attributeDefinitions:
+          type: array
+          items:
+            $ref: "#/components/schemas/ImportAttributeDefinitionRow"
+          description: "The definitions of free attributes. They come after the kinds\
+            \ and before the reference items, whose attributes they check."
     ImportEmploymentRow:
       type: object
       description: "An employment. It is matched by source and external ID, or by\
@@ -4724,8 +4769,8 @@ paths:
     post:
       summary: Loads many rows in one transaction.
       description: "All rows are written, or none. A dry run does all checks and writes\
-        \ nothing. The lists are applied in the order kinds of reference data, reference\
-        \ items, org units, people, employments, assignments."
+        \ nothing. The lists are applied in the order kinds of reference data, definitions\
+        \ of attributes, reference items, org units, people, employments, assignments."
       operationId: applyImport
       tags:
       - bulk
@@ -4758,8 +4803,8 @@ paths:
       summary: Returns a list on a date as a CSV that the import loads again.
       description: "The lists are the same as for the import. A row of a thing that\
         \ has an ID has the column `id`, so that a row of a thing with no external\
-        \ ID comes back too. The kinds, the reference items, and the people have no\
-        \ date."
+        \ ID comes back too. The kinds, the definitions of attributes, the reference\
+        \ items, and the people have no date."
       operationId: exportCsv
       tags:
       - bulk
@@ -4769,6 +4814,7 @@ paths:
           type: string
           enum:
           - ref-kinds
+          - attribute-definitions
           - ref-items
           - org-units
           - people
@@ -4820,6 +4866,7 @@ paths:
           type: string
           enum:
           - ref-kinds
+          - attribute-definitions
           - ref-items
           - org-units
           - people
