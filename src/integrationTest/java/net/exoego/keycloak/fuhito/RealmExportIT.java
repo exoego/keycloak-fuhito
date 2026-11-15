@@ -119,6 +119,8 @@ class RealmExportIT {
         TestRealm target = TestRealm.create("export-target");
         USERS.forEach(username -> target.user(username));
         source.remove();
+        // A run of a job before the restore leaves its record, and the realm still counts as empty.
+        assertEquals(409, target.api.post("/projection/rebuild", "").statusCode());
         HttpResponse<String> restored = target.api.post("/restore", JSON.writeValueAsString(first));
 
         assertEquals(200, restored.statusCode(), restored.body());
