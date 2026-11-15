@@ -37,6 +37,21 @@ public final class Cursor {
      */
     public static final Format MEMBERS = new Format("members.v1", 4);
 
+    /**
+     * The employments, ordered by ID. The value is the ID of the employment.
+     */
+    public static final Format EMPLOYMENTS = new Format("employments.v1", 1);
+
+    /**
+     * The assignments of a date across the realm, ordered by the ID of the assignment. The value is that ID.
+     */
+    public static final Format ASSIGNMENTS = new Format("assignments.v1", 1);
+
+    /**
+     * The qualifications, ordered by ID. The value is the ID of the qualification.
+     */
+    public static final Format QUALIFICATIONS = new Format("qualifications.v1", 1);
+
     // No value has this text. The values are IDs that the extension makes, numbers, and dates.
     private static final String SEPARATOR = "__";
 

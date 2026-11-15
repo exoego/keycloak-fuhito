@@ -97,14 +97,7 @@ public class MembershipService {
         Page page = Page.of(query.first(), query.max());
         List<Assignment> rows = assignments.membersOn(filter, cursor(query.after()), page.first(), page.max());
 
-        Map<String, OrgUnitState> units = new HashMap<>();
-        Map<String, Optional<RefItem>> unitTypes = new HashMap<>();
-        orgUnits.placedOn(hierarchy, rows.stream().map(Assignment::orgUnitId).distinct().toList(), date)
-                .forEach(placed -> units.put(placed.unit().id(), OrgUnitState.of(placed.unit(), placed.version(),
-                        placed.version().unitTypeId() == null ? null
-                                : unitTypes.computeIfAbsent(placed.version().unitTypeId(), refItems::find)
-                                        .orElse(null), placed.parentId())));
-        return toMembers(rows, date, units::get, null);
+        return toMembers(rows, date, unitsOn(hierarchy, rows, date)::get, null);
     }
 
     /**
@@ -291,6 +284,66 @@ public class MembershipService {
     }
 
     // A filter may name an item that is no longer active, because old rows may still use it.
+    /**
+     * The values of a list of assignments across the realm. They are not checked yet. A value that is null keeps
+     * everything.
+     *
+     * @param orgUnitId the ID of the org unit
+     * @param jobTitle the code of the job title
+     * @param occupation the code of the occupation
+     * @param kind the code of the assignment kind
+     * @param asOf the date as {@code YYYY-MM-DD}, or null for today of the realm
+     */
+    public record Search(String orgUnitId, String jobTitle, String occupation, String kind, String asOf) {
+    }
+
+    /**
+     * Lists a page of the assignments of a date across the realm, by the ID of the assignment, in the shape of
+     * members.
+     *
+     * @param search what to keep and the date
+     * @param page the part of the list to return
+     * @param after the cursor after which the page starts, or null
+     * @return the members of the page
+     * @throws FuhitoException when a value is bad or a code is unknown
+     */
+    public List<Member> search(Search search, Page page, String after) {
+        AssignmentStore.Search filter = filter(search);
+        String afterId = after == null ? null : Cursor.decode(Cursor.ASSIGNMENTS, after).getFirst();
+        List<Assignment> rows = assignments.searchOn(filter, afterId, page.first(), page.max());
+        String hierarchy = orgUnits.defaultHierarchyId();
+        return toMembers(rows, filter.date(), unitsOn(hierarchy, rows, filter.date())::get, null);
+    }
+
+    /**
+     * Counts the assignments of a date across the realm that match a search.
+     *
+     * @param search what to keep and the date
+     * @return the number of assignments
+     * @throws FuhitoException when a value is bad or a code is unknown
+     */
+    public long count(Search search) {
+        return assignments.countSearchOn(filter(search));
+    }
+
+    private Map<String, OrgUnitState> unitsOn(String hierarchy, List<Assignment> rows, LocalDate date) {
+        Map<String, OrgUnitState> units = new HashMap<>();
+        Map<String, Optional<RefItem>> unitTypes = new HashMap<>();
+        orgUnits.placedOn(hierarchy, rows.stream().map(Assignment::orgUnitId).distinct().toList(), date)
+                .forEach(placed -> units.put(placed.unit().id(), OrgUnitState.of(placed.unit(), placed.version(),
+                        placed.version().unitTypeId() == null ? null
+                                : unitTypes.computeIfAbsent(placed.version().unitTypeId(), refItems::find)
+                                        .orElse(null), placed.parentId())));
+        return units;
+    }
+
+    private AssignmentStore.Search filter(Search search) {
+        LocalDate date = search.asOf() == null ? today.ofRealm() : Checks.optionalDate("asOf", search.asOf());
+        return new AssignmentStore.Search(search.orgUnitId(), filterId(RefKind.JOB_TITLE, search.jobTitle()),
+                filterId(RefKind.OCCUPATION, search.occupation()), filterId(RefKind.ASSIGNMENT_KIND, search.kind()),
+                date);
+    }
+
     private String filterId(RefKind kind, String code) {
         if (code == null) {
             return null;

@@ -1,5 +1,6 @@
 package net.exoego.keycloak.fuhito.store;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
@@ -54,4 +55,32 @@ public interface QualificationStore {
      * @param id the ID
      */
     void delete(String id);
+
+    /**
+     * What a list of qualifications keeps. A value that is null keeps everything.
+     *
+     * @param kindId the ID of the kind
+     * @param date a date on which the qualification holds
+     */
+    record Search(String kindId, LocalDate date) {
+    }
+
+    /**
+     * Lists a page of the qualifications that match a search, by ID.
+     *
+     * @param search what to keep
+     * @param afterId the ID after which the page starts, or null for the start
+     * @param first the number of qualifications to skip
+     * @param max the largest number of qualifications to return
+     * @return the qualifications of the page
+     */
+    List<Qualification> search(Search search, String afterId, int first, int max);
+
+    /**
+     * Counts the qualifications that match a search.
+     *
+     * @param search what to keep
+     * @return the number of qualifications
+     */
+    long count(Search search);
 }

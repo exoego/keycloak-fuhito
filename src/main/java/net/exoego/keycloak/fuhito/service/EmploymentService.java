@@ -2,6 +2,7 @@ package net.exoego.keycloak.fuhito.service;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -389,6 +390,63 @@ public class EmploymentService {
                 .map(t -> new EmploymentView.TermsView(t, codeOf(t.employmentTypeId()), codeOf(t.gradeId()),
                         codeOf(t.leaveReasonId())))
                 .toList());
+    }
+
+    /**
+     * The values of a list of employments. They are not checked yet. A value that is null keeps everything.
+     *
+     * @param staffNumber the staff number
+     * @param employerId the ID of the org unit that employs
+     * @param asOf a date as {@code YYYY-MM-DD} on which the employment holds
+     */
+    public record Search(String staffNumber, String employerId, String asOf) {
+
+        EmploymentStore.Search toStore() {
+            return new EmploymentStore.Search(staffNumber, employerId, Checks.optionalDate("asOf", asOf));
+        }
+    }
+
+    /**
+     * Lists a page of the employments that match a search, by ID, each with all its terms.
+     *
+     * @param search what to keep
+     * @param page the part of the list to return
+     * @param after the cursor after which the page starts, or null
+     * @return the employments of the page
+     * @throws FuhitoException when a value is bad, or the request gives a cursor and {@code first}
+     */
+    public List<EmploymentView> list(Search search, Page page, String after) {
+        String afterId = after == null ? null : Cursor.decode(Cursor.EMPLOYMENTS, after).getFirst();
+        List<Employment> found = store.search(search.toStore(), afterId, page.first(), page.max());
+        Map<String, List<EmploymentTerms>> terms = store.termsOf(found.stream().map(Employment::id).toList())
+                .stream()
+                .collect(Collectors.groupingBy(EmploymentTerms::employmentId));
+        Map<String, String> codes = new HashMap<>();
+        return found.stream()
+                .map(employment -> new EmploymentView(employment, cachedCode(codes, employment.endReasonId()),
+                        terms.getOrDefault(employment.id(), List.of()).stream()
+                                .map(t -> new EmploymentView.TermsView(t, cachedCode(codes, t.employmentTypeId()),
+                                        cachedCode(codes, t.gradeId()), cachedCode(codes, t.leaveReasonId())))
+                                .toList()))
+                .toList();
+    }
+
+    /**
+     * Counts the employments that match a search.
+     *
+     * @param search what to keep
+     * @return the number of employments
+     * @throws FuhitoException when a value is bad
+     */
+    public long count(Search search) {
+        return store.count(search.toStore());
+    }
+
+    private String cachedCode(Map<String, String> codes, String refItemId) {
+        if (refItemId == null) {
+            return null;
+        }
+        return codes.computeIfAbsent(refItemId, this::codeOf);
     }
 
     private RefItem usableItem(RefKind kind, String code, String currentId) {

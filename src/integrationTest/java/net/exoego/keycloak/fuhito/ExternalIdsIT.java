@@ -57,6 +57,32 @@ class ExternalIdsIT {
                 "/external-ids/lookup?resourceType=PERSON&source=payroll&externalId=E-77")));
         assertFalse(api.get("/change-log?resourceType=FUHITO_EXTERNAL_ID").body().contains("E-77"));
 
+        // Each kind of resource keeps its own pair and its added IDs.
+        realm.refItem("QUALIFICATION", "license", "免許");
+        String nurse = realm.user("nurse");
+        HttpResponse<String> staff = api.post("/staff", "{\"userId\": \"" + nurse + "\", \"orgUnitId\": \"" + ward
+                + "\", \"validFrom\": \"2020-04-01\"}");
+        assertEquals(201, staff.statusCode(), staff.body());
+        String employmentId = Api.json(staff).get("employment").get("id").asText();
+        String assignmentId = Api.json(staff).get("assignment").get("id").asText();
+        HttpResponse<String> license = api.post("/qualifications", "{\"userId\": \"" + nurse
+                + "\", \"kind\": \"license\", \"validFrom\": \"2020-04-01\"}");
+        assertEquals(201, license.statusCode(), license.body());
+        String qualificationId = Api.json(license).get("id").asText();
+        for (String[] resource : new String[][] {{"EMPLOYMENT", employmentId}, {"ASSIGNMENT", assignmentId},
+                {"QUALIFICATION", qualificationId}}) {
+            for (String value : List.of("X-1", "X-2")) {
+                ok(api.put("/external-ids", "{\"resourceType\": \"" + resource[0] + "\", \"resourceId\": \""
+                        + resource[1] + "\", \"source\": \"payroll\", \"externalId\": \"" + value + "\"}"));
+            }
+            assertEquals(List.of("X-2"), ok(api.get("/external-ids?resourceType=" + resource[0] + "&resourceId="
+                    + resource[1])).findValuesAsText("externalId"));
+            assertEquals(resource[1], ok(api.get("/external-ids/lookup?resourceType=" + resource[0]
+                    + "&source=payroll&externalId=X-2")).get("resourceId").asText());
+            assertEquals("external_id.unknown", errorOf(404, api.get("/external-ids/lookup?resourceType="
+                    + resource[0] + "&source=hr&externalId=none")));
+        }
+
         assertEquals(204, api.delete("/external-ids?resourceType=ORG_UNIT&resourceId=" + ward + "&source=payroll")
                 .statusCode());
     }

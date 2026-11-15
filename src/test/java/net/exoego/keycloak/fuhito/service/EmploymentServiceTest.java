@@ -108,6 +108,35 @@ class EmploymentServiceTest {
     }
 
     @Test
+    void listsEmploymentsByStaffNumberEmployerAndDate() {
+        String a = service.start(new NewEmployment("alice", "2020-04-01", "2025-04-01", "1001", null, null, null,
+                null, null, null, null, null, "company-a")).employment().id();
+        String b = service.start(new NewEmployment("bob", "2024-04-01", null, "1002", null, null, null, null, null,
+                null, null, null, "company-a")).employment().id();
+        String c = service.start(new NewEmployment("bob", "2024-04-01", null, "1001", null, null, null, null, null,
+                null, null, null, "company-b")).employment().id();
+        Page all = Page.of(null, null);
+
+        assertEquals(List.of(a, c).stream().sorted().toList(), service.list(new EmploymentService.Search("1001", null,
+                null), all, null).stream().map(view -> view.employment().id()).toList());
+        assertEquals(List.of(b), service.list(new EmploymentService.Search(null, "company-a", "2025-06-01"), all,
+                null).stream().map(view -> view.employment().id()).toList());
+        assertEquals(2, service.count(new EmploymentService.Search(null, null, "2025-06-01")));
+        EmploymentView first = service.list(new EmploymentService.Search(null, null, null), Page.of(null, 1), null)
+                .getFirst();
+        assertEquals(1, first.terms().size());
+        assertEquals(2, service.list(new EmploymentService.Search(null, null, null), all,
+                Cursor.encode(Cursor.EMPLOYMENTS, first.employment().id())).size());
+        assertEquals("invalid.date", assertThrows(FuhitoException.class,
+                () -> service.count(new EmploymentService.Search(null, null, "soon"))).code());
+        item(RefKind.GRADE, "g9", true);
+        service.changeTerms(b, new TermsChange("2025-04-01", null, "g9", null, null, null));
+        assertEquals(List.of("g9"), service.list(new EmploymentService.Search(null, "company-a", "2025-06-01"), all,
+                null).getFirst().terms().stream().map(EmploymentView.TermsView::grade).filter(g -> g != null)
+                .toList());
+    }
+
+    @Test
     void anEmploymentKeepsItsEmployerAndEachEmployerGivesItsOwnStaffNumbers() {
         EmploymentView atA = service.start(new NewEmployment("alice", "2020-04-01", null, "1001", null, null, null, null,
                 null, null, null, null, "company-a"));

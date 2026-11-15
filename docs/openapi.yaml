@@ -2295,6 +2295,98 @@ paths:
         "409":
           $ref: "#/components/responses/Conflict"
   /assignments:
+    get:
+      summary: "Lists the assignments of a date across the realm, ordered by ID, in\
+        \ the shape of members."
+      description: "To read every assignment, follow the `Link` header of each response."
+      operationId: listAssignments
+      tags:
+      - assignments
+      parameters:
+      - description: The cursor from the `Link` header of the page before.
+        name: after
+        in: query
+        schema:
+          type: string
+      - description: The date to read. The default is today in the time zone of the
+          realm.
+        schema:
+          type: string
+          format: date
+        name: asOf
+        in: query
+      - description: True to get the number of entries on all pages in the header
+          `X-Total-Count`.
+        schema:
+          type: boolean
+          default: false
+        name: count
+        in: query
+      - description: The number of entries to skip. It cannot be used with `after`.
+        schema:
+          type: integer
+          format: int32
+          minimum: 0
+          default: 0
+        name: first
+        in: query
+      - description: The code of a job title to keep.
+        name: jobTitle
+        in: query
+        schema:
+          type: string
+      - description: The code of an assignment kind to keep.
+        name: kind
+        in: query
+        schema:
+          type: string
+      - description: The largest number of entries to return.
+        schema:
+          type: integer
+          format: int32
+          maximum: 1000
+          minimum: 0
+          default: 100
+        name: max
+        in: query
+      - description: The code of an occupation to keep.
+        name: occupation
+        in: query
+        schema:
+          type: string
+      - description: The ID of an org unit to keep. The units below do not count.
+        name: orgUnitId
+        in: query
+        schema:
+          type: string
+      responses:
+        "200":
+          description: The assignments of the date.
+          headers:
+            Link:
+              description: "The URL of the next page, with `rel=\"next\"`. It is there\
+                \ when the page is full. A full page can be the last one, and the\
+                \ next page is then empty."
+              schema:
+                type: string
+            X-Total-Count:
+              description: The number of entries on all pages. It is there with `count=true`.
+              schema:
+                type: integer
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Member"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
     post:
       summary: Adds an assignment of an employment to an org unit.
       operationId: addAssignment
@@ -3105,6 +3197,88 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "404":
           $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+    get:
+      summary: "Lists the employments of the realm, ordered by ID, each with all its\
+        \ terms."
+      description: "To read every employment, follow the `Link` header of each response."
+      operationId: listEmployments
+      tags:
+      - employments
+      parameters:
+      - description: The cursor from the `Link` header of the page before.
+        name: after
+        in: query
+        schema:
+          type: string
+      - description: A date to keep the employments that hold on it. Leave it out
+          for every date.
+        schema:
+          type: string
+          format: date
+        name: asOf
+        in: query
+      - description: True to get the number of entries on all pages in the header
+          `X-Total-Count`.
+        schema:
+          type: boolean
+          default: false
+        name: count
+        in: query
+      - description: "The ID of the org unit that employs, to keep."
+        name: employerId
+        in: query
+        schema:
+          type: string
+      - description: The number of entries to skip. It cannot be used with `after`.
+        schema:
+          type: integer
+          format: int32
+          minimum: 0
+          default: 0
+        name: first
+        in: query
+      - description: The largest number of entries to return.
+        schema:
+          type: integer
+          format: int32
+          maximum: 1000
+          minimum: 0
+          default: 100
+        name: max
+        in: query
+      - description: A staff number to keep.
+        name: staffNumber
+        in: query
+        schema:
+          type: string
+      responses:
+        "200":
+          description: The employments.
+          headers:
+            Link:
+              description: "The URL of the next page, with `rel=\"next\"`. It is there\
+                \ when the page is full. A full page can be the last one, and the\
+                \ next page is then empty."
+              schema:
+                type: string
+            X-Total-Count:
+              description: The number of entries on all pages. It is there with `count=true`.
+              schema:
+                type: integer
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Employment"
+        "400":
+          $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -5295,6 +5469,83 @@ paths:
         "409":
           $ref: "#/components/responses/Conflict"
   /qualifications:
+    get:
+      summary: "Lists the qualifications of the realm, ordered by ID."
+      description: "To read every qualification, follow the `Link` header of each\
+        \ response."
+      operationId: listQualifications
+      tags:
+      - qualifications
+      parameters:
+      - description: The cursor from the `Link` header of the page before.
+        name: after
+        in: query
+        schema:
+          type: string
+      - description: A date to keep the qualifications that hold on it. Leave it out
+          for every date.
+        schema:
+          type: string
+          format: date
+        name: asOf
+        in: query
+      - description: True to get the number of entries on all pages in the header
+          `X-Total-Count`.
+        schema:
+          type: boolean
+          default: false
+        name: count
+        in: query
+      - description: The number of entries to skip. It cannot be used with `after`.
+        schema:
+          type: integer
+          format: int32
+          minimum: 0
+          default: 0
+        name: first
+        in: query
+      - description: The code of a kind of qualification to keep.
+        name: kind
+        in: query
+        schema:
+          type: string
+      - description: The largest number of entries to return.
+        schema:
+          type: integer
+          format: int32
+          maximum: 1000
+          minimum: 0
+          default: 100
+        name: max
+        in: query
+      responses:
+        "200":
+          description: The qualifications.
+          headers:
+            Link:
+              description: "The URL of the next page, with `rel=\"next\"`. It is there\
+                \ when the page is full. A full page can be the last one, and the\
+                \ next page is then empty."
+              schema:
+                type: string
+            X-Total-Count:
+              description: The number of entries on all pages. It is there with `count=true`.
+              schema:
+                type: integer
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Qualification"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
     post:
       summary: Adds a qualification of a person.
       description: The body needs `personId` or `userId`.

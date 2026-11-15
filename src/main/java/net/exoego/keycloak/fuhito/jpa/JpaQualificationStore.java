@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Optional;
 
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.TypedQuery;
 import net.exoego.keycloak.fuhito.domain.Qualification;
 import net.exoego.keycloak.fuhito.domain.ValidPeriod;
 import net.exoego.keycloak.fuhito.store.QualificationStore;
@@ -42,6 +43,50 @@ public class JpaQualificationStore implements QualificationStore {
                 .getResultStream()
                 .map(JpaQualificationStore::toDomain)
                 .toList();
+    }
+
+    // Each piece is a fixed text. The values of the search go in as parameters.
+    private <T> TypedQuery<T> searchQuery(QualificationStore.Search search, String afterId, boolean count,
+            Class<T> type) {
+        StringBuilder text = new StringBuilder(count ? "select count(q)" : "select q")
+                .append(" from QualificationEntity q where q.realmId = :realmId");
+        if (search.kindId() != null) {
+            text.append(" and q.kindId = :kindId");
+        }
+        if (search.date() != null) {
+            text.append(" and q.validFrom <= :date and (q.validTo is null or q.validTo > :date)");
+        }
+        if (afterId != null) {
+            text.append(" and q.id > :afterId");
+        }
+        if (!count) {
+            text.append(" order by q.id");
+        }
+        TypedQuery<T> query = em.createQuery(text.toString(), type).setParameter("realmId", realmId);
+        if (search.kindId() != null) {
+            query.setParameter("kindId", search.kindId());
+        }
+        if (search.date() != null) {
+            query.setParameter("date", search.date());
+        }
+        if (afterId != null) {
+            query.setParameter("afterId", afterId);
+        }
+        return query;
+    }
+
+    @Override
+    public List<Qualification> search(QualificationStore.Search search, String afterId, int first, int max) {
+        return searchQuery(search, afterId, false, QualificationEntity.class)
+                .setFirstResult(first).setMaxResults(max)
+                .getResultStream()
+                .map(JpaQualificationStore::toDomain)
+                .toList();
+    }
+
+    @Override
+    public long count(QualificationStore.Search search) {
+        return searchQuery(search, null, true, Long.class).getSingleResult();
     }
 
     @Override

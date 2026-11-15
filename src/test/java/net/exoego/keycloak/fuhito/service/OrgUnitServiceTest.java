@@ -124,6 +124,12 @@ class OrgUnitServiceTest {
         // A group can go below a line unit or another group.
         service.move(union, hospital, "2026-09-01");
         assertEquals(List.of("Hospital"), names(service.roots("2026-09-01", null, null, all)));
+
+        // A unit that was a group before a date can take a line unit below it from that date.
+        String board = unitOfType("Board", "committee", null);
+        service.changeDetails(board, new OrgUnitChange("2026-10-01", null, "Board", null, null, null, null, null,
+                null, null));
+        service.create(named("Office", board, "2026-10-01"));
     }
 
     @Test

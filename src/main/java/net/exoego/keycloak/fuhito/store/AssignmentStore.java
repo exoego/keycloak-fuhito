@@ -107,4 +107,35 @@ public interface AssignmentStore {
      * @param rowId the ID of the row
      */
     void delete(String rowId);
+
+    /**
+     * What a list of assignments across the realm keeps. A value that is null keeps everything.
+     *
+     * @param orgUnitId the ID of the org unit
+     * @param jobTitleId the ID of the job title
+     * @param occupationId the ID of the occupation
+     * @param kindId the ID of the assignment kind
+     * @param date the date on which the rows hold
+     */
+    record Search(String orgUnitId, String jobTitleId, String occupationId, String kindId, LocalDate date) {
+    }
+
+    /**
+     * Lists a page of the rows of a date that match a search, by the ID of the assignment.
+     *
+     * @param search what to keep
+     * @param afterAssignmentId the ID of the assignment after which the page starts, or null for the start
+     * @param first the number of rows to skip
+     * @param max the largest number of rows to return
+     * @return the rows of the page
+     */
+    List<Assignment> searchOn(Search search, String afterAssignmentId, int first, int max);
+
+    /**
+     * Counts the rows of a date that match a search.
+     *
+     * @param search what to keep
+     * @return the number of rows
+     */
+    long countSearchOn(Search search);
 }

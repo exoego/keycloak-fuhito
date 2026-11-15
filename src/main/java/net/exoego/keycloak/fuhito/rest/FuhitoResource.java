@@ -184,7 +184,7 @@ public class FuhitoResource {
      */
     @Path("assignments")
     public AssignmentsResource assignments() {
-        return new AssignmentsResource(context, assignmentService());
+        return new AssignmentsResource(context, assignmentService(), membershipService());
     }
 
     /**

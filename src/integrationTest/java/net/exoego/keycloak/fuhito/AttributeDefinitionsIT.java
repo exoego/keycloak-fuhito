@@ -30,6 +30,7 @@ class AttributeDefinitionsIT {
                 + "\"type\": \"NUMBER\", \"required\": true}"));
         assertEquals(List.of("beds"), Api.json(api.get("/attribute-definitions?target=ORG_UNIT"))
                 .findValuesAsText("name"));
+        assertEquals(beds, Api.json(api.get("/attribute-definitions/" + beds.get("id").asText())));
         assertEquals(List.of("fuhito/attribute-definitions/" + beds.get("id").asText()), Api.json(api.get(
                 "/change-log?resourceType=FUHITO_ATTRIBUTE_DEFINITION")).findValuesAsText("resourcePath"));
 

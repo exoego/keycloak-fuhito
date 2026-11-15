@@ -112,6 +112,11 @@ class UnitRoleServiceTest {
         assertEquals("unit_role.overlap", code(() -> service.add(alice, division, "approver", null, "2026-09-01",
                 null)));
         service.add(alice, division, "approver", null, "2026-10-01", null);
+        String later = orgUnits.create(new NewOrgUnit(null, "Later", null, null, null, null, null, null, "2026-07-01",
+                null, null, null, null)).unit().id();
+        assertEquals("unit_role.org_unit_not_valid", code(() -> service.add(alice, later, "approver", null,
+                "2026-04-01", null)));
+        assertEquals("ref_item.unknown", code(() -> service.holders(ward, "nurse", null, Page.of(null, null))));
         assertEquals("unit_role.not_found", code(() -> service.get("nope")));
         assertEquals("org_unit.not_found", code(() -> service.holders("nope", null, null, Page.of(null, null))));
     }
