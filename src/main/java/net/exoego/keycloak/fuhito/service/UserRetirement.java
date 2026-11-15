@@ -3,15 +3,20 @@ package net.exoego.keycloak.fuhito.service;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 import net.exoego.keycloak.fuhito.domain.Assignment;
 import net.exoego.keycloak.fuhito.domain.Employment;
+import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.domain.ReportingLine;
 import net.exoego.keycloak.fuhito.store.AssignmentStore;
 import net.exoego.keycloak.fuhito.store.EmploymentStore;
+import net.exoego.keycloak.fuhito.store.ExternalIdStore;
 import net.exoego.keycloak.fuhito.store.PersonStore;
 import net.exoego.keycloak.fuhito.store.ReportingLineStore;
+import net.exoego.keycloak.fuhito.store.UnitRoleStore;
 
 /**
  * What happens to the data about a user when the user is removed from Keycloak.
@@ -24,6 +29,8 @@ public class UserRetirement {
     private final AssignmentStore assignments;
     private final ReportingLineStore lines;
     private final PersonStore people;
+    private final UnitRoleStore unitRoles;
+    private final ExternalIdStore externalIds;
     private final Clock clock;
 
     /**
@@ -34,11 +41,16 @@ public class UserRetirement {
      * @param assignments the storage of assignments of the realm
      * @param lines the storage of reporting lines of the realm
      * @param people the storage of people of the realm
+     * @param unitRoles the storage of roles over org units of the realm
+     * @param externalIds the storage of the IDs of other systems of the realm
      * @param clock the clock that decides what "today" is
      */
     public UserRetirement(EmploymentStore employments, EmploymentService employmentService,
-            AssignmentStore assignments, ReportingLineStore lines, PersonStore people, Clock clock) {
+            AssignmentStore assignments, ReportingLineStore lines, PersonStore people, UnitRoleStore unitRoles,
+            ExternalIdStore externalIds, Clock clock) {
         this.people = people;
+        this.unitRoles = unitRoles;
+        this.externalIds = externalIds;
         this.employments = employments;
         this.employmentService = employmentService;
         this.assignments = assignments;
@@ -58,10 +70,13 @@ public class UserRetirement {
     public List<EmploymentView> retire(String userId) {
         LocalDate today = LocalDate.now(clock);
         List<EmploymentView> ended = new ArrayList<>();
-        for (Employment employment : employments.findByUser(userId)) {
-            if (!employment.period().from().isBefore(today)) {
-                removeNeverHeld(employment);
-            } else if (employment.period().endsAfter(today)) {
+        List<Employment> all = employments.findByUser(userId);
+        // A later employment can continue an earlier one, so the later one goes first.
+        all.reversed().stream()
+                .filter(employment -> !employment.period().from().isBefore(today))
+                .forEach(this::removeNeverHeld);
+        for (Employment employment : all) {
+            if (employment.period().from().isBefore(today) && employment.period().endsAfter(today)) {
                 ended.add(employmentService.end(employment.id(), today.toString(), null));
             }
         }
@@ -78,11 +93,20 @@ public class UserRetirement {
     }
 
     private void removeNeverHeld(Employment employment) {
+        unitRoles.findByEmployment(employment.id()).forEach(role -> unitRoles.delete(role.id()));
+        Set<String> assignmentIds = new LinkedHashSet<>();
         for (Assignment row : assignments.rowsOfEmployment(employment.id())) {
             lines.findByAssignment(row.assignmentId()).forEach(line -> lines.delete(line.id()));
             assignments.delete(row.rowId());
+            assignmentIds.add(row.assignmentId());
         }
+        assignmentIds.forEach(id -> removeExternalIds(ExternalId.Kind.ASSIGNMENT, id));
+        removeExternalIds(ExternalId.Kind.EMPLOYMENT, employment.id());
         employments.terms(employment.id()).forEach(terms -> employments.deleteTerms(terms.id()));
         employments.delete(employment.id());
+    }
+
+    private void removeExternalIds(ExternalId.Kind kind, String resourceId) {
+        externalIds.ofResource(kind, resourceId).forEach(row -> externalIds.delete(row.id()));
     }
 }
