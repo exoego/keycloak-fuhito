@@ -69,7 +69,14 @@ public final class RealmData {
     public static void deletePerson(EntityManager em, String realmId, String personId) {
         // Every query is one fixed text. The order matters, because later queries read rows of earlier ones.
         List.of(
-                // Lines where the person reports, and lines where the person is the manager.
+                // Lines where the person reports, and lines where the person is the manager, with their entries.
+                """
+                delete from ChangeLogEntity l where l.realmId = :realmId and l.resourceType = 'FUHITO_REPORTING_LINE'
+                and l.resourceId in (select r.id from ReportingLineEntity r where r.realmId = :realmId
+                and (r.managerPersonId = :personId or r.assignmentId in
+                (select a.assignmentId from AssignmentEntity a where a.realmId = :realmId
+                and a.employmentId in
+                (select e.id from EmploymentEntity e where e.realmId = :realmId and e.personId = :personId))))""",
                 """
                 delete from ReportingLineEntity r where r.realmId = :realmId
                 and (r.managerPersonId = :personId or r.assignmentId in
@@ -113,7 +120,8 @@ public final class RealmData {
                 (select e.id from EmploymentEntity e where e.realmId = :realmId and e.personId = :personId)))
                 or (l.resourceType = 'FUHITO_QUALIFICATION' and l.resourceId in
                 (select q.id from QualificationEntity q where q.realmId = :realmId and q.personId = :personId))
-                or (l.resourceType = 'FUHITO_PERSON' and l.resourceId = :personId))""",
+                or (l.resourceType = 'FUHITO_PERSON' and l.resourceId = :personId)
+                or (l.resourceType = 'FUHITO_PERSON_DATA' and l.resourceId = :personId))""",
                 """
                 delete from UnitRoleEntity r where r.realmId = :realmId and r.employmentId in
                 (select e.id from EmploymentEntity e where e.realmId = :realmId and e.personId = :personId)""",
