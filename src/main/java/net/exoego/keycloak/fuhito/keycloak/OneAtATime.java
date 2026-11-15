@@ -22,6 +22,23 @@ final class OneAtATime {
     }
 
     /**
+     * Runs a long job with no transaction of the session open.
+     * Keycloak ends a transaction after some minutes, also one that does nothing. The session of a request
+     * or of a timer has one from its start, and its end would fail after a long job.
+     * So that transaction ends first. Keycloak cannot start a second one in a session, so the caller must
+     * not use the database of the session after the job.
+     *
+     * @param <T> the type of the result
+     * @param session the session of the request or of the timer
+     * @param run the job, which does its work in sessions of its own
+     * @return the result of the job
+     */
+    static <T> T outsideTransaction(KeycloakSession session, Supplier<T> run) {
+        session.getTransactionManager().commit();
+        return run.get();
+    }
+
+    /**
      * Runs the job, unless a run of the same job for the same realm is going on.
      *
      * @param <T> the type of the result
