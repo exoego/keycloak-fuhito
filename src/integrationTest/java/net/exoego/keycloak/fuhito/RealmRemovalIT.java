@@ -10,7 +10,7 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 class RealmRemovalIT {
 
     private static final List<String> TABLES = List.of("fuhito_hierarchy", "fuhito_ref_item",
-            "fuhito_attribute_definition", "fuhito_ref_kind", "fuhito_external_id", "fuhito_idempotency_key", "fuhito_org_unit",
+            "fuhito_attribute_definition", "fuhito_ref_kind", "fuhito_external_id", "fuhito_idempotency_key", "fuhito_job_run", "fuhito_org_unit",
             "fuhito_org_unit_version", "fuhito_org_unit_link", "fuhito_org_unit_succession", "fuhito_employment", "fuhito_employment_terms",
             "fuhito_assignment", "fuhito_change_order", "fuhito_change_log", "fuhito_change_log_counter", "fuhito_qualification",
             "fuhito_reporting_line", "fuhito_unit_role", "fuhito_user_mask", "fuhito_person");
@@ -86,6 +86,8 @@ class RealmRemovalIT {
                 .statusCode());
         assertEquals(201, api.post("/people", "{\"name\": \"Guest\"}", "Idempotency-Key", "guest-1").statusCode());
         assertEquals(201, api.post("/ref-kinds", "{\"code\": \"site\", \"name\": \"Site\"}").statusCode());
+        // The projection is off in this realm, so the rebuild fails, and its run is recorded.
+        assertEquals(409, api.post("/projection/rebuild", "").statusCode());
         realm.refItem("UNIT_ROLE", "approver", "Approver");
         assertEquals(201, api.post("/unit-roles", "{\"employmentId\": \"" + Api.json(employment).get("id").asText()
                 + "\", \"orgUnitId\": \"" + Api.json(parent).get("id").asText()

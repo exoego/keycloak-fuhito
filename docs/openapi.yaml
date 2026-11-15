@@ -1376,6 +1376,37 @@ components:
         message:
           type: string
           description: The message for people.
+    JobRun:
+      description: "The last run of a long job, also one that the timer started."
+      type: object
+      properties:
+        job:
+          type: string
+          enum:
+          - projection
+          - sync
+        state:
+          type: string
+          description: "`ABANDONED` is a run that still showed `RUNNING` after six\
+            \ hours, for example because its node stopped."
+          enum:
+          - RUNNING
+          - DONE
+          - FAILED
+          - ABANDONED
+        startedAt:
+          type: string
+        endedAt:
+          type: string
+          description: It is missing while the run goes on.
+        report:
+          type: object
+          additionalProperties: {}
+          description: The counts of the report of a run that is done. A list counts
+            as its size.
+        error:
+          type: string
+          description: The code of the error of a failed run.
     Leave:
       required:
       - validFrom
@@ -3290,6 +3321,29 @@ paths:
       responses:
         "204":
           description: The definition is gone.
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /attribute-sync/last-run:
+    get:
+      summary: Returns the state and the counts of the last sync from user attributes.
+      description: A caller whose call a proxy ended can read the result here. The
+        job goes on in the server either way.
+      operationId: getLastSyncRun
+      tags:
+      - keycloak
+      responses:
+        "200":
+          description: The last run.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobRun"
         "404":
           $ref: "#/components/responses/NotFound"
         "401":
@@ -6135,6 +6189,29 @@ paths:
                   $ref: "#/components/schemas/UnitRole"
         "400":
           $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /projection/last-run:
+    get:
+      summary: Returns the state and the counts of the last rebuild of the projection.
+      description: A caller whose call a proxy ended can read the result here. The
+        job goes on in the server either way.
+      operationId: getLastProjectionRun
+      tags:
+      - keycloak
+      responses:
+        "200":
+          description: The last run.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobRun"
         "404":
           $ref: "#/components/responses/NotFound"
         "401":
