@@ -11,6 +11,7 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 import net.exoego.keycloak.fuhito.domain.Assignment;
+import net.exoego.keycloak.fuhito.domain.AttributeDefinition;
 import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.Employment;
 import net.exoego.keycloak.fuhito.domain.EmploymentStatus;
@@ -34,6 +35,7 @@ import net.exoego.keycloak.fuhito.store.UnitRoleStore;
  */
 public class EmploymentService {
 
+    private final AttributeRules attributeRules;
     private final EmploymentStore store;
     private final AssignmentStore assignments;
     private final RefItemStore refItems;
@@ -55,6 +57,25 @@ public class EmploymentService {
      */
     public EmploymentService(EmploymentStore store, AssignmentStore assignments, RefItemStore refItems,
             PersonStore people, ReportingLineStore reportingLines, UnitRoleStore unitRoles, Employers employers) {
+        this(store, assignments, refItems, people, reportingLines, unitRoles, employers, AttributeRules.NONE);
+    }
+
+    /**
+     * Creates the service with a check of free attributes.
+     *
+     * @param store the storage of employments of the realm
+     * @param assignments the storage of assignments of the realm
+     * @param refItems the storage of reference items of the realm
+     * @param people the storage of people of the realm
+     * @param reportingLines the storage of reporting lines of the realm
+     * @param unitRoles the storage of roles over org units of the realm
+     * @param employers the rule that decides who employs a person
+     * @param attributeRules the check of free attributes against the definitions of the realm
+     */
+    public EmploymentService(EmploymentStore store, AssignmentStore assignments, RefItemStore refItems,
+            PersonStore people, ReportingLineStore reportingLines, UnitRoleStore unitRoles, Employers employers,
+            AttributeRules attributeRules) {
+        this.attributeRules = attributeRules;
         this.employers = employers;
         this.reportingLines = reportingLines;
         this.unitRoles = unitRoles;
@@ -144,7 +165,7 @@ public class EmploymentService {
         }
         return new EmploymentTerms(termsId, employmentId, period, idOf(employmentType), idOf(grade), status,
                 idOf(leaveReason), Checks.optionalPercent("workPercent", values.workPercent()),
-                values.attributes() == null ? Map.of() : values.attributes());
+                attributeRules.check(AttributeDefinition.Target.EMPLOYMENT_TERMS, values.attributes()));
     }
 
     /**

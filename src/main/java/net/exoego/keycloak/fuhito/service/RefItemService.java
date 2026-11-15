@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import net.exoego.keycloak.fuhito.domain.AttributeDefinition;
 import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.RefItem;
@@ -16,6 +17,7 @@ import net.exoego.keycloak.fuhito.store.RefItemStore;
 public class RefItemService {
 
     private final RefItemStore store;
+    private final AttributeRules attributeRules;
 
     /**
      * Creates the service.
@@ -23,7 +25,18 @@ public class RefItemService {
      * @param store the storage of the realm
      */
     public RefItemService(RefItemStore store) {
+        this(store, AttributeRules.NONE);
+    }
+
+    /**
+     * Creates the service with a check of free attributes.
+     *
+     * @param store the storage of the realm
+     * @param attributeRules the check of free attributes against the definitions of the realm
+     */
+    public RefItemService(RefItemStore store, AttributeRules attributeRules) {
         this.store = store;
+        this.attributeRules = attributeRules;
     }
 
     /**
@@ -171,7 +184,7 @@ public class RefItemService {
         store.delete(id);
     }
 
-    private static RefItem item(String id, RefKind kind, String code, String name, Map<String, String> names,
+    private RefItem item(String id, RefKind kind, String code, String name, Map<String, String> names,
             Integer displayOrder, Map<String, Object> attributes, boolean active, Marks marks) {
         boolean legalEntity = mark(kind, RefKind.UNIT_TYPE, marks.legalEntity(), "ref_item.legal_entity_kind");
         boolean actingHead = mark(kind, RefKind.ASSIGNMENT_KIND, marks.actingHead(), "ref_item.acting_head_kind");
@@ -180,7 +193,8 @@ public class RefItemService {
             throw FuhitoException.invalid("ref_item.group_legal_entity", Map.of("code", code));
         }
         return new RefItem(id, kind, code, Checks.name("name", name), Checks.localizedNames("names", names),
-                displayOrder == null ? 0 : displayOrder, attributes == null ? Map.of() : attributes, active,
+                displayOrder == null ? 0 : displayOrder,
+                attributeRules.check(AttributeDefinition.Target.REF_ITEM, attributes), active,
                 legalEntity, actingHead, group);
     }
 

@@ -92,6 +92,17 @@ Unit types, job titles, occupations, employment types, grades, end reasons, assi
 Each realm defines its own items.
 An item has a code, a name, and optional names in other languages.
 
+## Free attributes
+
+Org units, people, employment terms, assignments, qualifications, and reference items have `attributes`, a JSON object for values that the realm needs.
+A realm can define them with `POST /attribute-definitions`, so that products use one name for one thing.
+
+- A definition is for one kind of resource and one name. It has a type, `STRING`, `NUMBER`, `BOOLEAN`, `DATE`, or `REF_ITEM` with a kind of reference data.
+- Every write of the resource is checked against the definitions. A value of the wrong type fails with `attribute.bad_value`. A missing required one fails with `attribute.required`.
+- An attribute with no definition is allowed. The realm attribute `fuhito.attributes.unknown` with the value `reject` makes such a write fail with `attribute.unknown`.
+- A new, changed, or removed definition does not rewrite stored values. A row is checked at its next write.
+- A reader of the org structure may read the definitions.
+
 ## Languages
 
 Names can have text in several languages, for example Japanese and English.

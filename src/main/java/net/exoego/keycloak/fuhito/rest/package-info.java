@@ -36,7 +36,8 @@
         tags = {
             @Tag(name = Tags.GENERAL, description = "The version and the hierarchies."),
             @Tag(name = Tags.REF_ITEMS,
-                    description = "The lists that a realm defines, such as unit types and occupations."),
+                    description = "The lists that a realm defines, such as unit types and occupations, and the "
+                            + "definitions of free attributes."),
             @Tag(name = Tags.ORG_UNITS, description = "Org units, their tree on a date, and their history."),
             @Tag(name = Tags.EMPLOYMENTS, description = "Employments of users, with their terms over time."),
             @Tag(name = Tags.ASSIGNMENTS, description = "Assignments of employments to org units."),

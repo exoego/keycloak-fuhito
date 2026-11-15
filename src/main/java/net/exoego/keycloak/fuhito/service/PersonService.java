@@ -6,6 +6,7 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Predicate;
 
+import net.exoego.keycloak.fuhito.domain.AttributeDefinition;
 import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.Person;
@@ -31,6 +32,7 @@ public class PersonService {
     private final PersonStore store;
     private final UserDirectory users;
     private final Predicate<String> inUse;
+    private final AttributeRules attributeRules;
 
     /**
      * Creates the service.
@@ -40,6 +42,20 @@ public class PersonService {
      * @param inUse tells whether an employment, a qualification, or a reporting line names the person with an ID
      */
     public PersonService(PersonStore store, UserDirectory users, Predicate<String> inUse) {
+        this(store, users, inUse, AttributeRules.NONE);
+    }
+
+    /**
+     * Creates the service with a check of free attributes.
+     *
+     * @param store the storage of people of the realm
+     * @param users the users of the realm
+     * @param inUse tells whether an employment, a qualification, or a reporting line names the person with an ID
+     * @param attributeRules the check of free attributes against the definitions of the realm
+     */
+    public PersonService(PersonStore store, UserDirectory users, Predicate<String> inUse,
+            AttributeRules attributeRules) {
+        this.attributeRules = attributeRules;
         this.store = store;
         this.users = users;
         this.inUse = inUse;
@@ -188,7 +204,7 @@ public class PersonService {
         }
         return new Person(id, userId, name, Checks.localizedNames("names", request.names()),
                 Checks.optionalName("phoneticName", request.phoneticName()),
-                request.attributes() == null ? Map.of() : request.attributes(), externalId, source);
+                attributeRules.check(AttributeDefinition.Target.PERSON, request.attributes()), externalId, source);
     }
 
     private PersonView view(Person person) {

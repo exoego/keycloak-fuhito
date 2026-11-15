@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import net.exoego.keycloak.fuhito.domain.AttributeDefinition;
 import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.Person;
@@ -28,6 +29,7 @@ public class QualificationService {
     private final PersonStore people;
     private final UserDirectory users;
     private final Clock clock;
+    private final AttributeRules attributeRules;
 
     /**
      * Creates the service.
@@ -40,6 +42,22 @@ public class QualificationService {
      */
     public QualificationService(QualificationStore store, RefItemStore refItems, PersonStore people,
             UserDirectory users, Clock clock) {
+        this(store, refItems, people, users, clock, AttributeRules.NONE);
+    }
+
+    /**
+     * Creates the service with a check of free attributes.
+     *
+     * @param store the storage of qualifications of the realm
+     * @param refItems the storage of reference items of the realm
+     * @param people the storage of people of the realm
+     * @param users the users of the realm
+     * @param clock the clock that decides what "today" is
+     * @param attributeRules the check of free attributes against the definitions of the realm
+     */
+    public QualificationService(QualificationStore store, RefItemStore refItems, PersonStore people,
+            UserDirectory users, Clock clock, AttributeRules attributeRules) {
+        this.attributeRules = attributeRules;
         this.people = people;
         this.store = store;
         this.refItems = refItems;
@@ -155,7 +173,8 @@ public class QualificationService {
         ValidPeriod period = Checks.period(Checks.date("validFrom", request.validFrom()),
                 Checks.optionalDate("validTo", request.validTo()));
         return new Qualification(id, person.id(), person.userId(), kindId, Checks.optionalName("number", request.number()), period,
-                request.attributes() == null ? Map.of() : request.attributes(), externalId, source);
+                attributeRules.check(AttributeDefinition.Target.QUALIFICATION, request.attributes()), externalId,
+                source);
     }
 
     private QualificationView view(Qualification qualification) {

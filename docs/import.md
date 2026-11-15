@@ -90,7 +90,7 @@ curl -X POST \
 - The cell `#CLEAR` removes the stored value.
 - True is `true`, `1`, `yes`, `はい`, or `○`. False is `false`, `0`, `no`, `いいえ`, or `×`.
 - A name in another language has its own column, for example `name:en` or `名称:en`.
-- Attributes cannot be set from CSV. They keep what is stored.
+- A column `attributes.<name>` sets an attribute that the realm defined for the resource of the list, for example `attributes.beds`. The cell is read by the type of the definition. Other attributes keep what is stored. A column of an attribute with no definition is rejected.
 
 ### Columns
 

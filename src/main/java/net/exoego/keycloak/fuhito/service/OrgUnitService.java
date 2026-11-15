@@ -13,6 +13,7 @@ import java.util.Set;
 import java.util.UUID;
 
 import net.exoego.keycloak.fuhito.domain.Assignment;
+import net.exoego.keycloak.fuhito.domain.AttributeDefinition;
 import net.exoego.keycloak.fuhito.domain.BusinessDay;
 import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
@@ -33,6 +34,7 @@ import net.exoego.keycloak.fuhito.store.RefItemStore;
  */
 public class OrgUnitService {
 
+    private final AttributeRules attributeRules;
     private final OrgUnitStore store;
     private final AssignmentStore assignments;
     private final RefItemStore refItems;
@@ -59,6 +61,21 @@ public class OrgUnitService {
      * @param today what today is for the realm and for each org unit
      */
     public OrgUnitService(OrgUnitStore store, AssignmentStore assignments, RefItemStore refItems, Today today) {
+        this(store, assignments, refItems, today, AttributeRules.NONE);
+    }
+
+    /**
+     * Creates the service with a check of free attributes.
+     *
+     * @param store the storage of the realm
+     * @param assignments the storage of assignments of the realm
+     * @param refItems the storage of reference items of the realm
+     * @param today the rule that decides what "today" is for each org unit
+     * @param attributeRules the check of free attributes against the definitions of the realm
+     */
+    public OrgUnitService(OrgUnitStore store, AssignmentStore assignments, RefItemStore refItems, Today today,
+            AttributeRules attributeRules) {
+        this.attributeRules = attributeRules;
         this.store = store;
         this.assignments = assignments;
         this.refItems = refItems;
@@ -537,7 +554,7 @@ public class OrgUnitService {
                         Map.of("id", id, "date", date.toString())));
     }
 
-    private static OrgUnitVersion version(String versionId, String unitId, ValidPeriod period, OrgUnitChange details,
+    private OrgUnitVersion version(String versionId, String unitId, ValidPeriod period, OrgUnitChange details,
             RefItem unitType) {
         return new OrgUnitVersion(versionId, unitId, period,
                 Checks.optionalCode("code", details.code()),
@@ -548,7 +565,7 @@ public class OrgUnitService {
                 Checks.optionalName("phoneticName", details.phoneticName()),
                 unitType == null ? null : unitType.id(),
                 details.displayOrder() == null ? 0 : details.displayOrder(),
-                details.attributes() == null ? Map.of() : details.attributes());
+                attributeRules.check(AttributeDefinition.Target.ORG_UNIT, details.attributes()));
     }
 
     private static OrgUnitVersion withPeriod(OrgUnitVersion v, ValidPeriod period) {

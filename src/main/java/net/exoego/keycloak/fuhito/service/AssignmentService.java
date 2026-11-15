@@ -7,6 +7,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import net.exoego.keycloak.fuhito.domain.Assignment;
+import net.exoego.keycloak.fuhito.domain.AttributeDefinition;
 import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.Employment;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
@@ -30,6 +31,7 @@ public class AssignmentService {
     private final OrgUnitStore orgUnits;
     private final RefItemStore refItems;
     private final ReportingLineStore reportingLines;
+    private final AttributeRules attributeRules;
 
     /**
      * Creates the service.
@@ -42,6 +44,22 @@ public class AssignmentService {
      */
     public AssignmentService(AssignmentStore store, EmploymentStore employments, OrgUnitStore orgUnits,
             RefItemStore refItems, ReportingLineStore reportingLines) {
+        this(store, employments, orgUnits, refItems, reportingLines, AttributeRules.NONE);
+    }
+
+    /**
+     * Creates the service with a check of free attributes.
+     *
+     * @param store the storage of assignments of the realm
+     * @param employments the storage of employments of the realm
+     * @param orgUnits the storage of org units of the realm
+     * @param refItems the storage of reference items of the realm
+     * @param reportingLines the storage of reporting lines of the realm
+     * @param attributeRules the check of free attributes against the definitions of the realm
+     */
+    public AssignmentService(AssignmentStore store, EmploymentStore employments, OrgUnitStore orgUnits,
+            RefItemStore refItems, ReportingLineStore reportingLines, AttributeRules attributeRules) {
+        this.attributeRules = attributeRules;
         this.reportingLines = reportingLines;
         this.store = store;
         this.employments = employments;
@@ -316,7 +334,7 @@ public class AssignmentService {
                 Boolean.TRUE.equals(values.primary()),
                 Checks.optionalPercent("allocationPercent", values.allocationPercent()),
                 values.displayOrder() == null ? 0 : values.displayOrder(),
-                values.attributes() == null ? Map.of() : values.attributes(),
+                attributeRules.check(AttributeDefinition.Target.ASSIGNMENT, values.attributes()),
                 externalId, source, current == null ? null : current.continuesAssignmentId());
     }
 
