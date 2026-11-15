@@ -82,16 +82,31 @@ public class JpaAssignmentStore implements AssignmentStore {
                 .toList();
     }
 
+    // Each employer with itself and every org unit below it. A person who works in one of those is at home.
+    private static final String OWNED = """
+            Owned as (
+                select m.employerId as employerId, m.employerId as unitId
+                from EmploymentEntity m where m.realmId = :realmId and m.employerId is not null
+                group by m.employerId
+                union all
+                select o.employerId as employerId, l.childId as unitId
+                from Owned o
+                join OrgUnitLinkEntity l on l.parentId = o.unitId and l.realmId = :realmId
+                    and l.hierarchyId = :employerHierarchyId and l.%s
+            )
+            """.formatted(TreeQuery.onDate("l"));
+
     @Override
     public List<Assignment> membersOn(MemberFilter filter, MemberCursor after, int first, int max) {
         // Each piece is a fixed text. The values of the request go in as parameters.
         StringBuilder text = new StringBuilder();
         if (filter.includeDescendants()) {
-            text.append(TreeQuery.SUBTREE).append("""
+            text.append(TreeQuery.SUBTREE).append(filter.seconded() == null ? "" : ", " + OWNED).append("""
                     select a from AssignmentEntity a join Tree t on t.id = a.orgUnitId
                     where a.realmId = :realmId""");
         } else {
-            text.append("select a from AssignmentEntity a where a.realmId = :realmId and a.orgUnitId = :rootId");
+            text.append(filter.seconded() == null ? "" : "with " + OWNED)
+                    .append("select a from AssignmentEntity a where a.realmId = :realmId and a.orgUnitId = :rootId");
         }
         text.append(" and a.").append(TreeQuery.onDate("a"));
         if (filter.occupationId() != null) {
@@ -105,6 +120,16 @@ public class JpaAssignmentStore implements AssignmentStore {
                      and exists (select 1 from EmploymentTermsEntity e where e.realmId = :realmId
                     and e.employmentId = a.employmentId and e.status = :status and e.""")
                     .append(TreeQuery.onDate("e")).append(')');
+        }
+        if (filter.seconded() != null) {
+            // An employment with no employer is never a secondment.
+            text.append("""
+                     and exists (select 1 from EmploymentEntity m where m.id = a.employmentId and\s""")
+                    .append(filter.seconded().wanted() ? "m.employerId is not null and not " : "(m.employerId is null or ")
+                    .append("""
+                    exists (select 1 from Owned o where o.employerId = m.employerId
+                    and o.unitId = a.orgUnitId))""")
+                    .append(filter.seconded().wanted() ? "" : ")");
         }
         if (after != null) {
             // The rows after the cursor, in the order of the list. So the database does not count past the
@@ -138,6 +163,9 @@ public class JpaAssignmentStore implements AssignmentStore {
         }
         if (filter.status() != null) {
             query.setParameter("status", filter.status().name());
+        }
+        if (filter.seconded() != null) {
+            query.setParameter("employerHierarchyId", filter.seconded().hierarchyId());
         }
         if (after != null) {
             query.setParameter("afterOrder", after.displayOrder())

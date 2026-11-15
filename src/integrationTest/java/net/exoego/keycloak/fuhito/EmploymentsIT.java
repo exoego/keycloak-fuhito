@@ -274,6 +274,15 @@ class EmploymentsIT {
         assertTrue(members.get(0).get("seconded").asBoolean());
         assertFalse(members.get(1).get("seconded").asBoolean());
         assertTrue(Api.json(groupApi.get("/users/" + jiro + "/assignments?asOf=2026-04-01")).get(0).get("seconded").asBoolean());
+        // The list can keep one side of the secondment, in one unit and below one.
+        assertEquals(List.of(jiro), Api.json(groupApi.get("/org-units/" + ward
+                + "/members?asOf=2026-04-01&seconded=true")).findValuesAsText("userId"));
+        assertEquals(List.of(taro), Api.json(groupApi.get("/org-units/" + ward
+                + "/members?asOf=2026-04-01&seconded=false")).findValuesAsText("userId"));
+        assertEquals(List.of(jiro), Api.json(groupApi.get("/org-units/" + corporation
+                + "/members?includeDescendants=true&asOf=2026-04-01&seconded=true")).findValuesAsText("userId"));
+        assertEquals(List.of(taro), Api.json(groupApi.get("/org-units/" + corporation
+                + "/members?includeDescendants=true&asOf=2026-04-01&seconded=false")).findValuesAsText("userId"));
         // The people below the corporation are both there, the guest among them.
         assertEquals(2, Api.json(groupApi.get("/org-units/" + corporation
                 + "/members?includeDescendants=true&asOf=2026-04-01")).size());

@@ -3465,6 +3465,12 @@ paths:
         in: query
         schema:
           type: string
+      - description: True to keep only the people who work outside the legal entity
+          that employs them. False to keep everyone else. The default is everyone.
+        name: seconded
+        in: query
+        schema:
+          type: boolean
       - description: An employment status to keep.
         schema:
           $ref: "#/components/schemas/EmploymentStatus"

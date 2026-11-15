@@ -12,9 +12,10 @@ package net.exoego.keycloak.fuhito.service;
  * @param max the largest number of members to return, or null for 100. At most 1000 are returned.
  * @param hierarchy the code of the hierarchy that says what is below the unit, or null for the default one
  * @param after the cursor of the page before, or null to start at the first member
+ * @param seconded true to keep the seconded people, false to keep everyone else, or null for all
  */
 public record MemberQuery(String asOf, boolean includeDescendants, String occupation, String jobTitle,
-        String status, Integer first, Integer max, String hierarchy, String after) {
+        String status, Integer first, Integer max, String hierarchy, String after, Boolean seconded) {
 
     /**
      * Makes the options of a request that uses the default hierarchy.
@@ -29,6 +30,6 @@ public record MemberQuery(String asOf, boolean includeDescendants, String occupa
      */
     public MemberQuery(String asOf, boolean includeDescendants, String occupation, String jobTitle, String status,
             Integer first, Integer max) {
-        this(asOf, includeDescendants, occupation, jobTitle, status, first, max, null, null);
+        this(asOf, includeDescendants, occupation, jobTitle, status, first, max, null, null, null);
     }
 }
