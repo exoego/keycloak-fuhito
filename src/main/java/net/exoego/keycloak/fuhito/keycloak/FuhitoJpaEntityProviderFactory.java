@@ -1,6 +1,7 @@
 package net.exoego.keycloak.fuhito.keycloak;
 
 import jakarta.persistence.EntityManager;
+import net.exoego.keycloak.fuhito.jpa.JpaHierarchyStore;
 import net.exoego.keycloak.fuhito.jpa.RealmData;
 import org.keycloak.Config;
 import org.keycloak.connections.jpa.JpaConnectionProvider;
@@ -42,6 +43,10 @@ public class FuhitoJpaEntityProviderFactory implements JpaEntityProviderFactory 
         // Each event runs in the transaction that removes the realm or the user, so both happen or neither does.
         factory.register(event -> {
             switch (event) {
+                // A realm has its default hierarchy from its start, so two first requests never both make it.
+                case RealmModel.RealmPostCreateEvent created ->
+                        new JpaHierarchyStore(entityManager(created.getKeycloakSession()),
+                                created.getCreatedRealm().getId()).defaultId();
                 case RealmModel.RealmRemovedEvent removed ->
                         RealmData.delete(entityManager(removed.getKeycloakSession()), removed.getRealm().getId());
                 case UserModel.UserRemovedEvent removed ->

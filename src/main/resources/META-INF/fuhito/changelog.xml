@@ -1035,4 +1035,12 @@
                 (SELECT string_agg(e.value, chr(10)) FROM json_each_text(CAST(p.NAMES_I18N AS json)) e)))
         </sql>
     </changeSet>
+    <changeSet id="0.1.0-default-hierarchy-of-every-realm" author="keycloak-fuhito">
+        <comment>A realm gets its default hierarchy when it is created. The realms of before get it here.</comment>
+        <sql>
+            INSERT INTO FUHITO_HIERARCHY (ID, REALM_ID, CODE, NAME)
+            SELECT r.ID, r.ID, 'default', 'Default' FROM REALM r
+            WHERE NOT EXISTS (SELECT 1 FROM FUHITO_HIERARCHY h WHERE h.REALM_ID = r.ID AND h.CODE = 'default')
+        </sql>
+    </changeSet>
 </databaseChangeLog>
