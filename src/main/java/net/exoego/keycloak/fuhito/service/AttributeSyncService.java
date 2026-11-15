@@ -252,11 +252,15 @@ public class AttributeSyncService {
             }
         }
         List<Assignment> rows = List.copyOf(byAssignment.values());
+        // A person with no Keycloak user has no attributes to follow, so the sync leaves their rows alone.
         Map<String, String> userByEmployment = from.employments()
                 .findAll(rows.stream().map(Assignment::employmentId).distinct().toList()).stream()
+                .filter(employment -> employment.userId() != null)
                 .collect(Collectors.toMap(Employment::id, Employment::userId));
         Map<String, Assignment> result = new HashMap<>();
-        rows.forEach(row -> result.put(userByEmployment.get(row.employmentId()), row));
+        rows.stream()
+                .filter(row -> userByEmployment.containsKey(row.employmentId()))
+                .forEach(row -> result.put(userByEmployment.get(row.employmentId()), row));
         return result;
     }
 
