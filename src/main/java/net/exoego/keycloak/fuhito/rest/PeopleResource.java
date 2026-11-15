@@ -15,9 +15,12 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.rest.RequestContext.Change;
+import net.exoego.keycloak.fuhito.service.Cursor;
 import net.exoego.keycloak.fuhito.service.Page;
 import net.exoego.keycloak.fuhito.service.PersonService;
 import org.eclipse.microprofile.openapi.annotations.Operation;
+import org.eclipse.microprofile.openapi.annotations.enums.SchemaType;
+import org.eclipse.microprofile.openapi.annotations.headers.Header;
 import org.eclipse.microprofile.openapi.annotations.media.Content;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 import org.eclipse.microprofile.openapi.annotations.parameters.Parameter;
@@ -50,23 +53,42 @@ public class PeopleResource {
     }
 
     @GET
-    @Operation(operationId = "listPeople", summary = "Lists the people of the realm, ordered by ID.")
-    @APIResponse(responseCode = "200", description = "The people.")
+    @Operation(
+            operationId = "listPeople",
+            summary = "Lists the people of the realm, ordered by ID.",
+            description = "To read every person, follow the `Link` header of each response. A late page then "
+                    + "costs as much as the first one. With `first`, the database counts past the skipped "
+                    + "people.")
+    @APIResponse(
+            responseCode = "200",
+            description = "The people.",
+            headers = @Header(
+                    name = "Link",
+                    description = "The URL of the next page, with `rel=\"next\"`. It is there when the page is "
+                            + "full. A full page can be the last one, and the next page is then empty.",
+                    schema = @Schema(type = SchemaType.STRING)),
+            content = @Content(mediaType = "application/json",
+                    schema = @Schema(type = SchemaType.ARRAY, implementation = PersonRepresentation.class)))
+    @BadRequest
     @ApiErrors
-    public List<PersonRepresentation> list(
+    public Response list(
             @Parameter(description = "The ID of a Keycloak user, to return only the person that is linked to it.")
             @QueryParam("userId") String userId,
             @Parameter(
-                    description = "The number of entries to skip.",
+                    description = "The number of entries to skip. It cannot be used with `after`.",
                     schema = @Schema(minimum = "0", defaultValue = "0"))
             @QueryParam("first") Integer first,
             @Parameter(
                     description = "The largest number of entries to return.",
                     schema = @Schema(minimum = "0", maximum = "1000", defaultValue = "100"))
-            @QueryParam("max") Integer max) {
+            @QueryParam("max") Integer max,
+            @Parameter(description = "The cursor from the `Link` header of the page before. Its form can change, "
+                    + "so take it from there and do not build it.")
+            @QueryParam("after") String after) {
         context.requireRead();
-        return Calls.run(context,
-                () -> service.list(userId, first, max).stream().map(PersonRepresentation::of).toList());
+        return Calls.run(context, () -> Pages.of(context,
+                service.list(userId, first, max, after).stream().map(PersonRepresentation::of).toList(),
+                Page.of(first, max).max(), person -> Cursor.encode(person.id())));
     }
 
     @POST

@@ -285,6 +285,14 @@ A list that grows with the realm is read in pages.
 `first` is the number of entries to skip. `max` is the largest number of entries to return.
 `max` is 100 by default and 1000 at most. A larger value counts as 1000.
 A read with fewer entries than `max` has reached the end.
+
+A list that has a cursor is better read with it. So far that is the list of people.
+
+- A response with a full page has the header `Link` with the URL of the next page and `rel="next"`. Follow it until a response has no such header.
+- The URL has the parameter `after` with a cursor. The cursor says where the next page starts, so a late page costs as much as the first one. With `first`, the database counts past every skipped row.
+- A full page can be the last one. The next page is then empty and has no header.
+- Take the cursor from the header and do not build it. Its form can change. It is not a secret. It has only values of the last row of the page.
+- A request gives `after` or `first`, not both.
 These are the lists of roots, children, subtrees, members, people, reference items, change orders, the change log, and the effective changes.
 
 The lists of one person and the history of one resource are returned whole. The reports of a person are the exception. They are read in pages, because the head of a large org unit has many.

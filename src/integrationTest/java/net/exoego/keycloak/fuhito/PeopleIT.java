@@ -1,6 +1,7 @@
 package net.exoego.keycloak.fuhito;
 
 import java.net.http.HttpResponse;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -122,6 +123,49 @@ class PeopleIT {
         assertEquals(all.subList(1, 3), ok(scratch.api.get("/people?first=1&max=5")).findValuesAsText("id"));
         assertEquals(all.subList(0, 1), ok(scratch.api.get("/people?max=1")).findValuesAsText("id"));
         assertEquals(0, ok(otherRealm.api.get("/people")).size());
+    }
+
+    @Test
+    void theLinkHeaderLeadsThroughEveryPage() throws Exception {
+        TestRealm scratch = TestRealm.create("people-cursor");
+        for (String name : List.of("A", "B", "C", "D", "E")) {
+            created(scratch.api.post("/people", "{\"name\": \"" + name + "\"}"));
+        }
+        List<String> all = ok(scratch.api.get("/people")).findValuesAsText("id");
+        String prefix = "/admin/realms/" + scratch.name + "/fuhito";
+
+        // A page that is not full has no link.
+        assertTrue(scratch.api.get("/people").headers().firstValue("Link").isEmpty());
+
+        List<String> followed = new ArrayList<>();
+        String path = "/people?max=2";
+        int pages = 0;
+        while (path != null) {
+            HttpResponse<String> response = scratch.api.get(path);
+            assertEquals(200, response.statusCode(), response.body());
+            followed.addAll(Api.json(response).findValuesAsText("id"));
+            pages++;
+            String link = response.headers().firstValue("Link").orElse(null);
+            if (link == null) {
+                path = null;
+            } else {
+                assertTrue(link.endsWith(">; rel=\"next\""), link);
+                String url = link.substring(1, link.indexOf('>'));
+                assertTrue(url.contains("after=") && url.contains("max=2") && !url.contains("first="), url);
+                path = url.substring(url.indexOf(prefix) + prefix.length());
+            }
+        }
+        assertEquals(all, followed);
+        // Two full pages, and one with the last person and no link.
+        assertEquals(3, pages);
+
+        // A text that is no cursor at all is rejected. The percent signs are one "!" each.
+        HttpResponse<String> bad = scratch.api.get("/people?after=%21%21");
+        assertEquals(400, bad.statusCode(), bad.body());
+        assertEquals("invalid.cursor", Api.json(bad).get("error").asText());
+        HttpResponse<String> both = scratch.api.get("/people?first=1&after=eA");
+        assertEquals(400, both.statusCode(), both.body());
+        assertEquals("invalid.cursor_with_first", Api.json(both).get("error").asText());
     }
 
     @Test

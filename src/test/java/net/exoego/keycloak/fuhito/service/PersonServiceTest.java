@@ -136,6 +136,16 @@ class PersonServiceTest {
         assertTrue(service.list(null, 0, -1).isEmpty());
         assertEquals(List.of(b), service.list("hanako", null, null).stream().map(v -> v.person().id()).toList());
         assertTrue(service.list("taro", null, null).isEmpty());
+
+        // A cursor goes on after the person that it names.
+        assertEquals(sorted.subList(1, 3), service.list(null, null, null, Cursor.encode(sorted.get(0))).stream()
+                .map(v -> v.person().id()).toList());
+        assertEquals(sorted.subList(2, 3), service.list(null, null, 1, Cursor.encode(sorted.get(1))).stream()
+                .map(v -> v.person().id()).toList());
+        assertTrue(service.list(null, null, null, Cursor.encode(sorted.get(2))).isEmpty());
+        assertEquals("invalid.cursor", failure(() -> service.list(null, null, null, "!")).code());
+        assertEquals("invalid.cursor_with_first",
+                failure(() -> service.list(null, 1, null, Cursor.encode(sorted.get(0)))).code());
     }
 
     @Test
