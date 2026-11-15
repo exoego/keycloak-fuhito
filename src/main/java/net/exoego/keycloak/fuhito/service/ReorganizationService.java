@@ -90,7 +90,7 @@ public class ReorganizationService {
                 yield new Result(op, unit);
             }
             case "change" -> new Result(op, orgUnits.changeDetails(target(step, created), new OrgUnitChange(date,
-                    step.name(), step.names(), step.shortName(), step.shortNames(), step.phoneticName(),
+                    step.code(), step.name(), step.names(), step.shortName(), step.shortNames(), step.phoneticName(),
                     step.unitType(), step.displayOrder(), step.attributes())));
             case "move" -> new Result(op, orgUnits.move(target(step, created),
                     resolve("parent", step.parentId(), step.parentRef(), created), date));

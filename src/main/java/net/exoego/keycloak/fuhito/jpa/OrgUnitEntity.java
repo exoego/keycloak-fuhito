@@ -19,8 +19,6 @@ public class OrgUnitEntity {
     @Column(name = "REALM_ID", nullable = false, length = 36)
     String realmId;
 
-    @Column(name = "CODE", length = 64)
-    String code;
 
     @Column(name = "EXTERNAL_ID", length = 255)
     String externalId;

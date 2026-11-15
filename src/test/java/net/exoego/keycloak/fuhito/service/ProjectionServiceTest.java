@@ -218,7 +218,7 @@ class ProjectionServiceTest {
     @Test
     void followsARenameAMoveANewUnitAndAnEndedAssignment() {
         rebuild();
-        orgUnits.changeDetails(nursing, new OrgUnitChange("2026-06-01", "Nursing Division", null, null, null, null,
+        orgUnits.changeDetails(nursing, new OrgUnitChange("2026-06-01", null, "Nursing Division", null, null, null, null,
                 null, null, null));
         orgUnits.move(ward, hospital, "2026-06-01");
         unit("Pharmacy", hospital);
@@ -282,7 +282,7 @@ class ProjectionServiceTest {
 
     @Test
     void aLinkedUnitThatDoesNotExistTodayIsSkipped() {
-        orgUnitStore.insertUnit(new OrgUnit("ghost", null, null, null, "org-ghost"));
+        orgUnitStore.insertUnit(new OrgUnit("ghost", null, null, "org-ghost"));
 
         assertEquals(1, rebuild().organizations());
     }

@@ -12,7 +12,6 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
         requiredProperties = {"id", "versions", "parents"})
 public record OrgUnitHistoryRepresentation(
         String id,
-        String code,
         @Schema(description = "The ID of the unit in the system it came from.")
         String externalId,
         @Schema(description = "The name of that system.")
@@ -39,7 +38,7 @@ public record OrgUnitHistoryRepresentation(
 
     static OrgUnitHistoryRepresentation of(OrgUnitHistory history) {
         var unit = history.unit();
-        return new OrgUnitHistoryRepresentation(unit.id(), unit.code(), unit.externalId(), unit.source(),
+        return new OrgUnitHistoryRepresentation(unit.id(), unit.externalId(), unit.source(),
                 history.versions().stream().map(OrgUnitRepresentation::of).toList(),
                 history.parents().stream()
                         .map(link -> new ParentPeriod(history.hierarchyCodes().get(link.hierarchyId()),

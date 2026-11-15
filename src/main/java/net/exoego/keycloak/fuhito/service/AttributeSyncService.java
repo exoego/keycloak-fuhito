@@ -218,7 +218,8 @@ public class AttributeSyncService {
             throw FuhitoException.conflict("sync.disabled", Map.of());
         }
         // With no setting, the rule for a new employment takes the only legal entity of the realm.
-        employerId = settings.employerCode() == null ? null : from.orgUnits().findUnitByCode(settings.employerCode())
+        employerId = settings.employerCode() == null ? null : from.orgUnits()
+                .findUnitByCode(settings.employerCode(), today.ofRealm())
                 .map(OrgUnit::id)
                 .orElseThrow(() -> FuhitoException.conflict("sync.employer_unknown",
                         Map.of("code", settings.employerCode())));
@@ -398,8 +399,8 @@ public class AttributeSyncService {
 
         Matcher(LocalDate today) {
             for (OrgUnitState unit : new OrgUnitTree(from.orgUnits(), from.refItems(), today).all()) {
-                if (unit.unit().code() != null) {
-                    unitByCode.put(unit.unit().code(), unit.unit().id());
+                if (unit.version().code() != null) {
+                    unitByCode.put(unit.version().code(), unit.unit().id());
                 }
                 unitsByName.computeIfAbsent(unit.version().name(), name -> new ArrayList<>()).add(unit.unit().id());
             }

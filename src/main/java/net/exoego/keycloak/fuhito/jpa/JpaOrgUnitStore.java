@@ -149,14 +149,29 @@ public class JpaOrgUnitStore implements OrgUnitStore {
     }
 
     @Override
-    public Optional<OrgUnit> findUnitByCode(String code) {
-        return em.createQuery("select u from OrgUnitEntity u where u.realmId = :realmId and u.code = :code",
-                        OrgUnitEntity.class)
+    public Optional<OrgUnit> findUnitByCode(String code, LocalDate date) {
+        return em.createQuery("""
+                        select u from OrgUnitEntity u join OrgUnitVersionEntity v on v.orgUnitId = u.id
+                        where u.realmId = :realmId and v.realmId = :realmId and v.code = :code and v.%s"""
+                        .formatted(TreeQuery.onDate("v")), OrgUnitEntity.class)
                 .setParameter("realmId", realmId)
                 .setParameter("code", code)
+                .setParameter("date", date)
                 .getResultStream()
                 .findFirst()
                 .map(JpaOrgUnitStore::toDomain);
+    }
+
+    @Override
+    public List<OrgUnitVersion> versionsWithCode(String code) {
+        return em.createQuery("""
+                        select v from OrgUnitVersionEntity v where v.realmId = :realmId and v.code = :code
+                        order by v.validFrom, v.orgUnitId""", OrgUnitVersionEntity.class)
+                .setParameter("realmId", realmId)
+                .setParameter("code", code)
+                .getResultStream()
+                .map(JpaOrgUnitStore::toDomain)
+                .toList();
     }
 
     @Override
@@ -187,7 +202,6 @@ public class JpaOrgUnitStore implements OrgUnitStore {
     @Override
     public void updateUnit(OrgUnit unit) {
         OrgUnitEntity entity = Rows.require(em, OrgUnitEntity.class, unit.id(), realmId, found -> found.realmId);
-        entity.code = unit.code();
         entity.externalId = unit.externalId();
         entity.source = unit.source();
         entity.keycloakOrganizationId = unit.keycloakOrganizationId();
@@ -378,7 +392,6 @@ public class JpaOrgUnitStore implements OrgUnitStore {
         OrgUnitEntity entity = new OrgUnitEntity();
         entity.id = unit.id();
         entity.realmId = realmId;
-        entity.code = unit.code();
         entity.externalId = unit.externalId();
         entity.source = unit.source();
         entity.keycloakOrganizationId = unit.keycloakOrganizationId();
@@ -423,6 +436,7 @@ public class JpaOrgUnitStore implements OrgUnitStore {
     private static void copy(OrgUnitVersion version, OrgUnitVersionEntity entity) {
         entity.validFrom = version.period().from();
         entity.validTo = version.period().to();
+        entity.code = version.code();
         entity.name = version.name();
         entity.names = version.names();
         entity.shortName = version.shortName();
@@ -548,12 +562,12 @@ public class JpaOrgUnitStore implements OrgUnitStore {
     }
 
     private static OrgUnit toDomain(OrgUnitEntity e) {
-        return new OrgUnit(e.id, e.code, e.externalId, e.source, e.keycloakOrganizationId, e.timeZone,
+        return new OrgUnit(e.id, e.externalId, e.source, e.keycloakOrganizationId, e.timeZone,
                 e.dayStart);
     }
 
     private static OrgUnitVersion toDomain(OrgUnitVersionEntity e) {
-        return new OrgUnitVersion(e.id, e.orgUnitId, new ValidPeriod(e.validFrom, e.validTo), e.name, e.names,
+        return new OrgUnitVersion(e.id, e.orgUnitId, new ValidPeriod(e.validFrom, e.validTo), e.code, e.name, e.names,
                 e.shortName, e.shortNames, e.phoneticName, e.unitTypeId, e.displayOrder, e.attributes);
     }
 }

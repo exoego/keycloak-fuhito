@@ -131,7 +131,7 @@ public class AssignmentsProtocolMapper extends AbstractOIDCProtocolMapper
         entry.put("orgUnitPath", member.orgUnitPath().stream()
                 .map(unit -> Map.of("id", unit.unit().id(), "name", unit.version().name()))
                 .toList());
-        putIfPresent(entry, "orgUnitCode", member.orgUnit().unit().code());
+        putIfPresent(entry, "orgUnitCode", member.orgUnit().version().code());
         putIfPresent(entry, "jobTitle", member.jobTitle());
         putIfPresent(entry, "occupation", member.occupation());
         putIfPresent(entry, "kind", member.kind());

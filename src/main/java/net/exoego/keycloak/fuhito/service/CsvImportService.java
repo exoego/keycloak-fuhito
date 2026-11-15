@@ -248,7 +248,7 @@ public class CsvImportService {
                 .flatMap(orgUnits::findUnit)
                 .map(OrgUnit::externalId)
                 .orElse(null);
-        return new OrgUnitRow(source, externalId, cells.text("code", null),
+        return new OrgUnitRow(source, externalId, cells.text("code", version.map(v -> v.code()).orElse(null)),
                 cells.text("name", version.map(v -> v.name()).orElse(null)),
                 cells.localized("name", version.map(v -> v.names()).orElse(Map.of())),
                 cells.text("shortName", version.map(v -> v.shortName()).orElse(null)),

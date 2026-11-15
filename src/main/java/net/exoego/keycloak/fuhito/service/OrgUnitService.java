@@ -76,12 +76,9 @@ public class OrgUnitService {
         Checks.required("body", request);
         LocalDate validFrom = Checks.date("validFrom", request.validFrom());
         ValidPeriod period = ValidPeriod.startingAt(validFrom);
-        String code = Checks.optionalCode("code", request.code());
-        if (code != null && store.findUnitByCode(code).isPresent()) {
-            throw FuhitoException.conflict("org_unit.code_taken", Map.of("code", code));
-        }
         RefItem unitType = request.unitType() == null ? null : activeUnitType(request.unitType());
-        OrgUnit unit = new OrgUnit(newId(), code, request.externalId(), request.source(), null);
+        OrgUnit unit = new OrgUnit(newId(), request.externalId(), request.source(), null);
+        requireFreeCode(Checks.optionalCode("code", request.code()), unit.id(), period);
         if (request.parentId() != null) {
             requireParentCovers(request.parentId(), period);
             requireLineParent(unit.id(), List.of(new Nature(period, unitType != null && unitType.group())),
@@ -89,7 +86,7 @@ public class OrgUnitService {
         }
 
         OrgUnitVersion version = version(newId(), unit.id(), period, new OrgUnitChange(request.validFrom(),
-                request.name(), request.names(), request.shortName(), request.shortNames(), request.phoneticName(),
+                request.code(), request.name(), request.names(), request.shortName(), request.shortNames(), request.phoneticName(),
                 request.unitType(), request.displayOrder(), request.attributes()), unitType);
         store.insertUnit(unit);
         store.insertVersion(version);
@@ -127,6 +124,7 @@ public class OrgUnitService {
 
         ValidPeriod changed = current.period().from().equals(from) ? current.period()
                 : current.period().splitAt(from).get(1);
+        requireFreeCode(Checks.optionalCode("code", request.code()), id, changed);
         List<Nature> nature = List.of(new Nature(changed, unitType != null && unitType.group()));
         String hierarchyId = store.defaultHierarchyId();
         for (OrgUnitLink link : store.parentLinks(hierarchyId, id)) {
@@ -345,7 +343,7 @@ public class OrgUnitService {
         } catch (FuhitoException e) {
             throw FuhitoException.invalid(e.code(), e.params()).causedBy(e);
         }
-        OrgUnit changed = new OrgUnit(unit.id(), unit.code(), unit.externalId(), unit.source(),
+        OrgUnit changed = new OrgUnit(unit.id(), unit.externalId(), unit.source(),
                 unit.keycloakOrganizationId(), zone, start);
         store.updateUnit(changed);
         return changed;
@@ -536,6 +534,7 @@ public class OrgUnitService {
     private static OrgUnitVersion version(String versionId, String unitId, ValidPeriod period, OrgUnitChange details,
             RefItem unitType) {
         return new OrgUnitVersion(versionId, unitId, period,
+                Checks.optionalCode("code", details.code()),
                 Checks.name("name", details.name()),
                 Checks.localizedNames("names", details.names()),
                 Checks.optionalName("shortName", details.shortName()),
@@ -547,8 +546,8 @@ public class OrgUnitService {
     }
 
     private static OrgUnitVersion withPeriod(OrgUnitVersion v, ValidPeriod period) {
-        return new OrgUnitVersion(v.id(), v.orgUnitId(), period, v.name(), v.names(), v.shortName(), v.shortNames(),
-                v.phoneticName(), v.unitTypeId(), v.displayOrder(), v.attributes());
+        return new OrgUnitVersion(v.id(), v.orgUnitId(), period, v.code(), v.name(), v.names(), v.shortName(),
+                v.shortNames(), v.phoneticName(), v.unitTypeId(), v.displayOrder(), v.attributes());
     }
 
     // A unit may keep a unit type that was deactivated after the unit got it.
@@ -562,6 +561,14 @@ public class OrgUnitService {
         return refItems.findByCode(RefKind.UNIT_TYPE, code)
                 .filter(RefItem::active)
                 .orElseThrow(() -> FuhitoException.invalid("org_unit.unit_type_unknown", Map.of("unitType", code)));
+    }
+
+    // No two org units have the same code on the same date. One unit keeps its code over many periods.
+    private void requireFreeCode(String code, String unitId, ValidPeriod period) {
+        if (code != null && store.versionsWithCode(code).stream()
+                .anyMatch(v -> !v.orgUnitId().equals(unitId) && v.period().overlaps(period))) {
+            throw FuhitoException.conflict("org_unit.code_taken", Map.of("code", code));
+        }
     }
 
     // Whether a unit is a group in a period of its details.

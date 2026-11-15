@@ -43,8 +43,16 @@ final class MemoryOrgUnitStore implements OrgUnitStore {
     }
 
     @Override
-    public Optional<OrgUnit> findUnitByCode(String code) {
-        return units.values().stream().filter(u -> code.equals(u.code())).findFirst();
+    public Optional<OrgUnit> findUnitByCode(String code, LocalDate date) {
+        return versions.stream()
+                .filter(v -> code.equals(v.code()) && v.period().contains(date))
+                .findFirst()
+                .map(v -> units.get(v.orgUnitId()));
+    }
+
+    @Override
+    public List<OrgUnitVersion> versionsWithCode(String code) {
+        return versions.stream().filter(v -> code.equals(v.code())).toList();
     }
 
     @Override

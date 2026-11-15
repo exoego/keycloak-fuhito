@@ -718,8 +718,8 @@ components:
           type: string
           maxLength: 64
           pattern: "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
-          description: A code that is unique in the realm. It is used only when the
-            unit is created.
+          description: A code that no other org unit has on the same date. A row for
+            a stored unit changes it from the effective date.
         name:
           type: string
           maxLength: 255
@@ -1084,7 +1084,9 @@ components:
           type: string
           maxLength: 64
           pattern: "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
-          description: A code that is unique in the realm.
+          description: "A code that no other org unit has on the same date. It is\
+            \ part of the details, so it can change on a date. A change of details\
+            \ that leaves it out clears it."
         name:
           type: string
           maxLength: 255
@@ -1170,8 +1172,6 @@ components:
       type: object
       properties:
         id:
-          type: string
-        code:
           type: string
         externalId:
           type: string
@@ -1607,7 +1607,8 @@ components:
           type: string
           maxLength: 64
           pattern: "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
-          description: The code of a new unit.
+          description: "The code of a new unit, or of a unit after `change`. A `change`\
+            \ that leaves it out clears it."
         name:
           type: string
           maxLength: 255
@@ -3567,9 +3568,9 @@ paths:
     put:
       summary: Replaces the details of an org unit from the `validFrom` date of the
         body.
-      description: "The details are the names, the unit type, the display order, and\
-        \ the attributes. The code, the parent, and the external ID do not change\
-        \ here."
+      description: "The details are the code, the names, the unit type, the display\
+        \ order, and the attributes. The parent and the external ID do not change\
+        \ here. No other org unit may have the same code on a date of the change."
       operationId: changeOrgUnitDetails
       tags:
       - org-units
