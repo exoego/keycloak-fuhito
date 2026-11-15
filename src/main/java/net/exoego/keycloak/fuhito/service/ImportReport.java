@@ -276,6 +276,18 @@ public final class ImportReport {
             static Removed assignment(String id) {
                 return new Removed("FUHITO_ASSIGNMENT", id, "fuhito/assignments/" + id);
             }
+
+            static Removed employment(String id) {
+                return new Removed("FUHITO_EMPLOYMENT", id, "fuhito/employments/" + id);
+            }
+
+            static Removed unitRole(String id) {
+                return new Removed("FUHITO_UNIT_ROLE", id, "fuhito/unit-roles/" + id);
+            }
+
+            static Removed externalId(String id) {
+                return new Removed("FUHITO_EXTERNAL_ID", id, "fuhito/external-ids/" + id);
+            }
         }
     }
 
