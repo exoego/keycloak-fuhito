@@ -151,6 +151,19 @@ So these two reads answer who approved a change.
 - `GET /change-log?resourceType=&resourceId=` lists the writes to one resource. Each entry has the ID of its change order.
 - `GET /change-orders/{id}/changes` lists the writes of one change order.
 
+### Announcing a change order
+
+A planned transfer is often secret until a set day. That day is not the effective date.
+A change order has `announcedAt` and `announcedByUserId` for it. They are absent until someone records the announcement.
+
+- `POST /change-orders/{id}/announce` sets `announcedAt` to now and `announcedByUserId` to the caller.
+- No request can set them another way, and none can set a time in the future. A second call fails with `change_order.already_announced`.
+- It is a fact and not a planned date, on purpose. With a planned date, an announcement that was put off and not corrected would show the plan on the old date. With a fact, a step that someone forgot keeps the plan hidden. An application that announces on a set day calls the operation on that day.
+- The extension hides nothing with these fields. The callers of the API are trusted services, and the application that shows the data decides who may see what.
+
+An application can hide planned changes like this.
+Each entry of the change log has the ID of its change order. A row is hidden when it starts in the future and its change order has no `announcedAt`.
+
 ### Following the changes
 
 Each entry has a `sequence`. It is the position of the entry in the change log of its realm, counted from 1.

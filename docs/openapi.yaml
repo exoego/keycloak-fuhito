@@ -285,6 +285,17 @@ components:
           description: "When the order was stored, in UTC."
           format: date-time
           readOnly: true
+        announcedAt:
+          type: string
+          description: "When the order was announced, in UTC. It is absent until someone\
+            \ records the announcement. The extension hides nothing with it. An application\
+            \ can hide the planned changes of an order that has none."
+          format: date-time
+          readOnly: true
+        announcedByUserId:
+          type: string
+          description: The ID of the Keycloak user who recorded the announcement.
+          readOnly: true
     EffectiveChange:
       required:
       - effectiveDate
@@ -2473,6 +2484,40 @@ paths:
       responses:
         "204":
           description: The order was deleted.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /change-orders/{id}/announce:
+    post:
+      summary: Records that a change order was announced.
+      description: "It sets `announcedAt` to now and `announcedByUserId` to the caller.\
+        \ It cannot be taken back, and no request can set a time in the future. An\
+        \ application that announces on a set day calls this on that day."
+      operationId: announceChangeOrder
+      tags:
+      - change-orders
+      parameters:
+      - description: The ID of the resource.
+        name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      - $ref: "#/components/parameters/changeOrder"
+      responses:
+        "200":
+          description: The changed order.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChangeOrder"
         "400":
           $ref: "#/components/responses/BadRequest"
         "404":

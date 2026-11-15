@@ -38,13 +38,23 @@ public record ChangeOrderRepresentation(
         @Schema(description = "A reference to the order in another system.")
         String externalReference,
         @Schema(description = "When the order was stored, in UTC.", format = "date-time", readOnly = true)
-        String createdAt) {
+        String createdAt,
+        @Schema(
+                description = "When the order was announced, in UTC. It is absent until someone records the "
+                        + "announcement. The extension hides nothing with it. An application can hide the planned "
+                        + "changes of an order that has none.",
+                format = "date-time",
+                readOnly = true)
+        String announcedAt,
+        @Schema(description = "The ID of the Keycloak user who recorded the announcement.", readOnly = true)
+        String announcedByUserId) {
 
     static ChangeOrderRepresentation of(ChangeOrder order) {
         return new ChangeOrderRepresentation(order.id(), order.number(), order.kind(), order.title(), order.note(),
                 Objects.toString(order.orderDate(), null), order.effectiveDate().toString(),
                 order.approverUserId(), order.requesterUserId(), order.externalReference(),
-                order.createdAt().toString());
+                order.createdAt().toString(), Objects.toString(order.announcedAt(), null),
+                order.announcedByUserId());
     }
 
     ChangeOrderValues toValues() {

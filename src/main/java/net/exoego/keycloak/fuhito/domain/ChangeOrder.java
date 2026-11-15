@@ -18,8 +18,10 @@ import java.time.LocalDate;
  * @param requesterUserId the ID of the Keycloak user who asked for the order, or null
  * @param externalReference a reference to the order in another system, or null
  * @param createdAt when the order was stored
+ * @param announcedAt when the order was announced, or null when it was not announced yet
+ * @param announcedByUserId the ID of the Keycloak user who recorded the announcement, or null
  */
 public record ChangeOrder(String id, String number, String kind, String title, String note, LocalDate orderDate,
         LocalDate effectiveDate, String approverUserId, String requesterUserId, String externalReference,
-        Instant createdAt) {
+        Instant createdAt, Instant announcedAt, String announcedByUserId) {
 }

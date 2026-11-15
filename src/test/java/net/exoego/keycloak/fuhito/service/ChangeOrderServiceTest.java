@@ -108,6 +108,31 @@ class ChangeOrderServiceTest {
     }
 
     @Test
+    void anAnnouncementIsRecordedOnceAndAReplaceKeepsIt() {
+        ChangeOrder created = service.create(titled("Order", "2026-04-01"));
+        assertNull(created.announcedAt());
+        assertNull(created.announcedByUserId());
+
+        ChangeOrder announced = service.announce(created.id(), "hr");
+
+        assertEquals(Instant.parse("2026-03-20T01:02:03.123Z"), announced.announcedAt());
+        assertEquals("hr", announced.announcedByUserId());
+        assertEquals(created.createdAt(), announced.createdAt());
+        assertEquals(announced, service.get(created.id()));
+
+        ChangeOrder changed = service.update(created.id(), titled("New title", "2026-04-01"));
+        assertEquals(announced.announcedAt(), changed.announcedAt());
+        assertEquals("hr", changed.announcedByUserId());
+
+        FuhitoException again = assertThrows(FuhitoException.class, () -> service.announce(created.id(), "director"));
+        assertEquals("change_order.already_announced", again.code());
+        assertEquals(FuhitoException.Reason.CONFLICT, again.reason());
+        assertEquals("2026-03-20T01:02:03.123Z", again.params().get("announcedAt"));
+        assertEquals("change_order.not_found",
+                assertThrows(FuhitoException.class, () -> service.announce("nope", "hr")).code());
+    }
+
+    @Test
     void theNumberIsUniqueInTheRealm() {
         ChangeOrder first = service.create(new ChangeOrderValues("N-1", null, "First", null, null, "2026-04-01", null,
                 null, null));

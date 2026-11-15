@@ -35,6 +35,13 @@ public interface RequestContext {
     String nextPage(String cursor);
 
     /**
+     * Returns who sent the request.
+     *
+     * @return the ID of the Keycloak user of the caller
+     */
+    String callerUserId();
+
+    /**
      * Returns the language for messages.
      *
      * @return the locale

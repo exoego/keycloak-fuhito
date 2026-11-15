@@ -158,6 +158,30 @@ public class ChangeOrdersResource {
         });
     }
 
+    @POST
+    @Path("{id}/announce")
+    @Operation(
+            operationId = "announceChangeOrder",
+            summary = "Records that a change order was announced.",
+            description = "It sets `announcedAt` to now and `announcedByUserId` to the caller. It cannot be taken "
+                    + "back, and no request can set a time in the future. An application that announces on a set "
+                    + "day calls this on that day.")
+    @Parameter(ref = "changeOrder")
+    @APIResponse(responseCode = "200", description = "The changed order.")
+    @BadRequest
+    @NotFound
+    @ApiErrors
+    public ChangeOrderRepresentation announce(
+            @Parameter(description = "The ID of the resource.")
+            @PathParam("id") String id) {
+        context.requireWrite();
+        return Calls.run(context, () -> {
+            var order = ChangeOrderRepresentation.of(service.announce(id, context.callerUserId()));
+            context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, path(id) + "/announce", order);
+            return order;
+        });
+    }
+
     @DELETE
     @Path("{id}")
     @Operation(

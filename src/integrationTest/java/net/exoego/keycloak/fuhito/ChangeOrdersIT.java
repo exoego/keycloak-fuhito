@@ -69,6 +69,34 @@ class ChangeOrdersIT {
     }
 
     @Test
+    void recordsThatAnOrderWasAnnounced() throws Exception {
+        JsonNode order = created(api.post("/change-orders", "{\"title\": \"内示\", \"effectiveDate\": \"2027-04-01\"}"));
+        String id = order.get("id").asText();
+        assertFalse(order.has("announcedAt"));
+        // A request cannot set the announcement.
+        assertFalse(created(api.post("/change-orders", "{\"title\": \"x\", \"effectiveDate\": \"2027-04-01\", "
+                + "\"announcedAt\": \"2020-01-01T00:00:00Z\"}")).has("announcedAt"));
+
+        HttpResponse<String> response = api.post("/change-orders/" + id + "/announce", "");
+
+        assertEquals(200, response.statusCode(), response.body());
+        JsonNode announced = Api.json(response);
+        assertTrue(announced.get("announcedAt").asText().endsWith("Z"));
+        assertFalse(announced.get("announcedByUserId").asText().isEmpty());
+        assertEquals(announced, Api.json(api.get("/change-orders/" + id)));
+        // A replace keeps it.
+        assertEquals(announced.get("announcedAt"), Api.json(api.put("/change-orders/" + id,
+                "{\"title\": \"発令\", \"effectiveDate\": \"2027-04-01\"}")).get("announcedAt"));
+        assertEquals(List.of("CREATE", "UPDATE", "UPDATE"), Api.json(api.get(
+                "/change-log?resourceType=FUHITO_CHANGE_ORDER&resourceId=" + id)).findValuesAsText("operation"));
+
+        assertEquals("change_order.already_announced", errorOf(409, api.post("/change-orders/" + id + "/announce", "")));
+        assertEquals("change_order.not_found", errorOf(404, api.post("/change-orders/nope/announce", "")));
+        assertEquals("change_order.not_found",
+                errorOf(404, otherRealm.api.post("/change-orders/" + id + "/announce", "")));
+    }
+
+    @Test
     void listsOrdersByEffectiveDate() throws Exception {
         TestRealm listRealm = TestRealm.create("change-orders-list");
         for (String date : List.of("2026-04-01", "2027-04-01", "2026-10-01")) {
