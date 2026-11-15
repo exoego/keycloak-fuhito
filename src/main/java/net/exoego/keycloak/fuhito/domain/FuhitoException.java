@@ -22,7 +22,9 @@ public class FuhitoException extends RuntimeException {
         /** The request was made for another state of the target. */
         PRECONDITION,
         /** The request repeats an earlier one with other values. */
-        UNPROCESSABLE
+        UNPROCESSABLE,
+        /** The caller may not read the target. */
+        FORBIDDEN
     }
 
     /**
@@ -115,6 +117,17 @@ public class FuhitoException extends RuntimeException {
      */
     public static FuhitoException unprocessable(String code, Map<String, String> params) {
         return new FuhitoException(Reason.UNPROCESSABLE, code, params);
+    }
+
+    /**
+     * Creates an exception for a target that the caller may not read.
+     *
+     * @param code the stable error code
+     * @param params the values that the message refers to
+     * @return the exception
+     */
+    public static FuhitoException forbidden(String code, Map<String, String> params) {
+        return new FuhitoException(Reason.FORBIDDEN, code, params);
     }
 
     /**

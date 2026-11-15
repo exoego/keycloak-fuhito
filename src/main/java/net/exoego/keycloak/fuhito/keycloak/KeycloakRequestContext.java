@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Locale;
 import java.util.Map;
+import java.util.OptionalInt;
 import java.util.UUID;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -38,6 +39,12 @@ final class KeycloakRequestContext implements RequestContext {
      */
     static final String CHANGE_ORDER_PARAMETER = "changeOrder";
 
+    /**
+     * The realm attribute with the number of days after today that a caller who may read only the org structure
+     * may read it on.
+     */
+    static final String DAYS_AHEAD_ATTRIBUTE = "fuhito.structure.daysAhead";
+
     private static final ObjectMapper JSON = new ObjectMapper().setDefaultPropertyInclusion(JsonInclude.Include.NON_NULL);
 
     private final KeycloakSession session;
@@ -67,6 +74,24 @@ final class KeycloakRequestContext implements RequestContext {
     public void requireReadStructure() {
         auth.users().requireQuery();
         requireTimeSettings();
+    }
+
+    @Override
+    public OptionalInt structureDaysAhead() {
+        String setting = realm.getAttribute(DAYS_AHEAD_ATTRIBUTE);
+        if (setting == null || auth.users().canView()) {
+            return OptionalInt.empty();
+        }
+        int days;
+        try {
+            days = Integer.parseInt(setting.strip());
+        } catch (NumberFormatException e) {
+            days = -1;
+        }
+        if (days < 0) {
+            throw failure(error(Response.Status.CONFLICT, "structure.days_ahead_invalid", Map.of("value", setting)));
+        }
+        return OptionalInt.of(days);
     }
 
     // Every date in a response depends on what today is, so a realm must say where it is first.

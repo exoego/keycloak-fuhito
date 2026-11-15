@@ -298,6 +298,23 @@ A caller who may view users may also read the org structure.
 
 So a product that only draws the tree gets `query-users`, and learns no grade, no status, and no staff number.
 
+A plan for a reorganization is often secret until it is announced.
+The realm attribute `fuhito.structure.daysAhead` keeps a caller with only `query-users` from reading the structure too far ahead.
+
+| Realm attribute | Value | Default |
+|---|---|---|
+| `fuhito.structure.daysAhead` | The number of days after today that the caller may read, 0 or more | None. The caller reads every date. |
+
+With this attribute, such a caller is limited in these ways.
+
+- A read with a later `asOf` gets 403 with `structure.too_far_ahead`. Today is the date of the realm.
+- The history of an org unit has every period, so a read of it gets 403 too.
+- The successions of an org unit leave out those after the limit.
+
+An org unit still shows when its period ends, also when the end is after the limit.
+A caller who may view users has no limit.
+A value that is not such a number gets 409 with `structure.days_ahead_invalid` for the callers that it limits.
+
 A request with no token gets 401.
 A caller without the permission gets 403.
 

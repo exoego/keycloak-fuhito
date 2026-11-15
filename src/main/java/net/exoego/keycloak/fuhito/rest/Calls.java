@@ -127,6 +127,7 @@ final class Calls {
             case CONFLICT -> Response.Status.CONFLICT.getStatusCode();
             case PRECONDITION -> Response.Status.PRECONDITION_FAILED.getStatusCode();
             case UNPROCESSABLE -> UNPROCESSABLE_CONTENT;
+            case FORBIDDEN -> Response.Status.FORBIDDEN.getStatusCode();
         };
     }
 }
