@@ -230,31 +230,41 @@ public class OrgUnitService {
     }
 
     /**
-     * Ends an org unit. Its history stays readable for earlier dates.
+     * Ends an org unit, or moves the end that it has. Its history stays readable for earlier dates.
+     * An earlier end needs the same as a first end. A later end lengthens the last details and the parents that
+     * ended with the unit, and each parent must exist on the new dates.
      *
      * @param id the ID
      * @param validTo the first date on which the unit no longer exists, as {@code YYYY-MM-DD}
      * @return the unit as it is on its last date
-     * @throws FuhitoException when the unit has an end already, has changes, children, or assignments on or after
-     *         the date, or does not exist before the date
+     * @throws FuhitoException when the unit has changes, children, assignments, or roles on or after the date, does
+     *         not exist before the date, has units that follow it, or a parent does not exist on the new dates
      */
     public OrgUnitState end(String id, String validTo) {
         LocalDate to = Checks.date("validTo", validTo);
         requireUnit(id);
         List<OrgUnitVersion> versions = store.versions(id);
         OrgUnitVersion last = versions.getLast();
-        if (last.period().to() != null) {
-            throw FuhitoException.conflict("org_unit.already_ended",
-                    Map.of("id", id, "validTo", last.period().to().toString()));
-        }
+        LocalDate current = last.period().to();
         if (!to.isAfter(versions.getFirst().period().from())) {
             throw FuhitoException.notFound("org_unit.not_valid_on", Map.of("id", id, "date", to.toString()));
         }
+        if (to.equals(current)) {
+            return get(id, to.minusDays(1).toString());
+        }
+        if (current != null) {
+            requireNoSuccessors(id);
+        }
+        if (current != null && to.isAfter(current)) {
+            lengthen(id, last, to);
+            return get(id, to.minusDays(1).toString());
+        }
         List<OrgUnitLink> parentLinks = store.parentLinks(id);
         // A parent link that ends later means the unit becomes a root on that date. That is a later change too.
+        // A link that ends with the unit moves with it.
         boolean laterChange = !to.isAfter(last.period().from())
                 || parentLinks.stream().anyMatch(l -> !l.period().from().isBefore(to)
-                        || (l.period().to() != null && l.period().to().isAfter(to)));
+                        || (l.period().to() != null && l.period().to().isAfter(to) && !l.period().to().equals(current)));
         if (laterChange) {
             throw FuhitoException.conflict("org_unit.later_changes_exist", Map.of("id", id, "validTo", validTo));
         }
@@ -284,10 +294,54 @@ public class OrgUnitService {
 
         store.updateVersion(withPeriod(last, last.period().endingAt(to)));
         parentLinks.stream()
-                .filter(l -> l.period().isOpenEnded())
+                .filter(l -> l.period().isOpenEnded() || l.period().to().equals(current))
                 .forEach(l -> store.updateLink(new OrgUnitLink(l.id(), l.hierarchyId(), l.childId(), l.parentId(),
                         l.period().endingAt(to))));
         return get(id, to.minusDays(1).toString());
+    }
+
+    /**
+     * Removes the end of an org unit, for example to take back a closure. The last details and the parents that
+     * ended with the unit get no end either.
+     *
+     * @param id the ID
+     * @return the unit as it is on the last first date of its details
+     * @throws FuhitoException when the unit does not exist, has units that follow it, or a parent ends
+     */
+    public OrgUnitState removeEnd(String id) {
+        requireUnit(id);
+        OrgUnitVersion last = store.versions(id).getLast();
+        if (last.period().to() != null) {
+            requireNoSuccessors(id);
+            lengthen(id, last, null);
+        }
+        return get(id, last.period().from().toString());
+    }
+
+    // The parents that ended with the unit go on with it, so each must exist on the new dates.
+    private void lengthen(String id, OrgUnitVersion last, LocalDate to) {
+        LocalDate current = last.period().to();
+        List<OrgUnitLink> ending = store.parentLinks(id).stream()
+                .filter(l -> current.equals(l.period().to()))
+                .toList();
+        ValidPeriod added = new ValidPeriod(current, to);
+        for (OrgUnitLink link : ending) {
+            requireParentCovers(link.parentId(), added);
+            if (link.hierarchyId().equals(store.defaultHierarchyId())) {
+                requireLineParent(id, List.of(new Nature(added, natures(id).getLast().group())), link.parentId(),
+                        natures(link.parentId()), added);
+            }
+        }
+        store.updateVersion(withPeriod(last, last.period().endingAt(to)));
+        ending.forEach(l -> store.updateLink(new OrgUnitLink(l.id(), l.hierarchyId(), l.childId(), l.parentId(),
+                l.period().endingAt(to))));
+    }
+
+    // A merger or a split names the date of the end. The end stays where the successions put it.
+    private void requireNoSuccessors(String id) {
+        if (store.successions(id).stream().anyMatch(succession -> succession.predecessorId().equals(id))) {
+            throw FuhitoException.conflict("org_unit.has_successors", Map.of("id", id));
+        }
     }
 
     /**
@@ -307,6 +361,7 @@ public class OrgUnitService {
         if (successorIds == null || successorIds.isEmpty()) {
             throw FuhitoException.invalid("invalid.required", Map.of("field", "successorIds"));
         }
+        requireUnit(id);
         Set<String> successors = new LinkedHashSet<>(successorIds);
         for (String successorId : successors) {
             Checks.required("successorIds", successorId);
@@ -314,6 +369,11 @@ public class OrgUnitService {
                 throw FuhitoException.invalid("org_unit.successor_self", Map.of("id", id));
             }
             get(successorId, validTo);
+        }
+        OrgUnitVersion last = store.versions(id).getLast();
+        if (last.period().to() != null) {
+            throw FuhitoException.conflict("org_unit.already_ended",
+                    Map.of("id", id, "validTo", last.period().to().toString()));
         }
         OrgUnitState ended = end(id, validTo);
         successors.forEach(successorId -> store.insertSuccession(

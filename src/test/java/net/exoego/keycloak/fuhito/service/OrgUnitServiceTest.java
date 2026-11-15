@@ -598,7 +598,7 @@ class OrgUnitServiceTest {
     }
 
     @Test
-    void doesNotEndAUnitTwiceOrBeforeLaterChanges() {
+    void doesNotEndAUnitBeforeLaterChanges() {
         String a = root("A");
         String unit = child("Unit", a);
         service.changeDetails(unit, rename("2027-04-01", "Renamed"));
@@ -611,9 +611,42 @@ class OrgUnitServiceTest {
         assertEquals("org_unit.later_changes_exist", endFailure(unit, "2028-04-01").code());
 
         service.end(unit, "2029-04-01");
-        FuhitoException e = endFailure(unit, "2030-04-01");
-        assertEquals("org_unit.already_ended", e.code());
-        assertEquals(Map.of("id", unit, "validTo", "2029-04-01"), e.params());
+        assertEquals("org_unit.later_changes_exist", endFailure(unit, "2028-04-01").code());
+    }
+
+    @Test
+    void theEndOfAUnitMovesAndGoesAwayWithItsParent() {
+        String a = root("A");
+        String unit = child("Unit", a);
+        service.end(unit, "2029-04-01");
+        service.end(a, "2030-04-01");
+
+        // The same end changes nothing. An earlier one cuts the parent link too.
+        assertEquals("2029-04-01", service.end(unit, "2029-04-01").version().period().to().toString());
+        service.end(unit, "2028-04-01");
+        assertEquals(List.of("2028-04-01"), store.parentLinks(unit).stream()
+                .map(link -> link.period().to().toString()).toList());
+
+        // A later one lengthens the link, as far as the parent exists.
+        assertEquals("org_unit.parent_not_valid", endFailure(unit, "2031-04-01").code());
+        service.end(unit, "2030-04-01");
+        assertEquals(List.of("2030-04-01"), store.parentLinks(unit).stream()
+                .map(link -> link.period().to().toString()).toList());
+        assertEquals("org_unit.parent_not_valid", assertThrows(FuhitoException.class,
+                () -> service.removeEnd(unit)).code());
+        service.removeEnd(a);
+        assertNull(service.removeEnd(unit).version().period().to());
+        assertTrue(store.parentLinks(unit).getFirst().period().isOpenEnded());
+        assertNull(service.removeEnd(unit).version().period().to());
+
+        // A unit that others follow keeps its end.
+        String next = root("Next");
+        service.succeed(unit, "2031-04-01", List.of(next));
+        assertEquals("org_unit.has_successors", endFailure(unit, "2032-04-01").code());
+        assertEquals("org_unit.has_successors", assertThrows(FuhitoException.class,
+                () -> service.removeEnd(unit)).code());
+        assertEquals("org_unit.already_ended", assertThrows(FuhitoException.class,
+                () -> service.succeed(unit, "2032-04-01", List.of(next))).code());
     }
 
     private void assign(String assignmentId, String orgUnitId, String from, String to) {

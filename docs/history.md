@@ -85,9 +85,12 @@ The rules differ by resource, because the right answer to "what about the stored
 An org unit and an assignment reject the end, so that a planned change is not lost by accident.
 An employment removes the stored future, because a person who leaves has no future terms.
 
-The end of an assignment or an employment can move earlier or later.
+The end of an org unit, an assignment, or an employment can move earlier or later.
 `DELETE .../end` removes it.
-An org unit cannot change its end yet.
+
+- An earlier end of an org unit needs the same as a first end. The parents that ended with it end on the new date.
+- A later end of an org unit, or no end, lengthens its last details and the parents that ended with it. Each parent must exist on the new dates.
+- The end of an org unit that other units follow after a merger or a split does not move. It fails with `org_unit.has_successors`.
 
 Checked by `OrgUnitsIT.endsALeafAndKeepsItsHistory`, `OrgUnitsIT.rejectsABadEnd`, `AssignmentsIT.anOrgUnitWithAssignmentsCannotEndBeforeThem`, `AssignmentsIT.changesAJobTitleOnADateAndEndsTheAssignment`, and `EmploymentsIT.leavingEndsTheTermsAndTheAssignments`.
 

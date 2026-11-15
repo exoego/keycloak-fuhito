@@ -142,8 +142,10 @@ public class OrgUnitsResource {
     @Path("{id}/end")
     @Operation(
             operationId = "endOrgUnit",
-            summary = "Ends an org unit.",
-            description = "Its history stays readable for earlier dates.")
+            summary = "Ends an org unit, or moves its end.",
+            description = "Its history stays readable for earlier dates. A later end lengthens the last details and "
+                    + "the parents that ended with the unit. The end of a unit that other units follow does not "
+                    + "move.")
     @Parameter(ref = "changeOrder")
     @APIResponse(responseCode = "200", description = "The unit as it is on its last date.")
     @BadRequest
@@ -158,6 +160,24 @@ public class OrgUnitsResource {
             Checks.required("body", body);
             return updated(path(id) + "/end", service.end(id, body.validTo()));
         });
+    }
+
+    @DELETE
+    @Path("{id}/end")
+    @Operation(
+            operationId = "removeOrgUnitEnd",
+            summary = "Removes the end of an org unit.",
+            description = "The last details and the parents that ended with the unit get no end either. Each "
+                    + "parent must have no end then.")
+    @Parameter(ref = "changeOrder")
+    @APIResponse(responseCode = "200", description = "The unit as it is on the first date of its last details.")
+    @NotFound
+    @ApiErrors
+    public OrgUnitRepresentation removeEnd(
+            @Parameter(description = "The ID of the resource.")
+            @PathParam("id") String id) {
+        context.requireWrite();
+        return Calls.guarded(context, () -> state(id), () -> updated(path(id) + "/end", service.removeEnd(id)));
     }
 
     @GET
