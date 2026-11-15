@@ -94,9 +94,11 @@ class ImportIT {
         assertEquals(4, report.get("counts").get("orgUnits").get("created").asInt());
         assertEquals(0, report.get("errors").size());
         for (String table : List.of("fuhito_ref_item", "fuhito_org_unit", "fuhito_org_unit_version",
-                "fuhito_org_unit_link", "fuhito_hierarchy", "fuhito_change_log")) {
+                "fuhito_org_unit_link", "fuhito_change_log")) {
             assertEquals("0", rows(realm, table), table);
         }
+        // Only the default hierarchy, which the realm has from its start.
+        assertEquals("1", rows(realm, "fuhito_hierarchy"));
         assertEquals(List.of(), names(realm.api, "2026-04-01"));
     }
 
