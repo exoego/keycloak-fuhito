@@ -278,10 +278,13 @@ public class RealmExportService {
         Map<String, String> hierarchyIds = new HashMap<>();
         hierarchyIds.put(Hierarchy.DEFAULT_CODE, stores.hierarchies().defaultId());
         counts.put("hierarchies", each("hierarchies", document.hierarchies(), h -> {
-            if (!h.code().equals(Hierarchy.DEFAULT_CODE)) {
-                stores.hierarchies().insert(new Hierarchy(h.id(), h.code(), h.name()));
-                hierarchyIds.put(h.code(), h.id());
+            // The default hierarchy of the empty realm has no links yet. The one of the export takes its place,
+            // with its ID and its name. An export from before this change has none.
+            if (h.code().equals(Hierarchy.DEFAULT_CODE)) {
+                stores.hierarchies().delete(hierarchyIds.get(Hierarchy.DEFAULT_CODE));
             }
+            stores.hierarchies().insert(new Hierarchy(h.id(), h.code(), h.name()));
+            hierarchyIds.put(h.code(), h.id());
         }));
         rows("org-units", () -> restoreOrgUnits(Optional.ofNullable(document.orgUnits()).orElse(List.of()),
                 hierarchyIds, counts));

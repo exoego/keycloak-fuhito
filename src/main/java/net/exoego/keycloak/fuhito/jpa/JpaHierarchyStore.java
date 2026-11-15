@@ -88,6 +88,8 @@ public class JpaHierarchyStore implements HierarchyStore {
     @Override
     public void delete(String id) {
         em.remove(Rows.require(em, HierarchyEntity.class, id, realmId, HierarchyEntity::getRealmId));
+        // Hibernate writes inserts before deletes, so a new hierarchy with the same code would come first.
+        em.flush();
     }
 
     @Override
