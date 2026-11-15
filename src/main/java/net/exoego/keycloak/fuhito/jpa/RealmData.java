@@ -70,6 +70,9 @@ public final class RealmData {
     public static void deletePerson(EntityManager em, String realmId, String personId) {
         // The trail is read first, because the deletes below remove the rows that it starts from.
         PersonTrail trail = PersonTrail.of(em, realmId, personId);
+        PersonEntity person = em.find(PersonEntity.class, personId);
+        trail.clearStoredResponses(em, realmId, personId,
+                person == null || !person.realmId.equals(realmId) ? null : person.userId);
         // An entry that only names the person as the actor of a write stays.
         deleteEntries(em, realmId, "FUHITO_PERSON", Set.of(personId));
         deleteEntries(em, realmId, "FUHITO_PERSON_DATA", Set.of(personId));

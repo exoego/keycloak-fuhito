@@ -380,6 +380,7 @@ A `POST` that creates something or runs an operation can have the header `Idempo
 - A key whose first request is still running fails with 409 and `idempotency.in_progress`.
 - A key works for 24 hours. A request with no key works as before.
 - A first request that failed stores nothing, so the same key can try again.
+- A mask or an erase of a person clears the stored body of a response that names the person. The same request then gets the first status with no body. See [personal-data.md](personal-data.md).
 
 ### Hierarchies
 
