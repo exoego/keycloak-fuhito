@@ -212,6 +212,7 @@ public class JpaEmploymentStore implements EmploymentStore {
         entity.employmentTypeId = terms.employmentTypeId();
         entity.gradeId = terms.gradeId();
         entity.status = terms.status().name();
+        entity.leaveReasonId = terms.leaveReasonId();
         entity.workPercent = terms.workPercent();
         entity.attributes = terms.attributes();
     }
@@ -223,6 +224,6 @@ public class JpaEmploymentStore implements EmploymentStore {
 
     private static EmploymentTerms toDomain(EmploymentTermsEntity e) {
         return new EmploymentTerms(e.id, e.employmentId, new ValidPeriod(e.validFrom, e.validTo), e.employmentTypeId,
-                e.gradeId, EmploymentStatus.valueOf(e.status), e.workPercent, e.attributes);
+                e.gradeId, EmploymentStatus.valueOf(e.status), e.leaveReasonId, e.workPercent, e.attributes);
     }
 }

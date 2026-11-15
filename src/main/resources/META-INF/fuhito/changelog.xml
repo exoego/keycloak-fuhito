@@ -796,4 +796,12 @@
             <column name="SUCCESSOR_ID"/>
         </createIndex>
     </changeSet>
+    <changeSet id="0.1.0-employment-leave-reason" author="keycloak-fuhito">
+        <addColumn tableName="FUHITO_EMPLOYMENT_TERMS">
+            <column name="LEAVE_REASON_ID" type="VARCHAR(36)"/>
+        </addColumn>
+        <addForeignKeyConstraint baseTableName="FUHITO_EMPLOYMENT_TERMS" baseColumnNames="LEAVE_REASON_ID"
+                                 referencedTableName="FUHITO_REF_ITEM" referencedColumnNames="ID"
+                                 constraintName="FK_FUHITO_EMPLOYMENT_TERMS_LEAVE_REASON"/>
+    </changeSet>
 </databaseChangeLog>

@@ -43,5 +43,10 @@ public enum RefKind {
     /**
      * A kind of license or certificate, for example "physician license".
      */
-    QUALIFICATION
+    QUALIFICATION,
+
+    /**
+     * Why a person is on leave, for example "parental leave" or "sick leave".
+     */
+    LEAVE_REASON
 }

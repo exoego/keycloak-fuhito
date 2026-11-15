@@ -100,8 +100,8 @@ public class EmploymentsResource {
     @Operation(
             operationId = "changeEmploymentTerms",
             summary = "Replaces the terms of an employment from the `validFrom` date of the body.",
-            description = "The terms are the employment type, the grade, the status, the work percentage, and the "
-                    + "attributes.")
+            description = "The terms are the employment type, the grade, the status with its leave reason, the work "
+                    + "percentage, and the attributes.")
     @Parameter(ref = "changeOrder")
     @APIResponse(responseCode = "200", description = "The employment with the terms of every period.")
     @BadRequest
@@ -115,7 +115,8 @@ public class EmploymentsResource {
         return Calls.run(context, () -> {
             Checks.required("body", body);
             var employment = EmploymentRepresentation.of(service.changeTerms(id, new TermsChange(body.validFrom(),
-                    body.employmentType(), body.grade(), body.status(), body.workPercent(), body.attributes())));
+                    body.employmentType(), body.grade(), body.status(), body.leaveReason(), body.workPercent(),
+                    body.attributes())));
             context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, "fuhito/employments/" + id + "/terms", employment);
             return employment;
         });
@@ -204,7 +205,8 @@ public class EmploymentsResource {
         context.requireWrite();
         return Calls.run(context, () -> {
             Checks.required("body", body);
-            var employment = EmploymentRepresentation.of(leaves.start(id, body.validFrom(), body.validTo()));
+            var employment = EmploymentRepresentation.of(leaves.start(id, body.validFrom(), body.validTo(),
+                    body.reason()));
             context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, "fuhito/employments/" + id + "/leave", employment);
             return employment;
         });

@@ -18,6 +18,7 @@ import net.exoego.keycloak.fuhito.domain.Assignment;
 import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.Csv;
 import net.exoego.keycloak.fuhito.domain.Employment;
+import net.exoego.keycloak.fuhito.domain.EmploymentStatus;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.OrgUnit;
 import net.exoego.keycloak.fuhito.domain.RefItem;
@@ -69,7 +70,7 @@ public class CsvImportService {
             Map.entry("validFrom", "開始日"), Map.entry("validTo", "終了日"), Map.entry("username", "ユーザー名"),
             Map.entry("userId", "ユーザーID"), Map.entry("staffNumber", "職員番号"),
             Map.entry("employmentType", "雇用形態"), Map.entry("grade", "等級"), Map.entry("status", "状態"),
-            Map.entry("workPercent", "勤務割合"), Map.entry("endReason", "終了理由"),
+            Map.entry("leaveReason", "休職理由"), Map.entry("workPercent", "勤務割合"), Map.entry("endReason", "終了理由"),
             Map.entry("employmentExternalId", "雇用の外部ID"), Map.entry("orgUnitExternalId", "組織の外部ID"),
             Map.entry("jobTitle", "役職"), Map.entry("occupation", "職種"), Map.entry("assignmentKind", "所属区分"),
             Map.entry("employerExternalId", "雇用主の外部ID"), Map.entry("legalEntity", "法人"),
@@ -99,7 +100,8 @@ public class CsvImportService {
             Kind.ORG_UNITS, Set.of("externalId", "source", "code", "name", "shortName", "phoneticName", "unitType",
                     "parentExternalId", "displayOrder", "validFrom", "validTo"),
             Kind.EMPLOYMENTS, Set.of("externalId", "source", "username", "userId", "staffNumber", "employmentType",
-                    "grade", "status", "workPercent", "validFrom", "validTo", "endReason", "employerExternalId"),
+                    "grade", "status", "leaveReason", "workPercent", "validFrom", "validTo", "endReason",
+                    "employerExternalId"),
             Kind.ASSIGNMENTS, Set.of("externalId", "source", "employmentExternalId", "orgUnitExternalId", "jobTitle",
                     "occupation", "assignmentKind", "head", "primary", "allocationPercent", "displayOrder",
                     "validFrom", "validTo"));
@@ -271,10 +273,13 @@ public class CsvImportService {
         if (userId == null && username == null) {
             userId = employment.map(Employment::userId).orElse(null);
         }
+        String status = cells.text("status", terms.map(t -> t.terms().status().name()).orElse(null));
+        // A new status that is not a leave drops the stored reason, unless the row names one.
+        String leaveReason = cells.text("leaveReason", EmploymentStatus.ON_LEAVE.name().equals(status)
+                ? terms.map(EmploymentView.TermsView::leaveReason).orElse(null) : null);
         return new EmploymentRow(source, externalId, username, userId, cells.text("staffNumber", null),
                 cells.text("employmentType", terms.map(EmploymentView.TermsView::employmentType).orElse(null)),
-                cells.text("grade", terms.map(EmploymentView.TermsView::grade).orElse(null)),
-                cells.text("status", terms.map(t -> t.terms().status().name()).orElse(null)),
+                cells.text("grade", terms.map(EmploymentView.TermsView::grade).orElse(null)), status, leaveReason,
                 cells.decimal("workPercent", terms.map(t -> t.terms().workPercent()).orElse(null)),
                 terms.map(t -> t.terms().attributes()).orElse(null),
                 cells.text("validFrom", null), cells.text("validTo", null), cells.text("endReason", null),

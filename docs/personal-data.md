@@ -14,6 +14,7 @@ Which way a law requires depends on the law, the country, and the reason for kee
 | The staff number | Employments |
 | The number of a license or certificate | Qualifications |
 | The ID in another system | The external ID of people, employments, assignments, and qualifications |
+| Why the person was on leave | Employment terms |
 | Free values that the realm defines | The attributes of people, employment terms, assignments, and qualifications |
 | Where and when the person worked, with job title and occupation | Employments, assignments, and reporting lines |
 | A copy of all of the above after each write | The change log |
@@ -30,7 +31,7 @@ A person with no Keycloak user has the name only in the person record.
 | Records and their IDs | Stay | Stay | Gone |
 | Org units, job titles, occupations, dates | Stay | Stay | Gone |
 | The names in the person record | Stay | Cleared | Gone, with the person record |
-| Staff number, license numbers, external IDs, free attributes | Stay | Cleared | Gone |
+| Staff number, license numbers, external IDs, leave reasons, free attributes | Stay | Cleared | Gone |
 | The same fields in the change log | Stay | Cleared | The entries are gone |
 | Can be undone | Yes | No | No |
 | Applications that refer to a record by ID | Find it | Find it | Find nothing |
@@ -52,6 +53,7 @@ Masking removes what identifies the person directly, and keeps the structure of 
 - `clearKeycloakName=true` on the request also empties the first and the last name of that user. The username, the email, and the attributes of the user stay.
 - A user from a read-only user store cannot be changed. The mask then fails with `person.keycloak_name_read_only` and writes nothing. Mask without the parameter, and remove the name in the store that owns the user.
 - Keycloak may ask a user with no name to fill the profile at the next login.
+- A leave reason such as sick leave tells of the health of the person. So the mask clears it, and keeps the status.
 - The history of the person has `maskedAt` afterwards.
 - The change log records who masked which person ID.
 - Masking again keeps the first time, and clears what was added since.

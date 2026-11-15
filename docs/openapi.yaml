@@ -391,6 +391,10 @@ components:
           description: The first status.
           writeOnly: true
           default: ACTIVE
+        leaveReason:
+          type: string
+          description: The code of the first leave reason.
+          writeOnly: true
         workPercent:
           type: number
           maximum: 100
@@ -440,6 +444,10 @@ components:
         status:
           $ref: "#/components/schemas/EmploymentStatus"
           default: ACTIVE
+        leaveReason:
+          type: string
+          description: The code of the leave reason. Only the status `ON_LEAVE` may
+            have one.
         workPercent:
           type: number
           maximum: 100
@@ -660,6 +668,10 @@ components:
         status:
           $ref: "#/components/schemas/EmploymentStatus"
           default: ACTIVE
+        leaveReason:
+          type: string
+          description: The code of the leave reason. Only the status `ON_LEAVE` may
+            have one.
         workPercent:
           type: number
           maximum: 100
@@ -869,6 +881,9 @@ components:
           description: The first date back at work. Leave it out when it is not known
             yet. On that date the status of before the leave comes back.
           format: date
+        reason:
+          type: string
+          description: The code of the leave reason.
     Mask:
       required:
       - personId
@@ -1479,6 +1494,7 @@ components:
       - END_REASON
       - ASSIGNMENT_KIND
       - QUALIFICATION
+      - LEAVE_REASON
       description: The kinds of reference items. Each realm defines its own items
         for each kind.
     Reorganization:
@@ -3045,8 +3061,8 @@ paths:
     put:
       summary: Replaces the terms of an employment from the `validFrom` date of the
         body.
-      description: "The terms are the employment type, the grade, the status, the\
-        \ work percentage, and the attributes."
+      description: "The terms are the employment type, the grade, the status with\
+        \ its leave reason, the work percentage, and the attributes."
       operationId: changeEmploymentTerms
       tags:
       - employments

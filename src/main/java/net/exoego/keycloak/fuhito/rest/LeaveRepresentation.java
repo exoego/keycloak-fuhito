@@ -13,5 +13,7 @@ public record LeaveRepresentation(
                 description = "The first date back at work. Leave it out when it is not known yet. On that date "
                         + "the status of before the leave comes back.",
                 format = "date")
-        String validTo) {
+        String validTo,
+        @Schema(description = "The code of the leave reason.")
+        String reason) {
 }

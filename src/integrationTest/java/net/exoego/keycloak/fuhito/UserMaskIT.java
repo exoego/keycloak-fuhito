@@ -25,7 +25,7 @@ class UserMaskIT {
                 + "\", \"employmentType\": \"full-time\", \"attributes\": {\"住所\": \"東京都\"}, "
                 + "\"externalId\": \"HR-" + staffNumber + "\", \"source\": \"hr\"}")).get("id").asText();
         assertEquals(200, api.put("/employments/" + employment + "/terms", "{\"validFrom\": \"2022-04-01\", "
-                + "\"employmentType\": \"full-time\", \"status\": \"ON_LEAVE\", \"attributes\": {\"理由\": \"育休\"}}").statusCode());
+                + "\"employmentType\": \"full-time\", \"status\": \"ON_LEAVE\", \"leaveReason\": \"sick-leave\", \"attributes\": {\"理由\": \"育休\"}}").statusCode());
         String assignment = created(api.post("/assignments", "{\"employmentId\": \"" + employment
                 + "\", \"orgUnitId\": \"" + unit + "\", \"validFrom\": \"2020-04-01\", \"jobTitle\": \"chief\", "
                 + "\"occupation\": \"nurse\", \"primary\": true, \"attributes\": {\"内線\": \"1234\"}, "
@@ -42,6 +42,7 @@ class UserMaskIT {
         realm.refItem("JOB_TITLE", "chief", "主任");
         realm.refItem("OCCUPATION", "nurse", "看護師");
         realm.refItem("QUALIFICATION", "license", "免許");
+        realm.refItem("LEAVE_REASON", "sick-leave", "病気休職");
         return realm;
     }
 
@@ -90,6 +91,7 @@ class UserMaskIT {
         assertFalse(employment.has("externalId"));
         assertEquals("hr", employment.get("source").asText());
         employment.get("terms").forEach(terms -> assertEquals(0, terms.get("attributes").size()));
+        employment.get("terms").forEach(terms -> assertFalse(terms.has("leaveReason")));
         assertFalse(assignment.has("externalId"));
         assertEquals(0, assignment.get("periods").get(0).get("attributes").size());
         assertFalse(qualification.has("number"));
@@ -104,7 +106,8 @@ class UserMaskIT {
             everything += log.body();
         }
         assertEquals(2, Api.json(api.get("/change-log?resourceType=FUHITO_EMPLOYMENT&resourceId=" + ids.get(0))).size());
-        for (String secret : List.of("N-001", "HR-N-001", "A-N-001", "東京都", "育休", "1234", "第N-001号")) {
+        for (String secret : List.of("N-001", "HR-N-001", "A-N-001", "東京都", "育休", "1234", "第N-001号",
+                "sick-leave")) {
             assertFalse(everything.contains(secret), secret);
         }
         assertTrue(everything.contains("ON_LEAVE"));

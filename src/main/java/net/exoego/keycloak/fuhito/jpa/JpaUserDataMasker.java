@@ -20,9 +20,9 @@ import net.exoego.keycloak.fuhito.store.UserDataMasker;
  */
 public class JpaUserDataMasker implements UserDataMasker {
 
-    // The fields of a stored representation that can identify a person.
+    // The fields of a stored representation that can identify a person. A leave reason can tell of an illness.
     private static final Set<String> IDENTIFYING = Set.of("staffNumber", "number", "externalId", "attributes",
-            "name", "names", "phoneticName");
+            "name", "names", "phoneticName", "leaveReason");
     private static final ObjectMapper JSON = new ObjectMapper();
 
     private final EntityManager em;
@@ -68,7 +68,10 @@ public class JpaUserDataMasker implements UserDataMasker {
                             select t from EmploymentTermsEntity t where t.realmId = :realmId
                             and %s""".formatted(ManyIds.has("t.employmentId", "ids")), EmploymentTermsEntity.class)
                     .setParameter("realmId", realmId).setParameter("ids", ManyIds.of(employmentIds)).getResultList()
-                    .forEach(terms -> terms.attributes = new LinkedHashMap<>());
+                    .forEach(terms -> {
+                        terms.attributes = new LinkedHashMap<>();
+                        terms.leaveReasonId = null;
+                    });
             for (AssignmentEntity row : em.createQuery("""
                             select a from AssignmentEntity a
                             where a.realmId = :realmId and %s""".formatted(ManyIds.has("a.employmentId", "ids")),

@@ -327,7 +327,7 @@ public class AttributeSyncService {
 
     private EmploymentView start(Values user, String personId, String staffNumber, LocalDate today) {
         return from.employmentService().start(new NewEmployment(personId, today.toString(), null, staffNumber,
-                null, null, null, null, null, user.userId(), SOURCE, employerId));
+                null, null, null, null, null, null, user.userId(), SOURCE, employerId));
     }
 
     // The assignment of the sync is the primary one, unless the user has a primary assignment from elsewhere.

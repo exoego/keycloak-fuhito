@@ -27,6 +27,7 @@ class StaffIT {
                 .get("id").asText();
         realm.refItem("OCCUPATION", "nurse", "看護師");
         realm.refItem("EMPLOYMENT_TYPE", "part-time", "非常勤");
+        realm.refItem("LEAVE_REASON", "parental", "育児休業");
     }
 
     @Test
@@ -105,11 +106,13 @@ class StaffIT {
                 .get("employment").get("id").asText();
 
         HttpResponse<String> leave = api.post("/employments/" + employmentId + "/leave",
-                "{\"validFrom\": \"2026-10-01\", \"validTo\": \"2027-04-01\"}");
+                "{\"validFrom\": \"2026-10-01\", \"validTo\": \"2027-04-01\", \"reason\": \"parental\"}");
 
         assertEquals(200, leave.statusCode(), leave.body());
         JsonNode terms = Api.json(leave).get("terms");
         assertEquals(java.util.List.of("ACTIVE", "ON_LEAVE", "ACTIVE"), terms.findValuesAsText("status"));
+        assertEquals(java.util.List.of("parental"), terms.findValuesAsText("leaveReason"));
+        assertEquals("parental", terms.get(1).get("leaveReason").asText());
         assertEquals(java.util.List.of("2026-04-01", "2026-10-01", "2027-04-01"), terms.findValuesAsText("validFrom"));
         assertEquals(java.util.List.of("part-time", "part-time", "part-time"), terms.findValuesAsText("employmentType"));
         assertEquals(50, terms.get(1).get("workPercent").asInt());

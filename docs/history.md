@@ -177,13 +177,15 @@ A leave of absence is the status `ON_LEAVE` in the terms of an employment.
 Two operations change only that status, and keep every other value of the terms.
 
 - `POST /employments/{id}/leave` has `validFrom`. The person is on leave from that date.
+- The leave can have a `reason`. It is the code of a reference item of the kind `LEAVE_REASON`.
 - With `validTo`, the status of before the leave comes back on that date, in the same write. Leave it out when the end is not known yet.
-- `POST /employments/{id}/return` has `validFrom`. The person is active from that date. A return that was stored for a later date stays, and changes nothing more.
+- `POST /employments/{id}/return` has `validFrom`. The person is active from that date, with no leave reason. A return that was stored for a later date stays, and changes nothing more.
+- Only terms with the status `ON_LEAVE` can have a leave reason. Other terms with one fail with `employment.leave_reason_not_on_leave`. This holds for `PUT /employments/{id}/terms` and the import too.
 - A leave fails with `employment.already_on_leave` when the person is on leave on the date.
 - A leave fails with `employment.terms_change_stored` when a change of terms is stored for a later date. The leave would end there without a word.
 - A return fails with `employment.not_on_leave` when the person is not on leave on the date.
 
-The reason of a leave and an acting head are not part of these operations.
+An acting head is not part of these operations.
 
 Checked by `StaffIT.aLeaveAndAReturnChangeOnlyTheStatus`.
 

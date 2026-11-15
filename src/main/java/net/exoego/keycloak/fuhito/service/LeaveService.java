@@ -33,11 +33,12 @@ public class LeaveService {
      * @param employmentId the ID of the employment
      * @param validFrom the first date of the leave, as {@code YYYY-MM-DD}
      * @param validTo the first date after the leave, as {@code YYYY-MM-DD}, or null when it is not known yet
+     * @param reason the code of the leave reason, or null
      * @return the employment with all its terms
      * @throws FuhitoException when the employment does not hold on a date, the person is on leave already,
-     *         or a change of terms is stored for a later date
+     *         a change of terms is stored for a later date, or the reason is unknown
      */
-    public EmploymentView start(String employmentId, String validFrom, String validTo) {
+    public EmploymentView start(String employmentId, String validFrom, String validTo, String reason) {
         LocalDate from = Checks.date("validFrom", validFrom);
         LocalDate to = Checks.optionalDate("validTo", validTo);
         if (to != null) {
@@ -59,10 +60,11 @@ public class LeaveService {
         if (to != null && end != null && to.isAfter(end)) {
             throw FuhitoException.notFound("employment.not_valid_on", Map.of("id", employmentId, "date", validTo));
         }
-        employments.changeTerms(employmentId, withStatus(current, validFrom, EmploymentStatus.ON_LEAVE));
+        employments.changeTerms(employmentId, withStatus(current, validFrom, EmploymentStatus.ON_LEAVE, reason));
         // A leave up to the end of the employment has no day to come back on.
         if (to != null && !to.equals(end)) {
-            employments.changeTerms(employmentId, withStatus(current, validTo, current.terms().status()));
+            employments.changeTerms(employmentId, withStatus(current, validTo, current.terms().status(),
+                    current.leaveReason()));
         }
         return employments.get(employmentId);
     }
@@ -82,7 +84,7 @@ public class LeaveService {
         if (current.terms().status() != EmploymentStatus.ON_LEAVE) {
             throw FuhitoException.conflict("employment.not_on_leave", Map.of("id", employmentId, "date", validFrom));
         }
-        return employments.changeTerms(employmentId, withStatus(current, validFrom, EmploymentStatus.ACTIVE));
+        return employments.changeTerms(employmentId, withStatus(current, validFrom, EmploymentStatus.ACTIVE, null));
     }
 
     private static TermsView on(List<TermsView> all, String employmentId, LocalDate date) {
@@ -93,9 +95,10 @@ public class LeaveService {
                         Map.of("id", employmentId, "date", date.toString())));
     }
 
-    private static TermsChange withStatus(TermsView current, String validFrom, EmploymentStatus status) {
+    private static TermsChange withStatus(TermsView current, String validFrom, EmploymentStatus status,
+            String reason) {
         EmploymentTerms terms = current.terms();
-        return new TermsChange(validFrom, current.employmentType(), current.grade(), status.name(),
+        return new TermsChange(validFrom, current.employmentType(), current.grade(), status.name(), reason,
                 terms.workPercent(), terms.attributes());
     }
 }

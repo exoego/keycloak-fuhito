@@ -56,6 +56,8 @@ public record ImportDocument(
             String grade,
             @Schema(ref = "EmploymentStatus", defaultValue = "ACTIVE")
             String status,
+            @Schema(description = "The code of the leave reason. Only the status `ON_LEAVE` may have one.")
+            String leaveReason,
             @Schema(
                     description = "The share of full-time work in percent.",
                     minimum = "0",
@@ -98,8 +100,8 @@ public record ImportDocument(
         public EmploymentRow(String source, String externalId, String username, String userId, String staffNumber,
                 String employmentType, String grade, String status, BigDecimal workPercent,
                 Map<String, Object> attributes, String validFrom, String validTo, String endReason) {
-            this(source, externalId, username, userId, staffNumber, employmentType, grade, status, workPercent,
-                    attributes, validFrom, validTo, endReason, null);
+            this(source, externalId, username, userId, staffNumber, employmentType, grade, status, null,
+                    workPercent, attributes, validFrom, validTo, endReason, null);
         }
     }
 

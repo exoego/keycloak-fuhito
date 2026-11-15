@@ -76,7 +76,7 @@ Each entry has these fields. A field with no value is left out.
 | `status` | The employment status today. Only with the setting "Add employment status" |
 
 Every client that gets the token can read the claim. So the staff number and the status are off by default.
-The status tells, for example, that a person is on leave.
+The status tells, for example, that a person is on leave. The leave reason is never in the claim.
 
 The claim grows with the number of assignments and the depth of the tree.
 Add the mapper only to clients that need it.

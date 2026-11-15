@@ -98,8 +98,8 @@ final class PeopleImport {
         if (stored.isEmpty()) {
             EmploymentView created = people.employmentService().start(new NewEmployment(personId,
                     row.validFrom() == null ? effectiveDate : row.validFrom(), row.validTo(), row.staffNumber(),
-                    row.employmentType(), row.grade(), row.status(), row.workPercent(), row.attributes(),
-                    row.externalId(), source, employerId));
+                    row.employmentType(), row.grade(), row.status(), row.leaveReason(), row.workPercent(),
+                    row.attributes(), row.externalId(), source, employerId));
             String id = created.employment().id();
             written(true, "", created);
             if (row.validTo() != null && row.endReason() != null) {
@@ -130,8 +130,8 @@ final class PeopleImport {
                             Map.of("id", id, "date", effectiveDate)));
             if (!sameTerms(row, terms)) {
                 written(false, "/terms", people.employmentService().changeTerms(id, new TermsChange(
-                        effectiveDate, row.employmentType(), row.grade(), row.status(), row.workPercent(),
-                        row.attributes())));
+                        effectiveDate, row.employmentType(), row.grade(), row.status(), row.leaveReason(),
+                        row.workPercent(), row.attributes())));
                 changed = true;
             }
         }
@@ -169,6 +169,7 @@ final class PeopleImport {
         return Objects.equals(row.employmentType(), terms.employmentType())
                 && Objects.equals(row.grade(), terms.grade())
                 && status.equals(stored.status().name())
+                && Objects.equals(row.leaveReason(), terms.leaveReason())
                 && sameNumber(row.workPercent(), stored.workPercent())
                 && (row.attributes() == null ? Map.of() : row.attributes()).equals(stored.attributes());
     }

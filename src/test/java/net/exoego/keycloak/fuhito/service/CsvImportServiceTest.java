@@ -2,6 +2,7 @@ package net.exoego.keycloak.fuhito.service;
 
 import java.math.BigDecimal;
 import java.time.Clock;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -157,6 +158,22 @@ class CsvImportServiceTest {
         assertEquals("nurse", old.rows().getFirst().occupation());
         assertEquals(3, old.rows().getFirst().row().displayOrder());
         assertEquals(new Counts(1, 1, 0), moved.report().counts().get("assignments"));
+    }
+
+    @Test
+    void aReasonStaysWithTheLeaveAndGoesWithTheReturn() {
+        item(RefKind.LEAVE_REASON, "parental");
+        load("orgUnits", "2026-04-01", "外部ID,名称\nH,X病院\n");
+        load("employments", "2026-04-01", "外部ID,ユーザー名,開始日\nE1,nurse,2020-04-01\n");
+
+        assertEquals(List.of(), errors(load("employments", "2027-04-01", "外部ID,状態,休職理由\nE1,ON_LEAVE,parental\n")));
+        // A row that leaves out the reason keeps it while the person stays on leave.
+        assertEquals(new Counts(0, 0, 1), load("employments", "2027-06-01", "外部ID,状態\nE1,ON_LEAVE\n").report()
+                .counts().get("employments"));
+        assertEquals(List.of(), errors(load("employments", "2028-04-01", "外部ID,状態\nE1,ACTIVE\n")));
+
+        var terms = employments.get(employmentStore.findByExternalId("import", "E1").orElseThrow().id()).terms();
+        assertEquals(Arrays.asList(null, "parental", null), terms.stream().map(t -> t.leaveReason()).toList());
     }
 
     @Test
