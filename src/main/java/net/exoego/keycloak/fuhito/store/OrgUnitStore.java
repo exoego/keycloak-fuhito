@@ -136,6 +136,38 @@ public interface OrgUnitStore {
             LocalDate date, int first, int max);
 
     /**
+     * What a search of org units keeps. A value that is null keeps everything.
+     *
+     * @param text a part of a name in any language, of a short name, or of the phonetic name, with no regard to case
+     * @param code the code
+     * @param unitTypeId the ID of the unit type
+     * @param group true for groups only, false for line units only
+     */
+    record Search(String text, String code, String unitTypeId, Boolean group) {
+    }
+
+    /**
+     * Lists a page of the org units that match a search on a date, in the order of siblings.
+     *
+     * @param hierarchyId the ID of the hierarchy whose parents the units come with
+     * @param search what to keep
+     * @param date the date
+     * @param first the number of units to skip
+     * @param max the largest number of units to return
+     * @return the units of the page
+     */
+    List<PlacedOrgUnit> searchOn(String hierarchyId, Search search, LocalDate date, int first, int max);
+
+    /**
+     * Counts the org units that match a search on a date.
+     *
+     * @param search what to keep
+     * @param date the date
+     * @return the number of units
+     */
+    long countSearchOn(Search search, LocalDate date);
+
+    /**
      * Lists a page of the units that are legal entities on a date. A unit is one when its unit type says so.
      * The order is the display order, then the phonetic name, then the name, then the ID.
      *

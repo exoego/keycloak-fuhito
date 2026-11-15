@@ -7,6 +7,7 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -99,6 +100,34 @@ final class MemoryOrgUnitStore implements OrgUnitStore {
     public List<PlacedOrgUnit> placedOn(String hierarchyId, Collection<String> ids, LocalDate date) {
         return placed(new OrgUnitTree(this, new MemoryRefItemStore(), date, hierarchyId).all().stream()
                 .filter(state -> ids.contains(state.unit().id())).toList(), 0, Integer.MAX_VALUE);
+    }
+
+    @Override
+    public List<PlacedOrgUnit> searchOn(String hierarchyId, Search search, LocalDate date, int first, int max) {
+        return placed(found(hierarchyId, search, date), first, max);
+    }
+
+    @Override
+    public long countSearchOn(Search search, LocalDate date) {
+        return found(defaultHierarchyId(), search, date).size();
+    }
+
+    private List<OrgUnitState> found(String hierarchyId, Search search, LocalDate date) {
+        String text = search.text() == null ? null : search.text().toLowerCase(Locale.ROOT);
+        return of(search.group(), new OrgUnitTree(this, refItems, date, hierarchyId).all()).stream()
+                .filter(state -> text == null || java.util.stream.Stream.of(
+                                java.util.stream.Stream.of(state.version().name(), state.version().shortName(),
+                                        state.version().phoneticName()),
+                                state.version().names().values().stream(),
+                                state.version().shortNames().values().stream())
+                        .flatMap(names -> names)
+                        .anyMatch(name -> name != null && name.toLowerCase(Locale.ROOT).contains(text)))
+                .filter(state -> search.code() == null || search.code().equals(state.version().code()))
+                .filter(state -> search.unitTypeId() == null
+                        || search.unitTypeId().equals(state.version().unitTypeId()))
+                .sorted(Comparator.comparingInt((OrgUnitState state) -> state.version().displayOrder())
+                        .thenComparing(state -> state.version().name()))
+                .toList();
     }
 
     /** The IDs of the unit types that mark a legal entity. A test of legal entities sets them. */
