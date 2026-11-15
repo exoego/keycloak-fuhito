@@ -342,7 +342,7 @@ public class FuhitoResource {
                 new JpaAssignmentStore(entityManager, realmId), new JpaReportingLineStore(entityManager, realmId),
                 new JpaUnitRoleStore(entityManager, realmId), new JpaQualificationStore(entityManager, realmId),
                 new JpaExternalIdStore(entityManager, realmId), new JpaChangeOrderStore(entityManager, realmId),
-                users));
+                users, organizations));
     }
 
     private RemovalService removals() {

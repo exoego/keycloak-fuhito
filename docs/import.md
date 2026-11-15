@@ -258,7 +258,8 @@ This copies a realm to a test environment, moves it to another Keycloak, or brin
 - An ID that a row of the database has already, in any realm, fails with 409 and `restore.id_taken`. This happens for a copy into a second realm of the same database while the first realm still has the rows.
 - Rows name Keycloak users by username. A restore fails with `restore.username_unknown` when the target realm has no user with that name. A person whose user Keycloak no longer had is exported with no username, and is restored with no link.
 - Masked data stays masked, with the time of the mask. Erased data is not in an export.
-- The change log, the admin events, the links to Keycloak organizations, and the idempotency keys are not part of an export. The restore records one entry, `FUHITO_RESTORE`.
+- An org unit names its Keycloak organization by alias, because the IDs of organizations differ between servers. A restore fails with `restore.organization_unknown` when the realm has no organization with the alias. It asks for the permission to manage each linked organization, as a link does.
+- The change log, the admin events, and the idempotency keys are not part of an export. The restore records one entry, `FUHITO_RESTORE`.
 - The export needs the full read permission, because it has the data of people. The restore needs the permission to write.
 
 Checked by `RealmExportIT.anExportLoadsIntoAnEmptyRealmAndGivesTheSameExportAgain`.

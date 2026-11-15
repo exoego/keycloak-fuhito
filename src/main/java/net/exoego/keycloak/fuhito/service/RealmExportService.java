@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -47,6 +48,7 @@ import net.exoego.keycloak.fuhito.store.EmploymentStore;
 import net.exoego.keycloak.fuhito.store.ExternalIdStore;
 import net.exoego.keycloak.fuhito.store.HierarchyStore;
 import net.exoego.keycloak.fuhito.store.OrgUnitStore;
+import net.exoego.keycloak.fuhito.store.OrganizationDirectory;
 import net.exoego.keycloak.fuhito.store.PersonStore;
 import net.exoego.keycloak.fuhito.store.QualificationStore;
 import net.exoego.keycloak.fuhito.store.RealmExportStore;
@@ -79,12 +81,14 @@ public class RealmExportService {
      * @param externalIds the IDs of other systems
      * @param changeOrders the change orders
      * @param users the users of the realm
+     * @param organizations the Keycloak organizations of the realm
      */
     public record Stores(RealmExportStore export, RealmKindStore refKinds, RefItemStore refItems,
             AttributeDefinitionStore attributeDefinitions, HierarchyStore hierarchies, OrgUnitStore orgUnits,
             PersonStore people, EmploymentStore employments, AssignmentStore assignments,
             ReportingLineStore reportingLines, UnitRoleStore unitRoles, QualificationStore qualifications,
-            ExternalIdStore externalIds, ChangeOrderStore changeOrders, UserDirectory users) {
+            ExternalIdStore externalIds, ChangeOrderStore changeOrders, UserDirectory users,
+            OrganizationDirectory organizations) {
     }
 
     /**
@@ -185,7 +189,9 @@ public class RealmExportService {
                         .toList(),
                 successions.getOrDefault(unit.id(), List.of()).stream()
                         .map(s -> new RealmExport.Succession(s.id(), s.successorId(), s.effectiveDate().toString()))
-                        .toList()));
+                        .toList(),
+                Optional.ofNullable(unit.keycloakOrganizationId()).flatMap(stores.organizations()::aliasOf)
+                        .orElse(null)));
     }
 
     private ExportPage people(List<Person> found) {
@@ -247,10 +253,12 @@ public class RealmExportService {
      * Loads every list of an export into the realm, with the IDs of the export, all or nothing.
      *
      * @param document the export
+     * @param linking checks each Keycloak organization that a unit is linked to, before anything is written
      * @return the number of rows of each list
-     * @throws FuhitoException when the format is unknown, the realm has data, or a username has no user
+     * @throws FuhitoException when the format is unknown, the realm has data, a username has no user, or the
+     *         realm has no organization with an alias
      */
-    public Map<String, Integer> restore(RealmExport document) {
+    public Map<String, Integer> restore(RealmExport document, Consumer<String> linking) {
         Checks.required("body", document);
         if (!RealmExport.FORMAT.equals(document.format())) {
             throw FuhitoException.invalid("restore.format", Map.of("format", String.valueOf(document.format())));
@@ -259,6 +267,8 @@ public class RealmExportService {
             throw FuhitoException.conflict("restore.realm_not_empty", Map.of());
         }
         RestoreCheck.requireReferences(document);
+        Map<String, String> organizations = organizations(document);
+        organizations.values().forEach(linking);
         // A copy into a second realm of the same database names the rows of the first one by their IDs.
         for (Map.Entry<String, Collection<String>> list : RestoreCheck.ids(document).entrySet()) {
             Optional<String> taken = stores.export().takenId(list.getKey(), list.getValue());
@@ -287,7 +297,7 @@ public class RealmExportService {
             hierarchyIds.put(h.code(), h.id());
         }));
         rows("org-units", () -> restoreOrgUnits(Optional.ofNullable(document.orgUnits()).orElse(List.of()),
-                hierarchyIds, counts));
+                hierarchyIds, organizations, counts));
         counts.put("people", each("people", document.people(), p -> {
             stores.people().insert(new Person(p.id(), userId(p.username()), p.name(), p.names(), p.phoneticName(),
                     p.attributes(), p.externalId(), p.source()));
@@ -317,11 +327,32 @@ public class RealmExportService {
         return counts;
     }
 
+    // The IDs of the organizations by alias. One organization has one org unit.
+    private Map<String, String> organizations(RealmExport document) {
+        Map<String, String> ids = new HashMap<>();
+        Map<String, String> unitOfAlias = new HashMap<>();
+        for (RealmExport.Unit unit : Optional.ofNullable(document.orgUnits()).orElse(List.of())) {
+            String alias = unit == null ? null : unit.organizationAlias();
+            if (alias == null) {
+                continue;
+            }
+            String id = ids.computeIfAbsent(alias, a -> stores.organizations().idOfAlias(a).orElseThrow(
+                    () -> FuhitoException.invalid("restore.organization_unknown", Map.of("alias", a))));
+            String other = unitOfAlias.putIfAbsent(alias, unit.id());
+            if (other != null) {
+                throw FuhitoException.conflict("organization.linked",
+                        Map.of("organizationId", id, "orgUnitId", other));
+            }
+        }
+        return ids;
+    }
+
     // Every unit comes first, so that a parent or a successor exists when a link names it.
     private void restoreOrgUnits(List<RealmExport.Unit> units, Map<String, String> hierarchyIds,
-            Map<String, Integer> counts) {
+            Map<String, String> organizations, Map<String, Integer> counts) {
         OrgUnitStore store = stores.orgUnits();
-        units.forEach(u -> store.insertUnit(new OrgUnit(u.id(), u.externalId(), u.source(), null, u.timeZone(),
+        units.forEach(u -> store.insertUnit(new OrgUnit(u.id(), u.externalId(), u.source(),
+                u.organizationAlias() == null ? null : organizations.get(u.organizationAlias()), u.timeZone(),
                 u.dayStart())));
         for (RealmExport.Unit u : units) {
             u.versions().forEach(v -> store.insertVersion(new OrgUnitVersion(v.id(), u.id(), period(v.validFrom(),
@@ -372,7 +403,7 @@ public class RealmExportService {
         counts.put("assignments", assignments.size());
     }
 
-    private static <T> int each(String list, List<T> rows, java.util.function.Consumer<T> write) {
+    private static <T> int each(String list, List<T> rows, Consumer<T> write) {
         List<T> all = rows == null ? List.of() : rows;
         rows(list, () -> all.forEach(write));
         return all.size();
