@@ -43,8 +43,8 @@ public class JpaOrgUnitStore implements OrgUnitStore {
             select u, v, (select l.parentId from OrgUnitLinkEntity l where l.realmId = :realmId
                 and l.hierarchyId = :hierarchyId and l.childId = v.orgUnitId and l.%s)
             from OrgUnitVersionEntity v join OrgUnitEntity u on u.id = v.orgUnitId
-            where v.realmId = :realmId and v.orgUnitId in :ids and v.%s""".formatted(TreeQuery.onDate("l"),
-            TreeQuery.onDate("v"));
+            where v.realmId = :realmId and %s and v.%s""".formatted(TreeQuery.onDate("l"),
+            ManyIds.has("v.orgUnitId", "ids"), TreeQuery.onDate("v"));
 
     private static final String LEGAL_ENTITIES = """
             select u, v, (select l.parentId from OrgUnitLinkEntity l where l.realmId = :realmId
@@ -59,14 +59,15 @@ public class JpaOrgUnitStore implements OrgUnitStore {
             with Above as (
                 select v.orgUnitId as unitId, v.orgUnitId as ancestorId
                 from OrgUnitVersionEntity v
-                where v.realmId = :realmId and v.orgUnitId in :ids and v.%1$s
+                where v.realmId = :realmId and %3$s and v.%1$s
                 union all
                 select a.unitId as unitId, l.parentId as ancestorId
                 from Above a
                 join OrgUnitLinkEntity l on l.childId = a.ancestorId and l.realmId = :realmId
                     and l.hierarchyId = :hierarchyId and l.%2$s
             )
-            select a.unitId, a.ancestorId from Above a""".formatted(TreeQuery.onDate("v"), TreeQuery.onDate("l"));
+            select a.unitId, a.ancestorId from Above a""".formatted(TreeQuery.onDate("v"), TreeQuery.onDate("l"),
+            ManyIds.has("v.orgUnitId", "ids"));
 
     private static final String PATH = """
             with Above as (
@@ -291,7 +292,7 @@ public class JpaOrgUnitStore implements OrgUnitStore {
         em.createQuery(ANCESTORS, Object[].class)
                 .setParameter("realmId", realmId)
                 .setParameter("hierarchyId", hierarchyId)
-                .setParameter("ids", ids)
+                .setParameter("ids", ManyIds.of(ids))
                 .setParameter("date", date)
                 .getResultStream()
                 .forEach(row -> result.computeIfAbsent((String) row[0], id -> new HashSet<>()).add((String) row[1]));
@@ -340,7 +341,7 @@ public class JpaOrgUnitStore implements OrgUnitStore {
         return em.createQuery(PLACED, Object[].class)
                 .setParameter("realmId", realmId)
                 .setParameter("hierarchyId", hierarchyId)
-                .setParameter("ids", ids)
+                .setParameter("ids", ManyIds.of(ids))
                 .setParameter("date", date)
                 .getResultStream()
                 .map(row -> new PlacedOrgUnit(toDomain((OrgUnitEntity) row[0]),
