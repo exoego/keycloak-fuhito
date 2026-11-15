@@ -1,7 +1,11 @@
 package net.exoego.keycloak.fuhito.jpa;
 
 import java.util.List;
+import java.util.Locale;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import jakarta.persistence.EntityManager;
 import net.exoego.keycloak.fuhito.domain.Person;
@@ -57,6 +61,44 @@ public class JpaPersonStore implements PersonStore {
     }
 
     @Override
+    public List<Person> search(String text, String staffNumber, String afterId, int first, int max) {
+        StringBuilder query = new StringBuilder("select p from PersonEntity p where p.realmId = :realmId");
+        if (afterId != null) {
+            query.append(" and p.id > :afterId");
+        }
+        if (text != null) {
+            // A person with a Keycloak user often has no name of its own, and takes the name of the user.
+            query.append("""
+                     and (p.searchNames like :text escape '!' or exists (select 1 from UserEntity u
+                    where u.id = p.userId and u.realmId = :realmId and (lower(u.firstName) like :text escape '!'
+                    or lower(u.lastName) like :text escape '!' or u.username like :text escape '!'
+                    or u.email like :text escape '!')))""");
+        }
+        if (staffNumber != null) {
+            query.append("""
+                     and exists (select 1 from EmploymentEntity e where e.realmId = :realmId
+                    and e.personId = p.id and e.staffNumber = :staffNumber)""");
+        }
+        var typed = em.createQuery(query.append(" order by p.id").toString(), PersonEntity.class)
+                .setParameter("realmId", realmId);
+        if (afterId != null) {
+            typed.setParameter("afterId", afterId);
+        }
+        if (text != null) {
+            typed.setParameter("text", "%" + text.toLowerCase(Locale.ROOT).replace("!", "!!").replace("%", "!%")
+                    .replace("_", "!_") + "%");
+        }
+        if (staffNumber != null) {
+            typed.setParameter("staffNumber", staffNumber);
+        }
+        return typed.setFirstResult(first)
+                .setMaxResults(max)
+                .getResultStream()
+                .map(JpaPersonStore::toDomain)
+                .toList();
+    }
+
+    @Override
     public List<Person> list(String afterId, int first, int max) {
         // The cursor makes the database start in the index at the ID, so a late page costs as much as the first.
         var query = afterId == null
@@ -105,6 +147,11 @@ public class JpaPersonStore implements PersonStore {
         entity.name = person.name();
         entity.names = person.names();
         entity.phoneticName = person.phoneticName();
+        entity.searchNames = Stream.concat(Stream.of(person.name(), person.phoneticName()),
+                        person.names() == null ? Stream.empty() : person.names().values().stream())
+                .filter(Objects::nonNull)
+                .map(value -> value.toLowerCase(Locale.ROOT))
+                .collect(Collectors.joining("\n"));
         entity.attributes = person.attributes();
     }
 

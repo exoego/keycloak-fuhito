@@ -8,6 +8,7 @@ import java.util.Map;
 
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.RefItem;
+import net.exoego.keycloak.fuhito.domain.ReportingLine;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 
 /**
@@ -61,6 +62,15 @@ public final class ImportReport {
          * @return true for a new resource, false for a change
          */
         boolean created();
+
+        /**
+         * Tells whether the write removed the resource.
+         *
+         * @return true for a removal
+         */
+        default boolean deleted() {
+            return false;
+        }
 
         /**
          * Returns the type of the written resource.
@@ -212,6 +222,71 @@ public final class ImportReport {
             @Override
             public String path() {
                 return "fuhito/assignments/" + resourceId() + suffix;
+            }
+        }
+
+        /**
+         * A write of a reporting line.
+         *
+         * @param created true for a new line, false for a change
+         * @param suffix the end of the path after the ID, for example {@code /end}, or an empty text
+         * @param state the line after the write
+         */
+        record OfReportingLine(boolean created, String suffix, ReportingLine state) implements Write {
+
+            @Override
+            public String resourceType() {
+                return "FUHITO_REPORTING_LINE";
+            }
+
+            @Override
+            public String resourceId() {
+                return state.id();
+            }
+
+            @Override
+            public String path() {
+                return "fuhito/reporting-lines/" + resourceId() + suffix;
+            }
+        }
+
+        /**
+         * The removal of a resource.
+         *
+         * @param resourceType the type of the removed resource, as the event log names it
+         * @param resourceId the ID of the removed resource
+         * @param path the path that the same removal has in its own endpoint
+         */
+        record Removed(String resourceType, String resourceId, String path) implements Write {
+
+            @Override
+            public boolean created() {
+                return false;
+            }
+
+            @Override
+            public boolean deleted() {
+                return true;
+            }
+
+            static Removed line(String id) {
+                return new Removed("FUHITO_REPORTING_LINE", id, "fuhito/reporting-lines/" + id);
+            }
+
+            static Removed assignment(String id) {
+                return new Removed("FUHITO_ASSIGNMENT", id, "fuhito/assignments/" + id);
+            }
+
+            static Removed employment(String id) {
+                return new Removed("FUHITO_EMPLOYMENT", id, "fuhito/employments/" + id);
+            }
+
+            static Removed unitRole(String id) {
+                return new Removed("FUHITO_UNIT_ROLE", id, "fuhito/unit-roles/" + id);
+            }
+
+            static Removed externalId(String id) {
+                return new Removed("FUHITO_EXTERNAL_ID", id, "fuhito/external-ids/" + id);
             }
         }
     }

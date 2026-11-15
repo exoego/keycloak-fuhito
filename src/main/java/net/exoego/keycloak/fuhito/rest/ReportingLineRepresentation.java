@@ -30,7 +30,13 @@ public record ReportingLineRepresentation(
                 format = "date")
         String validTo) {
 
-    static ReportingLineRepresentation of(ReportingLine line) {
+    /**
+     * Makes the representation of a reporting line.
+     *
+     * @param line the line
+     * @return the representation
+     */
+    public static ReportingLineRepresentation of(ReportingLine line) {
         return new ReportingLineRepresentation(line.id(), line.assignmentId(), line.managerPersonId(),
                 line.managerUserId(),
                 line.kind().name(), line.period().from().toString(),
