@@ -2,10 +2,12 @@ package net.exoego.keycloak.fuhito.service;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.TreeMap;
+import java.util.stream.Stream;
 
 import net.exoego.keycloak.fuhito.domain.Person;
 import net.exoego.keycloak.fuhito.store.PersonStore;
@@ -57,6 +59,18 @@ final class MemoryPersonStore implements PersonStore {
         return people.values().stream()
                 .sorted(java.util.Comparator.comparing(Person::id))
                 .filter(person -> afterId == null || person.id().compareTo(afterId) > 0)
+                .skip(first).limit(max).toList();
+    }
+
+    @Override
+    public List<Person> search(String text, String staffNumber, String afterId, int first, int max) {
+        // Only the names. The staff numbers are in the store of employments.
+        return list(afterId, 0, Integer.MAX_VALUE).stream()
+                .filter(person -> text == null || Stream.concat(
+                                Stream.of(person.name(), person.phoneticName()),
+                                person.names().values().stream())
+                        .anyMatch(name -> name != null && name.toLowerCase(Locale.ROOT)
+                                .contains(text.toLowerCase(Locale.ROOT))))
                 .skip(first).limit(max).toList();
     }
 
