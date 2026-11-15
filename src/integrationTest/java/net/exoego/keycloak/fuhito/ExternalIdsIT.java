@@ -41,6 +41,17 @@ class ExternalIdsIT {
         assertEquals("external_id.own_source", errorOf(409, api.put("/external-ids", "{\"resourceType\": "
                 + "\"ORG_UNIT\", \"resourceId\": \"" + ward + "\", \"source\": \"hr\", \"externalId\": \"W-2\"}")));
         assertFalse(Api.json(api.get("/change-log?resourceType=FUHITO_EXTERNAL_ID")).isEmpty());
+        // A new unit or person cannot take an ID that names another one, as its own pair or as an added ID.
+        for (String taken : List.of("\"externalId\": \"W-1\", \"source\": \"hr\"",
+                "\"externalId\": \"P-9\", \"source\": \"payroll\"")) {
+            assertEquals("org_unit.external_id_taken", errorOf(409, api.post("/org-units",
+                    "{\"name\": \"2病棟\", \"validFrom\": \"2020-04-01\", " + taken + "}")));
+        }
+        String other = Api.json(api.post("/people", "{\"name\": \"Other\"}")).get("id").asText();
+        ok(api.put("/external-ids", "{\"resourceType\": \"PERSON\", \"resourceId\": \"" + other
+                + "\", \"source\": \"payroll\", \"externalId\": \"E-1\"}"));
+        assertEquals("person.external_id_taken", errorOf(409, api.post("/people",
+                "{\"name\": \"New\", \"externalId\": \"E-1\", \"source\": \"payroll\"}")));
 
         // A person who left is masked, and the IDs of the person in other systems go away.
         String user = realm.user("former");

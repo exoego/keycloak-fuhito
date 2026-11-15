@@ -36,6 +36,18 @@ public interface PersonStore {
     Optional<Person> findByExternalId(String source, String externalId);
 
     /**
+     * Tells whether another person has the ID of a system, as their own ID or as one of their other IDs.
+     *
+     * @param source the name of that system
+     * @param externalId the ID in that system
+     * @param exceptId the ID of a person who does not count, or null
+     * @return true when another person has the ID
+     */
+    default boolean externalIdTaken(String source, String externalId, String exceptId) {
+        return findByExternalId(source, externalId).filter(person -> !person.id().equals(exceptId)).isPresent();
+    }
+
+    /**
      * Lists the people of the realm, ordered by ID.
      *
      * @param afterId the ID of the person that the list goes on after, or null to start at the first one
