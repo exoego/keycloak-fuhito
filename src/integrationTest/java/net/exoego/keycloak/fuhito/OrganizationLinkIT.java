@@ -25,7 +25,7 @@ class OrganizationLinkIT {
         realm.setEnabled(true);
         realm.setOrganizationsEnabled(organizations);
         TestRealm.withTimeZone(realm);
-        admin.realms().create(realm);
+        TestRealm.createRealm(admin, realm);
         return realm.getRealm();
     }
 

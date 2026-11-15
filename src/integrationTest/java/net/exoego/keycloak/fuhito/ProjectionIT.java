@@ -47,7 +47,7 @@ class ProjectionIT {
             representation.setAttributes(Map.of("fuhito.projection.enabled", "true"));
         }
         TestRealm.withTimeZone(representation);
-        admin.realms().create(representation);
+        TestRealm.createRealm(admin, representation);
         api = new Api(realm, token);
         TestRealm.legalEntity(api, "法人");
     }
