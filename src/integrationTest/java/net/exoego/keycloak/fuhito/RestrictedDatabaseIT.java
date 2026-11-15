@@ -9,6 +9,7 @@ import org.keycloak.admin.client.Keycloak;
 import org.keycloak.representations.idm.RealmRepresentation;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.parallel.Isolated;
 import org.testcontainers.containers.Network;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
@@ -19,6 +20,7 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
  * A database user that may not create the btree_gist extension.
  */
 @Order(1)
+@Isolated
 class RestrictedDatabaseIT {
 
     @Test
