@@ -1,6 +1,7 @@
 package net.exoego.keycloak.fuhito.rest;
 
 import java.util.Locale;
+import java.util.OptionalInt;
 
 import jakarta.ws.rs.core.Response;
 import net.exoego.keycloak.fuhito.store.IdempotencyStore;
@@ -20,6 +21,14 @@ public interface RequestContext {
      * reference items. Throws when the caller lacks it. A caller who may read everything has it too.
      */
     void requireReadStructure();
+
+    /**
+     * Returns how many days after today the caller may read the org structure on. A caller who may read
+     * everything has no limit, and neither does any caller of a realm that sets none.
+     *
+     * @return the number of days, or empty for no limit
+     */
+    OptionalInt structureDaysAhead();
 
     /**
      * Requires the permission to change organization data. Throws when the caller lacks it.

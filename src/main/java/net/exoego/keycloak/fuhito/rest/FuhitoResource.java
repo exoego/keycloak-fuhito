@@ -412,7 +412,7 @@ public class FuhitoResource {
     public OrgUnitsResource orgUnits() {
         return new OrgUnitsResource(context, orgUnitService(), membershipService(),
                 new OrganizationLinkService(new JpaOrgUnitStore(entityManager, realmId), organizations),
-                unitRoleService(), removals());
+                unitRoleService(), removals(), new StructureLimit(context, today()));
     }
 
     /**

@@ -53,6 +53,7 @@ public class OrgUnitsResource {
     private final OrganizationLinkService organizationLinks;
     private final UnitRoleService unitRoles;
     private final RemovalService removals;
+    private final StructureLimit limit;
 
     /**
      * Creates the resource for one request.
@@ -63,9 +64,12 @@ public class OrgUnitsResource {
      * @param organizationLinks the links to Keycloak organizations of the realm
      * @param unitRoles the roles over org units of the realm
      * @param removals the removal of resources that were made by mistake
+     * @param limit how far ahead a caller who may read only the structure may read it
      */
-    public OrgUnitsResource(RequestContext context, OrgUnitService service, MembershipService membership,
-            OrganizationLinkService organizationLinks, UnitRoleService unitRoles, RemovalService removals) {
+    OrgUnitsResource(RequestContext context, OrgUnitService service, MembershipService membership,
+            OrganizationLinkService organizationLinks, UnitRoleService unitRoles, RemovalService removals,
+            StructureLimit limit) {
+        this.limit = limit;
         this.removals = removals;
         this.unitRoles = unitRoles;
         this.organizationLinks = organizationLinks;
@@ -242,8 +246,9 @@ public class OrgUnitsResource {
                     schema = @Schema(minimum = "0", maximum = "1000", defaultValue = "100"))
             @QueryParam("max") Integer max) {
         context.requireReadStructure();
-        return Calls.run(context, () -> represent(legalEntity ? service.legalEntities(asOf, Page.of(first, max))
-                : service.roots(asOf, hierarchy, group, Page.of(first, max))));
+        return Calls.run(context, () -> represent(legalEntity
+                ? service.legalEntities(limit.checked(asOf), Page.of(first, max))
+                : service.roots(limit.checked(asOf), hierarchy, group, Page.of(first, max))));
     }
 
     @GET
@@ -295,7 +300,8 @@ public class OrgUnitsResource {
             @QueryParam("count") boolean count) {
         context.requireReadStructure();
         return Calls.run(context, () -> {
-            OrgUnitService.Search search = new OrgUnitService.Search(q, code, unitType, group, asOf);
+            OrgUnitService.Search search = new OrgUnitService.Search(q, code, unitType, group,
+                    limit.checked(asOf));
             Response.ResponseBuilder response = Response.ok(represent(service.search(search, Page.of(first, max))));
             if (count) {
                 response.header(Pages.TOTAL, service.countSearch(search));
@@ -334,7 +340,7 @@ public class OrgUnitsResource {
                     schema = @Schema(minimum = "0", maximum = "1000", defaultValue = "100"))
             @QueryParam("max") Integer max) {
         context.requireReadStructure();
-        return Calls.run(context, () -> represent(service.children(id, asOf, hierarchy, group,
+        return Calls.run(context, () -> represent(service.children(id, limit.checked(asOf), hierarchy, group,
                 Page.of(first, max))));
     }
 
@@ -371,7 +377,7 @@ public class OrgUnitsResource {
                     schema = @Schema(minimum = "0", maximum = "1000", defaultValue = "100"))
             @QueryParam("max") Integer max) {
         context.requireReadStructure();
-        return Calls.run(context, () -> represent(service.subtree(id, asOf, hierarchy, group,
+        return Calls.run(context, () -> represent(service.subtree(id, limit.checked(asOf), hierarchy, group,
                 Page.of(first, max))));
     }
 
@@ -395,7 +401,7 @@ public class OrgUnitsResource {
             @Parameter(description = "The code of the hierarchy. The default is the hierarchy `default`.")
             @QueryParam("hierarchy") String hierarchy) {
         context.requireReadStructure();
-        return Calls.run(context, () -> represent(service.path(id, asOf, hierarchy)));
+        return Calls.run(context, () -> represent(service.path(id, limit.checked(asOf), hierarchy)));
     }
 
     @PUT
@@ -555,7 +561,9 @@ public class OrgUnitsResource {
     @Path("{id}/history")
     @Operation(
             operationId = "getOrgUnitHistory",
-            summary = "Returns everything that is stored about an org unit over time.")
+            summary = "Returns everything that is stored about an org unit over time.",
+            description = "A caller who may read only the structure gets 403 when the realm attribute "
+                    + "`fuhito.structure.daysAhead` limits how far ahead the caller may read.")
     @APIResponse(responseCode = "200", description = "The details of every period and the parent of every period.")
     @NotFound
     @ApiErrors
@@ -563,7 +571,10 @@ public class OrgUnitsResource {
             @Parameter(description = "The ID of the resource.")
             @PathParam("id") String id) {
         context.requireReadStructure();
-        return Calls.run(context, () -> OrgUnitHistoryRepresentation.of(service.history(id)));
+        return Calls.run(context, () -> {
+            limit.requireEveryDate();
+            return OrgUnitHistoryRepresentation.of(service.history(id));
+        });
     }
 
     @GET
@@ -608,7 +619,9 @@ public class OrgUnitsResource {
             operationId = "getOrgUnitSuccession",
             summary = "Returns the org units that an org unit follows, and the ones that follow it.",
             description = "A step `succeed` of a reorganization records them. Several units before mean a merger. "
-                    + "Several units after mean a split.")
+                    + "Several units after mean a split. For a caller who may read only the structure, the realm "
+                    + "attribute `fuhito.structure.daysAhead` leaves out those after the last date the caller may "
+                    + "read.")
     @APIResponse(responseCode = "200", description = "The units before and after, oldest first.")
     @NotFound
     @ApiErrors
@@ -616,7 +629,8 @@ public class OrgUnitsResource {
             @Parameter(description = "The ID of the resource.")
             @PathParam("id") String id) {
         context.requireReadStructure();
-        return Calls.run(context, () -> OrgUnitSuccessionsRepresentation.of(service.successions(id)));
+        return Calls.run(context, () -> OrgUnitSuccessionsRepresentation.of(
+                limit.readable(service.successions(id))));
     }
 
     private OrgUnitRepresentation updated(String path, OrgUnitState state) {
@@ -650,7 +664,8 @@ public class OrgUnitsResource {
             @Parameter(description = "The code of the hierarchy. The default is the hierarchy `default`.")
             @QueryParam("hierarchy") String hierarchy) {
         context.requireReadStructure();
-        return Calls.tagged(context, () -> state(id), () -> OrgUnitRepresentation.of(service.get(id, asOf, hierarchy)));
+        return Calls.tagged(context, () -> state(id), () -> OrgUnitRepresentation.of(
+                service.get(id, limit.checked(asOf), hierarchy)));
     }
 
     // The whole stored state of one resource, which its ETag covers.

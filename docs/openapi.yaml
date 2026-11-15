@@ -5164,6 +5164,9 @@ paths:
   /org-units/{id}/history:
     get:
       summary: Returns everything that is stored about an org unit over time.
+      description: A caller who may read only the structure gets 403 when the realm
+        attribute `fuhito.structure.daysAhead` limits how far ahead the caller may
+        read.
       operationId: getOrgUnitHistory
       tags:
       - org-units
@@ -5597,8 +5600,10 @@ paths:
     get:
       summary: "Returns the org units that an org unit follows, and the ones that\
         \ follow it."
-      description: A step `succeed` of a reorganization records them. Several units
-        before mean a merger. Several units after mean a split.
+      description: "A step `succeed` of a reorganization records them. Several units\
+        \ before mean a merger. Several units after mean a split. For a caller who\
+        \ may read only the structure, the realm attribute `fuhito.structure.daysAhead`\
+        \ leaves out those after the last date the caller may read."
       operationId: getOrgUnitSuccession
       tags:
       - org-units
