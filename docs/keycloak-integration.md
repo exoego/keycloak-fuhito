@@ -368,6 +368,7 @@ For an org unit, it covers every period of the details and every parent, so a re
 
 - A write to one resource can send that value in `If-Match`. When the resource changed since the read, the write fails with 412 and `etag.mismatch`, and nothing is written. The caller reads again and decides.
 - `If-Match: *` matches any state. A write with no `If-Match` goes on as before.
+- A write with `If-Match` locks the stored row of the resource until it ends. A second write with the same ETag at the same moment waits, sees the new state, and fails with 412. A write with no `If-Match` takes no lock.
 - A write to one resource answers with the ETag of the new state.
 - The writes are those of `PUT`, `POST`, and `DELETE` below the path of the resource, for example `PUT /employments/{id}/terms` and `POST /employments/{id}/leave`.
 

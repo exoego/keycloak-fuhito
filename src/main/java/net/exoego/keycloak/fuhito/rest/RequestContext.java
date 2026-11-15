@@ -82,6 +82,12 @@ public interface RequestContext {
     String requestPath();
 
     /**
+     * Locks the stored row of the resource that the path of the request names, until the end of the transaction.
+     * A second write to the resource then waits for the first one.
+     */
+    void lockTarget();
+
+    /**
      * Returns the storage of the responses to requests with an idempotency key.
      *
      * @return the storage of the realm

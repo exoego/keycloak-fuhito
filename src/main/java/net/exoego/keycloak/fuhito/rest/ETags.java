@@ -49,6 +49,8 @@ final class ETags {
         if (wanted == null) {
             return;
         }
+        // Another write with the same ETag waits here, and then sees the state that the first one wrote.
+        context.lockTarget();
         String current = of(state.get());
         boolean matches = Arrays.stream(wanted.split(","))
                 .map(String::strip)
