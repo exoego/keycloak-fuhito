@@ -52,7 +52,8 @@ class CsvImportServiceTest {
                     new PersonService(personStore, users, id -> false));
     private final MemoryAttributeDefinitionStore definitions = new MemoryAttributeDefinitionStore();
     private final CsvImportService service = new CsvImportService(
-            new ImportService(new RefItemService(refItems), refItems, orgUnits, orgUnitStore, people), refItems,
+            new ImportService(new RefItemService(refItems), refItems, orgUnits, orgUnitStore, people,
+                    new ImportService.Setup(new RealmKindService(new MemoryRealmKindStore(), refItems))), refItems,
             orgUnitStore, orgUnits, people, definitions::list);
 
     private CsvImportService.Result load(String list, String effectiveDate, String csv) {

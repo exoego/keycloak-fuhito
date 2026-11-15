@@ -35,8 +35,8 @@ import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 @Tag(ref = Tags.BULK)
 public class ImportsResource {
 
-    private static final Map<String, String> CSV_LISTS = Map.of("ref-items", "refItems", "org-units", "orgUnits",
-            "employments", "employments", "assignments", "assignments", "people", "people");
+    private static final Map<String, String> CSV_LISTS = Map.of("ref-kinds", "refKinds", "ref-items", "refItems",
+            "org-units", "orgUnits", "employments", "employments", "assignments", "assignments", "people", "people");
 
     private final RequestContext context;
     private final ImportService service;
@@ -65,16 +65,16 @@ public class ImportsResource {
     @Operation(
             operationId = "exportCsv",
             summary = "Returns a list on a date as a CSV that the import loads again.",
-            description = "The lists are the same as for the import. A row of anything but a reference item has "
-                    + "the column `id`, so that a row of a thing with no external ID comes back too. The reference "
-                    + "items and the people have no date.")
+            description = "The lists are the same as for the import. A row of a thing that has an ID has the "
+                    + "column `id`, so that a row of a thing with no external ID comes back too. The kinds, the "
+                    + "reference items, and the people have no date.")
     @APIResponse(responseCode = "200", description = "The CSV, in UTF-8 with a byte order mark.")
     @BadRequest
     @ApiErrors
     public Response exportCsv(
             @Parameter(
                     description = "The kind of rows.",
-                    schema = @Schema(enumeration = {"ref-items", "org-units", "people", "employments",
+                    schema = @Schema(enumeration = {"ref-kinds", "ref-items", "org-units", "people", "employments",
                             "assignments"}))
             @PathParam("list") String list,
             @Parameter(
@@ -110,7 +110,8 @@ public class ImportsResource {
     public ImportReportRepresentation applyCsv(
             @Parameter(
                     description = "The kind of rows.",
-                    schema = @Schema(enumeration = {"ref-items", "org-units", "people", "employments", "assignments"}))
+                    schema = @Schema(enumeration = {"ref-kinds", "ref-items", "org-units", "people", "employments",
+                            "assignments"}))
             @PathParam("list") String list,
             @Parameter(description = "The date of the state.", required = true, schema = @Schema(format = "date"))
             @QueryParam("effectiveDate") String effectiveDate,
@@ -142,7 +143,8 @@ public class ImportsResource {
             operationId = "applyImport",
             summary = "Loads many rows in one transaction.",
             description = "All rows are written, or none. A dry run does all checks and writes nothing. The lists "
-                    + "are applied in the order reference items, org units, employments, assignments.")
+                    + "are applied in the order kinds of reference data, reference items, org units, people, "
+                    + "employments, assignments.")
     @Parameter(ref = "changeOrder")
     @APIResponse(
             responseCode = "200",

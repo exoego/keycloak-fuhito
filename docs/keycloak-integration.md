@@ -498,7 +498,7 @@ The realm stores the events when admin events are turned on in its settings.
 | `FUHITO_REPORTING_LINE` | `CREATE`, `UPDATE`, `DELETE` | `fuhito/reporting-lines/{id}`, and the same with `/end` |
 | `FUHITO_UNIT_ROLE` | `CREATE`, `UPDATE`, `DELETE` | `fuhito/unit-roles/{id}`, and the same with `/end` |
 | `FUHITO_ATTRIBUTE_DEFINITION` | `CREATE`, `UPDATE`, `DELETE` | `fuhito/attribute-definitions/{id}` |
-| `FUHITO_REF_KIND` | `CREATE`, `DELETE` | `fuhito/ref-kinds/{code}` |
+| `FUHITO_REF_KIND` | `CREATE`, `UPDATE`, `DELETE` | `fuhito/ref-kinds/{code}` |
 | `FUHITO_EXTERNAL_ID` | `UPDATE`, `DELETE` | `fuhito/external-ids/{id}`, with the ID of the stored row |
 
 The event has the new state as its representation when the realm keeps representations.

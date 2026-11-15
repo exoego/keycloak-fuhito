@@ -60,6 +60,13 @@ public class JpaRealmKindStore implements RealmKindStore {
     }
 
     @Override
+    public void update(RealmKind kind) {
+        RealmKindEntity entity = Rows.require(em, RealmKindEntity.class, kind.id(), realmId, found -> found.realmId);
+        entity.name = kind.name();
+        entity.names = kind.names();
+    }
+
+    @Override
     public void delete(String id) {
         RealmKindEntity entity = em.find(RealmKindEntity.class, id);
         if (entity != null && entity.realmId.equals(realmId)) {

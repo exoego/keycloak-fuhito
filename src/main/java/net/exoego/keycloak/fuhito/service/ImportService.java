@@ -3,12 +3,14 @@ package net.exoego.keycloak.fuhito.service;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Function;
 
 import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.RefItem;
 import net.exoego.keycloak.fuhito.domain.RefKind;
 import net.exoego.keycloak.fuhito.service.ImportDocument.RefItemRow;
+import net.exoego.keycloak.fuhito.service.ImportDocument.RefKindRow;
 import net.exoego.keycloak.fuhito.service.ImportReport.Outcome;
 import net.exoego.keycloak.fuhito.service.ImportReport.Write;
 import net.exoego.keycloak.fuhito.store.AssignmentStore;
@@ -29,6 +31,15 @@ public class ImportService {
     public static final String DEFAULT_SOURCE = "import";
 
     private static final String REF_ITEMS = "refItems";
+    private static final String REF_KINDS = "refKinds";
+
+    /**
+     * The services that an import of the setup of a realm needs.
+     *
+     * @param kinds the operations on the kinds of reference data of the realm
+     */
+    public record Setup(RealmKindService kinds) {
+    }
 
     /**
      * The services and stores that an import of people needs.
@@ -49,6 +60,7 @@ public class ImportService {
     private final OrgUnitService orgUnitService;
     private final OrgUnitStore orgUnits;
     private final People people;
+    private final Setup setup;
 
     /**
      * Creates the service.
@@ -58,14 +70,20 @@ public class ImportService {
      * @param orgUnitService the operations on org units of the realm
      * @param orgUnits the storage of org units of the realm
      * @param people what an import of employments and assignments needs
+     * @param setup what an import of the setup of the realm needs
      */
     public ImportService(RefItemService refItemService, RefItemStore refItems, OrgUnitService orgUnitService,
-            OrgUnitStore orgUnits, People people) {
+            OrgUnitStore orgUnits, People people, Setup setup) {
         this.refItemService = refItemService;
         this.refItems = refItems;
         this.orgUnitService = orgUnitService;
         this.orgUnits = orgUnits;
         this.people = people;
+        this.setup = setup;
+    }
+
+    Setup setup() {
+        return setup;
     }
 
     /**
@@ -80,8 +98,11 @@ public class ImportService {
         Checks.date("effectiveDate", document.effectiveDate());
         String source = Checks.optionalCode("source", document.source());
         ImportReport report = new ImportReport();
+        if (document.refKinds() != null) {
+            each(REF_KINDS, document.refKinds(), report, row -> importRefKind(row, report));
+        }
         if (document.refItems() != null) {
-            importRefItems(document.refItems(), report);
+            each(REF_ITEMS, document.refItems(), report, row -> importRefItem(row, report));
         }
         String defaultSource = source == null ? DEFAULT_SOURCE : source;
         if (document.orgUnits() != null) {
@@ -102,15 +123,31 @@ public class ImportService {
         return report;
     }
 
-    private void importRefItems(List<RefItemRow> rows, ImportReport report) {
-        report.startList(REF_ITEMS);
+    private static <R> void each(String list, List<R> rows, ImportReport report, Function<R, Outcome> apply) {
+        report.startList(list);
         for (int i = 0; i < rows.size(); i++) {
             try {
-                report.count(REF_ITEMS, importRefItem(Checks.required("row", rows.get(i)), report));
+                report.count(list, apply.apply(Checks.required("row", rows.get(i))));
             } catch (FuhitoException e) {
-                report.error(REF_ITEMS, i, e);
+                report.error(list, i, e);
             }
         }
+    }
+
+    private Outcome importRefKind(RefKindRow row, ImportReport report) {
+        String code = Checks.required("code", row.code());
+        Optional<RealmKindService.View> stored = setup.kinds().find(code);
+        if (stored.isEmpty()) {
+            report.write(new Write.OfRefKind(true, setup.kinds().create(code, row.name(), row.names())));
+            return Outcome.CREATED;
+        }
+        RealmKindService.View before = stored.get();
+        if (Checks.name("name", row.name()).equals(before.name())
+                && Checks.localizedNames("names", row.names()).equals(before.names())) {
+            return Outcome.UNCHANGED;
+        }
+        report.write(new Write.OfRefKind(false, setup.kinds().rename(code, row.name(), row.names())));
+        return Outcome.CHANGED;
     }
 
     private Outcome importRefItem(RefItemRow row, ImportReport report) {

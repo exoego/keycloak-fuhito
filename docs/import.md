@@ -19,6 +19,7 @@ Every bad row is reported, not only the first one.
 
 | List | Matched by |
 |---|---|
+| Kinds of reference data | Code |
 | Reference items | Kind and code |
 | Org units | Source and external ID, or ID |
 | People | Source and external ID, or ID |
@@ -41,8 +42,8 @@ The list `people` loads people, also those with no Keycloak user, such as staff 
 
 ## JSON
 
-`POST /imports` takes one document with up to four lists.
-The lists are applied in the order reference items, org units, employments, assignments.
+`POST /imports` takes one document with several lists.
+The lists are applied in the order kinds of reference data, reference items, org units, people, employments, assignments.
 
 ```json
 {
@@ -66,6 +67,7 @@ The lists are applied in the order reference items, org units, employments, assi
 }
 ```
 
+- The list `refKinds` adds kinds of reference data to the realm. A row has `code`, `name`, and `names`. A row of a stored kind changes its names. A fixed kind such as `UNIT_TYPE` is in every realm and cannot be a row.
 - Rows of org units can come in any order. A parent is applied before its children.
 - A parent with no external ID of the same source can be named by `parentId`, the ID of the unit. A row gives `parentExternalId` or `parentId`, not both.
 - A row of a stored org unit can name it by `id`, also when the unit has no external ID. An external ID beside it must be the one of that unit.
@@ -86,9 +88,11 @@ The lists are applied in the order reference items, org units, employments, assi
 
 ## CSV
 
-`POST /imports/csv/{list}` takes one file. The list is `ref-items`, `org-units`, `people`, `employments`, or `assignments`.
+`POST /imports/csv/{list}` takes one file. The list is `ref-kinds`, `ref-items`, `org-units`, `people`, `employments`, or `assignments`.
 
 `GET /imports/csv/org-units?asOf=` gives the org units of a date as such a file, for a change in a spreadsheet. Each row has the column `id`, so a unit with no external ID loads again too. The parent is in the column `parentId`. With `header=ja`, the names of the columns are in Japanese. The file is UTF-8 with a byte order mark, which spreadsheets need to read it as UTF-8. The same file loaded on the same date changes nothing.
+
+`GET /imports/csv/ref-kinds` gives the kinds that the realm added the same way. It takes no `asOf`.
 
 `GET /imports/csv/ref-items` gives the reference items of every kind the same way, the inactive ones too. It takes no `asOf`. An item is matched by kind and code, so the file has no `id`. A mark such as `legalEntity` is blank for a kind that cannot have it.
 
@@ -122,6 +126,13 @@ curl -X POST \
 - A column `attributes.<name>` sets an attribute that the realm defined for the resource of the list, for example `attributes.beds`. The cell is read by the type of the definition. Other attributes keep what is stored. A column of an attribute with no definition is rejected.
 
 ### Columns
+
+Kinds of reference data.
+
+| English | Japanese |
+|---|---|
+| `code` | `コード` |
+| `name` | `名称` |
 
 Reference items.
 

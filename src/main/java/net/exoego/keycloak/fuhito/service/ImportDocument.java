@@ -27,7 +27,28 @@ public record ImportDocument(
         List<EmploymentRow> employments,
         List<AssignmentRow> assignments,
         @Schema(description = "The people. They come before the employments, which can name them.")
-        List<PersonRow> people) {
+        List<PersonRow> people,
+        @Schema(description = "The kinds of reference data that the realm adds. They come first, so that the "
+                + "reference items can name them.")
+        List<RefKindRow> refKinds) {
+
+    /**
+     * Makes a document with no list of kinds.
+     *
+     * @param effectiveDate the date of the state, as {@code YYYY-MM-DD}
+     * @param dryRun true to do all checks and write nothing
+     * @param source the name of the system that the rows come from, or null
+     * @param refItems the reference items, or null
+     * @param orgUnits the org units, or null
+     * @param employments the employments, or null
+     * @param assignments the assignments, or null
+     * @param people the people, or null
+     */
+    public ImportDocument(String effectiveDate, boolean dryRun, String source, List<RefItemRow> refItems,
+            List<OrgUnitRow> orgUnits, List<EmploymentRow> employments, List<AssignmentRow> assignments,
+            List<PersonRow> people) {
+        this(effectiveDate, dryRun, source, refItems, orgUnits, employments, assignments, people, null);
+    }
 
     /**
      * Makes a document with no list of people.
@@ -42,7 +63,20 @@ public record ImportDocument(
      */
     public ImportDocument(String effectiveDate, boolean dryRun, String source, List<RefItemRow> refItems,
             List<OrgUnitRow> orgUnits, List<EmploymentRow> employments, List<AssignmentRow> assignments) {
-        this(effectiveDate, dryRun, source, refItems, orgUnits, employments, assignments, null);
+        this(effectiveDate, dryRun, source, refItems, orgUnits, employments, assignments, null, null);
+    }
+
+    @Schema(
+            name = "ImportRefKindRow",
+            description = "A kind of reference data that the realm adds. It is matched by code.",
+            requiredProperties = {"code", "name"})
+    public record RefKindRow(
+            @Schema(maxLength = 32, pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$")
+            String code,
+            @Schema(description = "The default name.", maxLength = 255)
+            String name,
+            @Schema(description = "Names in other languages, by language tag.")
+            Map<String, String> names) {
     }
 
     @Schema(

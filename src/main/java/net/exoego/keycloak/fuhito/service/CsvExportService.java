@@ -31,9 +31,11 @@ public class CsvExportService {
     // The mark that tells a spreadsheet that the file is UTF-8.
     private static final String BYTE_ORDER_MARK = "﻿";
     private static final int ROWS_AT_A_TIME = 1000;
+    private static final List<String> LISTS = List.of("ref-kinds", "ref-items", "org-units", "people",
+            "employments", "assignments");
 
     private final RefItemService refItems;
-    private final Supplier<List<String>> kinds;
+    private final Supplier<List<RealmKindService.View>> kinds;
     private final OrgUnitService orgUnits;
     private final PersonService people;
     private final EmploymentService employments;
@@ -45,7 +47,7 @@ public class CsvExportService {
      * Creates the service.
      *
      * @param refItems the operations on reference items of the realm
-     * @param kinds the codes of the kinds of reference items, the fixed ones and the ones of the realm
+     * @param kinds the kinds of reference items, the fixed ones and the ones of the realm
      * @param orgUnits the operations on org units of the realm
      * @param people the operations on people of the realm
      * @param employments the operations on employments of the realm
@@ -53,7 +55,8 @@ public class CsvExportService {
      * @param today what today is for the realm
      * @param definitions the definitions of free attributes of the realm, by the resource that has them
      */
-    public CsvExportService(RefItemService refItems, Supplier<List<String>> kinds, OrgUnitService orgUnits,
+    public CsvExportService(RefItemService refItems, Supplier<List<RealmKindService.View>> kinds,
+            OrgUnitService orgUnits,
             PersonService people, EmploymentService employments, AssignmentService assignments, Today today,
             Function<AttributeDefinition.Target, List<AttributeDefinition>> definitions) {
         this.refItems = refItems;
@@ -77,19 +80,38 @@ public class CsvExportService {
      */
     public String write(String list, String asOf, boolean japanese) {
         return switch (String.valueOf(list)) {
+            case "ref-kinds" -> refKinds(japanese);
             case "ref-items" -> refItems(japanese);
             case "org-units" -> orgUnits(asOf, japanese);
             case "people" -> people(japanese);
             case "employments" -> employments(asOf, japanese);
             case "assignments" -> assignments(asOf, japanese);
-            default -> throw FuhitoException.invalid("csv.export_list_unknown", Map.of("list", String.valueOf(list)));
+            default -> throw FuhitoException.invalid("csv.export_list_unknown", Map.of("list", String.valueOf(list),
+                    "lists", String.join(", ", LISTS)));
         };
+    }
+
+    // Only the kinds that the realm added. A fixed kind is in every realm.
+    private String refKinds(boolean japanese) {
+        List<RealmKindService.View> added = kinds.get().stream().filter(kind -> !kind.fixed()).toList();
+        SortedSet<String> languages = new TreeSet<>();
+        added.forEach(kind -> languages.addAll(kind.names().keySet()));
+        List<String> header = new ArrayList<>(List.of(column("code", japanese), column("name", japanese)));
+        languages.forEach(language -> header.add(column("name", japanese) + ":" + language));
+        StringBuilder csv = new StringBuilder(BYTE_ORDER_MARK);
+        line(csv, header);
+        for (RealmKindService.View kind : added) {
+            List<String> cells = new ArrayList<>(List.of(kind.code(), kind.name()));
+            languages.forEach(language -> cells.add(text(kind.names().get(language))));
+            line(csv, cells);
+        }
+        return csv.toString();
     }
 
     // A mark is left blank for a kind that cannot have it, as a blank cell means no mark for a new item.
     private String refItems(boolean japanese) {
         List<RefItem> items = new ArrayList<>();
-        for (String kind : kinds.get()) {
+        for (String kind : kinds.get().stream().map(RealmKindService.View::code).toList()) {
             for (int first = 0;; first += ROWS_AT_A_TIME) {
                 List<RefItem> page = refItems.list(kind, true, Page.of(first, ROWS_AT_A_TIME));
                 items.addAll(page);

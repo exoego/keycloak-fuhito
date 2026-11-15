@@ -32,6 +32,7 @@ import net.exoego.keycloak.fuhito.service.ImportDocument.EmploymentRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.OrgUnitRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.PersonRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.RefItemRow;
+import net.exoego.keycloak.fuhito.service.ImportDocument.RefKindRow;
 import net.exoego.keycloak.fuhito.store.OrgUnitStore;
 import net.exoego.keycloak.fuhito.store.RefItemStore;
 
@@ -87,6 +88,7 @@ public class CsvImportService {
 
     // The lists that a file can hold, each with the resource whose attributes it sets.
     private enum Kind {
+        REF_KINDS("refKinds", null),
         REF_ITEMS("refItems", AttributeDefinition.Target.REF_ITEM),
         ORG_UNITS("orgUnits", AttributeDefinition.Target.ORG_UNIT),
         EMPLOYMENTS("employments", AttributeDefinition.Target.EMPLOYMENT_TERMS),
@@ -111,6 +113,7 @@ public class CsvImportService {
     }
 
     private static final Map<Kind, Set<String>> FIELDS = Map.of(
+            Kind.REF_KINDS, Set.of("code", "name"),
             Kind.REF_ITEMS, Set.of("kind", "code", "name", "displayOrder", "active", "legalEntity", "actingHead",
                     "group"),
             Kind.ORG_UNITS, Set.of("id", "externalId", "source", "code", "name", "shortName", "phoneticName",
@@ -159,8 +162,7 @@ public class CsvImportService {
     /**
      * Applies one CSV file.
      *
-     * @param list the list that the file holds. It is {@code refItems}, {@code orgUnits}, {@code employments},
-     *        or {@code assignments}.
+     * @param list the list that the file holds, such as {@code refKinds}, {@code refItems}, or {@code orgUnits}
      * @param csv the text of the file
      * @param effectiveDate the date of the state, as {@code YYYY-MM-DD}
      * @param dryRun true to do all checks and write nothing
@@ -176,12 +178,14 @@ public class CsvImportService {
         if (rows.isEmpty()) {
             throw FuhitoException.invalid("csv.no_header", Map.of());
         }
-        List<AttributeDefinition> defined = definitions.apply(kind.target);
+        List<AttributeDefinition> defined = kind.target == null ? List.of() : definitions.apply(kind.target);
         List<String> columns = columns(rows.getFirst().cells(), FIELDS.get(kind), defined);
         List<Csv.Row> data = rows.subList(1, rows.size());
 
         // Each list has its own type of row, so the rows keep that type from the cells to the import.
         return switch (kind) {
+            case REF_KINDS -> run(data, columns, defined, this::refKind, typed -> new ImportDocument(effectiveDate,
+                    dryRun, defaultSource, null, null, null, null, null, typed));
             case REF_ITEMS -> run(data, columns, defined, this::refItem,
                     typed -> new ImportDocument(effectiveDate, dryRun, defaultSource, typed, null, null, null));
             case ORG_UNITS -> run(data, columns, defined, cells -> orgUnit(cells, date, defaultSource),
@@ -249,6 +253,14 @@ public class CsvImportService {
             columns.add(localized ? field + name.substring(colon) : field);
         }
         return columns;
+    }
+
+    private RefKindRow refKind(Cells cells) {
+        String code = cells.text("code", null);
+        Optional<RealmKindService.View> stored = code == null ? Optional.empty()
+                : importService.setup().kinds().find(code);
+        return new RefKindRow(code, cells.text("name", stored.map(RealmKindService.View::name).orElse(null)),
+                cells.localized("name", stored.map(RealmKindService.View::names).orElse(Map.of())));
     }
 
     private RefItemRow refItem(Cells cells) {

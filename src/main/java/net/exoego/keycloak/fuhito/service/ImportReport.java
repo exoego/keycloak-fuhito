@@ -118,6 +118,30 @@ public final class ImportReport {
         }
 
         /**
+         * A write of a kind of reference data.
+         *
+         * @param created true for a new kind, false for a change
+         * @param state the kind after the write
+         */
+        record OfRefKind(boolean created, RealmKindService.View state) implements Write {
+
+            @Override
+            public String resourceType() {
+                return "FUHITO_REF_KIND";
+            }
+
+            @Override
+            public String resourceId() {
+                return state.code();
+            }
+
+            @Override
+            public String path() {
+                return "fuhito/ref-kinds/" + resourceId();
+            }
+        }
+
+        /**
          * A write of a person.
          *
          * @param created true for a new person, false for a change

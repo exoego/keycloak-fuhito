@@ -1103,6 +1103,12 @@ components:
             $ref: "#/components/schemas/ImportPersonRow"
           description: "The people. They come before the employments, which can name\
             \ them."
+        refKinds:
+          type: array
+          items:
+            $ref: "#/components/schemas/ImportRefKindRow"
+          description: "The kinds of reference data that the realm adds. They come\
+            \ first, so that the reference items can name them."
     ImportEmploymentRow:
       type: object
       description: "An employment. It is matched by source and external ID, or by\
@@ -1357,6 +1363,27 @@ components:
           description: True for a unit type whose org units are groups outside the
             line organization. A row that leaves it out keeps the mark of a stored
             item.
+    ImportRefKindRow:
+      type: object
+      required:
+      - code
+      - name
+      description: A kind of reference data that the realm adds. It is matched by
+        code.
+      properties:
+        code:
+          type: string
+          maxLength: 32
+          pattern: "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
+        name:
+          type: string
+          maxLength: 255
+          description: The default name.
+        names:
+          type: object
+          additionalProperties:
+            type: string
+          description: "Names in other languages, by language tag."
     ImportReport:
       required:
       - dryRun
@@ -4683,8 +4710,8 @@ paths:
     post:
       summary: Loads many rows in one transaction.
       description: "All rows are written, or none. A dry run does all checks and writes\
-        \ nothing. The lists are applied in the order reference items, org units,\
-        \ employments, assignments."
+        \ nothing. The lists are applied in the order kinds of reference data, reference\
+        \ items, org units, people, employments, assignments."
       operationId: applyImport
       tags:
       - bulk
@@ -4715,9 +4742,10 @@ paths:
   /imports/csv/{list}:
     get:
       summary: Returns a list on a date as a CSV that the import loads again.
-      description: "The lists are the same as for the import. A row of anything but\
-        \ a reference item has the column `id`, so that a row of a thing with no external\
-        \ ID comes back too. The reference items and the people have no date."
+      description: "The lists are the same as for the import. A row of a thing that\
+        \ has an ID has the column `id`, so that a row of a thing with no external\
+        \ ID comes back too. The kinds, the reference items, and the people have no\
+        \ date."
       operationId: exportCsv
       tags:
       - bulk
@@ -4726,6 +4754,7 @@ paths:
         schema:
           type: string
           enum:
+          - ref-kinds
           - ref-items
           - org-units
           - people
@@ -4776,6 +4805,7 @@ paths:
         schema:
           type: string
           enum:
+          - ref-kinds
           - ref-items
           - org-units
           - people
@@ -6785,6 +6815,43 @@ paths:
         "409":
           $ref: "#/components/responses/Conflict"
   /ref-kinds/{code}:
+    put:
+      summary: Changes the names of a kind of the realm.
+      description: The code never changes. The body can leave it out.
+      operationId: renameRefKind
+      tags:
+      - ref-items
+      parameters:
+      - description: The code of the kind.
+        name: code
+        in: path
+        required: true
+        schema:
+          type: string
+      - $ref: "#/components/parameters/changeOrder"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RefKindDefinition"
+        required: true
+      responses:
+        "200":
+          description: The changed kind.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RefKindDefinition"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
     delete:
       summary: Removes a kind of the realm that has no items.
       operationId: deleteRefKind

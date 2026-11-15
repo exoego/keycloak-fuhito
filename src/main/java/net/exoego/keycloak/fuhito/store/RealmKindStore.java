@@ -33,6 +33,13 @@ public interface RealmKindStore {
     void insert(RealmKind kind);
 
     /**
+     * Stores new names of a kind.
+     *
+     * @param kind the kind with its ID
+     */
+    void update(RealmKind kind);
+
+    /**
      * Deletes a kind.
      *
      * @param id the ID
