@@ -41,6 +41,8 @@
             @Tag(name = Tags.EMPLOYMENTS, description = "Employments of users, with their terms over time."),
             @Tag(name = Tags.ASSIGNMENTS, description = "Assignments of employments to org units."),
             @Tag(name = Tags.REPORTING_LINES, description = "Links from an assignment to a manager."),
+            @Tag(name = Tags.UNIT_ROLES,
+                    description = "Roles of employments over org units that are not membership."),
             @Tag(name = Tags.QUALIFICATIONS, description = "Licenses and certificates of users."),
             @Tag(name = Tags.PEOPLE, description = "The people that the realm knows, with or without a Keycloak user."),
             @Tag(name = Tags.USERS, description = "What is stored about one user."),

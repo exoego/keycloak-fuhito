@@ -276,7 +276,7 @@ The caller needs an access token for the admin API, the same as for the other ad
 | Write | Manage users | `manage-users` |
 
 The org structure is the org units with their children, subtree, path, and history, the hierarchies, the reference items, and the version.
-Every other read has data of people, and needs the permission to view users. The members of an org unit are among them.
+Every other read has data of people, and needs the permission to view users. The members of an org unit and the holders of roles over it are among them.
 A caller who may view users may also read the org structure.
 
 So a product that only draws the tree gets `query-users`, and learns no grade, no status, and no staff number.
@@ -356,6 +356,9 @@ The database applies the filters, the order, and the page.
 | `/people/{id}/data` | Erases everything about one person, for a request to delete personal data |
 | `/qualifications` | Licenses and certificates of users |
 | `/reporting-lines` | Links from an assignment to a manager |
+| `/unit-roles` | Roles of employments over org units that are not membership |
+| `/org-units/{id}/role-holders` | Who has a role over an org unit on a date, also from a unit above |
+| `/people/{id}/unit-roles` | The roles over org units of a person on a date |
 | `/people/{id}/managers` | The managers of a person on a date |
 | `/people/{id}/reports` | The direct reports of a person on a date |
 | `/people/{id}/qualifications` | The qualifications of a person on a date, or all of them |
@@ -422,6 +425,7 @@ The realm stores the events when admin events are turned on in its settings.
 | `FUHITO_CHANGE_ORDER` | `CREATE`, `UPDATE`, `DELETE` | `fuhito/change-orders/{id}` |
 | `FUHITO_QUALIFICATION` | `CREATE`, `UPDATE`, `DELETE` | `fuhito/qualifications/{id}` |
 | `FUHITO_REPORTING_LINE` | `CREATE`, `UPDATE`, `DELETE` | `fuhito/reporting-lines/{id}`, and the same with `/end` |
+| `FUHITO_UNIT_ROLE` | `CREATE`, `UPDATE`, `DELETE` | `fuhito/unit-roles/{id}`, and the same with `/end` |
 
 The event has the new state as its representation when the realm keeps representations.
 A failed request records no event.

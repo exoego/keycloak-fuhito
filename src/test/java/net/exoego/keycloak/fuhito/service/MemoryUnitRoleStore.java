@@ -1,0 +1,72 @@
+package net.exoego.keycloak.fuhito.service;
+
+import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Optional;
+
+import net.exoego.keycloak.fuhito.domain.UnitRole;
+import net.exoego.keycloak.fuhito.store.UnitRoleStore;
+
+final class MemoryUnitRoleStore implements UnitRoleStore {
+
+    final List<UnitRole> roles = new ArrayList<>();
+
+    /** The tree that the holders of a unit come from. A test of holders sets it. */
+    MemoryOrgUnitStore orgUnits;
+    MemoryRefItemStore refItems = new MemoryRefItemStore();
+
+    @Override
+    public Optional<UnitRole> find(String id) {
+        return roles.stream().filter(r -> r.id().equals(id)).findFirst();
+    }
+
+    @Override
+    public List<UnitRole> findByEmployment(String employmentId) {
+        return roles.stream().filter(r -> r.employmentId().equals(employmentId))
+                .sorted(Comparator.comparing((UnitRole r) -> r.period().from()).thenComparing(UnitRole::id))
+                .toList();
+    }
+
+    @Override
+    public List<UnitRole> holdersOn(String hierarchyId, String orgUnitId, String roleId, LocalDate date, int first,
+            int max) {
+        List<OrgUnitState> path = new OrgUnitTree(orgUnits, refItems, date, hierarchyId).path(orgUnitId);
+        List<UnitRole> found = new ArrayList<>();
+        for (int depth = 0; depth < path.size(); depth++) {
+            String unitId = path.get(path.size() - 1 - depth).unit().id();
+            boolean own = depth == 0;
+            roles.stream()
+                    .filter(r -> r.orgUnitId().equals(unitId) && r.period().contains(date)
+                            && (own || r.includesDescendants()) && (roleId == null || roleId.equals(r.roleId())))
+                    .sorted(Comparator.comparing((UnitRole r) -> refItems.find(r.roleId()).orElseThrow().code())
+                            .thenComparing(UnitRole::id))
+                    .forEach(found::add);
+        }
+        return found.stream().skip(first).limit(max).toList();
+    }
+
+    @Override
+    public List<UnitRole> ofPersonOn(String personId, LocalDate date, int first, int max) {
+        return roles.stream()
+                .filter(r -> r.personId().equals(personId) && r.period().contains(date))
+                .sorted(Comparator.comparing((UnitRole r) -> r.period().from()).thenComparing(UnitRole::id))
+                .skip(first).limit(max).toList();
+    }
+
+    @Override
+    public void insert(UnitRole role) {
+        roles.add(role);
+    }
+
+    @Override
+    public void update(UnitRole role) {
+        roles.replaceAll(r -> r.id().equals(role.id()) ? role : r);
+    }
+
+    @Override
+    public void delete(String id) {
+        roles.removeIf(r -> r.id().equals(id));
+    }
+}

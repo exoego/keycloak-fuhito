@@ -167,6 +167,15 @@ public interface OrgUnitStore {
     long employmentsHoldingFrom(String employerId, LocalDate date);
 
     /**
+     * Counts the roles over an org unit that hold on a date or after it.
+     *
+     * @param orgUnitId the ID of the org unit
+     * @param date the date
+     * @return the number of roles
+     */
+    long unitRolesHoldingFrom(String orgUnitId, LocalDate date);
+
+    /**
      * Returns, for each of some units, the unit itself and every unit above it on a date.
      * The database walks upward, so the whole tree is not loaded.
      *

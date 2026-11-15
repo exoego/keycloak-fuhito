@@ -20,7 +20,9 @@ import net.exoego.keycloak.fuhito.service.MembershipService;
 import net.exoego.keycloak.fuhito.service.Page;
 import net.exoego.keycloak.fuhito.service.PersonService;
 import net.exoego.keycloak.fuhito.service.QualificationService;
+import net.exoego.keycloak.fuhito.service.Page;
 import net.exoego.keycloak.fuhito.service.ReportingLineService;
+import net.exoego.keycloak.fuhito.service.UnitRoleService;
 import net.exoego.keycloak.fuhito.store.UserDirectory;
 import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
@@ -40,6 +42,7 @@ public class UsersResource {
     private final EmploymentService employments;
     private final AssignmentService assignments;
     private final QualificationService qualifications;
+    private final UnitRoleService unitRoles;
     private final ReportingLineService reportingLines;
     private final UserDirectory users;
     private final PersonService people;
@@ -55,7 +58,7 @@ public class UsersResource {
      * @param reportingLines the reads of managers and reports on the realm
      */
     public record Reads(MembershipService membership, EmploymentService employments, AssignmentService assignments,
-            QualificationService qualifications, ReportingLineService reportingLines) {
+            QualificationService qualifications, ReportingLineService reportingLines, UnitRoleService unitRoles) {
     }
 
     UsersResource(RequestContext context, Reads reads, UserDirectory users, PersonService people, PersonData data) {
@@ -65,6 +68,7 @@ public class UsersResource {
         this.assignments = reads.assignments();
         this.qualifications = reads.qualifications();
         this.reportingLines = reads.reportingLines();
+        this.unitRoles = reads.unitRoles();
         this.users = users;
         this.people = people;
         this.data = data;
@@ -260,6 +264,39 @@ public class UsersResource {
         return Calls.run(context,
                 () -> UserHistoryRepresentation.of(membership.historyOf(userId, employments, assignments),
                         people.ofUser(userId).flatMap(person -> data.maskedAt(person.id()))));
+    }
+
+    @GET
+    @Path("{userId}/unit-roles")
+    @Operation(operationId = "listUserUnitRoles", summary = "Lists the roles over org units of a user on a date.")
+    @APIResponse(responseCode = "200", description = "The roles, in the order of their start.")
+    @BadRequest
+    @NotFound
+    @ApiErrors
+    public List<UnitRoleRepresentation> unitRoles(
+            @Parameter(description = "The ID of the Keycloak user.")
+            @PathParam("userId") String userId,
+            @Parameter(
+                    description = "The date to read. The default is today in the time zone of the realm.",
+                    schema = @Schema(format = "date"))
+            @QueryParam("asOf") String asOf,
+            @Parameter(
+                    description = "The number of entries to skip.",
+                    schema = @Schema(minimum = "0", defaultValue = "0"))
+            @QueryParam("first") Integer first,
+            @Parameter(
+                    description = "The largest number of entries to return.",
+                    schema = @Schema(minimum = "0", maximum = "1000", defaultValue = "100"))
+            @QueryParam("max") Integer max) {
+        context.requireRead();
+        return Calls.run(context, () -> {
+            requireKnown(userId);
+            return people.ofUser(userId)
+                    .map(person -> unitRoles.ofPerson(person.id(), asOf, Page.of(first, max)).stream()
+                            .map(UnitRoleRepresentation::of)
+                            .toList())
+                    .orElse(List.of());
+        });
     }
 
     private void requireKnown(String userId) {

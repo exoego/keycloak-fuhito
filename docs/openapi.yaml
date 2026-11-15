@@ -24,6 +24,10 @@ tags:
   summary: Reporting lines
   kind: nav
   description: Links from an assignment to a manager.
+- name: unit-roles
+  summary: Roles over org units
+  kind: nav
+  description: Roles of employments over org units that are not membership.
 - name: qualifications
   summary: Qualifications
   kind: nav
@@ -318,6 +322,7 @@ components:
           - FUHITO_ASSIGNMENT
           - FUHITO_REPORTING_LINE
           - FUHITO_QUALIFICATION
+          - FUHITO_UNIT_ROLE
         resourceId:
           type: string
         resourcePath:
@@ -1521,6 +1526,7 @@ components:
       - ASSIGNMENT_KIND
       - QUALIFICATION
       - LEAVE_REASON
+      - UNIT_ROLE
       description: The kinds of reference items. Each realm defines its own items
         for each kind.
     Reorganization:
@@ -2030,6 +2036,50 @@ components:
           readOnly: true
           type: object
           $ref: "#/components/schemas/OrgUnit"
+    UnitRole:
+      required:
+      - employmentId
+      - orgUnitId
+      - role
+      - validFrom
+      description: "A role that an employment holds over an org unit without being\
+        \ a member of it, such as the HR contact of a division."
+      type: object
+      properties:
+        id:
+          type: string
+          readOnly: true
+        employmentId:
+          type: string
+          description: The ID of the employment that holds the role.
+        personId:
+          type: string
+          description: The ID of the person of the employment.
+          readOnly: true
+        userId:
+          type: string
+          description: The ID of the Keycloak user of the person.
+          readOnly: true
+        orgUnitId:
+          type: string
+          description: The ID of the org unit.
+        role:
+          type: string
+          description: The code of a reference item of the kind `UNIT_ROLE`.
+        includesDescendants:
+          type: boolean
+          description: True when the role also covers every unit below in the default
+            hierarchy.
+          default: false
+        validFrom:
+          type: string
+          description: The first date of the role.
+          format: date
+        validTo:
+          type: string
+          description: The first date after the role. Leave it out to last as long
+            as the employment.
+          format: date
     UserHistory:
       required:
       - employments
@@ -3998,6 +4048,71 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+  /org-units/{id}/role-holders:
+    get:
+      summary: Lists who has a role over an org unit on a date.
+      description: "These are the roles over the unit, and the roles over a unit above\
+        \ in the default hierarchy that cover the units below. The nearest unit comes\
+        \ first, then the code of the role. They name people, so the read needs the\
+        \ full read permission."
+      operationId: listOrgUnitRoleHolders
+      tags:
+      - org-units
+      parameters:
+      - description: The ID of the resource.
+        name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      - description: The date to read. The default is today for the org unit. It is
+          the date of the realm unless a unit sets its own time zone.
+        schema:
+          type: string
+          format: date
+        name: asOf
+        in: query
+      - description: The number of entries to skip.
+        schema:
+          type: integer
+          format: int32
+          minimum: 0
+          default: 0
+        name: first
+        in: query
+      - description: The largest number of entries to return.
+        schema:
+          type: integer
+          format: int32
+          maximum: 1000
+          minimum: 0
+          default: 100
+        name: max
+        in: query
+      - description: The code of a role to keep.
+        name: role
+        in: query
+        schema:
+          type: string
+      responses:
+        "200":
+          description: The roles.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/UnitRole"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
   /org-units/{id}/subtree:
     get:
       summary: Lists an org unit and everything below it on a date.
@@ -4614,6 +4729,62 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+  /people/{id}/unit-roles:
+    get:
+      summary: Lists the roles over org units of a person on a date.
+      operationId: listPersonUnitRoles
+      tags:
+      - people
+      parameters:
+      - description: The ID of the resource.
+        name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      - description: The date to read. The default is today in the time zone of the
+          realm.
+        schema:
+          type: string
+          format: date
+        name: asOf
+        in: query
+      - description: The number of entries to skip.
+        schema:
+          type: integer
+          format: int32
+          minimum: 0
+          default: 0
+        name: first
+        in: query
+      - description: The largest number of entries to return.
+        schema:
+          type: integer
+          format: int32
+          maximum: 1000
+          minimum: 0
+          default: 100
+        name: max
+        in: query
+      responses:
+        "200":
+          description: "The roles, in the order of their start."
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/UnitRole"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
   /projection/rebuild:
     post:
       summary: Mirrors the org structure of today into the groups of Keycloak organizations.
@@ -5121,6 +5292,128 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+  /unit-roles:
+    post:
+      summary: Gives an employment a role over an org unit.
+      description: "The role is not membership. The end of the employment ends the\
+        \ role, and a transfer to another employer carries it."
+      operationId: addUnitRole
+      tags:
+      - unit-roles
+      parameters:
+      - $ref: "#/components/parameters/changeOrder"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UnitRole"
+        required: true
+      responses:
+        "201":
+          description: The new role.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UnitRole"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /unit-roles/{id}:
+    get:
+      summary: Returns one role over an org unit.
+      operationId: getUnitRole
+      tags:
+      - unit-roles
+      parameters:
+      - description: The ID of the resource.
+        name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: The role.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UnitRole"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+    delete:
+      summary: Deletes a role that was stored by mistake.
+      description: End a role that held for a while. Its entries in the change log
+        stay.
+      operationId: deleteUnitRole
+      tags:
+      - unit-roles
+      parameters:
+      - description: The ID of the resource.
+        name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      - $ref: "#/components/parameters/changeOrder"
+      responses:
+        "204":
+          description: The role is gone.
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /unit-roles/{id}/end:
+    put:
+      summary: Ends a role over an org unit earlier.
+      operationId: endUnitRole
+      tags:
+      - unit-roles
+      parameters:
+      - description: The ID of the resource.
+        name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      - $ref: "#/components/parameters/changeOrder"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/End"
+        required: true
+      responses:
+        "200":
+          description: The role with its new end.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UnitRole"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
   /users/{userId}/assignments:
     get:
       summary: Lists the assignments of a user that hold on a date.
@@ -5402,6 +5695,62 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/Reporting"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /users/{userId}/unit-roles:
+    get:
+      summary: Lists the roles over org units of a user on a date.
+      operationId: listUserUnitRoles
+      tags:
+      - users
+      parameters:
+      - description: The ID of the Keycloak user.
+        name: userId
+        in: path
+        required: true
+        schema:
+          type: string
+      - description: The date to read. The default is today in the time zone of the
+          realm.
+        schema:
+          type: string
+          format: date
+        name: asOf
+        in: query
+      - description: The number of entries to skip.
+        schema:
+          type: integer
+          format: int32
+          minimum: 0
+          default: 0
+        name: first
+        in: query
+      - description: The largest number of entries to return.
+        schema:
+          type: integer
+          format: int32
+          maximum: 1000
+          minimum: 0
+          default: 100
+        name: max
+        in: query
+      responses:
+        "200":
+          description: "The roles, in the order of their start."
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/UnitRole"
         "400":
           $ref: "#/components/responses/BadRequest"
         "404":

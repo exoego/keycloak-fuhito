@@ -20,12 +20,14 @@ import net.exoego.keycloak.fuhito.domain.Person;
 import net.exoego.keycloak.fuhito.domain.RefItem;
 import net.exoego.keycloak.fuhito.domain.RefKind;
 import net.exoego.keycloak.fuhito.domain.ReportingLine;
+import net.exoego.keycloak.fuhito.domain.UnitRole;
 import net.exoego.keycloak.fuhito.domain.ValidPeriod;
 import net.exoego.keycloak.fuhito.store.AssignmentStore;
 import net.exoego.keycloak.fuhito.store.EmploymentStore;
 import net.exoego.keycloak.fuhito.store.PersonStore;
 import net.exoego.keycloak.fuhito.store.RefItemStore;
 import net.exoego.keycloak.fuhito.store.ReportingLineStore;
+import net.exoego.keycloak.fuhito.store.UnitRoleStore;
 
 /**
  * Operations on the employments of one realm.
@@ -38,6 +40,7 @@ public class EmploymentService {
     private final PersonStore people;
     private final Employers employers;
     private final ReportingLineStore reportingLines;
+    private final UnitRoleStore unitRoles;
 
     /**
      * Creates the service.
@@ -47,12 +50,14 @@ public class EmploymentService {
      * @param refItems the storage of reference items of the realm
      * @param people the storage of people of the realm
      * @param reportingLines the storage of reporting lines of the realm
+     * @param unitRoles the storage of roles over org units of the realm
      * @param employers the rule that decides who employs a person
      */
     public EmploymentService(EmploymentStore store, AssignmentStore assignments, RefItemStore refItems,
-            PersonStore people, ReportingLineStore reportingLines, Employers employers) {
+            PersonStore people, ReportingLineStore reportingLines, UnitRoleStore unitRoles, Employers employers) {
         this.employers = employers;
         this.reportingLines = reportingLines;
+        this.unitRoles = unitRoles;
         this.store = store;
         this.assignments = assignments;
         this.refItems = refItems;
@@ -144,8 +149,8 @@ public class EmploymentService {
 
     /**
      * Sets the end of an employment.
-     * An earlier end is how a person leaves. It also ends the terms and the assignments on that date,
-     * and removes stored changes that would start on or after it.
+     * An earlier end is how a person leaves. It also ends the terms, the assignments, and the roles over org units
+     * on that date, and removes stored changes that would start on or after it.
      * A later end extends a fixed-term employment and its last terms. It does not extend assignments.
      *
      * @param id the ID of the employment
@@ -180,8 +185,9 @@ public class EmploymentService {
     /**
      * Moves a person to another employer on a date, in one write.
      * The employment ends on the date, and a new employment at the new employer starts on the same date.
-     * The new employment gets the terms, the assignments, and the reporting lines of the old one from the date
-     * on. These are the ones that hold on the date and the ones that were stored for a later date.
+     * The new employment gets the terms, the assignments, the reporting lines, and the roles over org units of the
+     * old one from the date on. These are the ones that hold on the date and the ones that were stored for a later
+     * date.
      * It names the old employment as the one that it continues.
      *
      * @param id the ID of the employment to end
@@ -208,6 +214,9 @@ public class EmploymentService {
         List<EmploymentTerms> terms = store.terms(id).stream().filter(t -> t.period().endsAfter(date)).toList();
         List<Assignment> rows = assignments.rowsOfEmployment(id).stream()
                 .filter(row -> row.period().endsAfter(date))
+                .toList();
+        List<UnitRole> roles = unitRoles.findByEmployment(id).stream()
+                .filter(role -> role.period().endsAfter(date))
                 .toList();
         Map<String, List<ReportingLine>> lines = new LinkedHashMap<>();
         rows.forEach(row -> lines.computeIfAbsent(row.assignmentId(),
@@ -238,6 +247,9 @@ public class EmploymentService {
             reportingLines.insert(next);
             newLines.add(next);
         }));
+        roles.forEach(role -> unitRoles.insert(new UnitRole(newId(), started.id(), started.personId(),
+                started.userId(), role.orgUnitId(), role.roleId(), role.includesDescendants(),
+                from(date, role.period()))));
         List<String> assignmentIds = List.copyOf(newAssignmentIds.values());
         return new Transfer(ended, get(started.id()), assignmentIds, newLines);
     }
@@ -323,6 +335,13 @@ public class EmploymentService {
 
         if (to == null) {
             return;
+        }
+        for (UnitRole role : unitRoles.findByEmployment(id)) {
+            if (!role.period().from().isBefore(to)) {
+                unitRoles.delete(role.id());
+            } else if (role.period().endsAfter(to)) {
+                unitRoles.update(role.withPeriod(role.period().endingAt(to)));
+            }
         }
         for (Assignment row : assignments.rowsOfEmployment(id)) {
             // A reporting line cannot outlast its assignment.

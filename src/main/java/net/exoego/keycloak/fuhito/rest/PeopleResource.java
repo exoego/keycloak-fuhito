@@ -217,6 +217,35 @@ public class PeopleResource {
     }
 
     @GET
+    @Path("{id}/unit-roles")
+    @Operation(operationId = "listPersonUnitRoles", summary = "Lists the roles over org units of a person on a date.")
+    @APIResponse(responseCode = "200", description = "The roles, in the order of their start.")
+    @BadRequest
+    @NotFound
+    @ApiErrors
+    public List<UnitRoleRepresentation> unitRoles(
+            @Parameter(description = "The ID of the resource.")
+            @PathParam("id") String id,
+            @Parameter(
+                    description = "The date to read. The default is today in the time zone of the realm.",
+                    schema = @Schema(format = "date"))
+            @QueryParam("asOf") String asOf,
+            @Parameter(
+                    description = "The number of entries to skip.",
+                    schema = @Schema(minimum = "0", defaultValue = "0"))
+            @QueryParam("first") Integer first,
+            @Parameter(
+                    description = "The largest number of entries to return.",
+                    schema = @Schema(minimum = "0", maximum = "1000", defaultValue = "100"))
+            @QueryParam("max") Integer max) {
+        context.requireRead();
+        return Calls.run(context, () -> reads.unitRoles()
+                .ofPerson(service.get(id).person().id(), asOf, Page.of(first, max)).stream()
+                .map(UnitRoleRepresentation::of)
+                .toList());
+    }
+
+    @GET
     @Path("{id}/managers")
     @Operation(
             operationId = "listPersonManagers",

@@ -11,6 +11,7 @@ final class Tags {
     static final String EMPLOYMENTS = "employments";
     static final String ASSIGNMENTS = "assignments";
     static final String REPORTING_LINES = "reporting-lines";
+    static final String UNIT_ROLES = "unit-roles";
     static final String QUALIFICATIONS = "qualifications";
     static final String PEOPLE = "people";
     static final String USERS = "users";

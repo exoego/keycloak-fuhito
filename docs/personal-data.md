@@ -16,7 +16,7 @@ Which way a law requires depends on the law, the country, and the reason for kee
 | The ID in another system | The external ID of people, employments, assignments, and qualifications |
 | Why the person was on leave | Employment terms |
 | Free values that the realm defines | The attributes of people, employment terms, assignments, and qualifications |
-| Where and when the person worked, with job title and occupation | Employments, assignments, and reporting lines |
+| Where and when the person worked, with job title and occupation | Employments, assignments, reporting lines, and roles over org units |
 | A copy of all of the above after each write | The change log |
 
 The email address and the credentials of a person are in Keycloak, not in this extension.
