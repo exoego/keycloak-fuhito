@@ -6,8 +6,8 @@ for f in glob.glob('build/test-results/integrationTest/*.xml'):
     if m:
         t = datetime.datetime.fromisoformat(m.group(3).replace('Z', '+00:00'))
         rows.append((t, float(m.group(4)), m.group(1).split('.')[-1]))
-        for line in re.findall(r'(Container quay[^\n]*started in [^\n]*|pull took [^\n]*|Container postgres[^\n]*started in [^\n]*)', s):
-            print('   ', m.group(1).split('.')[-1], line[:120])
+        for line in re.findall(r'(KCLOG [^\n]*|Container quay[^\n]*started in [^\n]*|pull took [^\n]*|Container postgres[^\n]*started in [^\n]*)', s):
+            print('   ', m.group(1).split('.')[-1], line[:200])
 rows.sort()
 t0 = rows[0][0]
 end = max(r[0] + datetime.timedelta(seconds=r[1]) for r in rows)

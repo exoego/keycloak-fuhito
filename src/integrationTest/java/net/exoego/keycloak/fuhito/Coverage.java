@@ -44,6 +44,15 @@ final class Coverage {
         classes.mkdirs();
         // The user in the container is not the user of the build.
         classes.setWritable(true, false);
+        long started = System.nanoTime();
+        keycloak.withLogConsumer(frame -> {
+            String line = frame.getUtf8String();
+            if (line.contains("augmentation") || line.contains("Initializing database schema")
+                    || line.contains("master realm") || line.contains("started in") || line.contains("Updating the")
+                    || line.contains("Liquibase") || line.contains("fuhito")) {
+                System.err.printf("KCLOG +%.1fs %s", (System.nanoTime() - started) / 1e9, line);
+            }
+        });
         return keycloak
                 .withCopyFileToContainer(MountableFile.forHostPath(AGENT), "/opt/jacoco/agent.jar")
                 .withFileSystemBind(classes.getAbsolutePath(), "/opt/jacoco/classes", BindMode.READ_WRITE)
