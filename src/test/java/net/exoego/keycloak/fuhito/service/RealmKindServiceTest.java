@@ -37,6 +37,11 @@ class RealmKindServiceTest {
         }
 
         @Override
+        public void update(RealmKind kind) {
+            rows.replaceAll(stored -> stored.id().equals(kind.id()) ? kind : stored);
+        }
+
+        @Override
         public void delete(String id) {
             rows.removeIf(kind -> kind.id().equals(id));
         }

@@ -18,6 +18,7 @@ import net.exoego.keycloak.fuhito.service.ImportDocument.EmploymentRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.OrgUnitRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.PersonRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.RefItemRow;
+import net.exoego.keycloak.fuhito.service.ImportDocument.RefKindRow;
 import net.exoego.keycloak.fuhito.service.ImportReport.Counts;
 import net.exoego.keycloak.fuhito.store.UserDirectory;
 import org.junit.jupiter.api.Test;
@@ -55,9 +56,11 @@ class ImportServiceTest {
     private final AssignmentService assignments =
             new AssignmentService(assignmentStore, employmentStore, orgUnitStore, refItems,
             new MemoryReportingLineStore());
+    private final RealmKindService kinds = new RealmKindService(new MemoryRealmKindStore(), refItems);
     private final ImportService service = new ImportService(new RefItemService(refItems), refItems, orgUnits,
             orgUnitStore, new ImportService.People(employments, employmentStore, assignments, assignmentStore, users,
-                    new PersonService(personStore, users, id -> false)));
+                    new PersonService(personStore, users, id -> false)),
+            new ImportService.Setup(kinds));
 
     private static ImportDocument doc(String effectiveDate, boolean dryRun, String source, List<RefItemRow> refItems,
             List<OrgUnitRow> orgUnits) {
@@ -105,6 +108,29 @@ class ImportServiceTest {
         assertEquals("病院", hospital.name());
         assertEquals(new ImportReport.Write.OfRefItem(true, hospital), first.writes().getFirst());
         assertFalse(refItems.findByCode(RefKind.OCCUPATION, "nurse").orElseThrow().active());
+    }
+
+    @Test
+    void importsTheKindsOfTheRealmAndRenamesAStoredOne() {
+        List<RefKindRow> rows = List.of(new RefKindRow("site", "拠点", Map.of("en", "Site")));
+
+        ImportReport first = service.apply(kinds(rows));
+        ImportReport second = service.apply(kinds(rows));
+        ImportReport renamed = service.apply(kinds(List.of(new RefKindRow("site", "勤務地", null),
+                new RefKindRow("UNIT_TYPE", "組織種別", null))));
+
+        assertEquals(Map.of("refKinds", new Counts(1, 0, 0)), first.counts());
+        assertEquals("fuhito/ref-kinds/site", first.writes().getFirst().path());
+        assertEquals(Map.of("refKinds", new Counts(0, 0, 1)), second.counts());
+        assertEquals(Map.of("refKinds", new Counts(0, 1, 0)), renamed.counts());
+        // A fixed kind is in every realm, so a row cannot add it.
+        assertEquals(List.of("refKinds[1] ref_kind.code_taken"), errors(renamed));
+        assertEquals("勤務地", kinds.get("site").name());
+        assertEquals(Map.of(), kinds.get("site").names());
+    }
+
+    private static ImportDocument kinds(List<RefKindRow> rows) {
+        return new ImportDocument("2026-04-01", false, null, null, null, null, null, null, rows);
     }
 
     @Test

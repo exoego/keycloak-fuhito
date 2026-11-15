@@ -34,6 +34,7 @@ final class Writes {
     static void record(RequestContext context, Write write) {
         Object representation = switch (write) {
             case Write.OfRefItem item -> RefItemRepresentation.of(item.state());
+            case Write.OfRefKind kind -> RefKindRepresentation.of(kind.state());
             case Write.OfPerson person -> PersonRepresentation.of(person.state());
             case Write.OfOrgUnit unit -> OrgUnitRepresentation.of(unit.state());
             case Write.OfEmployment employment -> EmploymentRepresentation.of(employment.state());

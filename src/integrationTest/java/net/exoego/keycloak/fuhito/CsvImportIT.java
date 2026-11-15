@@ -67,6 +67,33 @@ class CsvImportIT {
     }
 
     @Test
+    void anExportOfKindsLoadsAgainWithNoChange() throws Exception {
+        TestRealm realm = TestRealm.create("csv-export-kinds");
+        Api api = realm.api;
+        assertEquals(201, api.post("/ref-kinds", "{\"code\": \"site\", \"name\": \"拠点\", "
+                + "\"names\": {\"en\": \"Site\"}}").statusCode());
+
+        for (String header : List.of("en", "ja")) {
+            HttpResponse<String> exported = api.get("/imports/csv/ref-kinds?header=" + header);
+            assertEquals(200, exported.statusCode(), exported.body());
+            assertEquals("﻿" + (header.equals("en") ? "code,name,name:en" : "コード,名称,名称:en")
+                    + "\r\nsite,拠点,Site\r\n", exported.body());
+            JsonNode counts = load(api, "ref-kinds", "effectiveDate=2026-05-01", exported.body()).get("counts")
+                    .get("refKinds");
+            assertEquals(0, counts.get("created").asInt() + counts.get("changed").asInt(), counts.toString());
+        }
+        // A file with no column of a language keeps the stored names in it.
+        load(api, "ref-kinds", "effectiveDate=2026-05-01", "code,name\r\nsite,勤務地\r\ncost-center,原価センター\r\n");
+        JsonNode kinds = Api.json(api.get("/ref-kinds"));
+        JsonNode site = kinds.get(kinds.findValuesAsText("code").indexOf("site"));
+        assertEquals("勤務地", site.get("name").asText());
+        assertEquals("Site", site.get("names").get("en").asText());
+        assertTrue(kinds.findValuesAsText("code").contains("cost-center"));
+        assertEquals(200, api.put("/ref-kinds/site", "{\"name\": \"拠点\"}").statusCode());
+        assertEquals(404, api.put("/ref-kinds/UNIT_TYPE", "{\"name\": \"組織種別\"}").statusCode());
+    }
+
+    @Test
     void anExportOfReferenceItemsLoadsAgainWithNoChange() throws Exception {
         TestRealm realm = TestRealm.withEmployer("csv-export-items");
         Api api = realm.api;

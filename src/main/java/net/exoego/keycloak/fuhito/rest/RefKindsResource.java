@@ -6,6 +6,7 @@ import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.DELETE;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.POST;
+import jakarta.ws.rs.PUT;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
@@ -81,6 +82,30 @@ public class RefKindsResource {
             context.recordChange(Change.CREATE, RESOURCE_TYPE, kind.code(), path(kind.code()), kind);
             return Response.status(Response.Status.CREATED).entity(kind).build();
         }));
+    }
+
+    @PUT
+    @Path("{code}")
+    @Operation(
+            operationId = "renameRefKind",
+            summary = "Changes the names of a kind of the realm.",
+            description = "The code never changes. The body can leave it out.")
+    @Parameter(ref = "changeOrder")
+    @APIResponse(responseCode = "200", description = "The changed kind.")
+    @BadRequest
+    @NotFound
+    @ApiErrors
+    public RefKindRepresentation rename(
+            @Parameter(description = "The code of the kind.")
+            @PathParam("code") String code,
+            RefKindRepresentation body) {
+        context.requireWrite();
+        return Calls.guarded(context, () -> RefKindRepresentation.of(service.get(code)), () -> {
+            Checks.required("body", body);
+            var kind = RefKindRepresentation.of(service.rename(code, body.name(), body.names()));
+            context.recordChange(Change.UPDATE, RESOURCE_TYPE, code, path(code), kind);
+            return kind;
+        });
     }
 
     @DELETE

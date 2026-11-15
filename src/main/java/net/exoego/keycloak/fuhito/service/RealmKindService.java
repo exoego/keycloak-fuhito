@@ -5,6 +5,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 import net.exoego.keycloak.fuhito.domain.Checks;
@@ -83,6 +84,45 @@ public class RealmKindService {
                 Checks.localizedNames("names", names));
         store.insert(kind);
         return new View(kind.code(), kind.name(), kind.names(), false);
+    }
+
+    /**
+     * Finds a kind that the realm added.
+     *
+     * @param code the code
+     * @return the kind, or empty for a fixed kind or an unknown code
+     */
+    public Optional<View> find(String code) {
+        return store.findByCode(code).map(kind -> new View(kind.code(), kind.name(), kind.names(), false));
+    }
+
+    /**
+     * Returns a kind that the realm added.
+     *
+     * @param code the code
+     * @return the kind
+     * @throws FuhitoException when the realm added no such kind
+     */
+    public View get(String code) {
+        return find(code).orElseThrow(() -> FuhitoException.notFound("ref_kind.not_found", Map.of("code", code)));
+    }
+
+    /**
+     * Changes the names of a kind that the realm added. The code never changes.
+     *
+     * @param code the code
+     * @param name the default name
+     * @param names the names in other languages, or null
+     * @return the changed kind
+     * @throws FuhitoException when a name is bad, or the realm added no such kind
+     */
+    public View rename(String code, String name, Map<String, String> names) {
+        RealmKind kind = store.findByCode(code)
+                .orElseThrow(() -> FuhitoException.notFound("ref_kind.not_found", Map.of("code", code)));
+        RealmKind renamed = new RealmKind(kind.id(), code, Checks.name("name", name),
+                Checks.localizedNames("names", names));
+        store.update(renamed);
+        return new View(code, renamed.name(), renamed.names(), false);
     }
 
     /**
