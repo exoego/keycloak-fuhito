@@ -16,8 +16,9 @@ import net.exoego.keycloak.fuhito.jpa.JpaRefItemStore;
 import net.exoego.keycloak.fuhito.jpa.JpaUnitRoleStore;
 import net.exoego.keycloak.fuhito.jpa.JpaReportingLineStore;
 import net.exoego.keycloak.fuhito.rest.EmploymentRepresentation;
+import net.exoego.keycloak.fuhito.rest.ReportingLineRepresentation;
 import net.exoego.keycloak.fuhito.service.EmploymentService;
-import net.exoego.keycloak.fuhito.service.EmploymentView;
+import net.exoego.keycloak.fuhito.service.ImportReport.Write;
 import net.exoego.keycloak.fuhito.service.LegalEntityEmployers;
 import net.exoego.keycloak.fuhito.service.UserRetirement;
 import org.keycloak.models.RealmModel;
@@ -39,15 +40,19 @@ final class UserRemovalHandler {
                 new JpaPersonStore(em, realmId), lines, new JpaUnitRoleStore(em, realmId),
                 new LegalEntityEmployers(new JpaOrgUnitStore(em, realmId), new JpaRefItemStore(em, realmId)));
         var changeLog = new JpaChangeLogStore(em, realmId);
-        for (EmploymentView ended : new UserRetirement(employments, employmentService, assignments, lines,
+        for (Write write : new UserRetirement(employments, employmentService, assignments, lines,
                 new JpaPersonStore(em, realmId), new JpaUnitRoleStore(em, realmId), new JpaExternalIdStore(em, realmId),
                 RealmTime.clockOrUtc(realm)).retire(userId)) {
-            String id = ended.employment().id();
+            Object representation = switch (write) {
+                case Write.OfEmployment ended -> EmploymentRepresentation.of(ended.state());
+                case Write.OfReportingLine ended -> ReportingLineRepresentation.of(ended.state());
+                default -> null;
+            };
             // No administrator did this write. The removal of the user did.
             changeLog.append(new ChangeLogEntry(UUID.randomUUID().toString(), 0,
-                    Instant.now().truncatedTo(ChronoUnit.MILLIS), null, "FUHITO_EMPLOYMENT", id, "UPDATE",
-                    "fuhito/employments/" + id + "/end", null,
-                    KeycloakRequestContext.toJson(EmploymentRepresentation.of(ended))));
+                    Instant.now().truncatedTo(ChronoUnit.MILLIS), null, write.resourceType(), write.resourceId(),
+                    write.deleted() ? "DELETE" : "UPDATE", write.path(), null,
+                    KeycloakRequestContext.toJson(representation)));
         }
     }
 }

@@ -194,6 +194,36 @@ class PeopleIT {
     }
 
     @Test
+    void findsPeopleByNameAndByStaffNumber() throws Exception {
+        TestRealm scratch = TestRealm.withEmployer("people-search");
+        Api scratchApi = scratch.api;
+        String unit = created(scratchApi.post("/org-units", "{\"name\": \"1病棟\", \"validFrom\": \"2020-04-01\"}"))
+                .get("id").asText();
+        String hanako = created(scratchApi.post("/people", "{\"name\": \"山田 花子\", \"phoneticName\": "
+                + "\"やまだ はなこ\", \"names\": {\"en\": \"Hanako Yamada\"}}")).get("id").asText();
+        created(scratchApi.post("/people", "{\"name\": \"Other\"}"));
+        // A person who takes the name of the Keycloak user.
+        String user = scratch.user("tsuzuki", "Ichiro", "Tsuzuki");
+        JsonNode staff = created(scratchApi.post("/staff", "{\"userId\": \"" + user + "\", \"orgUnitId\": \"" + unit
+                + "\", \"staffNumber\": \"S-77\", \"validFrom\": \"2020-04-01\"}"));
+        String ichiro = staff.get("employment").get("personId").asText();
+
+        for (Map.Entry<String, String> found : Map.of("%E3%82%84%E3%81%BE%E3%81%A0", hanako, "HANAKO", hanako,
+                "ichiro", ichiro, "TSUZUKI", ichiro).entrySet()) {
+            assertEquals(List.of(found.getValue()), ok(scratchApi.get("/people?q=" + found.getKey()))
+                    .findValuesAsText("id"), found.getKey());
+        }
+        assertEquals(List.of(ichiro), ok(scratchApi.get("/people?staffNumber=S-77")).findValuesAsText("id"));
+        assertEquals(List.of(), ok(scratchApi.get("/people?q=hanako&staffNumber=S-77")).findValuesAsText("id"));
+        // The keys of the names in other languages are not names.
+        assertEquals(List.of(), ok(scratchApi.get("/people?q=en")).findValuesAsText("id"));
+
+        // A masked person has no name to find.
+        assertEquals(200, scratchApi.post("/people/" + hanako + "/mask", "").statusCode());
+        assertEquals(List.of(), ok(scratchApi.get("/people?q=hanako")).findValuesAsText("id"));
+    }
+
+    @Test
     void maskingAUserClearsThePersonAndErasingRemovesIt() throws Exception {
         TestRealm scratch = TestRealm.withEmployer("people-personal-data");
         Api scratchApi = scratch.api;
