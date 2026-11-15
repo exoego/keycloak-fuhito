@@ -2,7 +2,6 @@ package net.exoego.keycloak.fuhito.jpa;
 
 import java.util.List;
 import java.util.Optional;
-import java.util.UUID;
 
 import jakarta.persistence.EntityManager;
 import net.exoego.keycloak.fuhito.domain.Hierarchy;
@@ -30,7 +29,8 @@ public class JpaHierarchyStore implements HierarchyStore {
     @Override
     public String defaultId() {
         return findByCode(Hierarchy.DEFAULT_CODE).map(Hierarchy::id).orElseGet(() -> {
-            Hierarchy created = new Hierarchy(UUID.randomUUID().toString(), Hierarchy.DEFAULT_CODE, "Default");
+            // The ID of the realm, the same as the migration gives to the realms that it fills in.
+            Hierarchy created = new Hierarchy(realmId, Hierarchy.DEFAULT_CODE, "Default");
             insert(created);
             return created.id();
         });
@@ -88,6 +88,8 @@ public class JpaHierarchyStore implements HierarchyStore {
     @Override
     public void delete(String id) {
         em.remove(Rows.require(em, HierarchyEntity.class, id, realmId, HierarchyEntity::getRealmId));
+        // Hibernate writes inserts before deletes, so a new hierarchy with the same code would come first.
+        em.flush();
     }
 
     @Override

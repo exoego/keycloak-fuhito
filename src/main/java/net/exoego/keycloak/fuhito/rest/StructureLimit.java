@@ -9,6 +9,9 @@ import java.util.OptionalInt;
 import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.OrgUnitSuccession;
+import net.exoego.keycloak.fuhito.domain.OrgUnitVersion;
+import net.exoego.keycloak.fuhito.domain.ValidPeriod;
+import net.exoego.keycloak.fuhito.service.OrgUnitState;
 import net.exoego.keycloak.fuhito.service.OrgUnitSuccessions;
 import net.exoego.keycloak.fuhito.service.Today;
 
@@ -67,6 +70,47 @@ final class StructureLimit {
                 .map(day -> new OrgUnitSuccessions(until(successions.predecessors(), day),
                         until(successions.successors(), day)))
                 .orElse(successions);
+    }
+
+    /**
+     * Tells whether the caller is limited. A limited caller cannot write, so it needs no ETag, and an ETag of the
+     * whole history would tell it that a later change was stored.
+     *
+     * @return true when the realm limits the caller
+     */
+    boolean active() {
+        return lastDay().isPresent();
+    }
+
+    /**
+     * Leaves out an end of the details of an org unit after the last date that the caller may read. Such an end
+     * is the date of a later change.
+     *
+     * @param state the org unit on a date
+     * @return the org unit as the caller may read it
+     */
+    OrgUnitState readable(OrgUnitState state) {
+        OrgUnitVersion version = state.version();
+        LocalDate to = version.period().to();
+        Optional<LocalDate> lastDay = lastDay();
+        if (to == null || lastDay.isEmpty() || !to.isAfter(lastDay.get())) {
+            return state;
+        }
+        return new OrgUnitState(state.unit(), new OrgUnitVersion(version.id(), version.orgUnitId(),
+                ValidPeriod.startingAt(version.period().from()), version.code(), version.name(), version.names(),
+                version.shortName(), version.shortNames(), version.phoneticName(), version.unitTypeId(),
+                version.displayOrder(), version.attributes()), state.unitType(), state.parentId(),
+                state.legalEntity(), state.group());
+    }
+
+    /**
+     * Tells whether an org unit starts after the last date that the caller may read.
+     *
+     * @param firstDate the first date of the org unit
+     * @return true when the caller may not know of the unit yet
+     */
+    boolean hides(LocalDate firstDate) {
+        return lastDay().filter(firstDate::isAfter).isPresent();
     }
 
     private static List<OrgUnitSuccession> until(List<OrgUnitSuccession> links, LocalDate day) {

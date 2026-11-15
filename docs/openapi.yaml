@@ -2605,6 +2605,12 @@ components:
             $ref: "#/components/schemas/ReportingLine"
           description: The reporting lines that the new assignments got.
           readOnly: true
+        unitRoles:
+          type: array
+          items:
+            $ref: "#/components/schemas/UnitRole"
+          description: The roles over org units that the new employment got.
+          readOnly: true
     Transfers:
       required:
       - fromEmployerId
@@ -2670,6 +2676,7 @@ components:
           type: object
           $ref: "#/components/schemas/OrgUnit"
     UnitRole:
+      type: object
       required:
       - employmentId
       - orgUnitId
@@ -2677,7 +2684,6 @@ components:
       - validFrom
       description: "A role that an employment holds over an org unit without being\
         \ a member of it, such as the HR contact of a division."
-      type: object
       properties:
         id:
           type: string

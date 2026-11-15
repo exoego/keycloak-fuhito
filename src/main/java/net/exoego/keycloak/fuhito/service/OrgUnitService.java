@@ -258,6 +258,7 @@ public class OrgUnitService {
         if (to.equals(current)) {
             return get(id, to.minusDays(1).toString());
         }
+        requireLaterThanPredecessors(id, to);
         if (current != null) {
             requireNoSuccessors(id);
         }
@@ -342,6 +343,17 @@ public class OrgUnitService {
         store.updateVersion(withPeriod(last, last.period().endingAt(to)));
         ending.forEach(l -> store.updateLink(new OrgUnitLink(l.id(), l.hierarchyId(), l.childId(), l.parentId(),
                 l.period().endingAt(to))));
+    }
+
+    // A unit that follows others must exist on the date of each succession.
+    private void requireLaterThanPredecessors(String id, LocalDate to) {
+        Optional<OrgUnitSuccession> followed = store.successions(id).stream()
+                .filter(link -> link.successorId().equals(id) && !to.isAfter(link.effectiveDate()))
+                .findFirst();
+        if (followed.isPresent()) {
+            throw FuhitoException.conflict("org_unit.follows_others",
+                    Map.of("id", id, "date", followed.get().effectiveDate().toString()));
+        }
     }
 
     // A merger or a split names the date of the end. The end stays where the successions put it.

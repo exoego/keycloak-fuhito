@@ -94,6 +94,25 @@ class ReportingLinesIT {
     }
 
     @Test
+    void aManagerWhoLeadsTwoUnitsOneBelowTheOtherHasEachReportOnce() throws Exception {
+        String department = unit("総務部", null);
+        String section = unit("庶務課", department);
+        String office = unit("文書係", section);
+        String both = realm.user("leads-both");
+        String clerk = realm.user("clerk");
+        String filer = realm.user("filer");
+        JsonNode head = Api.json(api.post("/staff", "{\"userId\": \"" + both + "\", \"orgUnitId\": \"" + department
+                + "\", \"validFrom\": \"2026-04-01\", \"head\": true}"));
+        id(api.post("/assignments", "{\"employmentId\": \"" + head.get("employment").get("id").asText()
+                + "\", \"orgUnitId\": \"" + section + "\", \"validFrom\": \"2026-04-01\", \"head\": true}"));
+        staff(clerk, section, false);
+        staff(filer, office, false);
+
+        assertEquals(List.of(clerk, filer).stream().sorted().toList(),
+                who("/users/" + both + "/reports?asOf=2026-04-01"));
+    }
+
+    @Test
     void storedLinesChangeTheAnswerFromTheirDate() throws Exception {
         HttpResponse<String> created = api.post("/reporting-lines", "{\"assignmentId\": \"" + nurseAAssignment
                 + "\", \"managerUserId\": \"" + director + "\", \"validFrom\": \"2027-04-01\"}");

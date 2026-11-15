@@ -1,5 +1,6 @@
 package net.exoego.keycloak.fuhito;
 
+import java.net.http.HttpResponse;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
@@ -21,6 +22,8 @@ import org.keycloak.representations.idm.UserRepresentation;
 
 import static net.exoego.keycloak.fuhito.KeycloakEnvironment.KEYCLOAK;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * What an administrator may read with each role of Keycloak.
@@ -50,7 +53,7 @@ class PermissionsIT {
         reader = administrator(admin, REALM, "master-realm", "people-reader", "view-users");
     }
 
-    private static Api administrator(Keycloak admin, String realm, String adminClient, String username,
+    static Api administrator(Keycloak admin, String realm, String adminClient, String username,
             String role) {
         var credential = new CredentialRepresentation();
         credential.setType(CredentialRepresentation.PASSWORD);
@@ -151,6 +154,23 @@ class PermissionsIT {
             assertEquals(0, seen.get("successors").size());
             JsonNode all = Api.json(everything.get("/org-units/" + unit + "/succession"));
             assertEquals(List.of(after), all.get("successors").findValuesAsText("orgUnitId"));
+
+            // The end of the unit is a later change, and so is a new ETag.
+            var limitedRead = limited.get("/org-units/" + unit + "?asOf=" + lastDay);
+            assertFalse(Api.json(limitedRead).has("validTo"), limitedRead.body());
+            assertTrue(limitedRead.headers().firstValue("ETag").isEmpty());
+            var fullRead = everything.get("/org-units/" + unit + "?asOf=" + lastDay);
+            assertEquals(lastDay.plusDays(1).toString(), Api.json(fullRead).get("validTo").asText());
+            assertTrue(fullRead.headers().firstValue("ETag").isPresent());
+            assertFalse(Api.json(limited.get("/org-units/" + unit + "/path?asOf=" + lastDay)).get(0).has("validTo"));
+
+            // A unit that starts after the limit is unknown to the limited caller, also by an ID of another system.
+            HttpResponse<String> later = realm.api.post("/org-units", "{\"name\": \"Later\", \"validFrom\": \""
+                    + lastDay.plusDays(5) + "\", \"externalId\": \"L-1\", \"source\": \"hr\"}");
+            assertEquals(201, later.statusCode(), later.body());
+            String lookup = "/external-ids/lookup?resourceType=ORG_UNIT&source=hr&externalId=L-1";
+            assertEquals(404, limited.get(lookup).statusCode());
+            assertEquals(200, everything.get(lookup).statusCode());
 
             var representation = admin.realm(realm.name).toRepresentation();
             representation.getAttributes().put("fuhito.structure.daysAhead", "soon");

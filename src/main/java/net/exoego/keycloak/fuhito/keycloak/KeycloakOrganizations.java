@@ -70,6 +70,11 @@ final class KeycloakOrganizations implements OrganizationDirectory, Organization
     }
 
     @Override
+    public List<String> organizations() {
+        return provider().getAllStream().map(OrganizationModel::getId).toList();
+    }
+
+    @Override
     public List<Group> groups(String organizationId) {
         OrganizationModel organization = provider().getById(organizationId);
         List<Group> result = new ArrayList<>();

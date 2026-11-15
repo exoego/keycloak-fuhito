@@ -355,7 +355,7 @@ public class PeopleResource {
                     schema = @Schema(defaultValue = "false"))
             @QueryParam("clearKeycloakName") boolean clearKeycloakName) {
         context.requireWrite();
-        return Calls.run(context, () -> data.mask(service.get(id).person(), clearKeycloakName));
+        return Calls.guarded(context, () -> state(id), () -> data.mask(service.get(id).person(), clearKeycloakName));
     }
 
     @DELETE
@@ -375,7 +375,7 @@ public class PeopleResource {
             @Parameter(description = "The ID of the resource.")
             @PathParam("id") String id) {
         context.requireWrite();
-        return Calls.run(context, () -> {
+        return Calls.guardedRemoval(context, () -> state(id), () -> {
             data.erase(service.get(id).person().id());
             return Response.noContent().build();
         });

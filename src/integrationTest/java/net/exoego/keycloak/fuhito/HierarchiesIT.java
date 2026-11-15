@@ -34,6 +34,17 @@ class HierarchiesIT {
     }
 
     @Test
+    void aNewRealmHasItsDefaultHierarchyFromItsStart() throws Exception {
+        TestRealm fresh = TestRealm.create("hierarchies-fresh");
+        String realmId = fresh.id();
+
+        // No call of the extension came yet.
+        assertEquals(realmId, KeycloakEnvironment.sql("select id from fuhito_hierarchy where realm_id = '" + realmId
+                + "' and code = 'default'"));
+        assertEquals(realmId, Api.json(fresh.api.get("/hierarchies")).get(0).get("id").asText());
+    }
+
+    @Test
     void createsReadsRenamesAndDeletesAHierarchy() throws Exception {
         JsonNode matrix = created(api.post("/hierarchies", "{\"code\": \"matrix\", \"name\": \"マトリクス\"}"));
         String id = matrix.get("id").asText();
