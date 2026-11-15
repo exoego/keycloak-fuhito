@@ -208,16 +208,35 @@ public class PersonService {
      * @throws FuhitoException when the cursor is bad, or the request has a cursor and a number to skip
      */
     public List<PersonView> list(String userId, Integer first, Integer max, String after) {
+        return list(userId, null, null, first, max, after);
+    }
+
+    /**
+     * Finds people of the realm, ordered by ID, from a cursor on.
+     *
+     * @param userId the ID of a Keycloak user, to return only the person linked to it, or null for everyone
+     * @param text a text that a name of the person or of its Keycloak user has, in any case, or null for any
+     * @param staffNumber a staff number that an employment of the person has, or null for any
+     * @param first the number of people to skip, or null for 0
+     * @param max the largest number of people to return, or null for 100. At most 1000 are returned.
+     * @param after the cursor of the page before, or null to start at the first person
+     * @return the people
+     * @throws FuhitoException when the cursor is bad, or the request has a cursor and a number to skip
+     */
+    public List<PersonView> list(String userId, String text, String staffNumber, Integer first, Integer max,
+            String after) {
         if (userId != null) {
             return store.findByUser(userId).map(this::view).stream().toList();
         }
         Cursor.requireAlone(after, first);
         Page page = Page.of(first, max);
         String afterId = after == null ? null : Cursor.decode(Cursor.PEOPLE, after).getFirst();
-        return store.list(afterId, page.first(), page.max())
-                .stream()
-                .map(this::view)
-                .toList();
+        String search = text == null || text.isBlank() ? null : text.strip();
+        String number = staffNumber == null || staffNumber.isBlank() ? null : staffNumber.strip();
+        List<Person> people = search == null && number == null
+                ? store.list(afterId, page.first(), page.max())
+                : store.search(search, number, afterId, page.first(), page.max());
+        return people.stream().map(this::view).toList();
     }
 
     private Person checked(String id, PersonValues request, String externalId, String source) {

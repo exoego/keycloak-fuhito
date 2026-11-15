@@ -5706,6 +5706,18 @@ paths:
           default: 100
         name: max
         in: query
+      - description: "A text that the name, the phonetic name, or a name in another\
+          \ language has, in any case. For a person with a Keycloak user, also the\
+          \ first name, the last name, the username, or the email of the user."
+        name: q
+        in: query
+        schema:
+          type: string
+      - description: A staff number that an employment of the person has.
+        name: staffNumber
+        in: query
+        schema:
+          type: string
       - description: "The ID of a Keycloak user, to return only the person that is\
           \ linked to it."
         name: userId

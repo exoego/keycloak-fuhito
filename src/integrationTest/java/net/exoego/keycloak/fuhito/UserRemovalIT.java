@@ -182,6 +182,10 @@ class UserRemovalIT {
                 "fuhito_external_id")) {
             assertEquals("0", rows(table, realmId), table);
         }
+        // A follower of the change log learns that the employment that never held is gone.
+        JsonNode log = Api.json(api.get("/change-log?resourceType=FUHITO_EMPLOYMENT&resourceId=" + employment));
+        assertEquals("DELETE", log.get(log.size() - 1).get("operation").asText());
+        assertFalse(log.get(log.size() - 1).has("actorUserId"));
     }
 
     @Test
