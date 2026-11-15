@@ -1,5 +1,6 @@
 package net.exoego.keycloak.fuhito;
 
+import java.net.http.HttpResponse;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.List;
@@ -82,6 +83,8 @@ class UserRemovalIT {
             assertEquals(201, api.post("/qualifications", "{\"userId\": \"" + user
                     + "\", \"kind\": \"license\", \"validFrom\": \"2010-05-01\"}").statusCode());
         }
+        // The erased user reports to the kept one, and is the manager of the kept one.
+        List<String> lines = List.of(line(api, erased, kept), line(api, kept, erased));
         String realmId = realm.id();
         // One user is removed from Keycloak first. Their data can still be erased afterwards.
         realm.removeUser(gone);
@@ -99,6 +102,10 @@ class UserRemovalIT {
             assertEquals(404, api.get("/employments/" + id).statusCode());
             assertEquals(0, Api.json(api.get("/change-log?resourceType=FUHITO_EMPLOYMENT&resourceId=" + id)).size());
         }
+        for (String line : lines) {
+            assertEquals(0, Api.json(api.get("/change-log?resourceType=FUHITO_REPORTING_LINE&resourceId=" + line))
+                    .size(), line);
+        }
         assertEquals(200, api.get("/employments/" + keptIds.get(1)).statusCode());
         assertEquals(2, Api.json(api.get("/change-log?resourceType=FUHITO_EMPLOYMENT&resourceId=" + keptIds.get(0))).size());
         // The erased user still exists in Keycloak, with no data. The removed one is unknown now.
@@ -115,6 +122,14 @@ class UserRemovalIT {
         assertEquals(List.of("DELETE"), erasure.findValuesAsText("operation"));
         assertFalse(erasure.get(0).has("representation"));
         assertEquals(401, new Api(realm.name, null).delete("/users/" + kept + "/data").statusCode());
+    }
+
+    private static String line(Api api, String userId, String managerUserId) throws Exception {
+        String assignment = Api.json(api.get("/users/" + userId + "/assignments")).get(0).get("assignmentId").asText();
+        HttpResponse<String> created = api.post("/reporting-lines", "{\"assignmentId\": \"" + assignment
+                + "\", \"managerUserId\": \"" + managerUserId + "\", \"validFrom\": \"2025-10-01\"}");
+        assertEquals(201, created.statusCode(), created.body());
+        return Api.json(created).get("id").asText();
     }
 
     // Two employments. The first ended in 2024 and has two sets of terms.
