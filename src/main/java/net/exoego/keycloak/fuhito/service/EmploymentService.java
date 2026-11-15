@@ -108,6 +108,7 @@ public class EmploymentService {
         Person person = people.find(personId).orElseThrow(
                 () -> FuhitoException.invalid("employment.person_unknown", Map.of("personId", personId)));
         String employerId = employers.of(request.employerId(), from);
+        employers.requireCovers(employerId, period);
         requireFreeStaffNumber(staffNumber, employerId, personId);
 
         Employment employment = new Employment(newId(), personId, person.userId(), employerId, period, staffNumber,
@@ -344,6 +345,7 @@ public class EmploymentService {
     }
 
     private void setEnd(Employment employment, LocalDate to, String endReasonId) {
+        employers.requireCovers(employment.employerId(), employment.period().endingAt(to));
         String id = employment.id();
         store.update(new Employment(id, employment.personId(), employment.userId(), employment.employerId(),
                 employment.period().endingAt(to),

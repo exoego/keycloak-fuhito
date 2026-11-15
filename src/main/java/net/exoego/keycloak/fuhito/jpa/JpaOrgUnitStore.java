@@ -177,6 +177,19 @@ public class JpaOrgUnitStore implements OrgUnitStore {
     }
 
     @Override
+    public boolean externalIdTaken(String source, String externalId, String exceptId) {
+        return OrgUnitStore.super.externalIdTaken(source, externalId, exceptId) || em.createQuery("""
+                        select count(x) from ExternalIdEntity x, OrgUnitEntity u where x.realmId = :realmId
+                        and u.realmId = :realmId and x.kind = 'ORG_UNIT' and u.id = x.resourceId
+                        and x.source = :source and x.externalId = :externalId and u.id <> :exceptId""", Long.class)
+                .setParameter("realmId", realmId)
+                .setParameter("source", source)
+                .setParameter("externalId", externalId)
+                .setParameter("exceptId", exceptId == null ? "" : exceptId)
+                .getSingleResult() > 0;
+    }
+
+    @Override
     public Optional<OrgUnit> findUnitByExternalId(String source, String externalId) {
         return em.createQuery("""
                         select u from OrgUnitEntity u where u.realmId = :realmId and u.source = :source

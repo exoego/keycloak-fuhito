@@ -61,12 +61,19 @@ Masking removes what identifies the person directly, and keeps the structure of 
 ### Erase
 
 Erasing removes the person record, and every row and every change log entry about the person.
+That includes the entries of rows that are gone, for example a qualification that was deleted. They are found by the IDs that the entries name: the person, the employments of the person, and their assignments. A mask finds the entries to clear the same way.
 The change log keeps one entry that says who erased the data of which person ID.
 
 An export of the realm has the data of people as it is stored. An export taken before a mask or an erase still has what they removed.
 
 A system that follows the change log may hold copies of the cleared or removed data.
 The mask entry and the erase entry tell it which person ID to clean up. See [history.md](history.md).
+
+### Other copies
+
+- A request with `Idempotency-Key` keeps its response for 24 hours. A mask and an erase clear each stored response that names the person or a record of the person. A request sent again still writes nothing, and gets the first status with no body.
+- Keycloak keeps admin events with the representation of each write when the realm asks for it. A mask and an erase do not change them. Use the settings of admin events in Keycloak to limit what they keep and for how long.
+- The last run of the sync keeps the users and the values that matched nothing, until the next run replaces it.
 
 ## What masking does not do
 
