@@ -67,7 +67,7 @@ public class CsvImportService {
     }
 
     // Header names in English and Japanese, by the field they fill.
-    private static final Map<String, String> HEADERS = Map.ofEntries(
+    static final Map<String, String> HEADERS = Map.ofEntries(
             Map.entry("kind", "種類"), Map.entry("code", "コード"), Map.entry("name", "名称"),
             Map.entry("displayOrder", "表示順"), Map.entry("active", "有効"), Map.entry("externalId", "外部ID"),
             Map.entry("source", "ソース"), Map.entry("shortName", "略称"), Map.entry("phoneticName", "よみがな"),
@@ -80,7 +80,8 @@ public class CsvImportService {
             Map.entry("jobTitle", "役職"), Map.entry("occupation", "職種"), Map.entry("assignmentKind", "所属区分"),
             Map.entry("employerExternalId", "雇用主の外部ID"), Map.entry("legalEntity", "法人"), Map.entry("actingHead", "代行"),
             Map.entry("group", "グループ"), Map.entry("personExternalId", "人の外部ID"),
-            Map.entry("head", "長"), Map.entry("primary", "主務"), Map.entry("allocationPercent", "配分割合"));
+            Map.entry("head", "長"), Map.entry("primary", "主務"), Map.entry("allocationPercent", "配分割合"),
+            Map.entry("id", "ID"), Map.entry("parentId", "親のID"));
 
     // The lists that a file can hold, each with the resource whose attributes it sets.
     private enum Kind {
@@ -110,8 +111,8 @@ public class CsvImportService {
     private static final Map<Kind, Set<String>> FIELDS = Map.of(
             Kind.REF_ITEMS, Set.of("kind", "code", "name", "displayOrder", "active", "legalEntity", "actingHead",
                     "group"),
-            Kind.ORG_UNITS, Set.of("externalId", "source", "code", "name", "shortName", "phoneticName", "unitType",
-                    "parentExternalId", "displayOrder", "validFrom", "validTo"),
+            Kind.ORG_UNITS, Set.of("id", "externalId", "source", "code", "name", "shortName", "phoneticName",
+                    "unitType", "parentExternalId", "parentId", "displayOrder", "validFrom", "validTo"),
             Kind.EMPLOYMENTS, Set.of("externalId", "source", "username", "userId", "staffNumber", "employmentType",
                     "grade", "status", "leaveReason", "workPercent", "validFrom", "validTo", "endReason",
                     "employerExternalId", "personExternalId"),
@@ -121,7 +122,7 @@ public class CsvImportService {
                     "validFrom", "validTo"));
 
     private static final Set<String> LOCALIZED = Set.of("name", "shortName");
-    private static final String ATTRIBUTE_COLUMN = "attributes.";
+    static final String ATTRIBUTE_COLUMN = "attributes.";
     private static final Set<String> TRUE = Set.of("true", "1", "yes", "y", "はい", "○", "〇");
     private static final Set<String> FALSE = Set.of("false", "0", "no", "n", "いいえ", "×");
 
@@ -264,8 +265,11 @@ public class CsvImportService {
     private OrgUnitRow orgUnit(Cells cells, LocalDate date, String defaultSource) {
         String source = cells.text("source", null);
         String externalId = cells.text("externalId", null);
+        String id = cells.text("id", null);
         Optional<OrgUnitState> stored = Optional.empty();
-        if (externalId != null) {
+        if (id != null) {
+            stored = quietly(() -> orgUnitService.get(id, date.toString()));
+        } else if (externalId != null) {
             stored = orgUnits.findUnitByExternalId(source == null ? defaultSource : source, externalId)
                     .flatMap(unit -> quietly(() -> orgUnitService.get(unit.id(), date.toString())));
         }
@@ -277,6 +281,12 @@ public class CsvImportService {
                 .orElse(null);
         String keptParentId = storedParent == null && cells.blank("parentExternalId")
                 ? parent.map(OrgUnit::id).orElse(null) : null;
+        // A cell of the parent ID names the parent, and the cell #CLEAR makes a root. A CSV export has it.
+        String parentExternalId = cells.text("parentExternalId", storedParent);
+        if (!cells.blank("parentId")) {
+            parentExternalId = cells.text("parentExternalId", null);
+            keptParentId = cells.text("parentId", null);
+        }
         return new OrgUnitRow(source, externalId, cells.text("code", version.map(v -> v.code()).orElse(null)),
                 cells.text("name", version.map(v -> v.name()).orElse(null)),
                 cells.localized("name", version.map(v -> v.names()).orElse(Map.of())),
@@ -284,10 +294,10 @@ public class CsvImportService {
                 cells.localized("shortName", version.map(v -> v.shortNames()).orElse(Map.of())),
                 cells.text("phoneticName", version.map(v -> v.phoneticName()).orElse(null)),
                 cells.text("unitType", stored.map(OrgUnitState::unitType).orElse(null)),
-                cells.text("parentExternalId", storedParent), keptParentId,
+                parentExternalId, keptParentId,
                 cells.integer("displayOrder", version.map(v -> v.displayOrder()).orElse(null)),
                 cells.attributes(version.map(v -> v.attributes()).orElse(null)),
-                cells.text("validFrom", null), cells.text("validTo", null));
+                cells.text("validFrom", null), cells.text("validTo", null), id);
     }
 
     private PersonRow person(Cells cells, String defaultSource) {
