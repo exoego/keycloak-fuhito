@@ -170,6 +170,17 @@ The reason of a leave and an acting head are not part of these operations.
 
 Checked by `StaffIT.aLeaveAndAReturnChangeOnlyTheStatus`.
 
+## A person who comes back
+
+A person who left has an employment with an end. A return is a new employment of the same person.
+`POST /staff` starts it and adds its first assignment in one write. It takes `personId`, or `userId` for a person with a Keycloak user.
+
+- The old employment and its assignments stay as they are. `GET /users/{userId}/history` and `GET /people/{id}/history` list both employments.
+- The new employment can have the staff number of the old one. Another person cannot take it at the same employer.
+- The new employment does not name the old one in `continuesEmploymentId`. That field is for a transfer with no gap, where the years of service go on.
+
+Checked by `EmploymentsIT` and `MembershipIT`.
+
 ## The change log and change orders
 
 Every successful write adds one entry to the change log.

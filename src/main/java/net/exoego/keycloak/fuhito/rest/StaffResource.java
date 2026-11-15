@@ -47,7 +47,11 @@ public class StaffResource {
     }
 
     @POST
-    @Operation(operationId = "addStaff", summary = "Starts an employment and adds its first assignment in one call.")
+    @Operation(
+            operationId = "addStaff",
+            summary = "Starts an employment and adds its first assignment in one call.",
+            description = "It is for a new person, and also for a person who left and comes back. The old "
+                    + "employment of that person stays as it is. The new one can have the same staff number.")
     @Parameter(ref = "changeOrder")
     @APIResponse(
             responseCode = "201",
