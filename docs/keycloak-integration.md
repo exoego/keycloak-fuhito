@@ -291,6 +291,7 @@ The caller needs an access token for the admin API, the same as for the other ad
 | Read the org structure | Query users | `query-users` |
 | Read everything | View users | `view-users` |
 | Write | Manage users | `manage-users` |
+| Link an org unit to a Keycloak organization, or remove the link | Manage users, and manage that organization | `manage-users`, and what Keycloak asks for a change of the members of the organization |
 
 The org structure is the org units with their children, subtree, path, and history, the hierarchies, the reference items and their kinds, the definitions of free attributes, and the version.
 Every other read has data of people, and needs the permission to view users. The members of an org unit and the holders of roles over it are among them.
@@ -314,6 +315,8 @@ With this attribute, such a caller is limited in these ways.
 An org unit still shows when its period ends, also when the end is after the limit.
 A caller who may view users has no limit.
 A value that is not such a number gets 409 with `structure.days_ahead_invalid` for the callers that it limits.
+
+A link to an organization decides who is a member of it at the next rebuild of the projection. So it asks for the same permission as a change of the members through the admin API of Keycloak. A link that replaces another one asks for it on both organizations.
 
 A request with no token gets 401.
 A caller without the permission gets 403.
