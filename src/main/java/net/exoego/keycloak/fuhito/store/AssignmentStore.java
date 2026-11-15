@@ -23,6 +23,14 @@ public interface AssignmentStore {
     List<Assignment> rows(String assignmentId);
 
     /**
+     * Lists all rows of many assignments, by the ID of the assignment and then oldest first.
+     *
+     * @param assignmentIds the IDs of the assignments
+     * @return the rows
+     */
+    List<Assignment> rowsOf(Collection<String> assignmentIds);
+
+    /**
      * Lists all rows of all assignments of an employment, oldest first.
      *
      * @param employmentId the ID of the employment

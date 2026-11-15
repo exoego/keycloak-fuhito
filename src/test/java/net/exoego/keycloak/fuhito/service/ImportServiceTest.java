@@ -441,6 +441,53 @@ class ImportServiceTest {
         assertEquals(List.of("employments[0] import.employer_twice"), errors(importEmployments(employerTwice)));
     }
 
+    private static AssignmentRow placement(String externalId, String employmentExternalId, String employmentId,
+            String orgUnitExternalId, String orgUnitId, Integer displayOrder, String id) {
+        return new AssignmentRow(null, externalId, employmentExternalId, orgUnitExternalId, null, null, null, null,
+                null, null, displayOrder, null, "2026-04-01", null, employmentId, orgUnitId, id);
+    }
+
+    private ImportReport importAssignments(AssignmentRow... rows) {
+        return service.apply(new ImportDocument("2026-04-01", false, null, null, null, null, List.of(rows)));
+    }
+
+    @Test
+    void aRowNamesAStoredAssignmentItsEmploymentAndItsOrgUnitByTheirIds() {
+        importTwoUnits();
+        String hospital = orgUnitStore.findUnitByExternalId("import", "H").orElseThrow().id();
+        String ward = orgUnitStore.findUnitByExternalId("import", "W").orElseThrow().id();
+        String taro = new PersonService(personStore, users, id -> false)
+                .create(new PersonValues(null, "Taro", null, null, null, null, null)).person().id();
+        importEmployments(byIds("E1", taro, null, null, null));
+        String employment = employmentStore.findByExternalId("import", "E1").orElseThrow().id();
+
+        assertEquals(List.of(), errors(importAssignments(placement("A1", null, employment, null, ward, null, null))));
+        String assignment = assignmentStore.findAssignmentIdByExternalId("import", "A1").orElseThrow();
+        assertEquals(ward, assignmentStore.rows(assignment).getFirst().orgUnitId());
+
+        // A row with the ID alone keeps the employment and the org unit.
+        ImportReport changed = importAssignments(placement(null, null, null, null, null, 3, assignment));
+        assertEquals(List.of(), errors(changed));
+        assertEquals(new Counts(0, 1, 0), changed.counts().get("assignments"));
+        assertEquals(3, assignmentStore.rows(assignment).getLast().displayOrder());
+        assertEquals(new Counts(0, 0, 1), importAssignments(placement("A1", "E1", null, null, ward, 3, assignment))
+                .counts().get("assignments"));
+
+        assertEquals(List.of("assignments[0] import.id_unknown", "assignments[1] import.id_mismatch",
+                "assignments[2] import.employment_twice", "assignments[3] import.org_unit_twice",
+                "assignments[4] import.id_unknown", "assignments[5] import.id_unknown",
+                "assignments[6] invalid.required"),
+                errors(importAssignments(placement(null, null, null, null, null, null, "nope"),
+                        placement("OTHER", null, null, null, null, null, assignment),
+                        placement("A2", "E1", employment, null, ward, null, null),
+                        placement("A3", null, employment, "W", ward, null, null),
+                        placement("A4", null, "nope", null, ward, null, null),
+                        placement("A5", null, employment, null, "nope", null, null),
+                        placement("A6", null, null, null, ward, null, null))));
+        assertEquals(List.of("assignments[0] import.assignment_mismatch"),
+                errors(importAssignments(placement(null, null, null, null, hospital, null, assignment))));
+    }
+
     private void importTwoUnits() {
         importUnits("2026-04-01", unit("H", "Hospital", null), unit("W", "Ward", "H"));
     }

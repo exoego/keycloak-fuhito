@@ -82,7 +82,8 @@ public class CsvImportService {
             Map.entry("group", "グループ"), Map.entry("personExternalId", "人の外部ID"),
             Map.entry("head", "長"), Map.entry("primary", "主務"), Map.entry("allocationPercent", "配分割合"),
             Map.entry("id", "ID"), Map.entry("parentId", "親のID"), Map.entry("personId", "人のID"),
-            Map.entry("employerId", "雇用主のID"));
+            Map.entry("employerId", "雇用主のID"), Map.entry("employmentId", "雇用のID"),
+            Map.entry("orgUnitId", "組織のID"));
 
     // The lists that a file can hold, each with the resource whose attributes it sets.
     private enum Kind {
@@ -118,9 +119,9 @@ public class CsvImportService {
                     "employmentType", "grade", "status", "leaveReason", "workPercent", "validFrom", "validTo",
                     "endReason", "employerExternalId", "employerId", "personExternalId", "personId"),
             Kind.PEOPLE, Set.of("id", "externalId", "source", "username", "userId", "name", "phoneticName"),
-            Kind.ASSIGNMENTS, Set.of("externalId", "source", "employmentExternalId", "orgUnitExternalId", "jobTitle",
-                    "occupation", "assignmentKind", "head", "primary", "allocationPercent", "displayOrder",
-                    "validFrom", "validTo"));
+            Kind.ASSIGNMENTS, Set.of("id", "externalId", "source", "employmentExternalId", "employmentId",
+                    "orgUnitExternalId", "orgUnitId", "jobTitle", "occupation", "assignmentKind", "head", "primary",
+                    "allocationPercent", "displayOrder", "validFrom", "validTo"));
 
     private static final Set<String> LOCALIZED = Set.of("name", "shortName");
     static final String ATTRIBUTE_COLUMN = "attributes.";
@@ -348,18 +349,17 @@ public class CsvImportService {
     private AssignmentRow assignment(Cells cells, LocalDate date, String defaultSource) {
         String source = cells.text("source", null);
         String externalId = cells.text("externalId", null);
-        Optional<AssignmentView> view = externalId == null ? Optional.empty()
+        String id = cells.text("id", null);
+        Optional<String> stored = id != null ? Optional.of(id).filter(i -> !people.assignments().rows(i).isEmpty())
+                : externalId == null ? Optional.empty()
                 : people.assignments().findAssignmentIdByExternalId(source == null ? defaultSource : source,
-                        externalId).map(people.assignmentService()::get);
-        Optional<AssignmentView.Row> current = view
+                        externalId);
+        Optional<AssignmentView.Row> current = stored.map(people.assignmentService()::get)
                 .flatMap(v -> v.rows().stream().filter(r -> r.row().period().contains(date)).findFirst());
         Optional<Assignment> row = current.map(AssignmentView.Row::row);
-        // A row for a stored assignment may leave out the employment and the org unit.
-        String employmentExternalId = cells.text("employmentExternalId", row.map(Assignment::employmentId)
-                .flatMap(people.employments()::find).map(Employment::externalId).orElse(null));
-        String orgUnitExternalId = cells.text("orgUnitExternalId", row.map(Assignment::orgUnitId)
-                .flatMap(orgUnits::findUnit).map(OrgUnit::externalId).orElse(null));
-        return new AssignmentRow(source, externalId, employmentExternalId, orgUnitExternalId,
+        // A row for a stored assignment may leave out the employment and the org unit. The import keeps them.
+        return new AssignmentRow(source, externalId, cells.text("employmentExternalId", null),
+                cells.text("orgUnitExternalId", null),
                 cells.text("jobTitle", current.map(AssignmentView.Row::jobTitle).orElse(null)),
                 cells.text("occupation", current.map(AssignmentView.Row::occupation).orElse(null)),
                 cells.text("assignmentKind", current.map(AssignmentView.Row::kind).orElse(null)),
@@ -368,7 +368,8 @@ public class CsvImportService {
                 cells.decimal("allocationPercent", row.map(Assignment::allocationPercent).orElse(null)),
                 cells.integer("displayOrder", row.map(Assignment::displayOrder).orElse(null)),
                 cells.attributes(row.map(Assignment::attributes).orElse(null)),
-                cells.text("validFrom", null), cells.text("validTo", null));
+                cells.text("validFrom", null), cells.text("validTo", null), cells.text("employmentId", null),
+                cells.text("orgUnitId", null), id);
     }
 
     private static <T> Optional<T> quietly(Supplier<T> read) {

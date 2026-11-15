@@ -20,14 +20,15 @@ Every bad row is reported, not only the first one.
 | List | Matched by |
 |---|---|
 | Reference items | Kind and code |
-| Org units | Source and external ID |
-| People | Source and external ID |
-| Employments | Source and external ID |
-| Assignments | Source and external ID |
+| Org units | Source and external ID, or ID |
+| People | Source and external ID, or ID |
+| Employments | Source and external ID, or ID |
+| Assignments | Source and external ID, or ID |
 
 The source is the name of the system or the sheet that the rows come from.
 It keeps the external IDs of two systems apart. The default is `import`.
 The import matches by the pair that a resource itself has. The IDs that `/external-ids` adds do not match rows.
+A row can name a stored thing by `id` in place of the pair, also when the thing has no external ID. A CSV export has it in every row. A new thing has no ID.
 
 ## People
 
@@ -68,8 +69,9 @@ The lists are applied in the order reference items, org units, employments, assi
 - Rows of org units can come in any order. A parent is applied before its children.
 - A parent with no external ID of the same source can be named by `parentId`, the ID of the unit. A row gives `parentExternalId` or `parentId`, not both.
 - A row of a stored org unit can name it by `id`, also when the unit has no external ID. An external ID beside it must be the one of that unit.
-- A row of a stored employment can name it by `id` the same way.
+- A row of a stored employment or assignment can name it by `id` the same way.
 - A row of an employment can name its person by `personId` and its employer by `employerId`. A row gives the external ID or the ID, not both.
+- A row of an assignment can name its employment by `employmentId` and its org unit by `orgUnitId` the same way. A row of a stored assignment that names neither keeps the stored ones.
 - A new row can have its own `validFrom`. An existing row ignores it.
 - A row with `validTo` ends the thing on that date. An employment can also carry `endReason`.
 - A row replaces all details of an existing thing. A missing optional value clears it.
@@ -93,6 +95,8 @@ The lists are applied in the order reference items, org units, employments, assi
 `GET /imports/csv/people` gives the people the same way. A person has no date, so it takes no `asOf`. The file leaves out the link to a Keycloak user: a blank cell keeps the stored link, and the ID of a user who was removed from Keycloak would not load again.
 
 `GET /imports/csv/employments?asOf=` gives the employments that hold on the date, with the terms of that date. Each row has `id`. It names the person by `personId` and the employer by `employerId`, because many have no external ID of the source of the row. A row of an employment that starts later is not in the file.
+
+`GET /imports/csv/assignments?asOf=` gives the assignments that hold on the date the same way, with the details of that date. It names the employment by `employmentId` and the org unit by `orgUnitId`. `validFrom` and `validTo` are the dates of the whole assignment, not of the details.
 The query has `effectiveDate`, and optionally `dryRun` and `source`.
 The content type is `text/csv`.
 
@@ -157,6 +161,7 @@ People.
 | `userId` | `ユーザーID` |
 | `name` | `名称` |
 | `phoneticName` | `よみがな` |
+| `id` | `ID` |
 
 Employments.
 
@@ -198,6 +203,9 @@ Assignments.
 | `displayOrder` | `表示順` |
 | `validFrom` | `開始日` |
 | `validTo` | `終了日` |
+| `id` | `ID` |
+| `employmentId` | `雇用のID` |
+| `orgUnitId` | `組織のID` |
 
 A row for a stored employment may leave out the user.
 A row that leaves out `leaveReason` keeps the stored reason while the status stays `ON_LEAVE`.

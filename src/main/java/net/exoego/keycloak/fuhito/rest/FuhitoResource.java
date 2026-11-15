@@ -485,7 +485,7 @@ public class FuhitoResource {
                 orgUnitStore, orgUnitService(), people, definitions::list),
                 new CsvExportService(refItemService(), () -> realmKinds().list().stream()
                         .map(RealmKindService.View::code).toList(), orgUnitService(), personService(),
-                        employmentService(), today(), definitions::list));
+                        employmentService(), assignmentService(), today(), definitions::list));
     }
 
     private OrgUnitService orgUnitService() {

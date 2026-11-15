@@ -13,6 +13,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+import net.exoego.keycloak.fuhito.domain.Assignment;
 import net.exoego.keycloak.fuhito.domain.AttributeDefinition;
 import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.Employment;
@@ -36,6 +37,7 @@ public class CsvExportService {
     private final OrgUnitService orgUnits;
     private final PersonService people;
     private final EmploymentService employments;
+    private final AssignmentService assignments;
     private final Today today;
     private final Function<AttributeDefinition.Target, List<AttributeDefinition>> definitions;
 
@@ -47,17 +49,19 @@ public class CsvExportService {
      * @param orgUnits the operations on org units of the realm
      * @param people the operations on people of the realm
      * @param employments the operations on employments of the realm
+     * @param assignments the operations on assignments of the realm
      * @param today what today is for the realm
      * @param definitions the definitions of free attributes of the realm, by the resource that has them
      */
     public CsvExportService(RefItemService refItems, Supplier<List<String>> kinds, OrgUnitService orgUnits,
-            PersonService people, EmploymentService employments, Today today,
+            PersonService people, EmploymentService employments, AssignmentService assignments, Today today,
             Function<AttributeDefinition.Target, List<AttributeDefinition>> definitions) {
         this.refItems = refItems;
         this.kinds = kinds;
         this.orgUnits = orgUnits;
         this.people = people;
         this.employments = employments;
+        this.assignments = assignments;
         this.today = today;
         this.definitions = definitions;
     }
@@ -69,7 +73,7 @@ public class CsvExportService {
      * @param asOf the date as {@code YYYY-MM-DD}, or null for today
      * @param japanese true for the Japanese names of the columns
      * @return the CSV
-     * @throws FuhitoException when the list is not one that can be written yet, or the date is bad
+     * @throws FuhitoException when the list is unknown, or the date is bad
      */
     public String write(String list, String asOf, boolean japanese) {
         return switch (String.valueOf(list)) {
@@ -77,6 +81,7 @@ public class CsvExportService {
             case "org-units" -> orgUnits(asOf, japanese);
             case "people" -> people(japanese);
             case "employments" -> employments(asOf, japanese);
+            case "assignments" -> assignments(asOf, japanese);
             default -> throw FuhitoException.invalid("csv.export_list_unknown", Map.of("list", String.valueOf(list)));
         };
     }
@@ -198,6 +203,47 @@ public class CsvExportService {
                 return csv.toString();
             }
             after = Cursor.encode(Cursor.EMPLOYMENTS, page.getLast().employment().id());
+        }
+    }
+
+    // The assignments that hold on the date, with the details of that date and the dates of the whole assignment.
+    private String assignments(String asOf, boolean japanese) {
+        LocalDate date = asOf == null ? today.ofRealm() : Checks.date("asOf", asOf);
+        List<String> attributes = definitions.apply(AttributeDefinition.Target.ASSIGNMENT).stream()
+                .map(AttributeDefinition::name)
+                .toList();
+        List<String> header = new ArrayList<>();
+        for (String field : List.of("id", "externalId", "source", "employmentId", "orgUnitId", "jobTitle",
+                "occupation", "assignmentKind", "head", "primary", "allocationPercent", "displayOrder", "validFrom",
+                "validTo")) {
+            header.add(column(field, japanese));
+        }
+        attributes.forEach(attribute -> header.add(CsvImportService.ATTRIBUTE_COLUMN + attribute));
+        StringBuilder csv = new StringBuilder(BYTE_ORDER_MARK);
+        line(csv, header);
+        String after = null;
+        while (true) {
+            List<AssignmentView> page = assignments.listOn(date, after, ROWS_AT_A_TIME);
+            for (AssignmentView view : page) {
+                AssignmentView.Row current = view.rows().stream()
+                        .filter(r -> r.row().period().contains(date))
+                        .findFirst()
+                        .orElseThrow();
+                Assignment row = current.row();
+                List<String> cells = new ArrayList<>(List.of(view.assignmentId(), text(row.externalId()),
+                        text(row.source()), row.employmentId(), row.orgUnitId(), text(current.jobTitle()),
+                        text(current.occupation()), text(current.kind()), Boolean.toString(row.head()),
+                        Boolean.toString(row.primary()), number(row.allocationPercent()),
+                        Integer.toString(row.displayOrder()), view.period().from().toString(),
+                        text(view.period().to())));
+                attributes.forEach(attribute -> cells.add(text(Optional.ofNullable(row.attributes())
+                        .map(values -> values.get(attribute)).orElse(null))));
+                line(csv, cells);
+            }
+            if (page.size() < ROWS_AT_A_TIME) {
+                return csv.toString();
+            }
+            after = page.getLast().assignmentId();
         }
     }
 

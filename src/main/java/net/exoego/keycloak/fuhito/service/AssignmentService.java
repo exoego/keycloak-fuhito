@@ -1,10 +1,13 @@
 package net.exoego.keycloak.fuhito.service;
 
 import java.time.LocalDate;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import net.exoego.keycloak.fuhito.domain.Assignment;
 import net.exoego.keycloak.fuhito.domain.AttributeDefinition;
@@ -262,6 +265,38 @@ public class AssignmentService {
                 .map(r -> new AssignmentView.Row(r, codeOf(r.jobTitleId()), codeOf(r.occupationId()),
                         codeOf(r.kindId())))
                 .toList());
+    }
+
+    /**
+     * Lists a page of the assignments that hold on a date, by ID, each with its details over time.
+     *
+     * @param date the date
+     * @param afterId the ID of the assignment after which the page starts, or null for the start
+     * @param max the largest number of assignments to return
+     * @return the assignments of the page
+     */
+    public List<AssignmentView> listOn(LocalDate date, String afterId, int max) {
+        List<String> ids = store.searchOn(new AssignmentStore.Search(null, null, null, null, date), afterId, 0, max)
+                .stream()
+                .map(Assignment::assignmentId)
+                .toList();
+        Map<String, List<Assignment>> rowsById = store.rowsOf(ids).stream()
+                .collect(Collectors.groupingBy(Assignment::assignmentId));
+        Map<String, Employment> employmentsById = employments.findAll(rowsById.values().stream()
+                        .map(rows -> rows.getFirst().employmentId()).distinct().toList()).stream()
+                .collect(Collectors.toMap(Employment::id, Function.identity()));
+        Map<String, String> codes = new HashMap<>();
+        Function<String, String> code = id -> id == null ? null : codes.computeIfAbsent(id, this::codeOf);
+        return ids.stream().map(id -> {
+            List<Assignment> rows = rowsById.get(id);
+            Employment employment = employmentsById.get(rows.getFirst().employmentId());
+            return new AssignmentView(id, employment == null ? null : employment.userId(),
+                    new ValidPeriod(rows.getFirst().period().from(), rows.getLast().period().to()),
+                    rows.getFirst().continuesAssignmentId(), rows.stream()
+                            .map(r -> new AssignmentView.Row(r, code.apply(r.jobTitleId()),
+                                    code.apply(r.occupationId()), code.apply(r.kindId())))
+                            .toList());
+        }).toList();
     }
 
     // An employment has at most one primary assignment on any date.
