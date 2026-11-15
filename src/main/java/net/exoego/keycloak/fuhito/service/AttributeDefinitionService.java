@@ -2,10 +2,12 @@ package net.exoego.keycloak.fuhito.service;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Predicate;
 
 import net.exoego.keycloak.fuhito.domain.AttributeDefinition;
 import net.exoego.keycloak.fuhito.domain.Checks;
@@ -24,6 +26,7 @@ public class AttributeDefinitionService implements AttributeRules {
     private final AttributeDefinitionStore store;
     private final RefItemStore refItems;
     private final boolean rejectUnknown;
+    private final Predicate<String> knownKinds;
 
     /**
      * Creates the service.
@@ -33,9 +36,24 @@ public class AttributeDefinitionService implements AttributeRules {
      * @param rejectUnknown true when the realm rejects attributes with no definition
      */
     public AttributeDefinitionService(AttributeDefinitionStore store, RefItemStore refItems, boolean rejectUnknown) {
+        this(store, refItems, rejectUnknown,
+                code -> Arrays.stream(RefKind.values()).anyMatch(kind -> kind.name().equals(code)));
+    }
+
+    /**
+     * Creates the service with the kinds of reference data of the realm.
+     *
+     * @param store the storage of definitions of the realm
+     * @param refItems the storage of reference items of the realm
+     * @param rejectUnknown true when the realm rejects attributes with no definition
+     * @param knownKinds tells whether a code is a fixed kind or a kind of the realm
+     */
+    public AttributeDefinitionService(AttributeDefinitionStore store, RefItemStore refItems, boolean rejectUnknown,
+            Predicate<String> knownKinds) {
         this.store = store;
         this.refItems = refItems;
         this.rejectUnknown = rejectUnknown;
+        this.knownKinds = knownKinds;
     }
 
     /**
@@ -118,11 +136,14 @@ public class AttributeDefinitionService implements AttributeRules {
         store.delete(id);
     }
 
-    private static AttributeDefinition definition(String id, AttributeDefinition.Target target, String name,
+    private AttributeDefinition definition(String id, AttributeDefinition.Target target, String name,
             String type, String refKind, Boolean required) {
         AttributeDefinition.Type of = Checks.optionalEnum("type", AttributeDefinition.Type.class,
                 Checks.required("type", type), null);
-        RefKind kind = Checks.optionalEnum("refKind", RefKind.class, refKind, null);
+        String kind = refKind;
+        if (kind != null && !knownKinds.test(kind)) {
+            throw FuhitoException.invalid("invalid.choice", Map.of("field", "refKind", "value", kind));
+        }
         if ((of == AttributeDefinition.Type.REF_ITEM) != (kind != null)) {
             throw FuhitoException.invalid("attribute.ref_kind", Map.of("type", of.name()));
         }

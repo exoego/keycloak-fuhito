@@ -111,7 +111,7 @@ public class ImportService {
     }
 
     private Outcome importRefItem(RefItemRow row, ImportReport report) {
-        RefKind kind = Checks.optionalEnum("kind", RefKind.class, Checks.required("kind", row.kind()), null);
+        String kind = Checks.required("kind", row.kind());
         String code = Checks.code("code", row.code());
         Optional<RefItem> stored = refItems.findByCode(kind, code);
         if (stored.isEmpty()) {

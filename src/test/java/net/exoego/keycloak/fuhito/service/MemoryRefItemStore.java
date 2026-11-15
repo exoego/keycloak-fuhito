@@ -9,7 +9,6 @@ import java.util.Optional;
 import java.util.Set;
 
 import net.exoego.keycloak.fuhito.domain.RefItem;
-import net.exoego.keycloak.fuhito.domain.RefKind;
 import net.exoego.keycloak.fuhito.store.RefItemStore;
 
 final class MemoryRefItemStore implements RefItemStore {
@@ -17,15 +16,15 @@ final class MemoryRefItemStore implements RefItemStore {
     final Set<String> inUse = new HashSet<>();
 
     @Override
-    public List<RefItem> list(RefKind kind, boolean includeInactive) {
+    public List<RefItem> list(String kind, boolean includeInactive) {
         return items.values().stream()
-                .filter(i -> i.kind() == kind && (includeInactive || i.active()))
+                .filter(i -> i.kind().equals(kind) && (includeInactive || i.active()))
                 .sorted(Comparator.comparingInt(RefItem::displayOrder).thenComparing(RefItem::code))
                 .toList();
     }
 
     @Override
-    public List<RefItem> list(RefKind kind, boolean includeInactive, int first, int max) {
+    public List<RefItem> list(String kind, boolean includeInactive, int first, int max) {
         return list(kind, includeInactive).stream().skip(first).limit(max).toList();
     }
 
@@ -35,8 +34,8 @@ final class MemoryRefItemStore implements RefItemStore {
     }
 
     @Override
-    public Optional<RefItem> findByCode(RefKind kind, String code) {
-        return items.values().stream().filter(i -> i.kind() == kind && i.code().equals(code)).findFirst();
+    public Optional<RefItem> findByCode(String kind, String code) {
+        return items.values().stream().filter(i -> i.kind().equals(kind) && i.code().equals(code)).findFirst();
     }
 
     /** The unit types that make an employer a legal entity. A test of employers sets them. */

@@ -225,8 +225,9 @@ components:
           - DATE
           - REF_ITEM
         refKind:
-          $ref: "#/components/schemas/RefKind"
-          description: The kind of reference data. Only the type `REF_ITEM` has it.
+          type: string
+          description: "The kind of reference data, fixed or of the realm. Only the\
+            \ type `REF_ITEM` has it."
         required:
           type: boolean
           description: True when every write of the resource must give a value.
@@ -855,7 +856,9 @@ components:
       description: A reference item. It is matched by kind and code.
       properties:
         kind:
-          $ref: "#/components/schemas/RefKind"
+          type: string
+          description: "A fixed kind such as `UNIT_TYPE`, or the code of a kind that\
+            \ the realm added."
         code:
           type: string
           maxLength: 64
@@ -1543,8 +1546,9 @@ components:
           type: string
           readOnly: true
         kind:
-          $ref: "#/components/schemas/RefKind"
-          description: Only a create request reads it.
+          type: string
+          description: "A fixed kind such as `UNIT_TYPE`, or the code of a kind that\
+            \ the realm added. Only a create request reads it."
         code:
           type: string
           maxLength: 64
@@ -1603,6 +1607,31 @@ components:
       - UNIT_ROLE
       description: The kinds of reference items. Each realm defines its own items
         for each kind.
+    RefKindDefinition:
+      required:
+      - code
+      - name
+      description: A kind of reference data.
+      type: object
+      properties:
+        code:
+          type: string
+          maxLength: 32
+          pattern: "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
+          description: The code that items name as their kind.
+        name:
+          type: string
+          maxLength: 255
+          description: The default name. A fixed kind has none.
+        names:
+          type: object
+          additionalProperties:
+            type: string
+          description: "Names in other languages, by language tag."
+        fixed:
+          type: boolean
+          description: True for a kind that every realm has.
+          readOnly: true
     Reorganization:
       required:
       - effectiveDate
@@ -5803,11 +5832,13 @@ paths:
           default: false
         name: includeInactive
         in: query
-      - required: true
-        schema:
-          $ref: "#/components/schemas/RefKind"
+      - description: "A fixed kind such as `UNIT_TYPE`, or the code of a kind that\
+          \ the realm added."
+        required: true
         name: kind
         in: query
+        schema:
+          type: string
       - description: The largest number of entries to return.
         schema:
           type: integer
@@ -5946,6 +5977,84 @@ paths:
           description: The item was deleted.
         "400":
           $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /ref-kinds:
+    get:
+      summary: "Lists the kinds of reference data, the fixed ones first, then the\
+        \ ones of the realm."
+      operationId: listRefKinds
+      tags:
+      - ref-items
+      responses:
+        "200":
+          description: The kinds.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RefKindDefinition"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+    post:
+      summary: "Adds a kind of reference data to the realm, such as a work location\
+        \ or a cost center."
+      description: Its items are reference items with the code as their kind. Attributes
+        of the type `REF_ITEM` can point to it.
+      operationId: createRefKind
+      tags:
+      - ref-items
+      parameters:
+      - $ref: "#/components/parameters/changeOrder"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RefKindDefinition"
+        required: true
+      responses:
+        "201":
+          description: The new kind.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RefKindDefinition"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /ref-kinds/{code}:
+    delete:
+      summary: Removes a kind of the realm that has no items.
+      operationId: deleteRefKind
+      tags:
+      - ref-items
+      parameters:
+      - description: The code of the kind.
+        name: code
+        in: path
+        required: true
+        schema:
+          type: string
+      - $ref: "#/components/parameters/changeOrder"
+      responses:
+        "204":
+          description: The kind is gone.
         "404":
           $ref: "#/components/responses/NotFound"
         "401":

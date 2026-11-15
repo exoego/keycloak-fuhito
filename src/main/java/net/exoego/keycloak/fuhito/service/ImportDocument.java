@@ -159,7 +159,7 @@ public record ImportDocument(
             description = "A reference item. It is matched by kind and code.",
             requiredProperties = {"kind", "code", "name"})
     public record RefItemRow(
-            @Schema(ref = "RefKind")
+            @Schema(description = "A fixed kind such as `UNIT_TYPE`, or the code of a kind that the realm added.")
             String kind,
             @Schema(maxLength = 64, pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$")
             String code,

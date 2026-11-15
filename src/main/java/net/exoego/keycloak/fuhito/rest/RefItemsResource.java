@@ -62,7 +62,7 @@ public class RefItemsResource {
     @BadRequest
     @ApiErrors
     public List<RefItemRepresentation> list(
-            @Parameter(required = true, schema = @Schema(ref = "RefKind"))
+            @Parameter(required = true, description = "A fixed kind such as `UNIT_TYPE`, or the code of a kind that the realm added.")
             @QueryParam("kind") String kind,
             @Parameter(description = "True to also return inactive items.", schema = @Schema(defaultValue = "false"))
             @QueryParam("includeInactive") boolean includeInactive,
@@ -75,7 +75,7 @@ public class RefItemsResource {
                     schema = @Schema(minimum = "0", maximum = "1000", defaultValue = "100"))
             @QueryParam("max") Integer max) {
         context.requireReadStructure();
-        return Calls.run(context, () -> service.list(parseKind(kind), includeInactive, Page.of(first, max)).stream()
+        return Calls.run(context, () -> service.list(kind, includeInactive, Page.of(first, max)).stream()
                 .map(RefItemRepresentation::of)
                 .toList());
     }
@@ -110,7 +110,7 @@ public class RefItemsResource {
         context.requireWrite();
         return Calls.once(context, body, Response.class, () -> Calls.run(context, () -> {
             Checks.required("body", body);
-            var item = RefItemRepresentation.of(service.create(parseKind(body.kind()), body.code(), body.name(),
+            var item = RefItemRepresentation.of(service.create(body.kind(), body.code(), body.name(),
                     body.names(), body.displayOrder(), body.attributes(), body.marks()));
             context.recordChange(Change.CREATE, RESOURCE_TYPE, item.id(), path(item.id()), item);
             return Response.status(Response.Status.CREATED).entity(item).build();
@@ -163,15 +163,6 @@ public class RefItemsResource {
 
     private static String path(String id) {
         return "fuhito/ref-items/" + id;
-    }
-
-    private static RefKind parseKind(String kind) {
-        Checks.required("kind", kind);
-        try {
-            return RefKind.valueOf(kind);
-        } catch (IllegalArgumentException e) {
-            throw FuhitoException.invalid("invalid.kind", Map.of("value", kind)).causedBy(e);
-        }
     }
 
     // The whole stored state of one resource, which its ETag covers.

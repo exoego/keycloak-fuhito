@@ -132,7 +132,7 @@ class ImportServiceTest {
 
         ImportReport report = service.apply(doc("2026-04-01", false, null, rows, null));
 
-        assertEquals(List.of("refItems[1] invalid.choice", "refItems[2] invalid.required",
+        assertEquals(List.of("refItems[1] invalid.kind", "refItems[2] invalid.required",
                 "refItems[3] invalid.required", "refItems[4] invalid.code", "refItems[5] invalid.name"),
                 errors(report));
         assertEquals(Map.of("refItems", new Counts(1, 0, 0)), report.counts());

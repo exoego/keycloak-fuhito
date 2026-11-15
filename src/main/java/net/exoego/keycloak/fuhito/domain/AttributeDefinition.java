@@ -7,10 +7,11 @@ package net.exoego.keycloak.fuhito.domain;
  * @param target the kind of resource that has the attribute
  * @param name the name of the attribute in {@code attributes}
  * @param type the type of the value
- * @param refKind the kind of reference data for the type {@code REF_ITEM}, or null
+ * @param refKind the code of the kind of reference data for the type {@code REF_ITEM}, fixed or of the realm, or
+ *        null
  * @param required true when every write of the resource must give a value
  */
-public record AttributeDefinition(String id, Target target, String name, Type type, RefKind refKind,
+public record AttributeDefinition(String id, Target target, String name, Type type, String refKind,
         boolean required) {
 
     /**
