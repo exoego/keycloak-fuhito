@@ -92,6 +92,6 @@ class RestrictedDatabaseIT {
     }
 
     private static String psql(PostgreSQLContainer postgres, String sql) throws Exception {
-        return KeycloakEnvironment.run(postgres, sql);
+        return Sql.run(postgres, sql);
     }
 }

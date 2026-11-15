@@ -3,9 +3,7 @@ package net.exoego.keycloak.fuhito;
 import java.io.File;
 import java.sql.Connection;
 import java.sql.DriverManager;
-import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.Statement;
 import java.util.List;
 
 import dasniko.testcontainers.keycloak.KeycloakContainer;
@@ -55,31 +53,11 @@ final class KeycloakEnvironment {
 
     /** Runs a statement and returns the first column of its first row, or an empty text. */
     static String sql(String sql) throws Exception {
-        return run(POSTGRES, sql);
+        return Sql.run(POSTGRES, sql);
     }
 
     /** Runs a statement that must fail, and returns the error of the database. */
     static String sqlError(String sql) {
-        return assertThrows(SQLException.class, () -> run(POSTGRES, sql)).getMessage();
-    }
-
-    // JDBC, not psql in the container. A docker exec sometimes never reports that it ended.
-    static String run(PostgreSQLContainer postgres, String sql) throws SQLException {
-        try (Connection connection = DriverManager.getConnection(postgres.getJdbcUrl(), postgres.getUsername(),
-                postgres.getPassword())) {
-            return value(connection, sql);
-        }
-    }
-
-    /** Runs a statement on a connection and returns the first column of its first row, or an empty text. */
-    static String value(Connection connection, String sql) throws SQLException {
-        try (Statement statement = connection.createStatement()) {
-            if (!statement.execute(sql)) {
-                return "";
-            }
-            try (ResultSet rows = statement.getResultSet()) {
-                return rows.next() ? String.valueOf(rows.getObject(1)) : "";
-            }
-        }
+        return assertThrows(SQLException.class, () -> Sql.run(POSTGRES, sql)).getMessage();
     }
 }

@@ -126,7 +126,7 @@ class ProjectionIT {
                 statement.setString(1, nurse);
                 statement.execute();
             }
-            String holder = KeycloakEnvironment.value(connection, "select pg_backend_pid()");
+            String holder = Sql.value(connection, "select pg_backend_pid()");
             first = CompletableFuture.supplyAsync(() -> {
                 try {
                     return api.post("/projection/rebuild", "");

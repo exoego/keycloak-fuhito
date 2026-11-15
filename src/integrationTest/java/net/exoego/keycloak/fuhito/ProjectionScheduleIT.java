@@ -121,7 +121,7 @@ class ProjectionScheduleIT {
             assertEquals(200, crashing.put("/org-units/" + lost + "/organization",
                     "{\"organizationId\": \"" + crashingOrganization + "\"}").statusCode());
             // Keycloak would remove the link with the organization. Only broken data keeps it.
-            KeycloakEnvironment.run(postgres, "update fuhito_org_unit set kc_org_id = 'no-such-organization'"
+            Sql.run(postgres, "update fuhito_org_unit set kc_org_id = 'no-such-organization'"
                     + " where id = '" + lost + "'");
             createRealm(admin, "b-working", "UTC");
             String organization = OrganizationLinkIT.createOrganization(admin, "b-working", "hospital");
