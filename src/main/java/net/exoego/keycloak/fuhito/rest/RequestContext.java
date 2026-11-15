@@ -82,6 +82,12 @@ public interface RequestContext {
     String requestPath();
 
     /**
+     * Locks the stored row of the resource that the path of the request names, until the end of the transaction.
+     * A second write to the resource then waits for the first one.
+     */
+    void lockTarget();
+
+    /**
      * Returns the query of the request, as it came.
      *
      * @return the query, or null when the request has none

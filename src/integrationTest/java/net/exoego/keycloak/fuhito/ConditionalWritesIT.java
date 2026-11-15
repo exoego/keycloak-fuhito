@@ -1,6 +1,11 @@
 package net.exoego.keycloak.fuhito;
 
 import java.net.http.HttpResponse;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.Statement;
+import java.util.concurrent.CompletableFuture;
 
 import org.junit.jupiter.api.Test;
 
@@ -68,6 +73,63 @@ class ConditionalWritesIT {
         HttpResponse<String> masked = api.post("/people/" + person + "/mask", "", "If-Match", current);
         assertEquals(200, masked.statusCode(), masked.body());
         assertEquals(204, api.delete("/people/" + person + "/data", "If-Match", etag(masked)).statusCode());
+    }
+
+    @Test
+    void aSecondWriteWithTheSameEtagWaitsAndFails() throws Exception {
+        TestRealm realm = TestRealm.withEmployer("if-match-race");
+        Api api = realm.api;
+        String unit = Api.json(api.post("/org-units", "{\"name\": \"1病棟\", \"validFrom\": \"2026-04-01\"}"))
+                .get("id").asText();
+        String etag = etag(api.get("/org-units/" + unit));
+
+        CompletableFuture<HttpResponse<String>> second;
+        try (Connection first = KeycloakEnvironment.connection()) {
+            // The first write holds the row of the unit and changes the unit.
+            first.setAutoCommit(false);
+            try (PreparedStatement lock = first.prepareStatement(
+                    "select id from fuhito_org_unit where id = ? for update")) {
+                lock.setString(1, unit);
+                lock.execute();
+            }
+            String holder;
+            try (Statement statement = first.createStatement();
+                    ResultSet pid = statement.executeQuery("select pg_backend_pid()")) {
+                pid.next();
+                holder = pid.getString(1);
+            }
+            second = CompletableFuture.supplyAsync(() -> {
+                try {
+                    return api.put("/org-units/" + unit, "{\"name\": \"第1病棟\", \"validFrom\": \"2026-04-01\"}",
+                            "If-Match", etag);
+                } catch (Exception e) {
+                    throw new IllegalStateException(e);
+                }
+            });
+            String waiting = "0";
+            for (int i = 0; i < 300 && waiting.equals("0"); i++) {
+                Thread.sleep(100);
+                waiting = KeycloakEnvironment.sql("select count(*) from pg_stat_activity where " + holder
+                        + " = any(pg_blocking_pids(pid))");
+            }
+            assertNotEquals("0", waiting, "the second write never waited");
+            try (PreparedStatement rename = first.prepareStatement(
+                    "update fuhito_org_unit_version set name = 'Changed' where org_unit_id = ?")) {
+                rename.setString(1, unit);
+                rename.executeUpdate();
+            }
+            first.commit();
+        }
+
+        HttpResponse<String> result = second.get();
+        assertEquals(412, result.statusCode(), result.body());
+        assertEquals("Changed", Api.json(api.get("/org-units/" + unit)).get("name").asText());
+
+        // An assignment has a row for each period, and the write locks all of them.
+        String assignment = Api.json(api.post("/staff", "{\"userId\": \"" + realm.user("nurse") + "\", \"orgUnitId\": \""
+                + unit + "\", \"validFrom\": \"2026-04-01\"}")).get("assignment").get("id").asText();
+        assertEquals(200, api.put("/assignments/" + assignment + "/end", "{\"validTo\": \"2027-04-01\"}", "If-Match",
+                etag(api.get("/assignments/" + assignment))).statusCode());
     }
 
     @Test
