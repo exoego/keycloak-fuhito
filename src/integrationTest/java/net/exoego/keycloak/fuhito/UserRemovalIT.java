@@ -1,5 +1,6 @@
 package net.exoego.keycloak.fuhito;
 
+import java.net.http.HttpResponse;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.List;
@@ -9,6 +10,7 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class UserRemovalIT {
 
@@ -81,6 +83,8 @@ class UserRemovalIT {
             assertEquals(201, api.post("/qualifications", "{\"userId\": \"" + user
                     + "\", \"kind\": \"license\", \"validFrom\": \"2010-05-01\"}").statusCode());
         }
+        // The erased user reports to the kept one, and is the manager of the kept one.
+        List<String> lines = List.of(line(api, erased, kept), line(api, kept, erased));
         String realmId = realm.id();
         // One user is removed from Keycloak first. Their data can still be erased afterwards.
         realm.removeUser(gone);
@@ -98,6 +102,10 @@ class UserRemovalIT {
             assertEquals(404, api.get("/employments/" + id).statusCode());
             assertEquals(0, Api.json(api.get("/change-log?resourceType=FUHITO_EMPLOYMENT&resourceId=" + id)).size());
         }
+        for (String line : lines) {
+            assertEquals(0, Api.json(api.get("/change-log?resourceType=FUHITO_REPORTING_LINE&resourceId=" + line))
+                    .size(), line);
+        }
         assertEquals(200, api.get("/employments/" + keptIds.get(1)).statusCode());
         assertEquals(2, Api.json(api.get("/change-log?resourceType=FUHITO_EMPLOYMENT&resourceId=" + keptIds.get(0))).size());
         // The erased user still exists in Keycloak, with no data. The removed one is unknown now.
@@ -114,6 +122,14 @@ class UserRemovalIT {
         assertEquals(List.of("DELETE"), erasure.findValuesAsText("operation"));
         assertFalse(erasure.get(0).has("representation"));
         assertEquals(401, new Api(realm.name, null).delete("/users/" + kept + "/data").statusCode());
+    }
+
+    private static String line(Api api, String userId, String managerUserId) throws Exception {
+        String assignment = Api.json(api.get("/users/" + userId + "/assignments")).get(0).get("assignmentId").asText();
+        HttpResponse<String> created = api.post("/reporting-lines", "{\"assignmentId\": \"" + assignment
+                + "\", \"managerUserId\": \"" + managerUserId + "\", \"validFrom\": \"2025-10-01\"}");
+        assertEquals(201, created.statusCode(), created.body());
+        return Api.json(created).get("id").asText();
     }
 
     // Two employments. The first ended in 2024 and has two sets of terms.
@@ -166,6 +182,43 @@ class UserRemovalIT {
                 "fuhito_external_id")) {
             assertEquals("0", rows(table, realmId), table);
         }
+        // A follower of the change log learns that the employment that never held is gone.
+        JsonNode log = Api.json(api.get("/change-log?resourceType=FUHITO_EMPLOYMENT&resourceId=" + employment));
+        assertEquals("DELETE", log.get(log.size() - 1).get("operation").asText());
+        assertFalse(log.get(log.size() - 1).has("actorUserId"));
+    }
+
+    @Test
+    void aMaskAndAnEraseReachTheCopiesOfRowsThatAreGone() throws Exception {
+        TestRealm realm = TestRealm.withEmployer("user-erase-trail");
+        Api api = realm.api;
+        String unit = Api.json(api.post("/org-units", "{\"name\": \"課\", \"validFrom\": \"2020-04-01\"}")).get("id").asText();
+        realm.refItem("QUALIFICATION", "license", "免許");
+        String user = realm.user("leaver");
+        assertEquals(201, api.post("/staff", "{\"userId\": \"" + user + "\", \"orgUnitId\": \"" + unit
+                + "\", \"validFrom\": \"2020-04-01\"}").statusCode());
+        String person = Api.json(api.get("/users/" + user + "/history")).get("personId").asText();
+        // A qualification that is deleted, and an employment that never starts because the user goes.
+        String license = Api.json(api.post("/qualifications", "{\"userId\": \"" + user + "\", \"kind\": \"license\", "
+                + "\"number\": \"L-777\", \"validFrom\": \"2010-05-01\"}")).get("id").asText();
+        assertEquals(204, api.delete("/qualifications/" + license).statusCode());
+        assertEquals(201, api.post("/employments", "{\"userId\": \"" + user + "\", \"staffNumber\": \"S-555\", "
+                + "\"validFrom\": \"" + TOMORROW + "\"}").statusCode());
+        realm.removeUser(user);
+        assertTrue(api.get("/change-log").body().contains("L-777"));
+        assertTrue(api.get("/change-log").body().contains("S-555"));
+
+        assertEquals(200, api.post("/people/" + person + "/mask", "").statusCode());
+
+        String masked = api.get("/change-log").body();
+        assertFalse(masked.contains("L-777"), masked);
+        assertFalse(masked.contains("S-555"), masked);
+
+        assertEquals(204, api.delete("/people/" + person + "/data").statusCode());
+
+        JsonNode left = Api.json(api.get("/change-log"));
+        assertFalse(left.findValuesAsText("resourceType").contains("FUHITO_QUALIFICATION"), left.toString());
+        assertFalse(left.findValuesAsText("resourceType").contains("FUHITO_EMPLOYMENT"), left.toString());
     }
 
     @Test

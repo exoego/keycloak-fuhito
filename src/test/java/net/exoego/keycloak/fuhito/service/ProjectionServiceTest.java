@@ -54,6 +54,13 @@ class ProjectionServiceTest {
         }
 
         @Override
+        public List<String> organizations() {
+            Set<String> result = new java.util.TreeSet<>(organizationMembers.keySet());
+            organizationOfGroup.values().stream().filter(id -> !id.startsWith("realm:")).forEach(result::add);
+            return List.copyOf(result);
+        }
+
+        @Override
         public List<Group> groups(String organizationId) {
             List<Group> result = new ArrayList<>();
             collect(organizationId, null, result);
@@ -419,6 +426,40 @@ class ProjectionServiceTest {
         orgUnitStore.insertUnit(new OrgUnit("ghost", null, null, "org-ghost"));
 
         assertEquals(1, rebuild().organizations());
+    }
+
+    @Test
+    void anOrganizationThatNoUnitLinksTodayLosesItsGroupsAndKeepsItsMembers() {
+        String clinic = unit("Clinic", null);
+        String desk = unit("Desk", clinic);
+        assign("receptionist", desk, "2026-04-01");
+        links.link(clinic, "org-y");
+        rebuild();
+        String handMade = keycloak.createGroup("org-y", "Made by hand", null, null);
+        assertEquals(List.of("Desk [receptionist]", "Made by hand []"), keycloak.describe("org-y"));
+
+        // The clinic closes. The hospital is no longer linked.
+        String nextDay = "2026-06-01";
+        assignments.end(assignmentOf("receptionist"), nextDay);
+        orgUnits.end(desk, nextDay);
+        orgUnits.end(clinic, nextDay);
+        links.unlink(hospital);
+        ProjectionReport report = rebuild();
+
+        assertEquals(0, report.organizations());
+        assertEquals(3, report.groupsRemoved());
+        assertEquals(List.of("Made by hand []"), keycloak.describe("org-y"));
+        assertEquals(List.of(), keycloak.describe("org-x"));
+        assertTrue(keycloak.groups.containsKey(handMade));
+        // The users stay in the organizations.
+        assertEquals(Set.of("director", "head-nurse", "nurse"), keycloak.organizationMembers.get("org-x"));
+        assertEquals(Set.of("receptionist"), keycloak.organizationMembers.get("org-y"));
+    }
+
+    private String assignmentOf(String userId) {
+        return assignmentStore.rows.stream()
+                .filter(row -> employmentStore.find(row.employmentId()).orElseThrow().userId().equals(userId))
+                .findFirst().orElseThrow().assignmentId();
     }
 
     @Test

@@ -4,7 +4,9 @@ import java.net.http.HttpResponse;
 
 import org.junit.jupiter.api.Test;
 
+import static net.exoego.keycloak.fuhito.KeycloakEnvironment.KEYCLOAK;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
 class ConditionalWritesIT {
@@ -54,6 +56,41 @@ class ConditionalWritesIT {
         assertNotEquals(ofUnit, etag(api.get("/org-units/" + unitId + "?asOf=2026-05-01")));
         assertEquals(412, api.put("/org-units/" + unitId + "/end", "{\"validTo\": \"2028-04-01\"}", "If-Match", ofUnit)
                 .statusCode());
+
+        // A mask and an erase of a person are writes to the person too.
+        String person = Api.json(api.post("/people", "{\"name\": \"Ann\"}")).get("id").asText();
+        String ofPerson = etag(api.get("/people/" + person));
+        assertEquals(200, api.put("/people/" + person, "{\"name\": \"Anne\"}").statusCode());
+        assertEquals(412, api.post("/people/" + person + "/mask", "", "If-Match", ofPerson).statusCode());
+        assertEquals(412, api.delete("/people/" + person + "/data", "If-Match", ofPerson).statusCode());
+        assertEquals("Anne", Api.json(api.get("/people/" + person)).get("name").asText());
+        String current = etag(api.get("/people/" + person));
+        HttpResponse<String> masked = api.post("/people/" + person + "/mask", "", "If-Match", current);
+        assertEquals(200, masked.statusCode(), masked.body());
+        assertEquals(204, api.delete("/people/" + person + "/data", "If-Match", etag(masked)).statusCode());
+    }
+
+    @Test
+    void anEraseClearsTheStoredResponsesThatNameThePerson() throws Exception {
+        TestRealm realm = TestRealm.withEmployer("idempotency-erase");
+        Api api = realm.api;
+        String body = "{\"name\": \"山田 花子\"}";
+        HttpResponse<String> first = api.post("/people", body, "Idempotency-Key", "person-1");
+        assertEquals(201, first.statusCode(), first.body());
+        String person = Api.json(first).get("id").asText();
+        HttpResponse<String> other = api.post("/people", "{\"name\": \"Other\"}", "Idempotency-Key", "person-2");
+
+        assertEquals(204, api.delete("/people/" + person + "/data").statusCode());
+
+        // The same request again still writes nothing, and its answer no longer has the name.
+        HttpResponse<String> again = api.post("/people", body, "Idempotency-Key", "person-1");
+        assertEquals(201, again.statusCode(), again.body());
+        assertFalse(again.body().contains("山田"), again.body());
+        assertEquals(first.headers().firstValue("Location"), again.headers().firstValue("Location"));
+        assertEquals(1, Api.json(api.get("/people")).size());
+        // The response about another person stays.
+        assertEquals(Api.json(other), Api.json(api.post("/people", "{\"name\": \"Other\"}", "Idempotency-Key",
+                "person-2")));
     }
 
     @Test
@@ -73,6 +110,15 @@ class ConditionalWritesIT {
         assertEquals(422, api.post("/org-units", "{\"name\": \"2病棟\", \"validFrom\": \"2026-04-01\"}",
                 "Idempotency-Key", "order-1").statusCode());
         assertEquals("idempotency.bad_key", Api.json(api.post("/org-units", body, "Idempotency-Key", " "))
+                .get("error").asText());
+        // The query and the caller are part of the request too.
+        String order = Api.json(api.post("/change-orders", "{\"title\": \"内示\", \"effectiveDate\": \"2026-04-01\"}"))
+                .get("id").asText();
+        assertEquals("idempotency.key_reused", Api.json(api.post("/org-units?changeOrder=" + order, body,
+                "Idempotency-Key", "order-1")).get("error").asText());
+        Api other = PermissionsIT.administrator(KEYCLOAK.getKeycloakAdminClient(), realm.name, "realm-management",
+                "other-writer", "manage-users");
+        assertEquals("idempotency.key_reused", Api.json(other.post("/org-units", body, "Idempotency-Key", "order-1"))
                 .get("error").asText());
 
         // An operation that answers with a resource returns the same one again.

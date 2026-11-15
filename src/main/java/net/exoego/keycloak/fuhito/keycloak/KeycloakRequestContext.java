@@ -24,7 +24,9 @@ import net.exoego.keycloak.fuhito.rest.RequestContext;
 import net.exoego.keycloak.fuhito.store.IdempotencyStore;
 import org.keycloak.events.admin.OperationType;
 import org.keycloak.models.KeycloakSession;
+import org.keycloak.models.OrganizationModel;
 import org.keycloak.models.RealmModel;
+import org.keycloak.organization.OrganizationProvider;
 import org.keycloak.services.ErrorResponseException;
 import org.keycloak.services.resources.admin.AdminEventBuilder;
 import org.keycloak.services.resources.admin.fgap.AdminPermissionEvaluator;
@@ -121,6 +123,16 @@ final class KeycloakRequestContext implements RequestContext {
     }
 
     @Override
+    public void requireManageOrganization(String organizationId) {
+        OrganizationProvider provider = session.getProvider(OrganizationProvider.class);
+        OrganizationModel organization = provider == null || organizationId == null ? null
+                : provider.getById(organizationId);
+        if (organization != null) {
+            auth.orgs().requireManage(organization);
+        }
+    }
+
+    @Override
     public String header(String name) {
         return session.getContext().getHttpRequest().getHttpHeaders().getHeaderString(name);
     }
@@ -128,6 +140,11 @@ final class KeycloakRequestContext implements RequestContext {
     @Override
     public String requestPath() {
         return session.getContext().getUri().getPath();
+    }
+
+    @Override
+    public String requestQuery() {
+        return session.getContext().getUri().getRequestUri().getRawQuery();
     }
 
     @Override

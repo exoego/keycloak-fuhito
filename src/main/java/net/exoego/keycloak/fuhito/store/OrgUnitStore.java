@@ -67,6 +67,18 @@ public interface OrgUnitStore {
     Optional<OrgUnit> findUnitByExternalId(String source, String externalId);
 
     /**
+     * Tells whether another org unit has the ID of a system, as its own ID or as one of its other IDs.
+     *
+     * @param source the name of that system
+     * @param externalId the ID in that system
+     * @param exceptId the ID of an org unit that does not count, or null
+     * @return true when another unit has the ID
+     */
+    default boolean externalIdTaken(String source, String externalId, String exceptId) {
+        return findUnitByExternalId(source, externalId).filter(unit -> !unit.id().equals(exceptId)).isPresent();
+    }
+
+    /**
      * Finds the org unit that is linked to a Keycloak organization.
      *
      * @param organizationId the ID of the organization
