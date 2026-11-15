@@ -279,6 +279,20 @@ public class JpaRealmExportStore implements RealmExportStore {
     }
 
     @Override
+    public List<String> linkedOrganizations() {
+        return em.createQuery("""
+                        select u.keycloakOrganizationId from OrgUnitEntity u
+                        where u.realmId = :realmId and u.keycloakOrganizationId is not null""", String.class)
+                .setParameter("realmId", realmId)
+                .getResultList();
+    }
+
+    @Override
+    public void deleteData() {
+        RealmData.deleteForRestore(em, realmId);
+    }
+
+    @Override
     public void restoreMask(String personId, Instant maskedAt) {
         UserMaskEntity mark = new UserMaskEntity();
         mark.id = UUID.randomUUID().toString();

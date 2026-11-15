@@ -37,7 +37,23 @@ public final class RealmData {
             JobRunEntity.class,
             HierarchyEntity.class);
 
+    // The record of what happened, and the state of requests and of jobs, stay over a restore.
+    private static final Set<Class<?>> KEPT_BY_RESTORE = Set.of(ChangeLogEntity.class, ChangeLogCounterEntity.class,
+            IdempotencyKeyEntity.class, JobRunEntity.class);
+
     private RealmData() {
+    }
+
+    /**
+     * Deletes every row of a realm that a restore replaces.
+     *
+     * @param em the entity manager
+     * @param realmId the ID of the realm
+     */
+    public static void deleteForRestore(EntityManager em, String realmId) {
+        ENTITIES.stream()
+                .filter(entity -> !KEPT_BY_RESTORE.contains(entity))
+                .forEach(entity -> deleteOfRealm(em, entity, realmId));
     }
 
     /**

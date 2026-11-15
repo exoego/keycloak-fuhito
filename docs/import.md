@@ -246,13 +246,14 @@ Each write has its own entry in the change log.
 
 ## Export and restore
 
-An export takes every stored row of a realm out, with every period. A restore loads it into a realm that has no data of the extension.
-This copies a realm to a test environment, moves it to another Keycloak, or brings it back after its data was lost. It is not the import above, which describes one date.
+An export takes every stored row of a realm out, with every period. A restore loads it into a realm that has no data of the extension, or in place of the data of a realm.
+This copies a realm to a test environment, moves it to another Keycloak, or brings it back after its data was lost or changed by mistake. It is not the import above, which describes one date.
 
 - `GET /export/{list}` reads one list in pages, ordered by ID. Follow the `Link` header to the end. The lists are `ref-kinds`, `ref-items`, `attribute-definitions`, `hierarchies`, `org-units`, `people`, `employments`, `assignments`, `reporting-lines`, `unit-roles`, `qualifications`, `external-ids`, and `change-orders`.
 - Put the lists together under their names in camel case, such as `refKinds`, with `"format": "fuhito.export.v1"`. `POST /restore` takes that document.
 - A restore keeps every ID, so products that stored IDs find the same resources. It writes all or nothing. The default hierarchy of the export takes the place of the one of the empty realm, with its ID and its name.
-- It fails with `restore.realm_not_empty` when the realm has any data of the extension. So it cannot load into a realm of the same database that the export came from while that realm still has the rows.
+- It fails with `restore.realm_not_empty` when the realm has any data of the extension. So a restore into the wrong realm does not remove its data.
+- With `?replace=true`, the restore first deletes every row of the extension in the realm, in the same transaction. The realm is then as it was at the export. The change log stays, with the changes after the export. The idempotency keys and the runs of jobs stay too. The next projection makes the Keycloak groups and organizations match. A replace asks for the permission to manage each organization that a unit was linked to before it.
 - It checks the export before it writes. A row that names a row that the export does not have fails with 400 and `restore.reference_unknown`. So a restore never links to the rows of another realm.
 - A value that is missing or cannot be read fails with 400 and `restore.bad_value`.
 - An ID that a row of the database has already, in any realm, fails with 409 and `restore.id_taken`. This happens for a copy into a second realm of the same database while the first realm still has the rows.

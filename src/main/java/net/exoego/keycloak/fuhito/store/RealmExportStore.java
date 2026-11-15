@@ -204,6 +204,19 @@ public interface RealmExportStore {
     boolean isEmpty();
 
     /**
+     * Returns the Keycloak organizations that the org units of the realm are linked to.
+     *
+     * @return the IDs of the organizations
+     */
+    List<String> linkedOrganizations();
+
+    /**
+     * Deletes every row of the realm that an export has, before a restore that replaces them.
+     * The change log, the keys of repeated requests, and the runs of jobs stay.
+     */
+    void deleteData();
+
+    /**
      * Stores the time when a person was masked.
      *
      * @param personId the ID of the person

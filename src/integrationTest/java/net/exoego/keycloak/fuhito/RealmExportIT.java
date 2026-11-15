@@ -150,6 +150,39 @@ class RealmExportIT {
     }
 
     @Test
+    void aRestoreWithReplaceBringsBackTheDataOfTheExport() throws Exception {
+        TestRealm realm = TestRealm.withEmployer("export-replace");
+        Api api = realm.api;
+        String nurse = realm.user("nurse");
+        String hospital = id(api.post("/org-units", "{\"name\": \"病院\", \"validFrom\": \"2020-04-01\"}"));
+        String organization = realm.organization("x-hospital");
+        ok(api.put("/org-units/" + hospital + "/organization", "{\"organizationId\": \"" + organization + "\"}"));
+        ok(api.post("/staff", "{\"userId\": \"" + nurse + "\", \"orgUnitId\": \"" + hospital
+                + "\", \"validFrom\": \"2020-04-01\"}"));
+        realm.refItem("QUALIFICATION", "license", "免許");
+        String license = id(api.post("/qualifications", "{\"userId\": \"" + nurse + "\", \"kind\": \"license\", "
+                + "\"number\": \"1\", \"validFrom\": \"2010-04-01\"}"));
+        ObjectNode before = export(api);
+
+        // Changes by mistake after the export.
+        ok(api.post("/org-units", "{\"name\": \"新病棟\", \"validFrom\": \"2020-04-01\"}"));
+        ok(api.put("/org-units/" + hospital, "{\"name\": \"誤った名前\", \"validFrom\": \"2025-04-01\"}"));
+        ok(api.delete("/qualifications/" + license));
+        ok(api.delete("/org-units/" + hospital + "/organization"));
+
+        assertEquals("restore.realm_not_empty", error(api.post("/restore", JSON.writeValueAsString(before))));
+        HttpResponse<String> restored = api.post("/restore?replace=true", JSON.writeValueAsString(before));
+
+        assertEquals(200, restored.statusCode(), restored.body());
+        assertEquals(before, export(api));
+        assertEquals(organization, Api.json(api.get("/org-units/" + hospital + "?asOf=2024-04-01"))
+                .get("keycloakOrganizationId").asText());
+        // The change log keeps what happened, the mistakes too.
+        assertTrue(Api.json(api.get("/change-log?resourceType=FUHITO_QUALIFICATION&resourceId=" + license))
+                .findValuesAsText("operation").contains("DELETE"));
+    }
+
+    @Test
     void aRestoreChecksTheExportBeforeItWrites() throws Exception {
         TestRealm source = TestRealm.withEmployer("export-copy");
         String person = Api.json(source.api.post("/people", "{\"name\": \"Ann\"}")).get("id").asText();

@@ -6965,7 +6965,8 @@ paths:
           $ref: "#/components/responses/Conflict"
   /restore:
     post:
-      summary: Loads an export into a realm that has no data of the extension.
+      summary: "Loads an export into a realm that has no data of the extension, or\
+        \ in place of its data."
       description: "Every row keeps its ID, so products that stored IDs find the same\
         \ resources. The rows are written all or nothing. A username must name a user\
         \ of this realm. An org unit names its Keycloak organization by alias, and\
@@ -6974,6 +6975,14 @@ paths:
       tags:
       - bulk
       parameters:
+      - description: "True to delete every row of the extension in the realm first,\
+          \ for data that was removed or changed by mistake. The change log stays.\
+          \ Without it, a realm with data is refused."
+        schema:
+          type: boolean
+          default: false
+        name: replace
+        in: query
       - $ref: "#/components/parameters/changeOrder"
       requestBody:
         content:
