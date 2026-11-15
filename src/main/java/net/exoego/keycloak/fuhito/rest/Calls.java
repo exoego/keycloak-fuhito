@@ -12,6 +12,9 @@ import net.exoego.keycloak.fuhito.domain.Messages;
  */
 final class Calls {
 
+    // Jakarta REST has no constant for it.
+    private static final int UNPROCESSABLE_CONTENT = 422;
+
     private Calls() {
     }
 
@@ -97,12 +100,33 @@ final class Calls {
         });
     }
 
-    private static Response.Status status(FuhitoException.Reason reason) {
+    /**
+     * Runs a request that may be sent again, for example after a timeout. With the header
+     * {@code Idempotency-Key}, a request with the same key, path, and body returns the first response and writes
+     * nothing.
+     *
+     * @param <T> the type of the response
+     * @param context the request
+     * @param body the body of the request, or null
+     * @param type the type of the response
+     * @param operation the request, which turns its own failures into responses
+     * @return the response
+     */
+    static <T> T once(RequestContext context, Object body, Class<T> type, Supplier<T> operation) {
+        String key = context.header(Idempotency.HEADER);
+        if (key == null) {
+            return operation.get();
+        }
+        return run(context, () -> Idempotency.once(context, key, body, type, operation));
+    }
+
+    private static int status(FuhitoException.Reason reason) {
         return switch (reason) {
-            case INVALID -> Response.Status.BAD_REQUEST;
-            case NOT_FOUND -> Response.Status.NOT_FOUND;
-            case CONFLICT -> Response.Status.CONFLICT;
-            case PRECONDITION -> Response.Status.PRECONDITION_FAILED;
+            case INVALID -> Response.Status.BAD_REQUEST.getStatusCode();
+            case NOT_FOUND -> Response.Status.NOT_FOUND.getStatusCode();
+            case CONFLICT -> Response.Status.CONFLICT.getStatusCode();
+            case PRECONDITION -> Response.Status.PRECONDITION_FAILED.getStatusCode();
+            case UNPROCESSABLE -> UNPROCESSABLE_CONTENT;
         };
     }
 }

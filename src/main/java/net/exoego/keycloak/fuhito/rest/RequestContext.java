@@ -3,6 +3,7 @@ package net.exoego.keycloak.fuhito.rest;
 import java.util.Locale;
 
 import jakarta.ws.rs.core.Response;
+import net.exoego.keycloak.fuhito.store.IdempotencyStore;
 
 /**
  * What a resource needs to know about the current request and its caller.
@@ -55,6 +56,20 @@ public interface RequestContext {
      * @return the value, or null when the request has none
      */
     String header(String name);
+
+    /**
+     * Returns the path of the request.
+     *
+     * @return the path, without the query
+     */
+    String requestPath();
+
+    /**
+     * Returns the storage of the responses to requests with an idempotency key.
+     *
+     * @return the storage of the realm
+     */
+    IdempotencyStore idempotency();
 
     /**
      * Sets a header of the response.

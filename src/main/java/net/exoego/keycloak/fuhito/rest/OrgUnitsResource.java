@@ -82,12 +82,12 @@ public class OrgUnitsResource {
     @ApiErrors
     public Response create(OrgUnitRepresentation body) {
         context.requireWrite();
-        return Calls.run(context, () -> {
+        return Calls.once(context, body, Response.class, () -> Calls.run(context, () -> {
             Checks.required("body", body);
             var unit = OrgUnitRepresentation.of(service.create(body.toNewOrgUnit()));
             context.recordChange(Change.CREATE, RESOURCE_TYPE, unit.id(), path(unit.id()), unit);
             return Response.status(Response.Status.CREATED).entity(unit).build();
-        });
+        }));
     }
 
     @PUT

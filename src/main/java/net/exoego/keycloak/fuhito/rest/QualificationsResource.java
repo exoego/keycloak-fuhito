@@ -125,14 +125,14 @@ public class QualificationsResource {
     @ApiErrors
     public Response add(QualificationRepresentation body) {
         context.requireWrite();
-        return Calls.run(context, () -> {
+        return Calls.once(context, body, Response.class, () -> Calls.run(context, () -> {
             Checks.required("body", body);
             var qualification = QualificationRepresentation.of(service.add(
                     body.toValues(Writes.personId(context, people, "personId", body.personId(), body.userId()))));
             context.recordChange(Change.CREATE, RESOURCE_TYPE, qualification.id(), path(qualification.id()),
                     qualification);
             return Response.status(Response.Status.CREATED).entity(qualification).build();
-        });
+        }));
     }
 
     @GET

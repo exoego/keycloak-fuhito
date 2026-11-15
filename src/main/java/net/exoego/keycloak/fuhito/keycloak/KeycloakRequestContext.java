@@ -17,8 +17,10 @@ import net.exoego.keycloak.fuhito.domain.Messages;
 import net.exoego.keycloak.fuhito.domain.Unchecked;
 import net.exoego.keycloak.fuhito.jpa.JpaChangeLogStore;
 import net.exoego.keycloak.fuhito.jpa.JpaChangeOrderStore;
+import net.exoego.keycloak.fuhito.jpa.JpaIdempotencyStore;
 import net.exoego.keycloak.fuhito.rest.ErrorRepresentation;
 import net.exoego.keycloak.fuhito.rest.RequestContext;
+import net.exoego.keycloak.fuhito.store.IdempotencyStore;
 import org.keycloak.events.admin.OperationType;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.RealmModel;
@@ -96,6 +98,16 @@ final class KeycloakRequestContext implements RequestContext {
     @Override
     public String header(String name) {
         return session.getContext().getHttpRequest().getHttpHeaders().getHeaderString(name);
+    }
+
+    @Override
+    public String requestPath() {
+        return session.getContext().getUri().getPath();
+    }
+
+    @Override
+    public IdempotencyStore idempotency() {
+        return new JpaIdempotencyStore(entityManager, realm.getId());
     }
 
     @Override

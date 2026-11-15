@@ -50,7 +50,7 @@ public class ReorganizationsResource {
     @ApiErrors
     public ReorganizationRepresentation apply(ReorganizationRepresentation body) {
         context.requireWrite();
-        return Calls.run(context, () -> {
+        return Calls.once(context, body, ReorganizationRepresentation.class, () -> Calls.run(context, () -> {
             Checks.required("body", body);
             List<ReorganizationRepresentation.Result> results = new ArrayList<>();
             for (ReorganizationService.Result result : service.apply(body.effectiveDate(), body.steps())) {
@@ -75,7 +75,7 @@ public class ReorganizationsResource {
                 results.add(new ReorganizationRepresentation.Result(result.op(), unit, successorIds));
             }
             return new ReorganizationRepresentation(null, null, results);
-        });
+        }));
     }
 
     private void record(Change change, String path, OrgUnitRepresentation unit) {

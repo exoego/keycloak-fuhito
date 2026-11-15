@@ -1,0 +1,85 @@
+package net.exoego.keycloak.fuhito.rest;
+
+import java.net.URI;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.Map;
+import java.util.Optional;
+import java.util.function.Supplier;
+
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.ws.rs.core.MediaType;
+import jakarta.ws.rs.core.Response;
+import net.exoego.keycloak.fuhito.domain.FuhitoException;
+import net.exoego.keycloak.fuhito.domain.Unchecked;
+import net.exoego.keycloak.fuhito.store.IdempotencyStore;
+
+/**
+ * The first response to a request with an idempotency key, which a repeated request gets again.
+ */
+final class Idempotency {
+
+    static final String HEADER = "Idempotency-Key";
+
+    private static final Duration LIFETIME = Duration.ofHours(24);
+    private static final int MAX_KEY_LENGTH = 255;
+    // A response leaves out every field that has no value, so the stored copy does too.
+    private static final ObjectMapper JSON = new ObjectMapper()
+            .setDefaultPropertyInclusion(JsonInclude.Include.NON_NULL);
+
+    private Idempotency() {
+    }
+
+    @SuppressWarnings("unchecked")
+    static <T> T once(RequestContext context, String key, Object body, Class<T> type, Supplier<T> operation) {
+        if (key.isBlank() || key.length() > MAX_KEY_LENGTH) {
+            throw FuhitoException.invalid("idempotency.bad_key", Map.of());
+        }
+        String path = context.requestPath();
+        String hash = ETags.of(body);
+        Instant now = Instant.now();
+        Instant since = now.minus(LIFETIME);
+        IdempotencyStore store = context.idempotency();
+        Optional<IdempotencyStore.Stored> stored = store.find(key, path, since);
+        if (stored.isPresent()) {
+            IdempotencyStore.Stored first = stored.get();
+            if (!first.requestHash().equals(hash)) {
+                throw FuhitoException.unprocessable("idempotency.key_reused", Map.of());
+            }
+            if (first.status() == 0) {
+                throw FuhitoException.conflict("idempotency.in_progress", Map.of());
+            }
+            return replay(first, type);
+        }
+        String id = store.claim(key, path, hash, now, since);
+        T result = operation.get();
+        if (result instanceof Response response) {
+            URI location = response.getLocation();
+            store.complete(id, response.getStatus(), json(response.getEntity()),
+                    location == null ? null : location.toString());
+        } else {
+            store.complete(id, Response.Status.OK.getStatusCode(), json(result), null);
+        }
+        return result;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T> T replay(IdempotencyStore.Stored first, Class<T> type) {
+        if (type == Response.class) {
+            Response.ResponseBuilder response = Response.status(first.status());
+            if (first.body() != null) {
+                response.entity(first.body()).type(MediaType.APPLICATION_JSON_TYPE);
+            }
+            if (first.location() != null) {
+                response.location(URI.create(first.location()));
+            }
+            return (T) response.build();
+        }
+        return Unchecked.io(() -> JSON.readValue(first.body(), type));
+    }
+
+    private static String json(Object entity) {
+        return entity == null ? null : Unchecked.io(() -> JSON.writeValueAsString(entity));
+    }
+}

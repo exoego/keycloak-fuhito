@@ -106,12 +106,12 @@ public class PeopleResource {
     @ApiErrors
     public Response create(PersonRepresentation body) {
         context.requireWrite();
-        return Calls.run(context, () -> {
+        return Calls.once(context, body, Response.class, () -> Calls.run(context, () -> {
             Checks.required("body", body);
             var person = PersonRepresentation.of(service.create(body.toValues()));
             context.recordChange(Change.CREATE, RESOURCE_TYPE, person.id(), path(person.id()), person);
             return Response.status(Response.Status.CREATED).entity(person).build();
-        });
+        }));
     }
 
     @GET
