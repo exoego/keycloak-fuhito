@@ -1,6 +1,7 @@
 package net.exoego.keycloak.fuhito.service;
 
 import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -385,7 +386,7 @@ public class CsvImportService {
             for (AttributeDefinition definition : defined) {
                 String column = ATTRIBUTE_COLUMN + definition.name();
                 Object value = switch (definition.type()) {
-                    case NUMBER -> decimal(column, null);
+                    case NUMBER -> asJson(decimal(column, null));
                     case BOOLEAN -> bool(column, null);
                     default -> text(column, null);
                 };
@@ -396,6 +397,23 @@ public class CsvImportService {
                 }
             }
             return result;
+        }
+
+        // A stored attribute reads back from JSON as Integer, Long, BigInteger, or Double. A value of the same
+        // type compares equal to it, so a row that matches what is stored changes nothing.
+        private static Object asJson(BigDecimal value) {
+            if (value == null) {
+                return null;
+            }
+            BigDecimal stripped = value.stripTrailingZeros();
+            if (stripped.scale() > 0) {
+                return value.doubleValue();
+            }
+            BigInteger whole = stripped.toBigIntegerExact();
+            if (whole.bitLength() < Integer.SIZE) {
+                return whole.intValue();
+            }
+            return whole.bitLength() < Long.SIZE ? (Object) whole.longValue() : whole;
         }
 
         boolean blank(String field) {
