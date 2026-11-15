@@ -1,8 +1,10 @@
 package net.exoego.keycloak.fuhito.service;
 
+import java.time.DateTimeException;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -256,45 +258,56 @@ public class RealmExportService {
         if (!stores.export().isEmpty()) {
             throw FuhitoException.conflict("restore.realm_not_empty", Map.of());
         }
+        RestoreCheck.requireReferences(document);
+        // A copy into a second realm of the same database names the rows of the first one by their IDs.
+        for (Map.Entry<String, Collection<String>> list : RestoreCheck.ids(document).entrySet()) {
+            Optional<String> taken = stores.export().takenId(list.getKey(), list.getValue());
+            if (taken.isPresent()) {
+                throw FuhitoException.conflict("restore.id_taken", Map.of("list", list.getKey(), "id", taken.get()));
+            }
+        }
         Map<String, Integer> counts = new LinkedHashMap<>();
-        counts.put("ref-kinds", each(document.refKinds(), k -> stores.refKinds().insert(
+        counts.put("ref-kinds", each("ref-kinds", document.refKinds(), k -> stores.refKinds().insert(
                 new RealmKind(k.id(), k.code(), k.name(), k.names()))));
-        counts.put("ref-items", each(document.refItems(), i -> stores.refItems().insert(new RefItem(i.id(), i.kind(),
+        counts.put("ref-items", each("ref-items", document.refItems(), i -> stores.refItems().insert(new RefItem(i.id(), i.kind(),
                 i.code(), i.name(), i.names(), i.displayOrder(), i.attributes(), i.active(), i.legalEntity(),
                 i.actingHead(), i.group()))));
-        counts.put("attribute-definitions", each(document.attributeDefinitions(), d -> stores.attributeDefinitions()
+        counts.put("attribute-definitions", each("attribute-definitions", document.attributeDefinitions(), d -> stores.attributeDefinitions()
                 .insert(new AttributeDefinition(d.id(), AttributeDefinition.Target.valueOf(d.target()), d.name(),
                         AttributeDefinition.Type.valueOf(d.type()), d.refKind(), d.required()))));
         Map<String, String> hierarchyIds = new HashMap<>();
         hierarchyIds.put(Hierarchy.DEFAULT_CODE, stores.hierarchies().defaultId());
-        counts.put("hierarchies", each(document.hierarchies(), h -> {
+        counts.put("hierarchies", each("hierarchies", document.hierarchies(), h -> {
             if (!h.code().equals(Hierarchy.DEFAULT_CODE)) {
                 stores.hierarchies().insert(new Hierarchy(h.id(), h.code(), h.name()));
                 hierarchyIds.put(h.code(), h.id());
             }
         }));
-        restoreOrgUnits(Optional.ofNullable(document.orgUnits()).orElse(List.of()), hierarchyIds, counts);
-        counts.put("people", each(document.people(), p -> {
+        rows("org-units", () -> restoreOrgUnits(Optional.ofNullable(document.orgUnits()).orElse(List.of()),
+                hierarchyIds, counts));
+        counts.put("people", each("people", document.people(), p -> {
             stores.people().insert(new Person(p.id(), userId(p.username()), p.name(), p.names(), p.phoneticName(),
                     p.attributes(), p.externalId(), p.source()));
             if (p.maskedAt() != null) {
                 stores.export().restoreMask(p.id(), Instant.parse(p.maskedAt()));
             }
         }));
-        restoreEmployments(Optional.ofNullable(document.employments()).orElse(List.of()), counts);
-        restoreAssignments(Optional.ofNullable(document.assignments()).orElse(List.of()), counts);
-        counts.put("reporting-lines", each(document.reportingLines(), l -> stores.reportingLines().insert(
+        rows("employments", () -> restoreEmployments(Optional.ofNullable(document.employments())
+                .orElse(List.of()), counts));
+        rows("assignments", () -> restoreAssignments(Optional.ofNullable(document.assignments())
+                .orElse(List.of()), counts));
+        counts.put("reporting-lines", each("reporting-lines", document.reportingLines(), l -> stores.reportingLines().insert(
                 new ReportingLine(l.id(), l.assignmentId(), l.managerPersonId(), null,
                         ReportingLine.Kind.valueOf(l.kind()), period(l.validFrom(), l.validTo())))));
-        counts.put("unit-roles", each(document.unitRoles(), r -> stores.unitRoles().insert(new UnitRole(r.id(),
+        counts.put("unit-roles", each("unit-roles", document.unitRoles(), r -> stores.unitRoles().insert(new UnitRole(r.id(),
                 r.employmentId(), null, null, r.orgUnitId(), r.roleId(), r.includesDescendants(),
                 period(r.validFrom(), r.validTo())))));
-        counts.put("qualifications", each(document.qualifications(), q -> stores.qualifications().insert(
+        counts.put("qualifications", each("qualifications", document.qualifications(), q -> stores.qualifications().insert(
                 new Qualification(q.id(), q.personId(), null, q.kindId(), q.number(), period(q.validFrom(),
                         q.validTo()), q.attributes(), q.externalId(), q.source()))));
-        counts.put("external-ids", each(document.externalIds(), x -> stores.externalIds().insert(new ExternalId(
+        counts.put("external-ids", each("external-ids", document.externalIds(), x -> stores.externalIds().insert(new ExternalId(
                 x.id(), ExternalId.Kind.valueOf(x.resourceType()), x.resourceId(), x.source(), x.externalId()))));
-        counts.put("change-orders", each(document.changeOrders(), o -> stores.changeOrders().insert(new ChangeOrder(
+        counts.put("change-orders", each("change-orders", document.changeOrders(), o -> stores.changeOrders().insert(new ChangeOrder(
                 o.id(), o.number(), o.kind(), o.title(), o.note(), date(o.orderDate()), date(o.effectiveDate()),
                 userId(o.approver()), userId(o.requester()), o.externalReference(), instant(o.createdAt()),
                 instant(o.announcedAt()), userId(o.announcedBy())))));
@@ -356,10 +369,19 @@ public class RealmExportService {
         counts.put("assignments", assignments.size());
     }
 
-    private static <T> int each(List<T> rows, java.util.function.Consumer<T> write) {
+    private static <T> int each(String list, List<T> rows, java.util.function.Consumer<T> write) {
         List<T> all = rows == null ? List.of() : rows;
-        all.forEach(write);
+        rows(list, () -> all.forEach(write));
         return all.size();
+    }
+
+    // A value that is missing, or that cannot be read, is an error of the export. The restore then writes nothing.
+    private static void rows(String list, Runnable write) {
+        try {
+            write.run();
+        } catch (NullPointerException | IllegalArgumentException | DateTimeException e) {
+            throw FuhitoException.invalid("restore.bad_value", Map.of("list", list)).causedBy(e);
+        }
     }
 
     private String userId(String username) {
