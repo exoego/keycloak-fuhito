@@ -104,10 +104,11 @@ public class JpaEmploymentStore implements EmploymentStore {
         if (ids.isEmpty()) {
             return List.of();
         }
-        return em.createQuery("select e from EmploymentEntity e where e.realmId = :realmId and e.id in :ids",
-                        EmploymentEntity.class)
+        return em.createQuery("""
+                        select e from EmploymentEntity e where e.realmId = :realmId
+                        and %s""".formatted(ManyIds.has("e.id", "ids")), EmploymentEntity.class)
                 .setParameter("realmId", realmId)
-                .setParameter("ids", ids)
+                .setParameter("ids", ManyIds.of(ids))
                 .getResultStream()
                 .map(JpaEmploymentStore::toDomain)
                 .toList();
@@ -120,11 +121,12 @@ public class JpaEmploymentStore implements EmploymentStore {
         }
         return em.createQuery("""
                         select t from EmploymentTermsEntity t where t.realmId = :realmId
-                        and t.employmentId in :employmentIds
-                        and t.validFrom <= :date and (t.validTo is null or t.validTo > :date)""",
+                        and %s
+                        and t.validFrom <= :date and (t.validTo is null or t.validTo > :date)"""
+                        .formatted(ManyIds.has("t.employmentId", "employmentIds")),
                         EmploymentTermsEntity.class)
                 .setParameter("realmId", realmId)
-                .setParameter("employmentIds", employmentIds)
+                .setParameter("employmentIds", ManyIds.of(employmentIds))
                 .setParameter("date", date)
                 .getResultStream()
                 .map(JpaEmploymentStore::toDomain)

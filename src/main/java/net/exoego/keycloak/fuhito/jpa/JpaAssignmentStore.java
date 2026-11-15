@@ -70,11 +70,12 @@ public class JpaAssignmentStore implements AssignmentStore {
     public List<Assignment> rowsOn(Collection<String> orgUnitIds, LocalDate date) {
         return em.createQuery("""
                         select a from AssignmentEntity a where a.realmId = :realmId
-                        and a.orgUnitId in :orgUnitIds
-                        and a.validFrom <= :date and (a.validTo is null or a.validTo > :date)""",
+                        and %s
+                        and a.validFrom <= :date and (a.validTo is null or a.validTo > :date)"""
+                        .formatted(ManyIds.has("a.orgUnitId", "orgUnitIds")),
                         AssignmentEntity.class)
                 .setParameter("realmId", realmId)
-                .setParameter("orgUnitIds", orgUnitIds)
+                .setParameter("orgUnitIds", ManyIds.of(orgUnitIds))
                 .setParameter("date", date)
                 .getResultStream()
                 .map(JpaAssignmentStore::toDomain)

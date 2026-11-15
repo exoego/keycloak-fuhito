@@ -66,13 +66,14 @@ public class JpaUserDataMasker implements UserDataMasker {
         if (!employmentIds.isEmpty()) {
             em.createQuery("""
                             select t from EmploymentTermsEntity t where t.realmId = :realmId
-                            and t.employmentId in :ids""", EmploymentTermsEntity.class)
-                    .setParameter("realmId", realmId).setParameter("ids", employmentIds).getResultList()
+                            and %s""".formatted(ManyIds.has("t.employmentId", "ids")), EmploymentTermsEntity.class)
+                    .setParameter("realmId", realmId).setParameter("ids", ManyIds.of(employmentIds)).getResultList()
                     .forEach(terms -> terms.attributes = new LinkedHashMap<>());
             for (AssignmentEntity row : em.createQuery("""
                             select a from AssignmentEntity a
-                            where a.realmId = :realmId and a.employmentId in :ids""", AssignmentEntity.class)
-                    .setParameter("realmId", realmId).setParameter("ids", employmentIds).getResultList()) {
+                            where a.realmId = :realmId and %s""".formatted(ManyIds.has("a.employmentId", "ids")),
+                    AssignmentEntity.class)
+                    .setParameter("realmId", realmId).setParameter("ids", ManyIds.of(employmentIds)).getResultList()) {
                 assignmentIds.add(row.assignmentId);
                 row.attributes = new LinkedHashMap<>();
                 row.externalId = null;
@@ -117,10 +118,11 @@ public class JpaUserDataMasker implements UserDataMasker {
         }
         for (ChangeLogEntity entry : em.createQuery("""
                         select l from ChangeLogEntity l where l.realmId = :realmId
-                        and l.resourceType = :type and l.resourceId in :ids
-                        and l.representation is not null""", ChangeLogEntity.class)
+                        and l.resourceType = :type and %s
+                        and l.representation is not null""".formatted(ManyIds.has("l.resourceId", "ids")),
+                        ChangeLogEntity.class)
                 .setParameter("realmId", realmId).setParameter("type", resourceType)
-                .setParameter("ids", resourceIds).getResultList()) {
+                .setParameter("ids", ManyIds.of(resourceIds)).getResultList()) {
             entry.representation = masked(entry.representation);
         }
     }
