@@ -108,7 +108,7 @@ public class JpaPersonStore implements PersonStore {
         entity.attributes = person.attributes();
     }
 
-    private static Person toDomain(PersonEntity e) {
+    static Person toDomain(PersonEntity e) {
         return new Person(e.id, e.userId, e.name, e.names, e.phoneticName, e.attributes, e.externalId, e.source);
     }
 }

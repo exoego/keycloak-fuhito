@@ -139,7 +139,7 @@ public class JpaQualificationStore implements QualificationStore {
         entity.attributes = qualification.attributes();
     }
 
-    private static Qualification toDomain(QualificationEntity e) {
+    static Qualification toDomain(QualificationEntity e) {
         return new Qualification(e.id, e.personId, e.person.userId, e.kindId, e.number, new ValidPeriod(e.validFrom, e.validTo),
                 e.attributes, e.externalId, e.source);
     }

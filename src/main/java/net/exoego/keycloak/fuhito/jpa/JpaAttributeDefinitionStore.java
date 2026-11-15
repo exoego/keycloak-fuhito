@@ -80,7 +80,7 @@ public class JpaAttributeDefinitionStore implements AttributeDefinitionStore {
         entity.required = definition.required();
     }
 
-    private static AttributeDefinition toDomain(AttributeDefinitionEntity e) {
+    static AttributeDefinition toDomain(AttributeDefinitionEntity e) {
         return new AttributeDefinition(e.id, AttributeDefinition.Target.valueOf(e.target), e.name,
                 AttributeDefinition.Type.valueOf(e.type), e.refKind,
                 e.required);

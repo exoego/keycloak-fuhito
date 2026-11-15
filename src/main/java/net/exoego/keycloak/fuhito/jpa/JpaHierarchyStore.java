@@ -100,7 +100,7 @@ public class JpaHierarchyStore implements HierarchyStore {
                 .getSingleResult() > 0;
     }
 
-    private static Hierarchy toDomain(HierarchyEntity entity) {
+    static Hierarchy toDomain(HierarchyEntity entity) {
         return new Hierarchy(entity.getId(), entity.getCode(), entity.getName());
     }
 }

@@ -68,7 +68,7 @@ public class JpaRealmKindStore implements RealmKindStore {
         }
     }
 
-    private static RealmKind toDomain(RealmKindEntity e) {
+    static RealmKind toDomain(RealmKindEntity e) {
         return new RealmKind(e.id, e.code, e.name, e.names);
     }
 }

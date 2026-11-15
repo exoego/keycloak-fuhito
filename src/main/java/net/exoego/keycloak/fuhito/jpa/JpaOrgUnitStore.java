@@ -577,7 +577,7 @@ public class JpaOrgUnitStore implements OrgUnitStore {
                 .getSingleResult();
     }
 
-    private static OrgUnitLink toDomain(OrgUnitLinkEntity e) {
+    static OrgUnitLink toDomain(OrgUnitLinkEntity e) {
         return new OrgUnitLink(e.id, e.hierarchyId, e.childId, e.parentId, new ValidPeriod(e.validFrom, e.validTo));
     }
 
@@ -640,12 +640,12 @@ public class JpaOrgUnitStore implements OrgUnitStore {
         entity.validTo = link.period().to();
     }
 
-    private static OrgUnit toDomain(OrgUnitEntity e) {
+    static OrgUnit toDomain(OrgUnitEntity e) {
         return new OrgUnit(e.id, e.externalId, e.source, e.keycloakOrganizationId, e.timeZone,
                 e.dayStart);
     }
 
-    private static OrgUnitVersion toDomain(OrgUnitVersionEntity e) {
+    static OrgUnitVersion toDomain(OrgUnitVersionEntity e) {
         return new OrgUnitVersion(e.id, e.orgUnitId, new ValidPeriod(e.validFrom, e.validTo), e.code, e.name, e.names,
                 e.shortName, e.shortNames, e.phoneticName, e.unitTypeId, e.displayOrder, e.attributes);
     }

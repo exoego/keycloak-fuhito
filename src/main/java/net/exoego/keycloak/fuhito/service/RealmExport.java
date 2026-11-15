@@ -1,0 +1,150 @@
+package net.exoego.keycloak.fuhito.service;
+
+import java.math.BigDecimal;
+import java.util.List;
+import java.util.Map;
+
+import org.eclipse.microprofile.openapi.annotations.media.Schema;
+
+/**
+ * Every stored row of the data of one realm, with every period, in a form that a restore loads back.
+ * Rows name Keycloak users by username, because the IDs of users differ between realms.
+ *
+ * @param format the name and the version of the format
+ * @param refKinds the kinds of reference data that the realm added
+ * @param refItems the reference items
+ * @param attributeDefinitions the definitions of free attributes
+ * @param hierarchies the hierarchies other than the default one
+ * @param orgUnits the org units with their periods, parents, and successions
+ * @param people the people
+ * @param employments the employments with their terms
+ * @param assignments the assignments with their periods
+ * @param reportingLines the reporting lines
+ * @param unitRoles the roles over org units
+ * @param qualifications the qualifications
+ * @param externalIds the IDs that other systems have for the resources
+ * @param changeOrders the change orders
+ */
+@Schema(
+        name = "RealmExport",
+        description = "Every stored row of a realm, with every period. `POST /restore` loads it into a realm that "
+                + "has no data of the extension.")
+public record RealmExport(
+        @Schema(description = "The name and the version of the format.", examples = {"fuhito.export.v1"})
+        String format,
+        List<Kind> refKinds,
+        List<Item> refItems,
+        List<Definition> attributeDefinitions,
+        List<HierarchyRow> hierarchies,
+        List<Unit> orgUnits,
+        List<PersonRow> people,
+        List<EmploymentRow> employments,
+        List<AssignmentRows> assignments,
+        List<Line> reportingLines,
+        List<Role> unitRoles,
+        List<QualificationRow> qualifications,
+        List<ExternalIdRow> externalIds,
+        List<Order> changeOrders) {
+
+    /** The name and the version of the format that this extension writes and reads. */
+    public static final String FORMAT = "fuhito.export.v1";
+
+    /** The names of the lists, as the paths of the export name them. */
+    public static final List<String> LISTS = List.of("ref-kinds", "ref-items", "attribute-definitions",
+            "hierarchies", "org-units", "people", "employments", "assignments", "reporting-lines", "unit-roles",
+            "qualifications", "external-ids", "change-orders");
+
+    @Schema(name = "ExportRefKind")
+    public record Kind(String id, String code, String name, Map<String, String> names) {
+    }
+
+    @Schema(name = "ExportRefItem")
+    public record Item(String id, String kind, String code, String name, Map<String, String> names,
+            int displayOrder, Map<String, Object> attributes, boolean active, boolean legalEntity,
+            boolean actingHead, boolean group) {
+    }
+
+    @Schema(name = "ExportAttributeDefinition")
+    public record Definition(String id, String target, String name, String type, String refKind,
+            boolean required) {
+    }
+
+    @Schema(name = "ExportHierarchy")
+    public record HierarchyRow(String id, String code, String name) {
+    }
+
+    @Schema(name = "ExportOrgUnit", description = "An org unit. The link to a Keycloak organization is not part of "
+            + "it, because organizations differ between servers.")
+    public record Unit(String id, String externalId, String source, String timeZone, String dayStart,
+            List<Version> versions, List<Parent> parents, List<Succession> successors) {
+    }
+
+    @Schema(name = "ExportOrgUnitVersion")
+    public record Version(String id, String validFrom, String validTo, String code, String name,
+            Map<String, String> names, String shortName, Map<String, String> shortNames, String phoneticName,
+            String unitTypeId, int displayOrder, Map<String, Object> attributes) {
+    }
+
+    @Schema(name = "ExportOrgUnitParent", description = "A parent link. It names its hierarchy by code.")
+    public record Parent(String id, String hierarchy, String parentId, String validFrom, String validTo) {
+    }
+
+    @Schema(name = "ExportOrgUnitSuccession")
+    public record Succession(String id, String successorId, String effectiveDate) {
+    }
+
+    @Schema(name = "ExportPerson", description = "A person. It names its Keycloak user by username.")
+    public record PersonRow(String id, String username, String name, Map<String, String> names,
+            String phoneticName, Map<String, Object> attributes, String externalId, String source,
+            @Schema(description = "The time of the mask, for a person who was masked.")
+            String maskedAt) {
+    }
+
+    @Schema(name = "ExportEmployment")
+    public record EmploymentRow(String id, String personId, String employerId, String validFrom, String validTo,
+            String staffNumber, String endReasonId, String externalId, String source, String continuesEmploymentId,
+            List<Terms> terms) {
+    }
+
+    @Schema(name = "ExportEmploymentTerms")
+    public record Terms(String id, String validFrom, String validTo, String employmentTypeId, String gradeId,
+            String status, String leaveReasonId, BigDecimal workPercent, Map<String, Object> attributes) {
+    }
+
+    @Schema(name = "ExportAssignment", description = "An assignment with the rows of every period.")
+    public record AssignmentRows(String assignmentId, List<Period> periods) {
+    }
+
+    @Schema(name = "ExportAssignmentPeriod")
+    public record Period(String rowId, String employmentId, String orgUnitId, String validFrom, String validTo,
+            String jobTitleId, String occupationId, String kindId, boolean head, boolean primary,
+            BigDecimal allocationPercent, int displayOrder, Map<String, Object> attributes, String externalId,
+            String source, String continuesAssignmentId) {
+    }
+
+    @Schema(name = "ExportReportingLine")
+    public record Line(String id, String assignmentId, String managerPersonId, String kind, String validFrom,
+            String validTo) {
+    }
+
+    @Schema(name = "ExportUnitRole")
+    public record Role(String id, String employmentId, String orgUnitId, String roleId, boolean includesDescendants,
+            String validFrom, String validTo) {
+    }
+
+    @Schema(name = "ExportQualification")
+    public record QualificationRow(String id, String personId, String kindId, String number, String validFrom,
+            String validTo, Map<String, Object> attributes, String externalId, String source) {
+    }
+
+    @Schema(name = "ExportExternalId")
+    public record ExternalIdRow(String id, String resourceType, String resourceId, String source,
+            String externalId) {
+    }
+
+    @Schema(name = "ExportChangeOrder", description = "A change order. It names its users by username.")
+    public record Order(String id, String number, String kind, String title, String note, String orderDate,
+            String effectiveDate, String approver, String requester, String externalReference, String createdAt,
+            String announcedAt, String announcedBy) {
+    }
+}

@@ -140,7 +140,7 @@ public class JpaRefItemStore implements RefItemStore {
         entity.groupUnit = item.group();
     }
 
-    private static RefItem toDomain(RefItemEntity e) {
+    static RefItem toDomain(RefItemEntity e) {
         return new RefItem(e.id, e.kind, e.code, e.name, e.names, e.displayOrder, e.attributes,
                 e.active, e.legalEntity, e.actingHead, e.groupUnit);
     }
