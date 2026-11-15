@@ -96,9 +96,11 @@ public class JpaUserDataMasker implements UserDataMasker {
             qualification.externalId = null;
         }
         PersonEntity person = Rows.require(em, PersonEntity.class, personId, realmId, found -> found.realmId);
+        trail.clearStoredResponses(em, realmId, personId, person.userId);
         person.name = null;
         person.names = new LinkedHashMap<>();
         person.phoneticName = null;
+        person.searchNames = null;
         person.attributes = new LinkedHashMap<>();
         person.externalId = null;
         List<String> externalIds = new ArrayList<>(removeExternalIds("PERSON", List.of(personId)));

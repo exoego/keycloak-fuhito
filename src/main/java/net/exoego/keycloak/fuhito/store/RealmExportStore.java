@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import net.exoego.keycloak.fuhito.domain.Assignment;
 import net.exoego.keycloak.fuhito.domain.AttributeDefinition;
@@ -53,6 +54,15 @@ public interface RealmExportStore {
      * @return the pages
      */
     Page<RealmKind> refKinds();
+
+    /**
+     * Finds an ID that a row of the database has already, in any realm.
+     *
+     * @param list the list of an export, or a part of one such as {@code org-unit-versions}
+     * @param ids the IDs of the rows of the list
+     * @return one of the IDs that is taken, or empty when none is
+     */
+    Optional<String> takenId(String list, Collection<String> ids);
 
     /**
      * Pages through the reference items.
