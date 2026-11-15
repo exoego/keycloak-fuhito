@@ -380,6 +380,12 @@ public class CsvImportService {
     private record Cells(Map<String, String> values, List<AttributeDefinition> defined) {
 
         static Cells of(List<String> columns, List<String> cells, List<AttributeDefinition> defined) {
+            // A comma that should have been in quotes moves every later value one column to the right.
+            if (cells.subList(Math.min(columns.size(), cells.size()), cells.size()).stream()
+                    .anyMatch(cell -> !cell.isBlank())) {
+                throw FuhitoException.invalid("csv.too_many_cells",
+                        Map.of("columns", Integer.toString(columns.size()), "cells", Integer.toString(cells.size())));
+            }
             Map<String, String> values = new LinkedHashMap<>();
             for (int i = 0; i < columns.size(); i++) {
                 values.put(columns.get(i), i < cells.size() ? cells.get(i).strip() : "");
