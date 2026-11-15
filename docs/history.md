@@ -30,6 +30,15 @@ The code of an org unit is part of its details, so a reorganization can give a u
 No two org units have the same code on the same date. A code that one unit gives up on a date is free for another unit from that date.
 The ID and the external ID are the keys that never change.
 
+### Reference items have no history
+
+A reference item, such as a job title or a unit type, has no valid period. Its code never changes, and its name is the name of today for every date.
+So a rename of a job title shows the new name also in a read of last year. An org unit is different, and keeps its old names for old dates.
+
+- The change log keeps every name that an item had, with the time of each change.
+- To keep an old name for old dates, add a new item with a new code, move the data to it from the date, and deactivate the old item. Data of the past keeps the old item, so a read of the past shows the old name.
+- A rename alone fits a change of wording, such as a typo or a new spelling.
+
 ## Reading
 
 - Every read of a tree or a list takes `asOf`. It returns what is true on that date.
