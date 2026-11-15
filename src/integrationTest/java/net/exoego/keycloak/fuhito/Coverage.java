@@ -28,7 +28,7 @@ final class Coverage {
     static KeycloakContainer keycloak() {
         String image = "quay.io/keycloak/keycloak:" + System.getProperty("keycloak.version");
         if (AGENT == null) {
-            return new KeycloakContainer(image);
+            return cheapPasswords(new KeycloakContainer(image));
         }
         KeycloakContainer keycloak = new KeycloakContainer(image) {
             // The parent sets its own list of ports here, so the port of the agent is added after it.
@@ -44,11 +44,19 @@ final class Coverage {
         classes.mkdirs();
         // The user in the container is not the user of the build.
         classes.setWritable(true, false);
-        return keycloak
+        return cheapPasswords(keycloak)
                 .withCopyFileToContainer(MountableFile.forHostPath(AGENT), "/opt/jacoco/agent.jar")
                 .withFileSystemBind(classes.getAbsolutePath(), "/opt/jacoco/classes", BindMode.READ_WRITE)
                 .withEnv("JAVA_OPTS_APPEND", "-javaagent:/opt/jacoco/agent.jar=output=tcpserver,address=*,port="
                         + PORT + ",includes=net.exoego.keycloak.fuhito.*,classdumpdir=/opt/jacoco/classes");
+    }
+
+    // Each test logs in again, and a password hash of the default strength costs much CPU on a small runner.
+    // The tests need no strong hash.
+    private static KeycloakContainer cheapPasswords(KeycloakContainer keycloak) {
+        return keycloak
+                .withEnv("KC_SPI_PASSWORD_HASHING__ARGON2__ITERATIONS", "1")
+                .withEnv("KC_SPI_PASSWORD_HASHING__ARGON2__MEMORY", "8");
     }
 
     /** Saves what the container measured so far. Call it before the container stops. */
