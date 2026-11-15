@@ -100,6 +100,7 @@ public class JpaUserDataMasker implements UserDataMasker {
         person.name = null;
         person.names = new LinkedHashMap<>();
         person.phoneticName = null;
+        person.searchNames = null;
         person.attributes = new LinkedHashMap<>();
         person.externalId = null;
         List<String> externalIds = new ArrayList<>(removeExternalIds("PERSON", List.of(personId)));

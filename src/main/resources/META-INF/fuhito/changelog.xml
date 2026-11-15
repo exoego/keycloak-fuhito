@@ -1023,6 +1023,18 @@
         <addUniqueConstraint tableName="FUHITO_JOB_RUN" columnNames="REALM_ID, JOB"
                              constraintName="UK_FUHITO_JOB_RUN"/>
     </changeSet>
+    <changeSet id="0.1.0-person-search-names" author="keycloak-fuhito">
+        <addColumn tableName="FUHITO_PERSON">
+            <column name="SEARCH_NAMES" type="CLOB"/>
+        </addColumn>
+    </changeSet>
+    <changeSet id="0.1.0-person-search-names-fill" author="keycloak-fuhito" dbms="postgresql">
+        <comment>The people of before get the column here. On another database, each gets it at its next write.</comment>
+        <sql>
+            UPDATE FUHITO_PERSON p SET SEARCH_NAMES = lower(concat_ws(chr(10), p.NAME, p.PHONETIC_NAME,
+                (SELECT string_agg(e.value, chr(10)) FROM json_each_text(CAST(p.NAMES_I18N AS json)) e)))
+        </sql>
+    </changeSet>
     <changeSet id="0.1.0-default-hierarchy-of-every-realm" author="keycloak-fuhito">
         <comment>A realm gets its default hierarchy when it is created. The realms of before get it here.</comment>
         <sql>

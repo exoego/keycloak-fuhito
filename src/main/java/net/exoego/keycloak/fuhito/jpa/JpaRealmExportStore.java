@@ -5,6 +5,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Function;
 
@@ -214,6 +215,40 @@ public class JpaRealmExportStore implements RealmExportStore {
     @Override
     public Page<ChangeOrder> changeOrders() {
         return page(ChangeOrderEntity.class, "id", JpaChangeOrderStore::toDomain);
+    }
+
+    // The table of each list of an export.
+    private static final Map<String, Class<?>> TABLES = Map.ofEntries(
+            Map.entry("ref-kinds", RealmKindEntity.class),
+            Map.entry("ref-items", RefItemEntity.class),
+            Map.entry("attribute-definitions", AttributeDefinitionEntity.class),
+            Map.entry("hierarchies", HierarchyEntity.class),
+            Map.entry("org-units", OrgUnitEntity.class),
+            Map.entry("org-unit-versions", OrgUnitVersionEntity.class),
+            Map.entry("org-unit-parents", OrgUnitLinkEntity.class),
+            Map.entry("org-unit-successions", OrgUnitSuccessionEntity.class),
+            Map.entry("people", PersonEntity.class),
+            Map.entry("employments", EmploymentEntity.class),
+            Map.entry("employment-terms", EmploymentTermsEntity.class),
+            Map.entry("assignments", AssignmentEntity.class),
+            Map.entry("reporting-lines", ReportingLineEntity.class),
+            Map.entry("unit-roles", UnitRoleEntity.class),
+            Map.entry("qualifications", QualificationEntity.class),
+            Map.entry("external-ids", ExternalIdEntity.class),
+            Map.entry("change-orders", ChangeOrderEntity.class));
+
+    @Override
+    public Optional<String> takenId(String list, Collection<String> ids) {
+        Class<?> table = TABLES.get(list);
+        if (table == null || ids.isEmpty()) {
+            return Optional.empty();
+        }
+        return em.createQuery("select x.id from %s x where %s".formatted(table.getSimpleName(),
+                        ManyIds.has("x.id", "ids")), String.class)
+                .setParameter("ids", ManyIds.of(ids))
+                .setMaxResults(1)
+                .getResultStream()
+                .findFirst();
     }
 
     @Override
