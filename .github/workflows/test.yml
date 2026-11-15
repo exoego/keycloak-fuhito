@@ -56,6 +56,10 @@ jobs:
           KEYCLOAK_VERSION: ${{ matrix.keycloak }}
         run: ./gradlew check -PtestJavaVersion=${{ matrix.java }} -PtestKeycloakVersion="$KEYCLOAK_VERSION"
 
+      - name: Timeline
+        if: always()
+        run: python3 .github/scripts/timeline.py
+
       # One row is enough. Every row measures the same tests.
       # The token keeps others from uploading fake numbers for main. A pull request from a fork gets
       # no secret. The action then uploads with no token, which Codecov allows for a fork of a public
