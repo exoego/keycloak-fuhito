@@ -59,6 +59,7 @@ Add it to a client or to a client scope, the same as any other mapper.
 - The claim name can be set on the mapper. The default is `assignments`.
 - The mapper can add the claim to the access token, the ID token, and the user info response.
 - The primary assignment comes first.
+- A user with two employments at the same time can have a primary assignment in each. Then the one of the employment that started first comes first. The same order holds for `GET /users/{userId}/assignments`.
 - A user with no assignment gets an empty list.
 - Each assignment is judged on the date of its own org unit. That is the date of the realm unless a unit sets its own time zone. See "What today is" below.
 

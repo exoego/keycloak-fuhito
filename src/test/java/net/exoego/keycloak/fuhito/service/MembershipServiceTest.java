@@ -255,6 +255,24 @@ class MembershipServiceTest {
     }
 
     @Test
+    void withAPrimaryAssignmentInEachEmploymentTheOldestEmploymentComesFirst() {
+        // The doctor works for the hospital from April, and also for the other hospital from May.
+        String second = employments.start(new NewEmployment("doctor", "2026-05-01", null, null, null, null, null,
+                null, null, null, null, otherHospital)).employment().id();
+        assign(second, otherHospital, "2026-05-01", null, null, true, 0);
+        assign(second, hospital, "2026-05-01", null, null, false, 0);
+        // The primary assignment of the first employment starts later than the one of the second.
+        assign(doctorEmployment, ward, "2026-06-01", null, null, true, 0);
+        assign(doctorEmployment, nursing, "2026-06-01", null, null, false, 0);
+
+        List<Member> july = service.assignmentsOf("doctor", "2026-07-01", false);
+
+        assertEquals(List.of(ward, otherHospital, nursing, hospital),
+                july.stream().map(m -> m.assignment().orgUnitId()).toList());
+        assertEquals(List.of(true, true, false, false), july.stream().map(m -> m.assignment().primary()).toList());
+    }
+
+    @Test
     void listsTheAssignmentsOfAUserWithThePrimaryFirst() {
         assign(doctorEmployment, otherHospital, "2026-04-01", "physician", null, false, 0);
         String primary = assign(doctorEmployment, ward, "2026-05-01", "physician", "director", true, 0);
