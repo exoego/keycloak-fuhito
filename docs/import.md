@@ -98,6 +98,7 @@ curl -X POST \
 - A column that is not needed can be left out.
 - The file is UTF-8, with or without a byte order mark. For another encoding, name it in the content type, for example `text/csv; charset=Shift_JIS`.
 - A cell can be in double quotes. A quoted cell can hold commas and line breaks.
+- A row with more cells than the header fails with `csv.too_many_cells`, unless the extra cells are empty. This is usually a comma that should have been in quotes.
 - **A blank cell keeps the stored value.** This differs from JSON, where a missing value clears it. A blank parent keeps the stored parent, also one with no external ID of the source.
 - The cell `#CLEAR` removes the stored value.
 - True is `true`, `1`, `yes`, `はい`, or `○`. False is `false`, `0`, `no`, `いいえ`, or `×`.
