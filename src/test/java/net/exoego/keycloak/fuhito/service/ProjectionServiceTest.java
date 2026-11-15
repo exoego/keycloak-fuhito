@@ -70,8 +70,19 @@ class ProjectionServiceTest {
             }
         }
 
+        // Keycloak allows one name among the groups of one parent.
+        private void requireFree(String organizationId, String name, String parentId, String groupId) {
+            for (Group other : groups.values()) {
+                if (!other.id().equals(groupId) && organizationId.equals(organizationOfGroup.get(other.id()))
+                        && Objects.equals(other.parentId(), parentId) && other.name().equals(name)) {
+                    throw new IllegalStateException("name taken: " + name);
+                }
+            }
+        }
+
         @Override
         public String createGroup(String organizationId, String name, String parentId, String orgUnitId) {
+            requireFree(organizationId, name, parentId, null);
             String id = "g" + nextId++;
             groups.put(id, new Group(id, name, parentId, orgUnitId));
             organizationOfGroup.put(id, organizationId);
@@ -81,12 +92,14 @@ class ProjectionServiceTest {
         @Override
         public void renameGroup(String groupId, String name) {
             Group group = groups.get(groupId);
+            requireFree(organizationOfGroup.get(groupId), name, group.parentId(), groupId);
             groups.put(groupId, new Group(groupId, name, group.parentId(), group.orgUnitId()));
         }
 
         @Override
         public void moveGroup(String organizationId, String groupId, String parentId) {
             Group group = groups.get(groupId);
+            requireFree(organizationId, group.name(), parentId, groupId);
             groups.put(groupId, new Group(groupId, group.name(), parentId, group.orgUnitId()));
         }
 
@@ -293,6 +306,67 @@ class ProjectionServiceTest {
         // The nurse left the ward. The projection never takes a user out of the organization.
         assertEquals(Set.of("director", "head-nurse", "nurse", "pharmacist"),
                 keycloak.organizationMembers.get("org-x"));
+    }
+
+    @Test
+    void aNewUnitTakesTheNameOfOneThatEnds() {
+        String lab = unit("Lab", nursing);
+        rebuild();
+        String labGroup = groupOf(lab);
+        orgUnits.end(lab, "2026-06-01");
+        String next = orgUnits.create(new NewOrgUnit(null, "Lab", null, null, null, null, null, nursing,
+                "2026-06-01", null, null, null, null)).unit().id();
+
+        ProjectionReport report = rebuild();
+
+        assertEquals(new ProjectionReport(1, 1, 0, 0, 1, 0, 0, 0, 0), report);
+        assertEquals(List.of("Nursing [head-nurse]", "Ward < Nursing [nurse]", "Lab < Nursing []"),
+                keycloak.describe("org-x"));
+        assertTrue(keycloak.groups.containsKey(groupOf(next)));
+        assertFalse(keycloak.groups.containsKey(labGroup));
+    }
+
+    @Test
+    void twoUnitsSwapTheirNamesAndTheirParents() {
+        keycloak.realmGroup = "org";
+        String east = unit("East", hospital);
+        String west = unit("West", hospital);
+        String team = unit("Team", east);
+        String other = unit("Team", west);
+        rebuild();
+        String eastGroup = groupOf(east);
+        String teamGroup = groupOf(team);
+        orgUnits.changeDetails(east, new OrgUnitChange("2026-06-01", null, "West", null, null, null, null, null,
+                null, null));
+        orgUnits.changeDetails(west, new OrgUnitChange("2026-06-01", null, "East", null, null, null, null, null,
+                null, null));
+        orgUnits.move(team, west, "2026-06-01");
+        orgUnits.move(other, east, "2026-06-01");
+
+        ProjectionReport report = rebuild();
+
+        assertEquals(new ProjectionReport(1, 0, 4, 4, 0, 0, 0, 0, 1), report);
+        assertEquals(List.of("East []", "Nursing [head-nurse]", "Team < East []", "Team < West []",
+                "Ward < Nursing [nurse]", "West []"), keycloak.describe("org-x").stream().sorted().toList());
+        assertEquals(eastGroup, groupOf(east));
+        assertEquals(teamGroup, groupOf(team));
+        assertEquals(new ProjectionReport(1, 0, 0, 0, 0, 0, 0, 0, 1), rebuild());
+    }
+
+    @Test
+    void aUnitMovesBelowANewUnit() {
+        rebuild();
+        String annex = orgUnits.create(new NewOrgUnit(null, "Annex", null, null, null, null, null, hospital,
+                "2026-06-01", null, null, null, null)).unit().id();
+        orgUnits.move(ward, annex, "2026-06-01");
+
+        assertEquals(new ProjectionReport(1, 1, 0, 1, 0, 0, 0, 0, 0), rebuild());
+        assertEquals(List.of("Nursing [head-nurse]", "Annex []", "Ward < Annex [nurse]"), keycloak.describe("org-x"));
+    }
+
+    private String groupOf(String orgUnitId) {
+        return keycloak.groups("org-x").stream().filter(group -> orgUnitId.equals(group.orgUnitId())).findFirst()
+                .orElseThrow().id();
     }
 
     @Test
