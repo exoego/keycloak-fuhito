@@ -163,6 +163,33 @@ class CsvImportServiceTest {
     }
 
     @Test
+    void aBlankParentKeepsAParentThatHasNoExternalIdOfTheSource() {
+        String hospital = orgUnits.create(new NewOrgUnit(null, "Hospital", null, null, null, null, null, null,
+                "2026-04-01", null, null, null, null)).unit().id();
+        // A parent with an ID of another system, which a unit of the source has too.
+        String clinic = orgUnits.create(new NewOrgUnit(null, "Clinic", null, null, null, null, null, null,
+                "2026-04-01", null, null, "X", "hr")).unit().id();
+        orgUnits.create(new NewOrgUnit(null, "Not the parent", null, null, null, null, null, null, "2026-04-01",
+                null, null, "X", "sheet"));
+        load("orgUnits", "2026-04-01", "外部ID,名称,ソース\nW1,1病棟,sheet\nW2,2病棟,sheet\n");
+        String first = orgUnitStore.findUnitByExternalId("sheet", "W1").orElseThrow().id();
+        String second = orgUnitStore.findUnitByExternalId("sheet", "W2").orElseThrow().id();
+        orgUnits.move(first, hospital, "2026-04-01");
+        orgUnits.move(second, clinic, "2026-04-01");
+
+        CsvImportService.Result renamed = load("orgUnits", "2026-10-01",
+                "外部ID,名称,ソース\nW1,第1病棟,sheet\nW2,第2病棟,sheet\n");
+
+        assertEquals(List.of(), errors(renamed));
+        assertEquals(hospital, orgUnits.get(first, "2026-10-01").parentId());
+        assertEquals("第1病棟", orgUnits.get(first, "2026-10-01").version().name());
+        assertEquals(clinic, orgUnits.get(second, "2026-10-01").parentId());
+        // The cell #CLEAR still makes it a root.
+        load("orgUnits", "2027-04-01", "外部ID,親の外部ID,ソース\nW1,#CLEAR,sheet\n");
+        assertNull(orgUnits.get(first, "2027-04-01").parentId());
+    }
+
+    @Test
     void aReasonStaysWithTheLeaveAndGoesWithTheReturn() {
         item(RefKind.LEAVE_REASON, "parental");
         load("orgUnits", "2026-04-01", "外部ID,名称\nH,X病院\n");

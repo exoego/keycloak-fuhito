@@ -21,6 +21,7 @@ import org.keycloak.representations.idm.UserRepresentation;
 
 import static net.exoego.keycloak.fuhito.KeycloakEnvironment.KEYCLOAK;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -181,6 +182,7 @@ class ProjectionIT {
         JsonNode top = keycloak(groups);
         assertEquals(List.of("事務室", "看護部"), sorted(top, "name"));
         String nursingGroup = idOf(top, "看護部");
+        String officeGroup = idOf(top, "事務室");
         JsonNode children = keycloak(groups + "/" + nursingGroup + "/children");
         assertEquals(List.of("1病棟"), sorted(children, "name"));
         String wardGroup = idOf(children, "1病棟");
@@ -198,21 +200,25 @@ class ProjectionIT {
         }
 
         // The ward moves to the top with a new name, the office ends, and the nurse leaves the ward.
+        // A new office takes the name of the old one on the same date.
         assertEquals(200, api.put("/org-units/" + ward + "/parent", "{\"validFrom\": \"2021-04-01\", \"parentId\": \"" + hospital + "\"}").statusCode());
         assertEquals(200, api.put("/org-units/" + ward, "{\"name\": \"東病棟\", \"validFrom\": \"2021-04-01\"}").statusCode());
         assertEquals(200, api.put("/assignments/" + nurseAssignment + "/end", "{\"validTo\": \"2021-04-01\"}").statusCode());
         JsonNode clerkAssignments = Api.json(api.get("/users/" + clerk + "/assignments"));
         assertEquals(200, api.put("/assignments/" + clerkAssignments.get(0).get("assignmentId").asText() + "/end", "{\"validTo\": \"2021-04-01\"}").statusCode());
         assertEquals(200, api.put("/org-units/" + office + "/end", "{\"validTo\": \"2021-04-01\"}").statusCode());
+        post("/org-units", "{\"name\": \"事務室\", \"parentId\": \"" + hospital + "\", \"validFrom\": \"2021-04-01\"}");
 
         JsonNode second = rebuild();
 
         assertEquals(1, second.get("groupsMoved").asInt());
         assertEquals(1, second.get("groupsRenamed").asInt());
         assertEquals(1, second.get("groupsRemoved").asInt());
+        assertEquals(1, second.get("groupsCreated").asInt());
         assertEquals(1, second.get("membersLeft").asInt());
         JsonNode topAfter = keycloak(groups);
-        assertEquals(List.of("東病棟", "看護部"), sorted(topAfter, "name"));
+        assertEquals(List.of("事務室", "東病棟", "看護部"), sorted(topAfter, "name"));
+        assertNotEquals(officeGroup, idOf(topAfter, "事務室"));
         // The moved group is the same group, so what Keycloak attached to it stays.
         assertEquals(wardGroup, idOf(topAfter, "東病棟"));
         assertEquals(0, keycloak(groups + "/" + nursingGroup + "/children").size());

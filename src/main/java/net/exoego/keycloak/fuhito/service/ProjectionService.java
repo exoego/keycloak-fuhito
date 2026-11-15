@@ -123,6 +123,8 @@ public class ProjectionService {
     private int membersJoined;
     private int membersLeft;
     private int organizationMembersAdded;
+    // The groups that took their own ID as their name for a while.
+    private final Set<String> parked = new HashSet<>();
 
     /**
      * Creates the service for one rebuild that runs in pieces.
@@ -226,6 +228,7 @@ public class ProjectionService {
             return false;
         }
         Map<String, String> groupIdByUnit = new HashMap<>();
+        park(root.id(), plan.below(), plan.existing());
         mirrorAll(target, root.id(), plan.below(), byUnit(plan.existing()), groupIdByUnit);
         removeGone(plan.existing(), groupIdByUnit);
         // The linked unit itself has no group. Its people are members of the organization only.
@@ -254,6 +257,7 @@ public class ProjectionService {
         List<Group> existing = piece(parts -> target.groups(parts.keycloak()));
         Map<String, Group> mirrored = byUnit(existing);
         Map<String, String> groupIdByUnit = new HashMap<>();
+        park(null, all, existing);
         trees.values().forEach(units -> mirrorAll(target, null, units, mirrored, groupIdByUnit));
         removeGone(existing, groupIdByUnit);
         Set<String> everyone = new HashSet<>();
@@ -276,6 +280,39 @@ public class ProjectionService {
                 return null;
             });
         }
+    }
+
+    // Keycloak allows one name among the groups of one parent. A group that goes away, or that gets another name
+    // or another parent, first takes its own ID as its name. Then it holds no name that another group needs.
+    private void park(String rootId, List<OrgUnitState> units, List<Group> existing) {
+        Map<String, Group> mirrored = byUnit(existing);
+        Map<String, OrgUnitState> wanted = new HashMap<>();
+        units.forEach(unit -> wanted.put(unit.unit().id(), unit));
+        List<Group> changing = existing.stream()
+                .filter(group -> group.orgUnitId() != null)
+                .filter(group -> changes(group, wanted.get(group.orgUnitId()), rootId, mirrored))
+                .toList();
+        for (List<Group> some : inPieces(changing, UNITS_AT_A_TIME)) {
+            piece(parts -> {
+                some.forEach(group -> parts.keycloak().renameGroup(group.id(), group.id()));
+                return null;
+            });
+        }
+        changing.forEach(group -> parked.add(group.id()));
+    }
+
+    private static boolean changes(Group group, OrgUnitState unit, String rootId, Map<String, Group> mirrored) {
+        // A second group of the same unit goes away.
+        if (unit == null || !mirrored.get(group.orgUnitId()).id().equals(group.id())) {
+            return true;
+        }
+        boolean top = unit.parentId() == null || unit.parentId().equals(rootId);
+        Group parent = top ? null : mirrored.get(unit.parentId());
+        if (!top && parent == null) {
+            return true;
+        }
+        return !Objects.equals(group.parentId(), parent == null ? null : parent.id())
+                || !group.name().equals(unit.version().name());
     }
 
     private void removeGone(List<Group> existing, Map<String, String> groupIdByUnit) {
@@ -355,8 +392,11 @@ public class ProjectionService {
             target.move(keycloak, group.id(), parentGroupId);
             groupsMoved++;
         }
-        if (!group.name().equals(unit.version().name())) {
+        boolean renamed = !group.name().equals(unit.version().name());
+        if (renamed || parked.contains(group.id())) {
             keycloak.renameGroup(group.id(), unit.version().name());
+        }
+        if (renamed) {
             groupsRenamed++;
         }
     }
