@@ -61,6 +61,18 @@ class ConditionalWritesIT {
         assertNotEquals(ofUnit, etag(api.get("/org-units/" + unitId + "?asOf=2026-05-01")));
         assertEquals(412, api.put("/org-units/" + unitId + "/end", "{\"validTo\": \"2028-04-01\"}", "If-Match", ofUnit)
                 .statusCode());
+
+        // A mask and an erase of a person are writes to the person too.
+        String person = Api.json(api.post("/people", "{\"name\": \"Ann\"}")).get("id").asText();
+        String ofPerson = etag(api.get("/people/" + person));
+        assertEquals(200, api.put("/people/" + person, "{\"name\": \"Anne\"}").statusCode());
+        assertEquals(412, api.post("/people/" + person + "/mask", "", "If-Match", ofPerson).statusCode());
+        assertEquals(412, api.delete("/people/" + person + "/data", "If-Match", ofPerson).statusCode());
+        assertEquals("Anne", Api.json(api.get("/people/" + person)).get("name").asText());
+        String current = etag(api.get("/people/" + person));
+        HttpResponse<String> masked = api.post("/people/" + person + "/mask", "", "If-Match", current);
+        assertEquals(200, masked.statusCode(), masked.body());
+        assertEquals(204, api.delete("/people/" + person + "/data", "If-Match", etag(masked)).statusCode());
     }
 
     @Test
