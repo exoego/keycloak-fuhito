@@ -48,6 +48,11 @@ final class KeycloakEnvironment {
     private KeycloakEnvironment() {
     }
 
+    /** Opens a connection to the database of Keycloak, for a test that holds a lock. */
+    static Connection connection() throws SQLException {
+        return DriverManager.getConnection(POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword());
+    }
+
     /** Runs a statement and returns the first column of its first row, or an empty text. */
     static String sql(String sql) throws Exception {
         return run(POSTGRES, sql);

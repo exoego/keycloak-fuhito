@@ -3,6 +3,7 @@ package net.exoego.keycloak.fuhito.keycloak;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import net.exoego.keycloak.fuhito.domain.BusinessDay;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
@@ -91,6 +92,11 @@ public class FuhitoAdminRealmResourceProvider implements AdminRealmResourceProvi
                 personId -> RealmData.deletePerson(entityManager, realm.getId(), personId),
                 new ProjectionTransactions(session.getKeycloakSessionFactory(), realm.getId(), rule),
                 new FuhitoResource.Pieces() {
+                    @Override
+                    public <T> T alone(String job, Supplier<T> run) {
+                        return OneAtATime.run(session.getKeycloakSessionFactory(), job, realm.getId(), run);
+                    }
+
                     @Override
                     public <T> T inNewTransaction(boolean rollBack, Function<FuhitoResource, T> piece) {
                         return KeycloakModelUtils.runJobInTransactionWithResult(session.getKeycloakSessionFactory(),

@@ -94,6 +94,18 @@ public class AttributeSyncService {
          * @return the result of the piece
          */
         <T> T inNewTransaction(Function<Parts, T> piece);
+
+        /**
+         * Runs a whole run, unless another run for the realm is going on.
+         *
+         * @param <T> the type of the result
+         * @param run the run
+         * @return the result of the run
+         * @throws FuhitoException when another run is going on
+         */
+        default <T> T alone(Supplier<T> run) {
+            return run.get();
+        }
     }
 
     private record Plan(Matcher matcher, Map<String, Assignment> owned, List<Values> users) {
@@ -158,9 +170,13 @@ public class AttributeSyncService {
      * The work is done in pieces. When one fails, the pieces before it stay, and the next run goes on.
      *
      * @return what the run did
-     * @throws FuhitoException when the realm did not turn the sync on
+     * @throws FuhitoException when the realm did not turn the sync on, or another run is going on
      */
     public SyncReport run() {
+        return work.alone(this::runAlone);
+    }
+
+    private SyncReport runAlone() {
         Plan plan = piece(this::plan);
         Set<String> withDepartment = new HashSet<>();
         for (List<Values> some : inPieces(plan.users())) {

@@ -13,6 +13,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import net.exoego.keycloak.fuhito.domain.Assignment;
@@ -64,6 +65,18 @@ public class ProjectionService {
          * @return the result of the piece
          */
         <T> T inNewTransaction(Function<Parts, T> piece);
+
+        /**
+         * Runs a whole run, unless another run for the realm is going on.
+         *
+         * @param <T> the type of the result
+         * @param run the run
+         * @return the result of the run
+         * @throws FuhitoException when another run is going on
+         */
+        default <T> T alone(Supplier<T> run) {
+            return run.get();
+        }
     }
 
     private record Linked(OrgUnit unit, LocalDate date) {
@@ -140,9 +153,14 @@ public class ProjectionService {
      * The work is done in pieces. When one fails, the pieces before it stay, and the next run goes on.
      *
      * @return what the rebuild changed
-     * @throws FuhitoException when the realm did not turn the projection on, or two sibling units have one name
+     * @throws FuhitoException when the realm did not turn the projection on, two sibling units have one name,
+     *         or another rebuild is going on
      */
     public ProjectionReport rebuild() {
+        return work.alone(this::rebuildAlone);
+    }
+
+    private ProjectionReport rebuildAlone() {
         if (!piece(parts -> parts.keycloak().projectionEnabled())) {
             throw FuhitoException.conflict("projection.disabled", Map.of());
         }

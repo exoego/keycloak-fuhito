@@ -121,6 +121,10 @@ A rebuild with no change in between changes nothing.
 A rebuild does its work in pieces, and each piece is one transaction. One transaction for a large realm would run into the transaction timeout of Keycloak.
 So a rebuild that fails in the middle keeps the pieces that it finished. The groups are then partly up to date. The next rebuild does the rest.
 
+Only one rebuild runs for a realm at a time, on all nodes of a cluster. A second call fails with `projection.running` and the status 409.
+The timer skips a realm whose rebuild is still going on, and logs a warning.
+The lock goes away by itself after six hours, for the case that a node dies with it.
+
 A rebuild reads who is in which group from the table of Keycloak, for many groups in one query.
 A user that only a user storage provider holds is not in that table. A user that Keycloak imported, for example from LDAP, is in it.
 A user is outside the table when a custom user storage provider keeps the users in another database, or when an LDAP federation has "Import Users" off.
