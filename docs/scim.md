@@ -84,6 +84,9 @@ A dry run works in the same pieces, and undoes each piece at its end.
 
 A run reads the attributes of all users from the tables of Keycloak in one query.
 A user that only a user storage provider holds is not in those tables. A user that Keycloak imported, for example from LDAP, is in them.
+A user is outside the tables when a custom user storage provider keeps the users in another database, or when an LDAP federation has "Import Users" off.
+The sync does not see such a user. It reports no error, and the user gets no assignment.
+An attribute that only LDAP holds is not in the tables either. A mapper of the federation must import it.
 
 A change that the sync makes and takes back on the same day leaves no trace.
 An assignment that started today is removed, not ended, because it never held.
