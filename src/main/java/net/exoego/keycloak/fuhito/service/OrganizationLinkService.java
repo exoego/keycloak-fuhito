@@ -1,6 +1,7 @@
 package net.exoego.keycloak.fuhito.service;
 
 import java.util.Map;
+import java.util.Optional;
 
 import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
@@ -61,6 +62,17 @@ public class OrganizationLinkService {
      */
     public OrgUnit unlink(String orgUnitId) {
         return store(require(orgUnitId), null);
+    }
+
+    /**
+     * Returns the Keycloak organization that an org unit is linked to.
+     *
+     * @param orgUnitId the ID of the org unit
+     * @return the ID of the organization, or empty for none
+     * @throws FuhitoException when the unit does not exist
+     */
+    public Optional<String> organizationOf(String orgUnitId) {
+        return Optional.ofNullable(require(orgUnitId).keycloakOrganizationId());
     }
 
     private OrgUnit require(String orgUnitId) {

@@ -131,6 +131,9 @@ class AttributeSyncIT {
         // The writes are in the change log, like any other write.
         String aliceAssignment = assignmentsOf(alice).get(0).get("assignmentId").asText();
         assertEquals(List.of("CREATE"), Api.json(api.get("/change-log?resourceType=FUHITO_ASSIGNMENT&resourceId=" + aliceAssignment)).findValuesAsText("operation"));
+        JsonNode lineEntries = Api.json(api.get("/change-log?resourceType=FUHITO_REPORTING_LINE"));
+        assertEquals(List.of("CREATE"), lineEntries.findValuesAsText("operation"));
+        assertEquals(boss, lineEntries.get(0).get("representation").get("managerUserId").asText());
 
         JsonNode again = run("");
         for (String count : List.of("employmentsStarted", "assignmentsAdded", "assignmentsMoved", "assignmentsChanged",

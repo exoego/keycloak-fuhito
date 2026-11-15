@@ -228,6 +228,9 @@ This copies a realm to a test environment, moves it to another Keycloak, or brin
 - Put the lists together under their names in camel case, such as `refKinds`, with `"format": "fuhito.export.v1"`. `POST /restore` takes that document.
 - A restore keeps every ID, so products that stored IDs find the same resources. It writes all or nothing.
 - It fails with `restore.realm_not_empty` when the realm has any data of the extension. So it cannot load into a realm of the same database that the export came from while that realm still has the rows.
+- It checks the export before it writes. A row that names a row that the export does not have fails with 400 and `restore.reference_unknown`. So a restore never links to the rows of another realm.
+- A value that is missing or cannot be read fails with 400 and `restore.bad_value`.
+- An ID that a row of the database has already, in any realm, fails with 409 and `restore.id_taken`. This happens for a copy into a second realm of the same database while the first realm still has the rows.
 - Rows name Keycloak users by username. A restore fails with `restore.username_unknown` when the target realm has no user with that name. A person whose user Keycloak no longer had is exported with no username, and is restored with no link.
 - Masked data stays masked, with the time of the mask. Erased data is not in an export.
 - The change log, the admin events, the links to Keycloak organizations, and the idempotency keys are not part of an export. The restore records one entry, `FUHITO_RESTORE`.

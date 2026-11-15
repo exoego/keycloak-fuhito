@@ -11,6 +11,7 @@ import net.exoego.keycloak.fuhito.domain.Assignment;
 import net.exoego.keycloak.fuhito.domain.Employment;
 import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.domain.ReportingLine;
+import net.exoego.keycloak.fuhito.service.ImportReport.Write;
 import net.exoego.keycloak.fuhito.store.AssignmentStore;
 import net.exoego.keycloak.fuhito.store.EmploymentStore;
 import net.exoego.keycloak.fuhito.store.ExternalIdStore;
@@ -65,19 +66,22 @@ public class UserRetirement {
      * A reporting line where the user is the manager ends today.
      *
      * @param userId the ID of the removed user
-     * @return the employments that ended today, for the change log
+     * @return every write, for the change log
      */
-    public List<EmploymentView> retire(String userId) {
+    public List<Write> retire(String userId) {
         LocalDate today = LocalDate.now(clock);
-        List<EmploymentView> ended = new ArrayList<>();
+        List<Write> written = new ArrayList<>();
         List<Employment> all = employments.findByUser(userId);
         // A later employment can continue an earlier one, so the later one goes first.
         all.reversed().stream()
                 .filter(employment -> !employment.period().from().isBefore(today))
-                .forEach(this::removeNeverHeld);
+                .forEach(employment -> removeNeverHeld(employment, written));
         for (Employment employment : all) {
             if (employment.period().from().isBefore(today) && employment.period().endsAfter(today)) {
-                ended.add(employmentService.end(employment.id(), today.toString(), null));
+                // A reason that was stored with a later end stays.
+                String reason = employmentService.get(employment.id()).endReason();
+                written.add(new Write.OfEmployment(false, "/end",
+                        employmentService.end(employment.id(), today.toString(), reason)));
             }
         }
         List<ReportingLine> managed = people.findByUser(userId).map(person -> lines.findByManager(person.id()))
@@ -85,28 +89,44 @@ public class UserRetirement {
         for (ReportingLine line : managed) {
             if (!line.period().from().isBefore(today)) {
                 lines.delete(line.id());
+                written.add(Write.Removed.line(line.id()));
             } else if (line.period().endsAfter(today)) {
-                lines.update(line.withPeriod(line.period().endingAt(today)));
+                ReportingLine ended = line.withPeriod(line.period().endingAt(today));
+                lines.update(ended);
+                written.add(new Write.OfReportingLine(false, "/end", ended));
             }
         }
-        return ended;
+        return written;
     }
 
-    private void removeNeverHeld(Employment employment) {
-        unitRoles.findByEmployment(employment.id()).forEach(role -> unitRoles.delete(role.id()));
+    private void removeNeverHeld(Employment employment, List<Write> written) {
+        unitRoles.findByEmployment(employment.id()).forEach(role -> {
+            unitRoles.delete(role.id());
+            written.add(Write.Removed.unitRole(role.id()));
+        });
         Set<String> assignmentIds = new LinkedHashSet<>();
         for (Assignment row : assignments.rowsOfEmployment(employment.id())) {
-            lines.findByAssignment(row.assignmentId()).forEach(line -> lines.delete(line.id()));
+            lines.findByAssignment(row.assignmentId()).forEach(line -> {
+                lines.delete(line.id());
+                written.add(Write.Removed.line(line.id()));
+            });
             assignments.delete(row.rowId());
             assignmentIds.add(row.assignmentId());
         }
-        assignmentIds.forEach(id -> removeExternalIds(ExternalId.Kind.ASSIGNMENT, id));
-        removeExternalIds(ExternalId.Kind.EMPLOYMENT, employment.id());
+        assignmentIds.forEach(id -> {
+            removeExternalIds(ExternalId.Kind.ASSIGNMENT, id, written);
+            written.add(Write.Removed.assignment(id));
+        });
+        removeExternalIds(ExternalId.Kind.EMPLOYMENT, employment.id(), written);
         employments.terms(employment.id()).forEach(terms -> employments.deleteTerms(terms.id()));
         employments.delete(employment.id());
+        written.add(Write.Removed.employment(employment.id()));
     }
 
-    private void removeExternalIds(ExternalId.Kind kind, String resourceId) {
-        externalIds.ofResource(kind, resourceId).forEach(row -> externalIds.delete(row.id()));
+    private void removeExternalIds(ExternalId.Kind kind, String resourceId, List<Write> written) {
+        externalIds.ofResource(kind, resourceId).forEach(row -> {
+            externalIds.delete(row.id());
+            written.add(Write.Removed.externalId(row.id()));
+        });
     }
 }
