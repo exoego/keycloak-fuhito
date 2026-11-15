@@ -47,8 +47,8 @@ public record ImportDocument(
 
     @Schema(
             name = "ImportPersonRow",
-            description = "A person, also one with no Keycloak user. It is matched by source and external ID.",
-            requiredProperties = {"externalId"})
+            description = "A person, also one with no Keycloak user. It is matched by source and external ID, or by "
+                    + "`id`. A row needs one of them.")
     public record PersonRow(
             @Schema(
                     description = "The name of the system that the row comes from. The default is the source of the "
@@ -169,8 +169,8 @@ public record ImportDocument(
 
     @Schema(
             name = "ImportAssignmentRow",
-            description = "An assignment. It is matched by source and external ID.",
-            requiredProperties = {"externalId", "employmentExternalId", "orgUnitExternalId"})
+            description = "An assignment. It is matched by source and external ID, or by `id`. A row needs one of "
+                    + "them. A new assignment names its employment and its org unit.")
     public record AssignmentRow(
             @Schema(
                     description = "The name of the system that the row comes from. The default is the source of the "
@@ -180,9 +180,11 @@ public record ImportDocument(
             String source,
             @Schema(description = "The ID of the assignment in that system.")
             String externalId,
-            @Schema(description = "The external ID of the employment with the same source.")
+            @Schema(description = "The external ID of the employment with the same source. A row of a stored "
+                    + "assignment that names no employment keeps the one that is stored.")
             String employmentExternalId,
-            @Schema(description = "The external ID of the org unit with the same source.")
+            @Schema(description = "The external ID of the org unit with the same source. A row of a stored "
+                    + "assignment that names no org unit keeps the one that is stored.")
             String orgUnitExternalId,
             @Schema(description = "The code of the job title.")
             String jobTitle,
@@ -213,7 +215,42 @@ public record ImportDocument(
                     description = "The first date on which the assignment no longer holds. The default is the end "
                             + "of the employment.",
                     format = "date")
-            String validTo) {
+            String validTo,
+            @Schema(description = "The ID of the employment, for an employment with no external ID of the same "
+                    + "source. Give this or `employmentExternalId`, not both.")
+            String employmentId,
+            @Schema(description = "The ID of the org unit, for an org unit with no external ID of the same source. "
+                    + "Give this or `orgUnitExternalId`, not both.")
+            String orgUnitId,
+            @Schema(description = "The ID of a stored assignment, for a row of an assignment with no external ID. A "
+                    + "CSV export has it in every row. A new assignment has none.")
+            String id) {
+
+        /**
+         * Makes a row that names the employment and the org unit by external ID.
+         *
+         * @param source the name of the system that the row comes from, or null
+         * @param externalId the ID of the assignment in that system
+         * @param employmentExternalId the external ID of the employment
+         * @param orgUnitExternalId the external ID of the org unit
+         * @param jobTitle the code of the job title, or null
+         * @param occupation the code of the occupation, or null
+         * @param kind the code of the assignment kind, or null
+         * @param head true when the person leads the org unit, or null
+         * @param primary true when this is the main assignment of the employment, or null
+         * @param allocationPercent the share of the person's work in percent, or null
+         * @param displayOrder the position among the members of the org unit, or null
+         * @param attributes free values, or null
+         * @param validFrom the first date of a new assignment, or null
+         * @param validTo the first date on which the assignment no longer holds, or null
+         */
+        public AssignmentRow(String source, String externalId, String employmentExternalId,
+                String orgUnitExternalId, String jobTitle, String occupation, String kind, Boolean head,
+                Boolean primary, BigDecimal allocationPercent, Integer displayOrder, Map<String, Object> attributes,
+                String validFrom, String validTo) {
+            this(source, externalId, employmentExternalId, orgUnitExternalId, jobTitle, occupation, kind, head,
+                    primary, allocationPercent, displayOrder, attributes, validFrom, validTo, null, null, null);
+        }
     }
 
     @Schema(
@@ -264,8 +301,8 @@ public record ImportDocument(
 
     @Schema(
             name = "ImportOrgUnitRow",
-            description = "An org unit. It is matched by source and external ID.",
-            requiredProperties = {"externalId", "name"})
+            description = "An org unit. It is matched by source and external ID, or by `id`. A row needs one of them.",
+            requiredProperties = {"name"})
     public record OrgUnitRow(
             @Schema(
                     description = "The name of the system that the row comes from. The default is the source of the "

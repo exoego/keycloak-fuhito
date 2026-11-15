@@ -54,11 +54,7 @@ final class PeopleImport {
         for (int i = 0; i < rows.size(); i++) {
             try {
                 PersonRow row = Checks.required("row", rows.get(i));
-                if (row.id() == null) {
-                    requireFirst(seen, row.source(), row.externalId());
-                } else if (!seen.add("\\u0000id\\u0000" + row.id())) {
-                    throw FuhitoException.invalid("import.duplicate_row", Map.of("externalId", row.id()));
-                }
+                requireFirst(seen, row.source(), row.externalId(), row.id());
                 report.count(PEOPLE, importPerson(row));
             } catch (FuhitoException e) {
                 report.error(PEOPLE, i, e);
@@ -145,7 +141,7 @@ final class PeopleImport {
         for (int i : order) {
             try {
                 AssignmentRow row = Checks.required("row", rows.get(i));
-                requireFirst(seen, row.source(), row.externalId());
+                requireFirst(seen, row.source(), row.externalId(), row.id());
                 report.count(ASSIGNMENTS, importAssignment(row));
             } catch (FuhitoException e) {
                 report.error(ASSIGNMENTS, i, e);
@@ -153,7 +149,14 @@ final class PeopleImport {
         }
     }
 
-    private void requireFirst(Set<String> seen, String source, String externalId) {
+    // A row with an ID is known by it. Any other row needs an external ID.
+    private void requireFirst(Set<String> seen, String source, String externalId, String id) {
+        if (id != null) {
+            if (!seen.add("\\u0000id\\u0000" + id)) {
+                throw FuhitoException.invalid("import.duplicate_row", Map.of("externalId", id));
+            }
+            return;
+        }
         Checks.required("externalId", externalId);
         if (!seen.add((source == null ? defaultSource : source) + "\\u0000" + externalId)) {
             throw FuhitoException.invalid("import.duplicate_row", Map.of("externalId", externalId));
@@ -161,11 +164,7 @@ final class PeopleImport {
     }
 
     private Outcome importEmployment(EmploymentRow row, Set<String> seen) {
-        if (row.id() == null) {
-            requireFirst(seen, row.source(), row.externalId());
-        } else if (!seen.add("\\u0000id\\u0000" + row.id())) {
-            throw FuhitoException.invalid("import.duplicate_row", Map.of("externalId", row.id()));
-        }
+        requireFirst(seen, row.source(), row.externalId(), row.id());
         String source = Checks.code("source", row.source() == null ? defaultSource : row.source());
         String name = row.externalId() == null ? row.id() : row.externalId();
         Optional<Employment> stored = row.id() == null ? people.employments().findByExternalId(source,
@@ -318,22 +317,18 @@ final class PeopleImport {
 
     private Outcome importAssignment(AssignmentRow row) {
         String source = Checks.code("source", row.source() == null ? defaultSource : row.source());
-        String employmentExternalId = Checks.required("employmentExternalId", row.employmentExternalId());
-        String orgUnitExternalId = Checks.required("orgUnitExternalId", row.orgUnitExternalId());
-        String employmentId = people.employments().findByExternalId(source, employmentExternalId)
-                .map(Employment::id)
-                .orElseThrow(() -> FuhitoException.invalid("import.employment_unknown",
-                        Map.of("employmentExternalId", employmentExternalId)));
-        String orgUnitId = orgUnits.findUnitByExternalId(source, orgUnitExternalId)
-                .map(OrgUnit::id)
-                .orElseThrow(() -> FuhitoException.invalid("import.org_unit_unknown",
-                        Map.of("orgUnitExternalId", orgUnitExternalId)));
+        String name = row.externalId() == null ? row.id() : row.externalId();
+        Optional<String> stored = row.id() == null
+                ? people.assignments().findAssignmentIdByExternalId(source, row.externalId())
+                : Optional.of(assignmentById(row, source));
+        Optional<Assignment> firstRow = stored.map(id -> people.assignments().rows(id).getFirst());
+        String employmentId = employmentId(row, source, firstRow);
+        String orgUnitId = orgUnitId(row, source, firstRow);
         AssignmentValues values = new AssignmentValues(employmentId, orgUnitId,
                 row.validFrom() == null ? effectiveDate : row.validFrom(), row.validTo(), row.jobTitle(),
                 row.occupation(), row.kind(), row.head(), row.primary(), false, row.allocationPercent(),
                 row.displayOrder(), row.attributes(), row.externalId(), source);
 
-        Optional<String> stored = people.assignments().findAssignmentIdByExternalId(source, row.externalId());
         if (stored.isEmpty()) {
             AssignmentView created = people.assignmentService().add(values);
             written(true, "", created);
@@ -343,7 +338,7 @@ final class PeopleImport {
         AssignmentView before = people.assignmentService().get(id);
         Assignment first = before.rows().getFirst().row();
         if (!first.employmentId().equals(employmentId) || !first.orgUnitId().equals(orgUnitId)) {
-            throw FuhitoException.conflict("import.assignment_mismatch", Map.of("externalId", row.externalId()));
+            throw FuhitoException.conflict("import.assignment_mismatch", Map.of("externalId", name));
         }
         boolean changed = false;
         LocalDate date = Checks.date("effectiveDate", effectiveDate);
@@ -373,6 +368,64 @@ final class PeopleImport {
             changed = true;
         }
         return changed ? Outcome.CHANGED : Outcome.UNCHANGED;
+    }
+
+    // A row with an ID changes that assignment. An external ID beside it must be the one of that assignment.
+    private String assignmentById(AssignmentRow row, String source) {
+        List<Assignment> rows = people.assignments().rows(row.id());
+        if (rows.isEmpty()) {
+            throw FuhitoException.invalid("import.id_unknown", Map.of("id", row.id()));
+        }
+        Assignment first = rows.getFirst();
+        if (row.externalId() != null && !(row.externalId().equals(first.externalId())
+                && source.equals(first.source()))) {
+            throw FuhitoException.invalid("import.id_mismatch", Map.of("id", row.id(), "externalId", row.externalId()));
+        }
+        return row.id();
+    }
+
+    // A row of a stored assignment that names no employment keeps the stored one.
+    private String employmentId(AssignmentRow row, String source, Optional<Assignment> stored) {
+        if (row.employmentExternalId() != null && row.employmentId() != null) {
+            throw FuhitoException.invalid("import.employment_twice",
+                    Map.of("employmentExternalId", row.employmentExternalId(), "employmentId", row.employmentId()));
+        }
+        if (row.employmentId() != null) {
+            if (people.employments().find(row.employmentId()).isEmpty()) {
+                throw FuhitoException.invalid("import.id_unknown", Map.of("id", row.employmentId()));
+            }
+            return row.employmentId();
+        }
+        if (row.employmentExternalId() == null && stored.isPresent()) {
+            return stored.get().employmentId();
+        }
+        String externalId = Checks.required("employmentExternalId", row.employmentExternalId());
+        return people.employments().findByExternalId(source, externalId)
+                .map(Employment::id)
+                .orElseThrow(() -> FuhitoException.invalid("import.employment_unknown",
+                        Map.of("employmentExternalId", externalId)));
+    }
+
+    // A row of a stored assignment that names no org unit keeps the stored one.
+    private String orgUnitId(AssignmentRow row, String source, Optional<Assignment> stored) {
+        if (row.orgUnitExternalId() != null && row.orgUnitId() != null) {
+            throw FuhitoException.invalid("import.org_unit_twice",
+                    Map.of("orgUnitExternalId", row.orgUnitExternalId(), "orgUnitId", row.orgUnitId()));
+        }
+        if (row.orgUnitId() != null) {
+            if (orgUnits.findUnit(row.orgUnitId()).isEmpty()) {
+                throw FuhitoException.invalid("import.id_unknown", Map.of("id", row.orgUnitId()));
+            }
+            return row.orgUnitId();
+        }
+        if (row.orgUnitExternalId() == null && stored.isPresent()) {
+            return stored.get().orgUnitId();
+        }
+        String externalId = Checks.required("orgUnitExternalId", row.orgUnitExternalId());
+        return orgUnits.findUnitByExternalId(source, externalId)
+                .map(OrgUnit::id)
+                .orElseThrow(() -> FuhitoException.invalid("import.org_unit_unknown",
+                        Map.of("orgUnitExternalId", externalId)));
     }
 
     private static boolean sameDetails(AssignmentRow row, AssignmentView.Row current) {

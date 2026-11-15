@@ -63,7 +63,7 @@ class CsvImportIT {
         assertEquals(1, load(api, "org-units", "effectiveDate=2026-06-01", changed).get("counts").get("orgUnits")
                 .get("changed").asInt());
         assertEquals("X病院", Api.json(api.get("/org-units/" + hospital + "?asOf=2026-06-01")).get("name").asText());
-        assertEquals(400, api.get("/imports/csv/assignments").statusCode());
+        assertEquals(400, api.get("/imports/csv/nope").statusCode());
     }
 
     @Test
@@ -147,6 +147,58 @@ class CsvImportIT {
                 .get("employments").get("changed").asInt());
         JsonNode terms = Api.json(api.get("/employments/" + employment)).get("terms");
         assertEquals("g2", terms.get(terms.size() - 1).get("grade").asText());
+    }
+
+    @Test
+    void anExportOfAssignmentsLoadsAgainWithNoChange() throws Exception {
+        TestRealm realm = TestRealm.withEmployer("csv-export-assignments");
+        Api api = realm.api;
+        realm.refItem("JOB_TITLE", "chief", "主任");
+        realm.refItem("OCCUPATION", "nurse", "看護師");
+        realm.refItem("ASSIGNMENT_KIND", "concurrent", "兼務");
+        assertEquals(201, api.post("/attribute-definitions", "{\"target\": \"ASSIGNMENT\", \"name\": \"room\", "
+                + "\"type\": \"STRING\"}").statusCode());
+        String ward = Api.json(api.post("/org-units", "{\"name\": \"1病棟\", \"validFrom\": \"2020-04-01\"}"))
+                .get("id").asText();
+        String lab = Api.json(api.post("/org-units", "{\"name\": \"検査室\", \"validFrom\": \"2020-04-01\"}"))
+                .get("id").asText();
+        String hanako = Api.json(api.post("/people", "{\"name\": \"山田 花子\"}")).get("id").asText();
+        String employment = Api.json(api.post("/employments", "{\"personId\": \"" + hanako + "\", "
+                + "\"validFrom\": \"2020-04-01\"}")).get("id").asText();
+        String main = Api.json(api.post("/assignments", "{\"employmentId\": \"" + employment + "\", \"orgUnitId\": \""
+                + ward + "\", \"validFrom\": \"2020-04-01\", \"primary\": true, \"occupation\": \"nurse\", "
+                + "\"allocationPercent\": 70, \"attributes\": {\"room\": \"3F, east\"}}")).get("id").asText();
+        // A change after the date of the export ends a row, not the assignment.
+        assertEquals(200, api.put("/assignments/" + main + "/details", "{\"validFrom\": \"2026-07-01\", "
+                + "\"jobTitle\": \"chief\", \"primary\": true}").statusCode());
+        assertEquals(201, api.post("/assignments", "{\"employmentId\": \"" + employment + "\", \"orgUnitId\": \""
+                + lab + "\", \"validFrom\": \"2020-04-01\", \"validTo\": \"2021-04-01\"}").statusCode());
+        String concurrent = Api.json(api.post("/assignments", "{\"employmentId\": \"" + employment + "\", "
+                + "\"orgUnitId\": \"" + lab + "\", \"validFrom\": \"2021-04-01\", \"kind\": \"concurrent\", "
+                + "\"allocationPercent\": 30, \"externalId\": \"A-2\", \"source\": \"hr\"}")).get("id").asText();
+        assertEquals(200, api.put("/assignments/" + concurrent + "/end", "{\"validTo\": \"2027-04-01\"}")
+                .statusCode());
+
+        for (String header : List.of("en", "ja")) {
+            HttpResponse<String> exported = api.get("/imports/csv/assignments?asOf=2026-05-01&header=" + header);
+            assertEquals(200, exported.statusCode(), exported.body());
+            assertTrue(exported.body().startsWith("﻿" + (header.equals("en") ? "id,externalId,source,"
+                    + "employmentId,orgUnitId" : "ID,外部ID,ソース,雇用のID,組織のID")), exported.body());
+            assertEquals(3, exported.body().split("\r\n").length, exported.body());
+            assertTrue(exported.body().contains(",nurse,,false,true,70,0,2020-04-01,,\"3F, east\""), exported.body());
+            assertTrue(exported.body().contains(",A-2,hr,"), exported.body());
+            assertTrue(exported.body().contains(",concurrent,false,false,30,0,2021-04-01,2027-04-01,"),
+                    exported.body());
+
+            JsonNode counts = load(api, "assignments", "effectiveDate=2026-05-01", exported.body()).get("counts")
+                    .get("assignments");
+            assertEquals(0, counts.get("created").asInt() + counts.get("changed").asInt(), counts.toString());
+        }
+        String more = api.get("/imports/csv/assignments?asOf=2026-05-01").body().replace(",30,", ",40,");
+        assertEquals(1, load(api, "assignments", "effectiveDate=2026-06-01", more).get("counts")
+                .get("assignments").get("changed").asInt());
+        JsonNode periods = Api.json(api.get("/assignments/" + concurrent)).get("periods");
+        assertEquals(40, periods.get(periods.size() - 1).get("allocationPercent").asInt());
     }
 
     @Test

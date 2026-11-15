@@ -45,6 +45,22 @@ public class JpaAssignmentStore implements AssignmentStore {
     }
 
     @Override
+    public List<Assignment> rowsOf(Collection<String> assignmentIds) {
+        if (assignmentIds.isEmpty()) {
+            return List.of();
+        }
+        return em.createQuery("""
+                        select a from AssignmentEntity a where a.realmId = :realmId
+                        and %s order by a.assignmentId, a.validFrom"""
+                        .formatted(ManyIds.has("a.assignmentId", "assignmentIds")), AssignmentEntity.class)
+                .setParameter("realmId", realmId)
+                .setParameter("assignmentIds", ManyIds.of(assignmentIds))
+                .getResultStream()
+                .map(JpaAssignmentStore::toDomain)
+                .toList();
+    }
+
+    @Override
     public List<Assignment> rowsOfEmployment(String employmentId) {
         return em.createQuery("""
                         select a from AssignmentEntity a where a.realmId = :realmId

@@ -958,11 +958,9 @@ components:
           maxLength: 255
     ImportAssignmentRow:
       type: object
-      required:
-      - externalId
-      - employmentExternalId
-      - orgUnitExternalId
-      description: An assignment. It is matched by source and external ID.
+      description: "An assignment. It is matched by source and external ID, or by\
+        \ `id`. A row needs one of them. A new assignment names its employment and\
+        \ its org unit."
       properties:
         source:
           type: string
@@ -975,10 +973,13 @@ components:
           description: The ID of the assignment in that system.
         employmentExternalId:
           type: string
-          description: The external ID of the employment with the same source.
+          description: The external ID of the employment with the same source. A row
+            of a stored assignment that names no employment keeps the one that is
+            stored.
         orgUnitExternalId:
           type: string
-          description: The external ID of the org unit with the same source.
+          description: The external ID of the org unit with the same source. A row
+            of a stored assignment that names no org unit keeps the one that is stored.
         jobTitle:
           type: string
           description: The code of the job title.
@@ -1020,6 +1021,19 @@ components:
           description: The first date on which the assignment no longer holds. The
             default is the end of the employment.
           format: date
+        employmentId:
+          type: string
+          description: "The ID of the employment, for an employment with no external\
+            \ ID of the same source. Give this or `employmentExternalId`, not both."
+        orgUnitId:
+          type: string
+          description: "The ID of the org unit, for an org unit with no external ID\
+            \ of the same source. Give this or `orgUnitExternalId`, not both."
+        id:
+          type: string
+          description: "The ID of a stored assignment, for a row of an assignment\
+            \ with no external ID. A CSV export has it in every row. A new assignment\
+            \ has none."
     ImportCounts:
       type: object
       required:
@@ -1172,9 +1186,9 @@ components:
     ImportOrgUnitRow:
       type: object
       required:
-      - externalId
       - name
-      description: An org unit. It is matched by source and external ID.
+      description: "An org unit. It is matched by source and external ID, or by `id`.\
+        \ A row needs one of them."
       properties:
         source:
           type: string
@@ -1248,10 +1262,8 @@ components:
             \ ID. A CSV export has it in every row. A new unit has none."
     ImportPersonRow:
       type: object
-      required:
-      - externalId
       description: "A person, also one with no Keycloak user. It is matched by source\
-        \ and external ID."
+        \ and external ID, or by `id`. A row needs one of them."
       properties:
         source:
           type: string
@@ -4699,10 +4711,9 @@ paths:
   /imports/csv/{list}:
     get:
       summary: Returns a list on a date as a CSV that the import loads again.
-      description: "A row of an org unit, a person, or an employment has the column\
-        \ `id`, so that a row of a thing with no external ID comes back too. The lists\
-        \ are the reference items, the org units, the people, and the employments\
-        \ for now. The reference items and the people have no date."
+      description: "The lists are the same as for the import. A row of anything but\
+        \ a reference item has the column `id`, so that a row of a thing with no external\
+        \ ID comes back too. The reference items and the people have no date."
       operationId: exportCsv
       tags:
       - bulk
@@ -4715,6 +4726,7 @@ paths:
           - org-units
           - people
           - employments
+          - assignments
         name: list
         in: path
         required: true

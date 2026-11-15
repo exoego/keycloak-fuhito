@@ -70,6 +70,14 @@ final class MemoryAssignmentStore implements AssignmentStore {
     }
 
     @Override
+    public List<Assignment> rowsOf(Collection<String> assignmentIds) {
+        return rows.stream()
+                .filter(r -> assignmentIds.contains(r.assignmentId()))
+                .sorted(Comparator.comparing(Assignment::assignmentId).thenComparing(r -> r.period().from()))
+                .toList();
+    }
+
+    @Override
     public List<Assignment> rowsOfEmployment(String employmentId) {
         return rows.stream()
                 .filter(r -> r.employmentId().equals(employmentId))
