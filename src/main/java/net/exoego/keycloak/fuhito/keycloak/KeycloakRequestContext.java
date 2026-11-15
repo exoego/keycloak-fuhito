@@ -143,6 +143,11 @@ final class KeycloakRequestContext implements RequestContext {
     }
 
     @Override
+    public String requestQuery() {
+        return session.getContext().getUri().getRequestUri().getRawQuery();
+    }
+
+    @Override
     public IdempotencyStore idempotency() {
         return new JpaIdempotencyStore(entityManager, realm.getId());
     }
