@@ -67,6 +67,41 @@ class CsvImportIT {
     }
 
     @Test
+    void anExportOfReferenceItemsLoadsAgainWithNoChange() throws Exception {
+        TestRealm realm = TestRealm.withEmployer("csv-export-items");
+        Api api = realm.api;
+        assertEquals(201, api.post("/attribute-definitions", "{\"target\": \"REF_ITEM\", \"name\": \"note\", "
+                + "\"type\": \"STRING\"}").statusCode());
+        assertEquals(201, api.post("/ref-kinds", "{\"code\": \"site\", \"name\": \"拠点\"}").statusCode());
+        assertEquals(201, api.post("/ref-items", "{\"kind\": \"site\", \"code\": \"tokyo\", \"name\": \"東京\", "
+                + "\"names\": {\"en\": \"Tokyo\"}, \"displayOrder\": 2, \"attributes\": {\"note\": \"1F, west\"}}")
+                .statusCode());
+        assertEquals(201, api.post("/ref-items", "{\"kind\": \"UNIT_TYPE\", \"code\": \"committee\", "
+                + "\"name\": \"委員会\", \"group\": true}").statusCode());
+        assertEquals(201, api.post("/ref-items", "{\"kind\": \"ASSIGNMENT_KIND\", \"code\": \"acting\", "
+                + "\"name\": \"代行\", \"actingHead\": true}").statusCode());
+        String old = realm.refItem("JOB_TITLE", "old", "旧役職");
+        assertEquals(200, api.put("/ref-items/" + old, "{\"name\": \"旧役職\", \"active\": false}").statusCode());
+
+        for (String header : List.of("en", "ja")) {
+            HttpResponse<String> exported = api.get("/imports/csv/ref-items?header=" + header);
+            assertEquals(200, exported.statusCode(), exported.body());
+            assertTrue(exported.body().startsWith("﻿" + (header.equals("en") ? "kind,code,name,name:en,"
+                    + "displayOrder,active,legalEntity,actingHead,group,attributes.note"
+                    : "種類,コード,名称,名称:en,表示順,有効,法人,代行,グループ,attributes.note")), exported.body());
+            assertTrue(exported.body().contains("site,tokyo,東京,Tokyo,2,true,,,,\"1F, west\""), exported.body());
+            assertTrue(exported.body().contains("JOB_TITLE,old,旧役職,,0,false,,,,"), exported.body());
+
+            JsonNode counts = load(api, "ref-items", "effectiveDate=2026-05-01", exported.body()).get("counts")
+                    .get("refItems");
+            assertEquals(0, counts.get("created").asInt() + counts.get("changed").asInt(), counts.toString());
+        }
+        String renamed = api.get("/imports/csv/ref-items").body().replace("東京", "東京本社");
+        load(api, "ref-items", "effectiveDate=2026-06-01", renamed);
+        assertEquals("東京本社", Api.json(api.get("/ref-items?kind=site")).get(0).get("name").asText());
+    }
+
+    @Test
     void anExportOfPeopleLoadsAgainWithNoChange() throws Exception {
         TestRealm realm = TestRealm.withEmployer("csv-export-people");
         Api api = realm.api;
