@@ -5,8 +5,11 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Map;
 
 import net.exoego.keycloak.fuhito.domain.ExternalId;
+import net.exoego.keycloak.fuhito.domain.RefItem;
+import net.exoego.keycloak.fuhito.domain.RefKind;
 import net.exoego.keycloak.fuhito.domain.ReportingLine;
 import net.exoego.keycloak.fuhito.domain.UnitRole;
 import net.exoego.keycloak.fuhito.domain.ValidPeriod;
@@ -135,6 +138,20 @@ class UserRetirementTest {
         assertEquals(List.of(), unitRoles.findByEmployment(next));
         assertEquals(List.of(), externalIds.rows);
         assertEquals(0, assignmentStore.rows.size());
+    }
+
+    @Test
+    void aReasonThatWasStoredWithALaterEndStays() {
+        refItems.insert(new RefItem("resignation", RefKind.END_REASON, "resignation", "Resignation", Map.of(), 0,
+                Map.of(), true));
+        String employment = employ("alice", "2020-04-01", null);
+        employments.end(employment, "2026-12-01", "resignation");
+
+        retirement.retire("alice");
+
+        EmploymentView ended = employments.get(employment);
+        assertEquals("2026-06-15", ended.employment().period().to().toString());
+        assertEquals("resignation", ended.endReason());
     }
 
     @Test
