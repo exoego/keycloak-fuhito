@@ -4371,9 +4371,41 @@ paths:
         "409":
           $ref: "#/components/responses/Conflict"
   /org-units/{id}/end:
+    delete:
+      summary: Removes the end of an org unit.
+      description: The last details and the parents that ended with the unit get no
+        end either. Each parent must have no end then.
+      operationId: removeOrgUnitEnd
+      tags:
+      - org-units
+      parameters:
+      - description: The ID of the resource.
+        name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      - $ref: "#/components/parameters/changeOrder"
+      responses:
+        "200":
+          description: The unit as it is on the first date of its last details.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrgUnit"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
     put:
-      summary: Ends an org unit.
-      description: Its history stays readable for earlier dates.
+      summary: "Ends an org unit, or moves its end."
+      description: Its history stays readable for earlier dates. A later end lengthens
+        the last details and the parents that ended with the unit. The end of a unit
+        that other units follow does not move.
       operationId: endOrgUnit
       tags:
       - org-units

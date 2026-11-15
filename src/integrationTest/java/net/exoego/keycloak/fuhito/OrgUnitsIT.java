@@ -299,7 +299,13 @@ class OrgUnitsIT {
         assertEquals(parent, last.get("parentId").asText());
         assertEquals(last, Api.json(api.get("/org-units/" + unit + "?asOf=2027-03-31")));
         assertEquals("org_unit.not_valid_on", errorOf(404, api.get("/org-units/" + unit + "?asOf=2027-04-01")));
-        assertEquals("org_unit.already_ended", errorOf(409, api.put("/org-units/" + unit + "/end", "{\"validTo\": \"2028-04-01\"}")));
+        // The end moves, and can go away again.
+        assertEquals("2028-04-01", Api.json(api.put("/org-units/" + unit + "/end", "{\"validTo\": \"2028-04-01\"}"))
+                .get("validTo").asText());
+        HttpResponse<String> reopened = api.delete("/org-units/" + unit + "/end");
+        assertEquals(200, reopened.statusCode(), reopened.body());
+        assertFalse(Api.json(reopened).has("validTo"));
+        assertEquals(200, api.put("/org-units/" + unit + "/end", "{\"validTo\": \"2027-04-01\"}").statusCode());
         // The parent can end once its last child is gone.
         assertEquals("org_unit.has_children", errorOf(409, api.put("/org-units/" + parent + "/end", "{\"validTo\": \"2027-03-31\"}")));
         assertEquals(200, api.put("/org-units/" + parent + "/end", "{\"validTo\": \"2027-04-01\"}").statusCode());
