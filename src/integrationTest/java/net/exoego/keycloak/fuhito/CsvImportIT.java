@@ -102,6 +102,54 @@ class CsvImportIT {
     }
 
     @Test
+    void anExportOfEmploymentsLoadsAgainWithNoChange() throws Exception {
+        TestRealm realm = TestRealm.withEmployer("csv-export-employments");
+        Api api = realm.api;
+        realm.refItem("GRADE", "g1", "1級");
+        realm.refItem("GRADE", "g2", "2級");
+        realm.refItem("LEAVE_REASON", "parental", "育児休業");
+        realm.refItem("END_REASON", "resignation", "退職");
+        assertEquals(201, api.post("/attribute-definitions", "{\"target\": \"EMPLOYMENT_TERMS\", \"name\": \"shift\", "
+                + "\"type\": \"STRING\"}").statusCode());
+        // People and employments made through REST have no external ID.
+        String hanako = Api.json(api.post("/people", "{\"name\": \"山田 花子\"}")).get("id").asText();
+        String taro = Api.json(api.post("/people", "{\"name\": \"Taro\"}")).get("id").asText();
+        String employment = Api.json(api.post("/employments", "{\"personId\": \"" + hanako + "\", \"staffNumber\": "
+                + "\"N-1\", \"grade\": \"g1\", \"status\": \"ON_LEAVE\", \"leaveReason\": \"parental\", "
+                + "\"workPercent\": 80.5, \"attributes\": {\"shift\": \"day, night\"}, \"validFrom\": \"2020-04-01\"}"))
+                .get("id").asText();
+        String ending = Api.json(api.post("/employments", "{\"personId\": \"" + taro + "\", \"externalId\": \"E-1\", "
+                + "\"source\": \"hr\", \"validFrom\": \"2021-04-01\"}")).get("id").asText();
+        assertEquals(200, api.put("/employments/" + ending + "/end", "{\"validTo\": \"2027-04-01\", "
+                + "\"endReason\": \"resignation\"}").statusCode());
+        // Neither holds on the date of the export.
+        assertEquals(201, api.post("/employments", "{\"personId\": \"" + taro + "\", \"validFrom\": \"2015-04-01\", "
+                + "\"validTo\": \"2020-04-01\"}").statusCode());
+        assertEquals(201, api.post("/employments", "{\"personId\": \"" + hanako + "\", \"validFrom\": \"2027-04-01\"}")
+                .statusCode());
+
+        for (String header : List.of("en", "ja")) {
+            HttpResponse<String> exported = api.get("/imports/csv/employments?asOf=2026-05-01&header=" + header);
+            assertEquals(200, exported.statusCode(), exported.body());
+            assertTrue(exported.body().startsWith("﻿" + (header.equals("en") ? "id,externalId,source,personId,"
+                    + "staffNumber,employerId" : "ID,外部ID,ソース,人のID,職員番号,雇用主のID")), exported.body());
+            assertEquals(3, exported.body().split("\r\n").length, exported.body());
+            assertTrue(exported.body().contains(",g1,ON_LEAVE,parental,80.5,2020-04-01,,,\"day, night\""),
+                    exported.body());
+            assertTrue(exported.body().contains(",ACTIVE,,,2021-04-01,2027-04-01,resignation,"), exported.body());
+
+            JsonNode counts = load(api, "employments", "effectiveDate=2026-05-01", exported.body()).get("counts")
+                    .get("employments");
+            assertEquals(0, counts.get("created").asInt() + counts.get("changed").asInt(), counts.toString());
+        }
+        String promoted = api.get("/imports/csv/employments?asOf=2026-05-01").body().replace(",g1,", ",g2,");
+        assertEquals(1, load(api, "employments", "effectiveDate=2026-06-01", promoted).get("counts")
+                .get("employments").get("changed").asInt());
+        JsonNode terms = Api.json(api.get("/employments/" + employment)).get("terms");
+        assertEquals("g2", terms.get(terms.size() - 1).get("grade").asText());
+    }
+
+    @Test
     void anExportOfPeopleLoadsAgainWithNoChange() throws Exception {
         TestRealm realm = TestRealm.withEmployer("csv-export-people");
         Api api = realm.api;

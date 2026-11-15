@@ -81,7 +81,8 @@ public class CsvImportService {
             Map.entry("employerExternalId", "雇用主の外部ID"), Map.entry("legalEntity", "法人"), Map.entry("actingHead", "代行"),
             Map.entry("group", "グループ"), Map.entry("personExternalId", "人の外部ID"),
             Map.entry("head", "長"), Map.entry("primary", "主務"), Map.entry("allocationPercent", "配分割合"),
-            Map.entry("id", "ID"), Map.entry("parentId", "親のID"));
+            Map.entry("id", "ID"), Map.entry("parentId", "親のID"), Map.entry("personId", "人のID"),
+            Map.entry("employerId", "雇用主のID"));
 
     // The lists that a file can hold, each with the resource whose attributes it sets.
     private enum Kind {
@@ -113,9 +114,9 @@ public class CsvImportService {
                     "group"),
             Kind.ORG_UNITS, Set.of("id", "externalId", "source", "code", "name", "shortName", "phoneticName",
                     "unitType", "parentExternalId", "parentId", "displayOrder", "validFrom", "validTo"),
-            Kind.EMPLOYMENTS, Set.of("externalId", "source", "username", "userId", "staffNumber", "employmentType",
-                    "grade", "status", "leaveReason", "workPercent", "validFrom", "validTo", "endReason",
-                    "employerExternalId", "personExternalId"),
+            Kind.EMPLOYMENTS, Set.of("id", "externalId", "source", "username", "userId", "staffNumber",
+                    "employmentType", "grade", "status", "leaveReason", "workPercent", "validFrom", "validTo",
+                    "endReason", "employerExternalId", "employerId", "personExternalId", "personId"),
             Kind.PEOPLE, Set.of("id", "externalId", "source", "username", "userId", "name", "phoneticName"),
             Kind.ASSIGNMENTS, Set.of("externalId", "source", "employmentExternalId", "orgUnitExternalId", "jobTitle",
                     "occupation", "assignmentKind", "head", "primary", "allocationPercent", "displayOrder",
@@ -317,7 +318,9 @@ public class CsvImportService {
     private EmploymentRow employment(Cells cells, LocalDate date, String defaultSource) {
         String source = cells.text("source", null);
         String externalId = cells.text("externalId", null);
-        Optional<Employment> employment = externalId == null ? Optional.empty()
+        String id = cells.text("id", null);
+        Optional<Employment> employment = id != null ? people.employments().find(id)
+                : externalId == null ? Optional.empty()
                 : people.employments().findByExternalId(source == null ? defaultSource : source, externalId);
         Optional<EmploymentView.TermsView> terms = employment
                 .map(e -> people.employmentService().get(e.id()))
@@ -338,7 +341,8 @@ public class CsvImportService {
                 cells.decimal("workPercent", terms.map(t -> t.terms().workPercent()).orElse(null)),
                 cells.attributes(terms.map(t -> t.terms().attributes()).orElse(null)),
                 cells.text("validFrom", null), cells.text("validTo", null), cells.text("endReason", null),
-                cells.text("employerExternalId", null), cells.text("personExternalId", null));
+                cells.text("employerExternalId", null), cells.text("personExternalId", null),
+                cells.text("personId", null), cells.text("employerId", null), id);
     }
 
     private AssignmentRow assignment(Cells cells, LocalDate date, String defaultSource) {

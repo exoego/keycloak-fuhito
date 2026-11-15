@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import net.exoego.keycloak.fuhito.domain.Employment;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.Person;
 import net.exoego.keycloak.fuhito.domain.RefItem;
@@ -300,7 +301,7 @@ class ImportServiceTest {
         OrgUnitRow later = new OrgUnitRow(null, "L", null, "Lab", null, null, null, null, null, "H", null, null, null,
                 "2027-05-01", null, null);
         EmploymentRow hired = new EmploymentRow(null, "E9", "doctor", null, null, null, null, null, null, null, null,
-                "2027-05-01", null, null, null, null);
+                "2027-05-01", null, null, null, null, null, null, null);
         AssignmentRow placed = new AssignmentRow(null, "A9", "E9", "L", null, null, null, null, true, null, null,
                 null, "2027-05-01", null);
         ImportDocument document = new ImportDocument("2027-04-01", false, null, null, List.of(ending, later),
@@ -368,27 +369,76 @@ class ImportServiceTest {
 
         // An employment row names the person with no user.
         EmploymentRow old = new EmploymentRow(null, "E9", null, null, null, null, null, null, null, null, null,
-                "1990-04-01", "2000-04-01", null, null, "P1");
+                "1990-04-01", "2000-04-01", null, null, "P1", null, null, null);
         assertEquals(List.of(), service.apply(new ImportDocument("2026-04-01", false, null, null, null, List.of(old),
                 null)).errors());
         assertEquals(retired.id(), employmentStore.findByExternalId("import", "E9").orElseThrow().personId());
         // A row for that stored employment may name nobody.
         EmploymentRow again = new EmploymentRow(null, "E9", null, null, null, null, null, null, null, null, null,
-                null, "2000-04-01", null, null, null);
+                null, "2000-04-01", null, null, null, null, null, null);
         assertEquals(new Counts(0, 0, 1), service.apply(new ImportDocument("2026-04-01", false, null, null, null,
                 List.of(again), null)).counts().get("employments"));
 
         EmploymentRow unknown = new EmploymentRow(null, "E8", null, null, null, null, null, null, null, null, null,
-                "1990-04-01", null, null, null, "P7");
+                "1990-04-01", null, null, null, "P7", null, null, null);
         assertEquals("import.person_unknown", service.apply(new ImportDocument("2026-04-01", false, null, null, null,
                 List.of(unknown), null)).errors().getFirst().error().code());
         EmploymentRow mismatch = new EmploymentRow(null, "E7", "nurse", null, null, null, null, null, null, null,
-                null, "1990-04-01", null, null, null, "P1");
+                null, "1990-04-01", null, null, null, "P1", null, null, null);
         assertEquals("import.user_mismatch", service.apply(new ImportDocument("2026-04-01", false, null, null,
                 null, List.of(mismatch), null)).errors().getFirst().error().code());
         PersonRow renamed = new PersonRow(null, "P1", null, null, "山田 華子", null, null, null, null);
         assertEquals(new Counts(0, 1, 0), service.apply(new ImportDocument("2026-04-01", false, null, null, null,
                 null, null, List.of(renamed))).counts().get("people"));
+    }
+
+    private static EmploymentRow byIds(String externalId, String personId, String employerId, String grade,
+            String id) {
+        return new EmploymentRow(null, externalId, null, null, null, null, grade, null, null, null, null,
+                "2020-04-01", null, null, null, null, personId, employerId, id);
+    }
+
+    private ImportReport importEmployments(EmploymentRow... rows) {
+        return service.apply(new ImportDocument("2026-04-01", false, null, null, null, List.of(rows), null));
+    }
+
+    @Test
+    void aRowNamesAStoredEmploymentItsPersonAndItsEmployerByTheirIds() {
+        importTwoUnits();
+        refItems.insert(new RefItem("g", RefKind.GRADE, "g2", "x", Map.of(), 0, Map.of(), true));
+        String hospital = orgUnitStore.findUnitByExternalId("import", "H").orElseThrow().id();
+        PersonService personService = new PersonService(personStore, users, id -> false);
+        String taro = personService.create(new PersonValues(null, "Taro", null, null, null, null, null)).person().id();
+
+        assertEquals(List.of(), errors(importEmployments(byIds("E1", taro, hospital, null, null))));
+        Employment stored = employmentStore.findByExternalId("import", "E1").orElseThrow();
+        assertEquals(taro, stored.personId());
+        assertEquals(hospital, stored.employerId());
+
+        ImportReport changed = importEmployments(byIds(null, taro, hospital, "g2", stored.id()));
+        assertEquals(List.of(), errors(changed));
+        assertEquals(new Counts(0, 1, 0), changed.counts().get("employments"));
+        assertEquals(new Counts(0, 0, 1), importEmployments(byIds("E1", null, null, "g2", stored.id())).counts()
+                .get("employments"));
+
+        String hanako = personService.create(new PersonValues(null, "Hanako", null, null, null, null, null)).person()
+                .id();
+        EmploymentRow twice = new EmploymentRow(null, "E2", null, null, null, null, null, null, null, null, null,
+                null, null, null, "H", "P1", taro, hospital, null);
+        assertEquals(List.of("employments[0] import.user_mismatch"),
+                errors(importEmployments(byIds(null, hanako, null, null, stored.id()))));
+        assertEquals(List.of("employments[0] import.id_unknown", "employments[1] import.id_mismatch",
+                "employments[2] import.id_unknown", "employments[3] import.id_unknown",
+                "employments[4] import.person_twice", "employments[5] import.duplicate_row"),
+                errors(importEmployments(byIds(null, null, null, null, "nope"),
+                        byIds("OTHER", null, null, null, stored.id()),
+                        byIds("E3", "nope", hospital, null, null),
+                        byIds("E4", taro, "nope", null, null),
+                        twice,
+                        byIds(null, null, null, null, "nope"))));
+        EmploymentRow employerTwice = new EmploymentRow(null, "E2", null, null, null, null, null, null, null, null,
+                null, null, null, null, "H", null, taro, hospital, null);
+        assertEquals(List.of("employments[0] import.employer_twice"), errors(importEmployments(employerTwice)));
     }
 
     private void importTwoUnits() {

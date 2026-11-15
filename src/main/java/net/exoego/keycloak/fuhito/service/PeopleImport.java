@@ -161,15 +161,17 @@ final class PeopleImport {
     }
 
     private Outcome importEmployment(EmploymentRow row, Set<String> seen) {
-        requireFirst(seen, row.source(), row.externalId());
+        if (row.id() == null) {
+            requireFirst(seen, row.source(), row.externalId());
+        } else if (!seen.add("\\u0000id\\u0000" + row.id())) {
+            throw FuhitoException.invalid("import.duplicate_row", Map.of("externalId", row.id()));
+        }
         String source = Checks.code("source", row.source() == null ? defaultSource : row.source());
-        Optional<Employment> stored = people.employments().findByExternalId(source, row.externalId());
-        String personId = personId(row, source, stored);
-        String employerId = row.employerExternalId() == null ? null
-                : orgUnits.findUnitByExternalId(source, row.employerExternalId())
-                        .map(OrgUnit::id)
-                        .orElseThrow(() -> FuhitoException.invalid("import.org_unit_unknown",
-                                Map.of("orgUnitExternalId", row.employerExternalId())));
+        String name = row.externalId() == null ? row.id() : row.externalId();
+        Optional<Employment> stored = row.id() == null ? people.employments().findByExternalId(source,
+                row.externalId()) : Optional.of(employmentById(row, source));
+        String personId = personId(row, name, source, stored);
+        String employerId = employerId(row, source);
         if (stored.isEmpty()) {
             EmploymentView created = people.employmentService().start(new NewEmployment(personId,
                     row.validFrom() == null ? effectiveDate : row.validFrom(), row.validTo(), row.staffNumber(),
@@ -186,11 +188,11 @@ final class PeopleImport {
         Employment employment = stored.get();
         String id = employment.id();
         if (!employment.personId().equals(personId)) {
-            throw FuhitoException.conflict("import.user_mismatch", Map.of("externalId", row.externalId()));
+            throw FuhitoException.conflict("import.user_mismatch", Map.of("externalId", name));
         }
         // The employer never changes. A transfer to another employer is the way to move a person.
         if (employerId != null && !employerId.equals(employment.employerId())) {
-            throw FuhitoException.conflict("import.employer_mismatch", Map.of("externalId", row.externalId()));
+            throw FuhitoException.conflict("import.employer_mismatch", Map.of("externalId", name));
         }
         EmploymentView before = people.employmentService().get(id);
         boolean changed = false;
@@ -226,16 +228,53 @@ final class PeopleImport {
         return changed ? Outcome.CHANGED : Outcome.UNCHANGED;
     }
 
+    // A row with an ID changes that employment. An external ID beside it must be the one of that employment.
+    private Employment employmentById(EmploymentRow row, String source) {
+        Employment employment = people.employments().find(row.id())
+                .orElseThrow(() -> FuhitoException.invalid("import.id_unknown", Map.of("id", row.id())));
+        if (row.externalId() != null
+                && !(row.externalId().equals(employment.externalId()) && source.equals(employment.source()))) {
+            throw FuhitoException.invalid("import.id_mismatch", Map.of("id", row.id(), "externalId", row.externalId()));
+        }
+        return employment;
+    }
+
+    private String employerId(EmploymentRow row, String source) {
+        if (row.employerExternalId() != null && row.employerId() != null) {
+            throw FuhitoException.invalid("import.employer_twice",
+                    Map.of("employerExternalId", row.employerExternalId(), "employerId", row.employerId()));
+        }
+        if (row.employerId() != null) {
+            if (orgUnits.findUnit(row.employerId()).isEmpty()) {
+                throw FuhitoException.invalid("import.id_unknown", Map.of("id", row.employerId()));
+            }
+            return row.employerId();
+        }
+        return row.employerExternalId() == null ? null
+                : orgUnits.findUnitByExternalId(source, row.employerExternalId())
+                        .map(OrgUnit::id)
+                        .orElseThrow(() -> FuhitoException.invalid("import.org_unit_unknown",
+                                Map.of("orgUnitExternalId", row.employerExternalId())));
+    }
+
     // A row names a person of the list of people, or a Keycloak user. The person of a user is used, and created
     // when the user has none. A row for a stored employment may name nobody.
-    private String personId(EmploymentRow row, String source, Optional<Employment> stored) {
+    private String personId(EmploymentRow row, String name, String source, Optional<Employment> stored) {
         boolean namesUser = row.userId() != null || row.username() != null;
-        if (row.personExternalId() != null) {
-            Person person = people.personService().ofExternalId(source, row.personExternalId())
-                    .orElseThrow(() -> FuhitoException.invalid("import.person_unknown",
-                            Map.of("personExternalId", row.personExternalId())));
+        if (row.personExternalId() != null && row.personId() != null) {
+            throw FuhitoException.invalid("import.person_twice",
+                    Map.of("personExternalId", row.personExternalId(), "personId", row.personId()));
+        }
+        if (row.personExternalId() != null || row.personId() != null) {
+            Person person = row.personId() != null
+                    ? people.personService().find(row.personId())
+                            .orElseThrow(() -> FuhitoException.invalid("import.id_unknown",
+                                    Map.of("id", row.personId())))
+                    : people.personService().ofExternalId(source, row.personExternalId())
+                            .orElseThrow(() -> FuhitoException.invalid("import.person_unknown",
+                                    Map.of("personExternalId", row.personExternalId())));
             if (namesUser && !userId(row.userId(), row.username()).equals(person.userId())) {
-                throw FuhitoException.conflict("import.user_mismatch", Map.of("externalId", row.externalId()));
+                throw FuhitoException.conflict("import.user_mismatch", Map.of("externalId", name));
             }
             return person.id();
         }
