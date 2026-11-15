@@ -23,6 +23,8 @@ import net.exoego.keycloak.fuhito.service.OrgUnitState;
 import net.exoego.keycloak.fuhito.service.OrganizationLinkService;
 import net.exoego.keycloak.fuhito.service.UnitRoleService;
 import net.exoego.keycloak.fuhito.service.Page;
+import net.exoego.keycloak.fuhito.service.RemovalService;
+import net.exoego.keycloak.fuhito.store.ResourceRemoval;
 import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.enums.SchemaType;
 import org.eclipse.microprofile.openapi.annotations.headers.Header;
@@ -50,6 +52,7 @@ public class OrgUnitsResource {
     private final MembershipService membership;
     private final OrganizationLinkService organizationLinks;
     private final UnitRoleService unitRoles;
+    private final RemovalService removals;
 
     /**
      * Creates the resource for one request.
@@ -59,9 +62,11 @@ public class OrgUnitsResource {
      * @param membership the reads of members on the realm of the request
      * @param organizationLinks the links to Keycloak organizations of the realm
      * @param unitRoles the roles over org units of the realm
+     * @param removals the removal of resources that were made by mistake
      */
     public OrgUnitsResource(RequestContext context, OrgUnitService service, MembershipService membership,
-            OrganizationLinkService organizationLinks, UnitRoleService unitRoles) {
+            OrganizationLinkService organizationLinks, UnitRoleService unitRoles, RemovalService removals) {
+        this.removals = removals;
         this.unitRoles = unitRoles;
         this.organizationLinks = organizationLinks;
         this.context = context;
@@ -135,6 +140,27 @@ public class OrgUnitsResource {
         return Calls.guarded(context, () -> state(id), () -> {
             Checks.required("body", body);
             return updated(path(id) + "/parent", service.move(id, body.parentId(), body.validFrom(), hierarchy));
+        });
+    }
+
+    @DELETE
+    @Path("{id}")
+    @Operation(
+            operationId = "deleteOrgUnit",
+            summary = "Deletes an org unit that nothing refers to, with all its history.",
+            description = "It works only when no unit had it as a parent, no assignment, employment, role, or succession names it, and it has no link to a Keycloak organization. Its periods and its parents go with it. End a unit that existed for a while instead.")
+    @Parameter(ref = "changeOrder")
+    @APIResponse(responseCode = "204", description = "The resource is gone.")
+    @NotFound
+    @ApiErrors
+    public Response remove(
+            @Parameter(description = "The ID of the resource.")
+            @PathParam("id") String id) {
+        context.requireWrite();
+        return Calls.guardedRemoval(context, () -> state(id), () -> {
+            removals.remove(ResourceRemoval.Kind.ORG_UNIT, id);
+            context.recordChange(Change.DELETE, RESOURCE_TYPE, id, path(id), null);
+            return Response.noContent().build();
         });
     }
 
