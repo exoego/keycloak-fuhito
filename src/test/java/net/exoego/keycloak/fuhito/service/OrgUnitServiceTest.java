@@ -660,6 +660,10 @@ class OrgUnitServiceTest {
                 () -> service.removeEnd(unit)).code());
         assertEquals("org_unit.already_ended", assertThrows(FuhitoException.class,
                 () -> service.succeed(unit, "2032-04-01", List.of(next))).code());
+        // The unit that follows must exist on the date of the succession.
+        assertEquals("org_unit.follows_others", endFailure(next, "2031-04-01").code());
+        assertEquals("org_unit.follows_others", endFailure(next, "2030-06-01").code());
+        assertEquals("2031-04-02", service.end(next, "2031-04-02").version().period().to().toString());
     }
 
     private void assign(String assignmentId, String orgUnitId, String from, String to) {
