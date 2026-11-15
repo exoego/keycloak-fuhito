@@ -60,6 +60,21 @@ class QualificationServiceTest {
         public void delete(String id) {
             rows.removeIf(q -> q.id().equals(id));
         }
+
+        @Override
+        public List<Qualification> search(Search search, String afterId, int first, int max) {
+            return rows.stream()
+                    .filter(q -> search.kindId() == null || search.kindId().equals(q.kindId()))
+                    .filter(q -> search.date() == null || q.period().contains(search.date()))
+                    .filter(q -> afterId == null || q.id().compareTo(afterId) > 0)
+                    .sorted(Comparator.comparing(Qualification::id))
+                    .skip(first).limit(max).toList();
+        }
+
+        @Override
+        public long count(Search search) {
+            return search(search, null, 0, Integer.MAX_VALUE).size();
+        }
     }
 
     private final MemoryStore store = new MemoryStore();
@@ -82,6 +97,25 @@ class QualificationServiceTest {
 
     private FuhitoException failure(QualificationValues request) {
         return assertThrows(FuhitoException.class, () -> service.add(request));
+    }
+
+    @Test
+    void listsQualificationsByKindAndDate() {
+        refItems.insert(new RefItem("license", RefKind.QUALIFICATION, "license", "License", Map.of(), 0, Map.of(),
+                true));
+        refItems.insert(new RefItem("course", RefKind.QUALIFICATION, "course", "Course", Map.of(), 0, Map.of(),
+                true));
+        service.add(of("doctor", "license", "1", "2010-05-01", null));
+        service.add(of("nurse", "license", "2", "2020-05-01", "2025-05-01"));
+        service.add(of("nurse", "course", "3", "2021-05-01", null));
+
+        assertEquals(2, service.count("license", null));
+        assertEquals(1, service.count("license", "2026-01-01"));
+        assertEquals(List.of("course"), service.list(null, "2026-01-01", Page.of(null, null), null).stream()
+                .map(QualificationView::kind).filter("course"::equals).toList());
+        assertEquals(1, service.list(null, null, Page.of(0, 1), null).size());
+        assertEquals("ref_item.unknown", assertThrows(FuhitoException.class, () -> service.count("degree", null))
+                .code());
     }
 
     @Test

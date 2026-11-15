@@ -184,23 +184,6 @@ public record ImportDocument(
             Boolean group) {
 
         /**
-         * Makes a row that speaks about the mark of a legal entity only.
-         *
-         * @param kind the kind
-         * @param code the code
-         * @param name the default name
-         * @param names the names in other languages, or null
-         * @param displayOrder the position in lists, or null
-         * @param attributes free values, or null
-         * @param active false to stop the use of the item for new data, or null
-         * @param legalEntity true for a unit type whose org units are legal entities, or null
-         */
-        public RefItemRow(String kind, String code, String name, Map<String, String> names, Integer displayOrder,
-                Map<String, Object> attributes, Boolean active, Boolean legalEntity) {
-            this(kind, code, name, names, displayOrder, attributes, active, legalEntity, null, null);
-        }
-
-        /**
          * Makes a row that does not speak about the marks.
          *
          * @param kind the kind

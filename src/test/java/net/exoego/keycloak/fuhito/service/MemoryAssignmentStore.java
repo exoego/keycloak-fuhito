@@ -118,4 +118,22 @@ final class MemoryAssignmentStore implements AssignmentStore {
     public void delete(String rowId) {
         rows.removeIf(r -> r.rowId().equals(rowId));
     }
+
+    @Override
+    public List<Assignment> searchOn(Search search, String afterAssignmentId, int first, int max) {
+        return rows.stream()
+                .filter(row -> row.period().contains(search.date()))
+                .filter(row -> search.orgUnitId() == null || search.orgUnitId().equals(row.orgUnitId()))
+                .filter(row -> search.jobTitleId() == null || search.jobTitleId().equals(row.jobTitleId()))
+                .filter(row -> search.occupationId() == null || search.occupationId().equals(row.occupationId()))
+                .filter(row -> search.kindId() == null || search.kindId().equals(row.kindId()))
+                .filter(row -> afterAssignmentId == null || row.assignmentId().compareTo(afterAssignmentId) > 0)
+                .sorted(Comparator.comparing(Assignment::assignmentId))
+                .skip(first).limit(max).toList();
+    }
+
+    @Override
+    public long countSearchOn(Search search) {
+        return searchOn(search, null, 0, Integer.MAX_VALUE).size();
+    }
 }

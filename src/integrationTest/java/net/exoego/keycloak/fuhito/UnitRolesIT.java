@@ -41,6 +41,16 @@ class UnitRolesIT {
                 .findValuesAsText("id"));
         assertEquals(List.of(id), Api.json(api.get("/users/" + user + "/unit-roles?asOf=2026-05-01"))
                 .findValuesAsText("id"));
+        realm.refItem("UNIT_ROLE", "approver", "承認者");
+        String approver = created(api.post("/unit-roles", "{\"employmentId\": \"" + employment
+                + "\", \"orgUnitId\": \"" + ward + "\", \"role\": \"approver\", \"validFrom\": \"2026-04-01\"}"))
+                .get("id").asText();
+        assertEquals(List.of(approver), Api.json(api.get("/org-units/" + ward
+                + "/role-holders?role=approver&asOf=2026-05-01")).findValuesAsText("id"));
+        HttpResponse<String> ended = api.put("/unit-roles/" + approver + "/end", "{\"validTo\": \"2026-06-01\"}");
+        assertEquals(200, ended.statusCode(), ended.body());
+        assertEquals("2026-06-01", Api.json(ended).get("validTo").asText());
+        assertEquals(204, api.delete("/unit-roles/" + approver).statusCode());
         assertEquals(List.of(id), Api.json(api.get("/people/" + person + "/unit-roles?asOf=2026-05-01"))
                 .findValuesAsText("id"));
         assertEquals(List.of("fuhito/unit-roles/" + id), Api.json(api.get(

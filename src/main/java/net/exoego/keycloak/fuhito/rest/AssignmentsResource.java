@@ -8,12 +8,18 @@ import jakarta.ws.rs.PUT;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.rest.RequestContext.Change;
 import net.exoego.keycloak.fuhito.service.AssignmentService;
+import net.exoego.keycloak.fuhito.service.Cursor;
+import net.exoego.keycloak.fuhito.service.MembershipService;
+import net.exoego.keycloak.fuhito.service.Page;
 import org.eclipse.microprofile.openapi.annotations.Operation;
+import org.eclipse.microprofile.openapi.annotations.enums.SchemaType;
+import org.eclipse.microprofile.openapi.annotations.headers.Header;
 import org.eclipse.microprofile.openapi.annotations.media.Content;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 import org.eclipse.microprofile.openapi.annotations.parameters.Parameter;
@@ -35,16 +41,80 @@ public class AssignmentsResource {
 
     private final RequestContext context;
     private final AssignmentService service;
+    private final MembershipService members;
 
     /**
      * Creates the resource for one request.
      *
      * @param context the request and its caller
      * @param service the operations on the realm of the request
+     * @param members the reads of assignments in the shape of members
      */
-    public AssignmentsResource(RequestContext context, AssignmentService service) {
+    public AssignmentsResource(RequestContext context, AssignmentService service, MembershipService members) {
+        this.members = members;
         this.context = context;
         this.service = service;
+    }
+
+    @GET
+    @Operation(
+            operationId = "listAssignments",
+            summary = "Lists the assignments of a date across the realm, ordered by ID, in the shape of members.",
+            description = "To read every assignment, follow the `Link` header of each response.")
+    @APIResponse(
+            responseCode = "200",
+            description = "The assignments of the date.",
+            headers = {
+                @Header(
+                        name = "Link",
+                        description = "The URL of the next page, with `rel=\"next\"`. It is there when the page "
+                                + "is full. A full page can be the last one, and the next page is then empty.",
+                        schema = @Schema(type = SchemaType.STRING)),
+                @Header(
+                        name = "X-Total-Count",
+                        description = "The number of entries on all pages. It is there with `count=true`.",
+                        schema = @Schema(type = SchemaType.INTEGER))},
+            content = @Content(mediaType = "application/json",
+                    schema = @Schema(type = SchemaType.ARRAY, implementation = MemberRepresentation.class)))
+    @BadRequest
+    @ApiErrors
+    public Response list(
+            @Parameter(description = "The ID of an org unit to keep. The units below do not count.")
+            @QueryParam("orgUnitId") String orgUnitId,
+            @Parameter(description = "The code of a job title to keep.")
+            @QueryParam("jobTitle") String jobTitle,
+            @Parameter(description = "The code of an occupation to keep.")
+            @QueryParam("occupation") String occupation,
+            @Parameter(description = "The code of an assignment kind to keep.")
+            @QueryParam("kind") String kind,
+            @Parameter(
+                    description = "The date to read. The default is today in the time zone of the realm.",
+                    schema = @Schema(format = "date"))
+            @QueryParam("asOf") String asOf,
+            @Parameter(
+                    description = "The number of entries to skip. It cannot be used with `after`.",
+                    schema = @Schema(minimum = "0", defaultValue = "0"))
+            @QueryParam("first") Integer first,
+            @Parameter(
+                    description = "The largest number of entries to return.",
+                    schema = @Schema(minimum = "0", maximum = "1000", defaultValue = "100"))
+            @QueryParam("max") Integer max,
+            @Parameter(description = "The cursor from the `Link` header of the page before.")
+            @QueryParam("after") String after,
+            @Parameter(
+                    description = "True to get the number of entries on all pages in the header `X-Total-Count`.",
+                    schema = @Schema(defaultValue = "false"))
+            @QueryParam("count") boolean count) {
+        context.requireRead();
+        return Calls.run(context, () -> {
+            Cursor.requireAlone(after, first);
+            MembershipService.Search search = new MembershipService.Search(orgUnitId, jobTitle, occupation, kind,
+                    asOf);
+            return Pages.of(context, members.search(search, Page.of(first, max), after).stream()
+                            .map(MemberRepresentation::of).toList(), Page.of(first, max).max(),
+                    member -> Cursor.encode(Cursor.ASSIGNMENTS, member.assignmentId()),
+                    count ? members.count(search) : null);
+        });
     }
 
     @POST

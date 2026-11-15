@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Optional;
 
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.TypedQuery;
 import net.exoego.keycloak.fuhito.domain.Employment;
 import net.exoego.keycloak.fuhito.domain.EmploymentStatus;
 import net.exoego.keycloak.fuhito.domain.EmploymentTerms;
@@ -109,6 +110,74 @@ public class JpaEmploymentStore implements EmploymentStore {
                         and %s""".formatted(ManyIds.has("e.id", "ids")), EmploymentEntity.class)
                 .setParameter("realmId", realmId)
                 .setParameter("ids", ManyIds.of(ids))
+                .getResultStream()
+                .map(JpaEmploymentStore::toDomain)
+                .toList();
+    }
+
+    // Each piece is a fixed text. The values of the search go in as parameters.
+    private static String searchText(EmploymentStore.Search search, String afterId, boolean count) {
+        StringBuilder text = new StringBuilder(count ? "select count(e)" : "select e")
+                .append(" from EmploymentEntity e where e.realmId = :realmId");
+        if (search.staffNumber() != null) {
+            text.append(" and e.staffNumber = :staffNumber");
+        }
+        if (search.employerId() != null) {
+            text.append(" and e.employerId = :employerId");
+        }
+        if (search.date() != null) {
+            text.append(" and e.validFrom <= :date and (e.validTo is null or e.validTo > :date)");
+        }
+        if (afterId != null) {
+            text.append(" and e.id > :afterId");
+        }
+        return count ? text.toString() : text.append(" order by e.id").toString();
+    }
+
+    private <T> TypedQuery<T> searchQuery(EmploymentStore.Search search, String afterId, boolean count,
+            Class<T> type) {
+        TypedQuery<T> query = em.createQuery(searchText(search, afterId, count), type)
+                .setParameter("realmId", realmId);
+        if (search.staffNumber() != null) {
+            query.setParameter("staffNumber", search.staffNumber());
+        }
+        if (search.employerId() != null) {
+            query.setParameter("employerId", search.employerId());
+        }
+        if (search.date() != null) {
+            query.setParameter("date", search.date());
+        }
+        if (afterId != null) {
+            query.setParameter("afterId", afterId);
+        }
+        return query;
+    }
+
+    @Override
+    public List<Employment> search(EmploymentStore.Search search, String afterId, int first, int max) {
+        return searchQuery(search, afterId, false, EmploymentEntity.class)
+                .setFirstResult(first).setMaxResults(max)
+                .getResultStream()
+                .map(JpaEmploymentStore::toDomain)
+                .toList();
+    }
+
+    @Override
+    public long count(EmploymentStore.Search search) {
+        return searchQuery(search, null, true, Long.class).getSingleResult();
+    }
+
+    @Override
+    public List<EmploymentTerms> termsOf(Collection<String> employmentIds) {
+        if (employmentIds.isEmpty()) {
+            return List.of();
+        }
+        return em.createQuery("""
+                        select t from EmploymentTermsEntity t where t.realmId = :realmId and %s
+                        order by t.employmentId, t.validFrom""".formatted(ManyIds.has("t.employmentId", "ids")),
+                        EmploymentTermsEntity.class)
+                .setParameter("realmId", realmId)
+                .setParameter("ids", ManyIds.of(employmentIds))
                 .getResultStream()
                 .map(JpaEmploymentStore::toDomain)
                 .toList();

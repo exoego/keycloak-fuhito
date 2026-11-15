@@ -300,7 +300,7 @@ A list that grows with the realm is read in pages.
 `max` is 100 by default and 1000 at most. A larger value counts as 1000.
 A read with fewer entries than `max` has reached the end.
 
-A list that has a cursor is better read with it. These are the list of people and the members of an org unit.
+A list that has a cursor is better read with it. These are the lists of people, employments, assignments, and qualifications, and the members of an org unit.
 
 - A response with a full page has the header `Link` with the URL of the next page and `rel="next"`. Follow it until a response has no such header.
 - The URL has the parameter `after` with a cursor. The cursor says where the next page starts, so a late page costs as much as the first one. With `first`, the database counts past every skipped row.
@@ -310,9 +310,9 @@ A list that has a cursor is better read with it. These are the list of people an
 - The name says which list the cursor belongs to. A cursor of another list gets 400 with `invalid.cursor`.
 - When the order of a list changes, its format gets a new version. A cursor of the old version gets 400, and the caller starts again from the first page.
 - A request gives `after` or `first`, not both.
-These are the lists of roots, children, subtrees, the search of org units, members, people, reference items, change orders, the change log, and the effective changes.
+These are the lists of roots, children, subtrees, the search of org units, members, people, employments, assignments, qualifications, reference items, change orders, the change log, and the effective changes.
 
-The members of an org unit and the search of org units take `count=true`. The response then has the header `X-Total-Count` with the number of entries on all pages. It costs one more query, so a caller that only follows the pages leaves it out.
+The members of an org unit, the search of org units, and the lists of employments, assignments, and qualifications take `count=true`. The response then has the header `X-Total-Count` with the number of entries on all pages. It costs one more query, so a caller that only follows the pages leaves it out.
 
 The lists of one person and the history of one resource are returned whole. The reports of a person are the exception. They are read in pages, because the head of a large org unit has many.
 
@@ -349,15 +349,15 @@ The database applies the filters, the order, and the page.
 | `/org-units/search` | Every org unit of a date whose name, short name, or phonetic name has a text, with a code, or of a unit type |
 | `/org-units/{id}/succession` | The org units that a unit follows after a merger or a split, and the ones that follow it |
 | `/people` | The people that the realm knows, with or without a Keycloak user |
-| `/employments` | Employments of people, with their terms over time |
-| `/assignments` | Assignments of employments to org units |
+| `/employments` | Employments of people, with their terms over time. The list finds them by staff number, employer, and date |
+| `/assignments` | Assignments of employments to org units. The list has the assignments of a date across the realm, by org unit, job title, occupation, and kind |
 | `/staff` | A shortcut that starts an employment and adds its first assignment in one call |
 | `/org-units/{id}/members` | Who works in an org unit on a date, with or without the units below |
 | `/people/{id}/assignments` | Where a person works on a date |
 | `/people/{id}/history` | Every employment and assignment of a person |
 | `/people/{id}/mask` | Clears what identifies a person who left, and keeps the records |
 | `/people/{id}/data` | Erases everything about one person, for a request to delete personal data |
-| `/qualifications` | Licenses and certificates of users |
+| `/qualifications` | Licenses and certificates of users. The list finds them by kind and date |
 | `/reporting-lines` | Links from an assignment to a manager |
 | `/unit-roles` | Roles of employments over org units that are not membership |
 | `/org-units/{id}/role-holders` | Who has a role over an org unit on a date, also from a unit above |

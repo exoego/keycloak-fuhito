@@ -231,6 +231,26 @@ class MembershipServiceTest {
     }
 
     @Test
+    void listsTheAssignmentsOfADateAcrossTheRealm() {
+        String director = assign(doctorEmployment, hospital, "2026-04-01", "physician", "director", true, null);
+        String nurse = assign(nurseEmployment, ward, "2026-04-01", "nurse", null, true, null);
+        assign(clerkEmployment, otherHospital, "2026-05-01", null, null, true, null);
+
+        assertEquals(List.of(director), service.search(new MembershipService.Search(null, "director", null, null,
+                "2026-04-15"), Page.of(null, null), null).stream().map(member -> member.assignment().assignmentId()).toList());
+        assertEquals(List.of(nurse), service.search(new MembershipService.Search(ward, null, null, "regular",
+                "2026-04-15"), Page.of(null, null), null).stream().map(member -> member.assignment().assignmentId()).toList());
+        assertEquals(2, service.count(new MembershipService.Search(null, null, null, null, "2026-04-15")));
+        assertEquals(3, service.count(new MembershipService.Search(null, null, null, null, "2026-05-01")));
+        List<String> all = java.util.stream.Stream.of(director, nurse).sorted().toList();
+        assertEquals(List.of(all.get(1)), service.search(new MembershipService.Search(null, null, null, null,
+                "2026-04-15"), Page.of(null, null), Cursor.encode(Cursor.ASSIGNMENTS, all.get(0))).stream()
+                .map(member -> member.assignment().assignmentId()).toList());
+        assertEquals("ref_item.unknown", assertThrows(FuhitoException.class, () -> service.count(
+                new MembershipService.Search(null, "chief", null, null, null))).code());
+    }
+
+    @Test
     void pagesTheMembers() {
         assign(nurseEmployment, ward, "2026-04-01", null, null, true, 2);
         assign(doctorEmployment, ward, "2026-04-01", null, null, true, 1);

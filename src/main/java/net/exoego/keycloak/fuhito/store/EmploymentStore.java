@@ -129,4 +129,41 @@ public interface EmploymentStore {
      * @param termsId the ID of the terms
      */
     void deleteTerms(String termsId);
+
+    /**
+     * What a list of employments keeps. A value that is null keeps everything.
+     *
+     * @param staffNumber the staff number
+     * @param employerId the ID of the org unit that employs
+     * @param date a date on which the employment holds
+     */
+    record Search(String staffNumber, String employerId, LocalDate date) {
+    }
+
+    /**
+     * Lists a page of the employments that match a search, by ID.
+     *
+     * @param search what to keep
+     * @param afterId the ID after which the page starts, or null for the start
+     * @param first the number of employments to skip
+     * @param max the largest number of employments to return
+     * @return the employments of the page
+     */
+    List<Employment> search(Search search, String afterId, int first, int max);
+
+    /**
+     * Counts the employments that match a search.
+     *
+     * @param search what to keep
+     * @return the number of employments
+     */
+    long count(Search search);
+
+    /**
+     * Lists every period of the terms of several employments, by employment and then oldest first.
+     *
+     * @param employmentIds the IDs of the employments
+     * @return the terms
+     */
+    List<EmploymentTerms> termsOf(Collection<String> employmentIds);
 }

@@ -177,6 +177,43 @@ public class QualificationService {
                 source);
     }
 
+    /**
+     * Lists a page of the qualifications of a kind or of a date, by ID.
+     *
+     * @param kind the code of the kind to keep, or null for every kind
+     * @param asOf a date as {@code YYYY-MM-DD} on which the qualification holds, or null for every date
+     * @param page the part of the list to return
+     * @param after the cursor after which the page starts, or null
+     * @return the qualifications of the page
+     * @throws FuhitoException when a value is bad or the kind is unknown
+     */
+    public List<QualificationView> list(String kind, String asOf, Page page, String after) {
+        String afterId = after == null ? null : Cursor.decode(Cursor.QUALIFICATIONS, after).getFirst();
+        return store.search(search(kind, asOf), afterId, page.first(), page.max()).stream()
+                .map(this::view)
+                .toList();
+    }
+
+    /**
+     * Counts the qualifications of a kind or of a date.
+     *
+     * @param kind the code of the kind to keep, or null for every kind
+     * @param asOf a date as {@code YYYY-MM-DD} on which the qualification holds, or null for every date
+     * @return the number of qualifications
+     * @throws FuhitoException when a value is bad or the kind is unknown
+     */
+    public long count(String kind, String asOf) {
+        return store.count(search(kind, asOf));
+    }
+
+    private QualificationStore.Search search(String kind, String asOf) {
+        String kindId = kind == null ? null : refItems.findByCode(RefKind.QUALIFICATION, kind)
+                .map(RefItem::id)
+                .orElseThrow(() -> FuhitoException.invalid("ref_item.unknown",
+                        Map.of("kind", RefKind.QUALIFICATION.name(), "code", kind)));
+        return new QualificationStore.Search(kindId, Checks.optionalDate("asOf", asOf));
+    }
+
     private QualificationView view(Qualification qualification) {
         return new QualificationView(qualification,
                 refItems.find(qualification.kindId()).map(RefItem::code).orElse(null));

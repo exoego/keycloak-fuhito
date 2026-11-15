@@ -191,6 +191,12 @@ class CsvImportServiceTest {
                 """)));
         assertEquals(Map.of("note", "kept", "beds", new BigDecimal("30"), "open", true),
                 unit("W", "2026-05-01").version().attributes());
+        assertEquals(List.of(), errors(load("orgUnits", "2026-05-15", """
+                外部ID,attributes.open
+                W,#CLEAR
+                """)));
+        assertEquals(Map.of("note", "kept", "beds", new BigDecimal("30")), unit("W", "2026-05-15").version()
+                .attributes());
         assertEquals(List.of("line 2 row 0 csv.bad_number"), errors(load("orgUnits", "2026-06-01", """
                 外部ID,attributes.beds
                 W,many

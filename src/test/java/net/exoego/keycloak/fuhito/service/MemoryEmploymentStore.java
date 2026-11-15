@@ -102,4 +102,28 @@ final class MemoryEmploymentStore implements EmploymentStore {
     public void deleteTerms(String termsId) {
         terms.removeIf(t -> t.id().equals(termsId));
     }
+
+    @Override
+    public List<Employment> search(Search search, String afterId, int first, int max) {
+        return employments.values().stream()
+                .filter(e -> search.staffNumber() == null || search.staffNumber().equals(e.staffNumber()))
+                .filter(e -> search.employerId() == null || search.employerId().equals(e.employerId()))
+                .filter(e -> search.date() == null || e.period().contains(search.date()))
+                .filter(e -> afterId == null || e.id().compareTo(afterId) > 0)
+                .sorted(Comparator.comparing(Employment::id))
+                .skip(first).limit(max).toList();
+    }
+
+    @Override
+    public long count(Search search) {
+        return search(search, null, 0, Integer.MAX_VALUE).size();
+    }
+
+    @Override
+    public List<EmploymentTerms> termsOf(Collection<String> employmentIds) {
+        return terms.stream().filter(t -> employmentIds.contains(t.employmentId()))
+                .sorted(Comparator.comparing(EmploymentTerms::employmentId)
+                        .thenComparing(t -> t.period().from()))
+                .toList();
+    }
 }

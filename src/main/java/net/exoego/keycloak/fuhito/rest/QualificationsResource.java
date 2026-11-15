@@ -8,13 +8,18 @@ import jakarta.ws.rs.PUT;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.rest.RequestContext.Change;
+import net.exoego.keycloak.fuhito.service.Cursor;
+import net.exoego.keycloak.fuhito.service.Page;
 import net.exoego.keycloak.fuhito.service.PersonService;
 import net.exoego.keycloak.fuhito.service.QualificationService;
 import org.eclipse.microprofile.openapi.annotations.Operation;
+import org.eclipse.microprofile.openapi.annotations.enums.SchemaType;
+import org.eclipse.microprofile.openapi.annotations.headers.Header;
 import org.eclipse.microprofile.openapi.annotations.media.Content;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 import org.eclipse.microprofile.openapi.annotations.parameters.Parameter;
@@ -49,6 +54,59 @@ public class QualificationsResource {
         this.context = context;
         this.service = service;
         this.people = people;
+    }
+
+    @GET
+    @Operation(
+            operationId = "listQualifications",
+            summary = "Lists the qualifications of the realm, ordered by ID.",
+            description = "To read every qualification, follow the `Link` header of each response.")
+    @APIResponse(
+            responseCode = "200",
+            description = "The qualifications.",
+            headers = {
+                @Header(
+                        name = "Link",
+                        description = "The URL of the next page, with `rel=\"next\"`. It is there when the page "
+                                + "is full. A full page can be the last one, and the next page is then empty.",
+                        schema = @Schema(type = SchemaType.STRING)),
+                @Header(
+                        name = "X-Total-Count",
+                        description = "The number of entries on all pages. It is there with `count=true`.",
+                        schema = @Schema(type = SchemaType.INTEGER))},
+            content = @Content(mediaType = "application/json",
+                    schema = @Schema(type = SchemaType.ARRAY, implementation = QualificationRepresentation.class)))
+    @BadRequest
+    @ApiErrors
+    public Response list(
+            @Parameter(description = "The code of a kind of qualification to keep.")
+            @QueryParam("kind") String kind,
+            @Parameter(
+                    description = "A date to keep the qualifications that hold on it. Leave it out for every date.",
+                    schema = @Schema(format = "date"))
+            @QueryParam("asOf") String asOf,
+            @Parameter(
+                    description = "The number of entries to skip. It cannot be used with `after`.",
+                    schema = @Schema(minimum = "0", defaultValue = "0"))
+            @QueryParam("first") Integer first,
+            @Parameter(
+                    description = "The largest number of entries to return.",
+                    schema = @Schema(minimum = "0", maximum = "1000", defaultValue = "100"))
+            @QueryParam("max") Integer max,
+            @Parameter(description = "The cursor from the `Link` header of the page before.")
+            @QueryParam("after") String after,
+            @Parameter(
+                    description = "True to get the number of entries on all pages in the header `X-Total-Count`.",
+                    schema = @Schema(defaultValue = "false"))
+            @QueryParam("count") boolean count) {
+        context.requireRead();
+        return Calls.run(context, () -> {
+            Cursor.requireAlone(after, first);
+            return Pages.of(context, service.list(kind, asOf, Page.of(first, max), after).stream()
+                            .map(QualificationRepresentation::of).toList(), Page.of(first, max).max(),
+                    qualification -> Cursor.encode(Cursor.QUALIFICATIONS, qualification.id()),
+                    count ? service.count(kind, asOf) : null);
+        });
     }
 
     @POST

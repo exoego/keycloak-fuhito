@@ -127,21 +127,7 @@ public class CsvImportService {
     private final ImportService.People people;
 
     /**
-     * Creates the service.
-     *
-     * @param importService the import that applies the rows
-     * @param refItems the storage of reference items of the realm
-     * @param orgUnits the storage of org units of the realm
-     * @param orgUnitService the operations on org units of the realm
-     * @param people what an import of employments and assignments needs
-     */
-    public CsvImportService(ImportService importService, RefItemStore refItems, OrgUnitStore orgUnits,
-            OrgUnitService orgUnitService, ImportService.People people) {
-        this(importService, refItems, orgUnits, orgUnitService, people, target -> List.of());
-    }
-
-    /**
-     * Creates the service with the defined attributes of the realm, which a file can set in its own columns.
+     * Creates the service. A file can set the defined attributes of the realm in columns of their own.
      *
      * @param importService the import that writes the rows
      * @param refItems the reference items of the realm

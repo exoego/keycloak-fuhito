@@ -199,6 +199,65 @@ public class JpaAssignmentStore implements AssignmentStore {
         }
     }
 
+    // Each piece is a fixed text. The values of the search go in as parameters.
+    private <T> TypedQuery<T> searchQuery(AssignmentStore.Search search, String afterId, boolean count,
+            Class<T> type) {
+        StringBuilder text = new StringBuilder(count ? "select count(a)" : "select a")
+                .append(" from AssignmentEntity a where a.realmId = :realmId and a.")
+                .append(TreeQuery.onDate("a"));
+        if (search.orgUnitId() != null) {
+            text.append(" and a.orgUnitId = :orgUnitId");
+        }
+        if (search.jobTitleId() != null) {
+            text.append(" and a.jobTitleId = :jobTitleId");
+        }
+        if (search.occupationId() != null) {
+            text.append(" and a.occupationId = :occupationId");
+        }
+        if (search.kindId() != null) {
+            text.append(" and a.kindId = :kindId");
+        }
+        if (afterId != null) {
+            text.append(" and a.assignmentId > :afterId");
+        }
+        if (!count) {
+            text.append(" order by a.assignmentId");
+        }
+        TypedQuery<T> query = em.createQuery(text.toString(), type)
+                .setParameter("realmId", realmId)
+                .setParameter("date", search.date());
+        if (search.orgUnitId() != null) {
+            query.setParameter("orgUnitId", search.orgUnitId());
+        }
+        if (search.jobTitleId() != null) {
+            query.setParameter("jobTitleId", search.jobTitleId());
+        }
+        if (search.occupationId() != null) {
+            query.setParameter("occupationId", search.occupationId());
+        }
+        if (search.kindId() != null) {
+            query.setParameter("kindId", search.kindId());
+        }
+        if (afterId != null) {
+            query.setParameter("afterId", afterId);
+        }
+        return query;
+    }
+
+    @Override
+    public List<Assignment> searchOn(AssignmentStore.Search search, String afterAssignmentId, int first, int max) {
+        return searchQuery(search, afterAssignmentId, false, AssignmentEntity.class)
+                .setFirstResult(first).setMaxResults(max)
+                .getResultStream()
+                .map(JpaAssignmentStore::toDomain)
+                .toList();
+    }
+
+    @Override
+    public long countSearchOn(AssignmentStore.Search search) {
+        return searchQuery(search, null, true, Long.class).getSingleResult();
+    }
+
     @Override
     public Optional<String> findAssignmentIdByExternalId(String source, String externalId) {
         return em.createQuery("""
