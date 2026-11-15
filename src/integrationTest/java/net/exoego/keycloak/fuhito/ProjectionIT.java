@@ -4,9 +4,12 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.sql.Connection;
+import java.sql.Statement;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.ws.rs.core.Response;
@@ -102,6 +105,49 @@ class ProjectionIT {
 
     private List<String> sorted(JsonNode list, String field) {
         return list.findValuesAsText(field).stream().sorted().toList();
+    }
+
+    @Test
+    void aSecondRebuildIsRefusedWhileOneIsGoingOn() throws Exception {
+        createRealm(true);
+        String organization = OrganizationLinkIT.createOrganization(admin, realm, "x-hospital");
+        String hospital = unit("X病院", null);
+        String nurse = user("nurse");
+        staff(nurse, unit("1病棟", hospital));
+        assertEquals(200, api.put("/org-units/" + hospital + "/organization",
+                "{\"organizationId\": \"" + organization + "\"}").statusCode());
+
+        CompletableFuture<HttpResponse<String>> first;
+        try (Connection connection = KeycloakEnvironment.connection()) {
+            // A new membership needs the row of its user. So the first rebuild waits here.
+            connection.setAutoCommit(false);
+            try (Statement statement = connection.createStatement()) {
+                statement.execute("select id from user_entity where id = '" + nurse + "' for update");
+            }
+            first = CompletableFuture.supplyAsync(() -> {
+                try {
+                    return api.post("/projection/rebuild", "");
+                } catch (Exception e) {
+                    throw new IllegalStateException(e);
+                }
+            });
+            String waiting = "0";
+            for (int i = 0; i < 300 && waiting.equals("0"); i++) {
+                Thread.sleep(100);
+                waiting = KeycloakEnvironment.sql("select count(*) from pg_stat_activity where wait_event_type = 'Lock'");
+            }
+            assertTrue(!waiting.equals("0"), "the first rebuild never waited");
+
+            HttpResponse<String> second = api.post("/projection/rebuild", "");
+
+            assertEquals(409, second.statusCode(), second.body());
+            assertEquals("projection.running", Api.json(second).get("error").asText());
+            connection.rollback();
+        }
+        assertEquals(200, first.get().statusCode(), first.get().body());
+        assertEquals(1, Api.json(first.get()).get("membersJoined").asInt());
+        // The lock is free again.
+        assertEquals(0, rebuild().get("membersJoined").asInt());
     }
 
     @Test

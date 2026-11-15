@@ -6,6 +6,7 @@ import java.util.Optional;
 import java.util.Properties;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import jakarta.persistence.EntityManager;
 import jakarta.ws.rs.GET;
@@ -79,6 +80,16 @@ public class FuhitoResource {
          * @return the result of the piece
          */
         <T> T inNewTransaction(boolean rollBack, Function<FuhitoResource, T> piece);
+
+        /**
+         * Runs a whole job, unless another run of it for the realm is going on.
+         *
+         * @param <T> the type of the result
+         * @param job the name of the job, which is also the start of the error code
+         * @param run the job
+         * @return the result of the job
+         */
+        <T> T alone(String job, Supplier<T> run);
     }
 
     private static final String VERSION = loadVersion();
@@ -309,6 +320,11 @@ public class FuhitoResource {
             @Override
             public <T> T inNewTransaction(Function<AttributeSyncService.Parts, T> piece) {
                 return pieces.inNewTransaction(dryRun, resource -> piece.apply(resource.syncParts()));
+            }
+
+            @Override
+            public <T> T alone(Supplier<T> run) {
+                return pieces.alone("sync", run);
             }
         }));
     }

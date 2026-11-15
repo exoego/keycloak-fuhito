@@ -2,6 +2,7 @@ package net.exoego.keycloak.fuhito.keycloak;
 
 import java.time.Clock;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import jakarta.persistence.EntityManager;
 import net.exoego.keycloak.fuhito.domain.BusinessDay;
@@ -38,6 +39,11 @@ public final class ProjectionTransactions implements ProjectionService.Work {
         this.factory = factory;
         this.realmId = realmId;
         this.rule = rule;
+    }
+
+    @Override
+    public <T> T alone(Supplier<T> run) {
+        return OneAtATime.run(factory, "projection", realmId, run);
     }
 
     @Override

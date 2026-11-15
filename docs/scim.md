@@ -82,6 +82,8 @@ A run does its work in pieces of 100 users, and each piece is one transaction. O
 So a run that fails in the middle keeps the pieces that it finished, with their entries in the change log. The next run does the rest.
 A dry run works in the same pieces, and undoes each piece at its end.
 
+Only one run goes on for a realm at a time, on all nodes of a cluster. A second call fails with `sync.running` and the status 409. A dry run counts as a run.
+
 A run reads the attributes of all users from the tables of Keycloak in one query.
 A user that only a user storage provider holds is not in those tables. A user that Keycloak imported, for example from LDAP, is in them.
 A user is outside the tables when a custom user storage provider keeps the users in another database, or when an LDAP federation has "Import Users" off.
