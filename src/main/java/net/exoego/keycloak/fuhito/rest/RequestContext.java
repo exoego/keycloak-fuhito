@@ -49,6 +49,22 @@ public interface RequestContext {
     Locale locale();
 
     /**
+     * Returns a header of the request.
+     *
+     * @param name the name of the header
+     * @return the value, or null when the request has none
+     */
+    String header(String name);
+
+    /**
+     * Sets a header of the response.
+     *
+     * @param name the name of the header
+     * @param value the value
+     */
+    void responseHeader(String name, String value);
+
+    /**
      * Makes an exception that ends the request with the response and rolls back the transaction.
      *
      * @param response the error response

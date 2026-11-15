@@ -108,7 +108,7 @@ public class OrgUnitsResource {
             @PathParam("id") String id,
             OrgUnitRepresentation body) {
         context.requireWrite();
-        return Calls.run(context, () -> {
+        return Calls.guarded(context, () -> state(id), () -> {
             Checks.required("body", body);
             return updated(path(id), service.changeDetails(id, body.toChange()));
         });
@@ -132,7 +132,7 @@ public class OrgUnitsResource {
             @QueryParam("hierarchy") String hierarchy,
             ParentChangeRepresentation body) {
         context.requireWrite();
-        return Calls.run(context, () -> {
+        return Calls.guarded(context, () -> state(id), () -> {
             Checks.required("body", body);
             return updated(path(id) + "/parent", service.move(id, body.parentId(), body.validFrom(), hierarchy));
         });
@@ -154,7 +154,7 @@ public class OrgUnitsResource {
             @PathParam("id") String id,
             EndRepresentation body) {
         context.requireWrite();
-        return Calls.run(context, () -> {
+        return Calls.guarded(context, () -> state(id), () -> {
             Checks.required("body", body);
             return updated(path(id) + "/end", service.end(id, body.validTo()));
         });
@@ -369,7 +369,7 @@ public class OrgUnitsResource {
             @PathParam("id") String id,
             OrganizationLinkRepresentation body) {
         context.requireWrite();
-        return Calls.run(context, () -> {
+        return Calls.guarded(context, () -> state(id), () -> {
             Checks.required("body", body);
             var unit = organizationLinks.link(id, body.organizationId());
             var link = new OrganizationLinkRepresentation(unit.id(), unit.keycloakOrganizationId());
@@ -392,7 +392,7 @@ public class OrgUnitsResource {
             @Parameter(description = "The ID of the resource.")
             @PathParam("id") String id) {
         context.requireWrite();
-        return Calls.run(context, () -> {
+        return Calls.guarded(context, () -> state(id), () -> {
             var unit = organizationLinks.unlink(id);
             var link = new OrganizationLinkRepresentation(unit.id(), null);
             context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, path(id) + "/organization", link);
@@ -417,7 +417,7 @@ public class OrgUnitsResource {
             @PathParam("id") String id,
             TimeSettingsRepresentation body) {
         context.requireWrite();
-        return Calls.run(context, () -> {
+        return Calls.guarded(context, () -> state(id), () -> {
             Checks.required("body", body);
             var unit = service.setTime(id, body.timeZone(), body.dayStart());
             var settings = new TimeSettingsRepresentation(unit.id(), unit.timeZone(), unit.dayStart());
@@ -604,6 +604,11 @@ public class OrgUnitsResource {
             @Parameter(description = "The code of the hierarchy. The default is the hierarchy `default`.")
             @QueryParam("hierarchy") String hierarchy) {
         context.requireReadStructure();
-        return Calls.run(context, () -> OrgUnitRepresentation.of(service.get(id, asOf, hierarchy)));
+        return Calls.tagged(context, () -> state(id), () -> OrgUnitRepresentation.of(service.get(id, asOf, hierarchy)));
+    }
+
+    // The whole stored state of one resource, which its ETag covers.
+    private Object state(String id) {
+        return OrgUnitHistoryRepresentation.of(service.history(id));
     }
 }

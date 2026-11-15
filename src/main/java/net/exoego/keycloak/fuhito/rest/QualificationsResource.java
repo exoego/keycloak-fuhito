@@ -145,7 +145,7 @@ public class QualificationsResource {
             @Parameter(description = "The ID of the resource.")
             @PathParam("id") String id) {
         context.requireRead();
-        return Calls.run(context, () -> QualificationRepresentation.of(service.get(id)));
+        return Calls.tagged(context, () -> QualificationRepresentation.of(service.get(id)));
     }
 
     @PUT
@@ -163,7 +163,7 @@ public class QualificationsResource {
             @PathParam("id") String id,
             QualificationRepresentation body) {
         context.requireWrite();
-        return Calls.run(context, () -> {
+        return Calls.guarded(context, () -> state(id), () -> {
             Checks.required("body", body);
             var qualification = QualificationRepresentation.of(service.replace(id, body.toValues(null)));
             context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, path(id), qualification);
@@ -183,7 +183,7 @@ public class QualificationsResource {
             @Parameter(description = "The ID of the resource.")
             @PathParam("id") String id) {
         context.requireWrite();
-        return Calls.run(context, () -> {
+        return Calls.guardedRemoval(context, () -> state(id), () -> {
             service.delete(id);
             context.recordChange(Change.DELETE, RESOURCE_TYPE, id, path(id), null);
             return Response.noContent().build();
@@ -192,5 +192,10 @@ public class QualificationsResource {
 
     private static String path(String id) {
         return "fuhito/qualifications/" + id;
+    }
+
+    // The whole stored state of one resource, which its ETag covers.
+    private Object state(String id) {
+        return QualificationRepresentation.of(service.get(id));
     }
 }

@@ -90,7 +90,7 @@ public class RefItemsResource {
             @Parameter(description = "The ID of the resource.")
             @PathParam("id") String id) {
         context.requireReadStructure();
-        return Calls.run(context, () -> RefItemRepresentation.of(service.get(id)));
+        return Calls.tagged(context, () -> RefItemRepresentation.of(service.get(id)));
     }
 
     @POST
@@ -133,7 +133,7 @@ public class RefItemsResource {
             @PathParam("id") String id,
             RefItemRepresentation body) {
         context.requireWrite();
-        return Calls.run(context, () -> {
+        return Calls.guarded(context, () -> state(id), () -> {
             Checks.required("body", body);
             var item = RefItemRepresentation.of(service.update(id, body.name(), body.names(), body.displayOrder(),
                     body.attributes(), body.active(), body.marks()));
@@ -154,7 +154,7 @@ public class RefItemsResource {
             @Parameter(description = "The ID of the resource.")
             @PathParam("id") String id) {
         context.requireWrite();
-        return Calls.run(context, () -> {
+        return Calls.guardedRemoval(context, () -> state(id), () -> {
             service.delete(id);
             context.recordChange(Change.DELETE, RESOURCE_TYPE, id, path(id), null);
             return Response.noContent().build();
@@ -172,5 +172,10 @@ public class RefItemsResource {
         } catch (IllegalArgumentException e) {
             throw FuhitoException.invalid("invalid.kind", Map.of("value", kind)).causedBy(e);
         }
+    }
+
+    // The whole stored state of one resource, which its ETag covers.
+    private Object state(String id) {
+        return RefItemRepresentation.of(service.get(id));
     }
 }

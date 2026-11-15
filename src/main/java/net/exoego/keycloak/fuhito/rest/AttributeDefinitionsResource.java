@@ -79,7 +79,7 @@ public class AttributeDefinitionsResource {
             @Parameter(description = "The ID of the resource.")
             @PathParam("id") String id) {
         context.requireReadStructure();
-        return Calls.run(context, () -> AttributeDefinitionRepresentation.of(service.get(id)));
+        return Calls.tagged(context, () -> AttributeDefinitionRepresentation.of(service.get(id)));
     }
 
     @POST
@@ -123,7 +123,7 @@ public class AttributeDefinitionsResource {
             @PathParam("id") String id,
             AttributeDefinitionRepresentation body) {
         context.requireWrite();
-        return Calls.run(context, () -> {
+        return Calls.guarded(context, () -> state(id), () -> {
             Checks.required("body", body);
             var definition = AttributeDefinitionRepresentation.of(service.replace(id, body.type(), body.refKind(),
                     body.required()));
@@ -146,7 +146,7 @@ public class AttributeDefinitionsResource {
             @Parameter(description = "The ID of the resource.")
             @PathParam("id") String id) {
         context.requireWrite();
-        return Calls.run(context, () -> {
+        return Calls.guardedRemoval(context, () -> state(id), () -> {
             service.delete(id);
             context.recordChange(Change.DELETE, RESOURCE_TYPE, id, path(id), null);
             return Response.noContent().build();
@@ -155,5 +155,10 @@ public class AttributeDefinitionsResource {
 
     private static String path(String id) {
         return "fuhito/attribute-definitions/" + id;
+    }
+
+    // The whole stored state of one resource, which its ETag covers.
+    private Object state(String id) {
+        return AttributeDefinitionRepresentation.of(service.get(id));
     }
 }
