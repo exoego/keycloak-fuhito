@@ -174,9 +174,12 @@ public class RealmExportService {
                                 v.name(), v.names(), v.shortName(), v.shortNames(), v.phoneticName(),
                                 v.unitTypeId(), v.displayOrder(), v.attributes()))
                         .toList(),
+                // The ID of the default hierarchy differs between realms, so the code gives the order.
                 links.getOrDefault(unit.id(), List.of()).stream()
                         .map(l -> new RealmExport.Parent(l.id(), codes.get(l.hierarchyId()), l.parentId(),
                                 from(l.period()), to(l.period())))
+                        .sorted(Comparator.comparing(RealmExport.Parent::hierarchy)
+                                .thenComparing(RealmExport.Parent::validFrom))
                         .toList(),
                 successions.getOrDefault(unit.id(), List.of()).stream()
                         .map(s -> new RealmExport.Succession(s.id(), s.successorId(), s.effectiveDate().toString()))
