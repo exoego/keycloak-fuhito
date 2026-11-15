@@ -59,7 +59,8 @@ import net.exoego.keycloak.fuhito.store.UnitRoleStore;
 import net.exoego.keycloak.fuhito.store.UserDirectory;
 
 /**
- * Takes every stored row of one realm out page by page, and loads such rows into a realm with no data.
+ * Takes every stored row of one realm out page by page, and loads such rows into a realm with no data, or in place
+ * of the data of a realm.
  */
 public class RealmExportService {
 
@@ -148,6 +149,8 @@ public class RealmExportService {
                     x -> new RealmExport.ExternalIdRow(x.id(), x.kind().name(), x.resourceId(), x.source(),
                             x.externalId()));
             case "change-orders" -> page(export.changeOrders().read(afterId, max), ChangeOrder::id, this::order);
+            case "erasures" -> page(export.erasures().read(afterId, max), RealmExportStore.Erasure::personId,
+                    e -> new RealmExport.Erasure(e.personId(), e.erasedAt().toString()));
             default -> throw FuhitoException.notFound("export.list_unknown", Map.of("list", list));
         };
     }
@@ -253,22 +256,32 @@ public class RealmExportService {
      * Loads every list of an export into the realm, with the IDs of the export, all or nothing.
      *
      * @param document the export
-     * @param linking checks each Keycloak organization that a unit is linked to, before anything is written
+     * @param replace true to delete the data of the realm first
+     * @param linking checks each Keycloak organization that a unit is linked to, or was linked to before a replace,
+     *        before anything is written
      * @return the number of rows of each list
-     * @throws FuhitoException when the format is unknown, the realm has data, a username has no user, or the
-     *         realm has no organization with an alias
+     * @throws FuhitoException when the format is unknown, the realm has data and is not replaced, a username has no
+     *         user, or the realm has no organization with an alias
      */
-    public Map<String, Integer> restore(RealmExport document, Consumer<String> linking) {
+    public Map<String, Integer> restore(RealmExport document, boolean replace, Consumer<String> linking) {
         Checks.required("body", document);
         if (!RealmExport.FORMAT.equals(document.format())) {
             throw FuhitoException.invalid("restore.format", Map.of("format", String.valueOf(document.format())));
         }
-        if (!stores.export().isEmpty()) {
+        if (!replace && !stores.export().isEmpty()) {
             throw FuhitoException.conflict("restore.realm_not_empty", Map.of());
         }
         RestoreCheck.requireReferences(document);
         Map<String, String> organizations = organizations(document);
+        if (replace) {
+            stores.export().linkedOrganizations().stream()
+                    .filter(id -> !organizations.containsValue(id))
+                    .forEach(linking);
+        }
         organizations.values().forEach(linking);
+        if (replace) {
+            stores.export().deleteData();
+        }
         // A copy into a second realm of the same database names the rows of the first one by their IDs.
         for (Map.Entry<String, Collection<String>> list : RestoreCheck.ids(document).entrySet()) {
             Optional<String> taken = stores.export().takenId(list.getKey(), list.getValue());
@@ -286,6 +299,7 @@ public class RealmExportService {
                 .insert(new AttributeDefinition(d.id(), AttributeDefinition.Target.valueOf(d.target()), d.name(),
                         AttributeDefinition.Type.valueOf(d.type()), d.refKind(), d.required()))));
         Map<String, String> hierarchyIds = new HashMap<>();
+        // A replace deleted the default hierarchy, and this makes it again.
         hierarchyIds.put(Hierarchy.DEFAULT_CODE, stores.hierarchies().defaultId());
         counts.put("hierarchies", each("hierarchies", document.hierarchies(), h -> {
             // The default hierarchy of the empty realm has no links yet. The one of the export takes its place,
@@ -324,6 +338,9 @@ public class RealmExportService {
                 o.id(), o.number(), o.kind(), o.title(), o.note(), date(o.orderDate()), date(o.effectiveDate()),
                 userId(o.approver()), userId(o.requester()), o.externalReference(), instant(o.createdAt()),
                 instant(o.announcedAt()), userId(o.announcedBy())))));
+        counts.put("erasures", each("erasures", document.erasures(), e -> stores.export().restoreErasure(
+                new RealmExportStore.Erasure(Objects.requireNonNull(e.personId()), Instant.parse(e.erasedAt())))));
+        stores.export().eraseAndMaskAgain();
         return counts;
     }
 

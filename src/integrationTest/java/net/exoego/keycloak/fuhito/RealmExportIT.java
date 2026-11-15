@@ -19,7 +19,7 @@ class RealmExportIT {
     private static final ObjectMapper JSON = new ObjectMapper();
     private static final List<String> LISTS = List.of("ref-kinds", "ref-items", "attribute-definitions",
             "hierarchies", "org-units", "people", "employments", "assignments", "reporting-lines", "unit-roles",
-            "qualifications", "external-ids", "change-orders");
+            "qualifications", "external-ids", "change-orders", "erasures");
     private static final List<String> USERS = List.of("nurse", "doctor", "former");
 
     private static String id(HttpResponse<String> response) throws Exception {
@@ -147,6 +147,74 @@ class RealmExportIT {
         assertEquals("restore.realm_not_empty", Api.json(target.api.post("/restore", JSON.writeValueAsString(first)))
                 .get("error").asText());
         assertEquals(404, target.api.get("/export/nothing").statusCode());
+    }
+
+    @Test
+    void aRestoreWithReplaceBringsBackTheDataOfTheExport() throws Exception {
+        TestRealm realm = TestRealm.withEmployer("export-replace");
+        Api api = realm.api;
+        String nurse = realm.user("nurse");
+        String hospital = id(api.post("/org-units", "{\"name\": \"病院\", \"validFrom\": \"2020-04-01\"}"));
+        String organization = realm.organization("x-hospital");
+        ok(api.put("/org-units/" + hospital + "/organization", "{\"organizationId\": \"" + organization + "\"}"));
+        ok(api.post("/staff", "{\"userId\": \"" + nurse + "\", \"orgUnitId\": \"" + hospital
+                + "\", \"validFrom\": \"2020-04-01\"}"));
+        realm.refItem("QUALIFICATION", "license", "免許");
+        String license = id(api.post("/qualifications", "{\"userId\": \"" + nurse + "\", \"kind\": \"license\", "
+                + "\"number\": \"1\", \"validFrom\": \"2010-04-01\"}"));
+        ObjectNode before = export(api);
+
+        // Changes by mistake after the export.
+        ok(api.post("/org-units", "{\"name\": \"新病棟\", \"validFrom\": \"2020-04-01\"}"));
+        ok(api.put("/org-units/" + hospital, "{\"name\": \"誤った名前\", \"validFrom\": \"2025-04-01\"}"));
+        ok(api.delete("/qualifications/" + license));
+        ok(api.delete("/org-units/" + hospital + "/organization"));
+
+        assertEquals("restore.realm_not_empty", error(api.post("/restore", JSON.writeValueAsString(before))));
+        HttpResponse<String> restored = api.post("/restore?replace=true", JSON.writeValueAsString(before));
+
+        assertEquals(200, restored.statusCode(), restored.body());
+        assertEquals(before, export(api));
+        assertEquals(organization, Api.json(api.get("/org-units/" + hospital + "?asOf=2024-04-01"))
+                .get("keycloakOrganizationId").asText());
+        // The change log keeps what happened, the mistakes too.
+        assertTrue(Api.json(api.get("/change-log?resourceType=FUHITO_QUALIFICATION&resourceId=" + license))
+                .findValuesAsText("operation").contains("DELETE"));
+    }
+
+    @Test
+    void aRestoreDoesNotBringBackErasedOrMaskedData() throws Exception {
+        TestRealm realm = TestRealm.withEmployer("export-erased");
+        String hospital = id(realm.api.post("/org-units", "{\"name\": \"病院\", \"validFrom\": \"2020-04-01\"}"));
+        List<String> users = List.of("erased", "masked");
+        Map<String, String> people = new HashMap<>();
+        for (String username : users) {
+            people.put(username, id(realm.api.post("/people", "{\"userId\": \"" + realm.user(username)
+                    + "\", \"name\": \"" + username + "\"}")));
+        }
+        // A mask needs a person with no open employment.
+        ok(realm.api.post("/staff", "{\"personId\": \"" + people.get("erased") + "\", \"orgUnitId\": \"" + hospital
+                + "\", \"validFrom\": \"2020-04-01\"}"));
+        ObjectNode before = export(realm.api);
+
+        assertEquals(204, realm.api.delete("/people/" + people.get("erased") + "/data").statusCode());
+        ok(realm.api.post("/people/" + people.get("masked") + "/mask", ""));
+        ok(realm.api.post("/restore?replace=true", JSON.writeValueAsString(before)));
+
+        assertEquals(404, realm.api.get("/people/" + people.get("erased")).statusCode());
+        JsonNode masked = Api.json(realm.api.get("/people/" + people.get("masked")));
+        assertTrue(!masked.has("name"), masked.toString());
+
+        // An export after the erase has its record. A restore erases the person of the record in a new realm too.
+        ObjectNode after = export(realm.api);
+        assertEquals(people.get("erased"), after.get("erasures").get(0).get("personId").asText());
+        before.set("erasures", after.get("erasures"));
+        TestRealm target = TestRealm.create("export-erased-target");
+        users.forEach(target::user);
+        realm.remove();
+        ok(target.api.post("/restore", JSON.writeValueAsString(before)));
+        assertEquals(404, target.api.get("/people/" + people.get("erased")).statusCode());
+        assertEquals(after.get("erasures"), export(target.api).get("erasures"));
     }
 
     @Test

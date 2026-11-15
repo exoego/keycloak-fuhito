@@ -204,7 +204,49 @@ public interface RealmExportStore {
     boolean isEmpty();
 
     /**
-     * Stores the time when a person was masked.
+     * Returns the Keycloak organizations that the org units of the realm are linked to.
+     *
+     * @return the IDs of the organizations
+     */
+    List<String> linkedOrganizations();
+
+    /**
+     * Deletes every row of the realm that an export has, before a restore that replaces them.
+     * The change log, the keys of repeated requests, and the runs of jobs stay.
+     */
+    void deleteData();
+
+    /**
+     * Returns the records of erases.
+     *
+     * @return the pages, ordered by the ID of the person
+     */
+    Page<Erasure> erasures();
+
+    /**
+     * Keeps the record of an erase, unless the realm has one for the person already.
+     *
+     * @param erasure the record
+     */
+    void restoreErasure(Erasure erasure);
+
+    /**
+     * Erases again each person who has a record of an erase, and masks again each person who has a record of a
+     * mask. A restore does it last, so that an older export never brings their data back.
+     */
+    void eraseAndMaskAgain();
+
+    /**
+     * A person whose data was erased.
+     *
+     * @param personId the ID of the person
+     * @param erasedAt the time of the erase
+     */
+    record Erasure(String personId, Instant erasedAt) {
+    }
+
+    /**
+     * Stores the time when a person was masked, unless the realm has a record of a mask of the person already.
      *
      * @param personId the ID of the person
      * @param maskedAt the time

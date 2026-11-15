@@ -677,6 +677,15 @@ components:
         attributes:
           type: object
           additionalProperties: {}
+    ExportErasure:
+      type: object
+      description: "A person whose data was erased. A restore erases the person again,\
+        \ also when an older export has the data."
+      properties:
+        personId:
+          type: string
+        erasedAt:
+          type: string
     ExportExternalId:
       type: object
       properties:
@@ -2035,7 +2044,8 @@ components:
           description: The name of that system.
     RealmExport:
       description: "Every stored row of a realm, with every period. `POST /restore`\
-        \ loads it into a realm that has no data of the extension."
+        \ loads it into a realm that has no data of the extension, or in place of\
+        \ the data of a realm."
       type: object
       properties:
         format:
@@ -2095,6 +2105,10 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ExportChangeOrder"
+        erasures:
+          type: array
+          items:
+            $ref: "#/components/schemas/ExportErasure"
     RefItem:
       required:
       - name
@@ -6965,7 +6979,8 @@ paths:
           $ref: "#/components/responses/Conflict"
   /restore:
     post:
-      summary: Loads an export into a realm that has no data of the extension.
+      summary: "Loads an export into a realm that has no data of the extension, or\
+        \ in place of its data."
       description: "Every row keeps its ID, so products that stored IDs find the same\
         \ resources. The rows are written all or nothing. A username must name a user\
         \ of this realm. An org unit names its Keycloak organization by alias, and\
@@ -6974,6 +6989,14 @@ paths:
       tags:
       - bulk
       parameters:
+      - description: "True to delete every row of the extension in the realm first,\
+          \ for data that was removed or changed by mistake. The change log stays.\
+          \ Without it, a realm with data is refused."
+        schema:
+          type: boolean
+          default: false
+        name: replace
+        in: query
       - $ref: "#/components/parameters/changeOrder"
       requestBody:
         content:
