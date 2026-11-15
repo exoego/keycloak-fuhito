@@ -5,7 +5,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.sql.Connection;
-import java.sql.Statement;
+import java.sql.PreparedStatement;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -121,8 +121,10 @@ class ProjectionIT {
         try (Connection connection = KeycloakEnvironment.connection()) {
             // A new membership needs the row of its user. So the first rebuild waits here.
             connection.setAutoCommit(false);
-            try (Statement statement = connection.createStatement()) {
-                statement.execute("select id from user_entity where id = '" + nurse + "' for update");
+            try (PreparedStatement statement = connection.prepareStatement(
+                    "select id from user_entity where id = ? for update")) {
+                statement.setString(1, nurse);
+                statement.execute();
             }
             first = CompletableFuture.supplyAsync(() -> {
                 try {
