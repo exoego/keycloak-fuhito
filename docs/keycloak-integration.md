@@ -118,6 +118,12 @@ The projection is off unless the realm has the attribute `fuhito.projection.enab
 `POST /projection/rebuild` runs it. The response counts what changed.
 A rebuild with no change in between changes nothing.
 
+A rebuild does its work in pieces, and each piece is one transaction. One transaction for a large realm would run into the transaction timeout of Keycloak.
+So a rebuild that fails in the middle keeps the pieces that it finished. The groups are then partly up to date. The next rebuild does the rest.
+
+A rebuild reads who is in which group from the table of Keycloak, for many groups in one query.
+A user that only a user storage provider holds is not in that table. A user that Keycloak imported, for example from LDAP, is in it.
+
 A timer inside Keycloak also runs it, for every realm that turned the projection on.
 A dated change becomes true on its date with no write on that day, so only a run on that day picks it up.
 A write to the API does not run the projection. The timer picks the change up at its next run.
@@ -144,7 +150,7 @@ The projection goes one way. The tables of this extension stay the source of tru
 - A member that someone added by hand to such a group is taken out at the next rebuild.
 - A group that someone made by hand has no such attribute. The projection leaves it and its members alone, unless it sits below a group that the projection removes.
 - The projection never takes a user out of an organization. A person who left stays a member of the organization until an administrator removes them.
-- Two units below one parent must have different names, because Keycloak requires it for groups. A rebuild fails with `projection.duplicate_name` otherwise, and changes nothing.
+- Two units below one parent must have different names, because Keycloak requires it for groups. A rebuild fails with `projection.duplicate_name` otherwise, and changes nothing in that organization. The organizations that the rebuild handled before it stay as the rebuild left them.
 
 The projection records no admin events and no change log entries. It changes data of Keycloak, not data of the extension.
 

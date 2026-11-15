@@ -128,6 +128,28 @@ Measured with 50,001 org units and 500,000 people.
 
 With the cursor, a late page of the members costs as much as the first page. It does not get cheaper than that, because every page still walks the tree below the org unit.
 
+## The projection into Keycloak
+
+`BATCH=1 SYNC=0 scripts/bench/run.sh` also makes one Keycloak user for each person, links the company to one Keycloak organization, and runs `POST /projection/rebuild` twice.
+The realm has 50,000 people and 5,000 org units. The first run makes 5,000 groups, 49,990 memberships of groups, and 50,000 members of the organization.
+
+| Version | First run | Nothing changed |
+|---|---|---|
+| One transaction, with one check of membership for each user | fails | not run |
+| Pieces of 100 org units, each in its own transaction | 226 s | 14 s to 26 s |
+| The memberships of a piece read in one query | 245 s | 3.4 s |
+| The writes of memberships in transactions of 50 | 96 s | 3.5 s |
+
+What the runs showed.
+
+- One transaction does not work. Keycloak ends a transaction after 300 seconds. Before that limit, the list of IDs after `in` passed the 65,535 values that PostgreSQL takes in one statement.
+- A list of IDs is now one array, and the SQL is `id = any(?)`. That removed the limit. It did not change the times.
+- With nothing to change, the time went into one question to Keycloak for each user. One query for each piece now reads who is in which group.
+- In the first run, the time goes into the writes. Keycloak flushes after each change of a membership, and a flush looks through everything that the transaction loaded. Small transactions keep each flush small.
+- No statement of a rebuild took 20 ms or more in the database. The time is in Keycloak and in the trips to the database.
+
+The first run still costs about 1 ms for each write. The writes go through the API of Keycloak, so that its caches and its events stay right.
+
 ## What the numbers say
 
 - A read about one org unit, one person, or one page of people does not grow with the realm.
@@ -138,6 +160,7 @@ With the cursor, a late page of the members costs as much as the first page. It 
 
 ## Not measured
 
-- The token mapper, the projection into Keycloak, and the sync from user attributes. They need Keycloak users and organizations, which the seed does not make.
+- The token mapper.
+- The sync from user attributes. `BATCH=1` runs it. With 50,000 people it does not end within the 300 seconds of a transaction yet.
 - Writes.
 - More than one request at the same time.

@@ -2,7 +2,6 @@ package net.exoego.keycloak.fuhito.rest;
 
 import java.io.InputStream;
 import java.time.Clock;
-import java.util.List;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.function.Consumer;
@@ -49,7 +48,6 @@ import net.exoego.keycloak.fuhito.service.Today;
 import net.exoego.keycloak.fuhito.service.UnitDays;
 import net.exoego.keycloak.fuhito.service.UserMaskingService;
 import net.exoego.keycloak.fuhito.store.OrganizationDirectory;
-import net.exoego.keycloak.fuhito.store.OrganizationGroups;
 import net.exoego.keycloak.fuhito.store.UserAttributeSource;
 import net.exoego.keycloak.fuhito.store.UserDirectory;
 import org.eclipse.microprofile.openapi.annotations.Operation;
@@ -74,9 +72,9 @@ public class FuhitoResource {
     private final BusinessDay.Rule rule;
     private final UserDirectory users;
     private final OrganizationDirectory organizations;
-    private final OrganizationGroups organizationGroups;
     private final UserAttributeSource userAttributes;
     private final Consumer<String> erasePerson;
+    private final ProjectionService.Work projectionWork;
 
     /**
      * Creates the resource for one request.
@@ -87,17 +85,18 @@ public class FuhitoResource {
      * @param rule the time zone and the day start of the realm
      * @param users the users of the realm
      * @param organizations the Keycloak organizations of the realm
-     * @param organizationGroups the groups and members of the Keycloak organizations of the realm
      * @param userAttributes the user attributes that an identity provider fills
      * @param erasePerson removes every row and every change log entry about one person
+     * @param projectionWork runs each piece of a rebuild of the projection in a transaction of its own
      */
     public FuhitoResource(String realmId, RequestContext context, EntityManager entityManager, BusinessDay.Rule rule,
             UserDirectory users,
-            OrganizationDirectory organizations, OrganizationGroups organizationGroups,
-            UserAttributeSource userAttributes, Consumer<String> erasePerson) {
+            OrganizationDirectory organizations,
+            UserAttributeSource userAttributes, Consumer<String> erasePerson,
+            ProjectionService.Work projectionWork) {
+        this.projectionWork = projectionWork;
         this.userAttributes = userAttributes;
         this.erasePerson = erasePerson;
-        this.organizationGroups = organizationGroups;
         this.organizations = organizations;
         this.realmId = realmId;
         this.context = context;
@@ -275,9 +274,7 @@ public class FuhitoResource {
      */
     @Path("projection")
     public ProjectionResource projection() {
-        return new ProjectionResource(context, new ProjectionService(new JpaOrgUnitStore(entityManager, realmId),
-                new JpaAssignmentStore(entityManager, realmId), new JpaEmploymentStore(entityManager, realmId),
-                new JpaRefItemStore(entityManager, realmId), organizationGroups, today()));
+        return new ProjectionResource(context, new ProjectionService(projectionWork));
     }
 
     /**

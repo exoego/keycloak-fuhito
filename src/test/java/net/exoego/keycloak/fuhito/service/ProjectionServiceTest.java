@@ -20,6 +20,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -37,6 +38,14 @@ class ProjectionServiceTest {
         // Users that Keycloak no longer has.
         private final Set<String> gone = new HashSet<>();
         private int nextId = 1;
+        // How often a rebuild asked to put off the writes.
+        private int flushes;
+
+        @Override
+        public <T> T inOneFlush(java.util.function.Supplier<T> work) {
+            flushes++;
+            return work.get();
+        }
 
         @Override
         public boolean projectionEnabled() {
@@ -94,8 +103,21 @@ class ProjectionServiceTest {
         }
 
         @Override
-        public Set<String> members(String groupId) {
+        public Map<String, Set<String>> members(java.util.Collection<String> groupIds) {
+            Map<String, Set<String>> result = new HashMap<>();
+            groupIds.forEach(id -> result.put(id, members(id)));
+            return result;
+        }
+
+        private Set<String> members(String groupId) {
             return Set.copyOf(members.getOrDefault(groupId, Set.of()));
+        }
+
+        @Override
+        public Set<String> organizationMembers(String organizationId, java.util.Collection<String> userIds) {
+            Set<String> result = new HashSet<>(organizationMembers.getOrDefault(organizationId, Set.of()));
+            result.retainAll(userIds);
+            return result;
         }
 
         @Override
@@ -287,6 +309,15 @@ class ProjectionServiceTest {
         assertEquals(FuhitoException.Reason.CONFLICT, e.reason());
         assertEquals("projection.disabled", e.code());
         assertEquals(0, keycloak.groups.size());
+    }
+
+    @Test
+    void everyPieceOfARebuildPutsOffItsWrites() {
+        rebuild();
+
+        // The check of the realm, the list of linked units, and then the pieces of each organization.
+        assertTrue(keycloak.flushes > 2, "pieces: " + keycloak.flushes);
+        assertFalse(keycloak.groups.isEmpty());
     }
 
     @Test

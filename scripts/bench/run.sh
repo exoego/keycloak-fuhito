@@ -10,6 +10,9 @@ REALM=bench
 # The size of the realm. The defaults are the size of the first run in docs/performance.md.
 PEOPLE="${PEOPLE:-50000}"
 UNITS="${UNITS:-5000}"
+# BATCH=1 also measures the projection into Keycloak and the sync from user attributes. They take minutes.
+# SYNC=0 leaves the sync out.
+BATCH="${BATCH:-0}"
 
 ./gradlew jar -q
 JAR="$(ls build/libs/keycloak-fuhito-*-SNAPSHOT.jar | head -1)"
@@ -35,7 +38,7 @@ token() {
 }
 
 curl -s -o /dev/null -X POST -H "Authorization: Bearer $(token)" -H 'Content-Type: application/json' \
-  -d "{\"realm\": \"${REALM}\", \"enabled\": true, \"attributes\": {\"fuhito.timeZone\": \"UTC\"}}" \
+  -d "{\"realm\": \"${REALM}\", \"enabled\": true, \"organizationsEnabled\": true, \"attributes\": {\"fuhito.timeZone\": \"UTC\", \"fuhito.projection.enabled\": \"true\", \"fuhito.sync.enabled\": \"true\"}}" \
   "${BASE}/admin/realms"
 REALM_ID="$(curl -s -H "Authorization: Bearer $(token)" "${BASE}/admin/realms/${REALM}" | jq -r .id)"
 docker exec -i fuhito-bench-pg psql -q -U keycloak -d keycloak -v ON_ERROR_STOP=1 -v realm="${REALM_ID}" \
@@ -84,6 +87,37 @@ measure 'Change log, from the middle' "/change-log?after=$((PEOPLE * 2))&max=100
 measure 'Change log of one resource' '/change-log?resourceType=FUHITO_ASSIGNMENT&resourceId=a-777'
 measure 'Effective changes of one day' '/effective-changes?from=2024-04-01'
 measure 'Effective changes of five years' '/effective-changes?from=2020-01-01&to=2026-01-01&max=1000'
+
+if [ "${BATCH}" = 1 ]; then
+  docker exec -i fuhito-bench-pg psql -q -U keycloak -d keycloak -v ON_ERROR_STOP=1 -v realm="${REALM_ID}" \
+    -v people="${PEOPLE}" -v units="${UNITS}" < scripts/bench/seed-users.sql
+  # The whole company is one Keycloak organization. Its org units become groups, and its people members.
+  ORGANIZATION="$(curl -s -D - -o /dev/null -X POST -H "Authorization: Bearer $(token)" \
+    -H 'Content-Type: application/json' \
+    -d '{"name": "bench", "alias": "bench", "domains": [{"name": "bench.example.com"}]}' \
+    "${BASE}/admin/realms/${REALM}/organizations" | tr -d '\r' | awk -F/ '/^[Ll]ocation:/ {print $NF}')"
+  curl -s -o /dev/null -X PUT -H "Authorization: Bearer $(token)" -H 'Content-Type: application/json' \
+    -d "{\"organizationId\": \"${ORGANIZATION}\"}" "${API}/org-units/u-0/organization"
+
+  # One run each. A token lasts a minute, so each call gets a new one.
+  once() {
+    local name="$1" path="$2" line
+    line="$(curl -s -o /tmp/fuhito-bench-body -w '%{time_total} %{http_code}' --max-time 3600 -X POST \
+      -H "Authorization: Bearer $(token)" "${API}${path}")"
+    printf '| %s | `POST %s` | %s | %s | %s |\n' "${name}" "${path}" \
+      "$(awk '{printf "%d", $1 * 1000}' <<<"${line}")" "$(awk '{print $2}' <<<"${line}")" \
+      "$(head -c 300 /tmp/fuhito-bench-body)"
+  }
+  echo
+  echo '| Batch | Path | ms | Status | Report |'
+  echo '|---|---|---|---|---|'
+  once 'Projection, first run' '/projection/rebuild'
+  once 'Projection, nothing changed' '/projection/rebuild'
+  if [ "${SYNC:-1}" = 1 ]; then
+    once 'Sync from user attributes, first run' '/attribute-sync/run'
+    once 'Sync from user attributes, nothing changed' '/attribute-sync/run'
+  fi
+fi
 
 echo
 echo 'The plans of the slow statements are in the log of the database:'
