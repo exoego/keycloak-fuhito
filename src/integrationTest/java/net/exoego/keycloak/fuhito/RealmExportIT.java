@@ -49,6 +49,13 @@ class RealmExportIT {
         return document;
     }
 
+    private static String line;
+
+    private static JsonNode defaultHierarchy(Api api) throws Exception {
+        JsonNode hierarchies = Api.json(api.get("/hierarchies"));
+        return hierarchies.get(hierarchies.findValuesAsText("code").indexOf("default"));
+    }
+
     private static String camel(String list) {
         StringBuilder name = new StringBuilder();
         boolean upper = false;
@@ -79,6 +86,9 @@ class RealmExportIT {
         ok(api.post("/attribute-definitions", "{\"target\": \"PERSON\", \"name\": \"site\", \"type\": \"REF_ITEM\", "
                 + "\"refKind\": \"site\"}"));
         ok(api.post("/hierarchies", "{\"code\": \"project\", \"name\": \"プロジェクト\"}"));
+        // The default hierarchy goes with its ID and its name.
+        line = defaultHierarchy(api).get("id").asText();
+        ok(api.put("/hierarchies/" + line, "{\"name\": \"組織図\"}"));
         String hospital = id(api.post("/org-units", "{\"name\": \"病院\", \"validFrom\": \"2020-04-01\"}"));
         String ward = id(api.post("/org-units", "{\"name\": \"1病棟\", \"parentId\": \"" + hospital
                 + "\", \"validFrom\": \"2020-04-01\"}"));
@@ -124,6 +134,8 @@ class RealmExportIT {
         assertEquals(200, restored.statusCode(), restored.body());
         assertEquals(4, Api.json(restored).get("org-units").asInt());
         assertEquals(first, export(target.api));
+        assertEquals(line, defaultHierarchy(target.api).get("id").asText());
+        assertEquals("組織図", defaultHierarchy(target.api).get("name").asText());
         assertEquals("restore.realm_not_empty", Api.json(target.api.post("/restore", JSON.writeValueAsString(first)))
                 .get("error").asText());
         assertEquals(404, target.api.get("/export/nothing").statusCode());

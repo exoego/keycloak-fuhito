@@ -225,7 +225,7 @@ This copies a realm to a test environment, moves it to another Keycloak, or brin
 
 - `GET /export/{list}` reads one list in pages, ordered by ID. Follow the `Link` header to the end. The lists are `ref-kinds`, `ref-items`, `attribute-definitions`, `hierarchies`, `org-units`, `people`, `employments`, `assignments`, `reporting-lines`, `unit-roles`, `qualifications`, `external-ids`, and `change-orders`.
 - Put the lists together under their names in camel case, such as `refKinds`, with `"format": "fuhito.export.v1"`. `POST /restore` takes that document.
-- A restore keeps every ID, so products that stored IDs find the same resources. It writes all or nothing.
+- A restore keeps every ID, so products that stored IDs find the same resources. It writes all or nothing. The default hierarchy of the export takes the place of the one of the empty realm, with its ID and its name.
 - It fails with `restore.realm_not_empty` when the realm has any data of the extension. So it cannot load into a realm of the same database that the export came from while that realm still has the rows.
 - It checks the export before it writes. A row that names a row that the export does not have fails with 400 and `restore.reference_unknown`. So a restore never links to the rows of another realm.
 - A value that is missing or cannot be read fails with 400 and `restore.bad_value`.
