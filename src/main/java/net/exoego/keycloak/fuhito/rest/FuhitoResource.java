@@ -40,6 +40,7 @@ import net.exoego.keycloak.fuhito.service.AttributeSyncService;
 import net.exoego.keycloak.fuhito.service.ChangeLogService;
 import net.exoego.keycloak.fuhito.service.ChangeOrderService;
 import net.exoego.keycloak.fuhito.service.EffectiveChangeService;
+import net.exoego.keycloak.fuhito.service.CsvExportService;
 import net.exoego.keycloak.fuhito.service.CsvImportService;
 import net.exoego.keycloak.fuhito.service.EmploymentService;
 import net.exoego.keycloak.fuhito.service.ExternalIdService;
@@ -480,7 +481,8 @@ public class FuhitoResource {
                 orgUnitService(), orgUnitStore, people);
         var definitions = new JpaAttributeDefinitionStore(entityManager, realmId);
         return new ImportsResource(context, importService, new CsvImportService(importService, refItemStore,
-                orgUnitStore, orgUnitService(), people, definitions::list));
+                orgUnitStore, orgUnitService(), people, definitions::list),
+                new CsvExportService(orgUnitService(), definitions::list));
     }
 
     private OrgUnitService orgUnitService() {

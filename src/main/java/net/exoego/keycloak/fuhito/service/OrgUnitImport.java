@@ -51,10 +51,10 @@ final class OrgUnitImport {
         report.startList(ORG_UNITS);
         for (int i = 0; i < rows.size(); i++) {
             OrgUnitRow row = rows.get(i);
-            if (row == null || row.externalId() == null) {
+            if (row == null || (row.externalId() == null && row.id() == null)) {
                 fail(i, FuhitoException.invalid("invalid.required", Map.of("field", "externalId")));
             } else if (rowByKey.putIfAbsent(key(row), i) != null) {
-                fail(i, FuhitoException.invalid("import.duplicate_row", Map.of("externalId", row.externalId())));
+                fail(i, FuhitoException.invalid("import.duplicate_row", Map.of("externalId", name(row))));
             }
         }
         for (int i = 0; i < rows.size(); i++) {
@@ -66,8 +66,13 @@ final class OrgUnitImport {
         return row.source() == null ? defaultSource : row.source();
     }
 
+    // A row with no external ID names a stored unit by its ID.
     private String key(OrgUnitRow row) {
-        return sourceOf(row) + "\\u0000" + row.externalId();
+        return row.externalId() == null ? "\\u0000id\\u0000" + row.id() : sourceOf(row) + "\\u0000" + row.externalId();
+    }
+
+    private static String name(OrgUnitRow row) {
+        return row.externalId() == null ? row.id() : row.externalId();
     }
 
     private void fail(int index, FuhitoException error) {
@@ -82,7 +87,7 @@ final class OrgUnitImport {
         }
         if (!running.add(index)) {
             throw FuhitoException.invalid("import.parent_cycle",
-                    Map.of("externalId", rows.get(index).externalId()));
+                    Map.of("externalId", name(rows.get(index))));
         }
         try {
             OrgUnitRow row = rows.get(index);
@@ -125,7 +130,7 @@ final class OrgUnitImport {
     }
 
     private Outcome applyRow(int index, OrgUnitRow row, String source, String parentId) {
-        Optional<OrgUnit> stored = orgUnits.findUnitByExternalId(source, row.externalId());
+        Optional<OrgUnit> stored = stored(row, source);
         if (stored.isEmpty()) {
             OrgUnitState created = orgUnitService.create(new NewOrgUnit(row.code(), row.name(), row.names(),
                     row.shortName(), row.shortNames(), row.phoneticName(), row.unitType(), parentId,
@@ -171,6 +176,20 @@ final class OrgUnitImport {
             changed = true;
         }
         return changed ? Outcome.CHANGED : Outcome.UNCHANGED;
+    }
+
+    // A row with an ID changes that unit. An external ID beside it must be the one of that unit.
+    private Optional<OrgUnit> stored(OrgUnitRow row, String source) {
+        if (row.id() == null) {
+            return orgUnits.findUnitByExternalId(source, row.externalId());
+        }
+        OrgUnit unit = orgUnits.findUnit(row.id())
+                .orElseThrow(() -> FuhitoException.invalid("import.id_unknown", Map.of("id", row.id())));
+        if (row.externalId() != null
+                && !(row.externalId().equals(unit.externalId()) && source.equals(unit.source()))) {
+            throw FuhitoException.invalid("import.id_mismatch", Map.of("id", row.id(), "externalId", row.externalId()));
+        }
+        return Optional.of(unit);
     }
 
     private String lastDay(String id) {
