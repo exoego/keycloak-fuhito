@@ -310,7 +310,7 @@ public class FuhitoResource {
     @Path("external-ids")
     public ExternalIdsResource externalIds() {
         return new ExternalIdsResource(context, new ExternalIdService(new JpaExternalIdStore(entityManager,
-                realmId)));
+                realmId)), orgUnitService(), new StructureLimit(context, today()));
     }
 
     /**

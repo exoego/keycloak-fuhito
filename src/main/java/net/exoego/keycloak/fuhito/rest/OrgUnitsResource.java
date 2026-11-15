@@ -1,6 +1,7 @@
 package net.exoego.keycloak.fuhito.rest;
 
 import java.util.List;
+import java.util.function.Supplier;
 
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.DELETE;
@@ -647,8 +648,8 @@ public class OrgUnitsResource {
         return "fuhito/org-units/" + id;
     }
 
-    private static List<OrgUnitRepresentation> represent(List<OrgUnitState> states) {
-        return states.stream().map(OrgUnitRepresentation::of).toList();
+    private List<OrgUnitRepresentation> represent(List<OrgUnitState> states) {
+        return states.stream().map(limit::readable).map(OrgUnitRepresentation::of).toList();
     }
 
     @GET
@@ -668,8 +669,9 @@ public class OrgUnitsResource {
             @Parameter(description = "The code of the hierarchy. The default is the hierarchy `default`.")
             @QueryParam("hierarchy") String hierarchy) {
         context.requireReadStructure();
-        return Calls.tagged(context, () -> state(id), () -> OrgUnitRepresentation.of(
-                service.get(id, limit.checked(asOf), hierarchy)));
+        Supplier<OrgUnitRepresentation> read = () -> OrgUnitRepresentation.of(
+                limit.readable(service.get(id, limit.checked(asOf), hierarchy)));
+        return limit.active() ? Calls.run(context, read) : Calls.tagged(context, () -> state(id), read);
     }
 
     // The whole stored state of one resource, which its ETag covers.

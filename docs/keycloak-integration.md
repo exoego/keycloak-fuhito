@@ -312,8 +312,11 @@ With this attribute, such a caller is limited in these ways.
 - A read with a later `asOf` gets 403 with `structure.too_far_ahead`. Today is the date of the realm.
 - The history of an org unit has every period, so a read of it gets 403 too.
 - The successions of an org unit leave out those after the limit.
+- An org unit shows no end of its details after the limit, because that is the date of a later change.
+- A read of one org unit sends no `ETag`. Such a caller cannot write, and an `ETag` of the whole history would tell that a later change was stored.
+- `GET /external-ids/lookup` finds no org unit that starts after the limit.
 
-An org unit still shows when its period ends, also when the end is after the limit.
+A read with no `asOf` reads today. For an org unit with its own time zone, that can be the day after the date of the realm.
 A caller who may view users has no limit.
 A value that is not such a number gets 409 with `structure.days_ahead_invalid` for the callers that it limits.
 
