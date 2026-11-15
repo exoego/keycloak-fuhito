@@ -7,11 +7,13 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.SortedSet;
 import java.util.TreeSet;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 import net.exoego.keycloak.fuhito.domain.AttributeDefinition;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.OrgUnitVersion;
+import net.exoego.keycloak.fuhito.domain.Person;
 
 /**
  * Writes a list of the realm on a date as a CSV that the CSV import loads again with no change.
@@ -23,17 +25,20 @@ public class CsvExportService {
     private static final int ROWS_AT_A_TIME = 1000;
 
     private final OrgUnitService orgUnits;
+    private final PersonService people;
     private final Function<AttributeDefinition.Target, List<AttributeDefinition>> definitions;
 
     /**
      * Creates the service.
      *
      * @param orgUnits the operations on org units of the realm
+     * @param people the operations on people of the realm
      * @param definitions the definitions of free attributes of the realm, by the resource that has them
      */
-    public CsvExportService(OrgUnitService orgUnits,
+    public CsvExportService(OrgUnitService orgUnits, PersonService people,
             Function<AttributeDefinition.Target, List<AttributeDefinition>> definitions) {
         this.orgUnits = orgUnits;
+        this.people = people;
         this.definitions = definitions;
     }
 
@@ -47,10 +52,52 @@ public class CsvExportService {
      * @throws FuhitoException when the list is not one that can be written yet, or the date is bad
      */
     public String write(String list, String asOf, boolean japanese) {
-        if (!"org-units".equals(list)) {
-            throw FuhitoException.invalid("csv.export_list_unknown", Map.of("list", String.valueOf(list)));
+        return switch (String.valueOf(list)) {
+            case "org-units" -> orgUnits(asOf, japanese);
+            case "people" -> people(japanese);
+            default -> throw FuhitoException.invalid("csv.export_list_unknown", Map.of("list", String.valueOf(list)));
+        };
+    }
+
+    // The list of people can be large. It is read twice in pages, first for the languages of the names. The link
+    // to a Keycloak user is left out: a blank cell keeps it, and the ID of a removed user would not load again.
+    private String people(boolean japanese) {
+        SortedSet<String> languages = new TreeSet<>();
+        eachPerson(person -> languages.addAll(person.names().keySet()));
+        List<String> attributes = definitions.apply(AttributeDefinition.Target.PERSON).stream()
+                .map(AttributeDefinition::name)
+                .toList();
+        List<String> header = new ArrayList<>();
+        for (String field : List.of("id", "externalId", "source", "name")) {
+            header.add(column(field, japanese));
         }
-        return orgUnits(asOf, japanese);
+        languages.forEach(language -> header.add(column("name", japanese) + ":" + language));
+        header.add(column("phoneticName", japanese));
+        attributes.forEach(attribute -> header.add(CsvImportService.ATTRIBUTE_COLUMN + attribute));
+        StringBuilder csv = new StringBuilder(BYTE_ORDER_MARK);
+        line(csv, header);
+        eachPerson(person -> {
+            List<String> cells = new ArrayList<>(List.of(person.id(), text(person.externalId()),
+                    text(person.source()), text(person.name())));
+            languages.forEach(language -> cells.add(text(person.names().get(language))));
+            cells.add(text(person.phoneticName()));
+            attributes.forEach(attribute -> cells.add(text(Optional.ofNullable(person.attributes())
+                    .map(values -> values.get(attribute)).orElse(null))));
+            line(csv, cells);
+        });
+        return csv.toString();
+    }
+
+    private void eachPerson(Consumer<Person> each) {
+        String after = null;
+        while (true) {
+            List<PersonView> page = people.list(null, null, ROWS_AT_A_TIME, after);
+            page.forEach(view -> each.accept(view.person()));
+            if (page.size() < ROWS_AT_A_TIME) {
+                return;
+            }
+            after = Cursor.encode(Cursor.PEOPLE, page.getLast().person().id());
+        }
     }
 
     private String orgUnits(String asOf, boolean japanese) {

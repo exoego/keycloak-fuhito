@@ -352,8 +352,8 @@ class ImportServiceTest {
         importPeople("2026-04-01", List.of(employment("E0", "nurse", null, null, null)), null);
         List<PersonRow> rows = List.of(
                 new PersonRow(null, "P1", null, null, "山田 花子", Map.of("en", "Hanako Yamada"), "やまだ はなこ",
-                        Map.of("note", "retired")),
-                new PersonRow(null, "P2", "nurse", null, null, null, null, null));
+                        Map.of("note", "retired"), null),
+                new PersonRow(null, "P2", "nurse", null, null, null, null, null, null));
 
         ImportReport first = service.apply(new ImportDocument("2026-04-01", false, null, null, null, null, null, rows));
 
@@ -386,7 +386,7 @@ class ImportServiceTest {
                 null, "1990-04-01", null, null, null, "P1");
         assertEquals("import.user_mismatch", service.apply(new ImportDocument("2026-04-01", false, null, null,
                 null, List.of(mismatch), null)).errors().getFirst().error().code());
-        PersonRow renamed = new PersonRow(null, "P1", null, null, "山田 華子", null, null, null);
+        PersonRow renamed = new PersonRow(null, "P1", null, null, "山田 華子", null, null, null, null);
         assertEquals(new Counts(0, 1, 0), service.apply(new ImportDocument("2026-04-01", false, null, null, null,
                 null, null, List.of(renamed))).counts().get("people"));
     }

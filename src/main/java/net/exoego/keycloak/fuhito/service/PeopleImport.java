@@ -54,7 +54,11 @@ final class PeopleImport {
         for (int i = 0; i < rows.size(); i++) {
             try {
                 PersonRow row = Checks.required("row", rows.get(i));
-                requireFirst(seen, row.source(), row.externalId());
+                if (row.id() == null) {
+                    requireFirst(seen, row.source(), row.externalId());
+                } else if (!seen.add("\\u0000id\\u0000" + row.id())) {
+                    throw FuhitoException.invalid("import.duplicate_row", Map.of("externalId", row.id()));
+                }
                 report.count(PEOPLE, importPerson(row));
             } catch (FuhitoException e) {
                 report.error(PEOPLE, i, e);
@@ -68,7 +72,8 @@ final class PeopleImport {
         PersonService service = people.personService();
         String userId = row.userId() != null || row.username() != null
                 ? userId(row.userId(), row.username()) : null;
-        Optional<Person> stored = service.ofExternalId(source, row.externalId());
+        Optional<Person> stored = row.id() == null ? service.ofExternalId(source, row.externalId())
+                : Optional.of(byId(row, source));
         if (stored.isEmpty() && userId != null) {
             Optional<Person> ofUser = service.ofUser(userId);
             if (ofUser.isPresent()) {
@@ -97,6 +102,17 @@ final class PeopleImport {
         }
         report.write(new Write.OfPerson(false, service.replace(person.id(), wanted)));
         return Outcome.CHANGED;
+    }
+
+    // A row with an ID changes that person. An external ID beside it must be the one of that person.
+    private Person byId(PersonRow row, String source) {
+        Person person = people.personService().find(row.id())
+                .orElseThrow(() -> FuhitoException.invalid("import.id_unknown", Map.of("id", row.id())));
+        if (row.externalId() != null
+                && !(row.externalId().equals(person.externalId()) && source.equals(person.source()))) {
+            throw FuhitoException.invalid("import.id_mismatch", Map.of("id", row.id(), "externalId", row.externalId()));
+        }
+        return person;
     }
 
     private static PersonValues values(PersonRow row, String userId, String source) {
