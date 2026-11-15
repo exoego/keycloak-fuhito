@@ -139,6 +139,36 @@ class UserRemovalIT {
     }
 
     @Test
+    void removingAUserDeletesAFutureEmploymentWithItsRolesAndTheOneThatContinuesIt() throws Exception {
+        TestRealm realm = TestRealm.create("user-removal-roles");
+        Api api = realm.api;
+        String first = realm.legalEntity("法人A");
+        String second = realm.legalEntity("法人B");
+        realm.refItem("UNIT_ROLE", "hr-contact", "人事担当");
+        String user = realm.user("joins-and-moves");
+        JsonNode hired = Api.json(api.post("/staff", "{\"userId\": \"" + user + "\", \"employerId\": \"" + first
+                + "\", \"orgUnitId\": \"" + first + "\", \"validFrom\": \"" + TOMORROW + "\"}"));
+        String employment = hired.get("employment").get("id").asText();
+        assertEquals(201, api.post("/unit-roles", "{\"employmentId\": \"" + employment + "\", \"orgUnitId\": \""
+                + first + "\", \"role\": \"hr-contact\", \"validFrom\": \"" + TOMORROW + "\"}").statusCode());
+        assertEquals(200, api.put("/external-ids", "{\"resourceType\": \"EMPLOYMENT\", \"resourceId\": \""
+                + employment + "\", \"source\": \"payroll\", \"externalId\": \"P-1\"}").statusCode());
+        String later = LocalDate.parse(TOMORROW).plusDays(30).toString();
+        assertEquals(201, api.post("/employments/" + employment + "/transfer", "{\"employerId\": \"" + second
+                + "\", \"validFrom\": \"" + later + "\"}").statusCode());
+        String realmId = realm.id();
+        assertEquals("2", rows("fuhito_employment", realmId));
+        assertEquals("2", rows("fuhito_unit_role", realmId));
+
+        realm.removeUser(user);
+
+        for (String table : List.of("fuhito_employment", "fuhito_unit_role", "fuhito_assignment",
+                "fuhito_external_id")) {
+            assertEquals("0", rows(table, realmId), table);
+        }
+    }
+
+    @Test
     void removingAUserDeletesAnEmploymentThatNeverStarted() throws Exception {
         TestRealm realm = TestRealm.withEmployer("user-removal-future");
         Api api = realm.api;
