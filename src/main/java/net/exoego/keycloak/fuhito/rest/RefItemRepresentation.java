@@ -13,7 +13,8 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
 public record RefItemRepresentation(
         @Schema(readOnly = true)
         String id,
-        @Schema(description = "Only a create request reads it.", ref = "RefKind")
+        @Schema(description = "A fixed kind such as `UNIT_TYPE`, or the code of a kind that the realm added. Only a "
+                + "create request reads it.")
         String kind,
         @Schema(
                 description = "Only a create request reads it.",
@@ -52,7 +53,7 @@ public record RefItemRepresentation(
     }
 
     static RefItemRepresentation of(RefItem item) {
-        return new RefItemRepresentation(item.id(), item.kind().name(), item.code(), item.name(), item.names(),
+        return new RefItemRepresentation(item.id(), item.kind(), item.code(), item.name(), item.names(),
                 item.displayOrder(), item.attributes(), item.active(),
                 item.legalEntity() ? Boolean.TRUE : null, item.actingHead() ? Boolean.TRUE : null,
                 item.group() ? Boolean.TRUE : null);

@@ -1,0 +1,14 @@
+package net.exoego.keycloak.fuhito.domain;
+
+import java.util.Map;
+
+/**
+ * A kind of reference data that a realm added, for example "work location" or "cost center".
+ *
+ * @param id the ID
+ * @param code the code, which items of the kind name as their kind
+ * @param name the default name
+ * @param names the names in other languages, by language tag
+ */
+public record RealmKind(String id, String code, String name, Map<String, String> names) {
+}

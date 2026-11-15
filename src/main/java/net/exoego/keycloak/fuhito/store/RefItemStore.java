@@ -14,22 +14,33 @@ public interface RefItemStore {
     /**
      * Lists every item of a kind, ordered by display order and then by code. This is for code that looks items up.
      *
+     * @param kind the code of a fixed kind or of a kind of the realm
+     * @param includeInactive true to also return inactive items
+     * @return the items
+     */
+    List<RefItem> list(String kind, boolean includeInactive);
+
+    /**
+     * Lists every item of a fixed kind, ordered by display order and then by code.
+     *
      * @param kind the kind
      * @param includeInactive true to also return inactive items
      * @return the items
      */
-    List<RefItem> list(RefKind kind, boolean includeInactive);
+    default List<RefItem> list(RefKind kind, boolean includeInactive) {
+        return list(kind.name(), includeInactive);
+    }
 
     /**
      * Lists a page of the items of a kind, ordered by display order and then by code.
      *
-     * @param kind the kind
+     * @param kind the code of a fixed kind or of a kind of the realm
      * @param includeInactive true to also return inactive items
      * @param first the number of items to skip
      * @param max the largest number of items to return
      * @return the items of the page
      */
-    List<RefItem> list(RefKind kind, boolean includeInactive, int first, int max);
+    List<RefItem> list(String kind, boolean includeInactive, int first, int max);
 
     /**
      * Finds an item by ID.
@@ -42,11 +53,22 @@ public interface RefItemStore {
     /**
      * Finds an item by kind and code.
      *
+     * @param kind the code of a fixed kind or of a kind of the realm
+     * @param code the code
+     * @return the item, or empty when the realm has no such item
+     */
+    Optional<RefItem> findByCode(String kind, String code);
+
+    /**
+     * Finds an item of a fixed kind by code.
+     *
      * @param kind the kind
      * @param code the code
      * @return the item, or empty when the realm has no such item
      */
-    Optional<RefItem> findByCode(RefKind kind, String code);
+    default Optional<RefItem> findByCode(RefKind kind, String code) {
+        return findByCode(kind.name(), code);
+    }
 
     /**
      * Tells whether an employment names an org unit that had this unit type on the first date of the employment.

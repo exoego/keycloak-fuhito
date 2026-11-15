@@ -244,10 +244,7 @@ public class CsvImportService {
         String kind = cells.text("kind", null);
         String code = cells.text("code", null);
         // The import reports an unknown kind. Here it only means that nothing is stored.
-        Optional<RefItem> stored = code == null ? Optional.empty() : Arrays.stream(RefKind.values())
-                .filter(known -> known.name().equals(kind))
-                .findFirst()
-                .flatMap(known -> refItems.findByCode(known, code));
+        Optional<RefItem> stored = code == null || kind == null ? Optional.empty() : refItems.findByCode(kind, code);
         return new RefItemRow(kind, code, cells.text("name", stored.map(RefItem::name).orElse(null)),
                 cells.localized("name", stored.map(RefItem::names).orElse(Map.of())),
                 cells.integer("displayOrder", stored.map(RefItem::displayOrder).orElse(null)),

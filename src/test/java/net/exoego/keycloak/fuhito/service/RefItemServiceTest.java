@@ -27,7 +27,8 @@ class RefItemServiceTest {
         RefItem item = create("hospital", null);
 
         assertEquals(36, item.id().length());
-        assertEquals(RefKind.UNIT_TYPE, item.kind());
+        assertEquals("UNIT_TYPE", item.kind());
+        assertTrue(item.is(RefKind.UNIT_TYPE));
         assertEquals("hospital", item.code());
         assertEquals("hospital name", item.name());
         assertEquals(Map.of(), item.names());
@@ -66,7 +67,7 @@ class RefItemServiceTest {
         assertEquals("invalid.name", assertThrows(FuhitoException.class,
                 () -> service.create(RefKind.UNIT_TYPE, "a", " ", null, null, null)).code());
         assertEquals("invalid.required", assertThrows(FuhitoException.class,
-                () -> service.list(null, false, Page.of(null, null))).code());
+                () -> service.list((String) null, false, Page.of(null, null))).code());
     }
 
     @Test
