@@ -346,8 +346,12 @@ public class AttributeSyncService {
     private void retire(Assignment row, LocalDate today) {
         List<Assignment> rows = from.assignments().rows(row.assignmentId());
         if (!rows.getFirst().period().from().isBefore(today)) {
-            from.lines().findByAssignment(row.assignmentId()).forEach(line -> from.lines().delete(line.id()));
+            from.lines().findByAssignment(row.assignmentId()).forEach(line -> {
+                from.lines().delete(line.id());
+                record.accept(Write.Removed.line(line.id()));
+            });
             rows.forEach(each -> from.assignments().delete(each.rowId()));
+            record.accept(Write.Removed.assignment(row.assignmentId()));
             return;
         }
         written(from.assignmentService().end(row.assignmentId(), today.toString()), false, "/end");
@@ -367,14 +371,17 @@ public class AttributeSyncService {
         }
         String managerPersonId = wanted == null ? null : personOf(wanted);
         if (current.isPresent()) {
+            String id = current.get().id();
             if (current.get().period().from().equals(today)) {
-                from.lineService().delete(current.get().id());
+                from.lineService().delete(id);
+                record.accept(Write.Removed.line(id));
             } else {
-                from.lineService().end(current.get().id(), today.toString());
+                record.accept(new Write.OfReportingLine(false, "/end", from.lineService().end(id, today.toString())));
             }
         }
         if (wanted != null) {
-            from.lineService().add(assignmentId, managerPersonId, "SOLID", today.toString(), null);
+            record.accept(new Write.OfReportingLine(true, "",
+                    from.lineService().add(assignmentId, managerPersonId, "SOLID", today.toString(), null)));
         }
         reportingLinesChanged++;
     }

@@ -182,7 +182,7 @@ class AttributeSyncServiceTest {
         assertEquals("scim", employment.source());
         assertEquals("alice", employment.externalId());
         assertEquals(List.of("FUHITO_PERSON", "FUHITO_EMPLOYMENT", "FUHITO_ASSIGNMENT", "FUHITO_PERSON",
-                        "FUHITO_EMPLOYMENT", "FUHITO_ASSIGNMENT"),
+                        "FUHITO_EMPLOYMENT", "FUHITO_ASSIGNMENT", "FUHITO_REPORTING_LINE"),
                 report.writes().stream().map(ImportReport.Write::resourceType).toList());
     }
 
@@ -229,10 +229,15 @@ class AttributeSyncServiceTest {
         run();
         set("alice", "Surgery", null, "chief", null);
 
-        run();
+        SyncReport moved = run();
 
         assertEquals(List.of("Surgery 2026-06-15 null - primary"), assignmentsOf("alice"));
         assertEquals(List.of("chief 2026-06-15 null"), managersOf("alice"));
+        // Every write is in the change log, the removals too.
+        assertEquals(List.of("DELETE FUHITO_REPORTING_LINE", "DELETE FUHITO_ASSIGNMENT", "CREATE FUHITO_ASSIGNMENT",
+                "CREATE FUHITO_REPORTING_LINE"), moved.writes().stream()
+                .map(w -> (w.deleted() ? "DELETE" : w.created() ? "CREATE" : "UPDATE") + " " + w.resourceType())
+                .toList());
 
         set("alice", "Surgery", null, "boss", null);
         run();
