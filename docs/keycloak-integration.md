@@ -162,6 +162,19 @@ The projection goes one way. The tables of this extension stay the source of tru
 
 The projection records no admin events and no change log entries. It changes data of Keycloak, not data of the extension.
 
+### Projection into realm groups
+
+The projection can also mirror the whole tree into realm groups. A client that uses realm groups or realm roles can then use it, and so can a realm with Organizations turned off.
+
+- The realm attribute `fuhito.projection.realmGroup` names a realm group by its path, for example `/org`. An administrator makes that group first.
+- Every root of the default hierarchy becomes a group right below it, with the units below the root nested the same way.
+- Each assignment that holds today becomes a membership of the group of its unit. There is nothing like the members of an organization.
+- Each root is mirrored as it is on its own date.
+- The rules of what the projection owns are the same as for organization groups. Two roots must have different names too.
+- A path that names no group fails the rebuild with `projection.realm_group_unknown`.
+- The projection must be on, with `fuhito.projection.enabled`. Organizations and realm groups can both be used. A unit is then in both.
+- The report of a rebuild has `realmGroupTrees`, which is 1 when the tree went into realm groups.
+
 ## Removal of a realm or a user
 
 When a realm is removed, the extension deletes every row of that realm in the same transaction.

@@ -5,6 +5,7 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -28,10 +29,11 @@ import net.exoego.keycloak.fuhito.store.OrganizationGroups.Group;
 import net.exoego.keycloak.fuhito.store.RefItemStore;
 
 /**
- * Mirrors the org structure of today into the groups of Keycloak organizations.
+ * Mirrors the org structure of today into the groups of Keycloak organizations, and into realm groups.
  * The projection goes one way. The tables of this extension stay the source of truth.
  * For each org unit that is linked to a Keycloak organization, the units below it become groups of that
  * organization, and the assignments that hold today become group memberships.
+ * When the realm names a realm group, every root and the units below it become groups below that group.
  */
 public class ProjectionService {
 
@@ -83,6 +85,27 @@ public class ProjectionService {
     }
 
     private record Plan(List<OrgUnitState> below, List<Group> existing) {
+    }
+
+    // Where groups go. An organization has members of its own. A realm group has groups below it only.
+    private record Target(String id, boolean organization) {
+
+        List<Group> groups(OrganizationGroups keycloak) {
+            return organization ? keycloak.groups(id) : keycloak.realmGroups(id);
+        }
+
+        String create(OrganizationGroups keycloak, String name, String parentId, String orgUnitId) {
+            return organization ? keycloak.createGroup(id, name, parentId, orgUnitId)
+                    : keycloak.createRealmGroup(id, name, parentId, orgUnitId);
+        }
+
+        void move(OrganizationGroups keycloak, String groupId, String parentId) {
+            if (organization) {
+                keycloak.moveGroup(id, groupId, parentId);
+            } else {
+                keycloak.moveRealmGroup(id, groupId, parentId);
+            }
+        }
     }
 
     private static final int UNITS_AT_A_TIME = 100;
@@ -175,8 +198,10 @@ public class ProjectionService {
                 organizations++;
             }
         }
+        Optional<String> realmGroup = piece(parts -> parts.keycloak().realmGroupRoot());
+        realmGroup.ifPresent(this::projectRealm);
         return new ProjectionReport(organizations, groupsCreated, groupsRenamed, groupsMoved, groupsRemoved,
-                membersJoined, membersLeft, organizationMembersAdded);
+                membersJoined, membersLeft, organizationMembersAdded, realmGroup.isPresent() ? 1 : 0);
     }
 
     // Every piece puts off its writes to its end. See OrganizationGroups.inOneFlush.
@@ -185,7 +210,7 @@ public class ProjectionService {
     }
 
     private boolean project(OrgUnit root, LocalDate today) {
-        String organizationId = root.keycloakOrganizationId();
+        Target target = new Target(root.keycloakOrganizationId(), true);
         Plan plan = piece(parts -> {
             OrgUnitTree tree = new OrgUnitTree(parts.orgUnits(), parts.refItems(), today);
             // A linked unit that does not exist today has nothing to mirror.
@@ -195,36 +220,76 @@ public class ProjectionService {
             List<OrgUnitState> subtree = tree.subtree(root.id());
             List<OrgUnitState> below = List.copyOf(subtree.subList(1, subtree.size()));
             requireUniqueNames(below);
-            return new Plan(below, parts.keycloak().groups(organizationId));
+            return new Plan(below, target.groups(parts.keycloak()));
         });
         if (plan == null) {
             return false;
         }
-
-        Map<String, Group> mirrored = plan.existing().stream()
-                .filter(group -> group.orgUnitId() != null)
-                .collect(Collectors.toMap(Group::orgUnitId, group -> group, (first, second) -> first));
-        // A parent comes before its children, so its group is known when a child needs it.
         Map<String, String> groupIdByUnit = new HashMap<>();
-        for (List<OrgUnitState> some : inPieces(plan.below(), UNITS_AT_A_TIME)) {
-            piece(parts -> {
-                some.forEach(unit -> mirror(parts.keycloak(), organizationId, root.id(), unit, mirrored,
-                        groupIdByUnit));
-                return null;
-            });
-        }
-        piece(parts -> {
-            removeGroupsOfGoneUnits(parts.keycloak(), plan.existing(), groupIdByUnit);
-            return null;
-        });
-
-        Set<String> everyone = new HashSet<>();
+        mirrorAll(target, root.id(), plan.below(), byUnit(plan.existing()), groupIdByUnit);
+        removeGone(plan.existing(), groupIdByUnit);
         // The linked unit itself has no group. Its people are members of the organization only.
         List<String> unitIds = new ArrayList<>(List.of(root.id()));
         plan.below().forEach(unit -> unitIds.add(unit.unit().id()));
+        writeMembers(target, unitIds, today, groupIdByUnit, new HashSet<>());
+        return true;
+    }
+
+    // Every root becomes a group right below the realm group, each as it is on its own date.
+    private void projectRealm(String rootGroupId) {
+        Target target = new Target(rootGroupId, false);
+        List<Linked> roots = piece(parts -> new OrgUnitTree(parts.orgUnits(), parts.refItems(),
+                parts.today().ofRealm()).roots().stream()
+                .map(root -> new Linked(root.unit(), parts.today().ofUnit(root.unit().id())))
+                .toList());
+        Map<Linked, List<OrgUnitState>> trees = new LinkedHashMap<>();
+        for (Linked root : roots) {
+            trees.put(root, piece(parts -> {
+                OrgUnitTree tree = new OrgUnitTree(parts.orgUnits(), parts.refItems(), root.date());
+                return tree.exists(root.unit().id()) ? tree.subtree(root.unit().id()) : List.<OrgUnitState>of();
+            }));
+        }
+        List<OrgUnitState> all = trees.values().stream().flatMap(List::stream).toList();
+        requireUniqueNames(all);
+        List<Group> existing = piece(parts -> target.groups(parts.keycloak()));
+        Map<String, Group> mirrored = byUnit(existing);
+        Map<String, String> groupIdByUnit = new HashMap<>();
+        trees.values().forEach(units -> mirrorAll(target, null, units, mirrored, groupIdByUnit));
+        removeGone(existing, groupIdByUnit);
+        Set<String> everyone = new HashSet<>();
+        trees.forEach((root, units) -> writeMembers(target, units.stream().map(unit -> unit.unit().id()).toList(),
+                root.date(), groupIdByUnit, everyone));
+    }
+
+    private static Map<String, Group> byUnit(List<Group> existing) {
+        return existing.stream()
+                .filter(group -> group.orgUnitId() != null)
+                .collect(Collectors.toMap(Group::orgUnitId, group -> group, (first, second) -> first));
+    }
+
+    // A parent comes before its children, so its group is known when a child needs it.
+    private void mirrorAll(Target target, String rootId, List<OrgUnitState> units, Map<String, Group> mirrored,
+            Map<String, String> groupIdByUnit) {
+        for (List<OrgUnitState> some : inPieces(units, UNITS_AT_A_TIME)) {
+            piece(parts -> {
+                some.forEach(unit -> mirror(parts.keycloak(), target, rootId, unit, mirrored, groupIdByUnit));
+                return null;
+            });
+        }
+    }
+
+    private void removeGone(List<Group> existing, Map<String, String> groupIdByUnit) {
+        piece(parts -> {
+            removeGroupsOfGoneUnits(parts.keycloak(), existing, groupIdByUnit);
+            return null;
+        });
+    }
+
+    private void writeMembers(Target target, List<String> unitIds, LocalDate today, Map<String, String> groupIdByUnit,
+            Set<String> everyone) {
         for (List<String> some : inPieces(unitIds, UNITS_AT_A_TIME)) {
-            List<Consumer<OrganizationGroups>> writes = piece(parts -> memberWrites(parts, organizationId, some,
-                    today, groupIdByUnit, everyone));
+            List<Consumer<OrganizationGroups>> writes = piece(parts -> memberWrites(parts, target, some, today,
+                    groupIdByUnit, everyone));
             for (List<Consumer<OrganizationGroups>> few : inPieces(writes, MEMBER_WRITES_AT_A_TIME)) {
                 piece(parts -> {
                     few.forEach(write -> write.accept(parts.keycloak()));
@@ -232,7 +297,6 @@ public class ProjectionService {
                 });
             }
         }
-        return true;
     }
 
     private static <E> List<List<E>> inPieces(List<E> all, int size) {
@@ -244,20 +308,23 @@ public class ProjectionService {
     }
 
     // Reads who is where for some units, in a few queries, and returns the writes that are missing.
-    private List<Consumer<OrganizationGroups>> memberWrites(Parts parts, String organizationId, List<String> unitIds,
+    private List<Consumer<OrganizationGroups>> memberWrites(Parts parts, Target target, List<String> unitIds,
             LocalDate today, Map<String, String> groupIdByUnit, Set<String> everyone) {
         List<Consumer<OrganizationGroups>> writes = new ArrayList<>();
         Map<String, Set<String>> usersByUnit = usersByUnit(parts, unitIds, today);
-        Set<String> newHere = new LinkedHashSet<>();
-        usersByUnit.values().forEach(users -> users.stream().filter(everyone::add).forEach(newHere::add));
-        Set<String> inOrganization = parts.keycloak().organizationMembers(organizationId, newHere);
-        for (String userId : newHere) {
-            if (!inOrganization.contains(userId)) {
-                writes.add(keycloak -> {
-                    if (keycloak.addOrganizationMember(organizationId, userId)) {
-                        organizationMembersAdded++;
-                    }
-                });
+        if (target.organization()) {
+            String organizationId = target.id();
+            Set<String> newHere = new LinkedHashSet<>();
+            usersByUnit.values().forEach(users -> users.stream().filter(everyone::add).forEach(newHere::add));
+            Set<String> inOrganization = parts.keycloak().organizationMembers(organizationId, newHere);
+            for (String userId : newHere) {
+                if (!inOrganization.contains(userId)) {
+                    writes.add(keycloak -> {
+                        if (keycloak.addOrganizationMember(organizationId, userId)) {
+                            organizationMembersAdded++;
+                        }
+                    });
+                }
             }
         }
         List<String> groupIds = unitIds.stream().map(groupIdByUnit::get).filter(Objects::nonNull).toList();
@@ -272,20 +339,20 @@ public class ProjectionService {
         return writes;
     }
 
-    private void mirror(OrganizationGroups keycloak, String organizationId, String rootId, OrgUnitState unit,
+    private void mirror(OrganizationGroups keycloak, Target target, String rootId, OrgUnitState unit,
             Map<String, Group> mirrored, Map<String, String> groupIdByUnit) {
         String unitId = unit.unit().id();
-        String parentGroupId = unit.parentId().equals(rootId) ? null : groupIdByUnit.get(unit.parentId());
+        String parentGroupId = unit.parentId() == null || unit.parentId().equals(rootId) ? null
+                : groupIdByUnit.get(unit.parentId());
         Group group = mirrored.get(unitId);
         if (group == null) {
-            groupIdByUnit.put(unitId, keycloak.createGroup(organizationId, unit.version().name(), parentGroupId,
-                    unitId));
+            groupIdByUnit.put(unitId, target.create(keycloak, unit.version().name(), parentGroupId, unitId));
             groupsCreated++;
             return;
         }
         groupIdByUnit.put(unitId, group.id());
         if (!Objects.equals(group.parentId(), parentGroupId)) {
-            keycloak.moveGroup(organizationId, group.id(), parentGroupId);
+            target.move(keycloak, group.id(), parentGroupId);
             groupsMoved++;
         }
         if (!group.name().equals(unit.version().name())) {

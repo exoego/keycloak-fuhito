@@ -3,8 +3,11 @@ package net.exoego.keycloak.fuhito.store;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Supplier;
+
+import net.exoego.keycloak.fuhito.domain.FuhitoException;
 
 /**
  * The groups and the members of the Keycloak organizations of one realm.
@@ -115,6 +118,43 @@ public interface OrganizationGroups {
      * @return true when the user became a member now
      */
     boolean addOrganizationMember(String organizationId, String userId);
+
+    /**
+     * Returns the realm group that the whole tree is mirrored below.
+     *
+     * @return the ID of the group, or empty when the realm mirrors into no realm group
+     * @throws FuhitoException when the realm names a group that does not exist
+     */
+    Optional<String> realmGroupRoot();
+
+    /**
+     * Lists every group below a realm group, each parent before its children. A group right below the root has
+     * no parent here.
+     *
+     * @param rootGroupId the ID of the realm group
+     * @return the groups
+     */
+    List<Group> realmGroups(String rootGroupId);
+
+    /**
+     * Creates a realm group that mirrors an org unit.
+     *
+     * @param rootGroupId the ID of the realm group that the tree is below
+     * @param name the name
+     * @param parentId the ID of the parent group, or null for a group right below the root
+     * @param orgUnitId the ID of the org unit that the group mirrors
+     * @return the ID of the new group
+     */
+    String createRealmGroup(String rootGroupId, String name, String parentId, String orgUnitId);
+
+    /**
+     * Moves a realm group below another parent.
+     *
+     * @param rootGroupId the ID of the realm group that the tree is below
+     * @param groupId the ID of the group
+     * @param parentId the ID of the new parent, or null for right below the root
+     */
+    void moveRealmGroup(String rootGroupId, String groupId, String parentId);
 
     /**
      * Runs a piece of work that reads much and writes through this interface only.
