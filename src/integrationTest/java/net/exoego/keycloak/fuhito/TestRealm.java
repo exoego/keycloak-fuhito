@@ -132,6 +132,14 @@ final class TestRealm {
         return List.of(Objects.toString(user.getFirstName(), ""), Objects.toString(user.getLastName(), ""));
     }
 
+    /** Turns on Keycloak Organizations, creates an organization, and returns its ID. */
+    String organization(String alias) {
+        var realm = new RealmRepresentation();
+        realm.setOrganizationsEnabled(true);
+        admin.realm(name).update(realm);
+        return OrganizationLinkIT.createOrganization(admin, name, alias);
+    }
+
     void removeUser(String userId) {
         admin.realm(name).users().delete(userId).close();
     }

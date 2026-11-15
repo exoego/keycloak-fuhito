@@ -52,8 +52,8 @@ public class RestoreResource {
             operationId = "restore",
             summary = "Loads an export into a realm that has no data of the extension.",
             description = "Every row keeps its ID, so products that stored IDs find the same resources. The rows "
-                    + "are written all or nothing. A username must name a user of this realm. Links to Keycloak "
-                    + "organizations are not part of an export.")
+                    + "are written all or nothing. A username must name a user of this realm. An org unit names its "
+                    + "Keycloak organization by alias, and the restore asks for the permission to manage it.")
     @Parameter(ref = "changeOrder")
     @APIResponse(
             responseCode = "200",
@@ -65,7 +65,7 @@ public class RestoreResource {
     public Map<String, Integer> restore(RealmExport body) {
         context.requireWrite();
         return Calls.run(context, () -> {
-            Map<String, Integer> counts = service.restore(body);
+            Map<String, Integer> counts = service.restore(body, context::requireManageOrganization);
             context.recordChange(Change.CREATE, RESOURCE_TYPE, realmId, "fuhito/restore", counts);
             return counts;
         });

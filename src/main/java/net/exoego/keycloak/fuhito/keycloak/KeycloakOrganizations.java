@@ -65,6 +65,20 @@ final class KeycloakOrganizations implements OrganizationDirectory, Organization
     }
 
     @Override
+    public Optional<String> aliasOf(String organizationId) {
+        return enabledProvider().map(provider -> provider.getById(organizationId)).map(OrganizationModel::getAlias);
+    }
+
+    @Override
+    public Optional<String> idOfAlias(String alias) {
+        return enabledProvider().map(provider -> provider.getByAlias(alias)).map(OrganizationModel::getId);
+    }
+
+    private Optional<OrganizationProvider> enabledProvider() {
+        return Optional.ofNullable(provider()).filter(OrganizationProvider::isEnabled);
+    }
+
+    @Override
     public boolean projectionEnabled() {
         return realm.getAttribute(PROJECTION_ATTRIBUTE, false);
     }

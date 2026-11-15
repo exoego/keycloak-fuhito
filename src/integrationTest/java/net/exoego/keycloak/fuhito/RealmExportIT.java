@@ -90,6 +90,8 @@ class RealmExportIT {
         line = defaultHierarchy(api).get("id").asText();
         ok(api.put("/hierarchies/" + line, "{\"name\": \"組織図\"}"));
         String hospital = id(api.post("/org-units", "{\"name\": \"病院\", \"validFrom\": \"2020-04-01\"}"));
+        ok(api.put("/org-units/" + hospital + "/organization", "{\"organizationId\": \""
+                + source.organization("x-hospital") + "\"}"));
         String ward = id(api.post("/org-units", "{\"name\": \"1病棟\", \"parentId\": \"" + hospital
                 + "\", \"validFrom\": \"2020-04-01\"}"));
         ok(api.put("/org-units/" + ward, "{\"code\": \"W1\", \"name\": \"第1病棟\", \"validFrom\": \"2024-04-01\"}"));
@@ -128,6 +130,8 @@ class RealmExportIT {
         // A new realm with the same users, after the first one is gone.
         TestRealm target = TestRealm.create("export-target");
         USERS.forEach(username -> target.user(username));
+        // The organization of the new realm has the same alias and another ID.
+        String organization = target.organization("x-hospital");
         source.remove();
         // A run of a job before the restore leaves its record, and the realm still counts as empty.
         assertEquals(409, target.api.post("/projection/rebuild", "").statusCode());
@@ -136,6 +140,8 @@ class RealmExportIT {
         assertEquals(200, restored.statusCode(), restored.body());
         assertEquals(4, Api.json(restored).get("org-units").asInt());
         assertEquals(first, export(target.api));
+        assertEquals(organization, Api.json(target.api.get("/org-units/" + hospital + "?asOf=2024-04-01"))
+                .get("keycloakOrganizationId").asText());
         assertEquals(line, defaultHierarchy(target.api).get("id").asText());
         assertEquals("組織図", defaultHierarchy(target.api).get("name").asText());
         assertEquals("restore.realm_not_empty", Api.json(target.api.post("/restore", JSON.writeValueAsString(first)))
@@ -192,5 +198,14 @@ class RealmExportIT {
                 JSON.writeValueAsString(document))).get("error").asText());
         assertEquals("restore.format", Api.json(target.api.post("/restore", "{\"format\": \"other\"}"))
                 .get("error").asText());
+
+        ObjectNode linked = JSON.createObjectNode().put("format", "fuhito.export.v1");
+        ObjectNode unit = linked.putArray("orgUnits").addObject().put("id", "u-1").put("organizationAlias", "nope");
+        unit.putArray("versions").addObject().put("id", "v-1").put("validFrom", "2020-04-01").put("name", "X");
+        unit.putArray("parents");
+        unit.putArray("successors");
+        HttpResponse<String> unknown = target.api.post("/restore", JSON.writeValueAsString(linked));
+        assertEquals(400, unknown.statusCode(), unknown.body());
+        assertEquals("restore.organization_unknown", Api.json(unknown).get("error").asText());
     }
 }

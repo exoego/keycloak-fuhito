@@ -701,8 +701,8 @@ components:
           type: string
     ExportOrgUnit:
       type: object
-      description: "An org unit. The link to a Keycloak organization is not part of\
-        \ it, because organizations differ between servers."
+      description: "An org unit. It names its Keycloak organization by alias, because\
+        \ the IDs of organizations differ between servers."
       properties:
         id:
           type: string
@@ -726,6 +726,10 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ExportOrgUnitSuccession"
+        organizationAlias:
+          type: string
+          description: The alias of the Keycloak organization that the unit is linked
+            to.
     ExportOrgUnitParent:
       type: object
       description: A parent link. It names its hierarchy by code.
@@ -6964,7 +6968,8 @@ paths:
       summary: Loads an export into a realm that has no data of the extension.
       description: "Every row keeps its ID, so products that stored IDs find the same\
         \ resources. The rows are written all or nothing. A username must name a user\
-        \ of this realm. Links to Keycloak organizations are not part of an export."
+        \ of this realm. An org unit names its Keycloak organization by alias, and\
+        \ the restore asks for the permission to manage it."
       operationId: restore
       tags:
       - bulk

@@ -73,10 +73,12 @@ public record RealmExport(
     public record HierarchyRow(String id, String code, String name) {
     }
 
-    @Schema(name = "ExportOrgUnit", description = "An org unit. The link to a Keycloak organization is not part of "
-            + "it, because organizations differ between servers.")
+    @Schema(name = "ExportOrgUnit", description = "An org unit. It names its Keycloak organization by alias, "
+            + "because the IDs of organizations differ between servers.")
     public record Unit(String id, String externalId, String source, String timeZone, String dayStart,
-            List<Version> versions, List<Parent> parents, List<Succession> successors) {
+            List<Version> versions, List<Parent> parents, List<Succession> successors,
+            @Schema(description = "The alias of the Keycloak organization that the unit is linked to.")
+            String organizationAlias) {
     }
 
     @Schema(name = "ExportOrgUnitVersion")
