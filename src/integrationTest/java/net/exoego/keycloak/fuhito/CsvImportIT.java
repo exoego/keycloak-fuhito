@@ -63,7 +63,36 @@ class CsvImportIT {
         assertEquals(1, load(api, "org-units", "effectiveDate=2026-06-01", changed).get("counts").get("orgUnits")
                 .get("changed").asInt());
         assertEquals("X病院", Api.json(api.get("/org-units/" + hospital + "?asOf=2026-06-01")).get("name").asText());
-        assertEquals(400, api.get("/imports/csv/people").statusCode());
+        assertEquals(400, api.get("/imports/csv/assignments").statusCode());
+    }
+
+    @Test
+    void anExportOfPeopleLoadsAgainWithNoChange() throws Exception {
+        TestRealm realm = TestRealm.withEmployer("csv-export-people");
+        Api api = realm.api;
+        assertEquals(201, api.post("/attribute-definitions", "{\"target\": \"PERSON\", \"name\": \"desk\", "
+                + "\"type\": \"STRING\"}").statusCode());
+        String hanako = Api.json(api.post("/people", "{\"name\": \"山田 花子\", \"names\": {\"en\": \"Hanako Yamada\"}, "
+                + "\"phoneticName\": \"やまだ はなこ\", \"attributes\": {\"desk\": \"3F, east\"}}")).get("id").asText();
+        assertEquals(201, api.post("/people", "{\"name\": \"Taro\", \"externalId\": \"P-1\", \"source\": \"hr\"}")
+                .statusCode());
+        // A person who takes the name of the Keycloak user, and keeps the link.
+        String user = realm.user("linked", "Ichiro", "Suzuki");
+        assertEquals(201, api.post("/people", "{\"userId\": \"" + user + "\"}").statusCode());
+
+        for (String header : List.of("en", "ja")) {
+            HttpResponse<String> exported = api.get("/imports/csv/people?header=" + header);
+            assertEquals(200, exported.statusCode(), exported.body());
+            assertTrue(exported.body().contains("\"3F, east\""), exported.body());
+
+            JsonNode counts = load(api, "people", "effectiveDate=2026-05-01", exported.body()).get("counts")
+                    .get("people");
+            assertEquals(0, counts.get("created").asInt() + counts.get("changed").asInt(), counts.toString());
+        }
+        String renamed = api.get("/imports/csv/people").body().replace("山田 花子", "山田 はな子");
+        load(api, "people", "effectiveDate=2026-06-01", renamed);
+        assertEquals("山田 はな子", Api.json(api.get("/people/" + hanako)).get("name").asText());
+        assertEquals(user, Api.json(api.get("/people?userId=" + user)).get(0).get("userId").asText());
     }
 
     @Test

@@ -66,12 +66,12 @@ public class ImportsResource {
             operationId = "exportCsv",
             summary = "Returns a list on a date as a CSV that the import loads again.",
             description = "Each row has the column `id`, so that a row of a thing with no external ID comes back "
-                    + "too. The org units are the only list for now.")
+                    + "too. The lists are the org units and the people for now. The people have no date.")
     @APIResponse(responseCode = "200", description = "The CSV, in UTF-8 with a byte order mark.")
     @BadRequest
     @ApiErrors
     public Response exportCsv(
-            @Parameter(description = "The kind of rows.", schema = @Schema(enumeration = {"org-units"}))
+            @Parameter(description = "The kind of rows.", schema = @Schema(enumeration = {"org-units", "people"}))
             @PathParam("list") String list,
             @Parameter(
                     description = "The date of the state. The default is today in the time zone of the realm.",

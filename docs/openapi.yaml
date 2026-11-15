@@ -1274,6 +1274,10 @@ components:
           type: object
           additionalProperties: {}
           description: Free values of the person.
+        id:
+          type: string
+          description: "The ID of a stored person, for a row of a person with no external\
+            \ ID. A CSV export has it in every row. A new person has none."
     ImportRefItemRow:
       type: object
       required:
@@ -4678,7 +4682,8 @@ paths:
     get:
       summary: Returns a list on a date as a CSV that the import loads again.
       description: "Each row has the column `id`, so that a row of a thing with no\
-        \ external ID comes back too. The org units are the only list for now."
+        \ external ID comes back too. The lists are the org units and the people for\
+        \ now. The people have no date."
       operationId: exportCsv
       tags:
       - bulk
@@ -4688,6 +4693,7 @@ paths:
           type: string
           enum:
           - org-units
+          - people
         name: list
         in: path
         required: true

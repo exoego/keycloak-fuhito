@@ -116,7 +116,7 @@ public class CsvImportService {
             Kind.EMPLOYMENTS, Set.of("externalId", "source", "username", "userId", "staffNumber", "employmentType",
                     "grade", "status", "leaveReason", "workPercent", "validFrom", "validTo", "endReason",
                     "employerExternalId", "personExternalId"),
-            Kind.PEOPLE, Set.of("externalId", "source", "username", "userId", "name", "phoneticName"),
+            Kind.PEOPLE, Set.of("id", "externalId", "source", "username", "userId", "name", "phoneticName"),
             Kind.ASSIGNMENTS, Set.of("externalId", "source", "employmentExternalId", "orgUnitExternalId", "jobTitle",
                     "occupation", "assignmentKind", "head", "primary", "allocationPercent", "displayOrder",
                     "validFrom", "validTo"));
@@ -303,13 +303,15 @@ public class CsvImportService {
     private PersonRow person(Cells cells, String defaultSource) {
         String source = cells.text("source", null);
         String externalId = cells.text("externalId", null);
-        Optional<Person> stored = externalId == null ? Optional.empty()
+        String id = cells.text("id", null);
+        Optional<Person> stored = id != null ? people.personService().find(id)
+                : externalId == null ? Optional.empty()
                 : people.personService().ofExternalId(source == null ? defaultSource : source, externalId);
         return new PersonRow(source, externalId, cells.text("username", null), cells.text("userId", null),
                 cells.text("name", stored.map(Person::name).orElse(null)),
                 cells.localized("name", stored.map(Person::names).orElse(Map.of())),
                 cells.text("phoneticName", stored.map(Person::phoneticName).orElse(null)),
-                cells.attributes(stored.map(Person::attributes).orElse(null)));
+                cells.attributes(stored.map(Person::attributes).orElse(null)), id);
     }
 
     private EmploymentRow employment(Cells cells, LocalDate date, String defaultSource) {

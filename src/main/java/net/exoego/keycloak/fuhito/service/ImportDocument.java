@@ -70,7 +70,10 @@ public record ImportDocument(
             @Schema(description = "The reading of the name for sorting.", maxLength = 255)
             String phoneticName,
             @Schema(description = "Free values of the person.")
-            Map<String, Object> attributes) {
+            Map<String, Object> attributes,
+            @Schema(description = "The ID of a stored person, for a row of a person with no external ID. A CSV export "
+                    + "has it in every row. A new person has none.")
+            String id) {
     }
 
     @Schema(

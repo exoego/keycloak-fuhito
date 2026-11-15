@@ -90,6 +90,16 @@ public class PersonService {
     }
 
     /**
+     * Finds a person by ID.
+     *
+     * @param id the ID of the person
+     * @return the person, or empty when the realm has none with the ID
+     */
+    public Optional<Person> find(String id) {
+        return store.find(id);
+    }
+
+    /**
      * Finds the person that has an ID of the system it came from.
      *
      * @param source the name of the system
