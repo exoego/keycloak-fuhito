@@ -1230,6 +1230,10 @@ components:
           type: string
           description: The first date on which the unit no longer exists.
           format: date
+        id:
+          type: string
+          description: "The ID of a stored unit, for a row of a unit with no external\
+            \ ID. A CSV export has it in every row. A new unit has none."
     ImportPersonRow:
       type: object
       required:
@@ -4671,6 +4675,51 @@ paths:
         "409":
           $ref: "#/components/responses/Conflict"
   /imports/csv/{list}:
+    get:
+      summary: Returns a list on a date as a CSV that the import loads again.
+      description: "Each row has the column `id`, so that a row of a thing with no\
+        \ external ID comes back too. The org units are the only list for now."
+      operationId: exportCsv
+      tags:
+      - bulk
+      parameters:
+      - description: The kind of rows.
+        schema:
+          type: string
+          enum:
+          - org-units
+        name: list
+        in: path
+        required: true
+      - description: The date of the state. The default is today in the time zone
+          of the realm.
+        schema:
+          type: string
+          format: date
+        name: asOf
+        in: query
+      - description: '`ja` for the Japanese names of the columns. The default is the
+          English ones.'
+        schema:
+          type: string
+          enum:
+          - en
+          - ja
+        name: header
+        in: query
+      responses:
+        "200":
+          description: "The CSV, in UTF-8 with a byte order mark."
+          content:
+            text/csv: {}
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
     post:
       summary: Loads one CSV file in one transaction.
       description: "The first row has the column names, in English or in Japanese.\

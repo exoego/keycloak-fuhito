@@ -65,7 +65,7 @@ class ImportServiceTest {
 
     private static OrgUnitRow unit(String externalId, String name, String parentExternalId) {
         return new OrgUnitRow(null, externalId, null, name, null, null, null, null, null, parentExternalId, null, null,
-                null, null, null);
+                null, null, null, null);
     }
 
     private ImportReport importUnits(String effectiveDate, OrgUnitRow... rows) {
@@ -159,8 +159,8 @@ class ImportServiceTest {
     void theSameDocumentTwiceChangesNothing() {
         OrgUnitRow[] rows = {
             new OrgUnitRow("hr", "H", "hq", " Hospital ", Map.of("ja", "病院"), "H", Map.of("ja", "病"), "ほすぴたる",
-                    null, null, null, 2, Map.of("beds", 100), null, null),
-            new OrgUnitRow("hr", "N", null, "Nursing", null, null, null, null, null, "H", null, null, null, null, null)};
+                    null, null, null, 2, Map.of("beds", 100), null, null, null),
+            new OrgUnitRow("hr", "N", null, "Nursing", null, null, null, null, null, "H", null, null, null, null, null, null)};
         importUnits("2026-04-01", rows);
 
         ImportReport again = importUnits("2026-04-01", rows);
@@ -181,7 +181,7 @@ class ImportServiceTest {
                 unit("H", "General Hospital", null),
                 unit("C", "C", "B"),
                 new OrgUnitRow(null, "A", null, "A", null, null, null, null, null, "H", null, null, null, null,
-                        "2027-04-01"),
+                        "2027-04-01", null),
                 unit("B", "B", "H"),
                 unit("D", "D", "B"));
 
@@ -195,14 +195,14 @@ class ImportServiceTest {
         assertEquals(new Counts(0, 0, 4), importUnits("2027-03-31",
                 unit("H", "Hospital", null), unit("B", "B", "H"), unit("C", "C", "A"),
                 new OrgUnitRow(null, "A", null, "A", null, null, null, null, null, "H", null, null, null, null,
-                        "2027-04-01")).counts().get("orgUnits"));
+                        "2027-04-01", null)).counts().get("orgUnits"));
     }
 
     @Test
     void aNewUnitMayHaveItsOwnStartDateAndAnEndDate() {
         ImportReport report = importUnits("2026-04-01",
                 new OrgUnitRow(null, "OLD", null, "Old", null, null, null, null, null, null, null, null, null, "2001-04-01",
-                        "2027-04-01"));
+                        "2027-04-01", null));
 
         assertEquals(List.of(), errors(report));
         var versions = orgUnitStore.versions(orgUnitStore.findUnitByExternalId("import", "OLD").orElseThrow().id());
@@ -216,9 +216,9 @@ class ImportServiceTest {
         ImportReport report = service.apply(doc("2026-04-01", false, "hr-a", null, List.of(
                 unit("1", "From A", null),
                 new OrgUnitRow("hr-b", "1", null, "From B", null, null, null, null, null, null, null, null, null, null,
-                        null),
+                        null, null),
                 new OrgUnitRow("hr-b", "2", null, "Child of B", null, null, null, null, null, "1", null, null, null, null,
-                        null))));
+                        null, null))));
 
         assertEquals(List.of(), errors(report));
         assertEquals(List.of("From A", "From B", "Child of B < From B"), tree("2026-04-01"));
@@ -246,13 +246,13 @@ class ImportServiceTest {
         rows.add(unit("X", "X", "Y"));
         rows.add(unit("Y", "Y", "X"));
         rows.add(new OrgUnitRow("bad source", "S", null, "S", null, null, null, null, null, null, null, null, null, null,
-                null));
+                null, null));
         rows.add(new OrgUnitRow(null, "TYPE", null, "T", null, null, null, null, "nope", null, null, null, null, null,
-                null));
+                null, null));
         rows.add(new OrgUnitRow(null, "TWICE", null, "T", null, null, null, null, null, "OK", "id", null, null, null,
-                null));
+                null, null));
         rows.add(new OrgUnitRow(null, "NO-ID", null, "T", null, null, null, null, null, null, "nope", null, null, null,
-                null));
+                null, null));
 
         ImportReport report = service.apply(doc("2026-04-01", false, null, null, rows));
 
@@ -271,6 +271,25 @@ class ImportServiceTest {
                 "orgUnits[12] import.parent_id_unknown"), errors(report));
         assertEquals(new Counts(1, 0, 0), report.counts().get("orgUnits"));
         assertEquals(Map.of("parentExternalId", "NOPE"), report.errors().get(3).error().params());
+    }
+
+    @Test
+    void aRowCanNameAStoredUnitByItsId() {
+        importUnits("2026-04-01", unit("H", "Hospital", null));
+        String id = orgUnitStore.findUnitByExternalId("import", "H").orElseThrow().id();
+
+        ImportReport renamed = importUnits("2026-05-01", new OrgUnitRow(null, null, null, "Main hospital", null, null,
+                null, null, null, null, null, null, null, null, null, id));
+
+        assertEquals(List.of(), errors(renamed));
+        assertEquals(new Counts(0, 1, 0), renamed.counts().get("orgUnits"));
+        assertEquals("Main hospital", orgUnits.get(id, "2026-05-01").version().name());
+        assertEquals(List.of("orgUnits[0] import.id_unknown", "orgUnits[1] import.id_mismatch"),
+                errors(importUnits("2026-05-01",
+                        new OrgUnitRow(null, null, null, "X", null, null, null, null, null, null, null, null, null,
+                                null, null, "nope"),
+                        new OrgUnitRow(null, "OTHER", null, "X", null, null, null, null, null, null, null, null, null,
+                                null, null, id))));
     }
 
     @Test
@@ -552,18 +571,18 @@ class ImportServiceTest {
     void eachDetailOfAnOrgUnitAloneMakesTheRowAChange() {
         refItems.insert(new RefItem("w", RefKind.UNIT_TYPE, "ward", "x", Map.of(), 0, Map.of(), true));
         List<OrgUnitRow> steps = List.of(
-                new OrgUnitRow(null, "U", null, "Unit", null, null, null, null, null, null, null, null, null, null, null),
-                new OrgUnitRow(null, "U", null, "Unit", null, "U1", null, null, null, null, null, null, null, null, null),
+                new OrgUnitRow(null, "U", null, "Unit", null, null, null, null, null, null, null, null, null, null, null, null),
+                new OrgUnitRow(null, "U", null, "Unit", null, "U1", null, null, null, null, null, null, null, null, null, null),
                 new OrgUnitRow(null, "U", null, "Unit", null, "U1", Map.of("en", "U-1"), null, null, null, null, null,
-                        null, null, null),
+                        null, null, null, null),
                 new OrgUnitRow(null, "U", null, "Unit", null, "U1", Map.of("en", "U-1"), "ゆにっと", null, null, null, null,
-                        null, null, null),
+                        null, null, null, null),
                 new OrgUnitRow(null, "U", null, "Unit", null, "U1", Map.of("en", "U-1"), "ゆにっと", "ward", null, null,
+                        null, null, null, null, null),
+                new OrgUnitRow(null, "U", null, "Unit", null, "U1", Map.of("en", "U-1"), "ゆにっと", "ward", null, null, 7,
                         null, null, null, null),
                 new OrgUnitRow(null, "U", null, "Unit", null, "U1", Map.of("en", "U-1"), "ゆにっと", "ward", null, null, 7,
-                        null, null, null),
-                new OrgUnitRow(null, "U", null, "Unit", null, "U1", Map.of("en", "U-1"), "ゆにっと", "ward", null, null, 7,
-                        Map.of("beds", 40), null, null));
+                        Map.of("beds", 40), null, null, null));
 
         assertEquals(new Counts(1, 0, 0), changed(importUnits("2026-04-01", steps.getFirst()), "orgUnits"));
         for (OrgUnitRow step : steps.subList(1, steps.size())) {
@@ -647,7 +666,7 @@ class ImportServiceTest {
     void aRowCanNameItsOwnSource() {
         ImportDocument document = new ImportDocument("2026-04-01", false, null, null,
                 List.of(new OrgUnitRow("hr-2", "U", null, "Unit", null, null, null, null, null, null, null, null, null,
-                        null, null)),
+                        null, null, null)),
                 List.of(new EmploymentRow("hr-2", "E", "nurse", null, null, null, null, null, null, null, null, null,
                                 null),
                         new EmploymentRow("hr-2", "E", "nurse", null, null, null, null, null, null, null, null, null,
