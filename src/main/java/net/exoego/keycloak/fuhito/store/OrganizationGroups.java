@@ -1,7 +1,10 @@
 package net.exoego.keycloak.fuhito.store;
 
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 
 /**
  * The groups and the members of the Keycloak organizations of one realm.
@@ -70,12 +73,21 @@ public interface OrganizationGroups {
     void removeGroup(String groupId);
 
     /**
-     * Lists the users who are direct members of a group.
+     * The members of some groups.
      *
-     * @param groupId the ID of the group
-     * @return the user IDs
+     * @param groupIds the IDs of the groups
+     * @return the IDs of the users by the ID of their group. A group with no member can be left out.
      */
-    Set<String> members(String groupId);
+    Map<String, Set<String>> members(Collection<String> groupIds);
+
+    /**
+     * The members of an organization, out of some users.
+     *
+     * @param organizationId the ID of the organization
+     * @param userIds the IDs of the users to look at
+     * @return the IDs of those users that are members of the organization
+     */
+    Set<String> organizationMembers(String organizationId, Collection<String> userIds);
 
     /**
      * Makes a user a member of a group.
@@ -103,4 +115,18 @@ public interface OrganizationGroups {
      * @return true when the user became a member now
      */
     boolean addOrganizationMember(String organizationId, String userId);
+
+    /**
+     * Runs a piece of work that reads much and writes through this interface only.
+     * Keycloak may then put off writing its changes to the database until the work is done. Without that, it
+     * looks through every object that it has loaded before each read, and a rebuild of a large realm takes
+     * minutes when nothing changed.
+     *
+     * @param <T> the type of the result
+     * @param work the work
+     * @return the result of the work
+     */
+    default <T> T inOneFlush(Supplier<T> work) {
+        return work.get();
+    }
 }

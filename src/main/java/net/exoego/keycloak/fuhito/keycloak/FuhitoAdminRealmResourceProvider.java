@@ -79,8 +79,9 @@ public class FuhitoAdminRealmResourceProvider implements AdminRealmResourceProvi
                         }
                         return true;
                     }
-                }, organizations, organizations, new KeycloakUserAttributes(session, realm),
-                personId -> RealmData.deletePerson(entityManager, realm.getId(), personId));
+                }, organizations, new KeycloakUserAttributes(session, realm),
+                personId -> RealmData.deletePerson(entityManager, realm.getId(), personId),
+                new ProjectionTransactions(session.getKeycloakSessionFactory(), realm.getId(), rule));
     }
 
     @Override

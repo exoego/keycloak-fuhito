@@ -1,20 +1,12 @@
 package net.exoego.keycloak.fuhito.keycloak;
 
-import java.time.Clock;
 import java.util.List;
 
-import jakarta.persistence.EntityManager;
 import net.exoego.keycloak.fuhito.domain.BusinessDay;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
-import net.exoego.keycloak.fuhito.jpa.JpaAssignmentStore;
-import net.exoego.keycloak.fuhito.jpa.JpaEmploymentStore;
-import net.exoego.keycloak.fuhito.jpa.JpaOrgUnitStore;
-import net.exoego.keycloak.fuhito.jpa.JpaRefItemStore;
 import net.exoego.keycloak.fuhito.service.ProjectionReport;
 import net.exoego.keycloak.fuhito.service.ProjectionService;
-import net.exoego.keycloak.fuhito.service.UnitDays;
 import org.jboss.logging.Logger;
-import org.keycloak.connections.jpa.JpaConnectionProvider;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.KeycloakSessionFactory;
 import org.keycloak.models.RealmModel;
@@ -90,14 +82,9 @@ final class ProjectionSchedule {
                     realm.getName(), e.code());
             return;
         }
-        session.getContext().setRealm(realm);
-        EntityManager em = session.getProvider(JpaConnectionProvider.class).getEntityManager();
-        var orgUnits = new JpaOrgUnitStore(em, realmId);
         try {
-            ProjectionReport report = new ProjectionService(orgUnits, new JpaAssignmentStore(em, realmId),
-                    new JpaEmploymentStore(em, realmId), new JpaRefItemStore(em, realmId),
-                    new KeycloakOrganizations(session, realm), new UnitDays(orgUnits, rule, Clock.systemUTC()))
-                    .rebuild();
+            ProjectionReport report = new ProjectionService(
+                    new ProjectionTransactions(session.getKeycloakSessionFactory(), realmId, rule)).rebuild();
             LOG.debugf("The scheduled projection of realm %s is done: %s", realm.getName(), report);
         } catch (FuhitoException e) {
             // The data of the realm must change first, so a stack trace on every run would only be noise.

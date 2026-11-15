@@ -1,15 +1,20 @@
 package net.exoego.keycloak.fuhito.keycloak;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
+import jakarta.persistence.EntityManager;
+import net.exoego.keycloak.fuhito.jpa.GroupMemberships;
+import net.exoego.keycloak.fuhito.jpa.OneFlush;
 import net.exoego.keycloak.fuhito.store.OrganizationDirectory;
 import net.exoego.keycloak.fuhito.store.OrganizationGroups;
+import org.keycloak.connections.jpa.JpaConnectionProvider;
 import org.keycloak.models.GroupModel;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.OrganizationModel;
@@ -118,9 +123,20 @@ final class KeycloakOrganizations implements OrganizationDirectory, Organization
     }
 
     @Override
-    public Set<String> members(String groupId) {
-        return session.users().getGroupMembersStream(realm, group(groupId)).map(UserModel::getId)
-                .collect(Collectors.toSet());
+    public Map<String, Set<String>> members(Collection<String> groupIds) {
+        return GroupMemberships.byGroup(entityManager(), groupIds);
+    }
+
+    // A member of an organization is a member of the hidden group of the organization.
+    @Override
+    public Set<String> organizationMembers(String organizationId, Collection<String> userIds) {
+        OrganizationModel organization = provider().getById(organizationId);
+        return GroupMemberships.among(entityManager(), provider().getOrganizationGroup(organization).getId(),
+                userIds);
+    }
+
+    private EntityManager entityManager() {
+        return session.getProvider(JpaConnectionProvider.class).getEntityManager();
     }
 
     @Override
@@ -151,11 +167,18 @@ final class KeycloakOrganizations implements OrganizationDirectory, Organization
     public boolean addOrganizationMember(String organizationId, String userId) {
         OrganizationModel organization = provider().getById(organizationId);
         UserModel user = session.users().getUserById(realm, userId);
-        if (user == null || provider().isMember(organization, user)) {
+        if (user == null) {
             return false;
         }
         // The default membership is unmanaged, so one user can belong to several organizations.
         return within(organization, () -> provider().addMember(organization, user));
+    }
+
+    // The rebuild writes only through the providers of Keycloak, and those do not read back what they wrote
+    // before the end of a piece.
+    @Override
+    public <T> T inOneFlush(Supplier<T> work) {
+        return OneFlush.run(entityManager(), work);
     }
 
     private GroupModel group(String groupId) {
