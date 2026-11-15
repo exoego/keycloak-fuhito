@@ -40,7 +40,7 @@ class ProjectionScheduleIT {
             attributes.put("fuhito.timeZone", timeZone);
         }
         realm.setAttributes(attributes);
-        admin.realms().create(realm);
+        TestRealm.createRealm(admin, realm);
     }
 
     private static String post(Api api, String path, String body) throws Exception {

@@ -45,7 +45,7 @@ class TokenMapperIT {
         realmRepresentation.setRealm(realm);
         realmRepresentation.setEnabled(true);
         TestRealm.withTimeZone(realmRepresentation);
-        admin.realms().create(realmRepresentation);
+        TestRealm.createRealm(admin, realmRepresentation);
         api = new Api(realm, admin.tokenManager().getAccessTokenString());
         TestRealm.legalEntity(api, "法人");
 

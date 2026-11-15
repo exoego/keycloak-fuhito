@@ -77,7 +77,7 @@ class RestrictedDatabaseIT {
         realm.setRealm("no-organizations");
         realm.setEnabled(true);
         TestRealm.withTimeZone(realm);
-        admin.realms().create(realm);
+        TestRealm.createRealm(admin, realm);
         Api api = new Api(keycloak.getAuthServerUrl(), "no-organizations", admin.tokenManager().getAccessTokenString());
         HttpResponse<String> unit = api.post("/org-units", "{\"name\": \"Clinic\", \"validFrom\": \"2020-04-01\"}");
         assertEquals(201, unit.statusCode(), unit.body());
