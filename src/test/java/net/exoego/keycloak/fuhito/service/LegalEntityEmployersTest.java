@@ -4,11 +4,13 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.Map;
 
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.RefItem;
 import net.exoego.keycloak.fuhito.domain.RefKind;
+import net.exoego.keycloak.fuhito.domain.ValidPeriod;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -42,6 +44,21 @@ class LegalEntityEmployersTest {
         FuhitoException e = assertThrows(FuhitoException.class, () -> employers.of(requestedId, date));
         assertEquals(FuhitoException.Reason.INVALID, e.reason());
         return e;
+    }
+
+    @Test
+    void anEmploymentEndsByTheEndOfItsEmployer() {
+        String open = unit("Open", "company", "2020-04-01");
+        String closing = unit("Closing", "company", "2020-04-01");
+        orgUnits.end(closing, "2027-04-01");
+
+        employers.requireCovers(open, ValidPeriod.startingAt(DAY));
+        employers.requireCovers(closing, new ValidPeriod(DAY, LocalDate.of(2027, 4, 1)));
+        for (ValidPeriod tooLong : List.of(ValidPeriod.startingAt(DAY), new ValidPeriod(DAY, LocalDate.of(2027, 4, 2)))) {
+            FuhitoException e = assertThrows(FuhitoException.class, () -> employers.requireCovers(closing, tooLong));
+            assertEquals("employment.employer_ends", e.code());
+            assertEquals(Map.of("employerId", closing, "date", "2027-04-01"), e.params());
+        }
     }
 
     @Test

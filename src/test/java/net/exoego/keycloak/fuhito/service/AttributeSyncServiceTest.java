@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Map;
 
 import net.exoego.keycloak.fuhito.domain.Assignment;
+import net.exoego.keycloak.fuhito.domain.Employment;
 import net.exoego.keycloak.fuhito.domain.BusinessDay;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.RefItem;
@@ -184,6 +185,23 @@ class AttributeSyncServiceTest {
         assertEquals(List.of("FUHITO_PERSON", "FUHITO_EMPLOYMENT", "FUHITO_ASSIGNMENT", "FUHITO_PERSON",
                         "FUHITO_EMPLOYMENT", "FUHITO_ASSIGNMENT"),
                 report.writes().stream().map(ImportReport.Write::resourceType).toList());
+    }
+
+    @Test
+    void aPersonWithNoUserKeepsTheirAssignmentAndStopsNoOne() {
+        set("boss", "med", "director", null, null);
+        set("alice", "med", null, "boss", null);
+        run();
+        var employment = employmentStore.findByUser("alice").getFirst();
+        // The person of alice lost the link to the Keycloak user.
+        employmentStore.employments.put(employment.id(), new Employment(employment.id(), employment.personId(), null,
+                employment.employerId(), employment.period(), employment.staffNumber(), employment.endReasonId(),
+                employment.externalId(), employment.source(), employment.continuesEmploymentId()));
+
+        SyncReport again = run();
+
+        assertEquals(2, again.users());
+        assertEquals(1, assignmentStore.rowsOfEmployment(employment.id()).size());
     }
 
     @Test
