@@ -68,6 +68,8 @@ The lists are applied in the order reference items, org units, employments, assi
 - Rows of org units can come in any order. A parent is applied before its children.
 - A parent with no external ID of the same source can be named by `parentId`, the ID of the unit. A row gives `parentExternalId` or `parentId`, not both.
 - A row of a stored org unit can name it by `id`, also when the unit has no external ID. An external ID beside it must be the one of that unit.
+- A row of a stored employment can name it by `id` the same way.
+- A row of an employment can name its person by `personId` and its employer by `employerId`. A row gives the external ID or the ID, not both.
 - A new row can have its own `validFrom`. An existing row ignores it.
 - A row with `validTo` ends the thing on that date. An employment can also carry `endReason`.
 - A row replaces all details of an existing thing. A missing optional value clears it.
@@ -89,6 +91,8 @@ The lists are applied in the order reference items, org units, employments, assi
 `GET /imports/csv/ref-items` gives the reference items of every kind the same way, the inactive ones too. It takes no `asOf`. An item is matched by kind and code, so the file has no `id`. A mark such as `legalEntity` is blank for a kind that cannot have it.
 
 `GET /imports/csv/people` gives the people the same way. A person has no date, so it takes no `asOf`. The file leaves out the link to a Keycloak user: a blank cell keeps the stored link, and the ID of a user who was removed from Keycloak would not load again.
+
+`GET /imports/csv/employments?asOf=` gives the employments that hold on the date, with the terms of that date. Each row has `id`. It names the person by `personId` and the employer by `employerId`, because many have no external ID of the source of the row. A row of an employment that starts later is not in the file.
 The query has `effectiveDate`, and optionally `dryRun` and `source`.
 The content type is `text/csv`.
 
@@ -173,6 +177,9 @@ Employments.
 | `endReason` | `終了理由` |
 | `employerExternalId` | `雇用主の外部ID` |
 | `personExternalId` | `人の外部ID` |
+| `id` | `ID` |
+| `employerId` | `雇用主のID` |
+| `personId` | `人のID` |
 
 Assignments.
 

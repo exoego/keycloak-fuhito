@@ -78,8 +78,8 @@ public record ImportDocument(
 
     @Schema(
             name = "ImportEmploymentRow",
-            description = "An employment. It is matched by source and external ID.",
-            requiredProperties = {"externalId"})
+            description = "An employment. It is matched by source and external ID, or by `id`. A row needs one of "
+                    + "them.")
     public record EmploymentRow(
             @Schema(
                     description = "The name of the system that the row comes from. The default is the source of the "
@@ -131,7 +131,16 @@ public record ImportDocument(
             String employerExternalId,
             @Schema(description = "The external ID of the person with the same source, for a person from the list "
                     + "of people. It names a person with no Keycloak user too.")
-            String personExternalId) {
+            String personExternalId,
+            @Schema(description = "The ID of the person, for a person with no external ID of the same source. Give "
+                    + "this or `personExternalId`, not both.")
+            String personId,
+            @Schema(description = "The ID of the employer, for an employer with no external ID of the same source. "
+                    + "Give this or `employerExternalId`, not both.")
+            String employerId,
+            @Schema(description = "The ID of a stored employment, for a row of an employment with no external ID. A "
+                    + "CSV export has it in every row. A new employment has none.")
+            String id) {
 
         /**
          * Makes a row that names no employer.
@@ -154,7 +163,7 @@ public record ImportDocument(
                 String employmentType, String grade, String status, BigDecimal workPercent,
                 Map<String, Object> attributes, String validFrom, String validTo, String endReason) {
             this(source, externalId, username, userId, staffNumber, employmentType, grade, status, null,
-                    workPercent, attributes, validFrom, validTo, endReason, null, null);
+                    workPercent, attributes, validFrom, validTo, endReason, null, null, null, null, null);
         }
     }
 

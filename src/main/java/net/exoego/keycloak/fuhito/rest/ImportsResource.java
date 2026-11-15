@@ -65,16 +65,16 @@ public class ImportsResource {
     @Operation(
             operationId = "exportCsv",
             summary = "Returns a list on a date as a CSV that the import loads again.",
-            description = "A row of an org unit or a person has the column `id`, so that a row of a thing with no "
-                    + "external ID comes back too. The lists are the reference items, the org units, and the people "
-                    + "for now. Only the org units have a date.")
+            description = "A row of an org unit, a person, or an employment has the column `id`, so that a row of "
+                    + "a thing with no external ID comes back too. The lists are the reference items, the org units, "
+                    + "the people, and the employments for now. The reference items and the people have no date.")
     @APIResponse(responseCode = "200", description = "The CSV, in UTF-8 with a byte order mark.")
     @BadRequest
     @ApiErrors
     public Response exportCsv(
             @Parameter(
                     description = "The kind of rows.",
-                    schema = @Schema(enumeration = {"ref-items", "org-units", "people"}))
+                    schema = @Schema(enumeration = {"ref-items", "org-units", "people", "employments"}))
             @PathParam("list") String list,
             @Parameter(
                     description = "The date of the state. The default is today in the time zone of the realm.",
