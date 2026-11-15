@@ -2,6 +2,7 @@ package net.exoego.keycloak.fuhito.service;
 
 import java.time.Clock;
 import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -19,6 +20,7 @@ import net.exoego.keycloak.fuhito.domain.Employment;
 import net.exoego.keycloak.fuhito.domain.EmploymentStatus;
 import net.exoego.keycloak.fuhito.domain.EmploymentTerms;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
+import net.exoego.keycloak.fuhito.domain.MemberCursor;
 import net.exoego.keycloak.fuhito.domain.MemberFilter;
 import net.exoego.keycloak.fuhito.domain.Person;
 import net.exoego.keycloak.fuhito.domain.RefItem;
@@ -98,12 +100,13 @@ public class MembershipService {
             throw FuhitoException.notFound("org_unit.not_valid_on",
                     Map.of("id", orgUnitId, "date", date.toString()));
         }
+        Cursor.requireAlone(query.after(), query.first());
         Page page = Page.of(query.first(), query.max());
         List<Assignment> rows = assignments.membersOn(new MemberFilter(hierarchy, orgUnitId,
                 query.includeDescendants(), date, filterId(RefKind.OCCUPATION, query.occupation()),
                 filterId(RefKind.JOB_TITLE, query.jobTitle()),
-                Checks.optionalEnum("status", EmploymentStatus.class, query.status(), null)), page.first(),
-                page.max());
+                Checks.optionalEnum("status", EmploymentStatus.class, query.status(), null)),
+                cursor(query.after()), page.first(), page.max());
 
         Map<String, OrgUnitState> units = new HashMap<>();
         Map<String, Optional<RefItem>> unitTypes = new HashMap<>();
@@ -239,6 +242,21 @@ public class MembershipService {
                     unitOf.apply(row.orgUnitId()), pathOf == null ? null : pathOf.apply(row.orgUnitId()), seconded));
         }
         return members;
+    }
+
+    // The values come from the last row of a page, in the order that the list uses.
+    private static MemberCursor cursor(String after) {
+        if (after == null) {
+            return null;
+        }
+        List<String> values = Cursor.decode(Cursor.MEMBERS, after);
+        try {
+            return new MemberCursor(values.get(0), Integer.parseInt(values.get(1)), LocalDate.parse(values.get(2)),
+                    values.get(3));
+        } catch (NumberFormatException | DateTimeParseException e) {
+            throw FuhitoException.invalid("invalid.cursor",
+                    Map.of("field", "after", "format", Cursor.MEMBERS.name())).causedBy(e);
+        }
     }
 
     private String codeOf(Map<String, String> cache, String refItemId) {

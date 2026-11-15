@@ -6,28 +6,28 @@ import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class CursorTest {
 
     @Test
-    void aCursorGivesBackItsValues() {
-        String cursor = Cursor.encode("u-1", "3", "2026-04-01", "a-9");
+    void aCursorIsTheNameOfItsFormatAndTheValues() {
+        assertEquals("members.v1__u-1__3__2026-04-01__a-9", Cursor.encode(Cursor.MEMBERS, "u-1", "3", "2026-04-01", "a-9"));
+        assertEquals("people.v1__p-1", Cursor.encode(Cursor.PEOPLE, "p-1"));
 
-        assertEquals(List.of("u-1", "3", "2026-04-01", "a-9"), Cursor.decode(cursor, 4));
-        assertEquals(List.of("only"), Cursor.decode(Cursor.encode("only"), 1));
-        assertEquals(List.of("", "x"), Cursor.decode(Cursor.encode("", "x"), 2));
-        // It is safe in a URL as it is.
-        assertFalse(cursor.matches(".*[+/=].*"));
+        assertEquals(List.of("u-1", "3", "2026-04-01", "a-9"),
+                Cursor.decode(Cursor.MEMBERS, "members.v1__u-1__3__2026-04-01__a-9"));
+        assertEquals(List.of("p-1"), Cursor.decode(Cursor.PEOPLE, "people.v1__p-1"));
     }
 
     @Test
-    void rejectsACursorThatTheListDidNotGiveOut() {
-        for (String bad : List.of("not base64 !", Cursor.encode("one"), Cursor.encode("a", "b", "c"), "")) {
-            FuhitoException e = assertThrows(FuhitoException.class, () -> Cursor.decode(bad, 2), bad);
+    void rejectsACursorOfAnotherListAnOldVersionAndABrokenOne() {
+        for (String bad : List.of("members.v1__u-1__3__2026-04-01__a-9", "people.v0__p-1", "people.v1", "p-1", "",
+                "people.v1__p-1__more")) {
+            FuhitoException e = assertThrows(FuhitoException.class, () -> Cursor.decode(Cursor.PEOPLE, bad), bad);
             assertEquals(FuhitoException.Reason.INVALID, e.reason());
             assertEquals("invalid.cursor", e.code());
+            assertEquals("people.v1", e.params().get("format"));
         }
     }
 

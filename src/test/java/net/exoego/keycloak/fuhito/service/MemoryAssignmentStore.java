@@ -5,10 +5,13 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import net.exoego.keycloak.fuhito.domain.Assignment;
+import net.exoego.keycloak.fuhito.domain.MemberCursor;
 import net.exoego.keycloak.fuhito.domain.MemberFilter;
+import net.exoego.keycloak.fuhito.domain.ValidPeriod;
 import net.exoego.keycloak.fuhito.store.AssignmentStore;
 
 final class MemoryAssignmentStore implements AssignmentStore {
@@ -20,21 +23,26 @@ final class MemoryAssignmentStore implements AssignmentStore {
     MemoryEmploymentStore employments;
 
     @Override
-    public List<Assignment> membersOn(MemberFilter filter, int first, int max) {
+    public List<Assignment> membersOn(MemberFilter filter, MemberCursor after, int first, int max) {
         List<String> unitIds = filter.includeDescendants()
                 ? orgUnits.treeOn(filter.hierarchyId(), filter.orgUnitId(), filter.date(), 0, Integer.MAX_VALUE)
                         .stream().map(placed -> placed.unit().id()).toList()
                 : List.of(filter.orgUnitId());
+        Comparator<Assignment> order = Comparator
+                .comparingInt((Assignment row) -> unitIds.indexOf(row.orgUnitId()))
+                .thenComparingInt(Assignment::displayOrder)
+                .thenComparing(row -> row.period().from())
+                .thenComparing(Assignment::assignmentId);
         return rowsOn(unitIds, filter.date()).stream()
                 .filter(row -> filter.occupationId() == null || filter.occupationId().equals(row.occupationId()))
                 .filter(row -> filter.jobTitleId() == null || filter.jobTitleId().equals(row.jobTitleId()))
                 .filter(row -> filter.status() == null
                         || employments.termsOn(List.of(row.employmentId()), filter.date()).stream()
                                 .anyMatch(terms -> terms.status() == filter.status()))
-                .sorted(Comparator.comparingInt((Assignment row) -> unitIds.indexOf(row.orgUnitId()))
-                        .thenComparingInt(Assignment::displayOrder)
-                        .thenComparing(row -> row.period().from())
-                        .thenComparing(Assignment::assignmentId))
+                .sorted(order)
+                .filter(row -> after == null || order.compare(row, new Assignment(null, after.assignmentId(), null,
+                        after.orgUnitId(), ValidPeriod.startingAt(after.validFrom()), null, null, null, false,
+                        false, null, after.displayOrder(), Map.of(), null, null, null)) > 0)
                 .skip(first)
                 .limit(max)
                 .toList();

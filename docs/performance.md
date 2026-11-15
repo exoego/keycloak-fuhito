@@ -115,6 +115,19 @@ Three ways to find the version of each org unit in the walk were measured, with 
 
 The extension uses the third. A subtree of a part of the organization is the usual read, and a read of the whole company is rare.
 
+## Late pages with a cursor
+
+The list of people and the members of an org unit give a cursor for the next page in the header `Link`.
+Measured with 50,001 org units and 500,000 people.
+
+| Read | With `first` in ms | With the cursor in ms |
+|---|---|---|
+| People, the page after 499,000 people | 60 | 3 |
+| Members below the company, the page after 400,000 members | 3,300 | 731 |
+| Members below the company, the first page | 820 | the same read |
+
+With the cursor, a late page of the members costs as much as the first page. It does not get cheaper than that, because every page still walks the tree below the org unit.
+
 ## What the numbers say
 
 - A read about one org unit, one person, or one page of people does not grow with the realm.

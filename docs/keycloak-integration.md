@@ -286,12 +286,15 @@ A list that grows with the realm is read in pages.
 `max` is 100 by default and 1000 at most. A larger value counts as 1000.
 A read with fewer entries than `max` has reached the end.
 
-A list that has a cursor is better read with it. So far that is the list of people.
+A list that has a cursor is better read with it. These are the list of people and the members of an org unit.
 
 - A response with a full page has the header `Link` with the URL of the next page and `rel="next"`. Follow it until a response has no such header.
 - The URL has the parameter `after` with a cursor. The cursor says where the next page starts, so a late page costs as much as the first one. With `first`, the database counts past every skipped row.
 - A full page can be the last one. The next page is then empty and has no header.
-- Take the cursor from the header and do not build it. Its form can change. It is not a secret. It has only values of the last row of the page.
+- A cursor is plain text. It is the name of its format and the values of the last row of the page, for example `people.v1__<person ID>` or `members.v1__<org unit ID>__<display order>__<first date>__<assignment ID>`.
+- It is not a secret. It has only values that the caller already got, and it cannot widen what the caller may read.
+- The name says which list the cursor belongs to. A cursor of another list gets 400 with `invalid.cursor`.
+- When the order of a list changes, its format gets a new version. A cursor of the old version gets 400, and the caller starts again from the first page.
 - A request gives `after` or `first`, not both.
 These are the lists of roots, children, subtrees, members, people, reference items, change orders, the change log, and the effective changes.
 

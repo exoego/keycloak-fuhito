@@ -1,7 +1,10 @@
 package net.exoego.keycloak.fuhito;
 
 import java.net.http.HttpResponse;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import org.junit.jupiter.api.BeforeAll;
@@ -178,5 +181,55 @@ class MembershipIT {
         }
         assertEquals(400, api.get("/users/" + physician + "/assignments?asOf=nope").statusCode());
         assertEquals(401, new Api(realm.name, null).get("/org-units/" + ward + "/members").statusCode());
+    }
+
+    @Test
+    void theLinkHeaderLeadsThroughEveryMember() throws Exception {
+        TestRealm scratch = TestRealm.withEmployer("membership-cursor");
+        Api scratchApi = scratch.api;
+        Map<String, String> units = new LinkedHashMap<>();
+        for (String[] unit : new String[][] {{"病院", null, "0"}, {"B病棟", "病院", "2"}, {"A病棟", "病院", "1"}}) {
+            String parent = unit[1] == null ? "" : ", \"parentId\": \"" + units.get(unit[1]) + "\"";
+            HttpResponse<String> response = scratchApi.post("/org-units", "{\"name\": \"" + unit[0]
+                    + "\", \"displayOrder\": " + unit[2] + parent + ", \"validFrom\": \"2026-04-01\"}");
+            assertEquals(201, response.statusCode(), response.body());
+            units.put(unit[0], Api.json(response).get("id").asText());
+        }
+        String hospital = units.get("病院");
+        String wardA = units.get("A病棟");
+        // Seven people. Two share a display order, so the cursor must tell them apart by the assignment.
+        int n = 0;
+        for (String[] place : new String[][] {{"病院", "1"}, {"A病棟", "2"}, {"A病棟", "1"}, {"A病棟", "1"}, {"B病棟", "3"},
+                {"B病棟", "1"}, {"B病棟", "2"}}) {
+            HttpResponse<String> employment = scratchApi.post("/employments", "{\"userId\": \""
+                    + scratch.user("member-" + n++) + "\", \"validFrom\": \"2026-04-01\"}");
+            assertEquals(201, employment.statusCode(), employment.body());
+            HttpResponse<String> response = scratchApi.post("/assignments", "{\"employmentId\": \""
+                    + Api.json(employment).get("id").asText() + "\", \"orgUnitId\": \"" + units.get(place[0])
+                    + "\", \"displayOrder\": " + place[1] + ", \"primary\": true, \"validFrom\": \"2026-04-01\"}");
+            assertEquals(201, response.statusCode(), response.body());
+        }
+        String prefix = "/admin/realms/" + scratch.name + "/fuhito";
+
+        for (String list : List.of("/org-units/" + hospital + "/members?includeDescendants=true&asOf=2026-04-01",
+                "/org-units/" + wardA + "/members?asOf=2026-04-01")) {
+            List<String> all = Api.json(scratchApi.get(list)).findValuesAsText("assignmentId");
+            List<String> followed = new ArrayList<>();
+            String path = list + "&max=2";
+            while (path != null) {
+                HttpResponse<String> response = scratchApi.get(path);
+                assertEquals(200, response.statusCode(), response.body());
+                followed.addAll(Api.json(response).findValuesAsText("assignmentId"));
+                String link = response.headers().firstValue("Link").orElse(null);
+                path = link == null ? null : link.substring(link.indexOf(prefix) + prefix.length(), link.indexOf('>'));
+            }
+            assertEquals(all, followed, list);
+        }
+        assertEquals(7, Api.json(scratchApi.get("/org-units/" + hospital
+                + "/members?includeDescendants=true&asOf=2026-04-01")).size());
+
+        HttpResponse<String> bad = scratchApi.get("/org-units/" + hospital + "/members?after=people.v1__x");
+        assertEquals(400, bad.statusCode(), bad.body());
+        assertEquals("invalid.cursor", Api.json(bad).get("error").asText());
     }
 }
