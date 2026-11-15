@@ -123,6 +123,8 @@ So a rebuild that fails in the middle keeps the pieces that it finished. The gro
 
 A rebuild reads who is in which group from the table of Keycloak, for many groups in one query.
 A user that only a user storage provider holds is not in that table. A user that Keycloak imported, for example from LDAP, is in it.
+A user is outside the table when a custom user storage provider keeps the users in another database, or when an LDAP federation has "Import Users" off.
+For such a user, each rebuild adds the memberships again and counts them again. It never takes the user out of a group.
 
 A timer inside Keycloak also runs it, for every realm that turned the projection on.
 A dated change becomes true on its date with no write on that day, so only a run on that day picks it up.
