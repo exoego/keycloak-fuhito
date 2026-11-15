@@ -63,8 +63,9 @@ Masking removes what identifies the person directly, and keeps the structure of 
 Erasing removes the person record, and every row and every change log entry about the person.
 That includes the entries of rows that are gone, for example a qualification that was deleted. They are found by the IDs that the entries name: the person, the employments of the person, and their assignments. A mask finds the entries to clear the same way.
 The change log keeps one entry that says who erased the data of which person ID.
+The realm also keeps the person ID and the time of the erase, and nothing else. A restore uses them to erase the person again.
 
-An export of the realm has the data of people as it is stored. An export taken before a mask or an erase still has what they removed.
+An export of the realm has the data of people as it is stored. An export taken before a mask or an erase still has what they removed. A restore of such an export erases and masks those people again after the load, so the data does not come back. Copies of the export file itself are not changed. Remove old export files that you no longer need.
 
 A system that follows the change log may hold copies of the cleared or removed data.
 The mask entry and the erase entry tell it which person ID to clean up. See [history.md](history.md).

@@ -149,6 +149,8 @@ public class RealmExportService {
                     x -> new RealmExport.ExternalIdRow(x.id(), x.kind().name(), x.resourceId(), x.source(),
                             x.externalId()));
             case "change-orders" -> page(export.changeOrders().read(afterId, max), ChangeOrder::id, this::order);
+            case "erasures" -> page(export.erasures().read(afterId, max), RealmExportStore.Erasure::personId,
+                    e -> new RealmExport.Erasure(e.personId(), e.erasedAt().toString()));
             default -> throw FuhitoException.notFound("export.list_unknown", Map.of("list", list));
         };
     }
@@ -336,6 +338,9 @@ public class RealmExportService {
                 o.id(), o.number(), o.kind(), o.title(), o.note(), date(o.orderDate()), date(o.effectiveDate()),
                 userId(o.approver()), userId(o.requester()), o.externalReference(), instant(o.createdAt()),
                 instant(o.announcedAt()), userId(o.announcedBy())))));
+        counts.put("erasures", each("erasures", document.erasures(), e -> stores.export().restoreErasure(
+                new RealmExportStore.Erasure(Objects.requireNonNull(e.personId()), Instant.parse(e.erasedAt())))));
+        stores.export().eraseAndMaskAgain();
         return counts;
     }
 

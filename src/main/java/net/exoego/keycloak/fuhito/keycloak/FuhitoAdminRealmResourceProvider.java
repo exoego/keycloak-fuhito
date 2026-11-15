@@ -1,5 +1,7 @@
 package net.exoego.keycloak.fuhito.keycloak;
 
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
@@ -98,7 +100,8 @@ public class FuhitoAdminRealmResourceProvider implements AdminRealmResourceProvi
                         return true;
                     }
                 }, organizations, new KeycloakUserAttributes(session, realm),
-                personId -> RealmData.deletePerson(entityManager, realm.getId(), personId),
+                personId -> RealmData.erase(entityManager, realm.getId(), personId,
+                        Instant.now().truncatedTo(ChronoUnit.MILLIS)),
                 new ProjectionTransactions(session.getKeycloakSessionFactory(), realm.getId(), rule, request),
                 new FuhitoResource.Pieces() {
                     @Override

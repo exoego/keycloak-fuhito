@@ -293,7 +293,40 @@ public class JpaRealmExportStore implements RealmExportStore {
     }
 
     @Override
+    public Page<Erasure> erasures() {
+        return page(ErasureEntity.class, "personId", e -> new Erasure(e.personId, e.erasedAt));
+    }
+
+    @Override
+    public void restoreErasure(Erasure erasure) {
+        RealmData.recordErasure(em, realmId, erasure.personId(), erasure.erasedAt());
+    }
+
+    @Override
+    public void eraseAndMaskAgain() {
+        em.flush();
+        em.createQuery("""
+                        select e.personId from ErasureEntity e where e.realmId = :realmId
+                        and e.personId in (select p.id from PersonEntity p where p.realmId = :realmId)""",
+                        String.class)
+                .setParameter("realmId", realmId)
+                .getResultList()
+                .forEach(personId -> RealmData.deletePerson(em, realmId, personId));
+        JpaUserDataMasker masker = new JpaUserDataMasker(em, realmId);
+        em.createQuery("""
+                        select m from UserMaskEntity m where m.realmId = :realmId
+                        and m.personId in (select p.id from PersonEntity p where p.realmId = :realmId)""",
+                        UserMaskEntity.class)
+                .setParameter("realmId", realmId)
+                .getResultList()
+                .forEach(mask -> masker.mask(mask.personId, mask.maskedAt));
+    }
+
+    @Override
     public void restoreMask(String personId, Instant maskedAt) {
+        if (new JpaUserDataMasker(em, realmId).maskedAt(personId).isPresent()) {
+            return;
+        }
         UserMaskEntity mark = new UserMaskEntity();
         mark.id = UUID.randomUUID().toString();
         mark.realmId = realmId;
