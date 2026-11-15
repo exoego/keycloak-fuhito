@@ -225,6 +225,19 @@ class OrgUnitServiceTest {
     }
 
     @Test
+    void aLongerPeriodKeepsTheCodeFree() {
+        String old = service.create(new NewOrgUnit("SALES", "Sales", null, null, null, null, null, null,
+                "2026-04-01", null, null, null, null)).unit().id();
+        service.end(old, "2027-04-01");
+        service.create(new NewOrgUnit("SALES", "New sales", null, null, null, null, null, null, "2027-04-01",
+                null, null, null, null));
+
+        assertEquals("org_unit.code_taken", endFailure(old, "2027-05-01").code());
+        assertEquals("org_unit.code_taken", assertThrows(FuhitoException.class, () -> service.removeEnd(old)).code());
+        assertEquals("2027-04-01", service.get(old, "2027-03-31").version().period().to().toString());
+    }
+
+    @Test
     void rejectsACodeThatIsTaken() {
         NewOrgUnit request = new NewOrgUnit("hq", "x", null, null, null, null, null, null, "2026-04-01", null, null,
                 null, null);
