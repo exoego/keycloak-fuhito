@@ -24,7 +24,7 @@ class AdminEventsIT {
         realm.setAdminEventsEnabled(true);
         realm.setAdminEventsDetailsEnabled(true);
         TestRealm.withTimeZone(realm);
-        admin.realms().create(realm);
+        TestRealm.createRealm(admin, realm);
         Api api = new Api(realm.getRealm(), admin.tokenManager().getAccessTokenString());
 
         String typeId = Api.json(api.post("/ref-items",

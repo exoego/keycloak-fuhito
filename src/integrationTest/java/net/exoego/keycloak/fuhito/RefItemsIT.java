@@ -33,7 +33,7 @@ class RefItemsIT {
         realm.setRealm("ref-items-" + UUID.randomUUID());
         realm.setEnabled(true);
         TestRealm.withTimeZone(realm);
-        admin.realms().create(realm);
+        TestRealm.createRealm(admin, realm);
         return realm.getRealm();
     }
 

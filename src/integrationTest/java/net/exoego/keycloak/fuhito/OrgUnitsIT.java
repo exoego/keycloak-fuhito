@@ -37,7 +37,7 @@ class OrgUnitsIT {
         realm.setRealm("org-units-" + UUID.randomUUID());
         realm.setEnabled(true);
         TestRealm.withTimeZone(realm);
-        admin.realms().create(realm);
+        TestRealm.createRealm(admin, realm);
         return realm.getRealm();
     }
 

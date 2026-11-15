@@ -1,5 +1,9 @@
 package net.exoego.keycloak.fuhito;
 
+import java.nio.charset.StandardCharsets;
+import java.security.KeyPairGenerator;
+import java.security.NoSuchAlgorithmException;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Objects;
@@ -9,6 +13,8 @@ import java.util.UUID;
 import jakarta.ws.rs.core.Response;
 import org.keycloak.admin.client.CreatedResponseUtil;
 import org.keycloak.admin.client.Keycloak;
+import org.keycloak.common.util.MultivaluedHashMap;
+import org.keycloak.representations.idm.ComponentExportRepresentation;
 import org.keycloak.representations.idm.RealmRepresentation;
 import org.keycloak.representations.idm.UserRepresentation;
 
@@ -20,6 +26,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * A new realm for one test class, with helpers to fill it.
  */
 final class TestRealm {
+
+    // Keycloak makes two new RSA keys for each new realm, which is slow. So the run makes one key,
+    // and every realm gets it.
+    private static final String PRIVATE_KEY = privateKey();
 
     final String name;
     final Api api;
@@ -42,8 +52,42 @@ final class TestRealm {
         realm.setEnabled(true);
         realm.setAttributes(new HashMap<>(attributes));
         withTimeZone(realm);
-        admin.realms().create(realm);
+        createRealm(admin, realm);
         return new TestRealm(realm.getRealm(), admin);
+    }
+
+    private static String privateKey() {
+        try {
+            var generator = KeyPairGenerator.getInstance("RSA");
+            generator.initialize(2048);
+            return "-----BEGIN PRIVATE KEY-----\n"
+                    + Base64.getMimeEncoder(64, "\n".getBytes(StandardCharsets.US_ASCII))
+                            .encodeToString(generator.generateKeyPair().getPrivate().getEncoded())
+                    + "\n-----END PRIVATE KEY-----\n";
+        } catch (NoSuchAlgorithmException e) {
+            throw new AssertionError(e);
+        }
+    }
+
+    /** Creates a realm with the keys of the tests. */
+    static void createRealm(Keycloak admin, RealmRepresentation realm) {
+        var keys = new MultivaluedHashMap<String, ComponentExportRepresentation>();
+        keys.add("org.keycloak.keys.KeyProvider", key("rsa", "rsa", Map.of("privateKey", PRIVATE_KEY)));
+        keys.add("org.keycloak.keys.KeyProvider", key("hmac", "hmac-generated", Map.of("algorithm", "HS512")));
+        keys.add("org.keycloak.keys.KeyProvider", key("aes", "aes-generated", Map.of()));
+        realm.setComponents(keys);
+        admin.realms().create(realm);
+    }
+
+    private static ComponentExportRepresentation key(String name, String providerId, Map<String, String> values) {
+        var config = new MultivaluedHashMap<String, String>();
+        config.putSingle("priority", "100");
+        values.forEach(config::putSingle);
+        var key = new ComponentExportRepresentation();
+        key.setName(name);
+        key.setProviderId(providerId);
+        key.setConfig(config);
+        return key;
     }
 
     /**
