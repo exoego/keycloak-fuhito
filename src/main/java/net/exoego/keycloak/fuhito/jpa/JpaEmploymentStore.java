@@ -104,9 +104,9 @@ public class JpaEmploymentStore implements EmploymentStore {
         if (ids.isEmpty()) {
             return List.of();
         }
-        return em.createQuery("select e from EmploymentEntity e where e.realmId = :realmId and "
-                        + ManyIds.has("e.id", "ids"),
-                        EmploymentEntity.class)
+        return em.createQuery("""
+                        select e from EmploymentEntity e where e.realmId = :realmId
+                        and %s""".formatted(ManyIds.has("e.id", "ids")), EmploymentEntity.class)
                 .setParameter("realmId", realmId)
                 .setParameter("ids", ManyIds.of(ids))
                 .getResultStream()
