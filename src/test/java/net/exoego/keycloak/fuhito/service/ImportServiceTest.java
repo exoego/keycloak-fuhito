@@ -276,9 +276,9 @@ class ImportServiceTest {
     @Test
     void theSameDocumentAgainChangesNothingForRowsThatDoNotHoldOnItsDate() {
         importTwoUnits();
-        OrgUnitRow ending = new OrgUnitRow(null, "W", null, "Ward", null, null, null, null, null, "H", null, null,
+        OrgUnitRow ending = new OrgUnitRow(null, "W", null, "Ward", null, null, null, null, null, "H", null, null, null,
                 null, "2027-04-01");
-        OrgUnitRow later = new OrgUnitRow(null, "L", null, "Lab", null, null, null, null, null, "H", null, null,
+        OrgUnitRow later = new OrgUnitRow(null, "L", null, "Lab", null, null, null, null, null, "H", null, null, null,
                 "2027-05-01", null);
         EmploymentRow hired = new EmploymentRow(null, "E9", "doctor", null, null, null, null, null, null, null, null,
                 "2027-05-01", null, null, null, null);
@@ -295,7 +295,7 @@ class ImportServiceTest {
 
         // A change of a unit that starts later still needs a date on which the unit exists.
         ImportReport renamed = service.apply(new ImportDocument("2027-04-01", false, null, null,
-                List.of(new OrgUnitRow(null, "L", null, "Laboratory", null, null, null, null, null, "H", null, null,
+                List.of(new OrgUnitRow(null, "L", null, "Laboratory", null, null, null, null, null, "H", null, null, null,
                         null, null)), null, null));
         assertEquals(List.of("orgUnits[0] org_unit.not_valid_on"), errors(renamed));
     }
