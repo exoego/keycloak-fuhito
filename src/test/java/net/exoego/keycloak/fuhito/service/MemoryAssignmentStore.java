@@ -25,7 +25,8 @@ final class MemoryAssignmentStore implements AssignmentStore {
     @Override
     public List<Assignment> membersOn(MemberFilter filter, MemberCursor after, int first, int max) {
         List<String> unitIds = filter.includeDescendants()
-                ? orgUnits.treeOn(filter.hierarchyId(), filter.orgUnitId(), filter.date(), 0, Integer.MAX_VALUE)
+                ? orgUnits.treeOn(filter.hierarchyId(), filter.orgUnitId(), null, filter.date(), 0,
+                        Integer.MAX_VALUE)
                         .stream().map(placed -> placed.unit().id()).toList()
                 : List.of(filter.orgUnitId());
         Comparator<Assignment> order = Comparator

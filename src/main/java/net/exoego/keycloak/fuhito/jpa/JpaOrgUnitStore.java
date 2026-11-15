@@ -34,12 +34,6 @@ public class JpaOrgUnitStore implements OrgUnitStore {
              and exists (select 1 from OrgUnitLinkEntity c where c.realmId = :realmId
             and c.hierarchyId = :hierarchyId and c.parentId = v.orgUnitId and c.%s)""".formatted(TreeQuery.onDate("c"));
 
-    private static final String UNITS_OF_TREE = """
-            select u, v, t.parentId from Tree t
-            join OrgUnitEntity u on u.id = t.id
-            join OrgUnitVersionEntity v on v.id = t.versionId
-            order by t.position""";
-
     private static final String PLACED = """
             select u, v, (select l.parentId from OrgUnitLinkEntity l where l.realmId = :realmId
                 and l.hierarchyId = :hierarchyId and l.childId = v.orgUnitId and l.%s)
@@ -102,19 +96,25 @@ public class JpaOrgUnitStore implements OrgUnitStore {
             )
             select a.id from Above a order by a.depth""".formatted(TreeQuery.onDate("l"));
 
-    private static final String SUBTREE = TreeQuery.SUBTREE + UNITS_OF_TREE;
+    // The condition that keeps only groups, only line units, or both, for the version v.
+    private static String nature(Boolean group) {
+        if (group == null) {
+            return "";
+        }
+        return """
+                 and %s exists (select 1 from RefItemEntity g where g.id = v.unitTypeId and g.groupUnit = true)"""
+                .formatted(group ? "" : "not");
+    }
 
     private static final String SIBLINGS = """
             select u, v from OrgUnitVersionEntity v join OrgUnitEntity u on u.id = v.orgUnitId
-            where v.realmId = :realmId and v.%s and %%s
+            where v.realmId = :realmId and v.%s and %%s%%s
             order by v.displayOrder, v.phoneticName nulls last, v.name, v.orgUnitId""".formatted(TreeQuery.onDate("v"));
 
-    private static final String ROOTS = SIBLINGS.formatted(NO_PARENT);
-    private static final String LINKED_ROOTS = SIBLINGS.formatted(LINKED_ROOT);
-    private static final String CHILDREN = SIBLINGS.formatted("""
+    private static final String CHILD_OF = """
             exists (select 1 from OrgUnitLinkEntity l where l.realmId = :realmId
             and l.hierarchyId = :hierarchyId and l.childId = v.orgUnitId and l.parentId = :parentId
-            and l.%s)""".formatted(TreeQuery.onDate("l")));
+            and l.%s)""".formatted(TreeQuery.onDate("l"));
 
     private final EntityManager em;
     private final String realmId;
@@ -233,8 +233,14 @@ public class JpaOrgUnitStore implements OrgUnitStore {
     }
 
     @Override
-    public List<PlacedOrgUnit> treeOn(String hierarchyId, String rootId, LocalDate date, int first, int max) {
-        return em.createQuery(SUBTREE, Object[].class)
+    public List<PlacedOrgUnit> treeOn(String hierarchyId, String rootId, Boolean group, LocalDate date, int first,
+            int max) {
+        return em.createQuery(TreeQuery.SUBTREE + """
+                        select u, v, t.parentId from Tree t
+                        join OrgUnitEntity u on u.id = t.id
+                        join OrgUnitVersionEntity v on v.id = t.versionId
+                        where 1 = 1%s
+                        order by t.position""".formatted(nature(group)), Object[].class)
                 .setParameter("realmId", realmId)
                 .setParameter("hierarchyId", hierarchyId)
                 .setParameter("date", date)
@@ -351,10 +357,10 @@ public class JpaOrgUnitStore implements OrgUnitStore {
     }
 
     @Override
-    public List<PlacedOrgUnit> childrenOn(String hierarchyId, String parentId, boolean linkedOnly, LocalDate date,
-            int first, int max) {
-        String roots = linkedOnly ? LINKED_ROOTS : ROOTS;
-        var query = em.createQuery(parentId == null ? roots : CHILDREN, Object[].class)
+    public List<PlacedOrgUnit> childrenOn(String hierarchyId, String parentId, boolean linkedOnly, Boolean group,
+            LocalDate date, int first, int max) {
+        String place = parentId != null ? CHILD_OF : linkedOnly ? LINKED_ROOT : NO_PARENT;
+        var query = em.createQuery(SIBLINGS.formatted(place, nature(group)), Object[].class)
                 .setParameter("realmId", realmId)
                 .setParameter("hierarchyId", hierarchyId)
                 .setParameter("date", date);
@@ -436,6 +442,20 @@ public class JpaOrgUnitStore implements OrgUnitStore {
                 .setParameter("realmId", realmId)
                 .setParameter("hierarchyId", hierarchyId)
                 .setParameter("childId", childId)
+                .getResultStream()
+                .map(JpaOrgUnitStore::toDomain)
+                .toList();
+    }
+
+    @Override
+    public List<OrgUnitLink> childLinks(String hierarchyId, String parentId) {
+        return em.createQuery("""
+                        select l from OrgUnitLinkEntity l where l.realmId = :realmId
+                        and l.hierarchyId = :hierarchyId and l.parentId = :parentId order by l.validFrom, l.childId""",
+                        OrgUnitLinkEntity.class)
+                .setParameter("realmId", realmId)
+                .setParameter("hierarchyId", hierarchyId)
+                .setParameter("parentId", parentId)
                 .getResultStream()
                 .map(JpaOrgUnitStore::toDomain)
                 .toList();

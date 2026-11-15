@@ -53,13 +53,15 @@ public class JpaReportingLineStore implements ReportingLineStore {
                 acting(row, row + "2k"), regularPresent(row, row + "2"));
     }
 
-    // The database goes down from the org units that the manager leads. It does not go below an org unit that
-    // has a head of its own. So a read of one page does not load the tree or the people of the whole realm.
+    // The database goes down from the line units that the manager leads. It does not go below an org unit that
+    // has a head of its own, nor into a group. So a read of one page does not load the tree or the people of the whole realm.
     private static final String REPORTS = """
             with Down as (
                 select a.orgUnitId as id, 0 as depth, 1 as open
                 from AssignmentEntity a join EmploymentEntity e on e.id = a.employmentId
                 where a.realmId = :realmId and e.personId = :managerId and a.%1$s and %6$s
+                and not exists (select 1 from OrgUnitVersionEntity gv, RefItemEntity g where gv.realmId = :realmId
+                    and gv.orgUnitId = a.orgUnitId and gv.%9$s and g.id = gv.unitTypeId and g.groupUnit = true)
                 union all
                 select l.childId as id, d.depth + 1 as depth,
                     case when exists (select 1 from AssignmentEntity h join EmploymentEntity he
@@ -70,7 +72,8 @@ public class JpaReportingLineStore implements ReportingLineStore {
                 join OrgUnitLinkEntity l on l.parentId = d.id and l.realmId = :realmId
                     and l.hierarchyId = :hierarchyId and l.%3$s
                 join OrgUnitVersionEntity v on v.orgUnitId = l.childId and v.realmId = :realmId and v.%4$s
-                where d.open = 1
+                where d.open = 1 and not exists (select 1 from RefItemEntity g where g.id = v.unitTypeId
+                    and g.groupUnit = true)
             )
             select 0 as derived, 0 as depth, a.orgUnitId as orgUnitId, a.assignmentId as assignmentId,
                 l.id as lineId, l.kind as kind, e.personId as personId, p.userId as userId
@@ -92,7 +95,7 @@ public class JpaReportingLineStore implements ReportingLineStore {
             and not exists (select 1 from ReportingLineEntity s where s.realmId = :realmId
                 and s.assignmentId = a.assignmentId and s.kind = 'SOLID' and s.%5$s)
             order by derived, depth, orgUnitId, assignmentId, lineId""".formatted(onDate("a"), onDate("h"), onDate("l"),
-            onDate("v"), onDate("s"), leads("a"), leads("h"), looksAbove("a"));
+            onDate("v"), onDate("s"), leads("a"), leads("h"), looksAbove("a"), onDate("gv"));
 
     private final EntityManager em;
     private final String realmId;

@@ -51,6 +51,9 @@ public class RefItemEntity {
     @Column(name = "ACTING_HEAD", nullable = false)
     boolean actingHead;
 
+    @Column(name = "GROUP_UNIT", nullable = false)
+    boolean groupUnit;
+
     /**
      * Creates an empty entity for JPA.
      */

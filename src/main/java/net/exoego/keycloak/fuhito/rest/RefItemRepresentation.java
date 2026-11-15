@@ -3,6 +3,7 @@ package net.exoego.keycloak.fuhito.rest;
 import java.util.Map;
 
 import net.exoego.keycloak.fuhito.domain.RefItem;
+import net.exoego.keycloak.fuhito.service.RefItemService;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 
 /**
@@ -38,11 +39,22 @@ public record RefItemRepresentation(
                 description = "True for an assignment kind whose heads stand in for an absent head. Only the kind "
                         + "`ASSIGNMENT_KIND` can have it.",
                 defaultValue = "false")
-        Boolean actingHead) {
+        Boolean actingHead,
+        @Schema(
+                description = "True for a unit type whose org units are groups outside the line organization, such "
+                        + "as a committee or a project team. Only the kind `UNIT_TYPE` can have it. It cannot "
+                        + "change while an org unit has the type.",
+                defaultValue = "false")
+        Boolean group) {
+
+    RefItemService.Marks marks() {
+        return new RefItemService.Marks(legalEntity, actingHead, group);
+    }
 
     static RefItemRepresentation of(RefItem item) {
         return new RefItemRepresentation(item.id(), item.kind().name(), item.code(), item.name(), item.names(),
                 item.displayOrder(), item.attributes(), item.active(),
-                item.legalEntity() ? Boolean.TRUE : null, item.actingHead() ? Boolean.TRUE : null);
+                item.legalEntity() ? Boolean.TRUE : null, item.actingHead() ? Boolean.TRUE : null,
+                item.group() ? Boolean.TRUE : null);
     }
 }

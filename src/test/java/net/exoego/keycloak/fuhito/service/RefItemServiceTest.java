@@ -112,8 +112,8 @@ class RefItemServiceTest {
 
     @Test
     void onlyAUnitTypeCanBeMarkedAsALegalEntity() {
-        RefItem company = service.create(RefKind.UNIT_TYPE, "company", "Company", null, null, null, true);
-        RefItem ward = service.create(RefKind.UNIT_TYPE, "ward", "Ward", null, null, null, null);
+        RefItem company = service.create(RefKind.UNIT_TYPE, "company", "Company", null, null, null, new RefItemService.Marks(true, null, null));
+        RefItem ward = service.create(RefKind.UNIT_TYPE, "ward", "Ward", null, null, null, new RefItemService.Marks(null, null, null));
 
         assertTrue(company.legalEntity());
         assertFalse(ward.legalEntity());
@@ -121,35 +121,35 @@ class RefItemServiceTest {
 
         // A change that does not speak about the mark keeps it. A change that does can take it away.
         assertTrue(service.update(company.id(), "Corporation", null, null, null, null).legalEntity());
-        assertFalse(service.update(company.id(), "Corporation", null, null, null, null, null).legalEntity());
-        assertTrue(service.update(ward.id(), "Ward", null, null, null, null, true).legalEntity());
+        assertFalse(service.update(company.id(), "Corporation", null, null, null, null, new RefItemService.Marks(null, null, null)).legalEntity());
+        assertTrue(service.update(ward.id(), "Ward", null, null, null, null, new RefItemService.Marks(true, null, null)).legalEntity());
 
         FuhitoException wrongKind = assertThrows(FuhitoException.class,
-                () -> service.create(RefKind.OCCUPATION, "nurse", "Nurse", null, null, null, true));
+                () -> service.create(RefKind.OCCUPATION, "nurse", "Nurse", null, null, null, new RefItemService.Marks(true, null, null)));
         assertEquals(FuhitoException.Reason.INVALID, wrongKind.reason());
         assertEquals("ref_item.legal_entity_kind", wrongKind.code());
-        RefItem grade = service.create(RefKind.GRADE, "g1", "G1", null, null, null, false);
+        RefItem grade = service.create(RefKind.GRADE, "g1", "G1", null, null, null, new RefItemService.Marks(false, null, null));
         assertEquals("ref_item.legal_entity_kind", assertThrows(FuhitoException.class,
-                () -> service.update(grade.id(), "G1", null, null, null, null, true)).code());
+                () -> service.update(grade.id(), "G1", null, null, null, null, new RefItemService.Marks(true, null, null))).code());
     }
 
     @Test
     void aUnitTypeKeepsItsMarkWhileItMakesAnEmployerALegalEntity() {
-        RefItem company = service.create(RefKind.UNIT_TYPE, "company", "Company", null, null, null, true);
+        RefItem company = service.create(RefKind.UNIT_TYPE, "company", "Company", null, null, null, new RefItemService.Marks(true, null, null));
         store.typesOfEmployers.add(company.id());
 
         FuhitoException e = assertThrows(FuhitoException.class,
-                () -> service.update(company.id(), "Company", null, null, null, null, false));
+                () -> service.update(company.id(), "Company", null, null, null, null, new RefItemService.Marks(false, null, null)));
         assertEquals(FuhitoException.Reason.CONFLICT, e.reason());
         assertEquals("ref_item.legal_entity_in_use", e.code());
         assertEquals("ref_item.legal_entity_in_use", assertThrows(FuhitoException.class,
-                () -> service.update(company.id(), "Company", null, null, null, null, null)).code());
+                () -> service.update(company.id(), "Company", null, null, null, null, new RefItemService.Marks(null, null, null))).code());
         // Every other change still works.
-        assertTrue(service.update(company.id(), "Corporation", null, 5, null, null, true).legalEntity());
+        assertTrue(service.update(company.id(), "Corporation", null, 5, null, null, new RefItemService.Marks(true, null, null)).legalEntity());
         assertTrue(service.update(company.id(), "Corporation", null, null, null, null).legalEntity());
 
         store.typesOfEmployers.clear();
-        assertFalse(service.update(company.id(), "Company", null, null, null, null, false).legalEntity());
+        assertFalse(service.update(company.id(), "Company", null, null, null, null, new RefItemService.Marks(false, null, null)).legalEntity());
     }
 
     @Test
@@ -192,12 +192,34 @@ class RefItemServiceTest {
 
     @Test
     void onlyAnAssignmentKindMarksActingHeads() {
-        RefItem acting = service.create(RefKind.ASSIGNMENT_KIND, "acting", "Acting", null, null, null, null, true);
+        RefItem acting = service.create(RefKind.ASSIGNMENT_KIND, "acting", "Acting", null, null, null, new RefItemService.Marks(null, true, null));
 
         assertTrue(acting.actingHead());
         assertTrue(service.update(acting.id(), "Acting", null, null, null, null).actingHead());
-        assertFalse(service.update(acting.id(), "Acting", null, null, null, null, null, null).actingHead());
+        assertFalse(service.update(acting.id(), "Acting", null, null, null, null, new RefItemService.Marks(null, null, null)).actingHead());
         assertEquals("ref_item.acting_head_kind", assertThrows(FuhitoException.class,
-                () -> service.create(RefKind.JOB_TITLE, "chief", "Chief", null, null, null, null, true)).code());
+                () -> service.create(RefKind.JOB_TITLE, "chief", "Chief", null, null, null, new RefItemService.Marks(null, true, null))).code());
+    }
+
+    @Test
+    void aGroupIsAUnitTypeThatIsNoLegalEntityAndKeepsItsMarkWhileInUse() {
+        RefItem committee = service.create(RefKind.UNIT_TYPE, "committee", "Committee", null, null, null,
+                new RefItemService.Marks(null, null, true));
+
+        assertTrue(committee.group());
+        assertEquals("ref_item.group_kind", assertThrows(FuhitoException.class,
+                () -> service.create(RefKind.JOB_TITLE, "chair", "Chair", null, null, null,
+                        new RefItemService.Marks(null, null, true))).code());
+        assertEquals("ref_item.group_legal_entity", assertThrows(FuhitoException.class,
+                () -> service.create(RefKind.UNIT_TYPE, "union", "Union", null, null, null,
+                        new RefItemService.Marks(true, null, true))).code());
+        assertFalse(service.update(committee.id(), "Committee", null, null, null, null, RefItemService.Marks.NONE)
+                .group());
+
+        store.inUse.add(committee.id());
+        assertEquals("ref_item.group_in_use", assertThrows(FuhitoException.class,
+                () -> service.update(committee.id(), "Committee", null, null, null, null,
+                        new RefItemService.Marks(null, null, true))).code());
+        assertEquals("Board", service.update(committee.id(), "Board", null, null, null, null).name());
     }
 }

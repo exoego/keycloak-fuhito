@@ -74,6 +74,7 @@ public class CsvImportService {
             Map.entry("employmentExternalId", "雇用の外部ID"), Map.entry("orgUnitExternalId", "組織の外部ID"),
             Map.entry("jobTitle", "役職"), Map.entry("occupation", "職種"), Map.entry("assignmentKind", "所属区分"),
             Map.entry("employerExternalId", "雇用主の外部ID"), Map.entry("legalEntity", "法人"), Map.entry("actingHead", "代行"),
+            Map.entry("group", "グループ"),
             Map.entry("head", "長"), Map.entry("primary", "主務"), Map.entry("allocationPercent", "配分割合"));
 
     // The lists that a file can hold.
@@ -96,7 +97,8 @@ public class CsvImportService {
     }
 
     private static final Map<Kind, Set<String>> FIELDS = Map.of(
-            Kind.REF_ITEMS, Set.of("kind", "code", "name", "displayOrder", "active", "legalEntity", "actingHead"),
+            Kind.REF_ITEMS, Set.of("kind", "code", "name", "displayOrder", "active", "legalEntity", "actingHead",
+                    "group"),
             Kind.ORG_UNITS, Set.of("externalId", "source", "code", "name", "shortName", "phoneticName", "unitType",
                     "parentExternalId", "displayOrder", "validFrom", "validTo"),
             Kind.EMPLOYMENTS, Set.of("externalId", "source", "username", "userId", "staffNumber", "employmentType",
@@ -230,7 +232,7 @@ public class CsvImportService {
                 cells.integer("displayOrder", stored.map(RefItem::displayOrder).orElse(null)),
                 stored.map(RefItem::attributes).orElse(null),
                 cells.bool("active", stored.map(RefItem::active).orElse(null)),
-                cells.bool("legalEntity", null), cells.bool("actingHead", null));
+                cells.bool("legalEntity", null), cells.bool("actingHead", null), cells.bool("group", null));
     }
 
     private OrgUnitRow orgUnit(Cells cells, LocalDate date, String defaultSource) {

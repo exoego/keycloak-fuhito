@@ -178,7 +178,10 @@ public record ImportDocument(
             Boolean legalEntity,
             @Schema(description = "True for an assignment kind whose heads stand in for an absent head. A row "
                     + "that leaves it out keeps the mark of a stored item.")
-            Boolean actingHead) {
+            Boolean actingHead,
+            @Schema(description = "True for a unit type whose org units are groups outside the line organization. A "
+                    + "row that leaves it out keeps the mark of a stored item.")
+            Boolean group) {
 
         /**
          * Makes a row that speaks about the mark of a legal entity only.
@@ -194,7 +197,7 @@ public record ImportDocument(
          */
         public RefItemRow(String kind, String code, String name, Map<String, String> names, Integer displayOrder,
                 Map<String, Object> attributes, Boolean active, Boolean legalEntity) {
-            this(kind, code, name, names, displayOrder, attributes, active, legalEntity, null);
+            this(kind, code, name, names, displayOrder, attributes, active, legalEntity, null, null);
         }
 
         /**
@@ -210,7 +213,7 @@ public record ImportDocument(
          */
         public RefItemRow(String kind, String code, String name, Map<String, String> names, Integer displayOrder,
                 Map<String, Object> attributes, Boolean active) {
-            this(kind, code, name, names, displayOrder, attributes, active, null, null);
+            this(kind, code, name, names, displayOrder, attributes, active, null, null, null);
         }
     }
 

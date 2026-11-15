@@ -811,4 +811,11 @@
             </column>
         </addColumn>
     </changeSet>
+    <changeSet id="0.1.0-ref-item-group" author="keycloak-fuhito">
+        <addColumn tableName="FUHITO_REF_ITEM">
+            <column name="GROUP_UNIT" type="BOOLEAN" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+    </changeSet>
 </databaseChangeLog>
