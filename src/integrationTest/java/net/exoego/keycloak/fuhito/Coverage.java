@@ -56,7 +56,7 @@ final class Coverage {
         return keycloak
                 .withCopyFileToContainer(MountableFile.forHostPath(AGENT), "/opt/jacoco/agent.jar")
                 .withFileSystemBind(classes.getAbsolutePath(), "/opt/jacoco/classes", BindMode.READ_WRITE)
-                .withEnv("JAVA_OPTS_APPEND", "-javaagent:/opt/jacoco/agent.jar=output=tcpserver,address=*,port="
+                .withEnv("JAVA_OPTS_APPEND", "-XX:TieredStopAtLevel=1 -javaagent:/opt/jacoco/agent.jar=output=tcpserver,address=*,port="
                         + PORT + ",includes=net.exoego.keycloak.fuhito.*,classdumpdir=/opt/jacoco/classes");
     }
 
