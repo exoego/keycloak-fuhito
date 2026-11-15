@@ -18,6 +18,7 @@ import net.exoego.keycloak.fuhito.service.AssignmentService;
 import net.exoego.keycloak.fuhito.service.EmploymentService;
 import net.exoego.keycloak.fuhito.service.OrgUnitService;
 import net.exoego.keycloak.fuhito.service.PersonService;
+import net.exoego.keycloak.fuhito.service.PromotionService;
 import net.exoego.keycloak.fuhito.service.TermsChange;
 import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.media.Content;
@@ -44,6 +45,7 @@ public class EmploymentsResource {
     private final PersonService people;
     private final AssignmentService assignments;
     private final OrgUnitService orgUnits;
+    private final PromotionService promotions;
 
     /**
      * Creates the resource for one request.
@@ -53,9 +55,11 @@ public class EmploymentsResource {
      * @param people the operations on people of the realm
      * @param assignments the reads of assignments of the realm
      * @param orgUnits the operations on org units of the realm
+     * @param promotions the promotion of the realm
      */
     public EmploymentsResource(RequestContext context, EmploymentService service, PersonService people,
-            AssignmentService assignments, OrgUnitService orgUnits) {
+            AssignmentService assignments, OrgUnitService orgUnits, PromotionService promotions) {
+        this.promotions = promotions;
         this.orgUnits = orgUnits;
         this.context = context;
         this.service = service;
@@ -134,6 +138,44 @@ public class EmploymentsResource {
             var employment = EmploymentRepresentation.of(service.end(id, body.validTo(), body.endReason()));
             context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, "fuhito/employments/" + id + "/end", employment);
             return employment;
+        });
+    }
+
+    @POST
+    @Path("{id}/promotion")
+    @Operation(
+            operationId = "promote",
+            summary = "Promotes a person on a date, in one write.",
+            description = "It sets the grade of the employment, and the job title or the head flag of one "
+                    + "assignment, from the date on. Every value that the request does not name stays. The change "
+                    + "lasts until the next change that is already stored. A failure writes nothing.")
+    @Parameter(ref = "changeOrder")
+    @APIResponse(
+            responseCode = "200",
+            description = "The employment and the assignment after the promotion.",
+            content = @Content(mediaType = "application/json",
+                    schema = @Schema(implementation = PromotionRepresentation.class)))
+    @BadRequest
+    @NotFound
+    @ApiErrors
+    public PromotionRepresentation promote(
+            @Parameter(description = "The ID of the resource.")
+            @PathParam("id") String id,
+            PromotionRepresentation body) {
+        context.requireWrite();
+        return Calls.run(context, () -> {
+            Checks.required("body", body);
+            PromotionService.Promotion promotion = promotions.promote(id, body.toRequest());
+            var employment = EmploymentRepresentation.of(promotion.employment());
+            context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, "fuhito/employments/" + id + "/promotion",
+                    employment);
+            AssignmentRepresentation assignment = null;
+            if (promotion.assignment() != null) {
+                assignment = AssignmentRepresentation.of(promotion.assignment());
+                context.recordChange(Change.UPDATE, AssignmentsResource.RESOURCE_TYPE, assignment.id(),
+                        "fuhito/assignments/" + assignment.id() + "/details", assignment);
+            }
+            return PromotionRepresentation.of(employment, assignment);
         });
     }
 

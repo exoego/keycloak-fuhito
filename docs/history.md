@@ -140,6 +140,20 @@ An assignment never changes its org unit. A move is the end of one assignment an
 
 Checked by `AssignmentsIT.aMoveTakesAPersonToAnotherOrgUnitInOneWrite`.
 
+## A promotion
+
+A change of terms and a change of the details of an assignment each replace all values.
+`POST /employments/{id}/promotion` is for the common case that only the grade, the job title, or the head flag changes.
+
+- The request has `validFrom`, and `grade`, `jobTitle`, or `head`, or several of them.
+- The grade goes to the terms of the employment. The job title and the head flag go to one assignment.
+- That assignment is the one that `assignmentId` names. With none, it is the primary assignment of the employment on the date.
+- Every value that the request does not name stays as it is on the date.
+- Both writes are one transaction. When one fails, nothing is written.
+- The change log has one entry for the employment with the path `.../promotion`, and one for the assignment.
+
+Checked by `StaffIT.promotesAPersonInOneWrite`.
+
 ## The change log and change orders
 
 Every successful write adds one entry to the change log.

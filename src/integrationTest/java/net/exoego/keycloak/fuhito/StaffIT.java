@@ -51,6 +51,53 @@ class StaffIT {
     }
 
     @Test
+    void promotesAPersonInOneWrite() throws Exception {
+        realm.refItem("GRADE", "g1", "1級");
+        realm.refItem("GRADE", "g2", "2級");
+        realm.refItem("JOB_TITLE", "chief", "主任");
+        String user = realm.user("promoted-nurse");
+        JsonNode staff = Api.json(api.post("/staff", "{\"userId\": \"" + user + "\", \"orgUnitId\": \"" + clinic
+                + "\", \"validFrom\": \"2026-04-01\", \"employmentType\": \"part-time\", \"workPercent\": 50, "
+                + "\"grade\": \"g1\", \"occupation\": \"nurse\"}"));
+        String employmentId = staff.get("employment").get("id").asText();
+        String assignmentId = staff.get("assignment").get("id").asText();
+
+        HttpResponse<String> response = api.post("/employments/" + employmentId + "/promotion",
+                "{\"validFrom\": \"2026-10-01\", \"grade\": \"g2\", \"jobTitle\": \"chief\", \"head\": true}");
+
+        assertEquals(200, response.statusCode(), response.body());
+        JsonNode terms = Api.json(response).get("employment").get("terms");
+        assertEquals(2, terms.size());
+        assertEquals("g2", terms.get(1).get("grade").asText());
+        assertEquals("2026-10-01", terms.get(1).get("validFrom").asText());
+        // What the request did not name stays.
+        assertEquals("part-time", terms.get(1).get("employmentType").asText());
+        assertEquals(50, terms.get(1).get("workPercent").asInt());
+        JsonNode periods = Api.json(response).get("assignment").get("periods");
+        assertEquals(assignmentId, Api.json(response).get("assignment").get("id").asText());
+        assertEquals("chief", periods.get(1).get("jobTitle").asText());
+        assertEquals("nurse", periods.get(1).get("occupation").asText());
+        assertTrue(periods.get(1).get("head").asBoolean());
+        assertTrue(periods.get(1).get("primary").asBoolean());
+        assertFalse(periods.get(0).has("jobTitle"));
+        assertEquals(Api.json(response).get("employment"), Api.json(api.get("/employments/" + employmentId)));
+        assertEquals("fuhito/employments/" + employmentId + "/promotion", Api.json(api.get(
+                "/change-log?resourceType=FUHITO_EMPLOYMENT&resourceId=" + employmentId)).get(1).get("resourcePath")
+                .asText());
+
+        // A bad job title undoes the good grade of the same request.
+        HttpResponse<String> bad = api.post("/employments/" + employmentId + "/promotion",
+                "{\"validFrom\": \"2027-04-01\", \"grade\": \"g1\", \"jobTitle\": \"nope\"}");
+        assertEquals(400, bad.statusCode(), bad.body());
+        assertEquals("ref_item.unknown", Api.json(bad).get("error").asText());
+        assertEquals(2, Api.json(api.get("/employments/" + employmentId)).get("terms").size());
+        HttpResponse<String> empty = api.post("/employments/" + employmentId + "/promotion",
+                "{\"validFrom\": \"2027-04-01\"}");
+        assertEquals(400, empty.statusCode(), empty.body());
+        assertEquals("employment.promotion_empty", Api.json(empty).get("error").asText());
+    }
+
+    @Test
     void addsAPartTimeNurseForOneYear() throws Exception {
         String user = realm.user("part-time-nurse");
 
