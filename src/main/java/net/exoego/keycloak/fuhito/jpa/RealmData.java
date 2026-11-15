@@ -1,6 +1,7 @@
 package net.exoego.keycloak.fuhito.jpa;
 
 import java.util.List;
+import java.util.Set;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.criteria.CriteriaBuilder;
@@ -67,6 +68,17 @@ public final class RealmData {
      * @param personId the ID of the person
      */
     public static void deletePerson(EntityManager em, String realmId, String personId) {
+        // The trail is read first, because the deletes below remove the rows that it starts from.
+        PersonTrail trail = PersonTrail.of(em, realmId, personId);
+        // An entry that only names the person as the actor of a write stays.
+        deleteEntries(em, realmId, "FUHITO_PERSON", Set.of(personId));
+        deleteEntries(em, realmId, "FUHITO_PERSON_DATA", Set.of(personId));
+        deleteEntries(em, realmId, "FUHITO_EMPLOYMENT", trail.employments());
+        deleteEntries(em, realmId, "FUHITO_ASSIGNMENT", trail.assignments());
+        deleteEntries(em, realmId, "FUHITO_QUALIFICATION", trail.qualifications());
+        deleteEntries(em, realmId, "FUHITO_UNIT_ROLE", trail.unitRoles());
+        deleteEntries(em, realmId, "FUHITO_REPORTING_LINE", trail.reportingLines());
+        deleteEntries(em, realmId, "FUHITO_EXTERNAL_ID", trail.externalIds());
         // Every query is one fixed text. The order matters, because later queries read rows of earlier ones.
         List.of(
                 // Lines where the person reports, and lines where the person is the manager.
@@ -76,18 +88,7 @@ public final class RealmData {
                 (select a.assignmentId from AssignmentEntity a where a.realmId = :realmId
                 and a.employmentId in
                 (select e.id from EmploymentEntity e where e.realmId = :realmId and e.personId = :personId)))""",
-                // The IDs that other systems have for the person and for the records of the person, with their entries.
-                """
-                delete from ChangeLogEntity l where l.realmId = :realmId and l.resourceType = 'FUHITO_EXTERNAL_ID'
-                and l.resourceId in (select x.id from ExternalIdEntity x where x.realmId = :realmId
-                and ((x.kind = 'PERSON' and x.resourceId = :personId)
-                or (x.kind = 'EMPLOYMENT' and x.resourceId in
-                (select e.id from EmploymentEntity e where e.realmId = :realmId and e.personId = :personId))
-                or (x.kind = 'ASSIGNMENT' and x.resourceId in
-                (select a.assignmentId from AssignmentEntity a where a.realmId = :realmId and a.employmentId in
-                (select e.id from EmploymentEntity e where e.realmId = :realmId and e.personId = :personId)))
-                or (x.kind = 'QUALIFICATION' and x.resourceId in
-                (select q.id from QualificationEntity q where q.realmId = :realmId and q.personId = :personId))))""",
+                // The IDs that other systems have for the person and for the records of the person.
                 """
                 delete from ExternalIdEntity x where x.realmId = :realmId
                 and ((x.kind = 'PERSON' and x.resourceId = :personId)
@@ -98,22 +99,6 @@ public final class RealmData {
                 (select e.id from EmploymentEntity e where e.realmId = :realmId and e.personId = :personId)))
                 or (x.kind = 'QUALIFICATION' and x.resourceId in
                 (select q.id from QualificationEntity q where q.realmId = :realmId and q.personId = :personId)))""",
-                // An entry that only names the person as the actor of a write stays.
-                """
-                delete from ChangeLogEntity l where l.realmId = :realmId
-                and ((l.resourceType = 'FUHITO_EMPLOYMENT' and l.resourceId in
-                (select e.id from EmploymentEntity e where e.realmId = :realmId and e.personId = :personId))
-                or (l.resourceType = 'FUHITO_ASSIGNMENT' and l.resourceId in
-                (select a.assignmentId from AssignmentEntity a where a.realmId = :realmId
-                and a.employmentId in
-                (select e.id from EmploymentEntity e where e.realmId = :realmId and e.personId = :personId)))
-                or (l.resourceType = 'FUHITO_UNIT_ROLE' and l.resourceId in
-                (select r.id from UnitRoleEntity r where r.realmId = :realmId
-                and r.employmentId in
-                (select e.id from EmploymentEntity e where e.realmId = :realmId and e.personId = :personId)))
-                or (l.resourceType = 'FUHITO_QUALIFICATION' and l.resourceId in
-                (select q.id from QualificationEntity q where q.realmId = :realmId and q.personId = :personId))
-                or (l.resourceType = 'FUHITO_PERSON' and l.resourceId = :personId))""",
                 """
                 delete from UnitRoleEntity r where r.realmId = :realmId and r.employmentId in
                 (select e.id from EmploymentEntity e where e.realmId = :realmId and e.personId = :personId)""",
@@ -131,6 +116,18 @@ public final class RealmData {
                         .setParameter("realmId", realmId)
                         .setParameter("personId", personId)
                         .executeUpdate());
+    }
+
+    private static void deleteEntries(EntityManager em, String realmId, String resourceType, Set<String> ids) {
+        if (!ids.isEmpty()) {
+            em.createQuery("""
+                            delete from ChangeLogEntity l where l.realmId = :realmId and l.resourceType = :type
+                            and l.resourceId in :ids""")
+                    .setParameter("realmId", realmId)
+                    .setParameter("type", resourceType)
+                    .setParameter("ids", ids)
+                    .executeUpdate();
+        }
     }
 
     /**

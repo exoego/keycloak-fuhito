@@ -390,7 +390,8 @@ class PeopleIT {
         assertEquals("person.not_found", errorOf(404, scratchApi.get(people)));
         assertEquals("person.not_found", errorOf(404, scratchApi.delete(people + "/data")));
         assertEquals(404, scratchApi.get("/employments/" + staff.get("employment").get("id").asText()).statusCode());
-        assertEquals(List.of("UPDATE", "UPDATE", "DELETE"), Api.json(scratchApi.get(
+        // Only the entry of the erase stays.
+        assertEquals(List.of("DELETE"), Api.json(scratchApi.get(
                 "/change-log?resourceType=FUHITO_PERSON_DATA&resourceId=" + member)).findValuesAsText("operation"));
         assertEquals(0, Api.json(scratchApi.get("/change-log?resourceType=FUHITO_PERSON&resourceId=" + member)).size());
         // The other person is untouched.
