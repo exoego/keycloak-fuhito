@@ -30,6 +30,7 @@ public final class RealmData {
             OrgUnitEntity.class,
             RefItemEntity.class,
             AttributeDefinitionEntity.class,
+            ExternalIdEntity.class,
             HierarchyEntity.class);
 
     private RealmData() {
@@ -72,6 +73,28 @@ public final class RealmData {
                 (select a.assignmentId from AssignmentEntity a where a.realmId = :realmId
                 and a.employmentId in
                 (select e.id from EmploymentEntity e where e.realmId = :realmId and e.personId = :personId)))""",
+                // The IDs that other systems have for the person and for the records of the person, with their entries.
+                """
+                delete from ChangeLogEntity l where l.realmId = :realmId and l.resourceType = 'FUHITO_EXTERNAL_ID'
+                and l.resourceId in (select x.id from ExternalIdEntity x where x.realmId = :realmId
+                and ((x.kind = 'PERSON' and x.resourceId = :personId)
+                or (x.kind = 'EMPLOYMENT' and x.resourceId in
+                (select e.id from EmploymentEntity e where e.realmId = :realmId and e.personId = :personId))
+                or (x.kind = 'ASSIGNMENT' and x.resourceId in
+                (select a.assignmentId from AssignmentEntity a where a.realmId = :realmId and a.employmentId in
+                (select e.id from EmploymentEntity e where e.realmId = :realmId and e.personId = :personId)))
+                or (x.kind = 'QUALIFICATION' and x.resourceId in
+                (select q.id from QualificationEntity q where q.realmId = :realmId and q.personId = :personId))))""",
+                """
+                delete from ExternalIdEntity x where x.realmId = :realmId
+                and ((x.kind = 'PERSON' and x.resourceId = :personId)
+                or (x.kind = 'EMPLOYMENT' and x.resourceId in
+                (select e.id from EmploymentEntity e where e.realmId = :realmId and e.personId = :personId))
+                or (x.kind = 'ASSIGNMENT' and x.resourceId in
+                (select a.assignmentId from AssignmentEntity a where a.realmId = :realmId and a.employmentId in
+                (select e.id from EmploymentEntity e where e.realmId = :realmId and e.personId = :personId)))
+                or (x.kind = 'QUALIFICATION' and x.resourceId in
+                (select q.id from QualificationEntity q where q.realmId = :realmId and q.personId = :personId)))""",
                 // An entry that only names the person as the actor of a write stays.
                 """
                 delete from ChangeLogEntity l where l.realmId = :realmId

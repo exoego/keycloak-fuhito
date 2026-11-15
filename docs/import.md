@@ -26,6 +26,7 @@ Every bad row is reported, not only the first one.
 
 The source is the name of the system or the sheet that the rows come from.
 It keeps the external IDs of two systems apart. The default is `import`.
+The import matches by the pair that a resource itself has. The IDs that `/external-ids` adds do not match rows.
 
 ## JSON
 

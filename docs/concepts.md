@@ -92,6 +92,17 @@ Unit types, job titles, occupations, employment types, grades, end reasons, assi
 Each realm defines its own items.
 An item has a code, a name, and optional names in other languages.
 
+## IDs in other systems
+
+An org unit, a person, an employment, an assignment, and a qualification have one pair of `source` and `externalId`. It is the ID in the system that made the resource, and the import matches rows by it.
+Other systems can add their own IDs with `PUT /external-ids`.
+
+- A resource has at most one ID for each system, counting its own pair.
+- One ID of one system names one resource of a kind.
+- `GET /external-ids/lookup?resourceType=&source=&externalId=` finds the resource. It looks at the own pairs and at the added IDs.
+- `GET /external-ids?resourceType=&resourceId=` lists every ID of one resource, the own pair first.
+- The IDs of an org unit need the permission to read the org structure. The others need the full read.
+
 ## Free attributes
 
 Org units, people, employment terms, assignments, qualifications, and reference items have `attributes`, a JSON object for values that the realm needs.

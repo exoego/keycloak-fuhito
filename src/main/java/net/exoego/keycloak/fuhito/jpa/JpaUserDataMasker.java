@@ -98,6 +98,11 @@ public class JpaUserDataMasker implements UserDataMasker {
         person.phoneticName = null;
         person.attributes = new LinkedHashMap<>();
         person.externalId = null;
+        List<String> externalIds = new ArrayList<>(removeExternalIds("PERSON", List.of(personId)));
+        externalIds.addAll(removeExternalIds("EMPLOYMENT", employmentIds));
+        externalIds.addAll(removeExternalIds("ASSIGNMENT", assignmentIds));
+        externalIds.addAll(removeExternalIds("QUALIFICATION", qualificationIds));
+        maskChangeLog("FUHITO_EXTERNAL_ID", externalIds);
         maskChangeLog("FUHITO_PERSON", List.of(personId));
         maskChangeLog("FUHITO_EMPLOYMENT", employmentIds);
         maskChangeLog("FUHITO_ASSIGNMENT", assignmentIds);
@@ -112,6 +117,21 @@ public class JpaUserDataMasker implements UserDataMasker {
             em.persist(mark);
         }
         em.flush();
+    }
+
+    // The IDs that other systems have for the resources of the person can identify the person too.
+    private List<String> removeExternalIds(String kind, List<String> resourceIds) {
+        if (resourceIds.isEmpty()) {
+            return List.of();
+        }
+        List<ExternalIdEntity> rows = em.createQuery("""
+                        select x from ExternalIdEntity x where x.realmId = :realmId and x.kind = :kind
+                        and %s""".formatted(ManyIds.has("x.resourceId", "ids")), ExternalIdEntity.class)
+                .setParameter("realmId", realmId).setParameter("kind", kind)
+                .setParameter("ids", ManyIds.of(resourceIds))
+                .getResultList();
+        rows.forEach(em::remove);
+        return rows.stream().map(row -> row.id).toList();
     }
 
     // The change log holds copies of the state after each write. The same fields are cleared there.
