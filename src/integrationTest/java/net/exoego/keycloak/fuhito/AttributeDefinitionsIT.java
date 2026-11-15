@@ -57,6 +57,17 @@ class AttributeDefinitionsIT {
     }
 
     @Test
+    void attributesMayHave64KbAsJson() throws Exception {
+        TestRealm realm = TestRealm.create("attributes-size");
+        HttpResponse<String> large = realm.api.post("/people", "{\"name\": \"山田 花子\", \"attributes\": "
+                + "{\"note\": \"" + "a".repeat(65_536) + "\"}}");
+
+        assertEquals("attribute.too_large", errorOf(400, large));
+        assertEquals(201, realm.api.post("/people", "{\"name\": \"山田 花子\", \"attributes\": {\"note\": \""
+                + "a".repeat(65_000) + "\"}}").statusCode());
+    }
+
+    @Test
     void aRealmCanRejectAttributesWithNoDefinition() throws Exception {
         TestRealm realm = TestRealm.create("attributes-strict", Map.of("fuhito.attributes.unknown", "reject"));
         Api api = realm.api;
