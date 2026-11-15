@@ -319,6 +319,23 @@ class EmploymentsIT {
     }
 
     @Test
+    void anEmploymentEndsByTheEndOfItsEmployer() throws Exception {
+        TestRealm closing = TestRealm.create("employments-closing");
+        String company = closing.legalEntity("閉鎖予定の会社");
+        assertEquals(200, closing.api.put("/org-units/" + company + "/end", "{\"validTo\": \"2030-04-01\"}")
+                .statusCode());
+        String user = closing.user("staff-of-closing");
+
+        assertEquals("employment.employer_ends", errorOf(409, closing.api.post("/employments",
+                "{\"userId\": \"" + user + "\", \"validFrom\": \"2026-04-01\"}")));
+        String id = created(closing.api.post("/employments", "{\"userId\": \"" + user
+                + "\", \"validFrom\": \"2026-04-01\", \"validTo\": \"2030-04-01\"}")).get("id").asText();
+        assertEquals("employment.employer_ends", errorOf(409, closing.api.delete("/employments/" + id + "/end")));
+        assertEquals("employment.employer_ends", errorOf(409, closing.api.put("/employments/" + id + "/end",
+                "{\"validTo\": \"2031-04-01\"}")));
+    }
+
+    @Test
     void aTransferMovesAPersonToAnotherEmployerInOneWrite() throws Exception {
         TestRealm group = TestRealm.create("employments-transfer");
         Api groupApi = group.api;
