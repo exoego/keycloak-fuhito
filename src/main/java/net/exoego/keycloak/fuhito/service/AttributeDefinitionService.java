@@ -131,7 +131,7 @@ public class AttributeDefinitionService implements AttributeRules {
 
     @Override
     public Map<String, Object> check(AttributeDefinition.Target target, Map<String, Object> attributes) {
-        Map<String, Object> values = attributes == null ? Map.of() : attributes;
+        Map<String, Object> values = AttributeSize.require(attributes == null ? Map.of() : attributes);
         Map<String, AttributeDefinition> byName = new HashMap<>();
         store.list(target).forEach(definition -> byName.put(definition.name(), definition));
         values.forEach((name, value) -> {
