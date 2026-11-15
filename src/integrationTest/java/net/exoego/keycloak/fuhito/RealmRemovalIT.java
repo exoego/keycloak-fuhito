@@ -12,7 +12,7 @@ class RealmRemovalIT {
     private static final List<String> TABLES = List.of("fuhito_hierarchy", "fuhito_ref_item", "fuhito_org_unit",
             "fuhito_org_unit_version", "fuhito_org_unit_link", "fuhito_org_unit_succession", "fuhito_employment", "fuhito_employment_terms",
             "fuhito_assignment", "fuhito_change_order", "fuhito_change_log", "fuhito_change_log_counter", "fuhito_qualification",
-            "fuhito_reporting_line", "fuhito_user_mask", "fuhito_person");
+            "fuhito_reporting_line", "fuhito_unit_role", "fuhito_user_mask", "fuhito_person");
 
     // A new table must be added to this test and to the cleanup. This test fails until that is done.
     @Test
@@ -78,6 +78,10 @@ class RealmRemovalIT {
         assertEquals(201, assignment.statusCode(), assignment.body());
         assertEquals(201, api.post("/reporting-lines", "{\"assignmentId\": \"" + Api.json(assignment).get("id").asText()
                 + "\", \"managerUserId\": \"" + realm.user("manager") + "\", \"validFrom\": \"2026-04-01\"}").statusCode());
+        realm.refItem("UNIT_ROLE", "approver", "Approver");
+        assertEquals(201, api.post("/unit-roles", "{\"employmentId\": \"" + Api.json(employment).get("id").asText()
+                + "\", \"orgUnitId\": \"" + Api.json(parent).get("id").asText()
+                + "\", \"role\": \"approver\", \"validFrom\": \"2026-04-01\"}").statusCode());
     }
 
     private static String rows(String table, String realmId) throws Exception {

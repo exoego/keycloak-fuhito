@@ -15,6 +15,7 @@ public final class RealmData {
     private static final List<Class<?>> ENTITIES = List.of(
             UserMaskEntity.class,
             ReportingLineEntity.class,
+            UnitRoleEntity.class,
             QualificationEntity.class,
             ChangeLogEntity.class,
             ChangeLogCounterEntity.class,
@@ -53,8 +54,8 @@ public final class RealmData {
 
     /**
      * Erases every row about one person, for a request to delete personal data. Removal of a user from Keycloak
-     * does not call this. These are the employments of the person with their terms and assignments,
-     * the qualifications, the reporting lines, and the person record itself.
+     * does not call this. These are the employments of the person with their terms, assignments, and roles over
+     * org units, the qualifications, the reporting lines, and the person record itself.
      *
      * @param em the entity manager
      * @param realmId the ID of the realm
@@ -79,9 +80,16 @@ public final class RealmData {
                 (select a.assignmentId from AssignmentEntity a where a.realmId = :realmId
                 and a.employmentId in
                 (select e.id from EmploymentEntity e where e.realmId = :realmId and e.personId = :personId)))
+                or (l.resourceType = 'FUHITO_UNIT_ROLE' and l.resourceId in
+                (select r.id from UnitRoleEntity r where r.realmId = :realmId
+                and r.employmentId in
+                (select e.id from EmploymentEntity e where e.realmId = :realmId and e.personId = :personId)))
                 or (l.resourceType = 'FUHITO_QUALIFICATION' and l.resourceId in
                 (select q.id from QualificationEntity q where q.realmId = :realmId and q.personId = :personId))
                 or (l.resourceType = 'FUHITO_PERSON' and l.resourceId = :personId))""",
+                """
+                delete from UnitRoleEntity r where r.realmId = :realmId and r.employmentId in
+                (select e.id from EmploymentEntity e where e.realmId = :realmId and e.personId = :personId)""",
                 """
                 delete from AssignmentEntity x where x.realmId = :realmId and x.employmentId in
                 (select e.id from EmploymentEntity e where e.realmId = :realmId and e.personId = :personId)""",

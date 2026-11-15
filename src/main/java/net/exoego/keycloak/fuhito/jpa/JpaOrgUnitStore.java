@@ -305,6 +305,17 @@ public class JpaOrgUnitStore implements OrgUnitStore {
     }
 
     @Override
+    public long unitRolesHoldingFrom(String orgUnitId, LocalDate date) {
+        return em.createQuery("""
+                        select count(r) from UnitRoleEntity r where r.realmId = :realmId
+                        and r.orgUnitId = :orgUnitId and (r.validTo is null or r.validTo > :date)""", Long.class)
+                .setParameter("realmId", realmId)
+                .setParameter("orgUnitId", orgUnitId)
+                .setParameter("date", date)
+                .getSingleResult();
+    }
+
+    @Override
     public Map<String, Set<String>> ancestorsOn(String hierarchyId, Collection<String> ids, LocalDate date) {
         Map<String, Set<String>> result = new HashMap<>();
         if (ids.isEmpty()) {

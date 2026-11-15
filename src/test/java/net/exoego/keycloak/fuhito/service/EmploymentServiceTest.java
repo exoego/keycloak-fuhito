@@ -31,7 +31,7 @@ class EmploymentServiceTest {
     private final EmploymentService service =
             new EmploymentService(store, assignments, refItems,
             MemoryPersonStore.linked(Set.of("alice", "bob")),
-            lines, new AnyEmployer());
+            lines, new MemoryUnitRoleStore(), new AnyEmployer());
 
     private static NewEmployment minimal(String userId, String validFrom) {
         return new NewEmployment(userId, validFrom, null, null, null, null, null, null, null, null, null);

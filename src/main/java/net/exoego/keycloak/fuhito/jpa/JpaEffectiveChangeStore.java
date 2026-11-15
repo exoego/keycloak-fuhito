@@ -33,7 +33,8 @@ public class JpaEffectiveChangeStore implements EffectiveChangeStore {
                     new Source("EmploymentTermsEntity", "employmentId", Kind.EMPLOYMENT),
                     new Source("AssignmentEntity", "assignmentId", Kind.ASSIGNMENT),
                     new Source("ReportingLineEntity", "id", Kind.REPORTING_LINE),
-                    new Source("QualificationEntity", "id", Kind.QUALIFICATION))
+                    new Source("QualificationEntity", "id", Kind.QUALIFICATION),
+                    new Source("UnitRoleEntity", "id", Kind.UNIT_ROLE))
             .flatMap(source -> Stream.of(source.select("validFrom"), source.select("validTo")))
             .collect(Collectors.joining("union\n", "", "order by date, kind, resourceId"));
 

@@ -25,6 +25,8 @@ public record EffectiveChange(LocalDate date, Kind kind, String resourceId) {
         /** A reporting line. */
         REPORTING_LINE,
         /** A qualification. */
-        QUALIFICATION
+        QUALIFICATION,
+        /** A role over an org unit. */
+        UNIT_ROLE
     }
 }

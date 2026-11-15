@@ -21,6 +21,7 @@ import net.exoego.keycloak.fuhito.service.MembershipService;
 import net.exoego.keycloak.fuhito.service.OrgUnitService;
 import net.exoego.keycloak.fuhito.service.OrgUnitState;
 import net.exoego.keycloak.fuhito.service.OrganizationLinkService;
+import net.exoego.keycloak.fuhito.service.UnitRoleService;
 import net.exoego.keycloak.fuhito.service.Page;
 import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.enums.SchemaType;
@@ -48,6 +49,7 @@ public class OrgUnitsResource {
     private final OrgUnitService service;
     private final MembershipService membership;
     private final OrganizationLinkService organizationLinks;
+    private final UnitRoleService unitRoles;
 
     /**
      * Creates the resource for one request.
@@ -56,9 +58,11 @@ public class OrgUnitsResource {
      * @param service the operations on the realm of the request
      * @param membership the reads of members on the realm of the request
      * @param organizationLinks the links to Keycloak organizations of the realm
+     * @param unitRoles the roles over org units of the realm
      */
     public OrgUnitsResource(RequestContext context, OrgUnitService service, MembershipService membership,
-            OrganizationLinkService organizationLinks) {
+            OrganizationLinkService organizationLinks, UnitRoleService unitRoles) {
+        this.unitRoles = unitRoles;
         this.organizationLinks = organizationLinks;
         this.context = context;
         this.service = service;
@@ -443,6 +447,42 @@ public class OrgUnitsResource {
             @PathParam("id") String id) {
         context.requireReadStructure();
         return Calls.run(context, () -> OrgUnitHistoryRepresentation.of(service.history(id)));
+    }
+
+    @GET
+    @Path("{id}/role-holders")
+    @Operation(
+            operationId = "listOrgUnitRoleHolders",
+            summary = "Lists who has a role over an org unit on a date.",
+            description = "These are the roles over the unit, and the roles over a unit above in the default "
+                    + "hierarchy that cover the units below. The nearest unit comes first, then the code of the "
+                    + "role. They name people, so the read needs the full read permission.")
+    @APIResponse(responseCode = "200", description = "The roles.")
+    @BadRequest
+    @NotFound
+    @ApiErrors
+    public List<UnitRoleRepresentation> roleHolders(
+            @Parameter(description = "The ID of the resource.")
+            @PathParam("id") String id,
+            @Parameter(description = "The code of a role to keep.")
+            @QueryParam("role") String role,
+            @Parameter(
+                    description = "The date to read. The default is today for the org unit. It is the date of the "
+                            + "realm unless a unit sets its own time zone.",
+                    schema = @Schema(format = "date"))
+            @QueryParam("asOf") String asOf,
+            @Parameter(
+                    description = "The number of entries to skip.",
+                    schema = @Schema(minimum = "0", defaultValue = "0"))
+            @QueryParam("first") Integer first,
+            @Parameter(
+                    description = "The largest number of entries to return.",
+                    schema = @Schema(minimum = "0", maximum = "1000", defaultValue = "100"))
+            @QueryParam("max") Integer max) {
+        context.requireRead();
+        return Calls.run(context, () -> unitRoles.holders(id, role, asOf, Page.of(first, max)).stream()
+                .map(UnitRoleRepresentation::of)
+                .toList());
     }
 
     @GET

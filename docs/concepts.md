@@ -52,6 +52,7 @@ Reads, the mask, and the erase work by person. Each has a shortcut by the ID of 
 | Head | 長 | A flag on an assignment. It marks the person who leads the org unit. |
 | Acting Head | 代行、事務取扱 | A head whose assignment kind has the mark `actingHead`. It leads the unit only while no other head is present. |
 | Reporting Line | レポートライン | A link from an assignment to a manager. It has a kind, solid or dotted, and a period. |
+| Unit Role | 組織への役割 | A role that an employment holds over an org unit without being a member, such as the HR contact of a division or the approver of expenses of a department. The role is a reference item of the kind `UNIT_ROLE`. With `includesDescendants`, it covers the units below too. It is data for products. The extension decides no access with it. |
 | Qualification | 資格、免許 | A license or certificate that a person holds, with a number and a period. |
 
 Job title, occupation, grade, and employment type are four separate things.
@@ -87,7 +88,7 @@ When a reader must know that something happened, the field is an `At` field that
 
 ## Reference data
 
-Unit types, job titles, occupations, employment types, grades, end reasons, assignment kinds, qualification kinds, and leave reasons are reference data.
+Unit types, job titles, occupations, employment types, grades, end reasons, assignment kinds, qualification kinds, leave reasons, and unit roles are reference data.
 Each realm defines its own items.
 An item has a code, a name, and optional names in other languages.
 
@@ -131,7 +132,7 @@ Every employment names its employer. The employer is an org unit that is a legal
 - A realm needs at least one legal entity before its first employment.
 - A request can leave the employer out when the realm has exactly one legal entity on that date. With several, the request must name it. Nothing is guessed from the org unit where the person works.
 - The employer of an employment never changes. A move to another employer is the end of one employment and the start of another.
-- `POST /employments/{id}/transfer` does that move in one write. The new employment gets the terms, the assignments, and the reporting lines of the old one from the date on, and names the old one in `continuesEmploymentId`. So the years of service can be counted across the two.
+- `POST /employments/{id}/transfer` does that move in one write. The new employment gets the terms, the assignments, the reporting lines, and the roles over org units of the old one from the date on, and names the old one in `continuesEmploymentId`. So the years of service can be counted across the two.
 - `POST /employments/transfers` does it for every person of one employer, for a merger of two legal entities. It can end the old employer in the same write.
 - A legal entity stays one while employments name it. Its unit type keeps the mark, the unit does not get a type without the mark from a date on which an employment starts, and the unit does not end before the employments do.
 - A staff number is unique for one employer. Two legal entities can give the same number to two people.

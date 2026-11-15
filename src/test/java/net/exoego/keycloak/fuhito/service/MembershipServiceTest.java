@@ -33,7 +33,7 @@ class MembershipServiceTest {
     private final Set<String> knownUsers = Set.of("doctor", "nurse", "clerk", "idle");
     private final EmploymentService employments =
             new EmploymentService(employmentStore, assignmentStore, refItems, MemoryPersonStore.linked(knownUsers),
-            new MemoryReportingLineStore(), new AnyEmployer());
+            new MemoryReportingLineStore(), new MemoryUnitRoleStore(), new AnyEmployer());
     private final AssignmentService assignments =
             new AssignmentService(assignmentStore, employmentStore, orgUnitStore, refItems,
             new MemoryReportingLineStore());

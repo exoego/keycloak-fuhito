@@ -76,10 +76,11 @@ The rules differ by resource, because the right answer to "what about the stored
 
 | Resource | Stored changes on or after the end date | Things that depend on it |
 |---|---|---|
-| Org unit | The end is rejected | The end is rejected while child units or assignments hold on or after the date |
+| Org unit | The end is rejected | The end is rejected while child units, assignments, or roles over it hold on or after the date |
 | Assignment | The end is rejected | Nothing depends on an assignment yet |
-| Employment | They are removed | Its terms and its assignments end on the date. Assignments that would start later are removed |
+| Employment | They are removed | Its terms, its assignments, and its roles over org units end on the date. Those that would start later are removed |
 | Reporting line | A line has no changes | It ends when its assignment or its employment ends |
+| Role over an org unit | A role has no changes | It ends when its employment ends |
 
 An org unit and an assignment reject the end, so that a planned change is not lost by accident.
 An employment removes the stored future, because a person who leaves has no future terms.
@@ -271,7 +272,7 @@ An entry has the date, the type of the resource, its ID, and its path. It says t
 Read the resource with `asOf` to see what.
 
 - `from` is today by default, in the time zone of the realm. `to` is the day after `from` by default. The range does not include `to`.
-- The resources are org units, employments, assignments, reporting lines, and qualifications. A new parent of an org unit counts as a change of the org unit.
+- The resources are org units, employments, assignments, reporting lines, roles over org units, and qualifications. A new parent of an org unit counts as a change of the org unit.
 - The entries come from the rows as they are now. A change that was removed before its date is not listed, and a change that was moved is listed on its new date.
 - A resource comes once for each date, also when several of its details change on that date.
 - The list is read in pages with `first` and `max`.

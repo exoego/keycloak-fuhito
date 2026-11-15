@@ -48,5 +48,10 @@ public enum RefKind {
     /**
      * Why a person is on leave, for example "parental leave" or "sick leave".
      */
-    LEAVE_REASON
+    LEAVE_REASON,
+
+    /**
+     * A role over an org unit that is not membership, for example "HR contact" or "expense approver".
+     */
+    UNIT_ROLE
 }

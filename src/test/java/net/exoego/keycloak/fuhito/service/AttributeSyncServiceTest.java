@@ -77,7 +77,7 @@ class AttributeSyncServiceTest {
     private final MemoryPersonStore people = MemoryPersonStore.anyUser();
 
     private EmploymentService employments() {
-        return new EmploymentService(employmentStore, assignmentStore, refItems, people, lineStore, new AnyEmployer());
+        return new EmploymentService(employmentStore, assignmentStore, refItems, people, lineStore, new MemoryUnitRoleStore(), new AnyEmployer());
     }
 
     private AssignmentService assignments() {

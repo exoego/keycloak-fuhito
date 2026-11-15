@@ -22,7 +22,7 @@ class LeaveServiceTest {
     private final MemoryEmploymentStore employmentStore = new MemoryEmploymentStore();
     private final MemoryRefItemStore refItems = new MemoryRefItemStore();
     private final EmploymentService employments = new EmploymentService(employmentStore, new MemoryAssignmentStore(),
-            refItems, MemoryPersonStore.linked(Set.of("nurse")), new MemoryReportingLineStore(), new AnyEmployer());
+            refItems, MemoryPersonStore.linked(Set.of("nurse")), new MemoryReportingLineStore(), new MemoryUnitRoleStore(), new AnyEmployer());
     private final LeaveService service = new LeaveService(employments);
 
     private String employment;

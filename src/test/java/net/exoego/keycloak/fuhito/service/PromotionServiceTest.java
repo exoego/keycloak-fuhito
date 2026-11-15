@@ -33,7 +33,7 @@ class PromotionServiceTest {
     private final MemoryOrgUnitStore orgUnitStore = new MemoryOrgUnitStore();
     private final MemoryRefItemStore refItems = new MemoryRefItemStore();
     private final EmploymentService employments = new EmploymentService(employmentStore, assignmentStore, refItems,
-            MemoryPersonStore.linked(Set.of("nurse")), new MemoryReportingLineStore(), new AnyEmployer());
+            MemoryPersonStore.linked(Set.of("nurse")), new MemoryReportingLineStore(), new MemoryUnitRoleStore(), new AnyEmployer());
     private final AssignmentService assignments = new AssignmentService(assignmentStore, employmentStore,
             orgUnitStore, refItems, new MemoryReportingLineStore());
     private final OrgUnitService orgUnits = new OrgUnitService(orgUnitStore, assignmentStore, refItems, CLOCK);

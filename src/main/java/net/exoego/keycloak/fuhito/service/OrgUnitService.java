@@ -259,6 +259,12 @@ public class OrgUnitService {
                     Map.of("id", id, "validTo", validTo, "count", Long.toString(staffed)));
         }
 
+        long roles = store.unitRolesHoldingFrom(id, to);
+        if (roles > 0) {
+            throw FuhitoException.conflict("org_unit.has_unit_roles",
+                    Map.of("id", id, "validTo", validTo, "count", Long.toString(roles)));
+        }
+
         store.updateVersion(withPeriod(last, last.period().endingAt(to)));
         parentLinks.stream()
                 .filter(l -> l.period().isOpenEnded())

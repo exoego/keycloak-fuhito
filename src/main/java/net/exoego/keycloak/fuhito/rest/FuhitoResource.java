@@ -26,6 +26,7 @@ import net.exoego.keycloak.fuhito.jpa.JpaPersonStore;
 import net.exoego.keycloak.fuhito.jpa.JpaQualificationStore;
 import net.exoego.keycloak.fuhito.jpa.JpaRefItemStore;
 import net.exoego.keycloak.fuhito.jpa.JpaReportingLineStore;
+import net.exoego.keycloak.fuhito.jpa.JpaUnitRoleStore;
 import net.exoego.keycloak.fuhito.jpa.JpaUserDataMasker;
 import net.exoego.keycloak.fuhito.service.AssignmentService;
 import net.exoego.keycloak.fuhito.service.AttributeSyncService;
@@ -49,6 +50,7 @@ import net.exoego.keycloak.fuhito.service.RefItemService;
 import net.exoego.keycloak.fuhito.service.ReorganizationService;
 import net.exoego.keycloak.fuhito.service.ReportingLineService;
 import net.exoego.keycloak.fuhito.service.Today;
+import net.exoego.keycloak.fuhito.service.UnitRoleService;
 import net.exoego.keycloak.fuhito.service.UnitDays;
 import net.exoego.keycloak.fuhito.service.UserMaskingService;
 import net.exoego.keycloak.fuhito.store.OrganizationDirectory;
@@ -257,7 +259,7 @@ public class FuhitoResource {
     private EmploymentService employmentService() {
         return new EmploymentService(new JpaEmploymentStore(entityManager, realmId),
                 new JpaAssignmentStore(entityManager, realmId), new JpaRefItemStore(entityManager, realmId),
-                new JpaPersonStore(entityManager, realmId), new JpaReportingLineStore(entityManager, realmId),
+                new JpaPersonStore(entityManager, realmId), new JpaReportingLineStore(entityManager, realmId), new JpaUnitRoleStore(entityManager, realmId),
                 new LegalEntityEmployers(new JpaOrgUnitStore(entityManager, realmId),
                         new JpaRefItemStore(entityManager, realmId)));
     }
@@ -270,6 +272,22 @@ public class FuhitoResource {
     @Path("reporting-lines")
     public ReportingLinesResource reportingLines() {
         return new ReportingLinesResource(context, reportingLineService(), personService());
+    }
+
+    /**
+     * Returns the roles over org units of the realm.
+     *
+     * @return the sub-resource
+     */
+    @Path("unit-roles")
+    public UnitRolesResource unitRoles() {
+        return new UnitRolesResource(context, unitRoleService());
+    }
+
+    private UnitRoleService unitRoleService() {
+        return new UnitRoleService(new JpaUnitRoleStore(entityManager, realmId), new UnitRoleService.Sources(
+                new JpaEmploymentStore(entityManager, realmId), new JpaOrgUnitStore(entityManager, realmId),
+                new JpaRefItemStore(entityManager, realmId)), today());
     }
 
     private ReportingLineService reportingLineService() {
@@ -289,7 +307,8 @@ public class FuhitoResource {
     @Path("org-units")
     public OrgUnitsResource orgUnits() {
         return new OrgUnitsResource(context, orgUnitService(), membershipService(),
-                new OrganizationLinkService(new JpaOrgUnitStore(entityManager, realmId), organizations));
+                new OrganizationLinkService(new JpaOrgUnitStore(entityManager, realmId), organizations),
+                unitRoleService());
     }
 
     /**
@@ -381,7 +400,7 @@ public class FuhitoResource {
 
     private UsersResource.Reads reads() {
         return new UsersResource.Reads(membershipService(), employmentService(), assignmentService(),
-                qualificationService(), reportingLineService());
+                qualificationService(), reportingLineService(), unitRoleService());
     }
 
     private PersonData personData() {

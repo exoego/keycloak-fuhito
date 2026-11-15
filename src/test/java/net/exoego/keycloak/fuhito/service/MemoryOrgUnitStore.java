@@ -113,6 +113,16 @@ final class MemoryOrgUnitStore implements OrgUnitStore {
                 .toList(), first, max);
     }
 
+    /** The roles over org units. A test of roles sets it. */
+    MemoryUnitRoleStore unitRoles;
+
+    @Override
+    public long unitRolesHoldingFrom(String orgUnitId, LocalDate date) {
+        return unitRoles == null ? 0 : unitRoles.roles.stream()
+                .filter(r -> r.orgUnitId().equals(orgUnitId) && r.period().endsAfter(date))
+                .count();
+    }
+
     /** The employments that name an employer. A test of employers sets it. */
     MemoryEmploymentStore employments;
 

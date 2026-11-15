@@ -31,7 +31,7 @@ class AssignmentServiceTest {
     private final AssignmentService service = new AssignmentService(store, employments, orgUnits, refItems, lines);
     private final EmploymentService employmentService = new EmploymentService(employments, store, refItems,
             MemoryPersonStore.anyUser(),
-            new MemoryReportingLineStore(), new AnyEmployer());
+            new MemoryReportingLineStore(), new MemoryUnitRoleStore(), new AnyEmployer());
     private final OrgUnitService orgUnitService = new OrgUnitService(orgUnits, store, refItems, Clock.systemUTC());
 
     private String employment;
