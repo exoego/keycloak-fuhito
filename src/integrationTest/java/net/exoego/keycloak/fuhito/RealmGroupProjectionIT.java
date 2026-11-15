@@ -4,6 +4,7 @@ import java.net.http.HttpResponse;
 import java.util.List;
 import java.util.Map;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import org.keycloak.admin.client.CreatedResponseUtil;
 import org.keycloak.admin.client.Keycloak;
 import org.keycloak.admin.client.resource.RealmResource;
@@ -52,16 +53,26 @@ class RealmGroupProjectionIT {
         assertEquals(List.of(nurse), keycloak.groups().group(wardGroup.getId()).members().stream()
                 .map(member -> member.getId()).toList());
         assertEquals(0, Api.json(api.post("/projection/rebuild", "")).get("groupsCreated").asInt());
+
+        // The last run can be read later, for a caller whose call a proxy ended.
+        JsonNode run = Api.json(api.get("/projection/last-run"));
+        assertEquals("DONE", run.get("state").asText());
+        assertEquals(1, run.get("report").get("realmGroupTrees").asInt());
+        assertEquals("projection", run.get("job").asText());
     }
 
     @Test
     void aPathThatNamesNoGroupFailsTheRebuild() throws Exception {
         TestRealm realm = TestRealm.create("realm-groups-missing", Map.of("fuhito.projection.enabled", "true",
                 "fuhito.projection.realmGroup", "/nowhere"));
+        assertEquals(404, realm.api.get("/projection/last-run").statusCode());
 
         HttpResponse<String> report = realm.api.post("/projection/rebuild", "");
 
         assertEquals(409, report.statusCode(), report.body());
         assertEquals("projection.realm_group_unknown", Api.json(report).get("error").asText());
+        JsonNode run = Api.json(realm.api.get("/projection/last-run"));
+        assertEquals("FAILED", run.get("state").asText());
+        assertEquals("projection.realm_group_unknown", run.get("error").asText());
     }
 }

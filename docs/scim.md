@@ -71,6 +71,7 @@ The sync does not create org units or job titles. A typing mistake in the identi
 ### How to run it
 
 `POST /attribute-sync/run` runs the sync. `?dryRun=true` reports what it would do and writes nothing.
+`GET /attribute-sync/last-run` reads the state and the counts of the last run, for a caller whose long call a proxy ended. The states are the same as for the projection. See [keycloak-integration.md](keycloak-integration.md).
 
 The response counts the employments that were started and the assignments that were added, moved, changed, and ended.
 It lists every value that matched nothing, with the user, the field, and the reason.

@@ -1,11 +1,17 @@
 package net.exoego.keycloak.fuhito.rest;
 
+import java.time.Instant;
+import java.util.Map;
+
+import jakarta.ws.rs.GET;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
+import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.service.ProjectionReport;
 import net.exoego.keycloak.fuhito.service.ProjectionService;
+import net.exoego.keycloak.fuhito.store.JobRunStore;
 import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.parameters.Parameter;
 import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
@@ -20,16 +26,19 @@ public class ProjectionResource {
 
     private final RequestContext context;
     private final ProjectionService service;
+    private final JobRunStore runs;
 
     /**
      * Creates the resource for one request.
      *
      * @param context the request and its caller
      * @param service the projection of the realm of the request
+     * @param runs the last runs of the realm
      */
-    public ProjectionResource(RequestContext context, ProjectionService service) {
+    public ProjectionResource(RequestContext context, ProjectionService service, JobRunStore runs) {
         this.context = context;
         this.service = service;
+        this.runs = runs;
     }
 
     @POST
@@ -45,5 +54,21 @@ public class ProjectionResource {
     public ProjectionReport rebuild() {
         context.requireWrite();
         return Calls.run(context, service::rebuild);
+    }
+
+    @GET
+    @Path("last-run")
+    @Operation(
+            operationId = "getLastProjectionRun",
+            summary = "Returns the state and the counts of the last rebuild of the projection.",
+            description = "A caller whose call a proxy ended can read the result here. The job goes on in the "
+                    + "server either way.")
+    @APIResponse(responseCode = "200", description = "The last run.")
+    @NotFound
+    @ApiErrors
+    public JobRunRepresentation lastRun() {
+        context.requireRead();
+        return Calls.run(context, () -> runs.last("projection").map(run -> JobRunRepresentation.of(run, Instant.now()))
+                .orElseThrow(() -> FuhitoException.notFound("job.never_ran", Map.of("job", "projection"))));
     }
 }

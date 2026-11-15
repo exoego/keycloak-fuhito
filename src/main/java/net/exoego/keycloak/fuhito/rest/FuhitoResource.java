@@ -23,6 +23,7 @@ import net.exoego.keycloak.fuhito.jpa.JpaEffectiveChangeStore;
 import net.exoego.keycloak.fuhito.jpa.JpaEmploymentStore;
 import net.exoego.keycloak.fuhito.jpa.JpaExternalIdStore;
 import net.exoego.keycloak.fuhito.jpa.JpaHierarchyStore;
+import net.exoego.keycloak.fuhito.jpa.JpaJobRunStore;
 import net.exoego.keycloak.fuhito.jpa.JpaOrgUnitStore;
 import net.exoego.keycloak.fuhito.jpa.JpaPersonStore;
 import net.exoego.keycloak.fuhito.jpa.JpaRealmExportStore;
@@ -431,7 +432,8 @@ public class FuhitoResource {
      */
     @Path("projection")
     public ProjectionResource projection() {
-        return new ProjectionResource(context, new ProjectionService(projectionWork));
+        return new ProjectionResource(context, new ProjectionService(projectionWork),
+                new JpaJobRunStore(entityManager, realmId));
     }
 
     /**
@@ -451,7 +453,7 @@ public class FuhitoResource {
             public <T> T alone(Supplier<T> run) {
                 return pieces.alone("sync", run);
             }
-        }));
+        }), new JpaJobRunStore(entityManager, realmId));
     }
 
     private AttributeSyncService.Parts syncParts() {

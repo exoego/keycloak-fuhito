@@ -120,6 +120,10 @@ The projection is off unless the realm has the attribute `fuhito.projection.enab
 `POST /projection/rebuild` runs it. The response counts what changed.
 A rebuild with no change in between changes nothing.
 
+A first rebuild of a large realm takes many minutes, and the call stays open for that time. A proxy or a load balancer between the caller and Keycloak may end the call first. The rebuild goes on in the server anyway.
+`GET /projection/last-run` reads the last run, also one that the timer started. It has `state`, `startedAt`, `endedAt`, the counts of the report, and the code of an error.
+The state is `RUNNING`, `DONE`, or `FAILED`. A run that still shows `RUNNING` after six hours shows `ABANDONED`, for example because its node stopped.
+
 A rebuild does its work in pieces, and each piece is one transaction. One transaction for a large realm would run into the transaction timeout of Keycloak.
 So a rebuild that fails in the middle keeps the pieces that it finished. The groups are then partly up to date. The next rebuild does the rest.
 

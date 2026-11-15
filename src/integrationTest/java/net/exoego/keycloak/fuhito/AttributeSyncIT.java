@@ -76,6 +76,7 @@ class AttributeSyncIT {
     private JsonNode run(String query) throws Exception {
         HttpResponse<String> response = api.post("/attribute-sync/run" + query, "");
         assertEquals(200, response.statusCode(), response.body());
+        assertEquals("DONE", Api.json(api.get("/attribute-sync/last-run")).get("state").asText());
         return Api.json(response);
     }
 
@@ -179,6 +180,9 @@ class AttributeSyncIT {
         assertEquals(409, response.statusCode(), response.body());
         assertEquals("sync.disabled", Api.json(response).get("error").asText());
         assertEquals(0, assignmentsOf(user).size());
+        JsonNode run = Api.json(api.get("/attribute-sync/last-run"));
+        assertEquals("FAILED", run.get("state").asText());
+        assertEquals("sync.disabled", run.get("error").asText());
         assertEquals(401, new Api(realm, null).post("/attribute-sync/run", "").statusCode());
     }
 
