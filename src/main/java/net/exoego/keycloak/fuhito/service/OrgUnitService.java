@@ -94,7 +94,13 @@ public class OrgUnitService {
         LocalDate validFrom = Checks.date("validFrom", request.validFrom());
         ValidPeriod period = ValidPeriod.startingAt(validFrom);
         RefItem unitType = request.unitType() == null ? null : activeUnitType(request.unitType());
-        OrgUnit unit = new OrgUnit(newId(), request.externalId(), request.source(), null);
+        String source = Checks.optionalCode("source", request.source());
+        String externalId = ExternalIdService.value(request.externalId());
+        if (source != null && externalId != null && store.externalIdTaken(source, externalId, null)) {
+            throw FuhitoException.conflict("org_unit.external_id_taken",
+                    Map.of("source", source, "externalId", externalId));
+        }
+        OrgUnit unit = new OrgUnit(newId(), externalId, source, null);
         requireFreeCode(Checks.optionalCode("code", request.code()), unit.id(), period);
         if (request.parentId() != null) {
             requireParentCovers(request.parentId(), period);
