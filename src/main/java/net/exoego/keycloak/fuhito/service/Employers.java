@@ -3,6 +3,7 @@ package net.exoego.keycloak.fuhito.service;
 import java.time.LocalDate;
 
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
+import net.exoego.keycloak.fuhito.domain.ValidPeriod;
 
 /**
  * Decides who employs a person in a new employment.
@@ -19,4 +20,13 @@ public interface Employers {
      *         the realm does not have exactly one legal entity on the date
      */
     String of(String requestedId, LocalDate firstDate);
+
+    /**
+     * Requires that an employer exists until the end of a period of an employment.
+     *
+     * @param employerId the ID of the employer
+     * @param period the period of the employment
+     * @throws FuhitoException when the employer ends before the period does
+     */
+    void requireCovers(String employerId, ValidPeriod period);
 }
