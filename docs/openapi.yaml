@@ -1295,6 +1295,48 @@ components:
           type: integer
           format: int32
           description: The number of users who became members of an organization.
+    Promotion:
+      required:
+      - validFrom
+      description: "A request to promote a person on a date, and its response. The\
+        \ request names a grade, a job title, or a head flag, or several of them."
+      type: object
+      properties:
+        validFrom:
+          type: string
+          description: The first date of the new values.
+          format: date
+          writeOnly: true
+        grade:
+          type: string
+          description: The code of the new grade. Leave it out to keep the grade.
+          writeOnly: true
+        jobTitle:
+          type: string
+          description: The code of the new job title. Leave it out to keep the job
+            title.
+          writeOnly: true
+        assignmentId:
+          type: string
+          description: The ID of the assignment that gets the job title and the head
+            flag. The default is the primary assignment of the employment on the date.
+          writeOnly: true
+        head:
+          type: boolean
+          description: Whether the person leads the org unit from the date. Leave
+            it out to keep the flag.
+          writeOnly: true
+        employment:
+          description: The employment with all its terms.
+          readOnly: true
+          type: object
+          $ref: "#/components/schemas/Employment"
+        assignment:
+          description: The assignment with all its details. It is absent when the
+            request named no job title and no head flag.
+          readOnly: true
+          type: object
+          $ref: "#/components/schemas/Assignment"
     Qualification:
       required:
       - kind
@@ -2791,6 +2833,47 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Employment"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /employments/{id}/promotion:
+    post:
+      summary: "Promotes a person on a date, in one write."
+      description: "It sets the grade of the employment, and the job title or the\
+        \ head flag of one assignment, from the date on. Every value that the request\
+        \ does not name stays. The change lasts until the next change that is already\
+        \ stored. A failure writes nothing."
+      operationId: promote
+      tags:
+      - employments
+      parameters:
+      - description: The ID of the resource.
+        name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      - $ref: "#/components/parameters/changeOrder"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Promotion"
+        required: true
+      responses:
+        "200":
+          description: The employment and the assignment after the promotion.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Promotion"
         "400":
           $ref: "#/components/responses/BadRequest"
         "404":

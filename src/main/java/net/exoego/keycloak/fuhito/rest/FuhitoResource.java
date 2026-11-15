@@ -42,6 +42,7 @@ import net.exoego.keycloak.fuhito.service.OrgUnitService;
 import net.exoego.keycloak.fuhito.service.OrganizationLinkService;
 import net.exoego.keycloak.fuhito.service.PersonService;
 import net.exoego.keycloak.fuhito.service.ProjectionService;
+import net.exoego.keycloak.fuhito.service.PromotionService;
 import net.exoego.keycloak.fuhito.service.QualificationService;
 import net.exoego.keycloak.fuhito.service.RefItemService;
 import net.exoego.keycloak.fuhito.service.ReorganizationService;
@@ -222,7 +223,8 @@ public class FuhitoResource {
     @Path("employments")
     public EmploymentsResource employments() {
         return new EmploymentsResource(context, employmentService(), personService(), assignmentService(),
-                orgUnitService());
+                orgUnitService(), new PromotionService(employmentService(), assignmentService(),
+                        new JpaAssignmentStore(entityManager, realmId)));
     }
 
     /**
