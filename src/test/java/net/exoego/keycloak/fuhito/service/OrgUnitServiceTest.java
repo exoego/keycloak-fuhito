@@ -4,6 +4,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -81,10 +82,10 @@ class OrgUnitServiceTest {
         assertEquals("org_unit.line_below_group",
                 assertThrows(FuhitoException.class, () -> service.move(ward, committee, "2026-07-01")).code());
         assertEquals("org_unit.line_below_group", assertThrows(FuhitoException.class,
-                () -> service.changeDetails(hospital, new OrgUnitChange("2026-08-01", "Hospital", null, null, null,
+                () -> service.changeDetails(hospital, new OrgUnitChange("2026-08-01", null, "Hospital", null, null, null,
                         null, "committee", null, null))).code());
         assertEquals("org_unit.line_below_group", assertThrows(FuhitoException.class,
-                () -> service.changeDetails(sub, new OrgUnitChange("2026-08-01", "Drugs", null, null, null, null,
+                () -> service.changeDetails(sub, new OrgUnitChange("2026-08-01", null, "Drugs", null, null, null, null,
                         "department", null, null))).code());
         assertEquals(List.of("Hospital", "Union"), names(service.roots("2026-09-01", null, null, all)));
 
@@ -98,7 +99,7 @@ class OrgUnitServiceTest {
         OrgUnitState state = service.create(named("Clinic", null, "2026-04-01"));
 
         assertEquals(36, state.unit().id().length());
-        assertNull(state.unit().code());
+        assertNull(state.version().code());
         assertNull(state.unit().keycloakOrganizationId());
         assertNull(state.parentId());
         assertNull(state.unitType());
@@ -125,7 +126,7 @@ class OrgUnitServiceTest {
                 Map.of("en", "IM"), "ないか", "department", parentId, "2026-04-01", 3, Map.of("floor", 2), "D-001",
                 "hr-system"));
 
-        assertEquals("naika", state.unit().code());
+        assertEquals("naika", state.version().code());
         assertEquals("D-001", state.unit().externalId());
         assertEquals("hr-system", state.unit().source());
         assertEquals("department", state.unitType());
@@ -164,6 +165,25 @@ class OrgUnitServiceTest {
         assertEquals("invalid.code", failure(new NewOrgUnit("bad code", "x", null, null, null, null, null, null,
                 "2026-04-01", null, null, null, null)).code());
         assertTrue(store.units.isEmpty());
+    }
+
+    @Test
+    void aCodeChangesOnADateAndIsFreeForAnotherUnitFromThere() {
+        String old = service.create(new NewOrgUnit("A100", "Old", null, null, null, null, null, null, "2026-04-01",
+                null, null, null, null)).unit().id();
+        service.changeDetails(old, new OrgUnitChange("2027-04-01", "B100", "Old", null, null, null, null, null,
+                null, null));
+
+        String next = service.create(new NewOrgUnit("A100", "Next", null, null, null, null, null, null,
+                "2027-04-01", null, null, null, null)).unit().id();
+        assertEquals("org_unit.code_taken", failure(new NewOrgUnit("A100", "Early", null, null, null, null, null,
+                null, "2027-03-01", null, null, null, null)).code());
+        assertEquals("org_unit.code_taken", assertThrows(FuhitoException.class, () -> service.changeDetails(old,
+                new OrgUnitChange("2028-04-01", "A100", "Old", null, null, null, null, null, null,
+                null))).code());
+        assertEquals(old, store.findUnitByCode("A100", LocalDate.of(2027, 3, 31)).orElseThrow().id());
+        assertEquals(next, store.findUnitByCode("A100", LocalDate.of(2027, 4, 1)).orElseThrow().id());
+        assertEquals("B100", service.get(old, "2027-04-01").version().code());
     }
 
     @Test
@@ -214,13 +234,13 @@ class OrgUnitServiceTest {
     @Test
     void rejectsAParentThatEnds() {
         store.versions.add(new OrgUnitVersion("v1", "closing", new ValidPeriod(LocalDate.of(2026, 4, 1),
-                LocalDate.of(2027, 4, 1)), "Closing", Map.of(), null, Map.of(), null, null, 0, Map.of()));
+                LocalDate.of(2027, 4, 1)), null, "Closing", Map.of(), null, Map.of(), null, null, 0, Map.of()));
 
         assertEquals("org_unit.parent_not_valid", failure(named("Ward", "closing", "2026-04-01")).code());
     }
 
     private static OrgUnitChange rename(String validFrom, String name) {
-        return new OrgUnitChange(validFrom, name, null, null, null, null, null, null, null);
+        return new OrgUnitChange(validFrom, null, name, null, null, null, null, null, null, null);
     }
 
     @Test
@@ -272,7 +292,7 @@ class OrgUnitServiceTest {
         String id = service.create(new NewOrgUnit("w1", "Ward", Map.of("ja", "病棟"), "W", Map.of("ja", "病"), "わーど",
                 "ward", parentId, "2026-04-01", 9, Map.of("beds", 30), "X-1", "hr")).unit().id();
 
-        OrgUnitState changed = service.changeDetails(id, new OrgUnitChange("2026-10-01", "Clinic",
+        OrgUnitState changed = service.changeDetails(id, new OrgUnitChange("2026-10-01", "c1", "Clinic",
                 Map.of("ja", "診療所"), "C", Map.of("ja", "診"), "くりにっく", "clinic", 2, Map.of("rooms", 3)));
 
         OrgUnitVersion v = changed.version();
@@ -285,8 +305,9 @@ class OrgUnitServiceTest {
         assertEquals("clinic", changed.unitType());
         assertEquals(2, v.displayOrder());
         assertEquals(Map.of("rooms", 3), v.attributes());
+        assertEquals("c1", v.code());
+        assertEquals("w1", service.get(id, "2026-09-30").version().code());
         // Not details, so they stay.
-        assertEquals("w1", changed.unit().code());
         assertEquals("X-1", changed.unit().externalId());
         assertEquals(parentId, changed.parentId());
 
@@ -306,11 +327,11 @@ class OrgUnitServiceTest {
                 null, null, null, null)).unit().id();
         refItems.update(new RefItem(ward.id(), RefKind.UNIT_TYPE, "ward", "ward", Map.of(), 0, Map.of(), false));
 
-        assertEquals("ward", service.changeDetails(id, new OrgUnitChange("2026-10-01", "Ward 2", null, null, null,
+        assertEquals("ward", service.changeDetails(id, new OrgUnitChange("2026-10-01", null, "Ward 2", null, null, null,
                 null, "ward", null, null)).unitType());
         for (String unitType : new String[] {"retired", "nope"}) {
             assertEquals("org_unit.unit_type_unknown", assertThrows(FuhitoException.class,
-                    () -> service.changeDetails(id, new OrgUnitChange("2027-04-01", "x", null, null, null, null,
+                    () -> service.changeDetails(id, new OrgUnitChange("2027-04-01", null, "x", null, null, null, null,
                             unitType, null, null))).code());
         }
     }
@@ -463,9 +484,9 @@ class OrgUnitServiceTest {
     @Test
     void aNewParentLastsAsLongAsTheUnit() {
         String a = root("A");
-        store.insertUnit(new OrgUnit("ending", null, null, null, null));
+        store.insertUnit(new OrgUnit("ending", null, null, null));
         store.versions.add(new OrgUnitVersion("v1", "ending", new ValidPeriod(LocalDate.of(2026, 4, 1),
-                LocalDate.of(2027, 4, 1)), "Ending", Map.of(), null, Map.of(), null, null, 0, Map.of()));
+                LocalDate.of(2027, 4, 1)), null, "Ending", Map.of(), null, Map.of(), null, null, 0, Map.of()));
 
         service.move("ending", a, "2026-10-01");
 
@@ -800,7 +821,7 @@ class OrgUnitServiceTest {
         assertEquals(List.of(), service.legalEntities("2026-03-31", Page.of(null, null)));
 
         // The type of a unit is dated, so a unit becomes a legal entity on a date.
-        service.changeDetails(sales, new OrgUnitChange("2027-04-01", "Sales Inc.", null, null, null, null, "company",
+        service.changeDetails(sales, new OrgUnitChange("2027-04-01", null, "Sales Inc.", null, null, null, null, "company",
                 null, null));
         assertFalse(service.get(sales, "2027-03-31").legalEntity());
         assertTrue(service.get(sales, "2027-04-01").legalEntity());
@@ -819,7 +840,7 @@ class OrgUnitServiceTest {
                 "2020-04-01", null, null, null, null)).unit().id();
         employments.insert(new Employment("e1", "alice", null, company,
                 new ValidPeriod(LocalDate.of(2026, 4, 1), LocalDate.of(2028, 4, 1)), null, null, null, null, null));
-        OrgUnitChange toDepartment = new OrgUnitChange("2026-01-01", "Company", null, null, null, null, "department",
+        OrgUnitChange toDepartment = new OrgUnitChange("2026-01-01", null, "Company", null, null, null, null, "department",
                 null, null);
 
         // The employment starts after the change, so the company would not be a legal entity on its first date.
@@ -828,11 +849,11 @@ class OrgUnitServiceTest {
         assertEquals("org_unit.is_employer", changed.code());
         assertEquals("1", changed.params().get("count"));
         assertEquals("org_unit.is_employer", assertThrows(FuhitoException.class, () -> service.changeDetails(company,
-                new OrgUnitChange("2026-01-01", "Company", null, null, null, null, null, null, null))).code());
+                new OrgUnitChange("2026-01-01", null, "Company", null, null, null, null, null, null, null))).code());
         // A change that keeps the type of a legal entity works, and so does a change after the first date.
-        service.changeDetails(company, new OrgUnitChange("2026-01-01", "Company Inc.", null, null, null, null,
+        service.changeDetails(company, new OrgUnitChange("2026-01-01", null, "Company Inc.", null, null, null, null,
                 "company", null, null));
-        service.changeDetails(company, new OrgUnitChange("2027-01-01", "Company", null, null, null, null,
+        service.changeDetails(company, new OrgUnitChange("2027-01-01", null, "Company", null, null, null, null,
                 "department", null, null));
 
         FuhitoException ended = assertThrows(FuhitoException.class, () -> service.end(company, "2028-03-31"));
@@ -856,7 +877,7 @@ class OrgUnitServiceTest {
 
         OrgUnitHistory history = service.history(id);
 
-        assertEquals("w", history.unit().code());
+        assertEquals(Arrays.asList("w", null), history.versions().stream().map(v -> v.version().code()).toList());
         assertEquals(List.of("Ward", "Ward 2"), names(history.versions()));
         assertEquals("ward", history.versions().getFirst().unitType());
         assertNull(history.versions().get(1).unitType());
@@ -907,8 +928,8 @@ class OrgUnitServiceTest {
 
     @Test
     void readsAUnitWhoseUnitTypeWasRemoved() {
-        store.insertUnit(new OrgUnit("u1", null, null, null, null));
-        store.versions.add(new OrgUnitVersion("v1", "u1", ValidPeriod.startingAt(LocalDate.of(2026, 4, 1)), "U",
+        store.insertUnit(new OrgUnit("u1", null, null, null));
+        store.versions.add(new OrgUnitVersion("v1", "u1", ValidPeriod.startingAt(LocalDate.of(2026, 4, 1)), null, "U",
                 Map.of(), null, Map.of(), null, "gone", 0, Map.of()));
 
         assertNull(service.get("u1", "2026-04-01").unitType());

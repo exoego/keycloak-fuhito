@@ -21,7 +21,11 @@ public record ReorganizationStep(
         String parentId,
         @Schema(description = "The `ref` of an earlier create step, in place of `parentId`.")
         String parentRef,
-        @Schema(description = "The code of a new unit.", maxLength = 64, pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$")
+        @Schema(
+                description = "The code of a new unit, or of a unit after `change`. A `change` that leaves it out "
+                        + "clears it.",
+                maxLength = 64,
+                pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$")
         String code,
         @Schema(description = "The default name, for a create or a change.", maxLength = 255)
         String name,

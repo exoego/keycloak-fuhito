@@ -16,7 +16,8 @@ public record OrgUnitRepresentation(
         @Schema(readOnly = true)
         String id,
         @Schema(
-                description = "A code that is unique in the realm.",
+                description = "A code that no other org unit has on the same date. It is part of the details, so "
+                        + "it can change on a date. A change of details that leaves it out clears it.",
                 maxLength = 64,
                 pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$")
         String code,
@@ -69,7 +70,7 @@ public record OrgUnitRepresentation(
         var unit = state.unit();
         var version = state.version();
         var period = version.period();
-        return new OrgUnitRepresentation(unit.id(), unit.code(), version.name(), version.names(),
+        return new OrgUnitRepresentation(unit.id(), version.code(), version.name(), version.names(),
                 version.shortName(), version.shortNames(), version.phoneticName(), state.unitType(),
                 state.legalEntity() ? Boolean.TRUE : null, state.group() ? Boolean.TRUE : null, state.parentId(), period.from().toString(), Objects.toString(period.to(), null),
                 version.displayOrder(), version.attributes(), unit.externalId(), unit.source(),
@@ -77,7 +78,7 @@ public record OrgUnitRepresentation(
     }
 
     OrgUnitChange toChange() {
-        return new OrgUnitChange(validFrom, name, names, shortName, shortNames, phoneticName, unitType, displayOrder,
+        return new OrgUnitChange(validFrom, code, name, names, shortName, shortNames, phoneticName, unitType, displayOrder,
                 attributes);
     }
 

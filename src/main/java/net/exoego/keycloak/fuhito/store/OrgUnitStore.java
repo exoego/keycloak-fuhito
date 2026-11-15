@@ -41,12 +41,21 @@ public interface OrgUnitStore {
     Optional<OrgUnit> findUnit(String id);
 
     /**
-     * Finds an org unit by code.
+     * Finds the org unit that has a code on a date.
      *
      * @param code the code
-     * @return the unit, or empty when the realm has no such unit
+     * @param date the date
+     * @return the unit, or empty when no unit has the code on the date
      */
-    Optional<OrgUnit> findUnitByCode(String code);
+    Optional<OrgUnit> findUnitByCode(String code, LocalDate date);
+
+    /**
+     * Lists the details of every org unit that have a code, over all time.
+     *
+     * @param code the code
+     * @return the details, oldest first
+     */
+    List<OrgUnitVersion> versionsWithCode(String code);
 
     /**
      * Finds an org unit by the ID it has in the system it came from.

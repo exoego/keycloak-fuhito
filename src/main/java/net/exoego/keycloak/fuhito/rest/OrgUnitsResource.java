@@ -91,8 +91,9 @@ public class OrgUnitsResource {
     @Operation(
             operationId = "changeOrgUnitDetails",
             summary = "Replaces the details of an org unit from the `validFrom` date of the body.",
-            description = "The details are the names, the unit type, the display order, and the attributes. The "
-                    + "code, the parent, and the external ID do not change here.")
+            description = "The details are the code, the names, the unit type, the display order, and the "
+                    + "attributes. The parent and the external ID do not change here. No other org unit may have the "
+                    + "same code on a date of the change.")
     @Parameter(ref = "changeOrder")
     @APIResponse(responseCode = "200", description = "The unit as it is on that date.")
     @BadRequest

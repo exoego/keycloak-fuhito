@@ -135,7 +135,7 @@ final class OrgUnitImport {
         OrgUnitState before = orgUnitService.get(id, effectiveDate);
         boolean changed = false;
         if (!sameDetails(row, before)) {
-            written(false, "", orgUnitService.changeDetails(id, new OrgUnitChange(effectiveDate, row.name(),
+            written(false, "", orgUnitService.changeDetails(id, new OrgUnitChange(effectiveDate, row.code(), row.name(),
                     row.names(), row.shortName(), row.shortNames(), row.phoneticName(), row.unitType(),
                     row.displayOrder(), row.attributes())));
             changed = true;
@@ -157,7 +157,8 @@ final class OrgUnitImport {
 
     private boolean sameDetails(OrgUnitRow row, OrgUnitState before) {
         var version = before.version();
-        return Checks.name("name", row.name()).equals(version.name())
+        return Objects.equals(Checks.optionalCode("code", row.code()), version.code())
+                && Checks.name("name", row.name()).equals(version.name())
                 && Checks.localizedNames("names", row.names()).equals(version.names())
                 && Objects.equals(Checks.optionalName("shortName", row.shortName()), version.shortName())
                 && Checks.localizedNames("shortNames", row.shortNames()).equals(version.shortNames())

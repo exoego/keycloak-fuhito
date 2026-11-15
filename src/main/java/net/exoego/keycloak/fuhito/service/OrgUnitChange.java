@@ -7,6 +7,7 @@ import java.util.Map;
  * The values replace all details. A missing optional value clears it.
  *
  * @param validFrom the first date of the new details, as {@code YYYY-MM-DD}
+ * @param code the code, or null
  * @param name the default name
  * @param names the names in other languages, or null
  * @param shortName the default short name, or null
@@ -16,7 +17,7 @@ import java.util.Map;
  * @param displayOrder the position among siblings, or null for 0
  * @param attributes free values, or null
  */
-public record OrgUnitChange(String validFrom, String name, Map<String, String> names, String shortName,
+public record OrgUnitChange(String validFrom, String code, String name, Map<String, String> names, String shortName,
         Map<String, String> shortNames, String phoneticName, String unitType, Integer displayOrder,
         Map<String, Object> attributes) {
 }

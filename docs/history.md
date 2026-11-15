@@ -21,11 +21,14 @@ The change log entry has the time of 2027-02-10.
 
 | Resource | What has a valid period |
 |---|---|
-| Org unit | Its details, and its parent in a hierarchy |
+| Org unit | Its details with its code, and its parent in a hierarchy |
 | Employment | The employment itself, and its terms |
 | Assignment | Its details |
 
 Each resource keeps its ID through all changes.
+The code of an org unit is part of its details, so a reorganization can give a unit a new code on a date.
+No two org units have the same code on the same date. A code that one unit gives up on a date is free for another unit from that date.
+The ID and the external ID are the keys that never change.
 
 ## Reading
 

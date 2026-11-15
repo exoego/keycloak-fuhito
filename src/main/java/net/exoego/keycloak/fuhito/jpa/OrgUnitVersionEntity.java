@@ -32,6 +32,9 @@ public class OrgUnitVersionEntity {
     @Column(name = "VALID_TO")
     LocalDate validTo;
 
+    @Column(name = "CODE", length = 64)
+    String code;
+
     @Column(name = "NAME", nullable = false, length = 255)
     String name;
 

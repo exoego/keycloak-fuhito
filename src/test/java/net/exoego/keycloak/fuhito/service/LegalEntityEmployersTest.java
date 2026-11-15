@@ -77,7 +77,7 @@ class LegalEntityEmployersTest {
         assertEquals("employment.employer_unknown", rejected(company, LocalDate.of(2019, 4, 1)).code());
 
         // The ward becomes a company of its own in 2027.
-        orgUnits.changeDetails(ward, new OrgUnitChange("2027-04-01", "Ward Inc.", null, null, null, null, "company",
+        orgUnits.changeDetails(ward, new OrgUnitChange("2027-04-01", null, "Ward Inc.", null, null, null, null, "company",
                 null, null));
         assertEquals(ward, employers.of(ward, LocalDate.of(2027, 4, 1)));
         assertEquals("employment.employer_not_legal_entity", rejected(ward, LocalDate.of(2027, 3, 31)).code());

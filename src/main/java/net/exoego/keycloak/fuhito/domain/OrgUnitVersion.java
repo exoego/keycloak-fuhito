@@ -8,6 +8,7 @@ import java.util.Map;
  * @param id the ID
  * @param orgUnitId the ID of the org unit
  * @param period the dates when these details are true
+ * @param code a code that no other org unit has on the same date, or null
  * @param name the default name
  * @param names the names in other languages, by language tag
  * @param shortName the default short name, or null
@@ -17,7 +18,7 @@ import java.util.Map;
  * @param displayOrder the position among siblings, lowest first
  * @param attributes free values that the realm defines
  */
-public record OrgUnitVersion(String id, String orgUnitId, ValidPeriod period, String name,
+public record OrgUnitVersion(String id, String orgUnitId, ValidPeriod period, String code, String name,
         Map<String, String> names, String shortName, Map<String, String> shortNames, String phoneticName,
         String unitTypeId, int displayOrder, Map<String, Object> attributes) {
 }

@@ -818,4 +818,29 @@
             </column>
         </addColumn>
     </changeSet>
+    <changeSet id="0.1.0-org-unit-dated-code" author="keycloak-fuhito">
+        <addColumn tableName="FUHITO_ORG_UNIT_VERSION">
+            <column name="CODE" type="VARCHAR(64)"/>
+        </addColumn>
+        <sql>
+            UPDATE FUHITO_ORG_UNIT_VERSION SET CODE =
+            (SELECT u.CODE FROM FUHITO_ORG_UNIT u WHERE u.ID = FUHITO_ORG_UNIT_VERSION.ORG_UNIT_ID)
+        </sql>
+        <dropUniqueConstraint tableName="FUHITO_ORG_UNIT" constraintName="UK_FUHITO_ORG_UNIT_CODE"/>
+        <dropColumn tableName="FUHITO_ORG_UNIT" columnName="CODE"/>
+        <createIndex tableName="FUHITO_ORG_UNIT_VERSION" indexName="IDX_FUHITO_ORG_UNIT_VERSION_CODE">
+            <column name="REALM_ID"/>
+            <column name="CODE"/>
+        </createIndex>
+    </changeSet>
+    <changeSet id="0.1.0-org-unit-code-no-overlap" author="keycloak-fuhito" dbms="postgresql">
+        <preConditions onFail="CONTINUE">
+            <sqlCheck expectedResult="1">SELECT count(*) FROM pg_extension WHERE extname = 'btree_gist'</sqlCheck>
+        </preConditions>
+        <sql>
+            ALTER TABLE FUHITO_ORG_UNIT_VERSION ADD CONSTRAINT EX_FUHITO_ORG_UNIT_VERSION_CODE
+            EXCLUDE USING gist (REALM_ID WITH =, CODE WITH =, daterange(VALID_FROM, VALID_TO) WITH &amp;&amp;)
+            WHERE (CODE IS NOT NULL)
+        </sql>
+    </changeSet>
 </databaseChangeLog>

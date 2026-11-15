@@ -37,6 +37,7 @@ On PostgreSQL the database checks it again with exclusion constraints.
 - One employment has no two sets of terms on the same date.
 - One assignment has no two sets of details on the same date.
 - One employment has no two primary assignments on the same date.
+- No two org units have the same code on the same date.
 
 The constraints need the `btree_gist` extension, and the extension creates it when Keycloak starts.
 On PostgreSQL 13 or later, the owner of the database may create it.

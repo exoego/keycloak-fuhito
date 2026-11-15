@@ -231,7 +231,8 @@ public record ImportDocument(
             @Schema(description = "The ID of the unit in that system.")
             String externalId,
             @Schema(
-                    description = "A code that is unique in the realm. It is used only when the unit is created.",
+                    description = "A code that no other org unit has on the same date. A row for a stored unit "
+                            + "changes it from the effective date.",
                     maxLength = 64,
                     pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$")
             String code,
