@@ -4,6 +4,7 @@ import java.net.http.HttpResponse;
 
 import org.junit.jupiter.api.Test;
 
+import static net.exoego.keycloak.fuhito.KeycloakEnvironment.KEYCLOAK;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
@@ -73,6 +74,15 @@ class ConditionalWritesIT {
         assertEquals(422, api.post("/org-units", "{\"name\": \"2病棟\", \"validFrom\": \"2026-04-01\"}",
                 "Idempotency-Key", "order-1").statusCode());
         assertEquals("idempotency.bad_key", Api.json(api.post("/org-units", body, "Idempotency-Key", " "))
+                .get("error").asText());
+        // The query and the caller are part of the request too.
+        String order = Api.json(api.post("/change-orders", "{\"title\": \"内示\", \"effectiveDate\": \"2026-04-01\"}"))
+                .get("id").asText();
+        assertEquals("idempotency.key_reused", Api.json(api.post("/org-units?changeOrder=" + order, body,
+                "Idempotency-Key", "order-1")).get("error").asText());
+        Api other = PermissionsIT.administrator(KEYCLOAK.getKeycloakAdminClient(), realm.name, "realm-management",
+                "other-writer", "manage-users");
+        assertEquals("idempotency.key_reused", Api.json(other.post("/org-units", body, "Idempotency-Key", "order-1"))
                 .get("error").asText());
 
         // An operation that answers with a resource returns the same one again.

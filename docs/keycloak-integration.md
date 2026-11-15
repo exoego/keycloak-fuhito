@@ -372,8 +372,8 @@ For an org unit, it covers every period of the details and every parent, so a re
 
 A `POST` that creates something or runs an operation can have the header `Idempotency-Key`, a text of up to 255 characters that the caller makes, for example a UUID.
 
-- A second request with the same key, the same path, and the same body gets the first response again, and writes nothing. This makes a retry after a timeout safe.
-- The same key with another body fails with 422 and `idempotency.key_reused`.
+- A second request with the same key, the same caller, the same path and query, and the same body gets the first response again, and writes nothing. This makes a retry after a timeout safe.
+- The same key with another body, another query such as another `changeOrder`, or another caller fails with 422 and `idempotency.key_reused`.
 - A key whose first request is still running fails with 409 and `idempotency.in_progress`.
 - A key works for 24 hours. A request with no key works as before.
 - A first request that failed stores nothing, so the same key can try again.
