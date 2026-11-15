@@ -195,9 +195,22 @@ public class ProjectionService {
                 .map(unit -> new Linked(unit, parts.today().ofUnit(unit.id())))
                 .toList());
         int organizations = 0;
+        Set<String> mirrored = new HashSet<>();
         for (Linked one : linked) {
             if (project(one.unit(), one.date())) {
                 organizations++;
+                mirrored.add(one.unit().keycloakOrganizationId());
+            }
+        }
+        // An organization that no unit of today links keeps none of the groups that a rebuild made there.
+        for (String organizationId : piece(parts -> parts.keycloak().organizations())) {
+            if (!mirrored.contains(organizationId)) {
+                List<Group> owned = piece(parts -> parts.keycloak().groups(organizationId)).stream()
+                        .filter(group -> group.orgUnitId() != null)
+                        .toList();
+                if (!owned.isEmpty()) {
+                    removeGone(owned, Map.of());
+                }
             }
         }
         Optional<String> realmGroup = piece(parts -> parts.keycloak().realmGroupRoot());
