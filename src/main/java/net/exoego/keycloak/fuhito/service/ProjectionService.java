@@ -338,15 +338,38 @@ public class ProjectionService {
     private void writeMembers(Target target, List<String> unitIds, LocalDate today, Map<String, String> groupIdByUnit,
             Set<String> everyone) {
         for (List<String> some : inPieces(unitIds, UNITS_AT_A_TIME)) {
-            List<Consumer<OrganizationGroups>> writes = piece(parts -> memberWrites(parts, target, some, today,
-                    groupIdByUnit, everyone));
-            for (List<Consumer<OrganizationGroups>> few : inPieces(writes, MEMBER_WRITES_AT_A_TIME)) {
+            List<MemberWrite> writes = piece(parts -> memberWrites(parts, target, some, today, groupIdByUnit,
+                    everyone));
+            for (List<MemberWrite> few : byUser(writes)) {
                 piece(parts -> {
-                    few.forEach(write -> write.accept(parts.keycloak()));
+                    few.forEach(write -> write.action().accept(parts.keycloak()));
                     return null;
                 });
             }
         }
+    }
+
+    // Keycloak reads a user again in each transaction that changes it, and in a realm with organizations each
+    // read asks for the organizations of the user. So the writes of one user go into the same transaction.
+    private static List<List<MemberWrite>> byUser(List<MemberWrite> writes) {
+        Map<String, List<MemberWrite>> ofUser = new LinkedHashMap<>();
+        writes.forEach(write -> ofUser.computeIfAbsent(write.userId(), id -> new ArrayList<>()).add(write));
+        List<List<MemberWrite>> pieces = new ArrayList<>();
+        List<MemberWrite> current = new ArrayList<>();
+        for (List<MemberWrite> some : ofUser.values()) {
+            if (!current.isEmpty() && current.size() + some.size() > MEMBER_WRITES_AT_A_TIME) {
+                pieces.add(current);
+                current = new ArrayList<>();
+            }
+            current.addAll(some);
+        }
+        if (!current.isEmpty()) {
+            pieces.add(current);
+        }
+        return pieces;
+    }
+
+    private record MemberWrite(String userId, Consumer<OrganizationGroups> action) {
     }
 
     private static <E> List<List<E>> inPieces(List<E> all, int size) {
@@ -358,9 +381,9 @@ public class ProjectionService {
     }
 
     // Reads who is where for some units, in a few queries, and returns the writes that are missing.
-    private List<Consumer<OrganizationGroups>> memberWrites(Parts parts, Target target, List<String> unitIds,
+    private List<MemberWrite> memberWrites(Parts parts, Target target, List<String> unitIds,
             LocalDate today, Map<String, String> groupIdByUnit, Set<String> everyone) {
-        List<Consumer<OrganizationGroups>> writes = new ArrayList<>();
+        List<MemberWrite> writes = new ArrayList<>();
         Map<String, Set<String>> usersByUnit = usersByUnit(parts, unitIds, today);
         if (target.organization()) {
             String organizationId = target.id();
@@ -369,11 +392,11 @@ public class ProjectionService {
             Set<String> inOrganization = parts.keycloak().organizationMembers(organizationId, newHere);
             for (String userId : newHere) {
                 if (!inOrganization.contains(userId)) {
-                    writes.add(keycloak -> {
+                    writes.add(new MemberWrite(userId, keycloak -> {
                         if (keycloak.addOrganizationMember(organizationId, userId)) {
                             organizationMembersAdded++;
                         }
-                    });
+                    }));
                 }
             }
         }
@@ -415,23 +438,23 @@ public class ProjectionService {
     }
 
     private void memberWrites(String groupId, Set<String> current, Set<String> wanted,
-            List<Consumer<OrganizationGroups>> writes) {
+            List<MemberWrite> writes) {
         for (String userId : wanted) {
             if (!current.contains(userId)) {
-                writes.add(keycloak -> {
+                writes.add(new MemberWrite(userId, keycloak -> {
                     if (keycloak.join(groupId, userId)) {
                         membersJoined++;
                     }
-                });
+                }));
             }
         }
         for (String userId : current) {
             if (!wanted.contains(userId)) {
-                writes.add(keycloak -> {
+                writes.add(new MemberWrite(userId, keycloak -> {
                     if (keycloak.leave(groupId, userId)) {
                         membersLeft++;
                     }
-                });
+                }));
             }
         }
     }
