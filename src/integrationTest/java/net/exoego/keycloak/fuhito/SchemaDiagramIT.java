@@ -7,10 +7,13 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 import org.junit.jupiter.api.Test;
 
@@ -27,11 +30,27 @@ class SchemaDiagramIT {
             <!-- ./gradlew updateSchemaDiagram writes this file. Do not edit it. -->
 
             The tables of the extension, as Liquibase creates them in PostgreSQL.
+
+            ## Linked tables
+
             A line is a foreign key, and its label names the columns of the key.
             A column can point to a row without a foreign key, like `REALM_ID` to a realm of Keycloak.
 
+            """;
+
+    private static final String OTHERS = """
+
+            ## Other tables
+
+            No foreign key starts or ends at these tables.
+
+            """;
+
+    // From left to right, so that the many tables of one level stack up and the page does not get wide.
+    private static final String DIAGRAM = """
             ```mermaid
             erDiagram
+                direction LR
             """;
 
     private static final String OWN_TABLES = "t.relnamespace = (select oid from pg_namespace where nspname = current_schema())"
@@ -98,30 +117,17 @@ class SchemaDiagramIT {
                     .columns().add(row.get(3));
         }
 
-        StringBuilder out = new StringBuilder(HEADER);
+        Set<String> linked = new HashSet<>();
+        for (ForeignKey key : foreignKeys.values()) {
+            linked.add(key.table());
+            linked.add(key.target());
+        }
+
+        StringBuilder out = new StringBuilder(HEADER).append(DIAGRAM);
         tables.forEach((table, columns) -> {
-            out.append("    ").append(upper(table)).append(" {\n");
-            for (Column column : columns) {
-                List<String> marks = new ArrayList<>();
-                if (keys.values().stream().anyMatch(k -> k.table().equals(table) && k.primary()
-                        && k.columns().contains(column.name()))) {
-                    marks.add("PK");
-                }
-                if (foreignKeys.values().stream().anyMatch(f -> f.table().equals(table)
-                        && f.columns().contains(column.name()))) {
-                    marks.add("FK");
-                }
-                if (keys.values().stream().anyMatch(k -> k.table().equals(table) && !k.primary()
-                        && k.columns().equals(List.of(column.name())))) {
-                    marks.add("UK");
-                }
-                out.append("        ").append(column.type()).append(' ').append(upper(column.name()));
-                if (!marks.isEmpty()) {
-                    out.append(' ').append(String.join(", ", marks));
-                }
-                out.append('\n');
+            if (linked.contains(table)) {
+                entity(out, table, columns, keys.values(), foreignKeys.values());
             }
-            out.append("    }\n");
         });
         for (ForeignKey key : foreignKeys.values()) {
             boolean required = tables.get(key.table()).stream()
@@ -138,7 +144,43 @@ class SchemaDiagramIT {
                     .append(upper(key.table()))
                     .append(" : \"").append(upper(String.join(", ", key.columns()))).append("\"\n");
         }
-        return out.append("```\n").toString();
+        out.append("```\n");
+
+        if (!linked.containsAll(tables.keySet())) {
+            out.append(OTHERS).append(DIAGRAM);
+            tables.forEach((table, columns) -> {
+                if (!linked.contains(table)) {
+                    entity(out, table, columns, keys.values(), foreignKeys.values());
+                }
+            });
+            out.append("```\n");
+        }
+        return out.toString();
+    }
+
+    private static void entity(StringBuilder out, String table, List<Column> columns, Collection<Key> keys,
+            Collection<ForeignKey> foreignKeys) {
+        out.append("    ").append(upper(table)).append(" {\n");
+        for (Column column : columns) {
+            List<String> marks = new ArrayList<>();
+            if (keys.stream().anyMatch(k -> k.table().equals(table) && k.primary()
+                    && k.columns().contains(column.name()))) {
+                marks.add("PK");
+            }
+            if (foreignKeys.stream().anyMatch(f -> f.table().equals(table) && f.columns().contains(column.name()))) {
+                marks.add("FK");
+            }
+            if (keys.stream().anyMatch(k -> k.table().equals(table) && !k.primary()
+                    && k.columns().equals(List.of(column.name())))) {
+                marks.add("UK");
+            }
+            out.append("        ").append(column.type()).append(' ').append(upper(column.name()));
+            if (!marks.isEmpty()) {
+                out.append(' ').append(String.join(", ", marks));
+            }
+            out.append('\n');
+        }
+        out.append("    }\n");
     }
 
     // A type of Mermaid takes no space and no comma, so the precision and scale of a number are left out.
