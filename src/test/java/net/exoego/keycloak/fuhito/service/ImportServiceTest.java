@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import net.exoego.keycloak.fuhito.domain.ChangeOrder;
 import net.exoego.keycloak.fuhito.domain.Employment;
 import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
@@ -19,6 +20,7 @@ import net.exoego.keycloak.fuhito.domain.ReportingLine;
 import net.exoego.keycloak.fuhito.domain.UnitRole;
 import net.exoego.keycloak.fuhito.service.ImportDocument.AssignmentRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.AttributeDefinitionRow;
+import net.exoego.keycloak.fuhito.service.ImportDocument.ChangeOrderRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.EmploymentRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.ExternalIdRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.HierarchyRow;
@@ -66,6 +68,7 @@ class ImportServiceTest {
     private final MemoryUnitRoleStore roleStore = new MemoryUnitRoleStore();
     private final MemoryQualificationStore qualificationStore = new MemoryQualificationStore();
     private final MemoryExternalIdStore externalIdStore = new MemoryExternalIdStore();
+    private final MemoryChangeOrderStore orderStore = new MemoryChangeOrderStore();
     private final QualificationService qualifications = new QualificationService(qualificationStore, refItems,
             personStore, users, Clock.systemUTC());
     private final UnitRoleService roles = new UnitRoleService(roleStore,
@@ -100,7 +103,8 @@ class ImportServiceTest {
             new ImportService.Setup(kinds, definitions, hierarchies),
             new ImportService.Organizations(new OrganizationLinkService(orgUnitStore, organizations), organizations,
                     managed::add),
-            new ImportService.Records(lines, roles, qualifications, new ExternalIdService(externalIdStore)));
+            new ImportService.Records(lines, roles, qualifications, new ExternalIdService(externalIdStore),
+                    new ChangeOrderService(orderStore, null, users, Clock.systemUTC())));
 
     private static ImportDocument doc(String effectiveDate, boolean dryRun, String source, List<RefItemRow> refItems,
             List<OrgUnitRow> orgUnits) {
@@ -874,6 +878,40 @@ class ImportServiceTest {
                         new ExternalIdRow("ORG_UNIT", "u-1", "hr", "X"),
                         new ExternalIdRow("ORG_UNIT", "nope", "payroll", "P-5"),
                         new ExternalIdRow("ORG_UNIT", "u-1", "ledger", null))));
+    }
+
+    private static ChangeOrderRow order(String id, String number, String title, String approverUserId,
+            String approverUsername) {
+        return new ChangeOrderRow(id, number, null, title, null, null, null, approverUserId, approverUsername, null,
+                null, null);
+    }
+
+    private ImportReport importOrders(ChangeOrderRow... rows) {
+        return service.apply(ImportDocument.of("2026-04-01", false, null, "changeOrders", List.of(rows)));
+    }
+
+    @Test
+    void importsChangeOrdersByNumberAndReplacesAStoredOne() {
+        ImportReport first = importOrders(order(null, "2026-01", "異動", null, "doctor"));
+        ImportReport again = importOrders(order(null, "2026-01", "異動", null, "doctor"));
+        ImportReport changed = importOrders(order(null, "2026-01", "人事異動", "user-doctor", null));
+
+        assertEquals(List.of(), errors(first));
+        assertEquals(Map.of("changeOrders", new Counts(1, 0, 0)), first.counts());
+        assertEquals(Map.of("changeOrders", new Counts(0, 0, 1)), again.counts());
+        assertEquals(Map.of("changeOrders", new Counts(0, 1, 0)), changed.counts());
+        ChangeOrder stored = orderStore.findByNumber("2026-01").orElseThrow();
+        assertEquals("人事異動", stored.title());
+        assertEquals("user-doctor", stored.approverUserId());
+        assertEquals("2026-04-01", stored.effectiveDate().toString());
+        assertEquals("fuhito/change-orders/" + stored.id(), changed.writes().getFirst().path());
+        assertEquals(List.of("changeOrders[0] invalid.required", "changeOrders[1] import.id_unknown",
+                "changeOrders[2] import.user_twice", "changeOrders[3] import.username_unknown",
+                "changeOrders[5] import.duplicate_row"),
+                errors(importOrders(order(null, null, "X", null, null), order("nope", null, "X", null, null),
+                        order(null, "2026-02", "X", "user-doctor", "doctor"), order(null, "2026-03", "X", null, "nobody"),
+                        order(stored.id(), null, "人事異動", "user-doctor", null),
+                        order(stored.id(), "2026-01", "人事異動", "user-doctor", null))));
     }
 
     private void importTwoUnits() {

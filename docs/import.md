@@ -32,6 +32,7 @@ Every bad row is reported, not only the first one.
 | Roles over org units | Employment, org unit, and role, or ID |
 | Qualifications | Source and external ID, or ID |
 | IDs of other systems | Type of resource, resource, and source |
+| Change orders | Number, or ID |
 
 The source is the name of the system or the sheet that the rows come from.
 It keeps the external IDs of two systems apart. The default is `import`.
@@ -50,7 +51,7 @@ The list `people` loads people, also those with no Keycloak user, such as staff 
 ## JSON
 
 `POST /imports` takes one document with several lists.
-The lists are applied in the order kinds of reference data, attribute definitions, reference items, hierarchies, org units, parents in hierarchies, people, qualifications, employments, roles over org units, assignments, reporting lines, IDs of other systems.
+The lists are applied in the order change orders, kinds of reference data, attribute definitions, reference items, hierarchies, org units, parents in hierarchies, people, qualifications, employments, roles over org units, assignments, reporting lines, IDs of other systems.
 
 ```json
 {
@@ -88,6 +89,7 @@ The lists are applied in the order kinds of reference data, attribute definition
 - The list `unitRoles` gives the roles that employments hold over org units. A row names the employment by `employmentExternalId` or `employmentId`, the unit by `orgUnitExternalId` or `orgUnitId`, and the role by the code of a reference item of the kind `UNIT_ROLE`. A row that changes `includesDescendants` ends the stored role and starts a new one on the date. With no `validTo`, a role lasts as long as the employment.
 - The list `qualifications` gives qualifications such as licenses. A row names the person by `personExternalId`, `personId`, or `username`. A row of a stored qualification may name nobody. A qualification has dates of its own, so a row replaces the kind, the number, the dates, and the attributes of a stored one, as `PUT /qualifications/{id}` does. A row with no `validFrom` starts on the effective date.
 - The list `externalIds` gives the IDs that other systems have for resources, as `PUT /external-ids` does. A row has `resourceType`, `resourceId`, `source`, and `externalId`. Another external ID replaces the stored one, and an empty text removes it. The source of the pair that the resource itself has cannot be a row.
+- The list `changeOrders` gives change orders. A row has the values of `POST /change-orders`. It can name the approver and the requester by `approverUsername` and `requesterUsername` too. A row of a stored order replaces its values, as `PUT /change-orders/{id}` does. A row with no `effectiveDate` takes the effective date of the import. The announcement is a fact of its own, so it is not part of a row. Record it with `POST /change-orders/{id}/announce`.
 - A new row can have its own `validFrom`. An existing row ignores it.
 - A row with `validTo` ends the thing on that date. An employment can also carry `endReason`.
 - A row of an org unit can link the unit to a Keycloak organization by `organizationAlias`. A row that leaves it out keeps the link, and an empty text removes it. As `PUT /org-units/{id}/organization` does, the import asks for the permission to manage the old and the new organization. An unknown alias fails with `import.organization_unknown`.
@@ -104,7 +106,7 @@ The lists are applied in the order kinds of reference data, attribute definition
 
 ## CSV
 
-`POST /imports/csv/{list}` takes one file. The list is `ref-kinds`, `attribute-definitions`, `ref-items`, `hierarchies`, `org-units`, `org-unit-parents`, `people`, `employments`, `assignments`, `reporting-lines`, `unit-roles`, `qualifications`, or `external-ids`.
+`POST /imports/csv/{list}` takes one file. The list is `ref-kinds`, `attribute-definitions`, `ref-items`, `hierarchies`, `org-units`, `org-unit-parents`, `people`, `employments`, `assignments`, `reporting-lines`, `unit-roles`, `qualifications`, `external-ids`, or `change-orders`.
 
 `GET /imports/csv/org-units?asOf=` gives the org units of a date as such a file, for a change in a spreadsheet. Each row has the column `id`, so a unit with no external ID loads again too. The parent is in the column `parentId`. A unit that ends has `validTo`, and its successors are in `successorIds`. A linked unit has the alias of its Keycloak organization in `organizationAlias`. In a file, `#CLEAR` there removes the link. With `header=ja`, the names of the columns are in Japanese. The file is UTF-8 with a byte order mark, which spreadsheets need to read it as UTF-8. The same file loaded on the same date changes nothing.
 
@@ -123,6 +125,7 @@ The lists are applied in the order kinds of reference data, attribute definition
 `GET /imports/csv/unit-roles?asOf=` gives the roles that hold on the date. It names the employment by `employmentId` and the unit by `orgUnitId`.
 `GET /imports/csv/qualifications` gives every qualification, also those that expired. With `asOf`, it gives only those that hold on the date.
 `GET /imports/csv/external-ids` gives the IDs that `/external-ids` added. The own pair of a resource is in the file of the resource. In a file, `#CLEAR` in `externalId` removes the stored ID.
+`GET /imports/csv/change-orders` gives every change order, newest effective date first.
 The query has `effectiveDate`, and optionally `dryRun` and `source`.
 The content type is `text/csv`.
 
@@ -336,6 +339,23 @@ IDs of other systems.
 | `resourceId` | `リソースのID` |
 | `source` | `ソース` |
 | `externalId` | `外部ID` |
+
+Change orders.
+
+| English | Japanese |
+|---|---|
+| `id` | `ID` |
+| `number` | `番号` |
+| `kind` | `種類` |
+| `title` | `件名` |
+| `note` | `備考` |
+| `orderDate` | `発令日` |
+| `effectiveDate` | `発効日` |
+| `approverUserId` | `承認者のユーザーID` |
+| `approverUsername` | `承認者のユーザー名` |
+| `requesterUserId` | `申請者のユーザーID` |
+| `requesterUsername` | `申請者のユーザー名` |
+| `externalReference` | `外部の参照` |
 
 A row for a stored employment may leave out the user.
 A row that leaves out `leaveReason` keeps the stored reason while the status stays `ON_LEAVE`.

@@ -83,9 +83,10 @@ public class ImportService {
      * @param unitRoles the operations on the roles over org units of the realm
      * @param qualifications the operations on the qualifications of the realm
      * @param externalIds the operations on the IDs of other systems of the realm
+     * @param changeOrders the operations on the change orders of the realm
      */
     public record Records(ReportingLineService reportingLines, UnitRoleService unitRoles,
-            QualificationService qualifications, ExternalIdService externalIds) {
+            QualificationService qualifications, ExternalIdService externalIds, ChangeOrderService changeOrders) {
     }
 
     /**
@@ -143,6 +144,10 @@ public class ImportService {
         Checks.date("effectiveDate", document.effectiveDate());
         String source = Checks.optionalCode("source", document.source());
         ImportReport report = new ImportReport();
+        if (document.changeOrders() != null) {
+            new ChangeOrderImport(records.changeOrders(), people.users(), document.effectiveDate(), report)
+                    .run(document.changeOrders());
+        }
         if (document.refKinds() != null) {
             each(REF_KINDS, document.refKinds(), report, row -> importRefKind(row, report));
         }

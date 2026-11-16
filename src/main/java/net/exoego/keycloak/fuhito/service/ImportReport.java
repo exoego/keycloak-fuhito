@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Map;
 
 import net.exoego.keycloak.fuhito.domain.AttributeDefinition;
+import net.exoego.keycloak.fuhito.domain.ChangeOrder;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.Hierarchy;
 import net.exoego.keycloak.fuhito.domain.RefItem;
@@ -452,6 +453,30 @@ public final class ImportReport {
             @Override
             public String path() {
                 return "fuhito/external-ids/" + resourceId();
+            }
+        }
+
+        /**
+         * A write of a change order.
+         *
+         * @param created true for a new order, false for a change
+         * @param state the order after the write
+         */
+        record OfChangeOrder(boolean created, ChangeOrder state) implements Write {
+
+            @Override
+            public String resourceType() {
+                return "FUHITO_CHANGE_ORDER";
+            }
+
+            @Override
+            public String resourceId() {
+                return state.id();
+            }
+
+            @Override
+            public String path() {
+                return "fuhito/change-orders/" + resourceId();
             }
         }
 

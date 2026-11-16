@@ -18,6 +18,7 @@ import java.util.function.Supplier;
 
 import net.exoego.keycloak.fuhito.domain.Assignment;
 import net.exoego.keycloak.fuhito.domain.AttributeDefinition;
+import net.exoego.keycloak.fuhito.domain.ChangeOrder;
 import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.Csv;
 import net.exoego.keycloak.fuhito.domain.Employment;
@@ -32,6 +33,7 @@ import net.exoego.keycloak.fuhito.domain.RefItem;
 import net.exoego.keycloak.fuhito.domain.RefKind;
 import net.exoego.keycloak.fuhito.service.ImportDocument.AssignmentRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.AttributeDefinitionRow;
+import net.exoego.keycloak.fuhito.service.ImportDocument.ChangeOrderRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.EmploymentRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.ExternalIdRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.HierarchyRow;
@@ -102,7 +104,11 @@ public class CsvImportService {
             Map.entry("managerPersonId", "上司の人のID"), Map.entry("managerUsername", "上司のユーザー名"),
             Map.entry("role", "ロール"), Map.entry("includesDescendants", "下位の組織も含む"),
             Map.entry("number", "番号"), Map.entry("resourceType", "リソースの種類"),
-            Map.entry("resourceId", "リソースのID"));
+            Map.entry("resourceId", "リソースのID"), Map.entry("title", "件名"), Map.entry("note", "備考"),
+            Map.entry("orderDate", "発令日"), Map.entry("effectiveDate", "発効日"),
+            Map.entry("approverUserId", "承認者のユーザーID"), Map.entry("approverUsername", "承認者のユーザー名"),
+            Map.entry("requesterUserId", "申請者のユーザーID"), Map.entry("requesterUsername", "申請者のユーザー名"),
+            Map.entry("externalReference", "外部の参照"));
 
     // The lists that a file can hold, each with the resource whose attributes it sets.
     private enum Kind {
@@ -114,6 +120,7 @@ public class CsvImportService {
         UNIT_ROLES("unitRoles", null),
         QUALIFICATIONS("qualifications", AttributeDefinition.Target.QUALIFICATION),
         EXTERNAL_IDS("externalIds", null),
+        CHANGE_ORDERS("changeOrders", null),
         REF_ITEMS("refItems", AttributeDefinition.Target.REF_ITEM),
         ORG_UNITS("orgUnits", AttributeDefinition.Target.ORG_UNIT),
         EMPLOYMENTS("employments", AttributeDefinition.Target.EMPLOYMENT_TERMS),
@@ -144,6 +151,9 @@ public class CsvImportService {
             Map.entry(Kind.ORG_UNIT_PARENTS, Set.of("hierarchy", "source", "orgUnitExternalId", "orgUnitId",
                     "parentExternalId", "parentId")),
             Map.entry(Kind.EXTERNAL_IDS, Set.of("resourceType", "resourceId", "source", "externalId")),
+            Map.entry(Kind.CHANGE_ORDERS, Set.of("id", "number", "kind", "title", "note", "orderDate",
+                    "effectiveDate", "approverUserId", "approverUsername", "requesterUserId", "requesterUsername",
+                    "externalReference")),
             Map.entry(Kind.QUALIFICATIONS, Set.of("id", "source", "externalId", "personExternalId", "personId",
                     "username", "kind", "number", "validFrom", "validTo")),
             Map.entry(Kind.UNIT_ROLES, Set.of("id", "source", "employmentExternalId", "employmentId",
@@ -234,6 +244,7 @@ public class CsvImportService {
             case QUALIFICATIONS -> run(data, columns, defined, cells -> qualification(cells, defaultSource),
                     document);
             case EXTERNAL_IDS -> run(data, columns, defined, cells -> externalId(cells, defaultSource), document);
+            case CHANGE_ORDERS -> run(data, columns, defined, this::changeOrder, document);
             case REF_ITEMS -> run(data, columns, defined, this::refItem, document);
             case ORG_UNITS -> run(data, columns, defined, cells -> orgUnit(cells, date, defaultSource), document);
             case EMPLOYMENTS -> run(data, columns, defined, cells -> employment(cells, date, defaultSource),
@@ -306,6 +317,28 @@ public class CsvImportService {
                 : importService.setup().kinds().find(code);
         return new RefKindRow(code, cells.text("name", stored.map(RealmKindService.View::name).orElse(null)),
                 cells.localized("name", stored.map(RealmKindService.View::names).orElse(Map.of())));
+    }
+
+    // Blank cells keep the stored values. A user named by username replaces the stored ID of the user.
+    private ChangeOrderRow changeOrder(Cells cells) {
+        String id = cells.text("id", null);
+        String number = cells.text("number", null);
+        ChangeOrderService service = importService.records().changeOrders();
+        Optional<ChangeOrder> stored = id != null ? service.find(id)
+                : number == null ? Optional.empty() : service.ofNumber(number);
+        String approverUsername = cells.text("approverUsername", null);
+        String requesterUsername = cells.text("requesterUsername", null);
+        return new ChangeOrderRow(id, cells.text("number", stored.map(ChangeOrder::number).orElse(null)),
+                cells.text("kind", stored.map(ChangeOrder::kind).orElse(null)),
+                cells.text("title", stored.map(ChangeOrder::title).orElse(null)),
+                cells.text("note", stored.map(ChangeOrder::note).orElse(null)),
+                cells.text("orderDate", stored.map(o -> Objects.toString(o.orderDate(), null)).orElse(null)),
+                cells.text("effectiveDate", stored.map(o -> o.effectiveDate().toString()).orElse(null)),
+                cells.text("approverUserId", approverUsername == null
+                        ? stored.map(ChangeOrder::approverUserId).orElse(null) : null), approverUsername,
+                cells.text("requesterUserId", requesterUsername == null
+                        ? stored.map(ChangeOrder::requesterUserId).orElse(null) : null), requesterUsername,
+                cells.text("externalReference", stored.map(ChangeOrder::externalReference).orElse(null)));
     }
 
     // A blank cell keeps the stored ID, and the cell #CLEAR removes it.

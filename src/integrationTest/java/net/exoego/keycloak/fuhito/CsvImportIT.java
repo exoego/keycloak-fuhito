@@ -235,6 +235,33 @@ class CsvImportIT {
     }
 
     @Test
+    void anExportOfChangeOrdersLoadsAgainWithNoChange() throws Exception {
+        TestRealm realm = TestRealm.create("csv-export-orders");
+        Api api = realm.api;
+        String chief = realm.user("chief");
+        String order = Api.json(api.post("/change-orders", "{\"number\": \"2026-01\", \"title\": \"4月の異動, 本院\", "
+                + "\"effectiveDate\": \"2026-04-01\", \"approverUserId\": \"" + chief + "\"}")).get("id").asText();
+
+        for (String header : List.of("en", "ja")) {
+            HttpResponse<String> exported = api.get("/imports/csv/change-orders?header=" + header);
+            assertEquals(200, exported.statusCode(), exported.body());
+            assertEquals("﻿" + (header.equals("en")
+                    ? "id,number,kind,title,note,orderDate,effectiveDate,approverUserId,requesterUserId,externalReference"
+                    : "ID,番号,種類,件名,備考,発令日,発効日,承認者のユーザーID,申請者のユーザーID,外部の参照") + "\r\n" + order
+                    + ",2026-01,,\"4月の異動, 本院\",,,2026-04-01," + chief + ",,\r\n", exported.body());
+            JsonNode counts = load(api, "change-orders", "effectiveDate=2026-05-01", exported.body())
+                    .get("counts").get("changeOrders");
+            assertEquals(0, counts.get("created").asInt() + counts.get("changed").asInt(), counts.toString());
+        }
+        load(api, "change-orders", "effectiveDate=2026-10-01", String.join("\r\n", "number,title,requesterUsername",
+                "2026-01,4月の異動,chief", "2026-02,10月の異動,"));
+        JsonNode orders = Api.json(api.get("/change-orders"));
+        assertEquals(List.of("2026-02", "2026-01"), orders.findValuesAsText("number"));
+        assertEquals(List.of("2026-10-01", "2026-04-01"), orders.findValuesAsText("effectiveDate"));
+        assertEquals(chief, orders.get(1).get("requesterUserId").asText());
+    }
+
+    @Test
     void anExportOfKindsLoadsAgainWithNoChange() throws Exception {
         TestRealm realm = TestRealm.create("csv-export-kinds");
         Api api = realm.api;

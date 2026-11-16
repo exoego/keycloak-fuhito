@@ -45,7 +45,9 @@ public record ImportDocument(
         @Schema(description = "The qualifications. They come after the people.")
         List<QualificationRow> qualifications,
         @Schema(description = "The IDs of other systems. They come after every list of resources.")
-        List<ExternalIdRow> externalIds) {
+        List<ExternalIdRow> externalIds,
+        @Schema(description = "The change orders. They come first.")
+        List<ChangeOrderRow> changeOrders) {
 
     /**
      * Makes a document with no list of kinds.
@@ -63,7 +65,7 @@ public record ImportDocument(
             List<OrgUnitRow> orgUnits, List<EmploymentRow> employments, List<AssignmentRow> assignments,
             List<PersonRow> people) {
         this(effectiveDate, dryRun, source, refItems, orgUnits, employments, assignments, people, null, null, null,
-                null, null, null, null, null);
+                null, null, null, null, null, null);
     }
 
     /**
@@ -80,7 +82,38 @@ public record ImportDocument(
     public ImportDocument(String effectiveDate, boolean dryRun, String source, List<RefItemRow> refItems,
             List<OrgUnitRow> orgUnits, List<EmploymentRow> employments, List<AssignmentRow> assignments) {
         this(effectiveDate, dryRun, source, refItems, orgUnits, employments, assignments, null, null, null, null,
-                null, null, null, null, null);
+                null, null, null, null, null, null);
+    }
+
+    @Schema(
+            name = "ImportChangeOrderRow",
+            description = "A change order. It is matched by number, or by `id`. A row needs one of them. A row of a "
+                    + "stored order replaces its values, as `PUT` does. The announcement is not part of a row.",
+            requiredProperties = {"title"})
+    public record ChangeOrderRow(
+            @Schema(description = "The ID of a stored order. A CSV export has it in every row.")
+            String id,
+            @Schema(maxLength = 64, pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$")
+            String number,
+            @Schema(maxLength = 64, pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$")
+            String kind,
+            @Schema(maxLength = 255)
+            String title,
+            String note,
+            @Schema(format = "date")
+            String orderDate,
+            @Schema(description = "The default is the effective date of the import.", format = "date")
+            String effectiveDate,
+            @Schema(description = "The ID of the Keycloak user who approved it. Give this or `approverUsername`.")
+            String approverUserId,
+            @Schema(description = "The username of the user who approved it.")
+            String approverUsername,
+            @Schema(description = "The ID of the Keycloak user who asked for it. Give this or `requesterUsername`.")
+            String requesterUserId,
+            @Schema(description = "The username of the user who asked for it.")
+            String requesterUsername,
+            @Schema(description = "A reference in another system, such as a workflow.")
+            String externalReference) {
     }
 
     @Schema(
@@ -285,7 +318,7 @@ public record ImportDocument(
                 rows(lists, "employments"), rows(lists, "assignments"), rows(lists, "people"),
                 rows(lists, "refKinds"), rows(lists, "attributeDefinitions"), rows(lists, "hierarchies"),
                 rows(lists, "orgUnitParents"), rows(lists, "reportingLines"), rows(lists, "unitRoles"),
-                rows(lists, "qualifications"), rows(lists, "externalIds"));
+                rows(lists, "qualifications"), rows(lists, "externalIds"), rows(lists, "changeOrders"));
     }
 
     // The name of the list tells the type of its rows.

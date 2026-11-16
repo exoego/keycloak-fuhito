@@ -16,6 +16,7 @@ import java.util.function.Supplier;
 
 import net.exoego.keycloak.fuhito.domain.Assignment;
 import net.exoego.keycloak.fuhito.domain.AttributeDefinition;
+import net.exoego.keycloak.fuhito.domain.ChangeOrder;
 import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.Employment;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
@@ -41,7 +42,7 @@ public class CsvExportService {
     private static final int ROWS_AT_A_TIME = 1000;
     private static final List<String> LISTS = List.of("ref-kinds", "attribute-definitions", "ref-items",
             "hierarchies", "org-units", "org-unit-parents", "people", "employments", "assignments",
-            "reporting-lines", "unit-roles", "qualifications", "external-ids");
+            "reporting-lines", "unit-roles", "qualifications", "external-ids", "change-orders");
 
     private final RefItemService refItems;
     private final Supplier<List<RealmKindService.View>> kinds;
@@ -56,6 +57,7 @@ public class CsvExportService {
     private final UnitRoleService unitRoles;
     private final QualificationService qualifications;
     private final ExternalIdService externalIds;
+    private final ChangeOrderService changeOrders;
     private final Function<AttributeDefinition.Target, List<AttributeDefinition>> definitions;
 
     /**
@@ -74,6 +76,7 @@ public class CsvExportService {
      * @param unitRoles the operations on the roles over org units of the realm
      * @param qualifications the operations on the qualifications of the realm
      * @param externalIds the operations on the IDs of other systems of the realm
+     * @param changeOrders the operations on the change orders of the realm
      * @param definitions the definitions of free attributes of the realm, by the resource that has them
      */
     public CsvExportService(RefItemService refItems, Supplier<List<RealmKindService.View>> kinds,
@@ -81,7 +84,8 @@ public class CsvExportService {
             PersonService people, EmploymentService employments, AssignmentService assignments, Today today,
             HierarchyService hierarchies, OrganizationDirectory organizations, ReportingLineService reportingLines,
             UnitRoleService unitRoles, QualificationService qualifications, ExternalIdService externalIds,
-            Function<AttributeDefinition.Target, List<AttributeDefinition>> definitions) {
+            ChangeOrderService changeOrders, Function<AttributeDefinition.Target, List<AttributeDefinition>> definitions) {
+        this.changeOrders = changeOrders;
         this.externalIds = externalIds;
         this.unitRoles = unitRoles;
         this.qualifications = qualifications;
@@ -122,6 +126,7 @@ public class CsvExportService {
             case "unit-roles" -> unitRoles(asOf, japanese);
             case "qualifications" -> qualifications(asOf, japanese);
             case "external-ids" -> externalIds(japanese);
+            case "change-orders" -> changeOrders(japanese);
             default -> throw FuhitoException.invalid("csv.export_list_unknown", Map.of("list", String.valueOf(list),
                     "lists", String.join(", ", LISTS)));
         };
@@ -374,6 +379,26 @@ public class CsvExportService {
                 return csv.toString();
             }
             after = page.getLast().id();
+        }
+    }
+
+    // Every order, newest effective date first. The announcement is a fact of its own, so it is not in the file.
+    private String changeOrders(boolean japanese) {
+        List<String> header = new ArrayList<>();
+        for (String field : List.of("id", "number", "kind", "title", "note", "orderDate", "effectiveDate",
+                "approverUserId", "requesterUserId", "externalReference")) {
+            header.add(column(field, japanese));
+        }
+        StringBuilder csv = new StringBuilder(BYTE_ORDER_MARK);
+        line(csv, header);
+        for (int first = 0;; first += ROWS_AT_A_TIME) {
+            List<ChangeOrder> page = changeOrders.list(null, null, first, ROWS_AT_A_TIME);
+            page.forEach(order -> line(csv, List.of(order.id(), text(order.number()), text(order.kind()),
+                    order.title(), text(order.note()), text(order.orderDate()), order.effectiveDate().toString(),
+                    text(order.approverUserId()), text(order.requesterUserId()), text(order.externalReference()))));
+            if (page.size() < ROWS_AT_A_TIME) {
+                return csv.toString();
+            }
         }
     }
 
