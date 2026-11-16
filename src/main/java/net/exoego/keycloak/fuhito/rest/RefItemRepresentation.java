@@ -42,20 +42,20 @@ public record RefItemRepresentation(
                 defaultValue = "false")
         Boolean actingHead,
         @Schema(
-                description = "True for a unit type whose org units are groups outside the line organization, such "
-                        + "as a committee or a project team. Only the kind `UNIT_TYPE` can have it. It cannot "
-                        + "change while an org unit has the type.",
+                description = "True for a unit type whose org units are lateral units. A lateral unit cuts across the "
+                        + "line organization, such as a committee or a project team. Only the kind `UNIT_TYPE` can have "
+                        + "it. It cannot change while an org unit has the type.",
                 defaultValue = "false")
-        Boolean group) {
+        Boolean lateral) {
 
     RefItemService.Marks marks() {
-        return new RefItemService.Marks(legalEntity, actingHead, group);
+        return new RefItemService.Marks(legalEntity, actingHead, lateral);
     }
 
     static RefItemRepresentation of(RefItem item) {
         return new RefItemRepresentation(item.id(), item.kind(), item.code(), item.name(), item.names(),
                 item.displayOrder(), item.attributes(), item.active(),
                 item.legalEntity() ? Boolean.TRUE : null, item.actingHead() ? Boolean.TRUE : null,
-                item.group() ? Boolean.TRUE : null);
+                item.lateral() ? Boolean.TRUE : null);
     }
 }

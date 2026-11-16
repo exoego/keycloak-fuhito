@@ -102,7 +102,7 @@ The lists are applied in the order change orders, kinds of reference data, attri
 - After a transfer between employers, a row of the new employment can name the one it continues by `continuesEmploymentExternalId` or `continuesEmploymentId`. A row of a new assignment can name the assignment it continues by `continuesAssignmentExternalId` or `continuesAssignmentId`. Both must be of the same person. The link is set when the row makes the new thing. A stored one with another link fails with `import.continues_mismatch`.
 - A row of a unit type can carry `legalEntity`. The CSV header is `法人`. A row that leaves it out keeps the mark of a stored item.
 - A row of an assignment kind can carry `actingHead`. The CSV header is `代行`. A row that leaves it out keeps the mark of a stored item.
-- A row of a unit type can carry `group`. The CSV header is `グループ`. A row that leaves it out keeps the mark of a stored item.
+- A row of a unit type can carry `lateral`. The CSV header is `横断`. A row that leaves it out keeps the mark of a stored item.
 - The user of an employment is named by `username` or by `userId`. The user must exist.
 - The employment belongs to the person of that user. The import creates the person when the user has none.
 

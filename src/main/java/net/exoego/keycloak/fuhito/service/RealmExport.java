@@ -63,7 +63,7 @@ public record RealmExport(
     @Schema(name = "ExportRefItem")
     public record Item(String id, String kind, String code, String name, Map<String, String> names,
             int displayOrder, Map<String, Object> attributes, boolean active, boolean legalEntity,
-            boolean actingHead, boolean group) {
+            boolean actingHead, boolean lateral) {
     }
 
     @Schema(name = "ExportAttributeDefinition")

@@ -88,7 +88,7 @@ class OrgUnitServiceTest {
     }
 
     @Test
-    void aGroupMaySitAnywhereButNoLineUnitIsBelowAGroup() {
+    void aLateralUnitMaySitAnywhereButNoLineUnitIsBelowIt() {
         store.refItems = refItems;
         refItems.insert(new RefItem("type-committee", RefKind.UNIT_TYPE, "committee", "committee", Map.of(), 0,
                 Map.of(), true, false, false, true));
@@ -99,8 +99,8 @@ class OrgUnitServiceTest {
         String union = unitOfType("Union", "committee", null);
         Page all = Page.of(null, null);
 
-        assertTrue(service.get(committee, null).group());
-        assertFalse(service.get(hospital, null).group());
+        assertTrue(service.get(committee, null).lateral());
+        assertFalse(service.get(hospital, null).lateral());
         assertEquals(List.of("Hospital", "Union"), names(service.roots(null, null, null, all)));
         assertEquals(List.of("Hospital"), names(service.roots(null, null, false, all)));
         assertEquals(List.of("Union"), names(service.roots(null, null, true, all)));
@@ -108,24 +108,24 @@ class OrgUnitServiceTest {
         assertEquals(List.of("Hospital"), names(service.subtree(hospital, null, null, false, all)));
         assertEquals(List.of(), names(service.children(hospital, null, null, false, all)));
 
-        // A line unit is never below a group, whichever write would put it there.
-        assertEquals("org_unit.line_below_group", failure(named("Ward", committee, "2026-05-01")).code());
+        // A line unit is never below a lateral unit, whichever write would put it there.
+        assertEquals("org_unit.line_below_lateral", failure(named("Ward", committee, "2026-05-01")).code());
         String ward = unitOfType("Ward", "department", hospital);
-        assertEquals("org_unit.line_below_group",
+        assertEquals("org_unit.line_below_lateral",
                 assertThrows(FuhitoException.class, () -> service.move(ward, committee, "2026-07-01")).code());
-        assertEquals("org_unit.line_below_group", assertThrows(FuhitoException.class,
+        assertEquals("org_unit.line_below_lateral", assertThrows(FuhitoException.class,
                 () -> service.changeDetails(hospital, new OrgUnitChange("2026-08-01", null, "Hospital", null, null, null,
                         null, "committee", null, null))).code());
-        assertEquals("org_unit.line_below_group", assertThrows(FuhitoException.class,
+        assertEquals("org_unit.line_below_lateral", assertThrows(FuhitoException.class,
                 () -> service.changeDetails(sub, new OrgUnitChange("2026-08-01", null, "Drugs", null, null, null, null,
                         "department", null, null))).code());
         assertEquals(List.of("Hospital", "Union"), names(service.roots("2026-09-01", null, null, all)));
 
-        // A group can go below a line unit or another group.
+        // A lateral unit can go below a line unit or another lateral.
         service.move(union, hospital, "2026-09-01");
         assertEquals(List.of("Hospital"), names(service.roots("2026-09-01", null, null, all)));
 
-        // A unit that was a group before a date can take a line unit below it from that date.
+        // A unit that was a lateral unit before a date can take a line unit below it from that date.
         String board = unitOfType("Board", "committee", null);
         service.changeDetails(board, new OrgUnitChange("2026-10-01", null, "Board", null, null, null, null, null,
                 null, null));

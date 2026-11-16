@@ -386,7 +386,7 @@ class CsvImportIT {
                 + "\"names\": {\"en\": \"Tokyo\"}, \"displayOrder\": 2, \"attributes\": {\"note\": \"1F, west\"}}")
                 .statusCode());
         assertEquals(201, api.post("/ref-items", "{\"kind\": \"UNIT_TYPE\", \"code\": \"committee\", "
-                + "\"name\": \"委員会\", \"group\": true}").statusCode());
+                + "\"name\": \"委員会\", \"lateral\": true}").statusCode());
         assertEquals(201, api.post("/ref-items", "{\"kind\": \"ASSIGNMENT_KIND\", \"code\": \"acting\", "
                 + "\"name\": \"代行\", \"actingHead\": true}").statusCode());
         String old = realm.refItem("JOB_TITLE", "old", "旧役職");
@@ -396,8 +396,8 @@ class CsvImportIT {
             HttpResponse<String> exported = api.get("/imports/csv/ref-items?header=" + header);
             assertEquals(200, exported.statusCode(), exported.body());
             assertTrue(exported.body().startsWith("﻿" + (header.equals("en") ? "kind,code,name,name:en,"
-                    + "displayOrder,active,legalEntity,actingHead,group,attributes.note"
-                    : "種類,コード,名称,名称:en,表示順,有効,法人,代行,グループ,attributes.note")), exported.body());
+                    + "displayOrder,active,legalEntity,actingHead,lateral,attributes.note"
+                    : "種類,コード,名称,名称:en,表示順,有効,法人,代行,横断,attributes.note")), exported.body());
             assertTrue(exported.body().contains("site,tokyo,東京,Tokyo,2,true,,,,\"1F, west\""), exported.body());
             assertTrue(exported.body().contains("JOB_TITLE,old,旧役職,,0,false,,,,"), exported.body());
 

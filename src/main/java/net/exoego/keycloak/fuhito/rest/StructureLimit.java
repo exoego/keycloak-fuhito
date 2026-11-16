@@ -100,7 +100,7 @@ final class StructureLimit {
                 ValidPeriod.startingAt(version.period().from()), version.code(), version.name(), version.names(),
                 version.shortName(), version.shortNames(), version.phoneticName(), version.unitTypeId(),
                 version.displayOrder(), version.attributes()), state.unitType(), state.parentId(),
-                state.legalEntity(), state.group());
+                state.legalEntity(), state.lateral());
     }
 
     /**

@@ -100,14 +100,14 @@ public class JpaOrgUnitStore implements OrgUnitStore {
             )
             select a.id from Above a order by a.depth""".formatted(TreeQuery.onDate("l"));
 
-    // The condition that keeps only groups, only line units, or both, for the version v.
-    private static String nature(Boolean group) {
-        if (group == null) {
+    // The condition that keeps only lateral units, only line units, or both, for the version v.
+    private static String nature(Boolean lateral) {
+        if (lateral == null) {
             return "";
         }
         return """
-                 and %s exists (select 1 from RefItemEntity g where g.id = v.unitTypeId and g.groupUnit = true)"""
-                .formatted(group ? "" : "not");
+                 and %s exists (select 1 from RefItemEntity g where g.id = v.unitTypeId and g.lateralUnit = true)"""
+                .formatted(lateral ? "" : "not");
     }
 
     private static final String SIBLINGS = """
@@ -264,14 +264,14 @@ public class JpaOrgUnitStore implements OrgUnitStore {
     }
 
     @Override
-    public List<PlacedOrgUnit> treeOn(String hierarchyId, String rootId, Boolean group, LocalDate date, int first,
+    public List<PlacedOrgUnit> treeOn(String hierarchyId, String rootId, Boolean lateral, LocalDate date, int first,
             int max) {
         return em.createQuery(TreeQuery.SUBTREE + """
                         select u, v, t.parentId from Tree t
                         join OrgUnitEntity u on u.id = t.id
                         join OrgUnitVersionEntity v on v.id = t.versionId
                         where 1 = 1%s
-                        order by t.position""".formatted(nature(group)), Object[].class)
+                        order by t.position""".formatted(nature(lateral)), Object[].class)
                 .setParameter("realmId", realmId)
                 .setParameter("hierarchyId", hierarchyId)
                 .setParameter("date", date)
@@ -304,7 +304,7 @@ public class JpaOrgUnitStore implements OrgUnitStore {
         if (search.unitTypeId() != null) {
             text.append(" and v.unitTypeId = :unitTypeId");
         }
-        text.append(nature(search.group()));
+        text.append(nature(search.lateral()));
         if (!count) {
             text.append(" order by v.displayOrder, v.phoneticName nulls last, v.name, v.orgUnitId");
         }
@@ -463,10 +463,10 @@ public class JpaOrgUnitStore implements OrgUnitStore {
     }
 
     @Override
-    public List<PlacedOrgUnit> childrenOn(String hierarchyId, String parentId, boolean linkedOnly, Boolean group,
+    public List<PlacedOrgUnit> childrenOn(String hierarchyId, String parentId, boolean linkedOnly, Boolean lateral,
             LocalDate date, int first, int max) {
         String place = parentId != null ? CHILD_OF : linkedOnly ? LINKED_ROOT : NO_PARENT;
-        var query = em.createQuery(SIBLINGS.formatted(place, nature(group)), Object[].class)
+        var query = em.createQuery(SIBLINGS.formatted(place, nature(lateral)), Object[].class)
                 .setParameter("realmId", realmId)
                 .setParameter("hierarchyId", hierarchyId)
                 .setParameter("date", date);

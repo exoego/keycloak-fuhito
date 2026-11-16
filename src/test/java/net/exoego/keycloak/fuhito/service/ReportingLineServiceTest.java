@@ -204,7 +204,7 @@ class ReportingLineServiceTest {
     }
 
     @Test
-    void aGroupGivesNoManager() {
+    void aLateralUnitGivesNoManager() {
         refItems.insert(new RefItem("committee", RefKind.UNIT_TYPE, "committee", "Committee", Map.of(), 0, Map.of(),
                 true, false, false, true));
         orgUnitStore.refItems = refItems;

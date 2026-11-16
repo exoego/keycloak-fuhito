@@ -161,7 +161,7 @@ public class RealmExportService {
 
     private static RealmExport.Item item(RefItem i) {
         return new RealmExport.Item(i.id(), i.kind(), i.code(), i.name(), i.names(), i.displayOrder(), i.attributes(),
-                i.active(), i.legalEntity(), i.actingHead(), i.group());
+                i.active(), i.legalEntity(), i.actingHead(), i.lateral());
     }
 
     private ExportPage orgUnits(List<OrgUnit> units) {
@@ -294,7 +294,7 @@ public class RealmExportService {
                 new RealmKind(k.id(), k.code(), k.name(), k.names()))));
         counts.put("ref-items", each("ref-items", document.refItems(), i -> stores.refItems().insert(new RefItem(i.id(), i.kind(),
                 i.code(), i.name(), i.names(), i.displayOrder(), i.attributes(), i.active(), i.legalEntity(),
-                i.actingHead(), i.group()))));
+                i.actingHead(), i.lateral()))));
         counts.put("attribute-definitions", each("attribute-definitions", document.attributeDefinitions(), d -> stores.attributeDefinitions()
                 .insert(new AttributeDefinition(d.id(), AttributeDefinition.Target.valueOf(d.target()), d.name(),
                         AttributeDefinition.Type.valueOf(d.type()), d.refKind(), d.required()))));

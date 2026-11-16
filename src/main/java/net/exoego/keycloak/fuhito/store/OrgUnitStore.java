@@ -123,13 +123,13 @@ public interface OrgUnitStore {
      *
      * @param hierarchyId the ID of the hierarchy
      * @param rootId the ID of the unit to start from
-     * @param group true for groups only, false for line units only, or null for both
+     * @param lateral true for lateral units only, false for line units only, or null for both
      * @param date the date
      * @param first the number of units to skip
      * @param max the largest number of units to return
      * @return the units of the page
      */
-    List<PlacedOrgUnit> treeOn(String hierarchyId, String rootId, Boolean group, LocalDate date, int first, int max);
+    List<PlacedOrgUnit> treeOn(String hierarchyId, String rootId, Boolean lateral, LocalDate date, int first, int max);
 
     /**
      * Lists a page of the direct children of a unit on a date, in the order of siblings.
@@ -138,13 +138,13 @@ public interface OrgUnitStore {
      * @param parentId the ID of the parent, or null for the units with no parent
      * @param linkedOnly true to take only roots that have a child in the hierarchy. It has no effect with a
      *        {@code parentId}.
-     * @param group true for groups only, false for line units only, or null for both
+     * @param lateral true for lateral units only, false for line units only, or null for both
      * @param date the date
      * @param first the number of units to skip
      * @param max the largest number of units to return
      * @return the units of the page
      */
-    List<PlacedOrgUnit> childrenOn(String hierarchyId, String parentId, boolean linkedOnly, Boolean group,
+    List<PlacedOrgUnit> childrenOn(String hierarchyId, String parentId, boolean linkedOnly, Boolean lateral,
             LocalDate date, int first, int max);
 
     /**
@@ -153,9 +153,9 @@ public interface OrgUnitStore {
      * @param text a part of a name in any language, of a short name, or of the phonetic name, with no regard to case
      * @param code the code
      * @param unitTypeId the ID of the unit type
-     * @param group true for groups only, false for line units only
+     * @param lateral true for lateral units only, false for line units only
      */
-    record Search(String text, String code, String unitTypeId, Boolean group) {
+    record Search(String text, String code, String unitTypeId, Boolean lateral) {
     }
 
     /**

@@ -606,9 +606,9 @@ public record ImportDocument(
             @Schema(description = "True for an assignment kind whose heads stand in for an absent head. A row "
                     + "that leaves it out keeps the mark of a stored item.")
             Boolean actingHead,
-            @Schema(description = "True for a unit type whose org units are groups outside the line organization. A "
-                    + "row that leaves it out keeps the mark of a stored item.")
-            Boolean group) {
+            @Schema(description = "True for a unit type whose org units are lateral units, outside the line "
+                    + "organization. A row that leaves it out keeps the mark of a stored item.")
+            Boolean lateral) {
 
         /**
          * Makes a row that does not speak about the marks.

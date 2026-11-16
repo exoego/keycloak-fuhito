@@ -223,7 +223,7 @@ public class CsvExportService {
             header.add(column(field, japanese));
         }
         languages.forEach(language -> header.add(column("name", japanese) + ":" + language));
-        for (String field : List.of("displayOrder", "active", "legalEntity", "actingHead", "group")) {
+        for (String field : List.of("displayOrder", "active", "legalEntity", "actingHead", "lateral")) {
             header.add(column(field, japanese));
         }
         attributes.forEach(attribute -> header.add(CsvImportService.ATTRIBUTE_COLUMN + attribute));
@@ -237,7 +237,7 @@ public class CsvExportService {
             boolean unitType = item.is(RefKind.UNIT_TYPE);
             cells.add(unitType ? Boolean.toString(item.legalEntity()) : "");
             cells.add(item.is(RefKind.ASSIGNMENT_KIND) ? Boolean.toString(item.actingHead()) : "");
-            cells.add(unitType ? Boolean.toString(item.group()) : "");
+            cells.add(unitType ? Boolean.toString(item.lateral()) : "");
             attributes.forEach(attribute -> cells.add(text(Optional.ofNullable(item.attributes())
                     .map(values -> values.get(attribute)).orElse(null))));
             line(csv, cells);

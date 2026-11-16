@@ -57,7 +57,7 @@
             <column name="ACTING_HEAD" type="BOOLEAN" defaultValueBoolean="false">
                 <constraints nullable="false"/>
             </column>
-            <column name="GROUP_UNIT" type="BOOLEAN" defaultValueBoolean="false">
+            <column name="LATERAL_UNIT" type="BOOLEAN" defaultValueBoolean="false">
                 <constraints nullable="false"/>
             </column>
         </createTable>

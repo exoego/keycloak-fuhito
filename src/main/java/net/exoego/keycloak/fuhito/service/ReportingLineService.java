@@ -193,7 +193,8 @@ public class ReportingLineService {
      * Lists the managers of a user on a date, for each assignment of the user.
      * A stored line gives the manager. An assignment with no solid line takes the head of its org unit.
      * A head, and a member of a unit with no head, take the head of the nearest unit above that has one.
-     * An assignment in a group gets no derived manager, and the head of a group is nobody's derived manager.
+     * An assignment in a lateral unit gets no derived manager, and the head of a lateral unit is nobody's derived
+     * manager.
      * A head is absent while the status of the employment is not {@code ACTIVE}. A present acting head leads the
      * unit while its assignment holds, and the other heads look above the unit. With no present acting head, the
      * present heads lead.
@@ -359,9 +360,9 @@ public class ReportingLineService {
         List<Assignment> headsAbove(String orgUnitId, String personId) {
             List<OrgUnitState> path = OrgUnitPaths.on(sources.orgUnits(), sources.refItems(),
                     sources.orgUnits().defaultHierarchyId(), orgUnitId, date);
-            // A group is outside the line organization. No line unit is below a group, so the rest of the path is
-            // made of line units.
-            if (path.getLast().group()) {
+            // A lateral unit is outside the line organization. No line unit is below a lateral unit, so the rest of
+            // the path is made of line units.
+            if (path.getLast().lateral()) {
                 return List.of();
             }
             for (int i = path.size() - 1; i >= 0; i--) {

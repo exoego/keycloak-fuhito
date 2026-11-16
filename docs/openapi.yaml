@@ -870,7 +870,7 @@ components:
           type: boolean
         actingHead:
           type: boolean
-        group:
+        lateral:
           type: boolean
     ExportRefKind:
       type: object
@@ -1668,11 +1668,11 @@ components:
           type: boolean
           description: True for an assignment kind whose heads stand in for an absent
             head. A row that leaves it out keeps the mark of a stored item.
-        group:
+        lateral:
           type: boolean
-          description: True for a unit type whose org units are groups outside the
-            line organization. A row that leaves it out keeps the mark of a stored
-            item.
+          description: "True for a unit type whose org units are lateral units, outside\
+            \ the line organization. A row that leaves it out keeps the mark of a\
+            \ stored item."
     ImportRefKindRow:
       type: object
       required:
@@ -2122,9 +2122,9 @@ components:
           description: "True when the unit type marks the unit as a legal entity,\
             \ such as a company."
           readOnly: true
-        group:
+        lateral:
           type: boolean
-          description: "True when the unit type marks the unit as a group outside\
+          description: "True when the unit type marks the unit as a lateral unit outside\
             \ the line organization, such as a committee."
           readOnly: true
         parentId:
@@ -2581,12 +2581,12 @@ components:
           description: True for an assignment kind whose heads stand in for an absent
             head. Only the kind `ASSIGNMENT_KIND` can have it.
           default: false
-        group:
+        lateral:
           type: boolean
-          description: "True for a unit type whose org units are groups outside the\
-            \ line organization, such as a committee or a project team. Only the kind\
-            \ `UNIT_TYPE` can have it. It cannot change while an org unit has the\
-            \ type."
+          description: "True for a unit type whose org units are lateral units. A\
+            \ lateral unit cuts across the line organization, such as a committee\
+            \ or a project team. Only the kind `UNIT_TYPE` can have it. It cannot\
+            \ change while an org unit has the type."
           default: false
     RefKind:
       type: string
@@ -5314,17 +5314,17 @@ paths:
           default: 0
         name: first
         in: query
-      - description: "True for groups outside the line organization only, such as\
-          \ committees. False for line units only. Leave it out for both."
-        name: group
-        in: query
-        schema:
-          type: boolean
       - description: The code of the hierarchy. The default is the hierarchy `default`.
         name: hierarchy
         in: query
         schema:
           type: string
+      - description: "True for lateral units only, such as committees. False for line\
+          \ units only. Leave it out for both."
+        name: lateral
+        in: query
+        schema:
+          type: boolean
       - description: "True to list the units that are legal entities, such as companies,\
           \ in place of the roots. A unit is one when its unit type says so. `hierarchy`\
           \ then has no effect."
@@ -5424,9 +5424,9 @@ paths:
           default: 0
         name: first
         in: query
-      - description: True for groups outside the line organization only. False for
-          line units only. Leave it out for both.
-        name: group
+      - description: "True for lateral units only, such as committees. False for line\
+          \ units only. Leave it out for both."
+        name: lateral
         in: query
         schema:
           type: boolean
@@ -5610,17 +5610,17 @@ paths:
           default: 0
         name: first
         in: query
-      - description: "True for groups outside the line organization only, such as\
-          \ committees. False for line units only. Leave it out for both."
-        name: group
-        in: query
-        schema:
-          type: boolean
       - description: The code of the hierarchy. The default is the hierarchy `default`.
         name: hierarchy
         in: query
         schema:
           type: string
+      - description: "True for lateral units only, such as committees. False for line\
+          \ units only. Leave it out for both."
+        name: lateral
+        in: query
+        schema:
+          type: boolean
       - description: The largest number of entries to return.
         schema:
           type: integer
@@ -6115,17 +6115,17 @@ paths:
           default: 0
         name: first
         in: query
-      - description: "True for groups outside the line organization only, such as\
-          \ committees. False for line units only. Leave it out for both."
-        name: group
-        in: query
-        schema:
-          type: boolean
       - description: The code of the hierarchy. The default is the hierarchy `default`.
         name: hierarchy
         in: query
         schema:
           type: string
+      - description: "True for lateral units only, such as committees. False for line\
+          \ units only. Leave it out for both."
+        name: lateral
+        in: query
+        schema:
+          type: boolean
       - description: The largest number of entries to return.
         schema:
           type: integer

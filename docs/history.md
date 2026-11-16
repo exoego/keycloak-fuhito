@@ -137,7 +137,7 @@ When an assignment has no solid line on a date, the manager is derived from the 
 - A head reports to the head of the nearest unit above that has one.
 - A member of a unit with no head does the same.
 - Two heads of one unit are not each other's managers.
-- An assignment in a group gets no derived manager, and the head of a group is nobody's derived manager. A stored line still works.
+- An assignment in a lateral unit gets no derived manager, and the head of a lateral unit is nobody's derived manager. A stored line still works.
 
 A head can be away, and another person can stand in.
 
