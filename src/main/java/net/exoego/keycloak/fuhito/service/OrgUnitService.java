@@ -655,6 +655,30 @@ public class OrgUnitService {
         return new OrgUnitHistory(unit, versions, store.parentLinks(id), store.hierarchyCodes());
     }
 
+    /**
+     * Returns the first date on which an org unit no longer exists.
+     *
+     * @param id the ID
+     * @return the date, or empty for a unit with no end
+     * @throws FuhitoException when the unit does not exist
+     */
+    public Optional<LocalDate> endOf(String id) {
+        requireUnit(id);
+        return Optional.ofNullable(store.versions(id).getLast().period().to());
+    }
+
+    /**
+     * Lists the parent links of a hierarchy on a date.
+     *
+     * @param hierarchy the code of the hierarchy
+     * @param date the date
+     * @return the links, each with the unit and its parent
+     * @throws FuhitoException when the hierarchy does not exist
+     */
+    public List<OrgUnitLink> parentLinks(String hierarchy, LocalDate date) {
+        return store.linksOn(hierarchyId(hierarchy), date);
+    }
+
     private String hierarchyId(String code) {
         return HierarchyCodes.idOf(store, code);
     }

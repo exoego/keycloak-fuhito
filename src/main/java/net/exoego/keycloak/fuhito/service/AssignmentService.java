@@ -103,6 +103,35 @@ public class AssignmentService {
     }
 
     /**
+     * Links an assignment to the one that it continues, as a transfer between employers does.
+     *
+     * @param id the ID of the assignment
+     * @param previousId the ID of the assignment that it continues
+     * @return the assignment
+     * @throws FuhitoException when an assignment does not exist, or the two are not of the same person
+     */
+    public AssignmentView continueFrom(String id, String previousId) {
+        List<Assignment> rows = store.rows(id);
+        List<Assignment> previous = store.rows(previousId);
+        if (rows.isEmpty()) {
+            throw FuhitoException.notFound("assignment.not_found", Map.of("id", id));
+        }
+        if (previous.isEmpty()) {
+            throw FuhitoException.invalid("assignment.continues_unknown", Map.of("id", previousId));
+        }
+        Optional<String> person = employments.find(rows.getFirst().employmentId()).map(Employment::personId);
+        if (previousId.equals(id) || !person.equals(employments.find(previous.getFirst().employmentId())
+                .map(Employment::personId))) {
+            throw FuhitoException.invalid("assignment.continues_other", Map.of("id", previousId));
+        }
+        rows.forEach(row -> store.update(new Assignment(row.rowId(), id, row.employmentId(), row.orgUnitId(),
+                row.period(), row.jobTitleId(), row.occupationId(), row.kindId(), row.head(), row.primary(),
+                row.allocationPercent(), row.displayOrder(), row.attributes(), row.externalId(), row.source(),
+                previousId)));
+        return get(id);
+    }
+
+    /**
      * Replaces the details of an assignment from a date. The assignment keeps its ID.
      * The change lasts until the next change that is already stored, or until the assignment ends.
      * A change on the first date of stored details corrects those details.

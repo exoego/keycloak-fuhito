@@ -35,7 +35,19 @@ public record ImportDocument(
                 + "reference items, whose attributes they check.")
         List<AttributeDefinitionRow> attributeDefinitions,
         @Schema(description = "The hierarchies. They come before the org units.")
-        List<HierarchyRow> hierarchies) {
+        List<HierarchyRow> hierarchies,
+        @Schema(description = "The parents of org units in hierarchies. They come after the org units.")
+        List<OrgUnitParentRow> orgUnitParents,
+        @Schema(description = "The reporting lines. They come after the assignments.")
+        List<ReportingLineRow> reportingLines,
+        @Schema(description = "The roles over org units. They come after the employments.")
+        List<UnitRoleRow> unitRoles,
+        @Schema(description = "The qualifications. They come after the people.")
+        List<QualificationRow> qualifications,
+        @Schema(description = "The IDs of other systems. They come after every list of resources.")
+        List<ExternalIdRow> externalIds,
+        @Schema(description = "The change orders. They come first.")
+        List<ChangeOrderRow> changeOrders) {
 
     /**
      * Makes a document with no list of kinds.
@@ -52,7 +64,8 @@ public record ImportDocument(
     public ImportDocument(String effectiveDate, boolean dryRun, String source, List<RefItemRow> refItems,
             List<OrgUnitRow> orgUnits, List<EmploymentRow> employments, List<AssignmentRow> assignments,
             List<PersonRow> people) {
-        this(effectiveDate, dryRun, source, refItems, orgUnits, employments, assignments, people, null, null, null);
+        this(effectiveDate, dryRun, source, refItems, orgUnits, employments, assignments, people, null, null, null,
+                null, null, null, null, null, null);
     }
 
     /**
@@ -68,7 +81,192 @@ public record ImportDocument(
      */
     public ImportDocument(String effectiveDate, boolean dryRun, String source, List<RefItemRow> refItems,
             List<OrgUnitRow> orgUnits, List<EmploymentRow> employments, List<AssignmentRow> assignments) {
-        this(effectiveDate, dryRun, source, refItems, orgUnits, employments, assignments, null, null, null, null);
+        this(effectiveDate, dryRun, source, refItems, orgUnits, employments, assignments, null, null, null, null,
+                null, null, null, null, null, null);
+    }
+
+    @Schema(
+            name = "ImportChangeOrderRow",
+            description = "A change order. It is matched by number, or by `id`. A row needs one of them. A row of a "
+                    + "stored order replaces its values, as `PUT` does. The announcement is not part of a row.",
+            requiredProperties = {"title"})
+    public record ChangeOrderRow(
+            @Schema(description = "The ID of a stored order. A CSV export has it in every row.")
+            String id,
+            @Schema(maxLength = 64, pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$")
+            String number,
+            @Schema(maxLength = 64, pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$")
+            String kind,
+            @Schema(maxLength = 255)
+            String title,
+            String note,
+            @Schema(format = "date")
+            String orderDate,
+            @Schema(description = "The default is the effective date of the import.", format = "date")
+            String effectiveDate,
+            @Schema(description = "The ID of the Keycloak user who approved it. Give this or `approverUsername`.")
+            String approverUserId,
+            @Schema(description = "The username of the user who approved it.")
+            String approverUsername,
+            @Schema(description = "The ID of the Keycloak user who asked for it. Give this or `requesterUsername`.")
+            String requesterUserId,
+            @Schema(description = "The username of the user who asked for it.")
+            String requesterUsername,
+            @Schema(description = "A reference in another system, such as a workflow.")
+            String externalReference) {
+    }
+
+    @Schema(
+            name = "ImportExternalIdRow",
+            description = "The ID that another system has for a resource. It is matched by type of resource, "
+                    + "resource, and source. Another external ID replaces the stored one, and an empty text removes "
+                    + "it.",
+            requiredProperties = {"resourceType", "resourceId", "externalId"})
+    public record ExternalIdRow(
+            @Schema(enumeration = {"ORG_UNIT", "PERSON", "EMPLOYMENT", "ASSIGNMENT", "QUALIFICATION"})
+            String resourceType,
+            @Schema(description = "The ID of the resource.")
+            String resourceId,
+            @Schema(
+                    description = "The name of the other system. The default is the source of the document. It "
+                            + "cannot be the source of the pair that the resource itself has.",
+                    maxLength = 64,
+                    pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$")
+            String source,
+            @Schema(description = "The ID in that system, or an empty text to remove the stored one.")
+            String externalId) {
+    }
+
+    @Schema(
+            name = "ImportQualificationRow",
+            description = "A qualification of a person, such as a license. It is matched by source and external ID, "
+                    + "or by `id`. A row needs one of them. A row of a stored one replaces its kind, number, dates, "
+                    + "and attributes, as `PUT` does.",
+            requiredProperties = {"kind"})
+    public record QualificationRow(
+            @Schema(description = "The ID of a stored qualification. A CSV export has it in every row.")
+            String id,
+            @Schema(
+                    description = "The name of the system that the row comes from. The default is the source of the "
+                            + "document.",
+                    maxLength = 64,
+                    pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$")
+            String source,
+            @Schema(description = "The ID of the qualification in that system.")
+            String externalId,
+            @Schema(description = "The external ID of the person, with the same source. Give one of the three ways "
+                    + "to name the person. A row of a stored qualification may name nobody.")
+            String personExternalId,
+            @Schema(description = "The ID of the person.")
+            String personId,
+            @Schema(description = "The username of the person. The person of the user is used, and created when the "
+                    + "user has none.")
+            String username,
+            @Schema(description = "The code of a reference item of the kind `QUALIFICATION`.")
+            String kind,
+            @Schema(description = "The number, for example of a license.", maxLength = 255)
+            String number,
+            @Schema(description = "The first date. The default is the effective date.", format = "date")
+            String validFrom,
+            @Schema(description = "The first date on which it no longer holds. None for no end.", format = "date")
+            String validTo,
+            @Schema(description = "Free values that the realm defines.")
+            Map<String, Object> attributes) {
+    }
+
+    @Schema(
+            name = "ImportUnitRoleRow",
+            description = "A role that an employment holds over an org unit. It is matched by employment, org unit, "
+                    + "and role, or by `id`. A row that changes `includesDescendants` ends the stored role and starts "
+                    + "a new one on the date.")
+    public record UnitRoleRow(
+            @Schema(description = "The ID of a stored role. A CSV export has it in every row. A new role has none.")
+            String id,
+            @Schema(
+                    description = "The name of the system that the external IDs come from. The default is the "
+                            + "source of the document.",
+                    maxLength = 64,
+                    pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$")
+            String source,
+            @Schema(description = "The external ID of the employment. Give this or `employmentId`.")
+            String employmentExternalId,
+            @Schema(description = "The ID of the employment.")
+            String employmentId,
+            @Schema(description = "The external ID of the org unit. Give this or `orgUnitId`.")
+            String orgUnitExternalId,
+            @Schema(description = "The ID of the org unit.")
+            String orgUnitId,
+            @Schema(description = "The code of a reference item of the kind `UNIT_ROLE`.")
+            String role,
+            @Schema(description = "True when the role also covers the units below.", defaultValue = "false")
+            Boolean includesDescendants,
+            @Schema(description = "The first date of a new role. The default is the effective date. A stored role "
+                    + "ignores it.", format = "date")
+            String validFrom,
+            @Schema(description = "The first date on which the role no longer holds. The default is the end of the "
+                    + "employment.", format = "date")
+            String validTo) {
+    }
+
+    @Schema(
+            name = "ImportReportingLineRow",
+            description = "A reporting line from an assignment to a manager. It is matched by assignment, manager, "
+                    + "and kind, or by `id`. A new solid manager ends the solid line that the assignment has on the "
+                    + "date.")
+    public record ReportingLineRow(
+            @Schema(description = "The ID of a stored line. A CSV export has it in every row. A new line has none.")
+            String id,
+            @Schema(
+                    description = "The name of the system that the external IDs come from. The default is the "
+                            + "source of the document.",
+                    maxLength = 64,
+                    pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$")
+            String source,
+            @Schema(description = "The external ID of the assignment of the person who reports. Give this or "
+                    + "`assignmentId`.")
+            String assignmentExternalId,
+            @Schema(description = "The ID of the assignment.")
+            String assignmentId,
+            @Schema(description = "The external ID of the person who is the manager. Give one of the three ways "
+                    + "to name the manager.")
+            String managerPersonExternalId,
+            @Schema(description = "The ID of the person who is the manager.")
+            String managerPersonId,
+            @Schema(description = "The username of the manager. The person of the user is used, and created when "
+                    + "the user has none.")
+            String managerUsername,
+            @Schema(enumeration = {"SOLID", "DOTTED"}, defaultValue = "SOLID")
+            String kind,
+            @Schema(description = "The first date of a new line. The default is the effective date. A stored line "
+                    + "ignores it.", format = "date")
+            String validFrom,
+            @Schema(description = "The first date on which the line no longer holds. The default is the end of the "
+                    + "assignment.", format = "date")
+            String validTo) {
+    }
+
+    @Schema(
+            name = "ImportOrgUnitParentRow",
+            description = "The parent of an org unit in a hierarchy from the effective date. It is matched by "
+                    + "hierarchy and org unit. A row with no parent takes the unit out of the hierarchy.",
+            requiredProperties = {"hierarchy"})
+    public record OrgUnitParentRow(
+            @Schema(description = "The code of the hierarchy.")
+            String hierarchy,
+            @Schema(
+                    description = "The name of the system that the external IDs come from. The default is the "
+                            + "source of the document.",
+                    maxLength = 64,
+                    pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$")
+            String source,
+            @Schema(description = "The external ID of the org unit. Give this or `orgUnitId`.")
+            String orgUnitExternalId,
+            @Schema(description = "The ID of the org unit.")
+            String orgUnitId,
+            @Schema(description = "The external ID of the parent. Give this or `parentId`, or none for no parent.")
+            String parentExternalId,
+            @Schema(description = "The ID of the parent.")
+            String parentId) {
     }
 
     @Schema(
@@ -102,6 +300,31 @@ public record ImportDocument(
             String refKind,
             @Schema(description = "True when every write of the resource must give a value.", defaultValue = "false")
             Boolean required) {
+    }
+
+    /**
+     * Makes a document with one list.
+     *
+     * @param effectiveDate the date of the state, as {@code YYYY-MM-DD}
+     * @param dryRun true to do all checks and write nothing
+     * @param source the name of the system that the rows come from, or null
+     * @param list the name of the list, as the document names it, for example {@code orgUnits}
+     * @param rows the rows of the list
+     * @return the document
+     */
+    static ImportDocument of(String effectiveDate, boolean dryRun, String source, String list, List<?> rows) {
+        Map<String, List<?>> lists = Map.of(list, rows);
+        return new ImportDocument(effectiveDate, dryRun, source, rows(lists, "refItems"), rows(lists, "orgUnits"),
+                rows(lists, "employments"), rows(lists, "assignments"), rows(lists, "people"),
+                rows(lists, "refKinds"), rows(lists, "attributeDefinitions"), rows(lists, "hierarchies"),
+                rows(lists, "orgUnitParents"), rows(lists, "reportingLines"), rows(lists, "unitRoles"),
+                rows(lists, "qualifications"), rows(lists, "externalIds"), rows(lists, "changeOrders"));
+    }
+
+    // The name of the list tells the type of its rows.
+    @SuppressWarnings("unchecked")
+    private static <R> List<R> rows(Map<String, List<?>> lists, String list) {
+        return (List<R>) lists.get(list);
     }
 
     @Schema(
@@ -212,7 +435,23 @@ public record ImportDocument(
             String employerId,
             @Schema(description = "The ID of a stored employment, for a row of an employment with no external ID. A "
                     + "CSV export has it in every row. A new employment has none.")
-            String id) {
+            String id,
+            @Schema(description = "The external ID of the employment that this one continues after a transfer "
+                    + "between employers, with the same source. A new employment gets the link. A stored one must "
+                    + "have the same.")
+            String continuesEmploymentExternalId,
+            @Schema(description = "The ID of the employment that this one continues. Give this or "
+                    + "`continuesEmploymentExternalId`, not both.")
+            String continuesEmploymentId) {
+
+        public EmploymentRow(String source, String externalId, String username, String userId, String staffNumber,
+                String employmentType, String grade, String status, String leaveReason, BigDecimal workPercent,
+                Map<String, Object> attributes, String validFrom, String validTo, String endReason,
+                String employerExternalId, String personExternalId, String personId, String employerId, String id) {
+            this(source, externalId, username, userId, staffNumber, employmentType, grade, status, leaveReason,
+                    workPercent, attributes, validFrom, validTo, endReason, employerExternalId, personExternalId,
+                    personId, employerId, id, null, null);
+        }
 
         /**
          * Makes a row that names no employer.
@@ -235,7 +474,7 @@ public record ImportDocument(
                 String employmentType, String grade, String status, BigDecimal workPercent,
                 Map<String, Object> attributes, String validFrom, String validTo, String endReason) {
             this(source, externalId, username, userId, staffNumber, employmentType, grade, status, null,
-                    workPercent, attributes, validFrom, validTo, endReason, null, null, null, null, null);
+                    workPercent, attributes, validFrom, validTo, endReason, null, null, null, null, null, null, null);
         }
     }
 
@@ -296,7 +535,23 @@ public record ImportDocument(
             String orgUnitId,
             @Schema(description = "The ID of a stored assignment, for a row of an assignment with no external ID. A "
                     + "CSV export has it in every row. A new assignment has none.")
-            String id) {
+            String id,
+            @Schema(description = "The external ID of the assignment that this one continues after a transfer "
+                    + "between employers, with the same source. A new assignment gets the link. A stored one must "
+                    + "have the same.")
+            String continuesAssignmentExternalId,
+            @Schema(description = "The ID of the assignment that this one continues. Give this or "
+                    + "`continuesAssignmentExternalId`, not both.")
+            String continuesAssignmentId) {
+
+        public AssignmentRow(String source, String externalId, String employmentExternalId,
+                String orgUnitExternalId, String jobTitle, String occupation, String kind, Boolean head,
+                Boolean primary, BigDecimal allocationPercent, Integer displayOrder, Map<String, Object> attributes,
+                String validFrom, String validTo, String employmentId, String orgUnitId, String id) {
+            this(source, externalId, employmentExternalId, orgUnitExternalId, jobTitle, occupation, kind, head,
+                    primary, allocationPercent, displayOrder, attributes, validFrom, validTo, employmentId, orgUnitId,
+                    id, null, null);
+        }
 
         /**
          * Makes a row that names the employment and the org unit by external ID.
@@ -321,7 +576,8 @@ public record ImportDocument(
                 Boolean primary, BigDecimal allocationPercent, Integer displayOrder, Map<String, Object> attributes,
                 String validFrom, String validTo) {
             this(source, externalId, employmentExternalId, orgUnitExternalId, jobTitle, occupation, kind, head,
-                    primary, allocationPercent, displayOrder, attributes, validFrom, validTo, null, null, null);
+                    primary, allocationPercent, displayOrder, attributes, validFrom, validTo, null, null, null, null,
+                    null);
         }
     }
 
@@ -420,6 +676,29 @@ public record ImportDocument(
             String validTo,
             @Schema(description = "The ID of a stored unit, for a row of a unit with no external ID. A CSV export has "
                     + "it in every row. A new unit has none.")
-            String id) {
+            String id,
+            @Schema(description = "The external IDs of the units that follow this one from `validTo`, with the same "
+                    + "source. A row with successors needs `validTo`. The end and the successors are one write.")
+            List<String> successorExternalIds,
+            @Schema(description = "The IDs of the units that follow this one from `validTo`.")
+            List<String> successorIds,
+            @Schema(description = "The alias of the Keycloak organization that the unit is linked to. A row that "
+                    + "leaves it out keeps the link. An empty text removes it.")
+            String organizationAlias,
+            @Schema(description = "The time zone of the unit and the units below, for example `Asia/Tokyo`. A row "
+                    + "that leaves it out keeps it. An empty text removes it.")
+            String timeZone,
+            @Schema(description = "The time of day when the date changes, as `HH:mm`. A row that leaves it out keeps "
+                    + "it. An empty text removes it.")
+            String dayStart) {
+
+        public OrgUnitRow(String source, String externalId, String code, String name, Map<String, String> names,
+                String shortName, Map<String, String> shortNames, String phoneticName, String unitType,
+                String parentExternalId, String parentId, Integer displayOrder, Map<String, Object> attributes,
+                String validFrom, String validTo, String id) {
+            this(source, externalId, code, name, names, shortName, shortNames, phoneticName, unitType,
+                    parentExternalId, parentId, displayOrder, attributes, validFrom, validTo, id, null, null, null,
+                    null, null);
+        }
     }
 }

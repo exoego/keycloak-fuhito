@@ -1,6 +1,7 @@
 package net.exoego.keycloak.fuhito.store;
 
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -29,6 +30,14 @@ public interface ReportingLineStore {
     List<ReportingLine> findByAssignment(String assignmentId);
 
     /**
+     * Lists the lines of several assignments, oldest first.
+     *
+     * @param assignmentIds the IDs of the assignments
+     * @return the lines of those assignments
+     */
+    List<ReportingLine> findByAssignments(Collection<String> assignmentIds);
+
+    /**
      * Lists the reporting lines to a manager, oldest first.
      *
      * @param managerPersonId the ID of the person who is the manager
@@ -42,6 +51,16 @@ public interface ReportingLineStore {
      * @param line the line
      */
     void insert(ReportingLine line);
+
+    /**
+     * Lists a page of the lines that hold on a date, ordered by ID.
+     *
+     * @param date the date
+     * @param afterId the ID after which the page starts, or null for the start
+     * @param max the largest number of lines
+     * @return the lines
+     */
+    List<ReportingLine> listOn(LocalDate date, String afterId, int max);
 
     /**
      * Stores the new state of an existing reporting line.

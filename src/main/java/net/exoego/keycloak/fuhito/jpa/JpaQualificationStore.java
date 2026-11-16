@@ -90,6 +90,19 @@ public class JpaQualificationStore implements QualificationStore {
     }
 
     @Override
+    public Optional<Qualification> findByExternalId(String source, String externalId) {
+        return em.createQuery("""
+                        select q from QualificationEntity q where q.realmId = :realmId
+                        and q.source = :source and q.externalId = :externalId""", QualificationEntity.class)
+                .setParameter("realmId", realmId)
+                .setParameter("source", source)
+                .setParameter("externalId", externalId)
+                .getResultStream()
+                .findFirst()
+                .map(JpaQualificationStore::toDomain);
+    }
+
+    @Override
     public List<Qualification> findByPerson(String personId) {
         return em.createQuery("""
                         select q from QualificationEntity q where q.realmId = :realmId

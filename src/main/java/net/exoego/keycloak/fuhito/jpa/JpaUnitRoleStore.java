@@ -103,6 +103,16 @@ public class JpaUnitRoleStore implements UnitRoleStore {
     }
 
     @Override
+    public List<UnitRole> listOn(LocalDate date, String afterId, int max) {
+        return list(em.createQuery(WITH_PERSON.formatted("""
+                        r.validFrom <= :date and (r.validTo is null or r.validTo > :date) and r.id > :after
+                        order by r.id"""), Object[].class)
+                .setParameter("date", date)
+                .setParameter("after", afterId == null ? "" : afterId)
+                .setMaxResults(max));
+    }
+
+    @Override
     public void insert(UnitRole role) {
         UnitRoleEntity entity = new UnitRoleEntity();
         entity.id = role.id();

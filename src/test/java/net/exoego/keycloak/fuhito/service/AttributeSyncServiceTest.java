@@ -6,9 +6,13 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import net.exoego.keycloak.fuhito.domain.Assignment;
 import net.exoego.keycloak.fuhito.domain.Employment;
@@ -34,7 +38,16 @@ class AttributeSyncServiceTest {
     private Clock clock = Clock.fixed(Instant.parse("2026-06-15T03:00:00Z"), TOKYO);
     private boolean enabled = true;
     private final Map<String, UserAttributeSource.Values> attributes = new LinkedHashMap<>();
+    // Users that a user storage provider holds. The API of Keycloak finds them, and its tables do not.
+    private final Set<String> federated = new HashSet<>();
+    private final List<Collection<String>> usersAsked = new ArrayList<>();
     private final UserAttributeSource source = new UserAttributeSource() {
+        @Override
+        public Set<String> usersAmong(Collection<String> userIds) {
+            usersAsked.add(List.copyOf(userIds));
+            return userIds.stream().filter(attributes::containsKey).collect(Collectors.toSet());
+        }
+
         @Override
         public Settings settings() {
             return new Settings(enabled, "department", "title", "manager", "employeeNumber");
@@ -95,12 +108,16 @@ class AttributeSyncServiceTest {
         return rule == null ? Today.of(clock) : new UnitDays(orgUnitStore, rule, clock);
     }
 
+    private boolean known(String userId) {
+        return attributes.containsKey(userId) || federated.contains(userId);
+    }
+
     private AttributeSyncService.Sources sources() {
         ReportingLineService lineService = new ReportingLineService(lineStore, new ReportingLineService.Sources(
-                assignmentStore, employmentStore, orgUnitStore, refItems, attributes::containsKey, people), clock);
-        return new AttributeSyncService.Sources(source, attributes::containsKey,
+                assignmentStore, employmentStore, orgUnitStore, refItems, this::known, people), clock);
+        return new AttributeSyncService.Sources(source, this::known,
                 orgUnitStore, refItems, employmentStore, employments(), assignmentStore, assignments(), lineStore,
-                lineService, new PersonService(people, attributes::containsKey, id -> false));
+                lineService, new PersonService(people, this::known, id -> false));
     }
 
     @Test
@@ -283,6 +300,22 @@ class AttributeSyncServiceTest {
         assertEquals(List.of("boss 2026-06-15 2026-06-16"), managersOf("alice"));
         assertEquals(List.of("boss 2026-06-15 2026-06-16"), managersOf("bob"));
         assertEquals(List.of("Internal Medicine 2026-06-15 null - primary"), assignmentsOf("bob"));
+    }
+
+    @Test
+    void asksForTheManagersOfAPieceAtOnceAndFindsOneThatOnlyTheApiKnows() {
+        federated.add("ldap-boss");
+        set("boss", "med", null, null, null);
+        set("alice", "med", null, "boss", null);
+        set("bob", "med", null, "ldap-boss", null);
+
+        SyncReport report = run();
+
+        assertEquals(List.of(), report.unmatched());
+        assertEquals(2, report.reportingLinesChanged());
+        assertEquals(List.of("ldap-boss 2026-06-15 null"), managersOf("bob"));
+        assertEquals(1, usersAsked.size());
+        assertEquals(Set.of("boss", "ldap-boss"), Set.copyOf(usersAsked.getFirst()));
     }
 
     @Test

@@ -126,6 +126,38 @@ public class UnitRoleService {
     }
 
     /**
+     * Finds a role.
+     *
+     * @param id the ID
+     * @return the role, or empty when the realm has no such role
+     */
+    public Optional<View> find(String id) {
+        return store.find(id).map(role -> view(role, new HashMap<>()));
+    }
+
+    /**
+     * Lists the roles of an employment, oldest first.
+     *
+     * @param employmentId the ID of the employment
+     * @return the roles
+     */
+    public List<View> ofEmployment(String employmentId) {
+        return views(store.findByEmployment(employmentId));
+    }
+
+    /**
+     * Lists a page of the roles that hold on a date, ordered by ID.
+     *
+     * @param date the date
+     * @param afterId the ID after which the page starts, or null for the start
+     * @param max the largest number of roles
+     * @return the roles
+     */
+    public List<View> listOn(LocalDate date, String afterId, int max) {
+        return views(store.listOn(date, afterId, max));
+    }
+
+    /**
      * Ends a role earlier.
      *
      * @param id the ID

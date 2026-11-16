@@ -84,6 +84,27 @@ class ImportIT {
     }
 
     @Test
+    void importsAHierarchyAndTheParentsInIt() throws Exception {
+        TestRealm realm = TestRealm.create("import-parents");
+        String document = """
+                {"effectiveDate": "2026-04-01", "source": "sheet",
+                 "hierarchies": [{"code": "project", "name": "プロジェクト"}],
+                 "orgUnits": [{"externalId": "P", "name": "P"}, {"externalId": "C", "name": "C"}],
+                 "orgUnitParents": [{"hierarchy": "project", "orgUnitExternalId": "C", "parentExternalId": "P"}]}
+                """;
+
+        JsonNode first = ok(realm.api.post("/imports", document));
+        JsonNode again = ok(realm.api.post("/imports", document));
+
+        assertEquals(1, first.get("counts").get("orgUnitParents").get("changed").asInt(), first.toString());
+        assertEquals(1, again.get("counts").get("orgUnitParents").get("unchanged").asInt(), again.toString());
+        JsonNode roots = Api.json(realm.api.get("/org-units?asOf=2026-04-01&hierarchy=project"));
+        assertEquals(List.of("P"), roots.findValuesAsText("name"));
+        assertEquals(List.of("C"), Api.json(realm.api.get("/org-units/" + roots.get(0).get("id").asText()
+                + "/children?asOf=2026-04-01&hierarchy=project")).findValuesAsText("name"));
+    }
+
+    @Test
     void aDryRunChecksEverythingAndWritesNothing() throws Exception {
         TestRealm realm = TestRealm.create("import-dry-run");
 
