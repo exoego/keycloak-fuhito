@@ -5,6 +5,8 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import net.exoego.keycloak.fuhito.domain.UnitRole;
 import net.exoego.keycloak.fuhito.store.UnitRoleStore;
@@ -30,16 +32,18 @@ final class MemoryUnitRoleStore implements UnitRoleStore {
     }
 
     @Override
-    public List<UnitRole> holdersOn(String hierarchyId, String orgUnitId, String roleId, LocalDate date, int first,
-            int max) {
+    public List<UnitRole> holdersOn(String hierarchyId, String orgUnitId, String roleId, boolean nearest,
+            LocalDate date, int first, int max) {
         List<OrgUnitState> path = new OrgUnitTree(orgUnits, refItems, date, hierarchyId).path(orgUnitId);
         List<UnitRole> found = new ArrayList<>();
         for (int depth = 0; depth < path.size(); depth++) {
             String unitId = path.get(path.size() - 1 - depth).unit().id();
             boolean own = depth == 0;
+            Set<String> nearer = found.stream().map(UnitRole::roleId).collect(Collectors.toSet());
             roles.stream()
                     .filter(r -> r.orgUnitId().equals(unitId) && r.period().contains(date)
-                            && (own || r.includesDescendants()) && (roleId == null || roleId.equals(r.roleId())))
+                            && (own || r.includesDescendants()) && (roleId == null || roleId.equals(r.roleId()))
+                            && !(nearest && nearer.contains(r.roleId())))
                     .sorted(Comparator.comparing((UnitRole r) -> refItems.find(r.roleId()).orElseThrow().code())
                             .thenComparing(UnitRole::id))
                     .forEach(found::add);

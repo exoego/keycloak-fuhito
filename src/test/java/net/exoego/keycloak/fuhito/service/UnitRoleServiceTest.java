@@ -84,13 +84,18 @@ class UnitRoleServiceTest {
         assertTrue(hr.role().includesDescendants());
         assertEquals("alice", hr.role().userId());
         assertEquals(hr, service.get(hr.role().id()));
-        assertEquals(List.of("bob hr-contact", "alice hr-contact"), summary(service.holders(ward, null, null,
+        assertEquals(List.of("bob hr-contact", "alice hr-contact"), summary(service.holders(ward, null, false, null,
                 Page.of(null, null))));
-        assertEquals(List.of("alice hr-contact"), summary(service.holders(ward, null, "2026-04-15",
+        assertEquals(List.of("alice hr-contact"), summary(service.holders(ward, null, false, "2026-04-15",
                 Page.of(null, null))));
-        assertEquals(List.of("bob approver", "alice hr-contact"), summary(service.holders(division, null, null,
+        assertEquals(List.of("bob approver", "alice hr-contact"), summary(service.holders(division, null, false, null,
                 Page.of(null, null))));
-        assertEquals(List.of("bob approver"), summary(service.holders(division, "approver", null,
+        assertEquals(List.of("bob approver"), summary(service.holders(division, "approver", false, null,
+                Page.of(null, null))));
+        // The HR contact of the ward hides the one of the division when only the nearest are asked for.
+        assertEquals(List.of("bob hr-contact"), summary(service.holders(ward, null, true, null,
+                Page.of(null, null))));
+        assertEquals(List.of("alice hr-contact"), summary(service.holders(ward, null, true, "2026-04-15",
                 Page.of(null, null))));
         assertEquals(List.of("bob approver", "bob hr-contact"), summary(service.ofPerson("bob", null,
                 Page.of(null, null))));
@@ -116,9 +121,9 @@ class UnitRoleServiceTest {
                 null, null, null, null)).unit().id();
         assertEquals("unit_role.org_unit_not_valid", code(() -> service.add(alice, later, "approver", null,
                 "2026-04-01", null)));
-        assertEquals("ref_item.unknown", code(() -> service.holders(ward, "nurse", null, Page.of(null, null))));
+        assertEquals("ref_item.unknown", code(() -> service.holders(ward, "nurse", false, null, Page.of(null, null))));
         assertEquals("unit_role.not_found", code(() -> service.get("nope")));
-        assertEquals("org_unit.not_found", code(() -> service.holders("nope", null, null, Page.of(null, null))));
+        assertEquals("org_unit.not_found", code(() -> service.holders("nope", null, false, null, Page.of(null, null))));
     }
 
     @Test

@@ -51,6 +51,15 @@ class UnitRolesIT {
         assertEquals(200, ended.statusCode(), ended.body());
         assertEquals("2026-06-01", Api.json(ended).get("validTo").asText());
         assertEquals(204, api.delete("/unit-roles/" + approver).statusCode());
+        String wardContact = created(api.post("/unit-roles", "{\"employmentId\": \"" + employment
+                + "\", \"orgUnitId\": \"" + ward + "\", \"role\": \"hr-contact\", \"validFrom\": \"2026-04-01\"}"))
+                .get("id").asText();
+        assertEquals(List.of(wardContact, id), Api.json(api.get("/org-units/" + ward
+                + "/role-holders?asOf=2026-05-01")).findValuesAsText("id"));
+        // The HR contact of the ward hides the one of the division when only the nearest are asked for.
+        assertEquals(List.of(wardContact), Api.json(api.get("/org-units/" + ward
+                + "/role-holders?nearest=true&asOf=2026-05-01")).findValuesAsText("id"));
+        assertEquals(204, api.delete("/unit-roles/" + wardContact).statusCode());
         assertEquals(List.of(id), Api.json(api.get("/people/" + person + "/unit-roles?asOf=2026-05-01"))
                 .findValuesAsText("id"));
         assertEquals(List.of("fuhito/unit-roles/" + id), Api.json(api.get(
