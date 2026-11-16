@@ -37,6 +37,19 @@ public interface RequestContext {
     void requireWrite();
 
     /**
+     * Requires the permission of Keycloak to manage a user. Throws when the caller lacks it.
+     * A user that does not exist asks for nothing here.
+     *
+     * @param userId the ID of the Keycloak user
+     */
+    void requireManageUser(String userId);
+
+    /**
+     * Requires the permission of Keycloak to manage the groups of the realm. Throws when the caller lacks it.
+     */
+    void requireManageGroups();
+
+    /**
      * Requires the permission to manage the members of a Keycloak organization. Throws when the caller lacks it.
      * An organization that does not exist asks for nothing here, and fails where it is used.
      *

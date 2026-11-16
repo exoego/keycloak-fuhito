@@ -12,6 +12,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -199,6 +200,50 @@ public class ProjectionService {
      */
     public ProjectionReport rebuild() {
         return work.alone(this::rebuildAlone);
+    }
+
+    /**
+     * Makes the groups and the memberships match the org structure of today, for a caller who must be allowed to
+     * change each place the rebuild may write to. The checks run before anything is written.
+     *
+     * @param mayChangeOrganization throws when the caller may not change the organization with the given ID
+     * @param mayChangeRealmGroups throws when the caller may not change the realm groups
+     * @return what the rebuild changed
+     * @throws FuhitoException when the realm did not turn the projection on, two sibling units have one name,
+     *         or another rebuild is going on
+     */
+    public ProjectionReport rebuild(Consumer<String> mayChangeOrganization, Runnable mayChangeRealmGroups) {
+        // A rebuild that fails for another reason fails in its run, which keeps the failure.
+        if (piece(parts -> parts.keycloak().projectionEnabled())) {
+            organizationsToChange().forEach(mayChangeOrganization);
+            if (namesRealmGroup()) {
+                mayChangeRealmGroups.run();
+            }
+        }
+        return rebuild();
+    }
+
+    private boolean namesRealmGroup() {
+        try {
+            return piece(parts -> parts.keycloak().realmGroupRoot()).isPresent();
+        } catch (FuhitoException e) {
+            return true;
+        }
+    }
+
+    // The linked organizations, and those that keep groups of an earlier rebuild, which this one removes.
+    private Set<String> organizationsToChange() {
+        Set<String> result = piece(parts -> parts.orgUnits().units().stream()
+                .map(OrgUnit::keycloakOrganizationId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toCollection(TreeSet::new)));
+        for (String organizationId : piece(parts -> parts.keycloak().organizations())) {
+            if (!result.contains(organizationId) && piece(parts -> parts.keycloak().groups(organizationId)).stream()
+                    .anyMatch(group -> group.orgUnitId() != null)) {
+                result.add(organizationId);
+            }
+        }
+        return result;
     }
 
     private ProjectionReport rebuildAlone() {

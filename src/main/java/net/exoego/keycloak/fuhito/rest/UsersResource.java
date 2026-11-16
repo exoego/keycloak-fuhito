@@ -93,6 +93,7 @@ public class UsersResource {
             @Parameter(
                     description = """
                             True to also empty the first and the last name of the linked Keycloak user. \
+                            It also needs the permission of Keycloak to manage that user. \
                             The username, the email, and the attributes stay. \
                             False leaves the Keycloak user as it is, so responses still show its name. \
                             A read-only user, for example from a user store, cannot be changed. \
@@ -103,6 +104,9 @@ public class UsersResource {
         context.requireWrite();
         return Calls.run(context, () -> {
             requireKnown(userId);
+            if (clearKeycloakName) {
+                context.requireManageUser(userId);
+            }
             // A user with nothing stored gets a person, so that the masking is remembered.
             PersonService.Resolved resolved = people.forUser(userId);
             if (resolved.created() != null) {

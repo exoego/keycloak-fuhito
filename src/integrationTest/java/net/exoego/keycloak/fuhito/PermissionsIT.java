@@ -4,9 +4,12 @@ import java.net.http.HttpResponse;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.ws.rs.core.Response;
@@ -17,7 +20,9 @@ import org.keycloak.admin.client.CreatedResponseUtil;
 import org.keycloak.admin.client.Keycloak;
 import org.keycloak.admin.client.KeycloakBuilder;
 import org.keycloak.representations.idm.CredentialRepresentation;
+import org.keycloak.representations.idm.GroupRepresentation;
 import org.keycloak.representations.idm.RealmRepresentation;
+import org.keycloak.representations.idm.RoleRepresentation;
 import org.keycloak.representations.idm.UserRepresentation;
 
 import static net.exoego.keycloak.fuhito.KeycloakEnvironment.KEYCLOAK;
@@ -26,7 +31,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * What an administrator may read with each role of Keycloak.
+ * What a caller may do with each role of the extension.
  */
 class PermissionsIT {
 
@@ -49,12 +54,12 @@ class PermissionsIT {
         assertEquals(201, created.statusCode(), created.body());
         unit = Api.json(created).get("id").asText();
 
-        structureReader = administrator(admin, REALM, "master-realm", "structure-reader", "query-users");
-        reader = administrator(admin, REALM, "master-realm", "people-reader", "view-users");
+        structureReader = administrator(admin, REALM, "master-realm", "structure-reader", "fuhito-view-structure");
+        reader = administrator(admin, REALM, "master-realm", "people-reader", "fuhito-view-people");
     }
 
     static Api administrator(Keycloak admin, String realm, String adminClient, String username,
-            String role) {
+            String... roles) {
         var credential = new CredentialRepresentation();
         credential.setType(CredentialRepresentation.PASSWORD);
         credential.setValue(PASSWORD);
@@ -64,7 +69,7 @@ class PermissionsIT {
         user.setEmail(username + "@example.com");
         user.setEmailVerified(true);
         user.setFirstName("Permissions");
-        user.setLastName(role);
+        user.setLastName(String.join(" ", roles));
         user.setEnabled(true);
         user.setCredentials(List.of(credential));
         String userId;
@@ -73,8 +78,10 @@ class PermissionsIT {
             userId = CreatedResponseUtil.getCreatedId(response);
         }
         String adminClientId = admin.realm(realm).clients().findByClientId(adminClient).get(0).getId();
-        var granted = admin.realm(realm).clients().get(adminClientId).roles().get(role).toRepresentation();
-        admin.realm(realm).users().get(userId).roles().clientLevel(adminClientId).add(List.of(granted));
+        var granted = Arrays.stream(roles)
+                .map(role -> admin.realm(realm).clients().get(adminClientId).roles().get(role).toRepresentation())
+                .toList();
+        admin.realm(realm).users().get(userId).roles().clientLevel(adminClientId).add(granted);
 
         Keycloak client = KeycloakBuilder.builder()
                 .serverUrl(KEYCLOAK.getAuthServerUrl())
@@ -105,7 +112,7 @@ class PermissionsIT {
     }
 
     @Test
-    void aCallerWhoMayQueryUsersReadsTheStructureOnly() throws Exception {
+    void aCallerWhoMayViewTheStructureReadsTheStructureOnly() throws Exception {
         for (String path : structureReads()) {
             assertEquals(200, structureReader.get(path).statusCode(), path);
         }
@@ -116,7 +123,7 @@ class PermissionsIT {
     }
 
     @Test
-    void aCallerWhoMayViewUsersReadsEverythingAndWritesNothing() throws Exception {
+    void aCallerWhoMayViewPeopleReadsEverythingAndWritesNothing() throws Exception {
         for (String path : structureReads()) {
             assertEquals(200, reader.get(path).statusCode(), path);
         }
@@ -127,12 +134,59 @@ class PermissionsIT {
     }
 
     @Test
-    void aRealmLimitsHowFarAheadACallerWhoMayQueryUsersReadsTheStructure() throws Exception {
+    void theRolesOfKeycloakForUsersGiveNoAccess() throws Exception {
+        Keycloak admin = KEYCLOAK.getKeycloakAdminClient();
+        for (String role : List.of("query-users", "view-users", "manage-users")) {
+            Api caller = administrator(admin, REALM, "master-realm", "keycloak-" + role, role);
+            assertEquals(403, caller.get("/org-units").statusCode(), role);
+            assertEquals(403, caller.get("/people").statusCode(), role);
+            assertEquals(403, caller.post("/org-units", "{\"name\": \"x\", \"validFrom\": \"2020-04-01\"}")
+                    .statusCode(), role);
+        }
+    }
+
+    @Test
+    void aRealmHasTheRolesAndItsAdministratorsHoldThem() throws Exception {
+        TestRealm realm = TestRealm.create("roles");
+        try {
+            Keycloak admin = KEYCLOAK.getKeycloakAdminClient();
+            String management = admin.realm(realm.name).clients().findByClientId("realm-management").get(0).getId();
+            String masterClient = admin.realm(REALM).clients().findByClientId(realm.name + "-realm").get(0).getId();
+            for (var roles : List.of(admin.realm(realm.name).clients().get(management).roles(),
+                    admin.realm(REALM).clients().get(masterClient).roles())) {
+                assertEquals(Set.of("fuhito-view-people"), names(roles.get("fuhito-manage").getRoleComposites()));
+                assertEquals(Set.of("fuhito-view-structure"),
+                        names(roles.get("fuhito-view-people").getRoleComposites()));
+            }
+            assertTrue(names(admin.realm(realm.name).clients().get(management).roles().get("realm-admin")
+                    .getRoleComposites()).contains("fuhito-manage"));
+            assertTrue(admin.realm(REALM).roles().get("admin").getRoleComposites().stream()
+                    .anyMatch(role -> role.getName().equals("fuhito-manage")
+                            && masterClient.equals(role.getContainerId())));
+
+            // An administrator of the realm itself may do everything.
+            Api realmAdmin = administrator(admin, realm.name, "realm-management", "realm-admin", "realm-admin");
+            assertEquals(200, realmAdmin.get("/people").statusCode());
+            HttpResponse<String> created = realmAdmin.post("/org-units",
+                    "{\"name\": \"x\", \"validFrom\": \"2020-04-01\"}");
+            assertEquals(201, created.statusCode(), created.body());
+        } finally {
+            realm.remove();
+        }
+    }
+
+    private static Set<String> names(Set<RoleRepresentation> roles) {
+        return roles.stream().map(RoleRepresentation::getName).collect(Collectors.toSet());
+    }
+
+    @Test
+    void aRealmLimitsHowFarAheadACallerWhoMayViewTheStructureReadsIt() throws Exception {
         TestRealm realm = TestRealm.create("structure-limit", Map.of("fuhito.structure.daysAhead", "30"));
         try {
             Keycloak admin = KEYCLOAK.getKeycloakAdminClient();
-            Api limited = administrator(admin, realm.name, "realm-management", "limited", "query-users");
-            Api everything = administrator(admin, realm.name, "realm-management", "everything", "view-users");
+            Api limited = administrator(admin, realm.name, "realm-management", "limited", "fuhito-view-structure");
+            Api everything = administrator(admin, realm.name, "realm-management", "everything",
+                    "fuhito-view-people");
             LocalDate lastDay = LocalDate.now(ZoneOffset.UTC).plusDays(30);
             String before = unit(realm.api, "Before");
             String unit = unit(realm.api, "Now");
@@ -198,19 +252,86 @@ class PermissionsIT {
             Api all = new Api(realm, admin.tokenManager().getAccessTokenString());
             String organization = OrganizationLinkIT.createOrganization(admin, realm, "permission-org");
             String unit = unit(all, "Linked");
-            Api userAdmin = administrator(admin, realm, "realm-management", "user-admin", "manage-users");
+            Api userAdmin = administrator(admin, realm, "realm-management", "user-admin", "fuhito-manage");
             String link = "/org-units/" + unit + "/organization";
             String body = "{\"organizationId\": \"" + organization + "\"}";
 
             assertEquals(403, userAdmin.put(link, body).statusCode());
             assertEquals(200, all.put(link, body).statusCode());
             assertEquals(403, userAdmin.delete(link).statusCode());
-            // The other writes stay with the permission to manage users.
+            // The other writes need the role of the extension only.
             assertEquals(201, userAdmin.post("/org-units", "{\"name\": \"Other\", \"validFrom\": \"2020-04-01\"}")
                     .statusCode());
             assertEquals(200, all.delete(link).statusCode());
         } finally {
             admin.realm(realm).remove();
+        }
+    }
+
+    @Test
+    void aRebuildAsksForThePermissionToChangeWhatItWritesInKeycloak() throws Exception {
+        Keycloak admin = KEYCLOAK.getKeycloakAdminClient();
+        var representation = new RealmRepresentation();
+        representation.setRealm("rebuild-permission-" + UUID.randomUUID());
+        representation.setEnabled(true);
+        representation.setOrganizationsEnabled(true);
+        representation.setAttributes(Map.of("fuhito.projection.enabled", "true"));
+        TestRealm.withTimeZone(representation);
+        TestRealm.createRealm(admin, representation);
+        String realm = representation.getRealm();
+        try {
+            Api all = new Api(realm, admin.tokenManager().getAccessTokenString());
+            String organization = OrganizationLinkIT.createOrganization(admin, realm, "rebuild-org");
+            String unit = unit(all, "Linked");
+            assertEquals(200, all.put("/org-units/" + unit + "/organization",
+                    "{\"organizationId\": \"" + organization + "\"}").statusCode());
+            Api writer = administrator(admin, realm, "realm-management", "writer", "fuhito-manage");
+            Api organizationAdmin = administrator(admin, realm, "realm-management", "organization-admin",
+                    "fuhito-manage", "manage-organizations");
+
+            assertEquals(403, writer.post("/projection/rebuild", "").statusCode());
+            HttpResponse<String> rebuilt = organizationAdmin.post("/projection/rebuild", "");
+            assertEquals(200, rebuilt.statusCode(), rebuilt.body());
+
+            // Realm groups are groups of Keycloak too.
+            var settings = admin.realm(realm).toRepresentation();
+            settings.getAttributes().put("fuhito.projection.realmGroup", "/org");
+            admin.realm(realm).update(settings);
+            var org = new GroupRepresentation();
+            org.setName("org");
+            admin.realm(realm).groups().add(org).close();
+            assertEquals(403, organizationAdmin.post("/projection/rebuild", "").statusCode());
+            Api groupAdmin = administrator(admin, realm, "realm-management", "group-admin", "fuhito-manage",
+                    "manage-organizations", "manage-users");
+            HttpResponse<String> mirrored = groupAdmin.post("/projection/rebuild", "");
+            assertEquals(200, mirrored.statusCode(), mirrored.body());
+        } finally {
+            admin.realm(realm).remove();
+        }
+    }
+
+    @Test
+    void clearingTheNameInKeycloakAsksForThePermissionToManageTheUser() throws Exception {
+        TestRealm realm = TestRealm.create("clear-name");
+        try {
+            Keycloak admin = KEYCLOAK.getKeycloakAdminClient();
+            String user = realm.user("taro", "Taro", "Yamada");
+            Api writer = administrator(admin, realm.name, "realm-management", "writer", "fuhito-manage");
+            Api userAdmin = administrator(admin, realm.name, "realm-management", "user-admin", "fuhito-manage",
+                    "manage-users");
+
+            assertEquals(403, writer.post("/users/" + user + "/mask?clearKeycloakName=true", "").statusCode());
+            assertEquals("Taro", admin.realm(realm.name).users().get(user).toRepresentation().getFirstName());
+            HttpResponse<String> masked = writer.post("/users/" + user + "/mask", "");
+            assertEquals(200, masked.statusCode(), masked.body());
+            String person = Api.json(masked).get("personId").asText();
+            assertEquals(403, writer.post("/people/" + person + "/mask?clearKeycloakName=true", "").statusCode());
+
+            HttpResponse<String> cleared = userAdmin.post("/people/" + person + "/mask?clearKeycloakName=true", "");
+            assertEquals(200, cleared.statusCode(), cleared.body());
+            assertTrue(Api.json(cleared).get("keycloakNameCleared").asBoolean());
+        } finally {
+            realm.remove();
         }
     }
 
