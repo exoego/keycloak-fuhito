@@ -21,6 +21,7 @@ import net.exoego.keycloak.fuhito.domain.Employment;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.Hierarchy;
 import net.exoego.keycloak.fuhito.domain.OrgUnitLink;
+import net.exoego.keycloak.fuhito.domain.OrgUnitSuccession;
 import net.exoego.keycloak.fuhito.domain.OrgUnitVersion;
 import net.exoego.keycloak.fuhito.domain.Person;
 import net.exoego.keycloak.fuhito.domain.RefItem;
@@ -369,7 +370,8 @@ public class CsvExportService {
         names.forEach(language -> header.add(column("name", japanese) + ":" + language));
         header.add(column("shortName", japanese));
         shortNames.forEach(language -> header.add(column("shortName", japanese) + ":" + language));
-        for (String field : List.of("phoneticName", "unitType", "parentId", "displayOrder")) {
+        for (String field : List.of("phoneticName", "unitType", "parentId", "displayOrder", "validTo",
+                "successorIds")) {
             header.add(column(field, japanese));
         }
         attributes.forEach(attribute -> header.add(CsvImportService.ATTRIBUTE_COLUMN + attribute));
@@ -387,6 +389,12 @@ public class CsvExportService {
             cells.add(text(unit.unitType()));
             cells.add(text(unit.parentId()));
             cells.add(Integer.toString(version.displayOrder()));
+            // Only a unit whose details of the date end can end. The others need no more reads.
+            Optional<LocalDate> end = version.period().to() == null ? Optional.empty()
+                    : orgUnits.endOf(unit.unit().id());
+            cells.add(text(end.orElse(null)));
+            cells.add(end.isEmpty() ? "" : String.join("|", orgUnits.successions(unit.unit().id()).successors()
+                    .stream().map(OrgUnitSuccession::successorId).toList()));
             attributes.forEach(attribute -> cells.add(text(Optional.ofNullable(version.attributes())
                     .map(values -> values.get(attribute)).orElse(null))));
             line(csv, cells);

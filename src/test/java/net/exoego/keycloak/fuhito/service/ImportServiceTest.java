@@ -179,6 +179,43 @@ class ImportServiceTest {
                 first.writes().getFirst().path());
     }
 
+    private static OrgUnitRow ending(String externalId, String validTo, List<String> successorExternalIds,
+            List<String> successorIds) {
+        return new OrgUnitRow(null, externalId, null, externalId, null, null, null, null, null, null, null, null,
+                null, "2020-04-01", validTo, null, successorExternalIds, successorIds);
+    }
+
+    private static OrgUnitRow starting(String externalId, String validFrom) {
+        return new OrgUnitRow(null, externalId, null, externalId, null, null, null, null, null, null, null, null,
+                null, validFrom, null, null);
+    }
+
+    @Test
+    void endsAUnitWithSuccessorsThatComeLaterInTheDocument() {
+        List<OrgUnitRow> rows = List.of(ending("OLD", "2026-04-01", List.of("NEW"), null),
+                starting("NEW", "2026-04-01"));
+
+        ImportReport first = service.apply(doc("2020-04-01", false, null, null, rows));
+        ImportReport again = service.apply(doc("2020-04-01", false, null, null, rows));
+
+        assertEquals(List.of(), errors(first));
+        assertEquals(Map.of("orgUnits", new Counts(2, 0, 0)), first.counts());
+        assertEquals(Map.of("orgUnits", new Counts(0, 0, 2)), again.counts());
+        String old = orgUnitStore.findUnitByExternalId("import", "OLD").orElseThrow().id();
+        String successor = orgUnitStore.findUnitByExternalId("import", "NEW").orElseThrow().id();
+        assertEquals(successor, orgUnits.successions(old).successors().getFirst().successorId());
+        assertEquals("fuhito/org-units/" + old + "/succession", first.writes().getLast().path());
+
+        ImportReport bad = service.apply(doc("2020-04-01", false, null, null, List.of(
+                ending("OLD", "2026-04-01", null, List.of(old)),
+                ending("A", null, List.of("NEW"), null),
+                ending("B", "2026-04-01", List.of("NOPE"), null),
+                ending("C", "2026-04-01", null, List.of("nope")))));
+
+        assertEquals(List.of("orgUnits[1] invalid.required", "orgUnits[0] import.successors_differ",
+                "orgUnits[2] import.successor_unknown", "orgUnits[3] import.id_unknown"), errors(bad));
+    }
+
     @Test
     void movesAUnitInAHierarchyAndReportsEveryBadRowOfParents() {
         importUnits("2026-04-01", unit("P", "P", null), unit("C", "C", null), unit("D", "D", null),

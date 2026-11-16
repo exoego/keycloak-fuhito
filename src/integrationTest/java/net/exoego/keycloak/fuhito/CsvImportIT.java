@@ -67,6 +67,30 @@ class CsvImportIT {
     }
 
     @Test
+    void aCsvFileEndsAUnitWithItsSuccessors() throws Exception {
+        TestRealm realm = TestRealm.create("csv-successors");
+        Api api = realm.api;
+        String old = Api.json(api.post("/org-units", "{\"name\": \"旧病棟\", \"validFrom\": \"2020-04-01\"}"))
+                .get("id").asText();
+        String first = Api.json(api.post("/org-units", "{\"name\": \"1病棟\", \"validFrom\": \"2020-04-01\"}"))
+                .get("id").asText();
+        String second = Api.json(api.post("/org-units", "{\"name\": \"2病棟\", \"validFrom\": \"2020-04-01\"}"))
+                .get("id").asText();
+
+        JsonNode report = load(api, "org-units", "effectiveDate=2026-05-01", "id,validTo,successorIds\r\n" + old
+                + ",2027-04-01," + first + "|" + second + "\r\n");
+
+        assertEquals(1, report.get("counts").get("orgUnits").get("changed").asInt(), report.toString());
+        assertEquals(List.of(first, second).stream().sorted().toList(), Api.json(api.get("/org-units/" + old
+                + "/succession")).get("successors").findValuesAsText("orgUnitId").stream().sorted().toList());
+        String exported = api.get("/imports/csv/org-units?asOf=2026-05-01").body();
+        assertTrue(exported.contains(",2027-04-01," + String.join("|", Api.json(api.get("/org-units/" + old
+                + "/succession")).get("successors").findValuesAsText("orgUnitId")) + "\r\n"), exported);
+        JsonNode again = load(api, "org-units", "effectiveDate=2026-05-01", exported).get("counts").get("orgUnits");
+        assertEquals(0, again.get("created").asInt() + again.get("changed").asInt(), again.toString());
+    }
+
+    @Test
     void anExportOfKindsLoadsAgainWithNoChange() throws Exception {
         TestRealm realm = TestRealm.create("csv-export-kinds");
         Api api = realm.api;

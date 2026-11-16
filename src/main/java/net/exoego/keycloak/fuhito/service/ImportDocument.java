@@ -448,6 +448,19 @@ public record ImportDocument(
             String validTo,
             @Schema(description = "The ID of a stored unit, for a row of a unit with no external ID. A CSV export has "
                     + "it in every row. A new unit has none.")
-            String id) {
+            String id,
+            @Schema(description = "The external IDs of the units that follow this one from `validTo`, with the same "
+                    + "source. A row with successors needs `validTo`. The end and the successors are one write.")
+            List<String> successorExternalIds,
+            @Schema(description = "The IDs of the units that follow this one from `validTo`.")
+            List<String> successorIds) {
+
+        public OrgUnitRow(String source, String externalId, String code, String name, Map<String, String> names,
+                String shortName, Map<String, String> shortNames, String phoneticName, String unitType,
+                String parentExternalId, String parentId, Integer displayOrder, Map<String, Object> attributes,
+                String validFrom, String validTo, String id) {
+            this(source, externalId, code, name, names, shortName, shortNames, phoneticName, unitType,
+                    parentExternalId, parentId, displayOrder, attributes, validFrom, validTo, id, null, null);
+        }
     }
 }
