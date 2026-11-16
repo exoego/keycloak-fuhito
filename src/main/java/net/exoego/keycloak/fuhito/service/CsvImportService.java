@@ -33,6 +33,7 @@ import net.exoego.keycloak.fuhito.domain.RefKind;
 import net.exoego.keycloak.fuhito.service.ImportDocument.AssignmentRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.AttributeDefinitionRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.EmploymentRow;
+import net.exoego.keycloak.fuhito.service.ImportDocument.ExternalIdRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.HierarchyRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.OrgUnitParentRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.OrgUnitRow;
@@ -100,7 +101,8 @@ public class CsvImportService {
             Map.entry("assignmentId", "所属のID"), Map.entry("managerPersonExternalId", "上司の人の外部ID"),
             Map.entry("managerPersonId", "上司の人のID"), Map.entry("managerUsername", "上司のユーザー名"),
             Map.entry("role", "ロール"), Map.entry("includesDescendants", "下位の組織も含む"),
-            Map.entry("number", "番号"));
+            Map.entry("number", "番号"), Map.entry("resourceType", "リソースの種類"),
+            Map.entry("resourceId", "リソースのID"));
 
     // The lists that a file can hold, each with the resource whose attributes it sets.
     private enum Kind {
@@ -111,6 +113,7 @@ public class CsvImportService {
         REPORTING_LINES("reportingLines", null),
         UNIT_ROLES("unitRoles", null),
         QUALIFICATIONS("qualifications", AttributeDefinition.Target.QUALIFICATION),
+        EXTERNAL_IDS("externalIds", null),
         REF_ITEMS("refItems", AttributeDefinition.Target.REF_ITEM),
         ORG_UNITS("orgUnits", AttributeDefinition.Target.ORG_UNIT),
         EMPLOYMENTS("employments", AttributeDefinition.Target.EMPLOYMENT_TERMS),
@@ -140,6 +143,7 @@ public class CsvImportService {
             Map.entry(Kind.HIERARCHIES, Set.of("code", "name")),
             Map.entry(Kind.ORG_UNIT_PARENTS, Set.of("hierarchy", "source", "orgUnitExternalId", "orgUnitId",
                     "parentExternalId", "parentId")),
+            Map.entry(Kind.EXTERNAL_IDS, Set.of("resourceType", "resourceId", "source", "externalId")),
             Map.entry(Kind.QUALIFICATIONS, Set.of("id", "source", "externalId", "personExternalId", "personId",
                     "username", "kind", "number", "validFrom", "validTo")),
             Map.entry(Kind.UNIT_ROLES, Set.of("id", "source", "employmentExternalId", "employmentId",
@@ -229,6 +233,7 @@ public class CsvImportService {
             case UNIT_ROLES -> run(data, columns, defined, this::unitRole, document);
             case QUALIFICATIONS -> run(data, columns, defined, cells -> qualification(cells, defaultSource),
                     document);
+            case EXTERNAL_IDS -> run(data, columns, defined, cells -> externalId(cells, defaultSource), document);
             case REF_ITEMS -> run(data, columns, defined, this::refItem, document);
             case ORG_UNITS -> run(data, columns, defined, cells -> orgUnit(cells, date, defaultSource), document);
             case EMPLOYMENTS -> run(data, columns, defined, cells -> employment(cells, date, defaultSource),
@@ -301,6 +306,24 @@ public class CsvImportService {
                 : importService.setup().kinds().find(code);
         return new RefKindRow(code, cells.text("name", stored.map(RealmKindService.View::name).orElse(null)),
                 cells.localized("name", stored.map(RealmKindService.View::names).orElse(Map.of())));
+    }
+
+    // A blank cell keeps the stored ID, and the cell #CLEAR removes it.
+    private ExternalIdRow externalId(Cells cells, String defaultSource) {
+        String kind = cells.text("resourceType", null);
+        String resourceId = cells.text("resourceId", null);
+        String source = cells.text("source", null);
+        String value = cells.clearable("externalId");
+        if (value == null && kind != null && resourceId != null) {
+            String system = source == null ? defaultSource : source;
+            value = quietly(() -> importService.records().externalIds().list(kind, resourceId)).stream()
+                    .flatMap(List::stream)
+                    .filter(view -> !view.own() && view.source().equals(system))
+                    .map(ExternalIdService.View::externalId)
+                    .findFirst()
+                    .orElse(null);
+        }
+        return new ExternalIdRow(kind, resourceId, source, value);
     }
 
     // Blank cells keep the stored values, as the row replaces every value of a stored qualification.

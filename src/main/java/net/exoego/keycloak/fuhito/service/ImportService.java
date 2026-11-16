@@ -82,9 +82,10 @@ public class ImportService {
      * @param reportingLines the operations on the reporting lines of the realm
      * @param unitRoles the operations on the roles over org units of the realm
      * @param qualifications the operations on the qualifications of the realm
+     * @param externalIds the operations on the IDs of other systems of the realm
      */
     public record Records(ReportingLineService reportingLines, UnitRoleService unitRoles,
-            QualificationService qualifications) {
+            QualificationService qualifications, ExternalIdService externalIds) {
     }
 
     /**
@@ -186,6 +187,9 @@ public class ImportService {
         if (document.reportingLines() != null) {
             new ReportingLineImport(records.reportingLines(), people, document.effectiveDate(), defaultSource,
                     report).run(document.reportingLines());
+        }
+        if (document.externalIds() != null) {
+            new ExternalIdImport(records.externalIds(), defaultSource, report).run(document.externalIds());
         }
         return report;
     }

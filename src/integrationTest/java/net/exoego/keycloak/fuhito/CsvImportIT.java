@@ -210,6 +210,31 @@ class CsvImportIT {
     }
 
     @Test
+    void anExportOfIdsOfOtherSystemsLoadsAgainWithNoChange() throws Exception {
+        TestRealm realm = TestRealm.create("csv-export-external-ids");
+        Api api = realm.api;
+        String ward = Api.json(api.post("/org-units", "{\"name\": \"1病棟\", \"validFrom\": \"2020-04-01\"}"))
+                .get("id").asText();
+        assertEquals(200, api.put("/external-ids", "{\"resourceType\": \"ORG_UNIT\", \"resourceId\": \"" + ward
+                + "\", \"source\": \"payroll\", \"externalId\": \"P-1\"}").statusCode());
+
+        for (String header : List.of("en", "ja")) {
+            HttpResponse<String> exported = api.get("/imports/csv/external-ids?header=" + header);
+            assertEquals(200, exported.statusCode(), exported.body());
+            assertEquals("﻿" + (header.equals("en") ? "resourceType,resourceId,source,externalId"
+                    : "リソースの種類,リソースのID,ソース,外部ID") + "\r\nORG_UNIT," + ward + ",payroll,P-1\r\n",
+                    exported.body());
+            JsonNode counts = load(api, "external-ids", "effectiveDate=2026-05-01", exported.body())
+                    .get("counts").get("externalIds");
+            assertEquals(0, counts.get("created").asInt() + counts.get("changed").asInt(), counts.toString());
+        }
+        load(api, "external-ids", "effectiveDate=2026-05-01", "resourceType,resourceId,source,externalId\r\n"
+                + "ORG_UNIT," + ward + ",payroll,#CLEAR\r\nORG_UNIT," + ward + ",ledger,L-1\r\n");
+        assertEquals("﻿resourceType,resourceId,source,externalId\r\nORG_UNIT," + ward + ",ledger,L-1\r\n",
+                api.get("/imports/csv/external-ids").body());
+    }
+
+    @Test
     void anExportOfKindsLoadsAgainWithNoChange() throws Exception {
         TestRealm realm = TestRealm.create("csv-export-kinds");
         Api api = realm.api;

@@ -43,7 +43,9 @@ public record ImportDocument(
         @Schema(description = "The roles over org units. They come after the employments.")
         List<UnitRoleRow> unitRoles,
         @Schema(description = "The qualifications. They come after the people.")
-        List<QualificationRow> qualifications) {
+        List<QualificationRow> qualifications,
+        @Schema(description = "The IDs of other systems. They come after every list of resources.")
+        List<ExternalIdRow> externalIds) {
 
     /**
      * Makes a document with no list of kinds.
@@ -61,7 +63,7 @@ public record ImportDocument(
             List<OrgUnitRow> orgUnits, List<EmploymentRow> employments, List<AssignmentRow> assignments,
             List<PersonRow> people) {
         this(effectiveDate, dryRun, source, refItems, orgUnits, employments, assignments, people, null, null, null,
-                null, null, null, null);
+                null, null, null, null, null);
     }
 
     /**
@@ -78,7 +80,28 @@ public record ImportDocument(
     public ImportDocument(String effectiveDate, boolean dryRun, String source, List<RefItemRow> refItems,
             List<OrgUnitRow> orgUnits, List<EmploymentRow> employments, List<AssignmentRow> assignments) {
         this(effectiveDate, dryRun, source, refItems, orgUnits, employments, assignments, null, null, null, null,
-                null, null, null, null);
+                null, null, null, null, null);
+    }
+
+    @Schema(
+            name = "ImportExternalIdRow",
+            description = "The ID that another system has for a resource. It is matched by type of resource, "
+                    + "resource, and source. Another external ID replaces the stored one, and an empty text removes "
+                    + "it.",
+            requiredProperties = {"resourceType", "resourceId", "externalId"})
+    public record ExternalIdRow(
+            @Schema(enumeration = {"ORG_UNIT", "PERSON", "EMPLOYMENT", "ASSIGNMENT", "QUALIFICATION"})
+            String resourceType,
+            @Schema(description = "The ID of the resource.")
+            String resourceId,
+            @Schema(
+                    description = "The name of the other system. The default is the source of the document. It "
+                            + "cannot be the source of the pair that the resource itself has.",
+                    maxLength = 64,
+                    pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$")
+            String source,
+            @Schema(description = "The ID in that system, or an empty text to remove the stored one.")
+            String externalId) {
     }
 
     @Schema(
@@ -262,7 +285,7 @@ public record ImportDocument(
                 rows(lists, "employments"), rows(lists, "assignments"), rows(lists, "people"),
                 rows(lists, "refKinds"), rows(lists, "attributeDefinitions"), rows(lists, "hierarchies"),
                 rows(lists, "orgUnitParents"), rows(lists, "reportingLines"), rows(lists, "unitRoles"),
-                rows(lists, "qualifications"));
+                rows(lists, "qualifications"), rows(lists, "externalIds"));
     }
 
     // The name of the list tells the type of its rows.

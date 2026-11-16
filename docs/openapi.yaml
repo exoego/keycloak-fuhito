@@ -1189,6 +1189,11 @@ components:
           items:
             $ref: "#/components/schemas/ImportQualificationRow"
           description: The qualifications. They come after the people.
+        externalIds:
+          type: array
+          items:
+            $ref: "#/components/schemas/ImportExternalIdRow"
+          description: The IDs of other systems. They come after every list of resources.
     ImportEmploymentRow:
       type: object
       description: "An employment. It is matched by source and external ID, or by\
@@ -1273,6 +1278,38 @@ components:
           description: "The ID of a stored employment, for a row of an employment\
             \ with no external ID. A CSV export has it in every row. A new employment\
             \ has none."
+    ImportExternalIdRow:
+      type: object
+      required:
+      - resourceType
+      - resourceId
+      - externalId
+      description: "The ID that another system has for a resource. It is matched by\
+        \ type of resource, resource, and source. Another external ID replaces the\
+        \ stored one, and an empty text removes it."
+      properties:
+        resourceType:
+          type: string
+          enum:
+          - ORG_UNIT
+          - PERSON
+          - EMPLOYMENT
+          - ASSIGNMENT
+          - QUALIFICATION
+        resourceId:
+          type: string
+          description: The ID of the resource.
+        source:
+          type: string
+          maxLength: 64
+          pattern: "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
+          description: The name of the other system. The default is the source of
+            the document. It cannot be the source of the pair that the resource itself
+            has.
+        externalId:
+          type: string
+          description: "The ID in that system, or an empty text to remove the stored\
+            \ one."
     ImportHierarchyRow:
       type: object
       required:
@@ -5007,7 +5044,7 @@ paths:
         \ nothing. The lists are applied in the order kinds of reference data, definitions\
         \ of attributes, reference items, hierarchies, org units, parents in hierarchies,\
         \ people, qualifications, employments, roles over org units, assignments,\
-        \ reporting lines."
+        \ reporting lines, IDs of other systems."
       operationId: applyImport
       tags:
       - bulk
@@ -5062,6 +5099,7 @@ paths:
           - reporting-lines
           - unit-roles
           - qualifications
+          - external-ids
         name: list
         in: path
         required: true
@@ -5119,6 +5157,7 @@ paths:
           - reporting-lines
           - unit-roles
           - qualifications
+          - external-ids
         name: list
         in: path
         required: true

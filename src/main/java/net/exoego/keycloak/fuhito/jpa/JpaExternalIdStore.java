@@ -99,6 +99,19 @@ public class JpaExternalIdStore implements ExternalIdStore {
     }
 
     @Override
+    public List<ExternalId> list(String afterId, int max) {
+        return em.createQuery("""
+                        select x from ExternalIdEntity x where x.realmId = :realmId and x.id > :after
+                        order by x.id""", ExternalIdEntity.class)
+                .setParameter("realmId", realmId)
+                .setParameter("after", afterId == null ? "" : afterId)
+                .setMaxResults(max)
+                .getResultStream()
+                .map(JpaExternalIdStore::toDomain)
+                .toList();
+    }
+
+    @Override
     public Optional<ExternalId> find(ExternalId.Kind kind, String source, String externalId) {
         return em.createQuery("""
                         select x from ExternalIdEntity x where x.realmId = :realmId and x.kind = :kind

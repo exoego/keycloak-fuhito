@@ -41,7 +41,7 @@ public class CsvExportService {
     private static final int ROWS_AT_A_TIME = 1000;
     private static final List<String> LISTS = List.of("ref-kinds", "attribute-definitions", "ref-items",
             "hierarchies", "org-units", "org-unit-parents", "people", "employments", "assignments",
-            "reporting-lines", "unit-roles", "qualifications");
+            "reporting-lines", "unit-roles", "qualifications", "external-ids");
 
     private final RefItemService refItems;
     private final Supplier<List<RealmKindService.View>> kinds;
@@ -55,6 +55,7 @@ public class CsvExportService {
     private final ReportingLineService reportingLines;
     private final UnitRoleService unitRoles;
     private final QualificationService qualifications;
+    private final ExternalIdService externalIds;
     private final Function<AttributeDefinition.Target, List<AttributeDefinition>> definitions;
 
     /**
@@ -72,14 +73,16 @@ public class CsvExportService {
      * @param reportingLines the operations on the reporting lines of the realm
      * @param unitRoles the operations on the roles over org units of the realm
      * @param qualifications the operations on the qualifications of the realm
+     * @param externalIds the operations on the IDs of other systems of the realm
      * @param definitions the definitions of free attributes of the realm, by the resource that has them
      */
     public CsvExportService(RefItemService refItems, Supplier<List<RealmKindService.View>> kinds,
             OrgUnitService orgUnits,
             PersonService people, EmploymentService employments, AssignmentService assignments, Today today,
             HierarchyService hierarchies, OrganizationDirectory organizations, ReportingLineService reportingLines,
-            UnitRoleService unitRoles, QualificationService qualifications,
+            UnitRoleService unitRoles, QualificationService qualifications, ExternalIdService externalIds,
             Function<AttributeDefinition.Target, List<AttributeDefinition>> definitions) {
+        this.externalIds = externalIds;
         this.unitRoles = unitRoles;
         this.qualifications = qualifications;
         this.reportingLines = reportingLines;
@@ -118,6 +121,7 @@ public class CsvExportService {
             case "reporting-lines" -> reportingLines(asOf, japanese);
             case "unit-roles" -> unitRoles(asOf, japanese);
             case "qualifications" -> qualifications(asOf, japanese);
+            case "external-ids" -> externalIds(japanese);
             default -> throw FuhitoException.invalid("csv.export_list_unknown", Map.of("list", String.valueOf(list),
                     "lists", String.join(", ", LISTS)));
         };
@@ -370,6 +374,26 @@ public class CsvExportService {
                 return csv.toString();
             }
             after = page.getLast().id();
+        }
+    }
+
+    // Only the IDs that /external-ids added. The own pair of a resource is in the list of the resource.
+    private String externalIds(boolean japanese) {
+        List<String> header = new ArrayList<>();
+        for (String field : List.of("resourceType", "resourceId", "source", "externalId")) {
+            header.add(column(field, japanese));
+        }
+        StringBuilder csv = new StringBuilder(BYTE_ORDER_MARK);
+        line(csv, header);
+        String after = null;
+        while (true) {
+            List<ExternalIdService.View> page = externalIds.list(after, ROWS_AT_A_TIME);
+            page.forEach(view -> line(csv, List.of(view.kind().name(), view.resourceId(), view.source(),
+                    view.externalId())));
+            if (page.size() < ROWS_AT_A_TIME) {
+                return csv.toString();
+            }
+            after = page.getLast().rowId();
         }
     }
 
