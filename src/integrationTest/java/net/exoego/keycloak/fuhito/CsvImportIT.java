@@ -85,9 +85,32 @@ class CsvImportIT {
                 + "/succession")).get("successors").findValuesAsText("orgUnitId").stream().sorted().toList());
         String exported = api.get("/imports/csv/org-units?asOf=2026-05-01").body();
         assertTrue(exported.contains(",2027-04-01," + String.join("|", Api.json(api.get("/org-units/" + old
-                + "/succession")).get("successors").findValuesAsText("orgUnitId")) + "\r\n"), exported);
+                + "/succession")).get("successors").findValuesAsText("orgUnitId")) + ",\r\n"), exported);
         JsonNode again = load(api, "org-units", "effectiveDate=2026-05-01", exported).get("counts").get("orgUnits");
         assertEquals(0, again.get("created").asInt() + again.get("changed").asInt(), again.toString());
+    }
+
+    @Test
+    void aCsvFileLinksAUnitToAnOrganizationByItsAlias() throws Exception {
+        TestRealm realm = TestRealm.create("csv-organizations");
+        Api api = realm.api;
+        String organization = realm.organization("x-hospital");
+        String hospital = Api.json(api.post("/org-units", "{\"name\": \"X病院\", \"validFrom\": \"2020-04-01\"}"))
+                .get("id").asText();
+
+        JsonNode linked = load(api, "org-units", "effectiveDate=2026-05-01", "id,organizationAlias\r\n" + hospital
+                + ",x-hospital\r\n");
+
+        assertEquals(1, linked.get("counts").get("orgUnits").get("changed").asInt(), linked.toString());
+        assertEquals(organization, Api.json(api.get("/org-units/" + hospital + "?asOf=2026-05-01"))
+                .get("keycloakOrganizationId").asText());
+        String exported = api.get("/imports/csv/org-units?asOf=2026-05-01&header=ja").body();
+        assertTrue(exported.contains("Organizationの別名") && exported.contains(",x-hospital"), exported);
+        JsonNode again = load(api, "org-units", "effectiveDate=2026-05-01", exported).get("counts").get("orgUnits");
+        assertEquals(0, again.get("created").asInt() + again.get("changed").asInt(), again.toString());
+        load(api, "org-units", "effectiveDate=2026-05-01", "id,organizationAlias\r\n" + hospital + ",#CLEAR\r\n");
+        assertTrue(Api.json(api.get("/org-units/" + hospital + "?asOf=2026-05-01")).path("keycloakOrganizationId")
+                .isMissingNode());
     }
 
     @Test

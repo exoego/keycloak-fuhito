@@ -91,7 +91,8 @@ public class CsvImportService {
             Map.entry("employerId", "雇用主のID"), Map.entry("employmentId", "雇用のID"),
             Map.entry("orgUnitId", "組織のID"), Map.entry("target", "対象"), Map.entry("type", "型"),
             Map.entry("refKind", "参照の種類"), Map.entry("required", "必須"), Map.entry("hierarchy", "階層"),
-            Map.entry("successorExternalIds", "後継の外部ID"), Map.entry("successorIds", "後継のID"));
+            Map.entry("successorExternalIds", "後継の外部ID"), Map.entry("successorIds", "後継のID"),
+            Map.entry("organizationAlias", "Organizationの別名"));
 
     // The lists that a file can hold, each with the resource whose attributes it sets.
     private enum Kind {
@@ -132,7 +133,7 @@ public class CsvImportService {
                     "group"),
             Kind.ORG_UNITS, Set.of("id", "externalId", "source", "code", "name", "shortName", "phoneticName",
                     "unitType", "parentExternalId", "parentId", "displayOrder", "validFrom", "validTo",
-                    "successorExternalIds", "successorIds"),
+                    "successorExternalIds", "successorIds", "organizationAlias"),
             Kind.EMPLOYMENTS, Set.of("id", "externalId", "source", "username", "userId", "staffNumber",
                     "employmentType", "grade", "status", "leaveReason", "workPercent", "validFrom", "validTo",
                     "endReason", "employerExternalId", "employerId", "personExternalId", "personId"),
@@ -375,7 +376,7 @@ public class CsvImportService {
                 cells.integer("displayOrder", version.map(v -> v.displayOrder()).orElse(null)),
                 cells.attributes(version.map(v -> v.attributes()).orElse(null)),
                 cells.text("validFrom", null), cells.text("validTo", null), id,
-                cells.list("successorExternalIds"), successorIds(cells, stored));
+                cells.list("successorExternalIds"), successorIds(cells, stored), cells.clearable("organizationAlias"));
     }
 
     // Blank cells of the successors keep the stored ones of a row with an end.
@@ -523,6 +524,15 @@ public class CsvImportService {
                 return whole.intValue();
             }
             return whole.bitLength() < Long.SIZE ? (Object) whole.longValue() : whole;
+        }
+
+        // A blank cell keeps the stored value, and the cell #CLEAR gives an empty text, which removes it.
+        String clearable(String field) {
+            String value = values.getOrDefault(field, "");
+            if (value.isEmpty()) {
+                return null;
+            }
+            return value.equals(CLEAR) ? "" : value;
         }
 
         // Several values in one cell are separated by a vertical bar.

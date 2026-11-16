@@ -453,14 +453,17 @@ public record ImportDocument(
                     + "source. A row with successors needs `validTo`. The end and the successors are one write.")
             List<String> successorExternalIds,
             @Schema(description = "The IDs of the units that follow this one from `validTo`.")
-            List<String> successorIds) {
+            List<String> successorIds,
+            @Schema(description = "The alias of the Keycloak organization that the unit is linked to. A row that "
+                    + "leaves it out keeps the link. An empty text removes it.")
+            String organizationAlias) {
 
         public OrgUnitRow(String source, String externalId, String code, String name, Map<String, String> names,
                 String shortName, Map<String, String> shortNames, String phoneticName, String unitType,
                 String parentExternalId, String parentId, Integer displayOrder, Map<String, Object> attributes,
                 String validFrom, String validTo, String id) {
             this(source, externalId, code, name, names, shortName, shortNames, phoneticName, unitType,
-                    parentExternalId, parentId, displayOrder, attributes, validFrom, validTo, id, null, null);
+                    parentExternalId, parentId, displayOrder, attributes, validFrom, validTo, id, null, null, null);
         }
     }
 }

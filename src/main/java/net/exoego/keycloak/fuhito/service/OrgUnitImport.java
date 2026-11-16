@@ -28,6 +28,7 @@ final class OrgUnitImport {
 
     private final OrgUnitService orgUnitService;
     private final OrgUnitStore orgUnits;
+    private final ImportService.Organizations organizations;
     private final String effectiveDate;
     private final String defaultSource;
     private final List<OrgUnitRow> rows;
@@ -43,10 +44,11 @@ final class OrgUnitImport {
     private record Ending(int index, String unitId, String source, OrgUnitRow row) {
     }
 
-    OrgUnitImport(OrgUnitService orgUnitService, OrgUnitStore orgUnits, String effectiveDate, String defaultSource,
-            List<OrgUnitRow> rows, ImportReport report) {
+    OrgUnitImport(OrgUnitService orgUnitService, OrgUnitStore orgUnits, ImportService.Organizations organizations,
+            String effectiveDate, String defaultSource, List<OrgUnitRow> rows, ImportReport report) {
         this.orgUnitService = orgUnitService;
         this.orgUnits = orgUnits;
+        this.organizations = organizations;
         this.effectiveDate = effectiveDate;
         this.defaultSource = defaultSource;
         this.rows = rows;
@@ -198,6 +200,7 @@ final class OrgUnitImport {
             String id = created.unit().id();
             unitIdByRow.put(index, id);
             written(true, "", created);
+            link(id, row.organizationAlias());
             if (succeeds) {
                 endings.add(new Ending(index, id, source, row));
             } else if (row.validTo() != null) {
@@ -232,6 +235,7 @@ final class OrgUnitImport {
                 changed = true;
             }
         }
+        changed |= link(id, row.organizationAlias());
         if (succeeds) {
             endings.add(new Ending(index, id, source, row));
             changed |= lastDay(id) == null;
@@ -254,6 +258,30 @@ final class OrgUnitImport {
             throw FuhitoException.invalid("import.id_mismatch", Map.of("id", row.id(), "externalId", row.externalId()));
         }
         return Optional.of(unit);
+    }
+
+    // A link decides who is a member of the organization, so the caller must manage the old and the new one.
+    private boolean link(String id, String alias) {
+        if (alias == null) {
+            return false;
+        }
+        String wanted = alias.isEmpty() ? null : organizations.directory().idOfAlias(alias).orElseThrow(
+                () -> FuhitoException.invalid("import.organization_unknown", Map.of("alias", alias)));
+        String current = organizations.links().organizationOf(id).orElse(null);
+        if (Objects.equals(current, wanted)) {
+            return false;
+        }
+        if (current != null) {
+            organizations.manage().accept(current);
+        }
+        if (wanted == null) {
+            organizations.links().unlink(id);
+        } else {
+            organizations.manage().accept(wanted);
+            organizations.links().link(id, wanted);
+        }
+        report.write(new Write.OfOrganizationLink(id, wanted));
+        return true;
     }
 
     private String lastDay(String id) {

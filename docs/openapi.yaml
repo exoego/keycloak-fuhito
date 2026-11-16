@@ -1392,6 +1392,10 @@ components:
           items:
             type: string
           description: The IDs of the units that follow this one from `validTo`.
+        organizationAlias:
+          type: string
+          description: The alias of the Keycloak organization that the unit is linked
+            to. A row that leaves it out keeps the link. An empty text removes it.
     ImportPersonRow:
       type: object
       description: "A person, also one with no Keycloak user. It is matched by source\

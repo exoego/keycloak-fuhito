@@ -40,6 +40,8 @@ final class Writes {
             case Write.OfPerson person -> PersonRepresentation.of(person.state());
             case Write.OfOrgUnit unit -> OrgUnitRepresentation.of(unit.state());
             case Write.OfSuccession succession -> OrgUnitSuccessionsRepresentation.of(succession.state());
+            case Write.OfOrganizationLink link -> new OrganizationLinkRepresentation(link.orgUnitId(),
+                    link.organizationId());
             case Write.OfEmployment employment -> EmploymentRepresentation.of(employment.state());
             case Write.OfAssignment assignment -> AssignmentRepresentation.of(assignment.state());
             case Write.OfReportingLine line -> ReportingLineRepresentation.of(line.state());

@@ -23,6 +23,7 @@ import net.exoego.keycloak.fuhito.service.ImportDocument.PersonRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.RefItemRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.RefKindRow;
 import net.exoego.keycloak.fuhito.service.ImportReport.Counts;
+import net.exoego.keycloak.fuhito.store.OrganizationDirectory;
 import net.exoego.keycloak.fuhito.store.UserDirectory;
 import org.junit.jupiter.api.Test;
 
@@ -61,12 +62,26 @@ class ImportServiceTest {
             new MemoryReportingLineStore());
     private final RealmKindService kinds = new RealmKindService(new MemoryRealmKindStore(), refItems);
     private final HierarchyService hierarchies = new HierarchyService(new MemoryHierarchyStore());
+    private final List<String> managed = new ArrayList<>();
+    private final OrganizationDirectory organizations = new OrganizationDirectory() {
+        @Override
+        public boolean exists(String organizationId) {
+            return organizationId.startsWith("org-");
+        }
+
+        @Override
+        public Optional<String> idOfAlias(String alias) {
+            return alias.startsWith("x-") ? Optional.of("org-" + alias) : Optional.empty();
+        }
+    };
     private final AttributeDefinitionService definitions =
             new AttributeDefinitionService(new MemoryAttributeDefinitionStore(), refItems, false, kinds::isKnown);
     private final ImportService service = new ImportService(new RefItemService(refItems), refItems, orgUnits,
             orgUnitStore, new ImportService.People(employments, employmentStore, assignments, assignmentStore, users,
                     new PersonService(personStore, users, id -> false)),
-            new ImportService.Setup(kinds, definitions, hierarchies));
+            new ImportService.Setup(kinds, definitions, hierarchies),
+            new ImportService.Organizations(new OrganizationLinkService(orgUnitStore, organizations), organizations,
+                    managed::add));
 
     private static ImportDocument doc(String effectiveDate, boolean dryRun, String source, List<RefItemRow> refItems,
             List<OrgUnitRow> orgUnits) {
@@ -182,7 +197,7 @@ class ImportServiceTest {
     private static OrgUnitRow ending(String externalId, String validTo, List<String> successorExternalIds,
             List<String> successorIds) {
         return new OrgUnitRow(null, externalId, null, externalId, null, null, null, null, null, null, null, null,
-                null, "2020-04-01", validTo, null, successorExternalIds, successorIds);
+                null, "2020-04-01", validTo, null, successorExternalIds, successorIds, null);
     }
 
     private static OrgUnitRow starting(String externalId, String validFrom) {
@@ -214,6 +229,30 @@ class ImportServiceTest {
 
         assertEquals(List.of("orgUnits[1] invalid.required", "orgUnits[0] import.successors_differ",
                 "orgUnits[2] import.successor_unknown", "orgUnits[3] import.id_unknown"), errors(bad));
+    }
+
+    private static OrgUnitRow linked(String externalId, String organizationAlias) {
+        return new OrgUnitRow(null, externalId, null, externalId, null, null, null, null, null, null, null, null,
+                null, null, null, null, null, null, organizationAlias);
+    }
+
+    @Test
+    void linksAUnitToAnOrganizationByItsAliasAndAsksToManageIt() {
+        ImportReport first = importUnits("2026-04-01", linked("H", "x-hospital"), linked("K", null));
+        ImportReport again = importUnits("2026-04-01", linked("H", "x-hospital"), linked("K", null));
+        ImportReport moved = importUnits("2026-04-01", linked("H", ""), linked("K", "x-hospital"),
+                linked("N", "nope"));
+
+        String h = orgUnitStore.findUnitByExternalId("import", "H").orElseThrow().id();
+        String k = orgUnitStore.findUnitByExternalId("import", "K").orElseThrow().id();
+        assertEquals(List.of(), errors(first));
+        assertEquals(Map.of("orgUnits", new Counts(0, 0, 2)), again.counts());
+        assertEquals("fuhito/org-units/" + h + "/organization", first.writes().get(1).path());
+        assertEquals(List.of("orgUnits[2] import.organization_unknown"), errors(moved));
+        assertEquals(null, orgUnitStore.findUnit(h).orElseThrow().keycloakOrganizationId());
+        assertEquals("org-x-hospital", orgUnitStore.findUnit(k).orElseThrow().keycloakOrganizationId());
+        // The first link, then the old organization of the unlink, then the new one of the second link.
+        assertEquals(List.of("org-x-hospital", "org-x-hospital", "org-x-hospital"), managed);
     }
 
     @Test
