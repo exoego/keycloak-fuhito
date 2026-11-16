@@ -91,8 +91,13 @@ public class UsersResource {
             @Parameter(description = "The ID of the Keycloak user.")
             @PathParam("userId") String userId,
             @Parameter(
-                    description = "True to also empty the first and the last name of the linked Keycloak user. "
-                            + "The username, the email, and the attributes stay.",
+                    description = """
+                            True to also empty the first and the last name of the linked Keycloak user. \
+                            The username, the email, and the attributes stay. \
+                            False leaves the Keycloak user as it is, so responses still show its name. \
+                            A read-only user, for example from a user store, cannot be changed. \
+                            The masking then fails with 409 and `person.keycloak_name_read_only`, \
+                            and nothing is written.""",
                     schema = @Schema(defaultValue = "false"))
             @QueryParam("clearKeycloakName") boolean clearKeycloakName) {
         context.requireWrite();
@@ -117,7 +122,9 @@ public class UsersResource {
             String userId,
             @Schema(description = "When the data was first masked, in UTC.", format = "date-time")
             String maskedAt,
-            @Schema(description = "True when this request emptied the name of the linked Keycloak user.")
+            @Schema(description = """
+                    True when this request emptied the name of the linked Keycloak user. \
+                    False when the request did not ask for it, or the person has no linked user.""")
             boolean keycloakNameCleared) {
     }
 
