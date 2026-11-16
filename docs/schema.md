@@ -3,11 +3,15 @@
 <!-- ./gradlew updateSchemaDiagram writes this file. Do not edit it. -->
 
 The tables of the extension, as Liquibase creates them in PostgreSQL.
+
+## Linked tables
+
 A line is a foreign key, and its label names the columns of the key.
 A column can point to a row without a foreign key, like `REALM_ID` to a realm of Keycloak.
 
 ```mermaid
 erDiagram
+    direction LR
     FUHITO_ASSIGNMENT {
         varchar(36) ID PK
         varchar(36) REALM_ID
@@ -28,15 +32,6 @@ erDiagram
         varchar(64) SOURCE
         varchar(36) CONTINUES_ASSIGNMENT_ID
     }
-    FUHITO_ATTRIBUTE_DEFINITION {
-        varchar(36) ID PK
-        varchar(36) REALM_ID
-        varchar(32) TARGET
-        varchar(64) NAME
-        varchar(16) VALUE_TYPE
-        varchar(32) REF_KIND
-        boolean REQUIRED
-    }
     FUHITO_CHANGE_LOG {
         varchar(36) ID PK
         varchar(36) REALM_ID
@@ -49,10 +44,6 @@ erDiagram
         varchar(36) CHANGE_ORDER_ID FK
         text REPRESENTATION
         bigint SEQUENCE_NUMBER
-    }
-    FUHITO_CHANGE_LOG_COUNTER {
-        varchar(36) REALM_ID PK
-        bigint LAST_SEQUENCE
     }
     FUHITO_CHANGE_ORDER {
         varchar(36) ID PK
@@ -96,46 +87,11 @@ erDiagram
         text ATTRIBUTES
         varchar(36) LEAVE_REASON_ID FK
     }
-    FUHITO_ERASURE {
-        varchar(36) ID PK
-        varchar(36) REALM_ID
-        varchar(36) PERSON_ID
-        timestamp ERASED_AT
-    }
-    FUHITO_EXTERNAL_ID {
-        varchar(36) ID PK
-        varchar(36) REALM_ID
-        varchar(32) RESOURCE_KIND
-        varchar(36) RESOURCE_ID
-        varchar(64) SOURCE
-        varchar(255) EXTERNAL_ID
-    }
     FUHITO_HIERARCHY {
         varchar(36) ID PK
         varchar(36) REALM_ID
         varchar(64) CODE
         varchar(255) NAME
-    }
-    FUHITO_IDEMPOTENCY_KEY {
-        varchar(36) ID PK
-        varchar(36) REALM_ID
-        varchar(255) KEY_VALUE
-        varchar(512) REQUEST_PATH
-        varchar(64) REQUEST_HASH
-        integer STATUS
-        text BODY
-        varchar(1024) LOCATION
-        timestamp CREATED_AT
-    }
-    FUHITO_JOB_RUN {
-        varchar(36) ID PK
-        varchar(36) REALM_ID
-        varchar(32) JOB
-        varchar(16) STATE
-        timestamp STARTED_AT
-        timestamp ENDED_AT
-        text REPORT
-        varchar(128) ERROR_CODE
     }
     FUHITO_ORG_UNIT {
         varchar(36) ID PK
@@ -217,13 +173,6 @@ erDiagram
         boolean ACTING_HEAD
         boolean GROUP_UNIT
     }
-    FUHITO_REF_KIND {
-        varchar(36) ID PK
-        varchar(36) REALM_ID
-        varchar(32) CODE
-        varchar(255) NAME
-        text NAMES_I18N
-    }
     FUHITO_REPORTING_LINE {
         varchar(36) ID PK
         varchar(36) REALM_ID
@@ -242,12 +191,6 @@ erDiagram
         boolean INCLUDES_DESCENDANTS
         date VALID_FROM
         date VALID_TO
-    }
-    FUHITO_USER_MASK {
-        varchar(36) ID PK
-        varchar(36) REALM_ID
-        timestamp MASKED_AT
-        varchar(36) PERSON_ID
     }
     FUHITO_EMPLOYMENT ||..o{ FUHITO_ASSIGNMENT : "EMPLOYMENT_ID"
     FUHITO_REF_ITEM |o..o{ FUHITO_ASSIGNMENT : "JOB_TITLE_ID"
@@ -276,4 +219,74 @@ erDiagram
     FUHITO_EMPLOYMENT ||..o{ FUHITO_UNIT_ROLE : "EMPLOYMENT_ID"
     FUHITO_ORG_UNIT ||..o{ FUHITO_UNIT_ROLE : "ORG_UNIT_ID"
     FUHITO_REF_ITEM ||..o{ FUHITO_UNIT_ROLE : "ROLE_ID"
+```
+
+## Other tables
+
+No foreign key starts or ends at these tables.
+
+```mermaid
+erDiagram
+    direction LR
+    FUHITO_ATTRIBUTE_DEFINITION {
+        varchar(36) ID PK
+        varchar(36) REALM_ID
+        varchar(32) TARGET
+        varchar(64) NAME
+        varchar(16) VALUE_TYPE
+        varchar(32) REF_KIND
+        boolean REQUIRED
+    }
+    FUHITO_CHANGE_LOG_COUNTER {
+        varchar(36) REALM_ID PK
+        bigint LAST_SEQUENCE
+    }
+    FUHITO_ERASURE {
+        varchar(36) ID PK
+        varchar(36) REALM_ID
+        varchar(36) PERSON_ID
+        timestamp ERASED_AT
+    }
+    FUHITO_EXTERNAL_ID {
+        varchar(36) ID PK
+        varchar(36) REALM_ID
+        varchar(32) RESOURCE_KIND
+        varchar(36) RESOURCE_ID
+        varchar(64) SOURCE
+        varchar(255) EXTERNAL_ID
+    }
+    FUHITO_IDEMPOTENCY_KEY {
+        varchar(36) ID PK
+        varchar(36) REALM_ID
+        varchar(255) KEY_VALUE
+        varchar(512) REQUEST_PATH
+        varchar(64) REQUEST_HASH
+        integer STATUS
+        text BODY
+        varchar(1024) LOCATION
+        timestamp CREATED_AT
+    }
+    FUHITO_JOB_RUN {
+        varchar(36) ID PK
+        varchar(36) REALM_ID
+        varchar(32) JOB
+        varchar(16) STATE
+        timestamp STARTED_AT
+        timestamp ENDED_AT
+        text REPORT
+        varchar(128) ERROR_CODE
+    }
+    FUHITO_REF_KIND {
+        varchar(36) ID PK
+        varchar(36) REALM_ID
+        varchar(32) CODE
+        varchar(255) NAME
+        text NAMES_I18N
+    }
+    FUHITO_USER_MASK {
+        varchar(36) ID PK
+        varchar(36) REALM_ID
+        timestamp MASKED_AT
+        varchar(36) PERSON_ID
+    }
 ```
