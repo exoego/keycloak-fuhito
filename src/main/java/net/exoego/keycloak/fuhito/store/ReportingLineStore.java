@@ -44,6 +44,16 @@ public interface ReportingLineStore {
     void insert(ReportingLine line);
 
     /**
+     * Lists a page of the lines that hold on a date, ordered by ID.
+     *
+     * @param date the date
+     * @param afterId the ID after which the page starts, or null for the start
+     * @param max the largest number of lines
+     * @return the lines
+     */
+    List<ReportingLine> listOn(LocalDate date, String afterId, int max);
+
+    /**
      * Stores the new state of an existing reporting line.
      *
      * @param line the line

@@ -13,6 +13,7 @@ import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.Person;
 import net.exoego.keycloak.fuhito.domain.RefItem;
 import net.exoego.keycloak.fuhito.domain.RefKind;
+import net.exoego.keycloak.fuhito.domain.ReportingLine;
 import net.exoego.keycloak.fuhito.service.ImportDocument.AssignmentRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.AttributeDefinitionRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.EmploymentRow;
@@ -22,6 +23,7 @@ import net.exoego.keycloak.fuhito.service.ImportDocument.OrgUnitRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.PersonRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.RefItemRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.RefKindRow;
+import net.exoego.keycloak.fuhito.service.ImportDocument.ReportingLineRow;
 import net.exoego.keycloak.fuhito.service.ImportReport.Counts;
 import net.exoego.keycloak.fuhito.store.OrganizationDirectory;
 import net.exoego.keycloak.fuhito.store.UserDirectory;
@@ -54,6 +56,9 @@ class ImportServiceTest {
         }
     };
     private final MemoryPersonStore personStore = new MemoryPersonStore();
+    private final MemoryReportingLineStore lineStore = new MemoryReportingLineStore();
+    private final ReportingLineService lines = new ReportingLineService(lineStore, new ReportingLineService.Sources(
+            assignmentStore, employmentStore, orgUnitStore, refItems, users, personStore), Clock.systemUTC());
     private final EmploymentService employments =
             new EmploymentService(employmentStore, assignmentStore, refItems, personStore,
             new MemoryReportingLineStore(), new MemoryUnitRoleStore(), new AnyEmployer());
@@ -81,7 +86,8 @@ class ImportServiceTest {
                     new PersonService(personStore, users, id -> false)),
             new ImportService.Setup(kinds, definitions, hierarchies),
             new ImportService.Organizations(new OrganizationLinkService(orgUnitStore, organizations), organizations,
-                    managed::add));
+                    managed::add),
+            new ImportService.Records(lines));
 
     private static ImportDocument doc(String effectiveDate, boolean dryRun, String source, List<RefItemRow> refItems,
             List<OrgUnitRow> orgUnits) {
@@ -151,7 +157,7 @@ class ImportServiceTest {
     }
 
     private static ImportDocument kinds(List<RefKindRow> rows) {
-        return new ImportDocument("2026-04-01", false, null, null, null, null, null, null, rows, null, null, null);
+        return ImportDocument.of("2026-04-01", false, null, "refKinds", rows);
     }
 
     @Test
@@ -176,7 +182,7 @@ class ImportServiceTest {
     }
 
     private static ImportDocument definitions(List<AttributeDefinitionRow> rows) {
-        return new ImportDocument("2026-04-01", false, null, null, null, null, null, null, null, rows, null, null);
+        return ImportDocument.of("2026-04-01", false, null, "attributeDefinitions", rows);
     }
 
     @Test
@@ -273,8 +279,7 @@ class ImportServiceTest {
                 new OrgUnitParentRow("default", null, "E", null, null, "nope"),
                 new OrgUnitParentRow("default", null, "F", null, "NOPE", null));
 
-        ImportReport report = service.apply(new ImportDocument("2026-04-01", false, null, null, null, null, null,
-                null, null, null, null, rows));
+        ImportReport report = service.apply(ImportDocument.of("2026-04-01", false, null, "orgUnitParents", rows));
 
         assertEquals(Map.of("orgUnitParents", new Counts(0, 1, 1)), report.counts());
         assertEquals(List.of("orgUnitParents[2] import.org_unit_twice", "orgUnitParents[3] invalid.required",
@@ -287,7 +292,7 @@ class ImportServiceTest {
     }
 
     private static ImportDocument hierarchies(List<HierarchyRow> rows) {
-        return new ImportDocument("2026-04-01", false, null, null, null, null, null, null, null, null, rows, null);
+        return ImportDocument.of("2026-04-01", false, null, "hierarchies", rows);
     }
 
     @Test
@@ -669,6 +674,51 @@ class ImportServiceTest {
                         placement("A6", null, null, null, ward, null, null))));
         assertEquals(List.of("assignments[0] import.assignment_mismatch"),
                 errors(importAssignments(placement(null, null, null, null, hospital, null, assignment))));
+    }
+
+    private static ReportingLineRow line(String id, String assignment, String managerExternalId,
+            String managerUsername, String validTo) {
+        return new ReportingLineRow(id, null, assignment, null, managerExternalId, null, managerUsername, null, null,
+                validTo);
+    }
+
+    private ImportReport importLines(String effectiveDate, ReportingLineRow... rows) {
+        return service.apply(ImportDocument.of(effectiveDate, false, null, "reportingLines", List.of(rows)));
+    }
+
+    @Test
+    void importsReportingLinesAndEndsTheSolidLineOfTheManagerBefore() {
+        importTwoUnits();
+        importPeople("2026-04-01", List.of(employment("E1", "nurse", null, null, null)),
+                List.of(assignment("A1", "E1", "W", true, null)));
+        service.apply(new ImportDocument("2026-04-01", false, null, null, null, null, null,
+                List.of(new PersonRow(null, "P3", null, null, "Chief", null, null, null, null))));
+
+        ImportReport first = importLines("2026-04-01", line(null, "A1", null, "doctor", null));
+        ImportReport again = importLines("2026-04-01", line(null, "A1", null, "doctor", null));
+        ImportReport next = importLines("2026-05-01", line(null, "A1", "P3", null, null));
+
+        assertEquals(List.of(), errors(first));
+        assertEquals(Map.of("reportingLines", new Counts(1, 0, 0)), first.counts());
+        assertEquals(Map.of("reportingLines", new Counts(0, 0, 1)), again.counts());
+        assertEquals(Map.of("reportingLines", new Counts(1, 0, 0)), next.counts());
+        List<ReportingLine> stored = lineStore.lines.stream()
+                .sorted(java.util.Comparator.comparing(l -> l.period().from()))
+                .toList();
+        assertEquals("2026-05-01", stored.getFirst().period().to().toString());
+        assertEquals(personStore.findByExternalId("import", "P3").orElseThrow().id(),
+                stored.getLast().managerPersonId());
+        assertEquals("fuhito/reporting-lines/" + stored.getFirst().id() + "/end", next.writes().getFirst().path());
+
+        ImportReport ended = importLines("2026-05-01", line(stored.getLast().id(), null, null, null, "2026-06-01"));
+        assertEquals(Map.of("reportingLines", new Counts(0, 1, 0)), ended.counts());
+        assertEquals(List.of("reportingLines[0] import.assignment_unknown", "reportingLines[1] import.manager_twice",
+                "reportingLines[2] import.username_unknown", "reportingLines[3] import.id_unknown",
+                "reportingLines[4] import.person_unknown", "reportingLines[5] invalid.required"),
+                errors(importLines("2026-05-01", line(null, "NOPE", "P3", null, null),
+                        line(null, "A1", "P3", "doctor", null), line(null, "A1", null, "nobody", null),
+                        line("nope", null, null, null, null), line(null, "A1", "NOPE", null, null),
+                        line(null, "A1", null, null, null))));
     }
 
     private void importTwoUnits() {

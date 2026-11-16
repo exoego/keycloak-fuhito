@@ -37,7 +37,9 @@ public record ImportDocument(
         @Schema(description = "The hierarchies. They come before the org units.")
         List<HierarchyRow> hierarchies,
         @Schema(description = "The parents of org units in hierarchies. They come after the org units.")
-        List<OrgUnitParentRow> orgUnitParents) {
+        List<OrgUnitParentRow> orgUnitParents,
+        @Schema(description = "The reporting lines. They come after the assignments.")
+        List<ReportingLineRow> reportingLines) {
 
     /**
      * Makes a document with no list of kinds.
@@ -55,7 +57,7 @@ public record ImportDocument(
             List<OrgUnitRow> orgUnits, List<EmploymentRow> employments, List<AssignmentRow> assignments,
             List<PersonRow> people) {
         this(effectiveDate, dryRun, source, refItems, orgUnits, employments, assignments, people, null, null, null,
-                null);
+                null, null);
     }
 
     /**
@@ -72,7 +74,44 @@ public record ImportDocument(
     public ImportDocument(String effectiveDate, boolean dryRun, String source, List<RefItemRow> refItems,
             List<OrgUnitRow> orgUnits, List<EmploymentRow> employments, List<AssignmentRow> assignments) {
         this(effectiveDate, dryRun, source, refItems, orgUnits, employments, assignments, null, null, null, null,
-                null);
+                null, null);
+    }
+
+    @Schema(
+            name = "ImportReportingLineRow",
+            description = "A reporting line from an assignment to a manager. It is matched by assignment, manager, "
+                    + "and kind, or by `id`. A new solid manager ends the solid line that the assignment has on the "
+                    + "date.")
+    public record ReportingLineRow(
+            @Schema(description = "The ID of a stored line. A CSV export has it in every row. A new line has none.")
+            String id,
+            @Schema(
+                    description = "The name of the system that the external IDs come from. The default is the "
+                            + "source of the document.",
+                    maxLength = 64,
+                    pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$")
+            String source,
+            @Schema(description = "The external ID of the assignment of the person who reports. Give this or "
+                    + "`assignmentId`.")
+            String assignmentExternalId,
+            @Schema(description = "The ID of the assignment.")
+            String assignmentId,
+            @Schema(description = "The external ID of the person who is the manager. Give one of the three ways "
+                    + "to name the manager.")
+            String managerPersonExternalId,
+            @Schema(description = "The ID of the person who is the manager.")
+            String managerPersonId,
+            @Schema(description = "The username of the manager. The person of the user is used, and created when "
+                    + "the user has none.")
+            String managerUsername,
+            @Schema(enumeration = {"SOLID", "DOTTED"}, defaultValue = "SOLID")
+            String kind,
+            @Schema(description = "The first date of a new line. The default is the effective date. A stored line "
+                    + "ignores it.", format = "date")
+            String validFrom,
+            @Schema(description = "The first date on which the line no longer holds. The default is the end of the "
+                    + "assignment.", format = "date")
+            String validTo) {
     }
 
     @Schema(
@@ -130,6 +169,30 @@ public record ImportDocument(
             String refKind,
             @Schema(description = "True when every write of the resource must give a value.", defaultValue = "false")
             Boolean required) {
+    }
+
+    /**
+     * Makes a document with one list.
+     *
+     * @param effectiveDate the date of the state, as {@code YYYY-MM-DD}
+     * @param dryRun true to do all checks and write nothing
+     * @param source the name of the system that the rows come from, or null
+     * @param list the name of the list, as the document names it, for example {@code orgUnits}
+     * @param rows the rows of the list
+     * @return the document
+     */
+    static ImportDocument of(String effectiveDate, boolean dryRun, String source, String list, List<?> rows) {
+        Map<String, List<?>> lists = Map.of(list, rows);
+        return new ImportDocument(effectiveDate, dryRun, source, rows(lists, "refItems"), rows(lists, "orgUnits"),
+                rows(lists, "employments"), rows(lists, "assignments"), rows(lists, "people"),
+                rows(lists, "refKinds"), rows(lists, "attributeDefinitions"), rows(lists, "hierarchies"),
+                rows(lists, "orgUnitParents"), rows(lists, "reportingLines"));
+    }
+
+    // The name of the list tells the type of its rows.
+    @SuppressWarnings("unchecked")
+    private static <R> List<R> rows(Map<String, List<?>> lists, String list) {
+        return (List<R>) lists.get(list);
     }
 
     @Schema(
