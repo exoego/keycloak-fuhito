@@ -724,6 +724,16 @@ class ImportServiceTest {
                         line(null, "A1", "P3", "doctor", null), line(null, "A1", null, "nobody", null),
                         line("nope", null, null, null, null), line(null, "A1", "NOPE", null, null),
                         line(null, "A1", null, null, null))));
+        String a1 = assignmentStore.findAssignmentIdByExternalId("import", "A1").orElseThrow();
+        String chief = personStore.findByExternalId("import", "P3").orElseThrow().id();
+        assertEquals(List.of("reportingLines[0] import.assignment_twice", "reportingLines[1] import.id_mismatch",
+                "reportingLines[3] import.duplicate_row"),
+                errors(importLines("2026-05-01",
+                        new ReportingLineRow(null, null, "A1", a1, "P3", null, null, null, null, null),
+                        new ReportingLineRow(stored.getLast().id(), null, null, null, null, null, "doctor", null,
+                                null, null),
+                        new ReportingLineRow(null, null, null, a1, null, chief, null, null, null, null),
+                        new ReportingLineRow(null, null, null, a1, null, chief, null, null, null, null))));
     }
 
     private static UnitRoleRow role(String id, String employment, String orgUnit, String role, Boolean below,
@@ -768,6 +778,13 @@ class ImportServiceTest {
                         role(null, "E1", "W", null, null, null),
                         role(stored.getLast().id(), null, "W", null, true, null),
                         role(null, "E1", "H", "approver", true, null), role(null, "E1", "H", "approver", true, null))));
+        String e1 = employmentStore.findByExternalId("import", "E1").orElseThrow().id();
+        String h = orgUnitStore.findUnitByExternalId("import", "H").orElseThrow().id();
+        assertEquals(List.of("unitRoles[0] import.employment_twice", "unitRoles[1] import.org_unit_twice"),
+                errors(importRoles("2026-05-01",
+                        new UnitRoleRow(null, null, "E1", e1, null, h, "approver", true, null, null),
+                        new UnitRoleRow(null, null, null, e1, "H", h, "approver", true, null, null),
+                        new UnitRoleRow(null, null, null, e1, null, h, "approver", true, null, null))));
     }
 
     private void importTwoUnits() {

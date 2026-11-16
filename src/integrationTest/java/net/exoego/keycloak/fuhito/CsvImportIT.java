@@ -201,6 +201,7 @@ class CsvImportIT {
         assertTrue(kinds.findValuesAsText("code").contains("cost-center"));
         assertEquals(200, api.put("/ref-kinds/site", "{\"name\": \"拠点\"}").statusCode());
         assertEquals(404, api.put("/ref-kinds/UNIT_TYPE", "{\"name\": \"組織種別\"}").statusCode());
+        assertEquals(204, api.delete("/ref-kinds/cost-center").statusCode());
     }
 
     @Test
