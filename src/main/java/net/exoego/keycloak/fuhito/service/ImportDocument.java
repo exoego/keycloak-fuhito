@@ -30,7 +30,10 @@ public record ImportDocument(
         List<PersonRow> people,
         @Schema(description = "The kinds of reference data that the realm adds. They come first, so that the "
                 + "reference items can name them.")
-        List<RefKindRow> refKinds) {
+        List<RefKindRow> refKinds,
+        @Schema(description = "The definitions of free attributes. They come after the kinds and before the "
+                + "reference items, whose attributes they check.")
+        List<AttributeDefinitionRow> attributeDefinitions) {
 
     /**
      * Makes a document with no list of kinds.
@@ -47,7 +50,7 @@ public record ImportDocument(
     public ImportDocument(String effectiveDate, boolean dryRun, String source, List<RefItemRow> refItems,
             List<OrgUnitRow> orgUnits, List<EmploymentRow> employments, List<AssignmentRow> assignments,
             List<PersonRow> people) {
-        this(effectiveDate, dryRun, source, refItems, orgUnits, employments, assignments, people, null);
+        this(effectiveDate, dryRun, source, refItems, orgUnits, employments, assignments, people, null, null);
     }
 
     /**
@@ -63,7 +66,28 @@ public record ImportDocument(
      */
     public ImportDocument(String effectiveDate, boolean dryRun, String source, List<RefItemRow> refItems,
             List<OrgUnitRow> orgUnits, List<EmploymentRow> employments, List<AssignmentRow> assignments) {
-        this(effectiveDate, dryRun, source, refItems, orgUnits, employments, assignments, null, null);
+        this(effectiveDate, dryRun, source, refItems, orgUnits, employments, assignments, null, null, null);
+    }
+
+    @Schema(
+            name = "ImportAttributeDefinitionRow",
+            description = "The definition of a free attribute. It is matched by target and name. A row of a stored "
+                    + "definition changes the type, the kind, and whether a value is required.",
+            requiredProperties = {"target", "name", "type"})
+    public record AttributeDefinitionRow(
+            @Schema(
+                    description = "The kind of resource.",
+                    enumeration = {"ORG_UNIT", "PERSON", "EMPLOYMENT_TERMS", "ASSIGNMENT", "QUALIFICATION",
+                        "REF_ITEM"})
+            String target,
+            @Schema(description = "The name in `attributes`.", maxLength = 64)
+            String name,
+            @Schema(enumeration = {"STRING", "NUMBER", "BOOLEAN", "DATE", "REF_ITEM"})
+            String type,
+            @Schema(description = "The kind of reference data. Only the type `REF_ITEM` has it.")
+            String refKind,
+            @Schema(description = "True when every write of the resource must give a value.", defaultValue = "false")
+            Boolean required) {
     }
 
     @Schema(

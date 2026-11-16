@@ -31,8 +31,8 @@ public class CsvExportService {
     // The mark that tells a spreadsheet that the file is UTF-8.
     private static final String BYTE_ORDER_MARK = "﻿";
     private static final int ROWS_AT_A_TIME = 1000;
-    private static final List<String> LISTS = List.of("ref-kinds", "ref-items", "org-units", "people",
-            "employments", "assignments");
+    private static final List<String> LISTS = List.of("ref-kinds", "attribute-definitions", "ref-items",
+            "org-units", "people", "employments", "assignments");
 
     private final RefItemService refItems;
     private final Supplier<List<RealmKindService.View>> kinds;
@@ -81,6 +81,7 @@ public class CsvExportService {
     public String write(String list, String asOf, boolean japanese) {
         return switch (String.valueOf(list)) {
             case "ref-kinds" -> refKinds(japanese);
+            case "attribute-definitions" -> attributeDefinitions(japanese);
             case "ref-items" -> refItems(japanese);
             case "org-units" -> orgUnits(asOf, japanese);
             case "people" -> people(japanese);
@@ -104,6 +105,22 @@ public class CsvExportService {
             List<String> cells = new ArrayList<>(List.of(kind.code(), kind.name()));
             languages.forEach(language -> cells.add(text(kind.names().get(language))));
             line(csv, cells);
+        }
+        return csv.toString();
+    }
+
+    private String attributeDefinitions(boolean japanese) {
+        List<String> header = new ArrayList<>();
+        for (String field : List.of("target", "name", "type", "refKind", "required")) {
+            header.add(column(field, japanese));
+        }
+        StringBuilder csv = new StringBuilder(BYTE_ORDER_MARK);
+        line(csv, header);
+        for (AttributeDefinition.Target target : AttributeDefinition.Target.values()) {
+            for (AttributeDefinition definition : definitions.apply(target)) {
+                line(csv, List.of(target.name(), definition.name(), definition.type().name(),
+                        text(definition.refKind()), Boolean.toString(definition.required())));
+            }
         }
         return csv.toString();
     }

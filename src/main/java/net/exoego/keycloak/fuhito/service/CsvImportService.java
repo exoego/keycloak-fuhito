@@ -28,6 +28,7 @@ import net.exoego.keycloak.fuhito.domain.Person;
 import net.exoego.keycloak.fuhito.domain.RefItem;
 import net.exoego.keycloak.fuhito.domain.RefKind;
 import net.exoego.keycloak.fuhito.service.ImportDocument.AssignmentRow;
+import net.exoego.keycloak.fuhito.service.ImportDocument.AttributeDefinitionRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.EmploymentRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.OrgUnitRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.PersonRow;
@@ -84,11 +85,13 @@ public class CsvImportService {
             Map.entry("head", "長"), Map.entry("primary", "主務"), Map.entry("allocationPercent", "配分割合"),
             Map.entry("id", "ID"), Map.entry("parentId", "親のID"), Map.entry("personId", "人のID"),
             Map.entry("employerId", "雇用主のID"), Map.entry("employmentId", "雇用のID"),
-            Map.entry("orgUnitId", "組織のID"));
+            Map.entry("orgUnitId", "組織のID"), Map.entry("target", "対象"), Map.entry("type", "型"),
+            Map.entry("refKind", "参照の種類"), Map.entry("required", "必須"));
 
     // The lists that a file can hold, each with the resource whose attributes it sets.
     private enum Kind {
         REF_KINDS("refKinds", null),
+        ATTRIBUTE_DEFINITIONS("attributeDefinitions", null),
         REF_ITEMS("refItems", AttributeDefinition.Target.REF_ITEM),
         ORG_UNITS("orgUnits", AttributeDefinition.Target.ORG_UNIT),
         EMPLOYMENTS("employments", AttributeDefinition.Target.EMPLOYMENT_TERMS),
@@ -114,6 +117,7 @@ public class CsvImportService {
 
     private static final Map<Kind, Set<String>> FIELDS = Map.of(
             Kind.REF_KINDS, Set.of("code", "name"),
+            Kind.ATTRIBUTE_DEFINITIONS, Set.of("target", "name", "type", "refKind", "required"),
             Kind.REF_ITEMS, Set.of("kind", "code", "name", "displayOrder", "active", "legalEntity", "actingHead",
                     "group"),
             Kind.ORG_UNITS, Set.of("id", "externalId", "source", "code", "name", "shortName", "phoneticName",
@@ -185,7 +189,10 @@ public class CsvImportService {
         // Each list has its own type of row, so the rows keep that type from the cells to the import.
         return switch (kind) {
             case REF_KINDS -> run(data, columns, defined, this::refKind, typed -> new ImportDocument(effectiveDate,
-                    dryRun, defaultSource, null, null, null, null, null, typed));
+                    dryRun, defaultSource, null, null, null, null, null, typed, null));
+            case ATTRIBUTE_DEFINITIONS -> run(data, columns, defined, this::attributeDefinition,
+                    typed -> new ImportDocument(effectiveDate, dryRun, defaultSource, null, null, null, null, null,
+                            null, typed));
             case REF_ITEMS -> run(data, columns, defined, this::refItem,
                     typed -> new ImportDocument(effectiveDate, dryRun, defaultSource, typed, null, null, null));
             case ORG_UNITS -> run(data, columns, defined, cells -> orgUnit(cells, date, defaultSource),
@@ -261,6 +268,21 @@ public class CsvImportService {
                 : importService.setup().kinds().find(code);
         return new RefKindRow(code, cells.text("name", stored.map(RealmKindService.View::name).orElse(null)),
                 cells.localized("name", stored.map(RealmKindService.View::names).orElse(Map.of())));
+    }
+
+    private AttributeDefinitionRow attributeDefinition(Cells cells) {
+        String target = cells.text("target", null);
+        String name = cells.text("name", null);
+        // The import reports an unknown target. Here it only means that nothing is stored.
+        Optional<AttributeDefinition> stored = target == null || name == null ? Optional.empty()
+                : quietly(() -> importService.setup().definitions().list(target)).stream()
+                        .flatMap(List::stream)
+                        .filter(definition -> definition.name().equals(name))
+                        .findFirst();
+        return new AttributeDefinitionRow(target, name,
+                cells.text("type", stored.map(definition -> definition.type().name()).orElse(null)),
+                cells.text("refKind", stored.map(AttributeDefinition::refKind).orElse(null)),
+                cells.bool("required", stored.map(AttributeDefinition::required).orElse(null)));
     }
 
     private RefItemRow refItem(Cells cells) {

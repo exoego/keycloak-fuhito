@@ -479,7 +479,7 @@ public class FuhitoResource {
         var people = new ImportService.People(employmentService(), new JpaEmploymentStore(entityManager, realmId),
                 assignmentService(), new JpaAssignmentStore(entityManager, realmId), users, personService());
         var importService = new ImportService(refItemService(), refItemStore,
-                orgUnitService(), orgUnitStore, people, new ImportService.Setup(realmKinds()));
+                orgUnitService(), orgUnitStore, people, new ImportService.Setup(realmKinds(), attributeRules()));
         var definitions = new JpaAttributeDefinitionStore(entityManager, realmId);
         return new ImportsResource(context, importService, new CsvImportService(importService, refItemStore,
                 orgUnitStore, orgUnitService(), people, definitions::list),

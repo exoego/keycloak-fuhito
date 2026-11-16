@@ -94,6 +94,33 @@ class CsvImportIT {
     }
 
     @Test
+    void anExportOfAttributeDefinitionsLoadsAgainWithNoChange() throws Exception {
+        TestRealm realm = TestRealm.create("csv-export-definitions");
+        Api api = realm.api;
+        assertEquals(201, api.post("/ref-kinds", "{\"code\": \"site\", \"name\": \"拠点\"}").statusCode());
+        assertEquals(201, api.post("/attribute-definitions", "{\"target\": \"PERSON\", \"name\": \"site\", "
+                + "\"type\": \"REF_ITEM\", \"refKind\": \"site\"}").statusCode());
+        assertEquals(201, api.post("/attribute-definitions", "{\"target\": \"ORG_UNIT\", \"name\": \"beds\", "
+                + "\"type\": \"NUMBER\"}").statusCode());
+
+        for (String header : List.of("en", "ja")) {
+            HttpResponse<String> exported = api.get("/imports/csv/attribute-definitions?header=" + header);
+            assertEquals(200, exported.statusCode(), exported.body());
+            assertEquals("﻿" + (header.equals("en") ? "target,name,type,refKind,required"
+                    : "対象,名称,型,参照の種類,必須") + "\r\nORG_UNIT,beds,NUMBER,,false\r\nPERSON,site,REF_ITEM,site,false\r\n",
+                    exported.body());
+            JsonNode counts = load(api, "attribute-definitions", "effectiveDate=2026-05-01", exported.body())
+                    .get("counts").get("attributeDefinitions");
+            assertEquals(0, counts.get("created").asInt() + counts.get("changed").asInt(), counts.toString());
+        }
+        // A blank cell keeps the stored value.
+        load(api, "attribute-definitions", "effectiveDate=2026-05-01", "target,name,required\r\nORG_UNIT,beds,true\r\n");
+        JsonNode beds = Api.json(api.get("/attribute-definitions?target=ORG_UNIT")).get(0);
+        assertEquals("NUMBER", beds.get("type").asText());
+        assertTrue(beds.get("required").asBoolean());
+    }
+
+    @Test
     void anExportOfReferenceItemsLoadsAgainWithNoChange() throws Exception {
         TestRealm realm = TestRealm.withEmployer("csv-export-items");
         Api api = realm.api;
