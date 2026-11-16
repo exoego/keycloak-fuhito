@@ -96,7 +96,7 @@ A reader of a late page pays for all pages before it. A cursor that says "go on 
 ## What changed after these runs
 
 - The read of the whole tree, `GET /org-units` with every org unit, is gone. `GET /org-units` now lists the roots. The rows "Org units, first page" and "Org units, last page" above are from before that, and the script no longer measures them. A subtree of a root still walks the whole tree.
-- The two plain indexes were dropped later. The unique keys `UK_FUHITO_ORG_UNIT_VERSION_FROM` and `UK_FUHITO_ORG_UNIT_LINK_FROM` have the same columns, and they are B-tree indexes too. Every database has them, also one without `btree_gist`.
+- The two plain indexes were dropped later. The unique keys `UK_FUHITO_ORG_UNIT_VERSION_FROM` and `UK_FUHITO_ORG_UNIT_LINK_FROM` have the same columns, and they are B-tree indexes too. Every database has them, also one without `btree_gist`. A run with 50,001 org units and 500,000 people before and after the drop gave the same times within 5% for every read. The unique key of the versions took the 1.5 million lookups that the plain index had served. The plain index of the links had served none.
 - The number 333 ms for the whole tree with the two indexes does not hold in general. In a second run the planner still chose the GiST index of the exclusion constraint, and the read took 1.2 seconds. It chose the plain index only after the index was built again. Which one it takes depends on the sizes of the two indexes. The section below has the walk that does not depend on that choice.
 
 ## The walk down a subtree
