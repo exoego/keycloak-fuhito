@@ -12,6 +12,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -69,6 +70,20 @@ public class ProjectionService {
         <T> T inNewTransaction(Function<Parts, T> piece);
 
         /**
+         * Runs pieces that do not depend on each other, each in a transaction of its own. They may run at the same
+         * time. All of them run, also when one fails.
+         *
+         * @param pieces the pieces
+         * @throws RuntimeException the failure of the first piece that failed
+         */
+        default void inParallel(List<Consumer<Parts>> pieces) {
+            pieces.forEach(piece -> inNewTransaction(parts -> {
+                piece.accept(parts);
+                return null;
+            }));
+        }
+
+        /**
          * Runs a whole run, unless another run for the realm is going on.
          *
          * @param <T> the type of the result
@@ -120,9 +135,10 @@ public class ProjectionService {
     private int groupsRenamed;
     private int groupsMoved;
     private int groupsRemoved;
-    private int membersJoined;
-    private int membersLeft;
-    private int organizationMembersAdded;
+    // The writes of members run at the same time, so their counts are shared.
+    private final AtomicInteger membersJoined = new AtomicInteger();
+    private final AtomicInteger membersLeft = new AtomicInteger();
+    private final AtomicInteger organizationMembersAdded = new AtomicInteger();
     // The groups that took their own ID as their name for a while.
     private final Set<String> parked = new HashSet<>();
 
@@ -216,7 +232,7 @@ public class ProjectionService {
         Optional<String> realmGroup = piece(parts -> parts.keycloak().realmGroupRoot());
         realmGroup.ifPresent(this::projectRealm);
         return new ProjectionReport(organizations, groupsCreated, groupsRenamed, groupsMoved, groupsRemoved,
-                membersJoined, membersLeft, organizationMembersAdded, realmGroup.isPresent() ? 1 : 0);
+                membersJoined.get(), membersLeft.get(), organizationMembersAdded.get(), realmGroup.isPresent() ? 1 : 0);
     }
 
     // Every piece puts off its writes to its end. See OrganizationGroups.inOneFlush.
@@ -340,12 +356,16 @@ public class ProjectionService {
         for (List<String> some : inPieces(unitIds, UNITS_AT_A_TIME)) {
             List<MemberWrite> writes = piece(parts -> memberWrites(parts, target, some, today, groupIdByUnit,
                     everyone));
+            // The writes of different users do not touch the same rows, so they run at the same time. The time of
+            // a write goes mostly into trips to the database.
+            List<Consumer<Parts>> pieces = new ArrayList<>();
             for (List<MemberWrite> few : byUser(writes)) {
-                piece(parts -> {
+                pieces.add(parts -> parts.keycloak().inOneFlush(() -> {
                     few.forEach(write -> write.action().accept(parts.keycloak()));
                     return null;
-                });
+                }));
             }
+            work.inParallel(pieces);
         }
     }
 
@@ -394,7 +414,7 @@ public class ProjectionService {
                 if (!inOrganization.contains(userId)) {
                     writes.add(new MemberWrite(userId, keycloak -> {
                         if (keycloak.addOrganizationMember(organizationId, userId)) {
-                            organizationMembersAdded++;
+                            organizationMembersAdded.incrementAndGet();
                         }
                     }));
                 }
@@ -443,7 +463,7 @@ public class ProjectionService {
             if (!current.contains(userId)) {
                 writes.add(new MemberWrite(userId, keycloak -> {
                     if (keycloak.join(groupId, userId)) {
-                        membersJoined++;
+                        membersJoined.incrementAndGet();
                     }
                 }));
             }
@@ -452,7 +472,7 @@ public class ProjectionService {
             if (!wanted.contains(userId)) {
                 writes.add(new MemberWrite(userId, keycloak -> {
                     if (keycloak.leave(groupId, userId)) {
-                        membersLeft++;
+                        membersLeft.incrementAndGet();
                     }
                 }));
             }

@@ -175,6 +175,20 @@ Measured on 2026-11-16 with 50,000 people, at the same commit. One run each.
 
 A second run before the change took 94.8 s and 3.5 s, so a run with nothing to change moves between about 3 and 3.5 seconds from run to run. The extension uses both changes.
 
+### The writes of different users at the same time
+
+Half of the samples of the profile above waited for the database. So the writes of members of a piece of units now run on 4 threads, each piece in a session and a transaction of its own. The writes of one user stay in one transaction, so two threads never write for the same user.
+
+Measured on 2026-11-16 with 50,000 people, at the same commit. One run each.
+
+| Run | Before | After |
+|---|---|---|
+| First run | 78.4 s | 62.1 s |
+| Nothing changed | 3.4 s | 3.3 s |
+
+- The Docker of the run had 2 CPUs for Keycloak and PostgreSQL together. A machine with more CPUs was not measured.
+- The groups of one level of the tree were also made at the same time in one run. It took 62.1 s too, so the groups are still made one piece after another.
+
 ## The sync from user attributes
 
 `BATCH=1 scripts/bench/run.sh` also runs `POST /attribute-sync/run` twice. Each of the 50,000 users has a department. The first run adds 50,000 assignments.

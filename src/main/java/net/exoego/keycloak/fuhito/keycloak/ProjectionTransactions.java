@@ -1,6 +1,8 @@
 package net.exoego.keycloak.fuhito.keycloak;
 
 import java.time.Clock;
+import java.util.List;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -10,6 +12,7 @@ import net.exoego.keycloak.fuhito.jpa.JpaAssignmentStore;
 import net.exoego.keycloak.fuhito.jpa.JpaEmploymentStore;
 import net.exoego.keycloak.fuhito.jpa.JpaOrgUnitStore;
 import net.exoego.keycloak.fuhito.jpa.JpaRefItemStore;
+import net.exoego.keycloak.fuhito.service.InParallel;
 import net.exoego.keycloak.fuhito.service.ProjectionService;
 import net.exoego.keycloak.fuhito.service.ProjectionService.Parts;
 import net.exoego.keycloak.fuhito.service.UnitDays;
@@ -29,6 +32,9 @@ public final class ProjectionTransactions implements ProjectionService.Work {
     private final String realmId;
     private final BusinessDay.Rule rule;
     private final KeycloakSession caller;
+
+    // A write waits mostly for the database, so a few threads keep it busy. More would only take connections.
+    private static final int THREADS = 4;
 
     /**
      * Creates the runner for one realm.
@@ -50,6 +56,15 @@ public final class ProjectionTransactions implements ProjectionService.Work {
     public <T> T alone(Supplier<T> run) {
         return OneAtATime.outsideTransaction(caller,
                 () -> OneAtATime.run(factory, "projection", realmId, run));
+    }
+
+    // Each piece takes a session of its own, so the threads share nothing of Keycloak.
+    @Override
+    public void inParallel(List<Consumer<Parts>> pieces) {
+        InParallel.run(pieces.stream().<Runnable>map(piece -> () -> inNewTransaction(parts -> {
+            piece.accept(parts);
+            return null;
+        })).toList(), THREADS);
     }
 
     @Override
