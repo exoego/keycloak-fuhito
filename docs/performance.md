@@ -134,16 +134,16 @@ With the cursor, a late page of the members costs as much as the first page. It 
 `BATCH=1 SYNC=0 scripts/bench/run.sh` also makes one Keycloak user for each person, links the company to one Keycloak organization, and runs `POST /projection/rebuild` twice.
 The realm has 50,000 people and 5,000 org units. The first run makes 5,000 groups, 49,990 memberships of groups, and 50,000 members of the organization.
 
-| Version | First run | Nothing changed |
-|---|---|---|
-| One transaction, with one check of membership for each user | fails | not run |
-| Pieces of 100 org units, each in its own transaction | 226 s | 14 s to 26 s |
-| The memberships of a piece read in one query | 245 s | 3.4 s |
-| The writes of memberships in transactions of 50 | 96 s | 3.5 s |
+Each version keeps the changes of the versions on its left.
+
+| Run | One transaction | Pieces of 100 org units | Memberships of a piece read at once | Memberships written in transactions of 50 |
+|---|---|---|---|---|
+| First run | fails | 226 s | 245 s | 96 s |
+| Nothing changed | not run | 14 s to 26 s | 3.4 s | 3.5 s |
 
 What the runs showed.
 
-- One transaction does not work. Keycloak ends a transaction after 300 seconds. Before that limit, the list of IDs after `in` passed the 65,535 values that PostgreSQL takes in one statement.
+- One transaction, with one check of membership for each user, does not work. Keycloak ends a transaction after 300 seconds. Before that limit, the list of IDs after `in` passed the 65,535 values that PostgreSQL takes in one statement.
 - A list of IDs is now one array, and the SQL is `id = any(?)`. That removed the limit. It did not change the times.
 - With nothing to change, the time went into one question to Keycloak for each user. One query for each piece now reads who is in which group.
 - In the first run, the time goes into the writes. Keycloak flushes after each change of a membership, and a flush looks through everything that the transaction loaded. Small transactions keep each flush small.
@@ -155,20 +155,42 @@ The first run still costs about 1 ms for each write. The writes go through the A
 
 `BATCH=1 scripts/bench/run.sh` also runs `POST /attribute-sync/run` twice. Each of the 50,000 users has a department. The first run adds 50,000 assignments.
 
-| Version | First run | Nothing changed |
-|---|---|---|
-| One transaction | fails | fails |
-| Pieces of 100 users, each in its own transaction | fails | fails |
-| The attributes of all users read in one query | 84 s | 16 s |
-| The employments, the reporting lines, and the managers of a piece read at once | 79 s | 3.7 s |
+Each version keeps the changes of the versions on its left.
+
+| Run | One transaction | Pieces of 100 users | Attributes of all users read at once |
+|---|---|---|---|
+| First run | fails | fails | 84 s |
+| Nothing changed | fails | fails | 16 s |
 
 What the runs showed.
 
 - The time went into the read of the users, before any write. The API of Keycloak loads one user at a time, and each load first looked through every user that the transaction had loaded. The run passed the 300 seconds of a transaction in that read alone.
 - One query on the tables of Keycloak now reads the attributes that the sync needs.
 - The pieces keep each transaction short. A first run writes an assignment, and often a person and an employment, for each user through the services.
-- With nothing to change, a run asked for the employments and the reporting line of each user. That was the 16 seconds. Each piece now reads them for its 100 users in two queries, and asks the tables of Keycloak once whether the managers of the piece exist. Only a manager who is not in them is looked up through the API of Keycloak, because a user storage provider can hold that user.
-- The last row was measured on 2026-11-16 at a later commit, where the run before the change took 96 s and 19.5 s.
+- With nothing to change, a run still asked for the employments and the reporting line of each user. That was the 16 seconds. The next section is about that.
+
+### The reads of a piece at once
+
+A run works in pieces of 100 users. These are the reads of one piece when nothing changes.
+
+| Read | Before | After |
+|---|---|---|
+| The employments of the users | 100 queries, and one more for the person of each employment | 1 query |
+| The reporting lines of their assignments | 100 queries, and one more for the manager of each line | 1 query |
+| Whether their managers exist | 1 call of the API of Keycloak for each user with a manager | 1 query on the tables of Keycloak |
+
+A manager who is not in the tables of Keycloak is still looked up through the API, because a user storage provider can hold that user.
+
+Measured on 2026-11-16, before and after the change at the same commit. One run each.
+
+| People | Run | Before | After | Time saved |
+|---|---|---|---|---|
+| 50,000 | First run | 96 s | 79 s | 18% |
+| 50,000 | Nothing changed | 19.5 s | 3.7 s | 81% |
+| 500,000 | First run | 919 s | 699 s | 24% |
+| 500,000 | Nothing changed | 183 s | 33 s | 82% |
+
+The users of the seed have no manager, so these runs did not measure the third read.
 
 ## The batch jobs in a realm ten times as large
 
@@ -178,14 +200,13 @@ What the runs showed.
 |---|---|---|
 | Projection | 1,793 s | 43 s |
 | Sync from user attributes | 933 s | 186 s |
-| Sync, with the reads of each piece at once | 699 s | 33 s |
 
 What the runs showed.
 
 - The times grow about in line with the number of people. A first run is one write at a time through the API of Keycloak or through the services, about 1,000 to 2,000 a second.
 - A rebuild took longer than the 15 minutes of the timer, and the timer started a second one. The two failed on the unique keys of Keycloak. Now only one rebuild runs for a realm at a time.
 - A call that took more than 300 seconds did all its work and then answered with the status 500. The transaction of the request had ended by then, and its end failed. Now a long job ends that transaction before it starts.
-- A sync with nothing to change was close to that limit of 300 seconds for 500,000 people, because it asked for the employments and the reporting line of each user. With the reads of each piece at once, it takes 33 seconds. The run before the change took 919 s and 183 s at the same commit.
+- A sync with nothing to change was close to that limit of 300 seconds for 500,000 people, because it asked for the employments and the reporting line of each user. It now takes 33 seconds. See "The reads of a piece at once" above.
 
 ## What the numbers say
 
