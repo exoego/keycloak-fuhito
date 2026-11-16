@@ -202,6 +202,17 @@ Parents in hierarchies.
 | `parentExternalId` | `親の外部ID` |
 | `parentId` | `親のID` |
 
+Parents in hierarchies.
+
+| English | Japanese |
+|---|---|
+| `hierarchy` | `階層` |
+| `source` | `ソース` |
+| `orgUnitExternalId` | `組織の外部ID` |
+| `orgUnitId` | `組織のID` |
+| `parentExternalId` | `親の外部ID` |
+| `parentId` | `親のID` |
+
 People.
 
 | English | Japanese |
