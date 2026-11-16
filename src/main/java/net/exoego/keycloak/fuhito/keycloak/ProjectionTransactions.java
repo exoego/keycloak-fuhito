@@ -1,6 +1,12 @@
 package net.exoego.keycloak.fuhito.keycloak;
 
 import java.time.Clock;
+import java.util.List;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -30,6 +36,9 @@ public final class ProjectionTransactions implements ProjectionService.Work {
     private final BusinessDay.Rule rule;
     private final KeycloakSession caller;
 
+    // A write waits mostly for the database, so a few threads keep it busy. More would only take connections.
+    private static final int THREADS = 4;
+
     /**
      * Creates the runner for one realm.
      *
@@ -50,6 +59,39 @@ public final class ProjectionTransactions implements ProjectionService.Work {
     public <T> T alone(Supplier<T> run) {
         return OneAtATime.outsideTransaction(caller,
                 () -> OneAtATime.run(factory, "projection", realmId, run));
+    }
+
+    // Each piece takes a session of its own, so the threads share nothing of Keycloak.
+    @Override
+    public void inParallel(List<Consumer<Parts>> pieces) {
+        ExecutorService threads = Executors.newFixedThreadPool(Math.max(1, Math.min(THREADS, pieces.size())));
+        try {
+            List<Future<Object>> running = pieces.stream()
+                    .map(piece -> threads.submit(() -> inNewTransaction(parts -> {
+                        piece.accept(parts);
+                        return null;
+                    })))
+                    .toList();
+            RuntimeException first = null;
+            for (Future<Object> one : running) {
+                try {
+                    one.get();
+                } catch (ExecutionException e) {
+                    if (first == null) {
+                        first = e.getCause() instanceof RuntimeException cause ? cause
+                                : new IllegalStateException(e.getCause());
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException(e);
+                }
+            }
+            if (first != null) {
+                throw first;
+            }
+        } finally {
+            threads.shutdown();
+        }
     }
 
     @Override
