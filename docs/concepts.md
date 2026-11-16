@@ -51,7 +51,7 @@ Reads, the mask, and the erase work by person. Each has a shortcut by the ID of 
 | Occupation | 職種 | The profession or kind of work in an assignment, for example "physician", "nurse", or "clerk". |
 | Assignment Kind | 所属区分 | How the assignment is held, for example regular, acting, or support. A kind with the mark `actingHead` makes its heads stand in for an absent head. |
 | Head | 長 | A flag on an assignment. It marks the person who leads the org unit. |
-| Acting Head | 代行、事務取扱 | A head whose assignment kind has the mark `actingHead`. It leads the unit only while no other head is present. |
+| Acting Head | 代行、事務取扱 | A head whose assignment kind has the mark `actingHead`. It leads the unit while its assignment holds, in place of the other heads. |
 | Reporting Line | レポートライン | A link from an assignment to a manager. It has a kind, solid or dotted, and a period. |
 | Unit Role | 組織への役割 | A role that an employment holds over an org unit without being a member, such as the HR contact of a division or the approver of expenses of a department. The role is a reference item of the kind `UNIT_ROLE`. With `includesDescendants`, it covers the units below too. It is data for products. The extension decides no access with it. |
 | Qualification | 資格、免許 | A license or certificate that a person holds, with a number and a period. |

@@ -113,10 +113,10 @@ final class MemoryReportingLineStore implements ReportingLineStore {
                 .filter(row -> !managerPersonId.equals(personOf(row)))
                 .toList();
         if (depth > 0 && rows.stream().anyMatch(row -> leads(row, date))) {
-            rows.stream().filter(row -> looksAbove(row, date)).forEach(row -> addDerived(row, depth, date, found));
+            rows.stream().filter(Assignment::head).forEach(row -> addDerived(row, depth, date, found));
             return;
         }
-        rows.stream().filter(row -> depth > 0 || !looksAbove(row, date))
+        rows.stream().filter(row -> depth > 0 || !row.head())
                 .forEach(row -> addDerived(row, depth, date, found));
         tree.children(orgUnitId).stream().filter(child -> !child.group())
                 .forEach(child -> collect(tree, child.unit().id(), depth + 1, managerPersonId, date, found));
@@ -145,17 +145,13 @@ final class MemoryReportingLineStore implements ReportingLineStore {
         return row.kindId() != null && refItems.find(row.kindId()).map(RefItem::actingHead).orElse(false);
     }
 
-    private boolean regularPresent(Assignment row, LocalDate date) {
+    private boolean actingPresent(Assignment row, LocalDate date) {
         return assignments.rowsOn(List.of(row.orgUnitId()), date).stream()
-                .anyMatch(other -> other.head() && present(other, date) && !acting(other));
+                .anyMatch(other -> other.head() && present(other, date) && acting(other));
     }
 
     private boolean leads(Assignment row, LocalDate date) {
-        return row.head() && present(row, date) && (!acting(row) || !regularPresent(row, date));
-    }
-
-    private boolean looksAbove(Assignment row, LocalDate date) {
-        return row.head() && !(present(row, date) && acting(row) && regularPresent(row, date));
+        return row.head() && present(row, date) && (acting(row) || !actingPresent(row, date));
     }
 
     private String personOf(Assignment row) {

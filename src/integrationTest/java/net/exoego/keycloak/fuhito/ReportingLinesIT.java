@@ -208,7 +208,7 @@ class ReportingLinesIT {
     }
 
     @Test
-    void aHeadOnLeaveHandsTheUnitToTheActingHead() throws Exception {
+    void anActingHeadLeadsTheUnitWhileItHolds() throws Exception {
         TestRealm scratch = TestRealm.withEmployer("reporting-acting");
         Api scratchApi = scratch.api;
         assertEquals(201, scratchApi.post("/ref-items", "{\"kind\": \"ASSIGNMENT_KIND\", \"code\": \"acting\", "
@@ -217,7 +217,6 @@ class ReportingLinesIT {
         String nursing = id(scratchApi.post("/org-units", "{\"name\": \"看護部\", \"parentId\": \"" + hospital
                 + "\", \"validFrom\": \"2026-04-01\"}"));
         Map<String, String> users = new LinkedHashMap<>();
-        Map<String, String> employments = new LinkedHashMap<>();
         for (String[] person : new String[][] {{"director", hospital, "true"}, {"head-nurse", nursing, "true"},
                 {"nurse", nursing, "false"}}) {
             users.put(person[0], scratch.user(person[0]));
@@ -225,15 +224,12 @@ class ReportingLinesIT {
                     + "\", \"orgUnitId\": \"" + person[1] + "\", \"validFrom\": \"2026-04-01\", \"head\": "
                     + person[2] + "}");
             assertEquals(201, response.statusCode(), response.body());
-            employments.put(person[0], Api.json(response).get("employment").get("id").asText());
         }
         users.put("acting", scratch.user("acting"));
         String acting = id(scratchApi.post("/employments", "{\"userId\": \"" + users.get("acting")
                 + "\", \"validFrom\": \"2026-04-01\"}"));
         id(scratchApi.post("/assignments", "{\"employmentId\": \"" + acting + "\", \"orgUnitId\": \"" + nursing
-                + "\", \"validFrom\": \"2026-04-01\", \"kind\": \"acting\", \"head\": true}"));
-        assertEquals(200, scratchApi.post("/employments/" + employments.get("head-nurse") + "/leave",
-                "{\"validFrom\": \"2026-06-01\"}").statusCode());
+                + "\", \"validFrom\": \"2026-06-01\", \"kind\": \"acting\", \"head\": true}"));
         Map<String, String> names = new LinkedHashMap<>();
         users.forEach((name, userId) -> names.put(userId, name));
         java.util.function.BiFunction<String, String, List<String>> read = (path, date) -> {
@@ -245,12 +241,12 @@ class ReportingLinesIT {
             }
         };
 
-        // Before the leave, the acting head is a member of the department.
-        assertEquals(List.of("head-nurse"), read.apply("/users/" + users.get("acting") + "/managers", "2026-05-01"));
-        assertEquals(List.of("acting", "nurse"), read.apply("/users/" + users.get("head-nurse") + "/reports",
-                "2026-05-01"));
+        // Before the acting head starts, the head nurse leads the department.
+        assertEquals(List.of("head-nurse"), read.apply("/users/" + users.get("nurse") + "/managers", "2026-05-01"));
+        assertEquals(List.of("nurse"), read.apply("/users/" + users.get("head-nurse") + "/reports", "2026-05-01"));
 
-        // During the leave, the acting head leads the department and both heads report to the director.
+        // The acting head leads the department, though the employment of the head nurse stays active. Both heads
+        // report to the director.
         assertEquals(List.of("acting"), read.apply("/users/" + users.get("nurse") + "/managers", "2026-07-01"));
         assertEquals(List.of("nurse"), read.apply("/users/" + users.get("acting") + "/reports", "2026-07-01"));
         assertEquals(List.of(), read.apply("/users/" + users.get("head-nurse") + "/reports", "2026-07-01"));
