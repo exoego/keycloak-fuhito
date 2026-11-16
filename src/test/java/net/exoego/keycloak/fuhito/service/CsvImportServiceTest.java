@@ -54,7 +54,7 @@ class CsvImportServiceTest {
     private final CsvImportService service = new CsvImportService(
             new ImportService(new RefItemService(refItems), refItems, orgUnits, orgUnitStore, people,
                     new ImportService.Setup(new RealmKindService(new MemoryRealmKindStore(), refItems),
-                            new AttributeDefinitionService(definitions, refItems, false),
+                            new AttributeDefinitionService(definitions, refItems),
                             new HierarchyService(new MemoryHierarchyStore())),
                     new ImportService.Organizations(new OrganizationLinkService(orgUnitStore, id -> false),
                             id -> false, id -> { }), new ImportService.Records(null, null, null, null, null)), refItems,
@@ -226,9 +226,9 @@ class CsvImportServiceTest {
 
     @Test
     void aColumnSetsADefinedAttributeAndKeepsTheOthers() {
-        new AttributeDefinitionService(definitions, refItems, false).create("ORG_UNIT", "beds", "NUMBER", null, null);
-        new AttributeDefinitionService(definitions, refItems, false).create("ORG_UNIT", "open", "BOOLEAN", null,
-                null);
+        new AttributeDefinitionService(definitions, refItems).create("ORG_UNIT", "beds", "NUMBER", null, null, null);
+        new AttributeDefinitionService(definitions, refItems).create("ORG_UNIT", "open", "BOOLEAN", null,
+                null, null);
         orgUnits.create(new NewOrgUnit(null, "1病棟", null, null, null, null, null, null, "2026-04-01", null,
                 Map.of("note", "kept"), "W", "import"));
 
@@ -269,6 +269,29 @@ class CsvImportServiceTest {
                 外部ID,attributes.rooms
                 W,3
                 """)).code());
+    }
+
+    @Test
+    void aColumnOfAListAttributeTakesAJsonArray() {
+        new AttributeDefinitionService(definitions, refItems).create("ORG_UNIT", "tags", "STRING", null, true, null);
+        load("orgUnits", "2026-04-01", "外部ID,名称\nW,1病棟\n");
+
+        assertEquals(List.of(), errors(load("orgUnits", "2026-05-01", """
+                外部ID,attributes.tags
+                W,"[""night"",""icu""]"
+                """)));
+        assertEquals(Map.of("tags", List.of("night", "icu")), unit("W", "2026-05-01").version().attributes());
+        assertEquals(List.of("line 2 row 0 csv.bad_list", "line 3 row 1 csv.bad_list"),
+                errors(load("orgUnits", "2026-06-01", """
+                        外部ID,attributes.tags
+                        W,night
+                        W,"{""a"": 1}"
+                        """)));
+        load("orgUnits", "2026-07-01", """
+                外部ID,attributes.tags
+                W,#CLEAR
+                """);
+        assertEquals(Map.of(), unit("W", "2026-07-01").version().attributes());
     }
 
     @Test

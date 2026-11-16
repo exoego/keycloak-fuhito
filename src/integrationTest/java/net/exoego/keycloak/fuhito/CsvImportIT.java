@@ -301,12 +301,15 @@ class CsvImportIT {
                 + "\"type\": \"REF_ITEM\", \"refKind\": \"site\"}").statusCode());
         assertEquals(201, api.post("/attribute-definitions", "{\"target\": \"ORG_UNIT\", \"name\": \"beds\", "
                 + "\"type\": \"NUMBER\"}").statusCode());
+        assertEquals(201, api.post("/attribute-definitions", "{\"target\": \"ORG_UNIT\", \"name\": \"tags\", "
+                + "\"type\": \"STRING\", \"multiple\": true}").statusCode());
 
         for (String header : List.of("en", "ja")) {
             HttpResponse<String> exported = api.get("/imports/csv/attribute-definitions?header=" + header);
             assertEquals(200, exported.statusCode(), exported.body());
-            assertEquals("﻿" + (header.equals("en") ? "target,name,type,refKind,required"
-                    : "対象,名称,型,参照の種類,必須") + "\r\nORG_UNIT,beds,NUMBER,,false\r\nPERSON,site,REF_ITEM,site,false\r\n",
+            assertEquals("﻿" + (header.equals("en") ? "target,name,type,refKind,multiple,required"
+                    : "対象,名称,型,参照の種類,複数,必須") + "\r\nORG_UNIT,beds,NUMBER,,false,false\r\n"
+                    + "ORG_UNIT,tags,STRING,,true,false\r\nPERSON,site,REF_ITEM,site,false,false\r\n",
                     exported.body());
             JsonNode counts = load(api, "attribute-definitions", "effectiveDate=2026-05-01", exported.body())
                     .get("counts").get("attributeDefinitions");
@@ -317,6 +320,10 @@ class CsvImportIT {
         JsonNode beds = Api.json(api.get("/attribute-definitions?target=ORG_UNIT")).get(0);
         assertEquals("NUMBER", beds.get("type").asText());
         assertTrue(beds.get("required").asBoolean());
+        assertEquals(1, load(api, "attribute-definitions", "effectiveDate=2026-05-01",
+                "target,name,multiple\r\nORG_UNIT,beds,true\r\n").get("counts").get("attributeDefinitions")
+                .get("changed").asInt());
+        assertTrue(Api.json(api.get("/attribute-definitions?target=ORG_UNIT")).get(0).get("multiple").asBoolean());
     }
 
     @Test
@@ -516,8 +523,11 @@ class CsvImportIT {
         Api api = realm.api;
         assertEquals(201, api.post("/attribute-definitions", "{\"target\": \"PERSON\", \"name\": \"desk\", "
                 + "\"type\": \"STRING\"}").statusCode());
+        assertEquals(201, api.post("/attribute-definitions", "{\"target\": \"PERSON\", \"name\": \"languages\", "
+                + "\"type\": \"STRING\", \"multiple\": true}").statusCode());
         String hanako = Api.json(api.post("/people", "{\"name\": \"山田 花子\", \"names\": {\"en\": \"Hanako Yamada\"}, "
-                + "\"phoneticName\": \"やまだ はなこ\", \"attributes\": {\"desk\": \"3F, east\"}}")).get("id").asText();
+                + "\"phoneticName\": \"やまだ はなこ\", \"attributes\": {\"desk\": \"3F, east\", "
+                + "\"languages\": [\"ja\", \"en\"]}}")).get("id").asText();
         assertEquals(201, api.post("/people", "{\"name\": \"Taro\", \"externalId\": \"P-1\", \"source\": \"hr\"}")
                 .statusCode());
         // A person who takes the name of the Keycloak user, and keeps the link.
@@ -528,6 +538,7 @@ class CsvImportIT {
             HttpResponse<String> exported = api.get("/imports/csv/people?header=" + header);
             assertEquals(200, exported.statusCode(), exported.body());
             assertTrue(exported.body().contains("\"3F, east\""), exported.body());
+            assertTrue(exported.body().contains("\"[\"\"ja\"\",\"\"en\"\"]\""), exported.body());
 
             JsonNode counts = load(api, "people", "effectiveDate=2026-05-01", exported.body()).get("counts")
                     .get("people");

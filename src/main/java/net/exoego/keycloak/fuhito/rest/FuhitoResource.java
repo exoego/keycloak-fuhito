@@ -122,7 +122,6 @@ public class FuhitoResource {
     private final Consumer<String> erasePerson;
     private final ProjectionService.Work projectionWork;
     private final Pieces pieces;
-    private final boolean rejectUnknownAttributes;
 
     /**
      * Creates the resource for one request.
@@ -137,14 +136,12 @@ public class FuhitoResource {
      * @param erasePerson removes every row and every change log entry about one person
      * @param projectionWork runs each piece of a rebuild of the projection in a transaction of its own
      * @param pieces runs each piece of a sync in a transaction of its own
-     * @param rejectUnknownAttributes true when the realm rejects free attributes with no definition
      */
     public FuhitoResource(String realmId, RequestContext context, EntityManager entityManager, BusinessDay.Rule rule,
             UserDirectory users,
             OrganizationDirectory organizations,
             UserAttributeSource userAttributes, Consumer<String> erasePerson,
-            ProjectionService.Work projectionWork, Pieces pieces, boolean rejectUnknownAttributes) {
-        this.rejectUnknownAttributes = rejectUnknownAttributes;
+            ProjectionService.Work projectionWork, Pieces pieces) {
         this.projectionWork = projectionWork;
         this.pieces = pieces;
         this.userAttributes = userAttributes;
@@ -354,7 +351,7 @@ public class FuhitoResource {
 
     private AttributeDefinitionService attributeRules() {
         return new AttributeDefinitionService(new JpaAttributeDefinitionStore(entityManager, realmId),
-                new JpaRefItemStore(entityManager, realmId), rejectUnknownAttributes, realmKinds()::isKnown);
+                new JpaRefItemStore(entityManager, realmId), realmKinds()::isKnown);
     }
 
     private AssignmentService assignmentService() {

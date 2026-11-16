@@ -43,6 +43,10 @@ class UserMaskIT {
         realm.refItem("OCCUPATION", "nurse", "看護師");
         realm.refItem("QUALIFICATION", "license", "免許");
         realm.refItem("LEAVE_REASON", "sick-leave", "病気休職");
+        realm.attribute("EMPLOYMENT_TERMS", "住所", "STRING");
+        realm.attribute("EMPLOYMENT_TERMS", "理由", "STRING");
+        realm.attribute("ASSIGNMENT", "内線", "STRING");
+        realm.attribute("QUALIFICATION", "発行", "STRING");
         return realm;
     }
 

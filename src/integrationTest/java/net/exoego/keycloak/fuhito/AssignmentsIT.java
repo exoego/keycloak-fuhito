@@ -67,6 +67,7 @@ class AssignmentsIT {
 
     @Test
     void aPhysicianHoldsThreeAssignmentsAtOnceInTwoHospitals() throws Exception {
+        realm.attribute("ASSIGNMENT", "外来", "STRING");
         HttpResponse<String> main = api.post("/assignments", assign(xMedicine, ", \"jobTitle\": \"staff\", "
                 + "\"occupation\": \"physician\", \"kind\": \"regular\", \"primary\": true, \"allocationPercent\": 60, "
                 + "\"displayOrder\": 2, \"attributes\": {\"外来\": \"月水金\"}, \"externalId\": \"A-1\", \"source\": \"hr\""));

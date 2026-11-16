@@ -76,7 +76,7 @@ The lists are applied in the order change orders, kinds of reference data, attri
 ```
 
 - The list `refKinds` adds kinds of reference data to the realm. A row has `code`, `name`, and `names`. A row of a stored kind changes its names. A fixed kind such as `UNIT_TYPE` is in every realm and cannot be a row.
-- The list `attributeDefinitions` defines free attributes. A row has `target`, `name`, `type`, `refKind`, and `required`. A row of a stored definition changes the type, the kind, and `required`, as `PUT /attribute-definitions/{id}` does. Stored values stay as they are. The definitions come before the reference items, so that a row of a reference item can set an attribute that the same document defines.
+- The list `attributeDefinitions` defines free attributes. A row has `target`, `name`, `type`, `refKind`, `multiple`, and `required`. A row of a stored definition changes the type, the kind, `multiple`, and `required`, as `PUT /attribute-definitions/{id}` does. Stored values stay as they are. The definitions come before the reference items, so that a row of a reference item can set an attribute that the same document defines.
 - The list `hierarchies` adds hierarchies. A row has `code` and `name`. A row of a stored hierarchy changes its name. The code `default` names the default hierarchy.
 - Rows of org units can come in any order. A parent is applied before its children.
 - A parent with no external ID of the same source can be named by `parentId`, the ID of the unit. A row gives `parentExternalId` or `parentId`, not both.
@@ -151,7 +151,7 @@ curl -X POST \
 - The cell `#CLEAR` removes the stored value.
 - True is `true`, `1`, `yes`, `はい`, or `○`. False is `false`, `0`, `no`, `いいえ`, or `×`.
 - A name in another language has its own column, for example `name:en` or `名称:en`.
-- A column `attributes.<name>` sets an attribute that the realm defined for the resource of the list, for example `attributes.beds`. The cell is read by the type of the definition. Other attributes keep what is stored. A column of an attribute with no definition is rejected.
+- A column `attributes.<name>` sets an attribute that the realm defined for the resource of the list, for example `attributes.beds`. The cell is read by the type of the definition. The cell of a definition with `multiple` is a JSON array, for example `["night","icu"]`, which the CSV writes as `"[""night"",""icu""]"`. Other attributes keep what is stored. A column of an attribute with no definition is rejected.
 
 ### Columns
 
@@ -170,6 +170,7 @@ Attribute definitions.
 | `name` | `名称` |
 | `type` | `型` |
 | `refKind` | `参照の種類` |
+| `multiple` | `複数` |
 | `required` | `必須` |
 
 Hierarchies.

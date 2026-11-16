@@ -27,9 +27,6 @@ import org.keycloak.storage.ReadOnlyException;
  */
 public class FuhitoAdminRealmResourceProvider implements AdminRealmResourceProvider {
 
-    // The realm attribute that says what a write with a free attribute that has no definition does.
-    static final String UNKNOWN_ATTRIBUTES = "fuhito.attributes.unknown";
-
     /**
      * Creates the provider.
      */
@@ -125,7 +122,7 @@ public class FuhitoAdminRealmResourceProvider implements AdminRealmResourceProvi
                                     return result;
                                 });
                     }
-                }, "reject".equals(realm.getAttribute(UNKNOWN_ATTRIBUTES)));
+                });
     }
 
     @Override

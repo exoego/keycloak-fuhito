@@ -228,9 +228,15 @@ components:
           type: string
           description: "The kind of reference data, fixed or of the realm. Only the\
             \ type `REF_ITEM` has it."
+        multiple:
+          type: boolean
+          description: "True when the value is a JSON array, and each element has\
+            \ the type."
+          default: false
         required:
           type: boolean
-          description: True when every write of the resource must give a value.
+          description: True when every write of the resource must give a value. A
+            list needs at least one element.
           default: false
     ChangeLogEntry:
       required:
@@ -596,6 +602,8 @@ components:
           type: string
         refKind:
           type: string
+        multiple:
+          type: boolean
         required:
           type: boolean
     ExportChangeOrder:
@@ -1063,8 +1071,8 @@ components:
       - name
       - type
       description: "The definition of a free attribute. It is matched by target and\
-        \ name. A row of a stored definition changes the type, the kind, and whether\
-        \ a value is required."
+        \ name. A row of a stored definition changes the type, the kind, whether the\
+        \ value is a list, and whether a value is required."
       properties:
         target:
           type: string
@@ -1091,6 +1099,11 @@ components:
         refKind:
           type: string
           description: The kind of reference data. Only the type `REF_ITEM` has it.
+        multiple:
+          type: boolean
+          description: "True when the value is a JSON array, and each element has\
+            \ the type."
+          default: false
         required:
           type: boolean
           description: True when every write of the resource must give a value.
@@ -3696,8 +3709,9 @@ paths:
           $ref: "#/components/responses/Conflict"
     post:
       summary: Defines a free attribute of a kind of resource.
-      description: Later writes of the resource are checked against it. Stored values
-        are not checked until their next write.
+      description: Later writes of the resource are checked against it. A write with
+        a name that has no definition fails. Stored values are not checked until their
+        next write.
       operationId: createAttributeDefinition
       tags:
       - ref-items

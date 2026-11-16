@@ -28,6 +28,7 @@ The parent lives in dated parent links, one set for each hierarchy.
 A person has a record of its own. It has a name, names in other languages, and a phonetic name.
 A person can be linked to a Keycloak user, and does not need one.
 So staff who never log in, and people who left long ago, can be stored too.
+The free attributes of a person stay in the extension for the same reason. See [Values of people and user attributes of Keycloak](#values-of-people-and-user-attributes-of-keycloak).
 
 An employment and a qualification belong to a person. The manager of a reporting line is a person.
 A write can name the person by the ID of a Keycloak user. The person of that user is then used, and created when the user has none.
@@ -114,15 +115,29 @@ Other systems can add their own IDs with `PUT /external-ids`.
 ## Free attributes
 
 Org units, people, employment terms, assignments, qualifications, and reference items have `attributes`, a JSON object for values that the realm needs.
-A realm can define them with `POST /attribute-definitions`, so that products use one name for one thing.
+A realm defines each name with `POST /attribute-definitions` before a write gives it, so that products use one name for one thing.
 
-- The attributes of one write are at most 64 KB as JSON, counted in bytes of UTF-8. A larger write fails with `attribute.too_large`. This holds with or without definitions.
-
+- The attributes of one write are at most 64 KB as JSON, counted in bytes of UTF-8. A larger write fails with `attribute.too_large`.
 - A definition is for one kind of resource and one name. It has a type, `STRING`, `NUMBER`, `BOOLEAN`, `DATE`, or `REF_ITEM` with a kind of reference data.
-- Every write of the resource is checked against the definitions. A value of the wrong type fails with `attribute.bad_value`. A missing required one fails with `attribute.required`.
-- An attribute with no definition is allowed. The realm attribute `fuhito.attributes.unknown` with the value `reject` makes such a write fail with `attribute.unknown`.
-- A new, changed, or removed definition does not rewrite stored values. A row is checked at its next write.
+- A definition with `multiple` holds a list. The value is a JSON array, and each element has the type. A `REF_ITEM` list checks the code of each element.
+- Every write of the resource is checked against the definitions. A value of the wrong type fails with `attribute.bad_value`. A missing required one fails with `attribute.required`. A required list needs at least one element.
+- A name with no definition fails with `attribute.unknown`.
+- An object has no type. Split it into several names, such as `addressZip` and `addressCity`.
+- A new, changed, or removed definition does not rewrite stored values. A row is checked at its next write. A row that keeps a value of a removed definition fails until the write drops the value.
 - A reader of the org structure may read the definitions.
+- The values are JSON text in the database. No read searches inside them. A value that a read must filter by needs a field of its own.
+
+### Values of people and user attributes of Keycloak
+
+The values of a person stay in the extension, so that people without a Keycloak user have them too.
+User attributes of Keycloak are for what login and tokens need.
+
+| | User attributes of Keycloak | Attributes of a person |
+|---|---|---|
+| Names | One set for the realm, shared with other extensions, LDAP, and identity providers | The extension only |
+| Declared in | The user profile. Keycloak ignores the others by default | `/attribute-definitions` |
+| Values | Lists of text | JSON, with types and lists |
+| People without a user | Have none | Have them |
 
 ## Languages
 

@@ -76,14 +76,14 @@ class RealmKindServiceTest {
 
         // An attribute can point to the kind of the realm.
         AttributeDefinitionService definitions = new AttributeDefinitionService(new MemoryAttributeDefinitionStore(),
-                items, false, kinds::isKnown);
-        definitions.create("ASSIGNMENT", "workLocation", "REF_ITEM", "work-location", null);
+                items, kinds::isKnown);
+        definitions.create("ASSIGNMENT", "workLocation", "REF_ITEM", "work-location", null, null);
         assertEquals(Map.of("workLocation", "tokyo"), definitions.check(Target.ASSIGNMENT,
                 Map.of("workLocation", "tokyo")));
         assertEquals("attribute.bad_value", code(() -> definitions.check(Target.ASSIGNMENT,
                 Map.of("workLocation", "osaka"))));
         assertEquals("invalid.choice", code(() -> definitions.create("ASSIGNMENT", "cost", "REF_ITEM", "cost-center",
-                null)));
+                null, null)));
 
         assertEquals("ref_kind.in_use", code(() -> kinds.delete("work-location")));
         refItems.delete(refItems.list("work-location", true, Page.of(null, null)).getFirst().id());

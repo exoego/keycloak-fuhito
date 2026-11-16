@@ -68,7 +68,7 @@ public record RealmExport(
 
     @Schema(name = "ExportAttributeDefinition")
     public record Definition(String id, String target, String name, String type, String refKind,
-            boolean required) {
+            boolean multiple, boolean required) {
     }
 
     @Schema(name = "ExportHierarchy")

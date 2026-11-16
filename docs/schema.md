@@ -235,6 +235,7 @@ erDiagram
         varchar(64) NAME
         varchar(16) VALUE_TYPE
         varchar(32) REF_KIND
+        boolean MULTIPLE
         boolean REQUIRED
     }
     FUHITO_CHANGE_LOG_COUNTER {

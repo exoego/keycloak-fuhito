@@ -14,6 +14,7 @@ class ImportIT {
 
     private static final String HOSPITAL = """
             {"effectiveDate": "2026-04-01", "source": "sheet", %s
+             "attributeDefinitions": [{"target": "ORG_UNIT", "name": "beds", "type": "NUMBER"}],
              "refItems": [
                {"kind": "UNIT_TYPE", "code": "hospital", "name": "病院", "names": {"en": "Hospital"}},
                {"kind": "UNIT_TYPE", "code": "department", "name": "部"}
@@ -161,15 +162,16 @@ class ImportIT {
         ok(api.post("/imports?changeOrder=" + order, HOSPITAL.formatted("")));
 
         JsonNode changes = Api.json(api.get("/change-orders/" + order + "/changes"));
-        assertEquals(List.of("FUHITO_REF_ITEM", "FUHITO_REF_ITEM", "FUHITO_ORG_UNIT", "FUHITO_ORG_UNIT",
-                "FUHITO_ORG_UNIT", "FUHITO_ORG_UNIT"), changes.findValuesAsText("resourceType"));
-        assertEquals(List.of("CREATE", "CREATE", "CREATE", "CREATE", "CREATE", "CREATE"), changes.findValuesAsText("operation"));
+        assertEquals(List.of("FUHITO_ATTRIBUTE_DEFINITION", "FUHITO_REF_ITEM", "FUHITO_REF_ITEM", "FUHITO_ORG_UNIT",
+                "FUHITO_ORG_UNIT", "FUHITO_ORG_UNIT", "FUHITO_ORG_UNIT"), changes.findValuesAsText("resourceType"));
+        assertEquals(List.of("CREATE", "CREATE", "CREATE", "CREATE", "CREATE", "CREATE", "CREATE"),
+                changes.findValuesAsText("operation"));
         // A parent is written before its children, wherever it is in the document.
         assertEquals(List.of("X病院", "看護部", "1病棟", "診療部"), List.of(
-                changes.get(2).get("representation").get("name").asText(),
                 changes.get(3).get("representation").get("name").asText(),
                 changes.get(4).get("representation").get("name").asText(),
-                changes.get(5).get("representation").get("name").asText()));
+                changes.get(5).get("representation").get("name").asText(),
+                changes.get(6).get("representation").get("name").asText()));
     }
 
     @Test

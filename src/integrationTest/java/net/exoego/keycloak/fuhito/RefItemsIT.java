@@ -49,6 +49,9 @@ class RefItemsIT {
 
     @Test
     void createsAndReadsAnItemWithJapaneseText() throws Exception {
+        created(api.post("/attribute-definitions", "{\"target\": \"REF_ITEM\", \"name\": \"hasBeds\", "
+                + "\"type\": \"BOOLEAN\"}"));
+        created(api.post("/attribute-definitions", "{\"target\": \"REF_ITEM\", \"name\": \"note\", \"type\": \"STRING\"}"));
         JsonNode item = created(api.post("/ref-items", """
                 {"kind": "UNIT_TYPE", "code": "ward", "name": "病棟", "names": {"en": "Ward", "JA": "病棟"},
                  "displayOrder": 2, "attributes": {"hasBeds": true, "note": "夜勤あり"}}

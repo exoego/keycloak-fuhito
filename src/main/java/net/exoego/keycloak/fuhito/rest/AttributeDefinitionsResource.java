@@ -86,8 +86,8 @@ public class AttributeDefinitionsResource {
     @Operation(
             operationId = "createAttributeDefinition",
             summary = "Defines a free attribute of a kind of resource.",
-            description = "Later writes of the resource are checked against it. Stored values are not checked "
-                    + "until their next write.")
+            description = "Later writes of the resource are checked against it. A write with a name that has no "
+                    + "definition fails. Stored values are not checked until their next write.")
     @Parameter(ref = "changeOrder")
     @APIResponse(
             responseCode = "201",
@@ -101,7 +101,7 @@ public class AttributeDefinitionsResource {
         return Calls.once(context, body, Response.class, () -> Calls.run(context, () -> {
             Checks.required("body", body);
             var definition = AttributeDefinitionRepresentation.of(service.create(body.target(), body.name(),
-                    body.type(), body.refKind(), body.required()));
+                    body.type(), body.refKind(), body.multiple(), body.required()));
             context.recordChange(Change.CREATE, RESOURCE_TYPE, definition.id(), path(definition.id()), definition);
             return Response.status(Response.Status.CREATED).entity(definition).build();
         }));
@@ -126,7 +126,7 @@ public class AttributeDefinitionsResource {
         return Calls.guarded(context, () -> state(id), () -> {
             Checks.required("body", body);
             var definition = AttributeDefinitionRepresentation.of(service.replace(id, body.type(), body.refKind(),
-                    body.required()));
+                    body.multiple(), body.required()));
             context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, path(id), definition);
             return definition;
         });

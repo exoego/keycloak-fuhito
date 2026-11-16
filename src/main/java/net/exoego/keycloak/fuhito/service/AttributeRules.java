@@ -19,8 +19,8 @@ public interface AttributeRules {
      * @param target the kind of resource
      * @param attributes the attributes of the write, or null for none
      * @return the attributes to store, never null
-     * @throws FuhitoException when the attributes are larger than 64 KB as JSON, a value does not fit its
-     *         definition, a required one is missing, or the realm rejects a name that has no definition
+     * @throws FuhitoException when the attributes are larger than 64 KB as JSON, a name has no definition, a value
+     *         does not fit its definition, or a required one is missing
      */
     Map<String, Object> check(AttributeDefinition.Target target, Map<String, Object> attributes);
 }

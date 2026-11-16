@@ -96,7 +96,7 @@ class ImportServiceTest {
         }
     };
     private final AttributeDefinitionService definitions =
-            new AttributeDefinitionService(new MemoryAttributeDefinitionStore(), refItems, false, kinds::isKnown);
+            new AttributeDefinitionService(new MemoryAttributeDefinitionStore(), refItems, kinds::isKnown);
     private final ImportService service = new ImportService(new RefItemService(refItems), refItems, orgUnits,
             orgUnitStore, new ImportService.People(employments, employmentStore, assignments, assignmentStore, users,
                     new PersonService(personStore, users, id -> false)),
@@ -180,14 +180,14 @@ class ImportServiceTest {
     @Test
     void importsTheDefinitionsOfAttributesAndChangesTheRuleOfAStoredOne() {
         List<AttributeDefinitionRow> rows = List.of(
-                new AttributeDefinitionRow("PERSON", "note", "STRING", null, null),
-                new AttributeDefinitionRow("ORG_UNIT", "type", "REF_ITEM", "UNIT_TYPE", true));
+                new AttributeDefinitionRow("PERSON", "note", "STRING", null, null, null),
+                new AttributeDefinitionRow("ORG_UNIT", "type", "REF_ITEM", "UNIT_TYPE", null, true));
 
         ImportReport first = service.apply(definitions(rows));
         ImportReport second = service.apply(definitions(rows));
         ImportReport changed = service.apply(definitions(List.of(
-                new AttributeDefinitionRow("PERSON", "note", "STRING", null, true),
-                new AttributeDefinitionRow("PERSON", "bad", "STRING", "UNIT_TYPE", null))));
+                new AttributeDefinitionRow("PERSON", "note", "STRING", null, null, true),
+                new AttributeDefinitionRow("PERSON", "bad", "STRING", "UNIT_TYPE", null, null))));
 
         assertEquals(Map.of("attributeDefinitions", new Counts(2, 0, 0)), first.counts());
         assertEquals("fuhito/attribute-definitions/" + first.writes().getFirst().resourceId(),

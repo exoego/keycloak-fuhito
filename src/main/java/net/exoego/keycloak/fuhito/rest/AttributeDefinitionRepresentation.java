@@ -23,12 +23,18 @@ public record AttributeDefinitionRepresentation(
         String type,
         @Schema(description = "The kind of reference data, fixed or of the realm. Only the type `REF_ITEM` has it.")
         String refKind,
-        @Schema(description = "True when every write of the resource must give a value.", defaultValue = "false")
+        @Schema(
+                description = "True when the value is a JSON array, and each element has the type.",
+                defaultValue = "false")
+        Boolean multiple,
+        @Schema(
+                description = "True when every write of the resource must give a value. A list needs at least one "
+                        + "element.",
+                defaultValue = "false")
         Boolean required) {
 
     static AttributeDefinitionRepresentation of(AttributeDefinition definition) {
         return new AttributeDefinitionRepresentation(definition.id(), definition.target().name(), definition.name(),
-                definition.type().name(), definition.refKind(),
-                definition.required());
+                definition.type().name(), definition.refKind(), definition.multiple(), definition.required());
     }
 }

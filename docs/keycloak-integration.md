@@ -491,7 +491,6 @@ Keycloak keeps a first name and a last name. The extension joins them with a spa
 | Realm attribute | Meaning | Default |
 |---|---|---|
 | `fuhito.nameOrder` | `given-first` or `family-first` | `given-first` |
-| `fuhito.attributes.unknown` | `allow` or `reject`. What a write does with a free attribute that has no definition. See [concepts.md](concepts.md). | `allow` |
 
 A person with no linked user must have a name in the record.
 

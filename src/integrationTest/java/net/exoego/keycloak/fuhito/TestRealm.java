@@ -190,4 +190,11 @@ final class TestRealm {
         assertEquals(201, response.statusCode(), response.body());
         return Api.json(response).get("id").asText();
     }
+
+    /** Defines a free attribute, so that writes may give it. */
+    void attribute(String target, String name, String type) throws Exception {
+        var response = api.post("/attribute-definitions",
+                "{\"target\": \"" + target + "\", \"name\": \"" + name + "\", \"type\": \"" + type + "\"}");
+        assertEquals(201, response.statusCode(), response.body());
+    }
 }

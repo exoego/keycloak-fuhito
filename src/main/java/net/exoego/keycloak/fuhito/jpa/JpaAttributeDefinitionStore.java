@@ -77,12 +77,12 @@ public class JpaAttributeDefinitionStore implements AttributeDefinitionStore {
     private static void copy(AttributeDefinition definition, AttributeDefinitionEntity entity) {
         entity.type = definition.type().name();
         entity.refKind = definition.refKind();
+        entity.multiple = definition.multiple();
         entity.required = definition.required();
     }
 
     static AttributeDefinition toDomain(AttributeDefinitionEntity e) {
         return new AttributeDefinition(e.id, AttributeDefinition.Target.valueOf(e.target), e.name,
-                AttributeDefinition.Type.valueOf(e.type), e.refKind,
-                e.required);
+                AttributeDefinition.Type.valueOf(e.type), e.refKind, e.multiple, e.required);
     }
 }

@@ -61,6 +61,7 @@ class EmploymentsIT {
 
     @Test
     void startsATemporaryPartTimeEmployment() throws Exception {
+        realm.attribute("EMPLOYMENT_TERMS", "note", "STRING");
         JsonNode employment = created(api.post("/employments", "{\"userId\": \"" + doctor + "\", "
                 + "\"validFrom\": \"2026-04-01\", \"validTo\": \"2027-04-01\", \"staffNumber\": \"000777\", "
                 + "\"employmentType\": \"temporary\", \"grade\": \"g3\", \"workPercent\": 60.5, "

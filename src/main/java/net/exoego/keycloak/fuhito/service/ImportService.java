@@ -234,16 +234,17 @@ public class ImportService {
                 .findFirst();
         if (stored.isEmpty()) {
             report.write(new Write.OfAttributeDefinition(true, definitions.create(row.target(), name, row.type(),
-                    row.refKind(), row.required())));
+                    row.refKind(), row.multiple(), row.required())));
             return Outcome.CREATED;
         }
         AttributeDefinition before = stored.get();
         if (before.type().name().equals(row.type()) && Objects.equals(before.refKind(), row.refKind())
+                && before.multiple() == Boolean.TRUE.equals(row.multiple())
                 && before.required() == Boolean.TRUE.equals(row.required())) {
             return Outcome.UNCHANGED;
         }
         report.write(new Write.OfAttributeDefinition(false, definitions.replace(before.id(), row.type(),
-                row.refKind(), row.required())));
+                row.refKind(), row.multiple(), row.required())));
         return Outcome.CHANGED;
     }
 
