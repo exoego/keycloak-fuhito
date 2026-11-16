@@ -1,6 +1,7 @@
 package net.exoego.keycloak.fuhito.jpa;
 
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -123,6 +124,23 @@ public class JpaReportingLineStore implements ReportingLineStore {
         return list("""
                 select l from ReportingLineEntity l where l.realmId = :realmId and l.assignmentId = :value
                 order by l.validFrom, l.id""", assignmentId);
+    }
+
+    // The manager comes in the same query, because each line reads the user of its manager.
+    @Override
+    public List<ReportingLine> findByAssignments(Collection<String> assignmentIds) {
+        if (assignmentIds.isEmpty()) {
+            return List.of();
+        }
+        return em.createQuery("""
+                        select l from ReportingLineEntity l join fetch l.manager where l.realmId = :realmId
+                        and %s order by l.validFrom, l.id""".formatted(ManyIds.has("l.assignmentId", "ids")),
+                        ReportingLineEntity.class)
+                .setParameter("realmId", realmId)
+                .setParameter("ids", ManyIds.of(assignmentIds))
+                .getResultStream()
+                .map(JpaReportingLineStore::toDomain)
+                .toList();
     }
 
     @Override
