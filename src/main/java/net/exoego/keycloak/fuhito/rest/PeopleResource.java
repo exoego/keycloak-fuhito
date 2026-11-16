@@ -350,8 +350,13 @@ public class PeopleResource {
             @Parameter(description = "The ID of the resource.")
             @PathParam("id") String id,
             @Parameter(
-                    description = "True to also empty the first and the last name of the linked Keycloak user. "
-                            + "The username, the email, and the attributes stay.",
+                    description = """
+                            True to also empty the first and the last name of the linked Keycloak user. \
+                            The username, the email, and the attributes stay. \
+                            False leaves the Keycloak user as it is, so responses still show its name. \
+                            A read-only user, for example from a user store, cannot be changed. \
+                            The masking then fails with 409 and `person.keycloak_name_read_only`, \
+                            and nothing is written.""",
                     schema = @Schema(defaultValue = "false"))
             @QueryParam("clearKeycloakName") boolean clearKeycloakName) {
         context.requireWrite();
