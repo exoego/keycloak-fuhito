@@ -2,10 +2,6 @@ package net.exoego.keycloak.fuhito.keycloak;
 
 import java.time.Clock;
 import java.util.List;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -16,6 +12,7 @@ import net.exoego.keycloak.fuhito.jpa.JpaAssignmentStore;
 import net.exoego.keycloak.fuhito.jpa.JpaEmploymentStore;
 import net.exoego.keycloak.fuhito.jpa.JpaOrgUnitStore;
 import net.exoego.keycloak.fuhito.jpa.JpaRefItemStore;
+import net.exoego.keycloak.fuhito.service.InParallel;
 import net.exoego.keycloak.fuhito.service.ProjectionService;
 import net.exoego.keycloak.fuhito.service.ProjectionService.Parts;
 import net.exoego.keycloak.fuhito.service.UnitDays;
@@ -64,34 +61,10 @@ public final class ProjectionTransactions implements ProjectionService.Work {
     // Each piece takes a session of its own, so the threads share nothing of Keycloak.
     @Override
     public void inParallel(List<Consumer<Parts>> pieces) {
-        ExecutorService threads = Executors.newFixedThreadPool(Math.max(1, Math.min(THREADS, pieces.size())));
-        try {
-            List<Future<Object>> running = pieces.stream()
-                    .map(piece -> threads.submit(() -> inNewTransaction(parts -> {
-                        piece.accept(parts);
-                        return null;
-                    })))
-                    .toList();
-            RuntimeException first = null;
-            for (Future<Object> one : running) {
-                try {
-                    one.get();
-                } catch (ExecutionException e) {
-                    if (first == null) {
-                        first = e.getCause() instanceof RuntimeException cause ? cause
-                                : new IllegalStateException(e.getCause());
-                    }
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    throw new IllegalStateException(e);
-                }
-            }
-            if (first != null) {
-                throw first;
-            }
-        } finally {
-            threads.shutdown();
-        }
+        InParallel.run(pieces.stream().<Runnable>map(piece -> () -> inNewTransaction(parts -> {
+            piece.accept(parts);
+            return null;
+        })).toList(), THREADS);
     }
 
     @Override
