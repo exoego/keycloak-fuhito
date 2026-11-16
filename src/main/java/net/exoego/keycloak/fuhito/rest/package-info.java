@@ -15,7 +15,9 @@
                         A response leaves out every field that has no value.
                         For example, an org unit with no end date has no `validTo` field.
 
-                        A read needs the permission to view users. A write needs the permission to manage users.
+                        A read of the org structure needs the role `fuhito-view-structure`. Every other read needs
+                        `fuhito-view-people`. A write needs `fuhito-manage`. The roles are in the client
+                        `realm-management` of the realm.
 
                         A write belongs to a change order when its request has the query parameter `changeOrder`.
 

@@ -30,6 +30,9 @@ final class PersonData {
     }
 
     MaskRepresentation mask(Person person, boolean clearKeycloakName) {
+        if (clearKeycloakName && person.userId() != null) {
+            context.requireManageUser(person.userId());
+        }
         String id = person.id();
         String maskedAt = masking.mask(id).toString();
         boolean cleared = clearKeycloakName && person.userId() != null && users.clearName(person.userId());

@@ -3280,7 +3280,9 @@ info:
     A response leaves out every field that has no value.
     For example, an org unit with no end date has no `validTo` field.
 
-    A read needs the permission to view users. A write needs the permission to manage users.
+    A read of the org structure needs the role `fuhito-view-structure`. Every other read needs
+    `fuhito-view-people`. A write needs `fuhito-manage`. The roles are in the client
+    `realm-management` of the realm.
 
     A write belongs to a change order when its request has the query parameter `changeOrder`.
 
@@ -6588,11 +6590,11 @@ paths:
         schema:
           type: string
       - description: "True to also empty the first and the last name of the linked\
-          \ Keycloak user. The username, the email, and the attributes stay. False\
-          \ leaves the Keycloak user as it is, so responses still show its name. A\
-          \ read-only user, for example from a user store, cannot be changed. The\
-          \ masking then fails with 409 and `person.keycloak_name_read_only`, and\
-          \ nothing is written."
+          \ Keycloak user. It also needs the permission of Keycloak to manage that\
+          \ user. The username, the email, and the attributes stay. False leaves the\
+          \ Keycloak user as it is, so responses still show its name. A read-only\
+          \ user, for example from a user store, cannot be changed. The masking then\
+          \ fails with 409 and `person.keycloak_name_read_only`, and nothing is written."
         schema:
           type: boolean
           default: false
@@ -6800,7 +6802,10 @@ paths:
   /projection/rebuild:
     post:
       summary: Mirrors the org structure of today into the groups of Keycloak organizations.
-      description: A rebuild with no change in between changes nothing.
+      description: "A rebuild with no change in between changes nothing. It also needs\
+        \ the permission of Keycloak to manage every organization that it may change,\
+        \ and to manage groups when the realm uses realm groups. These are checked\
+        \ before anything is written."
       operationId: rebuildProjection
       tags:
       - keycloak
@@ -7830,11 +7835,11 @@ paths:
         schema:
           type: string
       - description: "True to also empty the first and the last name of the linked\
-          \ Keycloak user. The username, the email, and the attributes stay. False\
-          \ leaves the Keycloak user as it is, so responses still show its name. A\
-          \ read-only user, for example from a user store, cannot be changed. The\
-          \ masking then fails with 409 and `person.keycloak_name_read_only`, and\
-          \ nothing is written."
+          \ Keycloak user. It also needs the permission of Keycloak to manage that\
+          \ user. The username, the email, and the attributes stay. False leaves the\
+          \ Keycloak user as it is, so responses still show its name. A read-only\
+          \ user, for example from a user store, cannot be changed. The masking then\
+          \ fails with 409 and `person.keycloak_name_read_only`, and nothing is written."
         schema:
           type: boolean
           default: false

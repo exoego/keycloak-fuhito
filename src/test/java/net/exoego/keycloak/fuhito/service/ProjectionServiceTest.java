@@ -22,8 +22,10 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 /**
  * A hospital that is linked to a Keycloak organization, with a nursing department and a ward below it.
@@ -168,9 +170,13 @@ class ProjectionServiceTest {
 
         // The realm group that the tree goes below, or null for none.
         private String realmGroup;
+        private boolean realmGroupMissing;
 
         @Override
         public Optional<String> realmGroupRoot() {
+            if (realmGroupMissing) {
+                throw FuhitoException.conflict("projection.realm_group_unknown", Map.of("path", "/nowhere"));
+            }
             return Optional.ofNullable(realmGroup);
         }
 
@@ -486,6 +492,39 @@ class ProjectionServiceTest {
     }
 
     @Test
+    void aCallerMustBeAllowedToChangeEachPlaceBeforeAnythingIsWritten() {
+        var service = new ProjectionService(orgUnitStore, assignmentStore, employmentStore, refItems, keycloak, CLOCK);
+        List<String> asked = new ArrayList<>();
+        IllegalStateException denied = new IllegalStateException("denied");
+
+        assertSame(denied, assertThrows(IllegalStateException.class, () -> service.rebuild(id -> {
+            throw denied;
+        }, () -> { })));
+        assertEquals(0, keycloak.groups.size());
+
+        // The clinic was linked to org-y before. Its groups go, so the caller must be allowed to change org-y too.
+        String clinic = unit("Clinic", null);
+        unit("Desk", clinic);
+        links.link(clinic, "org-y");
+        rebuild();
+        links.unlink(clinic);
+        keycloak.organizationMembers.put("org-z", new HashSet<>(Set.of("guest")));
+        keycloak.realmGroup = "org";
+
+        service.rebuild(asked::add, () -> asked.add("realm groups"));
+
+        assertEquals(List.of("org-x", "org-y", "realm groups"), asked);
+        assertEquals(List.of(), keycloak.describe("org-y"));
+
+        // A realm group that does not exist fails the run itself, after the check.
+        keycloak.realmGroupMissing = true;
+        asked.clear();
+        assertEquals("projection.realm_group_unknown", assertThrows(FuhitoException.class,
+                () -> service.rebuild(id -> { }, () -> asked.add("realm groups"))).code());
+        assertEquals(List.of("realm groups"), asked);
+    }
+
+    @Test
     void doesNothingUnlessTheRealmTurnedItOn() {
         keycloak.enabled = false;
 
@@ -494,6 +533,9 @@ class ProjectionServiceTest {
         assertEquals(FuhitoException.Reason.CONFLICT, e.reason());
         assertEquals("projection.disabled", e.code());
         assertEquals(0, keycloak.groups.size());
+        var service = new ProjectionService(orgUnitStore, assignmentStore, employmentStore, refItems, keycloak, CLOCK);
+        assertEquals("projection.disabled", assertThrows(FuhitoException.class,
+                () -> service.rebuild(id -> fail(id), () -> fail("realm groups"))).code());
     }
 
     @Test

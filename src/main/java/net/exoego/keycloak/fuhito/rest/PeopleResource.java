@@ -352,6 +352,7 @@ public class PeopleResource {
             @Parameter(
                     description = """
                             True to also empty the first and the last name of the linked Keycloak user. \
+                            It also needs the permission of Keycloak to manage that user. \
                             The username, the email, and the attributes stay. \
                             False leaves the Keycloak user as it is, so responses still show its name. \
                             A read-only user, for example from a user store, cannot be changed. \

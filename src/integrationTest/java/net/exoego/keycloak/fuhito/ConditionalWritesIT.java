@@ -179,7 +179,7 @@ class ConditionalWritesIT {
         assertEquals("idempotency.key_reused", Api.json(api.post("/org-units?changeOrder=" + order, body,
                 "Idempotency-Key", "order-1")).get("error").asText());
         Api other = PermissionsIT.administrator(KEYCLOAK.getKeycloakAdminClient(), realm.name, "realm-management",
-                "other-writer", "manage-users");
+                "other-writer", "fuhito-manage");
         assertEquals("idempotency.key_reused", Api.json(other.post("/org-units", body, "Idempotency-Key", "order-1"))
                 .get("error").asText());
 

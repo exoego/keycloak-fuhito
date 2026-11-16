@@ -11,6 +11,7 @@ import java.util.UUID;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.persistence.EntityManager;
+import jakarta.ws.rs.ForbiddenException;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import net.exoego.keycloak.fuhito.domain.ChangeLogEntry;
@@ -28,6 +29,7 @@ import org.keycloak.events.admin.OperationType;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.OrganizationModel;
 import org.keycloak.models.RealmModel;
+import org.keycloak.models.UserModel;
 import org.keycloak.organization.OrganizationProvider;
 import org.keycloak.services.ErrorResponseException;
 import org.keycloak.services.resources.admin.AdminEventBuilder;
@@ -70,20 +72,27 @@ final class KeycloakRequestContext implements RequestContext {
 
     @Override
     public void requireRead() {
-        auth.users().requireView();
+        requireRole(FuhitoRoles.VIEW_PEOPLE, FuhitoRoles.MANAGE);
         requireTimeSettings();
     }
 
     @Override
     public void requireReadStructure() {
-        auth.users().requireQuery();
+        requireRole(FuhitoRoles.VIEW_STRUCTURE, FuhitoRoles.VIEW_PEOPLE, FuhitoRoles.MANAGE);
         requireTimeSettings();
+    }
+
+    // Keycloak picks the client of the roles by the realm of the caller, the same as for its own admin roles.
+    private void requireRole(String... roles) {
+        if (!auth.hasOneAdminRole(roles)) {
+            throw new ForbiddenException();
+        }
     }
 
     @Override
     public OptionalInt structureDaysAhead() {
         String setting = realm.getAttribute(DAYS_AHEAD_ATTRIBUTE);
-        if (setting == null || auth.users().canView()) {
+        if (setting == null || auth.hasOneAdminRole(FuhitoRoles.VIEW_PEOPLE, FuhitoRoles.MANAGE)) {
             return OptionalInt.empty();
         }
         int days;
@@ -114,7 +123,7 @@ final class KeycloakRequestContext implements RequestContext {
 
     @Override
     public void requireWrite() {
-        auth.users().requireManage();
+        requireRole(FuhitoRoles.MANAGE);
         requireTimeSettings();
         String changeOrderId = changeOrderId();
         if (changeOrderId != null
@@ -122,6 +131,19 @@ final class KeycloakRequestContext implements RequestContext {
             throw failure(error(Response.Status.BAD_REQUEST, "change_order.not_found",
                     Map.of("id", changeOrderId)));
         }
+    }
+
+    @Override
+    public void requireManageUser(String userId) {
+        UserModel user = session.users().getUserById(realm, userId);
+        if (user != null) {
+            auth.users().requireManage(user);
+        }
+    }
+
+    @Override
+    public void requireManageGroups() {
+        auth.groups().requireManage();
     }
 
     @Override

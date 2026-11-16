@@ -287,21 +287,49 @@ On a day when the clocks change for summer time, the date can change up to one h
 The endpoints are under `/admin/realms/{realm}/fuhito`.
 The caller needs an access token for the admin API, the same as for the other admin endpoints.
 
-| Operation | Required permission | Role of the realm management client |
+### Roles
+
+The extension adds three roles to the client `realm-management` of every realm. Keycloak keeps its own admin roles there, such as `manage-users` and `manage-organizations`.
+
+| Role | What it gives | Contains |
 |---|---|---|
-| Read the org structure | Query users | `query-users` |
-| Read everything | View users | `view-users` |
-| Write | Manage users | `manage-users` |
-| Link an org unit to a Keycloak organization, or remove the link | Manage users, and manage that organization | `manage-users`, and what Keycloak asks for a change of the members of the organization |
+| `fuhito-view-structure` | Reads of the org structure | |
+| `fuhito-view-people` | Every read, the data of people included | `fuhito-view-structure` |
+| `fuhito-manage` | Every read and every write | `fuhito-view-people` |
+
+- Give a role to the service account of each application that calls the API. An application that only draws the tree gets `fuhito-view-structure`, and learns no grade, no status, and no staff number.
+- The roles of Keycloak for users, such as `query-users`, `view-users`, and `manage-users`, give no access to the API. So an application that writes the org structure needs no power over the users of Keycloak.
+- `realm-admin` contains `fuhito-manage`, so an administrator of the realm may do everything.
+- The master realm has a client `{realm}-realm` for each realm. It gets the same three roles, and the role `admin` of the master realm contains its `fuhito-manage`. An administrator in the master realm checks those the same way as the admin roles of Keycloak.
+- The extension adds the roles to every realm when the server starts, and to a new realm when it is created.
+- The roles have the prefix `fuhito-`, so that no role that Keycloak adds later has the same name.
+- Fine-grained admin permissions do not apply to the data of the extension. They still apply to the data of Keycloak below.
 
 The org structure is the org units with their children, subtree, path, and history, the hierarchies, the reference items and their kinds, the definitions of free attributes, and the version.
-Every other read has data of people, and needs the permission to view users. The members of an org unit and the holders of roles over it are among them.
-A caller who may view users may also read the org structure.
+Every other read has data of people, and needs `fuhito-view-people`. The members of an org unit and the holders of roles over it are among them.
+A reader of the structure sees the ID of the Keycloak organization that an org unit links. A reader of people also sees its alias in an export. Neither tells anything else about the organization.
 
-So a product that only draws the tree gets `query-users`, and learns no grade, no status, and no staff number.
+### Data of Keycloak
+
+A request that changes data of Keycloak also asks for what Keycloak asks for that change.
+
+| Operation | Also needs |
+|---|---|
+| Link an org unit to a Keycloak organization, or remove the link | The permission to manage that organization, such as `manage-organizations` |
+| `POST /projection/rebuild` | The permission to manage every organization that the rebuild may change. With realm groups, also the permission to manage groups, such as `manage-users` |
+| A mask with `clearKeycloakName=true` | The permission to manage that user, such as `manage-users` |
+
+A link to an organization decides who is a member of it at the next rebuild of the projection. So it asks for the same permission as a change of the members through the admin API of Keycloak. A link that replaces another one asks for it on both organizations.
+
+The organizations that a rebuild may change are those that an org unit links, and those that keep groups of an earlier rebuild.
+The rebuild checks them all before it writes anything. The timer of the projection has no caller and checks nothing.
+
+An end of an org unit with a link asks for nothing more. The link gave the members of the organization to the data of the extension, the same as an assignment does. The next rebuild then changes the organization.
+
+### Plans that are not announced
 
 A plan for a reorganization is often secret until it is announced.
-The realm attribute `fuhito.structure.daysAhead` keeps a caller with only `query-users` from reading the structure too far ahead.
+The realm attribute `fuhito.structure.daysAhead` keeps a caller with only `fuhito-view-structure` from reading the structure too far ahead.
 
 | Realm attribute | Value | Default |
 |---|---|---|
@@ -317,13 +345,13 @@ With this attribute, such a caller is limited in these ways.
 - `GET /external-ids/lookup` finds no org unit that starts after the limit.
 
 A read with no `asOf` reads today. For an org unit with its own time zone, that can be the day after the date of the realm.
-A caller who may view users has no limit.
+A caller with `fuhito-view-people` has no limit.
 A value that is not such a number gets 409 with `structure.days_ahead_invalid` for the callers that it limits.
 
-A link to an organization decides who is a member of it at the next rebuild of the projection. So it asks for the same permission as a change of the members through the admin API of Keycloak. A link that replaces another one asks for it on both organizations.
+### Responses
 
 A request with no token gets 401.
-A caller without the permission gets 403.
+A caller without the role or the permission gets 403.
 
 A response leaves out every field that has no value.
 For example, an org unit with no end date has no `validTo` field.

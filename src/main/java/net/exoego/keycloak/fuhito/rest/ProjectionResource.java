@@ -46,14 +46,17 @@ public class ProjectionResource {
     @Operation(
             operationId = "rebuildProjection",
             summary = "Mirrors the org structure of today into the groups of Keycloak organizations.",
-            description = "A rebuild with no change in between changes nothing.")
+            description = "A rebuild with no change in between changes nothing. It also needs the permission of "
+                    + "Keycloak to manage every organization that it may change, and to manage groups when the "
+                    + "realm uses realm groups. These are checked before anything is written.")
     @Parameter(ref = "changeOrder")
     @APIResponse(responseCode = "200", description = "What the rebuild changed in Keycloak.")
     @BadRequest
     @ApiErrors
     public ProjectionReport rebuild() {
         context.requireWrite();
-        return Calls.run(context, service::rebuild);
+        return Calls.run(context, () -> service.rebuild(context::requireManageOrganization,
+                context::requireManageGroups));
     }
 
     @GET
