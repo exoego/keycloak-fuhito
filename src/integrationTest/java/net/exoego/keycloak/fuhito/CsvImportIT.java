@@ -85,7 +85,7 @@ class CsvImportIT {
                 + "/succession")).get("successors").findValuesAsText("orgUnitId").stream().sorted().toList());
         String exported = api.get("/imports/csv/org-units?asOf=2026-05-01").body();
         assertTrue(exported.contains(",2027-04-01," + String.join("|", Api.json(api.get("/org-units/" + old
-                + "/succession")).get("successors").findValuesAsText("orgUnitId")) + ",\r\n"), exported);
+                + "/succession")).get("successors").findValuesAsText("orgUnitId")) + ",,,\r\n"), exported);
         JsonNode again = load(api, "org-units", "effectiveDate=2026-05-01", exported).get("counts").get("orgUnits");
         assertEquals(0, again.get("created").asInt() + again.get("changed").asInt(), again.toString());
     }
@@ -109,6 +109,9 @@ class CsvImportIT {
         JsonNode again = load(api, "org-units", "effectiveDate=2026-05-01", exported).get("counts").get("orgUnits");
         assertEquals(0, again.get("created").asInt() + again.get("changed").asInt(), again.toString());
         load(api, "org-units", "effectiveDate=2026-05-01", "id,organizationAlias\r\n" + hospital + ",#CLEAR\r\n");
+        load(api, "org-units", "effectiveDate=2026-05-01", "id,タイムゾーン,日の始まり\r\n" + hospital
+                + ",Asia/Tokyo,05:00\r\n");
+        assertTrue(api.get("/imports/csv/org-units?asOf=2026-05-01").body().contains(",Asia/Tokyo,05:00\r\n"));
         assertTrue(Api.json(api.get("/org-units/" + hospital + "?asOf=2026-05-01")).path("keycloakOrganizationId")
                 .isMissingNode());
     }
@@ -440,7 +443,7 @@ class CsvImportIT {
             assertTrue(exported.body().startsWith("﻿" + (header.equals("en") ? "id,externalId,source,personId,"
                     + "staffNumber,employerId" : "ID,外部ID,ソース,人のID,職員番号,雇用主のID")), exported.body());
             assertEquals(3, exported.body().split("\r\n").length, exported.body());
-            assertTrue(exported.body().contains(",g1,ON_LEAVE,parental,80.5,2020-04-01,,,\"day, night\""),
+            assertTrue(exported.body().contains(",g1,ON_LEAVE,parental,80.5,2020-04-01,,,,\"day, night\""),
                     exported.body());
             assertTrue(exported.body().contains(",ACTIVE,,,2021-04-01,2027-04-01,resignation,"), exported.body());
 
@@ -491,7 +494,7 @@ class CsvImportIT {
             assertTrue(exported.body().startsWith("﻿" + (header.equals("en") ? "id,externalId,source,"
                     + "employmentId,orgUnitId" : "ID,外部ID,ソース,雇用のID,組織のID")), exported.body());
             assertEquals(3, exported.body().split("\r\n").length, exported.body());
-            assertTrue(exported.body().contains(",nurse,,false,true,70,0,2020-04-01,,\"3F, east\""), exported.body());
+            assertTrue(exported.body().contains(",nurse,,false,true,70,0,2020-04-01,,,\"3F, east\""), exported.body());
             assertTrue(exported.body().contains(",A-2,hr,"), exported.body());
             assertTrue(exported.body().contains(",concurrent,false,false,30,0,2021-04-01,2027-04-01,"),
                     exported.body());

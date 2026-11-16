@@ -108,7 +108,12 @@ public class CsvImportService {
             Map.entry("orderDate", "発令日"), Map.entry("effectiveDate", "発効日"),
             Map.entry("approverUserId", "承認者のユーザーID"), Map.entry("approverUsername", "承認者のユーザー名"),
             Map.entry("requesterUserId", "申請者のユーザーID"), Map.entry("requesterUsername", "申請者のユーザー名"),
-            Map.entry("externalReference", "外部の参照"));
+            Map.entry("externalReference", "外部の参照"), Map.entry("timeZone", "タイムゾーン"),
+            Map.entry("dayStart", "日の始まり"),
+            Map.entry("continuesEmploymentExternalId", "引き継ぎ元の雇用の外部ID"),
+            Map.entry("continuesEmploymentId", "引き継ぎ元の雇用のID"),
+            Map.entry("continuesAssignmentExternalId", "引き継ぎ元の所属の外部ID"),
+            Map.entry("continuesAssignmentId", "引き継ぎ元の所属のID"));
 
     // The lists that a file can hold, each with the resource whose attributes it sets.
     private enum Kind {
@@ -164,15 +169,17 @@ public class CsvImportService {
                     "actingHead", "group")),
             Map.entry(Kind.ORG_UNITS, Set.of("id", "externalId", "source", "code", "name", "shortName",
                     "phoneticName", "unitType", "parentExternalId", "parentId", "displayOrder", "validFrom",
-                    "validTo", "successorExternalIds", "successorIds", "organizationAlias")),
+                    "validTo", "successorExternalIds", "successorIds", "organizationAlias", "timeZone", "dayStart")),
             Map.entry(Kind.EMPLOYMENTS, Set.of("id", "externalId", "source", "username", "userId", "staffNumber",
                     "employmentType", "grade", "status", "leaveReason", "workPercent", "validFrom", "validTo",
-                    "endReason", "employerExternalId", "employerId", "personExternalId", "personId")),
+                    "endReason", "employerExternalId", "employerId", "personExternalId", "personId",
+                    "continuesEmploymentExternalId", "continuesEmploymentId")),
             Map.entry(Kind.PEOPLE, Set.of("id", "externalId", "source", "username", "userId", "name",
                     "phoneticName")),
             Map.entry(Kind.ASSIGNMENTS, Set.of("id", "externalId", "source", "employmentExternalId", "employmentId",
                     "orgUnitExternalId", "orgUnitId", "jobTitle", "occupation", "assignmentKind", "head", "primary",
-                    "allocationPercent", "displayOrder", "validFrom", "validTo")));
+                    "allocationPercent", "displayOrder", "validFrom", "validTo", "continuesAssignmentExternalId",
+                    "continuesAssignmentId")));
 
     private static final Set<String> LOCALIZED = Set.of("name", "shortName");
     static final String ATTRIBUTE_COLUMN = "attributes.";
@@ -488,7 +495,8 @@ public class CsvImportService {
                 cells.integer("displayOrder", version.map(v -> v.displayOrder()).orElse(null)),
                 cells.attributes(version.map(v -> v.attributes()).orElse(null)),
                 cells.text("validFrom", null), cells.text("validTo", null), id,
-                cells.list("successorExternalIds"), successorIds(cells, stored), cells.clearable("organizationAlias"));
+                cells.list("successorExternalIds"), successorIds(cells, stored), cells.clearable("organizationAlias"),
+                cells.clearable("timeZone"), cells.clearable("dayStart"));
     }
 
     // Blank cells of the successors keep the stored ones of a row with an end.
@@ -542,7 +550,8 @@ public class CsvImportService {
                 cells.attributes(terms.map(t -> t.terms().attributes()).orElse(null)),
                 cells.text("validFrom", null), cells.text("validTo", null), cells.text("endReason", null),
                 cells.text("employerExternalId", null), cells.text("personExternalId", null),
-                cells.text("personId", null), cells.text("employerId", null), id);
+                cells.text("personId", null), cells.text("employerId", null), id,
+                cells.text("continuesEmploymentExternalId", null), cells.text("continuesEmploymentId", null));
     }
 
     private AssignmentRow assignment(Cells cells, LocalDate date, String defaultSource) {
@@ -568,7 +577,8 @@ public class CsvImportService {
                 cells.integer("displayOrder", row.map(Assignment::displayOrder).orElse(null)),
                 cells.attributes(row.map(Assignment::attributes).orElse(null)),
                 cells.text("validFrom", null), cells.text("validTo", null), cells.text("employmentId", null),
-                cells.text("orgUnitId", null), id);
+                cells.text("orgUnitId", null), id, cells.text("continuesAssignmentExternalId", null),
+                cells.text("continuesAssignmentId", null));
     }
 
     private static <T> Optional<T> quietly(Supplier<T> read) {

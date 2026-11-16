@@ -280,6 +280,36 @@ public final class ImportReport {
         }
 
         /**
+         * The time zone and the day start of an org unit.
+         *
+         * @param orgUnitId the ID of the unit
+         * @param timeZone the time zone, or null for none
+         * @param dayStart the day start, or null for none
+         */
+        record OfTimeSettings(String orgUnitId, String timeZone, String dayStart) implements Write {
+
+            @Override
+            public boolean created() {
+                return false;
+            }
+
+            @Override
+            public String resourceType() {
+                return "FUHITO_ORG_UNIT";
+            }
+
+            @Override
+            public String resourceId() {
+                return orgUnitId;
+            }
+
+            @Override
+            public String path() {
+                return "fuhito/org-units/" + orgUnitId + "/time-settings";
+            }
+        }
+
+        /**
          * The units that follow an org unit that ended.
          *
          * @param orgUnitId the ID of the unit that ended

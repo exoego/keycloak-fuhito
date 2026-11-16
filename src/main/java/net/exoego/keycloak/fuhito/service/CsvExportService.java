@@ -284,7 +284,7 @@ public class CsvExportService {
         List<String> header = new ArrayList<>();
         for (String field : List.of("id", "externalId", "source", "personId", "staffNumber", "employerId",
                 "employmentType", "grade", "status", "leaveReason", "workPercent", "validFrom", "validTo",
-                "endReason")) {
+                "endReason", "continuesEmploymentId")) {
             header.add(column(field, japanese));
         }
         attributes.forEach(attribute -> header.add(CsvImportService.ATTRIBUTE_COLUMN + attribute));
@@ -310,6 +310,7 @@ public class CsvExportService {
                 cells.add(employment.period().from().toString());
                 cells.add(text(employment.period().to()));
                 cells.add(text(view.endReason()));
+                cells.add(text(employment.continuesEmploymentId()));
                 attributes.forEach(attribute -> cells.add(text(terms.map(t -> t.terms().attributes())
                         .map(values -> values.get(attribute)).orElse(null))));
                 line(csv, cells);
@@ -330,7 +331,7 @@ public class CsvExportService {
         List<String> header = new ArrayList<>();
         for (String field : List.of("id", "externalId", "source", "employmentId", "orgUnitId", "jobTitle",
                 "occupation", "assignmentKind", "head", "primary", "allocationPercent", "displayOrder", "validFrom",
-                "validTo")) {
+                "validTo", "continuesAssignmentId")) {
             header.add(column(field, japanese));
         }
         attributes.forEach(attribute -> header.add(CsvImportService.ATTRIBUTE_COLUMN + attribute));
@@ -350,7 +351,7 @@ public class CsvExportService {
                         text(current.occupation()), text(current.kind()), Boolean.toString(row.head()),
                         Boolean.toString(row.primary()), number(row.allocationPercent()),
                         Integer.toString(row.displayOrder()), view.period().from().toString(),
-                        text(view.period().to())));
+                        text(view.period().to()), text(view.continuesAssignmentId())));
                 attributes.forEach(attribute -> cells.add(text(Optional.ofNullable(row.attributes())
                         .map(values -> values.get(attribute)).orElse(null))));
                 line(csv, cells);
@@ -519,7 +520,7 @@ public class CsvExportService {
         header.add(column("shortName", japanese));
         shortNames.forEach(language -> header.add(column("shortName", japanese) + ":" + language));
         for (String field : List.of("phoneticName", "unitType", "parentId", "displayOrder", "validTo",
-                "successorIds", "organizationAlias")) {
+                "successorIds", "organizationAlias", "timeZone", "dayStart")) {
             header.add(column(field, japanese));
         }
         attributes.forEach(attribute -> header.add(CsvImportService.ATTRIBUTE_COLUMN + attribute));
@@ -545,6 +546,8 @@ public class CsvExportService {
                     .stream().map(OrgUnitSuccession::successorId).toList()));
             cells.add(text(Optional.ofNullable(unit.unit().keycloakOrganizationId())
                     .flatMap(organizations::aliasOf).orElse(null)));
+            cells.add(text(unit.unit().timeZone()));
+            cells.add(text(unit.unit().dayStart()));
             attributes.forEach(attribute -> cells.add(text(Optional.ofNullable(version.attributes())
                     .map(values -> values.get(attribute)).orElse(null))));
             line(csv, cells);

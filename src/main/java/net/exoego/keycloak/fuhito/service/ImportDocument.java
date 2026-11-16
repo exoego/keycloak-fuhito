@@ -435,7 +435,23 @@ public record ImportDocument(
             String employerId,
             @Schema(description = "The ID of a stored employment, for a row of an employment with no external ID. A "
                     + "CSV export has it in every row. A new employment has none.")
-            String id) {
+            String id,
+            @Schema(description = "The external ID of the employment that this one continues after a transfer "
+                    + "between employers, with the same source. A new employment gets the link. A stored one must "
+                    + "have the same.")
+            String continuesEmploymentExternalId,
+            @Schema(description = "The ID of the employment that this one continues. Give this or "
+                    + "`continuesEmploymentExternalId`, not both.")
+            String continuesEmploymentId) {
+
+        public EmploymentRow(String source, String externalId, String username, String userId, String staffNumber,
+                String employmentType, String grade, String status, String leaveReason, BigDecimal workPercent,
+                Map<String, Object> attributes, String validFrom, String validTo, String endReason,
+                String employerExternalId, String personExternalId, String personId, String employerId, String id) {
+            this(source, externalId, username, userId, staffNumber, employmentType, grade, status, leaveReason,
+                    workPercent, attributes, validFrom, validTo, endReason, employerExternalId, personExternalId,
+                    personId, employerId, id, null, null);
+        }
 
         /**
          * Makes a row that names no employer.
@@ -458,7 +474,7 @@ public record ImportDocument(
                 String employmentType, String grade, String status, BigDecimal workPercent,
                 Map<String, Object> attributes, String validFrom, String validTo, String endReason) {
             this(source, externalId, username, userId, staffNumber, employmentType, grade, status, null,
-                    workPercent, attributes, validFrom, validTo, endReason, null, null, null, null, null);
+                    workPercent, attributes, validFrom, validTo, endReason, null, null, null, null, null, null, null);
         }
     }
 
@@ -519,7 +535,23 @@ public record ImportDocument(
             String orgUnitId,
             @Schema(description = "The ID of a stored assignment, for a row of an assignment with no external ID. A "
                     + "CSV export has it in every row. A new assignment has none.")
-            String id) {
+            String id,
+            @Schema(description = "The external ID of the assignment that this one continues after a transfer "
+                    + "between employers, with the same source. A new assignment gets the link. A stored one must "
+                    + "have the same.")
+            String continuesAssignmentExternalId,
+            @Schema(description = "The ID of the assignment that this one continues. Give this or "
+                    + "`continuesAssignmentExternalId`, not both.")
+            String continuesAssignmentId) {
+
+        public AssignmentRow(String source, String externalId, String employmentExternalId,
+                String orgUnitExternalId, String jobTitle, String occupation, String kind, Boolean head,
+                Boolean primary, BigDecimal allocationPercent, Integer displayOrder, Map<String, Object> attributes,
+                String validFrom, String validTo, String employmentId, String orgUnitId, String id) {
+            this(source, externalId, employmentExternalId, orgUnitExternalId, jobTitle, occupation, kind, head,
+                    primary, allocationPercent, displayOrder, attributes, validFrom, validTo, employmentId, orgUnitId,
+                    id, null, null);
+        }
 
         /**
          * Makes a row that names the employment and the org unit by external ID.
@@ -544,7 +576,8 @@ public record ImportDocument(
                 Boolean primary, BigDecimal allocationPercent, Integer displayOrder, Map<String, Object> attributes,
                 String validFrom, String validTo) {
             this(source, externalId, employmentExternalId, orgUnitExternalId, jobTitle, occupation, kind, head,
-                    primary, allocationPercent, displayOrder, attributes, validFrom, validTo, null, null, null);
+                    primary, allocationPercent, displayOrder, attributes, validFrom, validTo, null, null, null, null,
+                    null);
         }
     }
 
@@ -651,14 +684,21 @@ public record ImportDocument(
             List<String> successorIds,
             @Schema(description = "The alias of the Keycloak organization that the unit is linked to. A row that "
                     + "leaves it out keeps the link. An empty text removes it.")
-            String organizationAlias) {
+            String organizationAlias,
+            @Schema(description = "The time zone of the unit and the units below, for example `Asia/Tokyo`. A row "
+                    + "that leaves it out keeps it. An empty text removes it.")
+            String timeZone,
+            @Schema(description = "The time of day when the date changes, as `HH:mm`. A row that leaves it out keeps "
+                    + "it. An empty text removes it.")
+            String dayStart) {
 
         public OrgUnitRow(String source, String externalId, String code, String name, Map<String, String> names,
                 String shortName, Map<String, String> shortNames, String phoneticName, String unitType,
                 String parentExternalId, String parentId, Integer displayOrder, Map<String, Object> attributes,
                 String validFrom, String validTo, String id) {
             this(source, externalId, code, name, names, shortName, shortNames, phoneticName, unitType,
-                    parentExternalId, parentId, displayOrder, attributes, validFrom, validTo, id, null, null, null);
+                    parentExternalId, parentId, displayOrder, attributes, validFrom, validTo, id, null, null, null,
+                    null, null);
         }
     }
 }
