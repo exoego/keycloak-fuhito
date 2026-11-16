@@ -194,8 +194,9 @@ public class ReportingLineService {
      * A stored line gives the manager. An assignment with no solid line takes the head of its org unit.
      * A head, and a member of a unit with no head, take the head of the nearest unit above that has one.
      * An assignment in a group gets no derived manager, and the head of a group is nobody's derived manager.
-     * A head is absent while the status of the employment is not {@code ACTIVE}. An acting head counts only while
-     * no other head is present. An acting head while a head is present is a member.
+     * A head is absent while the status of the employment is not {@code ACTIVE}. A present acting head leads the
+     * unit while its assignment holds, and the other heads look above the unit. With no present acting head, the
+     * present heads lead.
      *
      * @param userId the ID of the user
      * @param asOf the date as {@code YYYY-MM-DD}, or null for today
@@ -344,16 +345,14 @@ public class ReportingLineService {
             List<Assignment> present = sources.assignments().rowsOn(List.of(orgUnitId), date).stream()
                     .filter(row -> row.head() && present(row))
                     .toList();
-            List<Assignment> regular = present.stream().filter(row -> !acting(row)).toList();
-            return regular.isEmpty() ? present : regular;
+            List<Assignment> acting = present.stream().filter(this::acting).toList();
+            return acting.isEmpty() ? present : acting;
         }
 
-        // A head who leads the unit or is away looks above it. An acting head beside a present head does not.
+        // A head looks above the unit, also when an acting head leads it in the head's place.
         private boolean looksAbove(String orgUnitId, String personId) {
-            List<Assignment> heads = headsOf(orgUnitId);
             return sources.assignments().rowsOn(List.of(orgUnitId), date).stream()
-                    .filter(row -> row.head() && personId.equals(personOf(row)))
-                    .anyMatch(row -> heads.contains(row) || !present(row));
+                    .anyMatch(row -> row.head() && personId.equals(personOf(row)));
         }
 
         // The heads of the unit, or of the nearest unit above that has a head. A head looks above its own unit.

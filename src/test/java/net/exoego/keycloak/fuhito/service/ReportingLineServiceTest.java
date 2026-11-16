@@ -173,17 +173,18 @@ class ReportingLineServiceTest {
     }
 
     @Test
-    void aHeadOnLeaveIsNoManagerAndAnActingHeadStandsIn() {
+    void anActingHeadLeadsWhileItHoldsAndAHeadOnLeaveIsNoManager() {
         refItems.insert(new RefItem("acting", RefKind.ASSIGNMENT_KIND, "acting", "Acting", Map.of(), 0, Map.of(),
                 true, false, true));
         String headNurse = employmentStore.findByPerson("head-nurse").getFirst().id();
         String acting = assignments.add(new AssignmentValues(employ("idle"), nursing, "2026-04-01", null, null,
                 null, "acting", true, null, null, null, null, null, null, null)).assignmentId();
 
-        // While the head nurse is there, the acting head is a member of the department.
-        assertEquals(List.of("head-nurse SOLID derived"), summary(service.managersOf("idle", null)));
-        assertEquals(List.of("idle SOLID derived", "nurse-a SOLID derived", "nurse-b SOLID derived"),
-                summary(service.reportsOf("head-nurse", null, Page.of(null, null))));
+        // The acting head leads also while the head nurse is active, for example on a sick leave that is not a
+        // status of the employment.
+        assertEquals(List.of("idle SOLID derived"), summary(service.managersOf("nurse-a", null)));
+        assertEquals(List.of("director SOLID derived"), summary(service.managersOf("head-nurse", null)));
+        assertEquals(List.of(), summary(service.reportsOf("head-nurse", null, Page.of(null, null))));
 
         employments.changeTerms(headNurse, new TermsChange("2026-06-01", null, null, "ON_LEAVE", null, null));
         assertEquals(List.of("idle SOLID derived"), summary(service.managersOf("nurse-a", null)));

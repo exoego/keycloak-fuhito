@@ -32,26 +32,25 @@ public class JpaReportingLineStore implements ReportingLineStore {
                 .formatted(row, k);
     }
 
-    // True when the unit of the row has a present head that is not acting. Each use gets its own aliases.
-    private static String regularPresent(String row, String prefix) {
+    // True when the unit of the row has a present acting head. Each use gets its own aliases.
+    private static String actingPresent(String row, String prefix) {
         String r = prefix + "r";
         return """
                 exists (select 1 from AssignmentEntity %2$s where %2$s.realmId = :realmId
                     and %2$s.orgUnitId = %1$s.orgUnitId and %2$s.head = true and %2$s.%3$s
-                    and %4$s and not %5$s)"""
+                    and %4$s and %5$s)"""
                 .formatted(row, r, onDate(r), present(r, prefix + "rt"), acting(r, prefix + "rk"));
     }
 
     // A head row of the date that counts as a head of its unit.
     private static String leads(String row) {
-        return "(%1$s.head = true and %2$s and (not %3$s or not %4$s))".formatted(row, present(row, row + "1t"),
-                acting(row, row + "1k"), regularPresent(row, row + "1"));
+        return "(%1$s.head = true and %2$s and (%3$s or not %4$s))".formatted(row, present(row, row + "1t"),
+                acting(row, row + "1k"), actingPresent(row, row + "1"));
     }
 
-    // A head row of the date whose person looks above the unit. Only an acting head beside a present head does not.
+    // A head row of the date. Its person looks above the unit, also when an acting head leads it.
     private static String looksAbove(String row) {
-        return "(%1$s.head = true and not (%2$s and %3$s and %4$s))".formatted(row, present(row, row + "2t"),
-                acting(row, row + "2k"), regularPresent(row, row + "2"));
+        return "(%1$s.head = true)".formatted(row);
     }
 
     // A unit that the manager leads below another one is reached twice in Down. Units counts it once, from the top.
