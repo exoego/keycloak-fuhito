@@ -49,6 +49,15 @@ public interface ExternalIdStore {
     Optional<ExternalId> find(ExternalId.Kind kind, String source, String externalId);
 
     /**
+     * Lists a page of the stored IDs of every resource, ordered by the ID of the row. The own pairs are not there.
+     *
+     * @param afterId the ID of the row after which the page starts, or null for the start
+     * @param max the largest number of rows
+     * @return the rows
+     */
+    List<ExternalId> list(String afterId, int max);
+
+    /**
      * Stores a new ID.
      *
      * @param externalId the row

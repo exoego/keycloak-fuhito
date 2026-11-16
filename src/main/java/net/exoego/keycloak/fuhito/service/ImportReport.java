@@ -432,6 +432,30 @@ public final class ImportReport {
         }
 
         /**
+         * A write of an ID of another system.
+         *
+         * @param created true for a new ID, false for a change
+         * @param state the ID after the write
+         */
+        record OfExternalId(boolean created, ExternalIdService.View state) implements Write {
+
+            @Override
+            public String resourceType() {
+                return "FUHITO_EXTERNAL_ID";
+            }
+
+            @Override
+            public String resourceId() {
+                return state.rowId();
+            }
+
+            @Override
+            public String path() {
+                return "fuhito/external-ids/" + resourceId();
+            }
+        }
+
+        /**
          * The removal of a resource.
          *
          * @param resourceType the type of the removed resource, as the event log names it

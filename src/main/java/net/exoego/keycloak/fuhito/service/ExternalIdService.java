@@ -163,6 +163,17 @@ public class ExternalIdService {
     }
 
     /**
+     * Lists a page of the stored IDs of every resource, ordered by the ID of the row. The own pairs are not there.
+     *
+     * @param afterId the ID of the row after which the page starts, or null for the start
+     * @param max the largest number of rows
+     * @return the IDs
+     */
+    public List<View> list(String afterId, int max) {
+        return store.list(afterId, max).stream().map(ExternalIdService::view).toList();
+    }
+
+    /**
      * Tells whether the IDs of a kind name only org units, which a reader of the org structure may read.
      *
      * @param kind the kind of resource as text

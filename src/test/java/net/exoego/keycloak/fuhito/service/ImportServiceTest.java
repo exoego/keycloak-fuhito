@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.Optional;
 
 import net.exoego.keycloak.fuhito.domain.Employment;
+import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.Person;
 import net.exoego.keycloak.fuhito.domain.Qualification;
@@ -19,6 +20,7 @@ import net.exoego.keycloak.fuhito.domain.UnitRole;
 import net.exoego.keycloak.fuhito.service.ImportDocument.AssignmentRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.AttributeDefinitionRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.EmploymentRow;
+import net.exoego.keycloak.fuhito.service.ImportDocument.ExternalIdRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.HierarchyRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.OrgUnitParentRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.OrgUnitRow;
@@ -63,6 +65,7 @@ class ImportServiceTest {
     private final MemoryReportingLineStore lineStore = new MemoryReportingLineStore();
     private final MemoryUnitRoleStore roleStore = new MemoryUnitRoleStore();
     private final MemoryQualificationStore qualificationStore = new MemoryQualificationStore();
+    private final MemoryExternalIdStore externalIdStore = new MemoryExternalIdStore();
     private final QualificationService qualifications = new QualificationService(qualificationStore, refItems,
             personStore, users, Clock.systemUTC());
     private final UnitRoleService roles = new UnitRoleService(roleStore,
@@ -97,7 +100,7 @@ class ImportServiceTest {
             new ImportService.Setup(kinds, definitions, hierarchies),
             new ImportService.Organizations(new OrganizationLinkService(orgUnitStore, organizations), organizations,
                     managed::add),
-            new ImportService.Records(lines, roles, qualifications));
+            new ImportService.Records(lines, roles, qualifications, new ExternalIdService(externalIdStore)));
 
     private static ImportDocument doc(String effectiveDate, boolean dryRun, String source, List<RefItemRow> refItems,
             List<OrgUnitRow> orgUnits) {
@@ -841,6 +844,36 @@ class ImportServiceTest {
                         qualification(null, "Q5", null, "nobody", null, null),
                         new QualificationRow(null, null, "Q6", null, "nope", null, "license", null, null, null,
                                 null))));
+    }
+
+    private ImportReport importExternalIds(ExternalIdRow... rows) {
+        return service.apply(ImportDocument.of("2026-04-01", false, null, "externalIds", List.of(rows)));
+    }
+
+    @Test
+    void importsTheIdsOfOtherSystemsAndRemovesOneWithAnEmptyText() {
+        externalIdStore.resource(ExternalId.Kind.ORG_UNIT, "u-1", "hr", "H");
+
+        ImportReport first = importExternalIds(new ExternalIdRow("ORG_UNIT", "u-1", "payroll", "P-1"));
+        ImportReport again = importExternalIds(new ExternalIdRow("ORG_UNIT", "u-1", "payroll", "P-1"));
+        ImportReport changed = importExternalIds(new ExternalIdRow("ORG_UNIT", "u-1", "payroll", "P-2"));
+        ImportReport removed = importExternalIds(new ExternalIdRow("ORG_UNIT", "u-1", "payroll", ""),
+                new ExternalIdRow("ORG_UNIT", "u-1", "ledger", ""));
+
+        assertEquals(Map.of("externalIds", new Counts(1, 0, 0)), first.counts());
+        assertEquals("fuhito/external-ids/" + first.writes().getFirst().resourceId(), first.writes().getFirst().path());
+        assertEquals(Map.of("externalIds", new Counts(0, 0, 1)), again.counts());
+        assertEquals(Map.of("externalIds", new Counts(0, 1, 0)), changed.counts());
+        assertEquals(Map.of("externalIds", new Counts(0, 1, 1)), removed.counts());
+        assertTrue(removed.writes().getFirst().deleted());
+        assertEquals(List.of(), externalIdStore.rows);
+        assertEquals(List.of("externalIds[1] import.duplicate_row", "externalIds[2] external_id.own_source",
+                "externalIds[3] external_id.resource_unknown", "externalIds[4] invalid.required"),
+                errors(importExternalIds(new ExternalIdRow("ORG_UNIT", "u-1", "payroll", "P-3"),
+                        new ExternalIdRow("ORG_UNIT", "u-1", "payroll", "P-4"),
+                        new ExternalIdRow("ORG_UNIT", "u-1", "hr", "X"),
+                        new ExternalIdRow("ORG_UNIT", "nope", "payroll", "P-5"),
+                        new ExternalIdRow("ORG_UNIT", "u-1", "ledger", null))));
     }
 
     private void importTwoUnits() {

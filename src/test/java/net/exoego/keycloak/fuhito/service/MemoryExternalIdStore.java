@@ -47,6 +47,15 @@ final class MemoryExternalIdStore implements ExternalIdStore {
     }
 
     @Override
+    public List<ExternalId> list(String afterId, int max) {
+        return rows.stream()
+                .filter(row -> afterId == null || row.id().compareTo(afterId) > 0)
+                .sorted(java.util.Comparator.comparing(ExternalId::id))
+                .limit(max)
+                .toList();
+    }
+
+    @Override
     public void insert(ExternalId externalId) {
         rows.add(externalId);
     }
