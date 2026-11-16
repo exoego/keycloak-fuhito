@@ -3,12 +3,12 @@ package net.exoego.keycloak.fuhito;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
-import java.util.Map;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AttributeDefinitionsIT {
 
@@ -39,7 +39,7 @@ class AttributeDefinitionsIT {
         assertEquals("attribute.bad_value", errorOf(400, api.post("/org-units",
                 "{\"name\": \"1病棟\", \"validFrom\": \"2026-04-01\", \"attributes\": {\"beds\": \"many\"}}")));
         JsonNode ward = created(api.post("/org-units", "{\"name\": \"1病棟\", \"validFrom\": \"2026-04-01\", "
-                + "\"externalId\": \"W\", \"source\": \"import\", \"attributes\": {\"beds\": 30, \"note\": \"free\"}}"));
+                + "\"externalId\": \"W\", \"source\": \"import\", \"attributes\": {\"beds\": 30}}"));
         assertEquals(30, ward.get("attributes").get("beds").asInt());
 
         // A CSV column sets the defined attribute.
@@ -64,6 +64,7 @@ class AttributeDefinitionsIT {
     @Test
     void attributesMayHave64KbAsJson() throws Exception {
         TestRealm realm = TestRealm.create("attributes-size");
+        realm.attribute("PERSON", "note", "STRING");
         HttpResponse<String> large = realm.api.post("/people", "{\"name\": \"山田 花子\", \"attributes\": "
                 + "{\"note\": \"" + "a".repeat(65_536) + "\"}}");
 
@@ -73,8 +74,8 @@ class AttributeDefinitionsIT {
     }
 
     @Test
-    void aRealmCanRejectAttributesWithNoDefinition() throws Exception {
-        TestRealm realm = TestRealm.create("attributes-strict", Map.of("fuhito.attributes.unknown", "reject"));
+    void aWriteWithANameThatHasNoDefinitionFails() throws Exception {
+        TestRealm realm = TestRealm.create("attributes-unknown");
         Api api = realm.api;
         created(api.post("/attribute-definitions", "{\"target\": \"PERSON\", \"name\": \"住所\", \"type\": \"STRING\"}"));
 
@@ -82,6 +83,34 @@ class AttributeDefinitionsIT {
                 + "\"attributes\": {\"電話\": \"03\"}}")));
         assertEquals(201, api.post("/people", "{\"name\": \"山田 花子\", \"attributes\": {\"住所\": \"東京都\"}}")
                 .statusCode());
+    }
+
+    @Test
+    void aListAttributeChecksEachElement() throws Exception {
+        TestRealm realm = TestRealm.create("attributes-list");
+        Api api = realm.api;
+        realm.refItem("OCCUPATION", "nurse", "看護師");
+        realm.refItem("OCCUPATION", "clerk", "事務");
+        JsonNode occupations = created(api.post("/attribute-definitions", "{\"target\": \"PERSON\", "
+                + "\"name\": \"occupations\", \"type\": \"REF_ITEM\", \"refKind\": \"OCCUPATION\", \"multiple\": true, "
+                + "\"required\": true}"));
+        assertTrue(occupations.get("multiple").asBoolean());
+
+        assertEquals("attribute.required", errorOf(400, api.post("/people", "{\"name\": \"山田 花子\", "
+                + "\"attributes\": {\"occupations\": []}}")));
+        assertEquals("attribute.bad_value", errorOf(400, api.post("/people", "{\"name\": \"山田 花子\", "
+                + "\"attributes\": {\"occupations\": \"nurse\"}}")));
+        assertEquals("attribute.bad_value", errorOf(400, api.post("/people", "{\"name\": \"山田 花子\", "
+                + "\"attributes\": {\"occupations\": [\"nurse\", \"driver\"]}}")));
+        JsonNode person = created(api.post("/people", "{\"name\": \"山田 花子\", "
+                + "\"attributes\": {\"occupations\": [\"nurse\", \"clerk\"]}}"));
+        assertEquals(List.of("nurse", "clerk"), List.of(person.get("attributes").get("occupations").get(0).asText(),
+                person.get("attributes").get("occupations").get(1).asText()));
+
+        assertEquals(200, api.put("/attribute-definitions/" + occupations.get("id").asText(), "{\"type\": "
+                + "\"REF_ITEM\", \"refKind\": \"OCCUPATION\"}").statusCode());
+        assertEquals("attribute.bad_value", errorOf(400, api.post("/people", "{\"name\": \"山田 太郎\", "
+                + "\"attributes\": {\"occupations\": [\"nurse\"]}}")));
     }
 
     @Test

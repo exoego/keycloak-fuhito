@@ -84,7 +84,7 @@ class RealmExportIT {
         source.refItem("UNIT_ROLE", "approver", "承認者");
         source.refItem("QUALIFICATION", "license", "免許");
         ok(api.post("/attribute-definitions", "{\"target\": \"PERSON\", \"name\": \"site\", \"type\": \"REF_ITEM\", "
-                + "\"refKind\": \"site\"}"));
+                + "\"refKind\": \"site\", \"multiple\": true}"));
         ok(api.post("/hierarchies", "{\"code\": \"project\", \"name\": \"プロジェクト\"}"));
         // The default hierarchy goes with its ID and its name.
         line = defaultHierarchy(api).get("id").asText();
@@ -120,9 +120,10 @@ class RealmExportIT {
         ok(api.post("/employments", "{\"userId\": \"" + ids.get("former")
                 + "\", \"validFrom\": \"2010-04-01\", \"validTo\": \"2015-04-01\"}"));
         ok(api.post("/users/" + ids.get("former") + "/mask", ""));
-        ok(api.post("/people", "{\"name\": \"山田 花子\", \"attributes\": {\"site\": \"tokyo\"}}"));
+        ok(api.post("/people", "{\"name\": \"山田 花子\", \"attributes\": {\"site\": [\"tokyo\"]}}"));
 
         ObjectNode first = export(api);
+        assertTrue(first.get("attributeDefinitions").get(0).get("multiple").asBoolean(), first.toString());
         assertEquals(2, first.get("orgUnits").get(0).get("versions").size() + first.get("orgUnits").get(1)
                 .get("versions").size() + first.get("orgUnits").get(2).get("versions").size()
                 + first.get("orgUnits").get(3).get("versions").size() - 3);

@@ -25,7 +25,6 @@ public class AttributeDefinitionService implements AttributeRules {
 
     private final AttributeDefinitionStore store;
     private final RefItemStore refItems;
-    private final boolean rejectUnknown;
     private final Predicate<String> knownKinds;
 
     /**
@@ -33,11 +32,9 @@ public class AttributeDefinitionService implements AttributeRules {
      *
      * @param store the storage of definitions of the realm
      * @param refItems the storage of reference items of the realm
-     * @param rejectUnknown true when the realm rejects attributes with no definition
      */
-    public AttributeDefinitionService(AttributeDefinitionStore store, RefItemStore refItems, boolean rejectUnknown) {
-        this(store, refItems, rejectUnknown,
-                code -> Arrays.stream(RefKind.values()).anyMatch(kind -> kind.name().equals(code)));
+    public AttributeDefinitionService(AttributeDefinitionStore store, RefItemStore refItems) {
+        this(store, refItems, code -> Arrays.stream(RefKind.values()).anyMatch(kind -> kind.name().equals(code)));
     }
 
     /**
@@ -45,14 +42,12 @@ public class AttributeDefinitionService implements AttributeRules {
      *
      * @param store the storage of definitions of the realm
      * @param refItems the storage of reference items of the realm
-     * @param rejectUnknown true when the realm rejects attributes with no definition
      * @param knownKinds tells whether a code is a fixed kind or a kind of the realm
      */
-    public AttributeDefinitionService(AttributeDefinitionStore store, RefItemStore refItems, boolean rejectUnknown,
+    public AttributeDefinitionService(AttributeDefinitionStore store, RefItemStore refItems,
             Predicate<String> knownKinds) {
         this.store = store;
         this.refItems = refItems;
-        this.rejectUnknown = rejectUnknown;
         this.knownKinds = knownKinds;
     }
 
@@ -86,11 +81,13 @@ public class AttributeDefinitionService implements AttributeRules {
      * @param name the name of the attribute
      * @param type the type of the value
      * @param refKind the kind of reference data for the type {@code REF_ITEM}, or null
+     * @param multiple true when the value is a list, or null for false
      * @param required true when every write must give a value, or null for false
      * @return the new definition
      * @throws FuhitoException when a value is bad or the kind of resource has the name already
      */
-    public AttributeDefinition create(String target, String name, String type, String refKind, Boolean required) {
+    public AttributeDefinition create(String target, String name, String type, String refKind, Boolean multiple,
+            Boolean required) {
         AttributeDefinition.Target of = Checks.optionalEnum("target", AttributeDefinition.Target.class,
                 Checks.required("target", target), null);
         String checkedName = Checks.required("name", name);
@@ -102,7 +99,7 @@ public class AttributeDefinitionService implements AttributeRules {
             throw FuhitoException.conflict("attribute.name_taken", Map.of("target", of.name(), "name", checkedName));
         }
         AttributeDefinition definition = definition(UUID.randomUUID().toString(), of, checkedName, type, refKind,
-                required);
+                multiple, required);
         store.insert(definition);
         return definition;
     }
@@ -114,13 +111,15 @@ public class AttributeDefinitionService implements AttributeRules {
      * @param id the ID
      * @param type the type of the value
      * @param refKind the kind of reference data for the type {@code REF_ITEM}, or null
+     * @param multiple true when the value is a list, or null for false
      * @param required true when every write must give a value, or null for false
      * @return the changed definition
      * @throws FuhitoException when the definition does not exist or a value is bad
      */
-    public AttributeDefinition replace(String id, String type, String refKind, Boolean required) {
+    public AttributeDefinition replace(String id, String type, String refKind, Boolean multiple, Boolean required) {
         AttributeDefinition current = get(id);
-        AttributeDefinition changed = definition(id, current.target(), current.name(), type, refKind, required);
+        AttributeDefinition changed = definition(id, current.target(), current.name(), type, refKind, multiple,
+                required);
         store.update(changed);
         return changed;
     }
@@ -137,7 +136,7 @@ public class AttributeDefinitionService implements AttributeRules {
     }
 
     private AttributeDefinition definition(String id, AttributeDefinition.Target target, String name,
-            String type, String refKind, Boolean required) {
+            String type, String refKind, Boolean multiple, Boolean required) {
         AttributeDefinition.Type of = Checks.optionalEnum("type", AttributeDefinition.Type.class,
                 Checks.required("type", type), null);
         String kind = refKind;
@@ -147,7 +146,8 @@ public class AttributeDefinitionService implements AttributeRules {
         if ((of == AttributeDefinition.Type.REF_ITEM) != (kind != null)) {
             throw FuhitoException.invalid("attribute.ref_kind", Map.of("type", of.name()));
         }
-        return new AttributeDefinition(id, target, name, of, kind, Boolean.TRUE.equals(required));
+        return new AttributeDefinition(id, target, name, of, kind, Boolean.TRUE.equals(multiple),
+                Boolean.TRUE.equals(required));
     }
 
     @Override
@@ -158,23 +158,36 @@ public class AttributeDefinitionService implements AttributeRules {
         values.forEach((name, value) -> {
             AttributeDefinition definition = byName.get(name);
             if (definition == null) {
-                if (rejectUnknown) {
-                    throw FuhitoException.invalid("attribute.unknown", Map.of("target", target.name(), "name", name));
-                }
-            } else if (value != null && !fits(definition, value)) {
-                throw FuhitoException.invalid("attribute.bad_value", Map.of("name", name, "type",
-                        definition.refKind() == null ? definition.type().name()
-                                : definition.type() + " " + definition.refKind()));
+                throw FuhitoException.invalid("attribute.unknown", Map.of("target", target.name(), "name", name));
+            }
+            if (value != null && !fitsAll(definition, value)) {
+                throw FuhitoException.invalid("attribute.bad_value", Map.of("name", name, "type", typeOf(definition)));
             }
         });
         byName.values().stream()
-                .filter(definition -> definition.required() && values.get(definition.name()) == null)
+                .filter(definition -> definition.required() && missing(values.get(definition.name())))
                 .findFirst()
                 .ifPresent(definition -> {
                     throw FuhitoException.invalid("attribute.required",
                             Map.of("target", target.name(), "name", definition.name()));
                 });
         return values;
+    }
+
+    private boolean fitsAll(AttributeDefinition definition, Object value) {
+        if (!definition.multiple()) {
+            return fits(definition, value);
+        }
+        return value instanceof List<?> list && list.stream().allMatch(element -> fits(definition, element));
+    }
+
+    private static boolean missing(Object value) {
+        return value == null || (value instanceof List<?> list && list.isEmpty());
+    }
+
+    private static String typeOf(AttributeDefinition definition) {
+        String type = definition.type().name() + (definition.multiple() ? "[]" : "");
+        return definition.refKind() == null ? type : type + " " + definition.refKind();
     }
 
     private boolean fits(AttributeDefinition definition, Object value) {

@@ -284,7 +284,8 @@ public record ImportDocument(
     @Schema(
             name = "ImportAttributeDefinitionRow",
             description = "The definition of a free attribute. It is matched by target and name. A row of a stored "
-                    + "definition changes the type, the kind, and whether a value is required.",
+                    + "definition changes the type, the kind, whether the value is a list, and whether a value is "
+                    + "required.",
             requiredProperties = {"target", "name", "type"})
     public record AttributeDefinitionRow(
             @Schema(
@@ -298,6 +299,9 @@ public record ImportDocument(
             String type,
             @Schema(description = "The kind of reference data. Only the type `REF_ITEM` has it.")
             String refKind,
+            @Schema(description = "True when the value is a JSON array, and each element has the type.",
+                    defaultValue = "false")
+            Boolean multiple,
             @Schema(description = "True when every write of the resource must give a value.", defaultValue = "false")
             Boolean required) {
     }

@@ -31,6 +31,9 @@ public class AttributeDefinitionEntity {
     @Column(name = "REF_KIND", length = 32)
     String refKind;
 
+    @Column(name = "MULTIPLE", nullable = false)
+    boolean multiple;
+
     @Column(name = "REQUIRED", nullable = false)
     boolean required;
 

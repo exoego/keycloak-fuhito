@@ -9,10 +9,11 @@ package net.exoego.keycloak.fuhito.domain;
  * @param type the type of the value
  * @param refKind the code of the kind of reference data for the type {@code REF_ITEM}, fixed or of the realm, or
  *        null
- * @param required true when every write of the resource must give a value
+ * @param multiple true when the value is a list, each of whose elements has the type
+ * @param required true when every write of the resource must give a value, and a list at least one element
  */
 public record AttributeDefinition(String id, Target target, String name, Type type, String refKind,
-        boolean required) {
+        boolean multiple, boolean required) {
 
     /**
      * The kinds of resources that have free attributes.

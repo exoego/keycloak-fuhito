@@ -101,6 +101,9 @@
                 <constraints nullable="false"/>
             </column>
             <column name="REF_KIND" type="VARCHAR(32)"/>
+            <column name="MULTIPLE" type="BOOLEAN" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
             <column name="REQUIRED" type="BOOLEAN" defaultValueBoolean="false">
                 <constraints nullable="false"/>
             </column>

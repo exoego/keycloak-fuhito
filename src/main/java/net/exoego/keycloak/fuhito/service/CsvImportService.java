@@ -16,6 +16,9 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import net.exoego.keycloak.fuhito.domain.Assignment;
 import net.exoego.keycloak.fuhito.domain.AttributeDefinition;
 import net.exoego.keycloak.fuhito.domain.ChangeOrder;
@@ -59,6 +62,8 @@ public class CsvImportService {
      */
     public static final String CLEAR = "#CLEAR";
 
+    private static final ObjectMapper JSON = new ObjectMapper();
+
     /**
      * What a CSV import did, with the line of each bad row.
      *
@@ -97,7 +102,7 @@ public class CsvImportService {
             Map.entry("id", "ID"), Map.entry("parentId", "親のID"), Map.entry("personId", "人のID"),
             Map.entry("employerId", "雇用主のID"), Map.entry("employmentId", "雇用のID"),
             Map.entry("orgUnitId", "組織のID"), Map.entry("target", "対象"), Map.entry("type", "型"),
-            Map.entry("refKind", "参照の種類"), Map.entry("required", "必須"), Map.entry("hierarchy", "階層"),
+            Map.entry("refKind", "参照の種類"), Map.entry("multiple", "複数"), Map.entry("required", "必須"), Map.entry("hierarchy", "階層"),
             Map.entry("successorExternalIds", "後継の外部ID"), Map.entry("successorIds", "後継のID"),
             Map.entry("organizationAlias", "Organizationの別名"), Map.entry("assignmentExternalId", "所属の外部ID"),
             Map.entry("assignmentId", "所属のID"), Map.entry("managerPersonExternalId", "上司の人の外部ID"),
@@ -151,7 +156,8 @@ public class CsvImportService {
 
     private static final Map<Kind, Set<String>> FIELDS = Map.ofEntries(
             Map.entry(Kind.REF_KINDS, Set.of("code", "name")),
-            Map.entry(Kind.ATTRIBUTE_DEFINITIONS, Set.of("target", "name", "type", "refKind", "required")),
+            Map.entry(Kind.ATTRIBUTE_DEFINITIONS,
+                    Set.of("target", "name", "type", "refKind", "multiple", "required")),
             Map.entry(Kind.HIERARCHIES, Set.of("code", "name")),
             Map.entry(Kind.ORG_UNIT_PARENTS, Set.of("hierarchy", "source", "orgUnitExternalId", "orgUnitId",
                     "parentExternalId", "parentId")),
@@ -443,6 +449,7 @@ public class CsvImportService {
         return new AttributeDefinitionRow(target, name,
                 cells.text("type", stored.map(definition -> definition.type().name()).orElse(null)),
                 cells.text("refKind", stored.map(AttributeDefinition::refKind).orElse(null)),
+                cells.bool("multiple", stored.map(AttributeDefinition::multiple).orElse(null)),
                 cells.bool("required", stored.map(AttributeDefinition::required).orElse(null)));
     }
 
@@ -617,11 +624,16 @@ public class CsvImportService {
             Map<String, Object> result = stored == null ? new LinkedHashMap<>() : new LinkedHashMap<>(stored);
             for (AttributeDefinition definition : defined) {
                 String column = ATTRIBUTE_COLUMN + definition.name();
-                Object value = switch (definition.type()) {
-                    case NUMBER -> asJson(decimal(column, null));
-                    case BOOLEAN -> bool(column, null);
-                    default -> text(column, null);
-                };
+                Object value;
+                if (definition.multiple()) {
+                    value = array(column);
+                } else {
+                    value = switch (definition.type()) {
+                        case NUMBER -> asJson(decimal(column, null));
+                        case BOOLEAN -> bool(column, null);
+                        default -> text(column, null);
+                    };
+                }
                 if (value != null) {
                     result.put(definition.name(), value);
                 } else if (values.getOrDefault(column, "").equals(CLEAR)) {
@@ -646,6 +658,19 @@ public class CsvImportService {
                 return whole.intValue();
             }
             return whole.bitLength() < Long.SIZE ? (Object) whole.longValue() : whole;
+        }
+
+        // The definition checks the elements later, as it does for a JSON import.
+        private List<Object> array(String field) {
+            String value = text(field, null);
+            if (value == null) {
+                return null;
+            }
+            try {
+                return JSON.readValue(value, new TypeReference<>() { });
+            } catch (JsonProcessingException e) {
+                throw FuhitoException.invalid("csv.bad_list", Map.of("field", field, "value", value)).causedBy(e);
+            }
         }
 
         // A blank cell keeps the stored value, and the cell #CLEAR gives an empty text, which removes it.

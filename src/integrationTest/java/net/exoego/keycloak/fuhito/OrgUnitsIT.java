@@ -145,6 +145,7 @@ class OrgUnitsIT {
 
     @Test
     void createsAHospitalWithADepartmentBelowIt() throws Exception {
+        created(api.post("/attribute-definitions", "{\"target\": \"ORG_UNIT\", \"name\": \"beds\", \"type\": \"NUMBER\"}"));
         JsonNode hospital = created(api.post("/org-units", """
                 {"code": "x-hospital", "name": "X病院", "names": {"en": "X Hospital"}, "shortName": "X",
                  "shortNames": {"en": "X"}, "phoneticName": "えっくすびょういん", "unitType": "hospital",

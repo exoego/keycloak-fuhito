@@ -43,6 +43,7 @@ class PeopleIT {
 
     @Test
     void createsReadsReplacesAndDeletesAPersonWithNoUser() throws Exception {
+        realm.attribute("PERSON", "派遣元", "STRING");
         JsonNode person = created(api.post("/people", "{\"name\": \"山田 太郎\", \"names\": {\"en\": \"Taro Yamada\"}, "
                 + "\"phoneticName\": \"やまだ たろう\", \"attributes\": {\"派遣元\": \"A社\"}, "
                 + "\"externalId\": \"P-1\", \"source\": \"hr\"}"));
@@ -228,6 +229,7 @@ class PeopleIT {
         TestRealm scratch = TestRealm.withEmployer("people-personal-data");
         Api scratchApi = scratch.api;
         String user = scratch.user("left");
+        scratch.attribute("PERSON", "住所", "STRING");
         String kept = created(scratchApi.post("/people", "{\"name\": \"Kept\"}")).get("id").asText();
         String id = created(scratchApi.post("/people", "{\"userId\": \"" + user + "\", \"name\": \"山田 太郎\", "
                 + "\"names\": {\"en\": \"Taro Yamada\"}, \"phoneticName\": \"やまだ\", "

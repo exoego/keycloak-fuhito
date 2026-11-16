@@ -14,6 +14,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import net.exoego.keycloak.fuhito.domain.Assignment;
 import net.exoego.keycloak.fuhito.domain.AttributeDefinition;
 import net.exoego.keycloak.fuhito.domain.ChangeOrder;
@@ -29,6 +30,7 @@ import net.exoego.keycloak.fuhito.domain.RefItem;
 import net.exoego.keycloak.fuhito.domain.Qualification;
 import net.exoego.keycloak.fuhito.domain.RefKind;
 import net.exoego.keycloak.fuhito.domain.ReportingLine;
+import net.exoego.keycloak.fuhito.domain.Unchecked;
 import net.exoego.keycloak.fuhito.domain.UnitRole;
 import net.exoego.keycloak.fuhito.store.OrganizationDirectory;
 
@@ -40,6 +42,7 @@ public class CsvExportService {
     // The mark that tells a spreadsheet that the file is UTF-8.
     private static final String BYTE_ORDER_MARK = "﻿";
     private static final int ROWS_AT_A_TIME = 1000;
+    private static final ObjectMapper JSON = new ObjectMapper();
     private static final List<String> LISTS = List.of("ref-kinds", "attribute-definitions", "ref-items",
             "hierarchies", "org-units", "org-unit-parents", "people", "employments", "assignments",
             "reporting-lines", "unit-roles", "qualifications", "external-ids", "change-orders");
@@ -187,7 +190,7 @@ public class CsvExportService {
 
     private String attributeDefinitions(boolean japanese) {
         List<String> header = new ArrayList<>();
-        for (String field : List.of("target", "name", "type", "refKind", "required")) {
+        for (String field : List.of("target", "name", "type", "refKind", "multiple", "required")) {
             header.add(column(field, japanese));
         }
         StringBuilder csv = new StringBuilder(BYTE_ORDER_MARK);
@@ -195,7 +198,8 @@ public class CsvExportService {
         for (AttributeDefinition.Target target : AttributeDefinition.Target.values()) {
             for (AttributeDefinition definition : definitions.apply(target)) {
                 line(csv, List.of(target.name(), definition.name(), definition.type().name(),
-                        text(definition.refKind()), Boolean.toString(definition.required())));
+                        text(definition.refKind()), Boolean.toString(definition.multiple()),
+                        Boolean.toString(definition.required())));
             }
         }
         return csv.toString();
@@ -564,7 +568,11 @@ public class CsvExportService {
         return value == null ? "" : value.stripTrailingZeros().toPlainString();
     }
 
+    // A list is JSON, which the import reads for an attribute with several values.
     private static String text(Object value) {
+        if (value instanceof List<?> list) {
+            return Unchecked.io(() -> JSON.writeValueAsString(list));
+        }
         return Objects.toString(value, "");
     }
 

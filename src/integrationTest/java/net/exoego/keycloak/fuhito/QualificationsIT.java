@@ -41,6 +41,7 @@ class QualificationsIT {
     @Test
     void addsReadsReplacesAndDeletesAQualification() throws Exception {
         String user = realm.user("holder");
+        realm.attribute("QUALIFICATION", "発行", "STRING");
         JsonNode license = created(api.post("/qualifications", "{\"userId\": \"" + user
                 + "\", \"kind\": \"narcotics-license\", \"number\": \"第12345号\", \"validFrom\": \"2024-01-01\", "
                 + "\"validTo\": \"2026-01-01\", \"attributes\": {\"発行\": \"東京都\"}}"));

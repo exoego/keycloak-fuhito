@@ -129,7 +129,7 @@ public class RealmExportService {
             case "ref-items" -> page(export.refItems().read(afterId, max), RefItem::id, RealmExportService::item);
             case "attribute-definitions" -> page(export.attributeDefinitions().read(afterId, max),
                     AttributeDefinition::id, d -> new RealmExport.Definition(d.id(), d.target().name(), d.name(),
-                            d.type().name(), d.refKind(), d.required()));
+                            d.type().name(), d.refKind(), d.multiple(), d.required()));
             case "hierarchies" -> page(export.hierarchies().read(afterId, max), Hierarchy::id,
                     h -> new RealmExport.HierarchyRow(h.id(), h.code(), h.name()));
             case "org-units" -> orgUnits(export.orgUnits().read(afterId, max));
@@ -297,7 +297,7 @@ public class RealmExportService {
                 i.actingHead(), i.lateral()))));
         counts.put("attribute-definitions", each("attribute-definitions", document.attributeDefinitions(), d -> stores.attributeDefinitions()
                 .insert(new AttributeDefinition(d.id(), AttributeDefinition.Target.valueOf(d.target()), d.name(),
-                        AttributeDefinition.Type.valueOf(d.type()), d.refKind(), d.required()))));
+                        AttributeDefinition.Type.valueOf(d.type()), d.refKind(), d.multiple(), d.required()))));
         Map<String, String> hierarchyIds = new HashMap<>();
         // A replace deleted the default hierarchy, and this makes it again.
         hierarchyIds.put(Hierarchy.DEFAULT_CODE, stores.hierarchies().defaultId());
