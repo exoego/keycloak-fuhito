@@ -208,9 +208,12 @@ public class FuhitoResource {
      */
     @Path("change-orders")
     public ChangeOrdersResource changeOrders() {
-        return new ChangeOrdersResource(context, new ChangeOrderService(
-                new JpaChangeOrderStore(entityManager, realmId), new JpaChangeLogStore(entityManager, realmId),
-                users, Clock.systemUTC()), changeLogService());
+        return new ChangeOrdersResource(context, changeOrderService(), changeLogService());
+    }
+
+    private ChangeOrderService changeOrderService() {
+        return new ChangeOrderService(new JpaChangeOrderStore(entityManager, realmId),
+                new JpaChangeLogStore(entityManager, realmId), users, Clock.systemUTC());
     }
 
     /**
@@ -484,7 +487,7 @@ public class FuhitoResource {
                 new ImportService.Organizations(new OrganizationLinkService(orgUnitStore, organizations),
                         organizations, context::requireManageOrganization),
                 new ImportService.Records(reportingLineService(), unitRoleService(), qualificationService(),
-                        new ExternalIdService(new JpaExternalIdStore(entityManager, realmId))));
+                        new ExternalIdService(new JpaExternalIdStore(entityManager, realmId)), changeOrderService()));
         var definitions = new JpaAttributeDefinitionStore(entityManager, realmId);
         return new ImportsResource(context, importService, new CsvImportService(importService, refItemStore,
                 orgUnitStore, orgUnitService(), people, definitions::list),
@@ -492,7 +495,8 @@ public class FuhitoResource {
                         employmentService(), assignmentService(), today(),
                         new HierarchyService(new JpaHierarchyStore(entityManager, realmId)), organizations,
                         reportingLineService(), unitRoleService(), qualificationService(),
-                        new ExternalIdService(new JpaExternalIdStore(entityManager, realmId)), definitions::list));
+                        new ExternalIdService(new JpaExternalIdStore(entityManager, realmId)), changeOrderService(),
+                        definitions::list));
     }
 
     private OrgUnitService orgUnitService() {

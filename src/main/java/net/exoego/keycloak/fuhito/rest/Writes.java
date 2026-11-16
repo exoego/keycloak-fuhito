@@ -48,6 +48,7 @@ final class Writes {
             case Write.OfUnitRole role -> UnitRoleRepresentation.of(role.state());
             case Write.OfQualification qualification -> QualificationRepresentation.of(qualification.state());
             case Write.OfExternalId externalId -> ExternalIdRepresentation.of(externalId.state());
+            case Write.OfChangeOrder order -> ChangeOrderRepresentation.of(order.state());
             case Write.Removed removed -> null;
         };
         Change change = write.deleted() ? Change.DELETE : write.created() ? Change.CREATE : Change.UPDATE;

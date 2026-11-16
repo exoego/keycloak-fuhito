@@ -1086,6 +1086,53 @@ components:
           type: boolean
           description: True when every write of the resource must give a value.
           default: false
+    ImportChangeOrderRow:
+      type: object
+      required:
+      - title
+      description: "A change order. It is matched by number, or by `id`. A row needs\
+        \ one of them. A row of a stored order replaces its values, as `PUT` does.\
+        \ The announcement is not part of a row."
+      properties:
+        id:
+          type: string
+          description: The ID of a stored order. A CSV export has it in every row.
+        number:
+          type: string
+          maxLength: 64
+          pattern: "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
+        kind:
+          type: string
+          maxLength: 64
+          pattern: "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
+        title:
+          type: string
+          maxLength: 255
+        note:
+          type: string
+        orderDate:
+          type: string
+          format: date
+        effectiveDate:
+          type: string
+          description: The default is the effective date of the import.
+          format: date
+        approverUserId:
+          type: string
+          description: The ID of the Keycloak user who approved it. Give this or `approverUsername`.
+        approverUsername:
+          type: string
+          description: The username of the user who approved it.
+        requesterUserId:
+          type: string
+          description: The ID of the Keycloak user who asked for it. Give this or
+            `requesterUsername`.
+        requesterUsername:
+          type: string
+          description: The username of the user who asked for it.
+        externalReference:
+          type: string
+          description: "A reference in another system, such as a workflow."
     ImportCounts:
       type: object
       required:
@@ -1194,6 +1241,11 @@ components:
           items:
             $ref: "#/components/schemas/ImportExternalIdRow"
           description: The IDs of other systems. They come after every list of resources.
+        changeOrders:
+          type: array
+          items:
+            $ref: "#/components/schemas/ImportChangeOrderRow"
+          description: The change orders. They come first.
     ImportEmploymentRow:
       type: object
       description: "An employment. It is matched by source and external ID, or by\
@@ -5041,10 +5093,10 @@ paths:
     post:
       summary: Loads many rows in one transaction.
       description: "All rows are written, or none. A dry run does all checks and writes\
-        \ nothing. The lists are applied in the order kinds of reference data, definitions\
-        \ of attributes, reference items, hierarchies, org units, parents in hierarchies,\
-        \ people, qualifications, employments, roles over org units, assignments,\
-        \ reporting lines, IDs of other systems."
+        \ nothing. The lists are applied in the order change orders, kinds of reference\
+        \ data, definitions of attributes, reference items, hierarchies, org units,\
+        \ parents in hierarchies, people, qualifications, employments, roles over\
+        \ org units, assignments, reporting lines, IDs of other systems."
       operationId: applyImport
       tags:
       - bulk
@@ -5100,6 +5152,7 @@ paths:
           - unit-roles
           - qualifications
           - external-ids
+          - change-orders
         name: list
         in: path
         required: true
@@ -5158,6 +5211,7 @@ paths:
           - unit-roles
           - qualifications
           - external-ids
+          - change-orders
         name: list
         in: path
         required: true
