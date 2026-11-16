@@ -99,6 +99,7 @@ The lists are applied in the order change orders, kinds of reference data, attri
 - The same document can be sent again, for example after a timeout. A thing that ended by the effective date only compares its end. A thing that starts after the effective date must match what is stored on its first date, or the row fails with `not_valid_on`.
 - A new employment names its employer by `employerExternalId`. It is the external ID of an org unit that is a legal entity. A row can leave it out when the realm has exactly one legal entity.
 - The employer of a stored employment never changes. A row that names another employer is rejected.
+- After a transfer between employers, a row of the new employment can name the one it continues by `continuesEmploymentExternalId` or `continuesEmploymentId`. A row of a new assignment can name the assignment it continues by `continuesAssignmentExternalId` or `continuesAssignmentId`. Both must be of the same person. The link is set when the row makes the new thing. A stored one with another link fails with `import.continues_mismatch`.
 - A row of a unit type can carry `legalEntity`. The CSV header is `法人`. A row that leaves it out keeps the mark of a stored item.
 - A row of an assignment kind can carry `actingHead`. The CSV header is `代行`. A row that leaves it out keeps the mark of a stored item.
 - A row of a unit type can carry `group`. The CSV header is `グループ`. A row that leaves it out keeps the mark of a stored item.
@@ -119,9 +120,9 @@ The lists are applied in the order change orders, kinds of reference data, attri
 
 `GET /imports/csv/people` gives the people the same way. A person has no date, so it takes no `asOf`. The file leaves out the link to a Keycloak user: a blank cell keeps the stored link, and the ID of a user who was removed from Keycloak would not load again.
 
-`GET /imports/csv/employments?asOf=` gives the employments that hold on the date, with the terms of that date. Each row has `id`. It names the person by `personId` and the employer by `employerId`, because many have no external ID of the source of the row. A row of an employment that starts later is not in the file.
+`GET /imports/csv/employments?asOf=` gives the employments that hold on the date, with the terms of that date. Each row has `id`, and `continuesEmploymentId` for an employment that continues another. It names the person by `personId` and the employer by `employerId`, because many have no external ID of the source of the row. A row of an employment that starts later is not in the file.
 
-`GET /imports/csv/assignments?asOf=` gives the assignments that hold on the date the same way, with the details of that date. It names the employment by `employmentId` and the org unit by `orgUnitId`. `validFrom` and `validTo` are the dates of the whole assignment, not of the details.
+`GET /imports/csv/assignments?asOf=` gives the assignments that hold on the date the same way, with the details of that date. It names the employment by `employmentId` and the org unit by `orgUnitId`. `validFrom` and `validTo` are the dates of the whole assignment, not of the details. An assignment that continues another has `continuesAssignmentId`.
 `GET /imports/csv/reporting-lines?asOf=` gives the reporting lines that hold on the date. It names the assignment by `assignmentId` and the manager by `managerPersonId`.
 `GET /imports/csv/unit-roles?asOf=` gives the roles that hold on the date. It names the employment by `employmentId` and the unit by `orgUnitId`.
 `GET /imports/csv/qualifications` gives every qualification, also those that expired. With `asOf`, it gives only those that hold on the date.
@@ -267,6 +268,8 @@ Employments.
 | `id` | `ID` |
 | `employerId` | `雇用主のID` |
 | `personId` | `人のID` |
+| `continuesEmploymentExternalId` | `引き継ぎ元の雇用の外部ID` |
+| `continuesEmploymentId` | `引き継ぎ元の雇用のID` |
 
 Assignments.
 
@@ -288,6 +291,8 @@ Assignments.
 | `id` | `ID` |
 | `employmentId` | `雇用のID` |
 | `orgUnitId` | `組織のID` |
+| `continuesAssignmentExternalId` | `引き継ぎ元の所属の外部ID` |
+| `continuesAssignmentId` | `引き継ぎ元の所属のID` |
 
 Reporting lines.
 

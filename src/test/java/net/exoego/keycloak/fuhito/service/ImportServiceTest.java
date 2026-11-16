@@ -935,6 +935,55 @@ class ImportServiceTest {
                         order(stored.id(), "2026-01", "人事異動", "user-doctor", null))));
     }
 
+    private static EmploymentRow continuing(String externalId, String continuesExternalId, String continuesId) {
+        return new EmploymentRow(null, externalId, "nurse", null, null, null, null, null, null, null, null,
+                "2026-04-01", null, null, null, null, null, null, null, continuesExternalId, continuesId);
+    }
+
+    private static AssignmentRow continuingAssignment(String externalId, String employment,
+            String continuesExternalId) {
+        return new AssignmentRow(null, externalId, employment, "W", null, null, null, null, true, null, null, null,
+                "2026-04-01", null, null, null, null, continuesExternalId, null);
+    }
+
+    @Test
+    void linksANewEmploymentAndItsAssignmentToTheOnesTheyContinue() {
+        importUnits("2020-04-01", unit("H", "Hospital", null), unit("W", "Ward", "H"));
+        assertEquals(List.of(), errors(importPeople("2020-04-01",
+                List.of(employment("E1", "nurse", null, "2026-04-01", null)),
+                List.of(assignment("A1", "E1", "W", true, null)))));
+
+        ImportReport first = importPeople("2026-04-01", List.of(continuing("E2", "E1", null)),
+                List.of(continuingAssignment("A2", "E2", "A1")));
+        ImportReport again = importPeople("2026-04-01", List.of(continuing("E2", "E1", null)),
+                List.of(continuingAssignment("A2", "E2", "A1")));
+
+        assertEquals(List.of(), errors(first));
+        Employment e1 = employmentStore.findByExternalId("import", "E1").orElseThrow();
+        assertEquals(e1.id(), employmentStore.findByExternalId("import", "E2").orElseThrow()
+                .continuesEmploymentId());
+        String a1 = assignmentStore.findAssignmentIdByExternalId("import", "A1").orElseThrow();
+        String a2 = assignmentStore.findAssignmentIdByExternalId("import", "A2").orElseThrow();
+        assertEquals(a1, assignmentStore.rows(a2).getFirst().continuesAssignmentId());
+        assertEquals(new Counts(0, 0, 1), again.counts().get("employments"));
+        assertEquals(new Counts(0, 0, 1), again.counts().get("assignments"));
+        assertEquals(List.of("employments[0] import.continues_twice", "employments[1] import.continues_mismatch",
+                "employments[2] import.employment_unknown", "employments[3] employment.continues_unknown",
+                "assignments[0] import.continues_mismatch", "assignments[1] import.assignment_unknown"),
+                errors(importPeople("2026-04-01", List.of(continuing("E3", "E1", e1.id()),
+                        continuing("E2", null, "other"), continuing("E4", "NOPE", null),
+                        continuing("E5", null, "nope")),
+                        List.of(continuingAssignment("A2", "E2", "A2"), continuingAssignment("A3", "E2", "NOPE")))));
+
+        // Another person cannot be continued.
+        importPeople("2020-04-01", List.of(employment("D1", "doctor", null, null, null)), null);
+        String doctor = employmentStore.findByExternalId("import", "D1").orElseThrow().id();
+        AssignmentRow unknown = new AssignmentRow(null, "A4", "E2", "W", null, null, null, null, false, null, null,
+                null, "2026-04-01", null, null, null, null, null, "nope");
+        assertEquals(List.of("employments[0] employment.continues_other", "assignments[0] assignment.continues_unknown"),
+                errors(importPeople("2026-04-01", List.of(continuing("E6", null, doctor)), List.of(unknown))));
+    }
+
     private void importTwoUnits() {
         importUnits("2026-04-01", unit("H", "Hospital", null), unit("W", "Ward", "H"));
     }

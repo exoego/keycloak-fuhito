@@ -443,7 +443,7 @@ class CsvImportIT {
             assertTrue(exported.body().startsWith("﻿" + (header.equals("en") ? "id,externalId,source,personId,"
                     + "staffNumber,employerId" : "ID,外部ID,ソース,人のID,職員番号,雇用主のID")), exported.body());
             assertEquals(3, exported.body().split("\r\n").length, exported.body());
-            assertTrue(exported.body().contains(",g1,ON_LEAVE,parental,80.5,2020-04-01,,,\"day, night\""),
+            assertTrue(exported.body().contains(",g1,ON_LEAVE,parental,80.5,2020-04-01,,,,\"day, night\""),
                     exported.body());
             assertTrue(exported.body().contains(",ACTIVE,,,2021-04-01,2027-04-01,resignation,"), exported.body());
 
@@ -494,7 +494,7 @@ class CsvImportIT {
             assertTrue(exported.body().startsWith("﻿" + (header.equals("en") ? "id,externalId,source,"
                     + "employmentId,orgUnitId" : "ID,外部ID,ソース,雇用のID,組織のID")), exported.body());
             assertEquals(3, exported.body().split("\r\n").length, exported.body());
-            assertTrue(exported.body().contains(",nurse,,false,true,70,0,2020-04-01,,\"3F, east\""), exported.body());
+            assertTrue(exported.body().contains(",nurse,,false,true,70,0,2020-04-01,,,\"3F, east\""), exported.body());
             assertTrue(exported.body().contains(",A-2,hr,"), exported.body());
             assertTrue(exported.body().contains(",concurrent,false,false,30,0,2021-04-01,2027-04-01,"),
                     exported.body());
