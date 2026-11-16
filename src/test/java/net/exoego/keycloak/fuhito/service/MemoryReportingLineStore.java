@@ -36,6 +36,15 @@ final class MemoryReportingLineStore implements ReportingLineStore {
     }
 
     @Override
+    public List<ReportingLine> listOn(LocalDate date, String afterId, int max) {
+        return lines.stream()
+                .filter(l -> l.period().contains(date) && (afterId == null || l.id().compareTo(afterId) > 0))
+                .sorted(java.util.Comparator.comparing(ReportingLine::id))
+                .limit(max)
+                .toList();
+    }
+
+    @Override
     public void insert(ReportingLine line) {
         lines.add(line);
     }

@@ -114,6 +114,39 @@ class CsvImportIT {
     }
 
     @Test
+    void anExportOfReportingLinesLoadsAgainWithNoChange() throws Exception {
+        TestRealm realm = TestRealm.withEmployer("csv-export-lines");
+        Api api = realm.api;
+        String ward = Api.json(api.post("/org-units", "{\"name\": \"1病棟\", \"validFrom\": \"2020-04-01\"}"))
+                .get("id").asText();
+        String assignment = Api.json(api.post("/staff", "{\"userId\": \"" + realm.user("nurse") + "\", "
+                + "\"orgUnitId\": \"" + ward + "\", \"validFrom\": \"2020-04-01\"}")).get("assignment").get("id")
+                .asText();
+        String line = Api.json(api.post("/reporting-lines", "{\"assignmentId\": \"" + assignment
+                + "\", \"managerUserId\": \"" + realm.user("doctor") + "\", \"validFrom\": \"2021-04-01\"}"))
+                .get("id").asText();
+
+        for (String header : List.of("en", "ja")) {
+            HttpResponse<String> exported = api.get("/imports/csv/reporting-lines?asOf=2026-05-01&header=" + header);
+            assertEquals(200, exported.statusCode(), exported.body());
+            assertTrue(exported.body().startsWith("﻿" + (header.equals("en")
+                    ? "id,assignmentId,managerPersonId,kind,validFrom,validTo\r\n"
+                    : "ID,所属のID,上司の人のID,種類,開始日,終了日\r\n") + line + "," + assignment + ","), exported.body());
+            assertTrue(exported.body().endsWith(",SOLID,2021-04-01,\r\n"), exported.body());
+            JsonNode counts = load(api, "reporting-lines", "effectiveDate=2026-05-01", exported.body())
+                    .get("counts").get("reportingLines");
+            assertEquals(0, counts.get("created").asInt() + counts.get("changed").asInt(), counts.toString());
+        }
+        // A new solid manager ends the line of the manager before.
+        realm.user("chief");
+        load(api, "reporting-lines", "effectiveDate=2026-06-01", "assignmentId,managerUsername\r\n" + assignment
+                + ",chief\r\n");
+        assertTrue(api.get("/imports/csv/reporting-lines?asOf=2026-05-31").body().contains(line + ","));
+        assertTrue(api.get("/imports/csv/reporting-lines?asOf=2026-05-31").body().endsWith(",2026-06-01\r\n"));
+        assertFalse(api.get("/imports/csv/reporting-lines?asOf=2026-06-01").body().contains(line + ","));
+    }
+
+    @Test
     void anExportOfKindsLoadsAgainWithNoChange() throws Exception {
         TestRealm realm = TestRealm.create("csv-export-kinds");
         Api api = realm.api;

@@ -37,6 +37,7 @@ import net.exoego.keycloak.fuhito.service.ImportDocument.OrgUnitParentRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.OrgUnitRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.PersonRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.RefItemRow;
+import net.exoego.keycloak.fuhito.service.ImportDocument.ReportingLineRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.RefKindRow;
 import net.exoego.keycloak.fuhito.store.OrgUnitStore;
 import net.exoego.keycloak.fuhito.store.RefItemStore;
@@ -92,7 +93,9 @@ public class CsvImportService {
             Map.entry("orgUnitId", "組織のID"), Map.entry("target", "対象"), Map.entry("type", "型"),
             Map.entry("refKind", "参照の種類"), Map.entry("required", "必須"), Map.entry("hierarchy", "階層"),
             Map.entry("successorExternalIds", "後継の外部ID"), Map.entry("successorIds", "後継のID"),
-            Map.entry("organizationAlias", "Organizationの別名"));
+            Map.entry("organizationAlias", "Organizationの別名"), Map.entry("assignmentExternalId", "所属の外部ID"),
+            Map.entry("assignmentId", "所属のID"), Map.entry("managerPersonExternalId", "上司の人の外部ID"),
+            Map.entry("managerPersonId", "上司の人のID"), Map.entry("managerUsername", "上司のユーザー名"));
 
     // The lists that a file can hold, each with the resource whose attributes it sets.
     private enum Kind {
@@ -100,6 +103,7 @@ public class CsvImportService {
         ATTRIBUTE_DEFINITIONS("attributeDefinitions", null),
         HIERARCHIES("hierarchies", null),
         ORG_UNIT_PARENTS("orgUnitParents", null),
+        REPORTING_LINES("reportingLines", null),
         REF_ITEMS("refItems", AttributeDefinition.Target.REF_ITEM),
         ORG_UNITS("orgUnits", AttributeDefinition.Target.ORG_UNIT),
         EMPLOYMENTS("employments", AttributeDefinition.Target.EMPLOYMENT_TERMS),
@@ -129,6 +133,8 @@ public class CsvImportService {
             Kind.HIERARCHIES, Set.of("code", "name"),
             Kind.ORG_UNIT_PARENTS, Set.of("hierarchy", "source", "orgUnitExternalId", "orgUnitId", "parentExternalId",
                     "parentId"),
+            Kind.REPORTING_LINES, Set.of("id", "source", "assignmentExternalId", "assignmentId",
+                    "managerPersonExternalId", "managerPersonId", "managerUsername", "kind", "validFrom", "validTo"),
             Kind.REF_ITEMS, Set.of("kind", "code", "name", "displayOrder", "active", "legalEntity", "actingHead",
                     "group"),
             Kind.ORG_UNITS, Set.of("id", "externalId", "source", "code", "name", "shortName", "phoneticName",
@@ -199,32 +205,27 @@ public class CsvImportService {
         List<Csv.Row> data = rows.subList(1, rows.size());
 
         // Each list has its own type of row, so the rows keep that type from the cells to the import.
+        Function<List<?>, ImportDocument> document = typed -> ImportDocument.of(effectiveDate, dryRun,
+                defaultSource, kind.list, typed);
         return switch (kind) {
-            case REF_KINDS -> run(data, columns, defined, this::refKind, typed -> new ImportDocument(effectiveDate,
-                    dryRun, defaultSource, null, null, null, null, null, typed, null, null, null));
-            case HIERARCHIES -> run(data, columns, defined, this::hierarchy, typed -> new ImportDocument(
-                    effectiveDate, dryRun, defaultSource, null, null, null, null, null, null, null, typed, null));
+            case REF_KINDS -> run(data, columns, defined, this::refKind, document);
+            case ATTRIBUTE_DEFINITIONS -> run(data, columns, defined, this::attributeDefinition, document);
+            case HIERARCHIES -> run(data, columns, defined, this::hierarchy, document);
             case ORG_UNIT_PARENTS -> run(data, columns, defined, cells -> orgUnitParent(cells, date, defaultSource),
-                    typed -> new ImportDocument(effectiveDate, dryRun, defaultSource, null, null, null, null, null,
-                            null, null, null, typed));
-            case ATTRIBUTE_DEFINITIONS -> run(data, columns, defined, this::attributeDefinition,
-                    typed -> new ImportDocument(effectiveDate, dryRun, defaultSource, null, null, null, null, null,
-                            null, typed, null, null));
-            case REF_ITEMS -> run(data, columns, defined, this::refItem,
-                    typed -> new ImportDocument(effectiveDate, dryRun, defaultSource, typed, null, null, null));
-            case ORG_UNITS -> run(data, columns, defined, cells -> orgUnit(cells, date, defaultSource),
-                    typed -> new ImportDocument(effectiveDate, dryRun, defaultSource, null, typed, null, null));
+                    document);
+            case REPORTING_LINES -> run(data, columns, defined, this::reportingLine, document);
+            case REF_ITEMS -> run(data, columns, defined, this::refItem, document);
+            case ORG_UNITS -> run(data, columns, defined, cells -> orgUnit(cells, date, defaultSource), document);
             case EMPLOYMENTS -> run(data, columns, defined, cells -> employment(cells, date, defaultSource),
-                    typed -> new ImportDocument(effectiveDate, dryRun, defaultSource, null, null, typed, null));
+                    document);
             case ASSIGNMENTS -> run(data, columns, defined, cells -> assignment(cells, date, defaultSource),
-                    typed -> new ImportDocument(effectiveDate, dryRun, defaultSource, null, null, null, typed));
-            case PEOPLE -> run(data, columns, defined, cells -> person(cells, defaultSource),
-                    typed -> new ImportDocument(effectiveDate, dryRun, defaultSource, null, null, null, null, typed));
+                    document);
+            case PEOPLE -> run(data, columns, defined, cells -> person(cells, defaultSource), document);
         };
     }
 
     private <R> Result run(List<Csv.Row> data, List<String> columns, List<AttributeDefinition> defined,
-            Function<Cells, R> parse, Function<List<R>, ImportDocument> document) {
+            Function<Cells, R> parse, Function<List<?>, ImportDocument> document) {
         Map<Integer, FuhitoException> conversionErrors = new HashMap<>();
         List<R> converted = new ArrayList<>();
         for (int i = 0; i < data.size(); i++) {
@@ -285,6 +286,15 @@ public class CsvImportService {
                 : importService.setup().kinds().find(code);
         return new RefKindRow(code, cells.text("name", stored.map(RealmKindService.View::name).orElse(null)),
                 cells.localized("name", stored.map(RealmKindService.View::names).orElse(Map.of())));
+    }
+
+    // A row with an ID keeps the stored assignment, manager, and kind in blank cells.
+    private ReportingLineRow reportingLine(Cells cells) {
+        return new ReportingLineRow(cells.text("id", null), cells.text("source", null),
+                cells.text("assignmentExternalId", null), cells.text("assignmentId", null),
+                cells.text("managerPersonExternalId", null), cells.text("managerPersonId", null),
+                cells.text("managerUsername", null), cells.text("kind", null), cells.text("validFrom", null),
+                cells.text("validTo", null));
     }
 
     // Blank cells of the parent keep the stored parent. The cell #CLEAR takes the unit out of the hierarchy.

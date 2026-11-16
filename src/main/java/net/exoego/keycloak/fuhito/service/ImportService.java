@@ -74,6 +74,15 @@ public class ImportService {
     private final People people;
     private final Setup setup;
     private final Organizations organizations;
+    private final Records records;
+
+    /**
+     * The services that an import of the records about people needs.
+     *
+     * @param reportingLines the operations on the reporting lines of the realm
+     */
+    public record Records(ReportingLineService reportingLines) {
+    }
 
     /**
      * What a link of an org unit to a Keycloak organization needs.
@@ -96,10 +105,12 @@ public class ImportService {
      * @param people what an import of employments and assignments needs
      * @param setup what an import of the setup of the realm needs
      * @param organizations what a link to a Keycloak organization needs
+     * @param records what an import of the records about people needs
      */
     public ImportService(RefItemService refItemService, RefItemStore refItems, OrgUnitService orgUnitService,
-            OrgUnitStore orgUnits, People people, Setup setup, Organizations organizations) {
+            OrgUnitStore orgUnits, People people, Setup setup, Organizations organizations, Records records) {
         this.organizations = organizations;
+        this.records = records;
         this.refItemService = refItemService;
         this.refItems = refItems;
         this.orgUnitService = orgUnitService;
@@ -156,6 +167,10 @@ public class ImportService {
         }
         if (document.assignments() != null) {
             peopleImport.assignments(document.assignments());
+        }
+        if (document.reportingLines() != null) {
+            new ReportingLineImport(records.reportingLines(), people, document.effectiveDate(), defaultSource,
+                    report).run(document.reportingLines());
         }
         return report;
     }

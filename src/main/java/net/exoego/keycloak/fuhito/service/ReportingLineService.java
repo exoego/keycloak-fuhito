@@ -125,6 +125,38 @@ public class ReportingLineService {
     }
 
     /**
+     * Finds a reporting line.
+     *
+     * @param id the ID
+     * @return the line, or empty when the realm has no such line
+     */
+    public Optional<ReportingLine> find(String id) {
+        return store.find(id);
+    }
+
+    /**
+     * Lists the lines of an assignment, oldest first.
+     *
+     * @param assignmentId the ID of the assignment
+     * @return the lines
+     */
+    public List<ReportingLine> ofAssignment(String assignmentId) {
+        return store.findByAssignment(assignmentId);
+    }
+
+    /**
+     * Lists a page of the lines that hold on a date, ordered by ID.
+     *
+     * @param date the date
+     * @param afterId the ID after which the page starts, or null for the start
+     * @param max the largest number of lines
+     * @return the lines
+     */
+    public List<ReportingLine> listOn(LocalDate date, String afterId, int max) {
+        return store.listOn(date, afterId, max);
+    }
+
+    /**
      * Ends a reporting line earlier.
      *
      * @param id the ID
