@@ -1047,6 +1047,15 @@ components:
           description: "The ID of a stored assignment, for a row of an assignment\
             \ with no external ID. A CSV export has it in every row. A new assignment\
             \ has none."
+        continuesAssignmentExternalId:
+          type: string
+          description: "The external ID of the assignment that this one continues\
+            \ after a transfer between employers, with the same source. A new assignment\
+            \ gets the link. A stored one must have the same."
+        continuesAssignmentId:
+          type: string
+          description: "The ID of the assignment that this one continues. Give this\
+            \ or `continuesAssignmentExternalId`, not both."
     ImportAttributeDefinitionRow:
       type: object
       required:
@@ -1086,6 +1095,53 @@ components:
           type: boolean
           description: True when every write of the resource must give a value.
           default: false
+    ImportChangeOrderRow:
+      type: object
+      required:
+      - title
+      description: "A change order. It is matched by number, or by `id`. A row needs\
+        \ one of them. A row of a stored order replaces its values, as `PUT` does.\
+        \ The announcement is not part of a row."
+      properties:
+        id:
+          type: string
+          description: The ID of a stored order. A CSV export has it in every row.
+        number:
+          type: string
+          maxLength: 64
+          pattern: "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
+        kind:
+          type: string
+          maxLength: 64
+          pattern: "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
+        title:
+          type: string
+          maxLength: 255
+        note:
+          type: string
+        orderDate:
+          type: string
+          format: date
+        effectiveDate:
+          type: string
+          description: The default is the effective date of the import.
+          format: date
+        approverUserId:
+          type: string
+          description: The ID of the Keycloak user who approved it. Give this or `approverUsername`.
+        approverUsername:
+          type: string
+          description: The username of the user who approved it.
+        requesterUserId:
+          type: string
+          description: The ID of the Keycloak user who asked for it. Give this or
+            `requesterUsername`.
+        requesterUsername:
+          type: string
+          description: The username of the user who asked for it.
+        externalReference:
+          type: string
+          description: "A reference in another system, such as a workflow."
     ImportCounts:
       type: object
       required:
@@ -1168,6 +1224,37 @@ components:
           items:
             $ref: "#/components/schemas/ImportHierarchyRow"
           description: The hierarchies. They come before the org units.
+        orgUnitParents:
+          type: array
+          items:
+            $ref: "#/components/schemas/ImportOrgUnitParentRow"
+          description: The parents of org units in hierarchies. They come after the
+            org units.
+        reportingLines:
+          type: array
+          items:
+            $ref: "#/components/schemas/ImportReportingLineRow"
+          description: The reporting lines. They come after the assignments.
+        unitRoles:
+          type: array
+          items:
+            $ref: "#/components/schemas/ImportUnitRoleRow"
+          description: The roles over org units. They come after the employments.
+        qualifications:
+          type: array
+          items:
+            $ref: "#/components/schemas/ImportQualificationRow"
+          description: The qualifications. They come after the people.
+        externalIds:
+          type: array
+          items:
+            $ref: "#/components/schemas/ImportExternalIdRow"
+          description: The IDs of other systems. They come after every list of resources.
+        changeOrders:
+          type: array
+          items:
+            $ref: "#/components/schemas/ImportChangeOrderRow"
+          description: The change orders. They come first.
     ImportEmploymentRow:
       type: object
       description: "An employment. It is matched by source and external ID, or by\
@@ -1252,6 +1339,47 @@ components:
           description: "The ID of a stored employment, for a row of an employment\
             \ with no external ID. A CSV export has it in every row. A new employment\
             \ has none."
+        continuesEmploymentExternalId:
+          type: string
+          description: "The external ID of the employment that this one continues\
+            \ after a transfer between employers, with the same source. A new employment\
+            \ gets the link. A stored one must have the same."
+        continuesEmploymentId:
+          type: string
+          description: "The ID of the employment that this one continues. Give this\
+            \ or `continuesEmploymentExternalId`, not both."
+    ImportExternalIdRow:
+      type: object
+      required:
+      - resourceType
+      - resourceId
+      - externalId
+      description: "The ID that another system has for a resource. It is matched by\
+        \ type of resource, resource, and source. Another external ID replaces the\
+        \ stored one, and an empty text removes it."
+      properties:
+        resourceType:
+          type: string
+          enum:
+          - ORG_UNIT
+          - PERSON
+          - EMPLOYMENT
+          - ASSIGNMENT
+          - QUALIFICATION
+        resourceId:
+          type: string
+          description: The ID of the resource.
+        source:
+          type: string
+          maxLength: 64
+          pattern: "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
+          description: The name of the other system. The default is the source of
+            the document. It cannot be the source of the pair that the resource itself
+            has.
+        externalId:
+          type: string
+          description: "The ID in that system, or an empty text to remove the stored\
+            \ one."
     ImportHierarchyRow:
       type: object
       required:
@@ -1267,6 +1395,36 @@ components:
         name:
           type: string
           maxLength: 255
+    ImportOrgUnitParentRow:
+      type: object
+      required:
+      - hierarchy
+      description: The parent of an org unit in a hierarchy from the effective date.
+        It is matched by hierarchy and org unit. A row with no parent takes the unit
+        out of the hierarchy.
+      properties:
+        hierarchy:
+          type: string
+          description: The code of the hierarchy.
+        source:
+          type: string
+          maxLength: 64
+          pattern: "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
+          description: The name of the system that the external IDs come from. The
+            default is the source of the document.
+        orgUnitExternalId:
+          type: string
+          description: The external ID of the org unit. Give this or `orgUnitId`.
+        orgUnitId:
+          type: string
+          description: The ID of the org unit.
+        parentExternalId:
+          type: string
+          description: "The external ID of the parent. Give this or `parentId`, or\
+            \ none for no parent."
+        parentId:
+          type: string
+          description: The ID of the parent.
     ImportOrgUnitRow:
       type: object
       required:
@@ -1344,6 +1502,31 @@ components:
           type: string
           description: "The ID of a stored unit, for a row of a unit with no external\
             \ ID. A CSV export has it in every row. A new unit has none."
+        successorExternalIds:
+          type: array
+          items:
+            type: string
+          description: "The external IDs of the units that follow this one from `validTo`,\
+            \ with the same source. A row with successors needs `validTo`. The end\
+            \ and the successors are one write."
+        successorIds:
+          type: array
+          items:
+            type: string
+          description: The IDs of the units that follow this one from `validTo`.
+        organizationAlias:
+          type: string
+          description: The alias of the Keycloak organization that the unit is linked
+            to. A row that leaves it out keeps the link. An empty text removes it.
+        timeZone:
+          type: string
+          description: "The time zone of the unit and the units below, for example\
+            \ `Asia/Tokyo`. A row that leaves it out keeps it. An empty text removes\
+            \ it."
+        dayStart:
+          type: string
+          description: "The time of day when the date changes, as `HH:mm`. A row that\
+            \ leaves it out keeps it. An empty text removes it."
     ImportPersonRow:
       type: object
       description: "A person, also one with no Keycloak user. It is matched by source\
@@ -1386,6 +1569,59 @@ components:
           type: string
           description: "The ID of a stored person, for a row of a person with no external\
             \ ID. A CSV export has it in every row. A new person has none."
+    ImportQualificationRow:
+      type: object
+      required:
+      - kind
+      description: "A qualification of a person, such as a license. It is matched\
+        \ by source and external ID, or by `id`. A row needs one of them. A row of\
+        \ a stored one replaces its kind, number, dates, and attributes, as `PUT`\
+        \ does."
+      properties:
+        id:
+          type: string
+          description: The ID of a stored qualification. A CSV export has it in every
+            row.
+        source:
+          type: string
+          maxLength: 64
+          pattern: "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
+          description: The name of the system that the row comes from. The default
+            is the source of the document.
+        externalId:
+          type: string
+          description: The ID of the qualification in that system.
+        personExternalId:
+          type: string
+          description: "The external ID of the person, with the same source. Give\
+            \ one of the three ways to name the person. A row of a stored qualification\
+            \ may name nobody."
+        personId:
+          type: string
+          description: The ID of the person.
+        username:
+          type: string
+          description: "The username of the person. The person of the user is used,\
+            \ and created when the user has none."
+        kind:
+          type: string
+          description: The code of a reference item of the kind `QUALIFICATION`.
+        number:
+          type: string
+          maxLength: 255
+          description: "The number, for example of a license."
+        validFrom:
+          type: string
+          description: The first date. The default is the effective date.
+          format: date
+        validTo:
+          type: string
+          description: The first date on which it no longer holds. None for no end.
+          format: date
+        attributes:
+          type: object
+          additionalProperties: {}
+          description: Free values that the realm defines.
     ImportRefItemRow:
       type: object
       required:
@@ -1485,6 +1721,56 @@ components:
             $ref: "#/components/schemas/ImportRowError"
           description: "The rows that could not be applied. When this is not empty,\
             \ nothing was written."
+    ImportReportingLineRow:
+      type: object
+      description: "A reporting line from an assignment to a manager. It is matched\
+        \ by assignment, manager, and kind, or by `id`. A new solid manager ends the\
+        \ solid line that the assignment has on the date."
+      properties:
+        id:
+          type: string
+          description: The ID of a stored line. A CSV export has it in every row.
+            A new line has none.
+        source:
+          type: string
+          maxLength: 64
+          pattern: "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
+          description: The name of the system that the external IDs come from. The
+            default is the source of the document.
+        assignmentExternalId:
+          type: string
+          description: The external ID of the assignment of the person who reports.
+            Give this or `assignmentId`.
+        assignmentId:
+          type: string
+          description: The ID of the assignment.
+        managerPersonExternalId:
+          type: string
+          description: The external ID of the person who is the manager. Give one
+            of the three ways to name the manager.
+        managerPersonId:
+          type: string
+          description: The ID of the person who is the manager.
+        managerUsername:
+          type: string
+          description: "The username of the manager. The person of the user is used,\
+            \ and created when the user has none."
+        kind:
+          type: string
+          default: SOLID
+          enum:
+          - SOLID
+          - DOTTED
+        validFrom:
+          type: string
+          description: The first date of a new line. The default is the effective
+            date. A stored line ignores it.
+          format: date
+        validTo:
+          type: string
+          description: The first date on which the line no longer holds. The default
+            is the end of the assignment.
+          format: date
     ImportRowError:
       type: object
       required:
@@ -1517,6 +1803,51 @@ components:
         message:
           type: string
           description: The message for people.
+    ImportUnitRoleRow:
+      type: object
+      description: "A role that an employment holds over an org unit. It is matched\
+        \ by employment, org unit, and role, or by `id`. A row that changes `includesDescendants`\
+        \ ends the stored role and starts a new one on the date."
+      properties:
+        id:
+          type: string
+          description: The ID of a stored role. A CSV export has it in every row.
+            A new role has none.
+        source:
+          type: string
+          maxLength: 64
+          pattern: "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
+          description: The name of the system that the external IDs come from. The
+            default is the source of the document.
+        employmentExternalId:
+          type: string
+          description: The external ID of the employment. Give this or `employmentId`.
+        employmentId:
+          type: string
+          description: The ID of the employment.
+        orgUnitExternalId:
+          type: string
+          description: The external ID of the org unit. Give this or `orgUnitId`.
+        orgUnitId:
+          type: string
+          description: The ID of the org unit.
+        role:
+          type: string
+          description: The code of a reference item of the kind `UNIT_ROLE`.
+        includesDescendants:
+          type: boolean
+          description: True when the role also covers the units below.
+          default: false
+        validFrom:
+          type: string
+          description: The first date of a new role. The default is the effective
+            date. A stored role ignores it.
+          format: date
+        validTo:
+          type: string
+          description: The first date on which the role no longer holds. The default
+            is the end of the employment.
+          format: date
     JobRun:
       description: "The last run of a long job, also one that the timer started."
       type: object
@@ -4789,9 +5120,10 @@ paths:
     post:
       summary: Loads many rows in one transaction.
       description: "All rows are written, or none. A dry run does all checks and writes\
-        \ nothing. The lists are applied in the order kinds of reference data, definitions\
-        \ of attributes, reference items, hierarchies, org units, people, employments,\
-        \ assignments."
+        \ nothing. The lists are applied in the order change orders, kinds of reference\
+        \ data, definitions of attributes, reference items, hierarchies, org units,\
+        \ parents in hierarchies, people, qualifications, employments, roles over\
+        \ org units, assignments, reporting lines, IDs of other systems."
       operationId: applyImport
       tags:
       - bulk
@@ -4839,9 +5171,15 @@ paths:
           - ref-items
           - hierarchies
           - org-units
+          - org-unit-parents
           - people
           - employments
           - assignments
+          - reporting-lines
+          - unit-roles
+          - qualifications
+          - external-ids
+          - change-orders
         name: list
         in: path
         required: true
@@ -4892,9 +5230,15 @@ paths:
           - ref-items
           - hierarchies
           - org-units
+          - org-unit-parents
           - people
           - employments
           - assignments
+          - reporting-lines
+          - unit-roles
+          - qualifications
+          - external-ids
+          - change-orders
         name: list
         in: path
         required: true

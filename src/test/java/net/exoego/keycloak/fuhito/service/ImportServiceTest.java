@@ -8,20 +8,32 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import net.exoego.keycloak.fuhito.domain.ChangeOrder;
 import net.exoego.keycloak.fuhito.domain.Employment;
+import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.Person;
+import net.exoego.keycloak.fuhito.domain.Qualification;
 import net.exoego.keycloak.fuhito.domain.RefItem;
 import net.exoego.keycloak.fuhito.domain.RefKind;
+import net.exoego.keycloak.fuhito.domain.ReportingLine;
+import net.exoego.keycloak.fuhito.domain.UnitRole;
 import net.exoego.keycloak.fuhito.service.ImportDocument.AssignmentRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.AttributeDefinitionRow;
+import net.exoego.keycloak.fuhito.service.ImportDocument.ChangeOrderRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.EmploymentRow;
+import net.exoego.keycloak.fuhito.service.ImportDocument.ExternalIdRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.HierarchyRow;
+import net.exoego.keycloak.fuhito.service.ImportDocument.OrgUnitParentRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.OrgUnitRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.PersonRow;
+import net.exoego.keycloak.fuhito.service.ImportDocument.QualificationRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.RefItemRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.RefKindRow;
+import net.exoego.keycloak.fuhito.service.ImportDocument.ReportingLineRow;
+import net.exoego.keycloak.fuhito.service.ImportDocument.UnitRoleRow;
 import net.exoego.keycloak.fuhito.service.ImportReport.Counts;
+import net.exoego.keycloak.fuhito.store.OrganizationDirectory;
 import net.exoego.keycloak.fuhito.store.UserDirectory;
 import org.junit.jupiter.api.Test;
 
@@ -52,6 +64,17 @@ class ImportServiceTest {
         }
     };
     private final MemoryPersonStore personStore = new MemoryPersonStore();
+    private final MemoryReportingLineStore lineStore = new MemoryReportingLineStore();
+    private final MemoryUnitRoleStore roleStore = new MemoryUnitRoleStore();
+    private final MemoryQualificationStore qualificationStore = new MemoryQualificationStore();
+    private final MemoryExternalIdStore externalIdStore = new MemoryExternalIdStore();
+    private final MemoryChangeOrderStore orderStore = new MemoryChangeOrderStore();
+    private final QualificationService qualifications = new QualificationService(qualificationStore, refItems,
+            personStore, users, Clock.systemUTC());
+    private final UnitRoleService roles = new UnitRoleService(roleStore,
+            new UnitRoleService.Sources(employmentStore, orgUnitStore, refItems), Today.of(Clock.systemUTC()));
+    private final ReportingLineService lines = new ReportingLineService(lineStore, new ReportingLineService.Sources(
+            assignmentStore, employmentStore, orgUnitStore, refItems, users, personStore), Clock.systemUTC());
     private final EmploymentService employments =
             new EmploymentService(employmentStore, assignmentStore, refItems, personStore,
             new MemoryReportingLineStore(), new MemoryUnitRoleStore(), new AnyEmployer());
@@ -60,12 +83,28 @@ class ImportServiceTest {
             new MemoryReportingLineStore());
     private final RealmKindService kinds = new RealmKindService(new MemoryRealmKindStore(), refItems);
     private final HierarchyService hierarchies = new HierarchyService(new MemoryHierarchyStore());
+    private final List<String> managed = new ArrayList<>();
+    private final OrganizationDirectory organizations = new OrganizationDirectory() {
+        @Override
+        public boolean exists(String organizationId) {
+            return organizationId.startsWith("org-");
+        }
+
+        @Override
+        public Optional<String> idOfAlias(String alias) {
+            return alias.startsWith("x-") ? Optional.of("org-" + alias) : Optional.empty();
+        }
+    };
     private final AttributeDefinitionService definitions =
             new AttributeDefinitionService(new MemoryAttributeDefinitionStore(), refItems, false, kinds::isKnown);
     private final ImportService service = new ImportService(new RefItemService(refItems), refItems, orgUnits,
             orgUnitStore, new ImportService.People(employments, employmentStore, assignments, assignmentStore, users,
                     new PersonService(personStore, users, id -> false)),
-            new ImportService.Setup(kinds, definitions, hierarchies));
+            new ImportService.Setup(kinds, definitions, hierarchies),
+            new ImportService.Organizations(new OrganizationLinkService(orgUnitStore, organizations), organizations,
+                    managed::add),
+            new ImportService.Records(lines, roles, qualifications, new ExternalIdService(externalIdStore),
+                    new ChangeOrderService(orderStore, null, users, Clock.systemUTC())));
 
     private static ImportDocument doc(String effectiveDate, boolean dryRun, String source, List<RefItemRow> refItems,
             List<OrgUnitRow> orgUnits) {
@@ -135,7 +174,7 @@ class ImportServiceTest {
     }
 
     private static ImportDocument kinds(List<RefKindRow> rows) {
-        return new ImportDocument("2026-04-01", false, null, null, null, null, null, null, rows, null, null);
+        return ImportDocument.of("2026-04-01", false, null, "refKinds", rows);
     }
 
     @Test
@@ -160,7 +199,7 @@ class ImportServiceTest {
     }
 
     private static ImportDocument definitions(List<AttributeDefinitionRow> rows) {
-        return new ImportDocument("2026-04-01", false, null, null, null, null, null, null, null, rows, null);
+        return ImportDocument.of("2026-04-01", false, null, "attributeDefinitions", rows);
     }
 
     @Test
@@ -178,8 +217,120 @@ class ImportServiceTest {
                 first.writes().getFirst().path());
     }
 
+    private static OrgUnitRow ending(String externalId, String validTo, List<String> successorExternalIds,
+            List<String> successorIds) {
+        return new OrgUnitRow(null, externalId, null, externalId, null, null, null, null, null, null, null, null,
+                null, "2020-04-01", validTo, null, successorExternalIds, successorIds, null, null, null);
+    }
+
+    private static OrgUnitRow starting(String externalId, String validFrom) {
+        return new OrgUnitRow(null, externalId, null, externalId, null, null, null, null, null, null, null, null,
+                null, validFrom, null, null);
+    }
+
+    @Test
+    void endsAUnitWithSuccessorsThatComeLaterInTheDocument() {
+        List<OrgUnitRow> rows = List.of(ending("OLD", "2026-04-01", List.of("NEW"), null),
+                starting("NEW", "2026-04-01"));
+
+        ImportReport first = service.apply(doc("2020-04-01", false, null, null, rows));
+        ImportReport again = service.apply(doc("2020-04-01", false, null, null, rows));
+
+        assertEquals(List.of(), errors(first));
+        assertEquals(Map.of("orgUnits", new Counts(2, 0, 0)), first.counts());
+        assertEquals(Map.of("orgUnits", new Counts(0, 0, 2)), again.counts());
+        String old = orgUnitStore.findUnitByExternalId("import", "OLD").orElseThrow().id();
+        String successor = orgUnitStore.findUnitByExternalId("import", "NEW").orElseThrow().id();
+        assertEquals(successor, orgUnits.successions(old).successors().getFirst().successorId());
+        assertEquals("fuhito/org-units/" + old + "/succession", first.writes().getLast().path());
+
+        ImportReport bad = service.apply(doc("2020-04-01", false, null, null, List.of(
+                ending("OLD", "2026-04-01", null, List.of(old)),
+                ending("A", null, List.of("NEW"), null),
+                ending("B", "2026-04-01", List.of("NOPE"), null),
+                ending("C", "2026-04-01", null, List.of("nope")))));
+
+        assertEquals(List.of("orgUnits[1] invalid.required", "orgUnits[0] import.successors_differ",
+                "orgUnits[2] import.successor_unknown", "orgUnits[3] import.id_unknown"), errors(bad));
+    }
+
+    private static OrgUnitRow linked(String externalId, String organizationAlias) {
+        return new OrgUnitRow(null, externalId, null, externalId, null, null, null, null, null, null, null, null,
+                null, null, null, null, null, null, organizationAlias, null, null);
+    }
+
+    private static OrgUnitRow timed(String externalId, String timeZone, String dayStart) {
+        return new OrgUnitRow(null, externalId, null, externalId, null, null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, timeZone, dayStart);
+    }
+
+    @Test
+    void setsTheTimeOfAUnitAndKeepsWhatARowLeavesOut() {
+        ImportReport first = importUnits("2026-04-01", timed("H", "Asia/Tokyo", "05:00"));
+        ImportReport again = importUnits("2026-04-01", timed("H", null, null));
+        ImportReport cleared = importUnits("2026-04-01", timed("H", null, ""));
+
+        String h = orgUnitStore.findUnitByExternalId("import", "H").orElseThrow().id();
+        assertEquals(List.of(), errors(first));
+        assertEquals("fuhito/org-units/" + h + "/time-settings", first.writes().getLast().path());
+        assertEquals(Map.of("orgUnits", new Counts(0, 0, 1)), again.counts());
+        assertEquals(Map.of("orgUnits", new Counts(0, 1, 0)), cleared.counts());
+        assertEquals("Asia/Tokyo", orgUnitStore.findUnit(h).orElseThrow().timeZone());
+        assertEquals(null, orgUnitStore.findUnit(h).orElseThrow().dayStart());
+        assertEquals(1, errors(importUnits("2026-04-01", timed("H", "Nowhere/City", null))).size());
+    }
+
+    @Test
+    void linksAUnitToAnOrganizationByItsAliasAndAsksToManageIt() {
+        ImportReport first = importUnits("2026-04-01", linked("H", "x-hospital"), linked("K", null));
+        ImportReport again = importUnits("2026-04-01", linked("H", "x-hospital"), linked("K", null));
+        ImportReport moved = importUnits("2026-04-01", linked("H", ""), linked("K", "x-hospital"),
+                linked("N", "nope"));
+
+        String h = orgUnitStore.findUnitByExternalId("import", "H").orElseThrow().id();
+        String k = orgUnitStore.findUnitByExternalId("import", "K").orElseThrow().id();
+        assertEquals(List.of(), errors(first));
+        assertEquals(Map.of("orgUnits", new Counts(0, 0, 2)), again.counts());
+        assertEquals("fuhito/org-units/" + h + "/organization", first.writes().get(1).path());
+        assertEquals(List.of("orgUnits[2] import.organization_unknown"), errors(moved));
+        assertEquals(null, orgUnitStore.findUnit(h).orElseThrow().keycloakOrganizationId());
+        assertEquals("org-x-hospital", orgUnitStore.findUnit(k).orElseThrow().keycloakOrganizationId());
+        // The first link, then the old organization of the unlink, then the new one of the second link.
+        assertEquals(List.of("org-x-hospital", "org-x-hospital", "org-x-hospital"), managed);
+    }
+
+    @Test
+    void movesAUnitInAHierarchyAndReportsEveryBadRowOfParents() {
+        importUnits("2026-04-01", unit("P", "P", null), unit("C", "C", null), unit("D", "D", null),
+                unit("E", "E", null), unit("F", "F", null));
+        String p = orgUnitStore.findUnitByExternalId("import", "P").orElseThrow().id();
+        String c = orgUnitStore.findUnitByExternalId("import", "C").orElseThrow().id();
+        List<OrgUnitParentRow> rows = List.of(
+                new OrgUnitParentRow("default", null, "C", null, "P", null),
+                new OrgUnitParentRow("default", null, null, p, null, null),
+                new OrgUnitParentRow("default", null, "C", c, null, null),
+                new OrgUnitParentRow("default", null, null, null, null, null),
+                new OrgUnitParentRow("default", null, null, "nope", null, null),
+                new OrgUnitParentRow("default", null, "NOPE", null, null, null),
+                new OrgUnitParentRow("default", null, "C", null, null, null),
+                new OrgUnitParentRow("default", null, "D", null, "P", p),
+                new OrgUnitParentRow("default", null, "E", null, null, "nope"),
+                new OrgUnitParentRow("default", null, "F", null, "NOPE", null));
+
+        ImportReport report = service.apply(ImportDocument.of("2026-04-01", false, null, "orgUnitParents", rows));
+
+        assertEquals(Map.of("orgUnitParents", new Counts(0, 1, 1)), report.counts());
+        assertEquals(List.of("orgUnitParents[2] import.org_unit_twice", "orgUnitParents[3] invalid.required",
+                "orgUnitParents[4] import.id_unknown", "orgUnitParents[5] import.org_unit_unknown",
+                "orgUnitParents[6] import.duplicate_row", "orgUnitParents[7] import.parent_twice",
+                "orgUnitParents[8] import.parent_id_unknown", "orgUnitParents[9] import.parent_unknown"),
+                errors(report));
+        assertEquals(p, orgUnits.get(c, "2026-04-01").parentId());
+        assertEquals("fuhito/org-units/" + c + "/parent", report.writes().getFirst().path());
+    }
+
     private static ImportDocument hierarchies(List<HierarchyRow> rows) {
-        return new ImportDocument("2026-04-01", false, null, null, null, null, null, null, null, null, rows);
+        return ImportDocument.of("2026-04-01", false, null, "hierarchies", rows);
     }
 
     @Test
@@ -561,6 +712,276 @@ class ImportServiceTest {
                         placement("A6", null, null, null, ward, null, null))));
         assertEquals(List.of("assignments[0] import.assignment_mismatch"),
                 errors(importAssignments(placement(null, null, null, null, hospital, null, assignment))));
+    }
+
+    private static ReportingLineRow line(String id, String assignment, String managerExternalId,
+            String managerUsername, String validTo) {
+        return new ReportingLineRow(id, null, assignment, null, managerExternalId, null, managerUsername, null, null,
+                validTo);
+    }
+
+    private ImportReport importLines(String effectiveDate, ReportingLineRow... rows) {
+        return service.apply(ImportDocument.of(effectiveDate, false, null, "reportingLines", List.of(rows)));
+    }
+
+    @Test
+    void importsReportingLinesAndEndsTheSolidLineOfTheManagerBefore() {
+        importTwoUnits();
+        importPeople("2026-04-01", List.of(employment("E1", "nurse", null, null, null)),
+                List.of(assignment("A1", "E1", "W", true, null)));
+        service.apply(new ImportDocument("2026-04-01", false, null, null, null, null, null,
+                List.of(new PersonRow(null, "P3", null, null, "Chief", null, null, null, null))));
+
+        ImportReport first = importLines("2026-04-01", line(null, "A1", null, "doctor", null));
+        ImportReport again = importLines("2026-04-01", line(null, "A1", null, "doctor", null));
+        ImportReport next = importLines("2026-05-01", line(null, "A1", "P3", null, null));
+
+        assertEquals(List.of(), errors(first));
+        assertEquals(Map.of("reportingLines", new Counts(1, 0, 0)), first.counts());
+        assertEquals(Map.of("reportingLines", new Counts(0, 0, 1)), again.counts());
+        assertEquals(Map.of("reportingLines", new Counts(1, 0, 0)), next.counts());
+        List<ReportingLine> stored = lineStore.lines.stream()
+                .sorted(java.util.Comparator.comparing(l -> l.period().from()))
+                .toList();
+        assertEquals("2026-05-01", stored.getFirst().period().to().toString());
+        assertEquals(personStore.findByExternalId("import", "P3").orElseThrow().id(),
+                stored.getLast().managerPersonId());
+        assertEquals("fuhito/reporting-lines/" + stored.getFirst().id() + "/end", next.writes().getFirst().path());
+
+        ImportReport ended = importLines("2026-05-01", line(stored.getLast().id(), null, null, null, "2026-06-01"));
+        assertEquals(Map.of("reportingLines", new Counts(0, 1, 0)), ended.counts());
+        assertEquals(List.of("reportingLines[0] import.assignment_unknown", "reportingLines[1] import.manager_twice",
+                "reportingLines[2] import.username_unknown", "reportingLines[3] import.id_unknown",
+                "reportingLines[4] import.person_unknown", "reportingLines[5] invalid.required"),
+                errors(importLines("2026-05-01", line(null, "NOPE", "P3", null, null),
+                        line(null, "A1", "P3", "doctor", null), line(null, "A1", null, "nobody", null),
+                        line("nope", null, null, null, null), line(null, "A1", "NOPE", null, null),
+                        line(null, "A1", null, null, null))));
+        String a1 = assignmentStore.findAssignmentIdByExternalId("import", "A1").orElseThrow();
+        String chief = personStore.findByExternalId("import", "P3").orElseThrow().id();
+        assertEquals(List.of("reportingLines[0] import.assignment_twice", "reportingLines[1] import.id_mismatch",
+                "reportingLines[3] import.duplicate_row"),
+                errors(importLines("2026-05-01",
+                        new ReportingLineRow(null, null, "A1", a1, "P3", null, null, null, null, null),
+                        new ReportingLineRow(stored.getLast().id(), null, null, null, null, null, "doctor", null,
+                                null, null),
+                        new ReportingLineRow(null, null, null, a1, null, chief, null, null, null, null),
+                        new ReportingLineRow(null, null, null, a1, null, chief, null, null, null, null))));
+    }
+
+    private static UnitRoleRow role(String id, String employment, String orgUnit, String role, Boolean below,
+            String validTo) {
+        return new UnitRoleRow(id, null, employment, null, orgUnit, null, role, below, null, validTo);
+    }
+
+    private ImportReport importRoles(String effectiveDate, UnitRoleRow... rows) {
+        return service.apply(ImportDocument.of(effectiveDate, false, null, "unitRoles", List.of(rows)));
+    }
+
+    @Test
+    void importsRolesAndStartsANewOneWhenItCoversTheUnitsBelow() {
+        importTwoUnits();
+        importPeople("2026-04-01", List.of(employment("E1", "nurse", null, null, null)), null);
+        refItems.insert(new RefItem("approver-id", RefKind.UNIT_ROLE.name(), "approver", "承認者", Map.of(), 0,
+                Map.of(), true, false, false, false));
+
+        ImportReport first = importRoles("2026-04-01", role(null, "E1", "H", "approver", null, null));
+        ImportReport again = importRoles("2026-04-01", role(null, "E1", "H", "approver", false, null));
+        ImportReport wider = importRoles("2026-05-01", role(null, "E1", "H", "approver", true, null));
+
+        assertEquals(List.of(), errors(first));
+        assertEquals(Map.of("unitRoles", new Counts(1, 0, 0)), first.counts());
+        assertEquals(Map.of("unitRoles", new Counts(0, 0, 1)), again.counts());
+        assertEquals(Map.of("unitRoles", new Counts(0, 1, 0)), wider.counts());
+        List<UnitRole> stored = roleStore.roles.stream()
+                .sorted(java.util.Comparator.comparing(r -> r.period().from()))
+                .toList();
+        assertEquals("2026-05-01", stored.getFirst().period().to().toString());
+        assertTrue(stored.getLast().includesDescendants());
+        assertEquals("fuhito/unit-roles/" + stored.getFirst().id() + "/end", wider.writes().getFirst().path());
+
+        ImportReport ended = importRoles("2026-05-01", role(stored.getLast().id(), null, null, null, true,
+                "2026-06-01"));
+        assertEquals(Map.of("unitRoles", new Counts(0, 1, 0)), ended.counts());
+        assertEquals(List.of("unitRoles[0] import.employment_unknown", "unitRoles[1] import.org_unit_unknown",
+                "unitRoles[2] import.id_unknown", "unitRoles[3] invalid.required",
+                "unitRoles[4] import.id_mismatch", "unitRoles[6] import.duplicate_row"),
+                errors(importRoles("2026-05-01", role(null, "NOPE", "H", "approver", null, null),
+                        role(null, "E1", "NOPE", "approver", null, null), role("nope", null, null, null, null, null),
+                        role(null, "E1", "W", null, null, null),
+                        role(stored.getLast().id(), null, "W", null, true, null),
+                        role(null, "E1", "H", "approver", true, null), role(null, "E1", "H", "approver", true, null))));
+        String e1 = employmentStore.findByExternalId("import", "E1").orElseThrow().id();
+        String h = orgUnitStore.findUnitByExternalId("import", "H").orElseThrow().id();
+        assertEquals(List.of("unitRoles[0] import.employment_twice", "unitRoles[1] import.org_unit_twice"),
+                errors(importRoles("2026-05-01",
+                        new UnitRoleRow(null, null, "E1", e1, null, h, "approver", true, null, null),
+                        new UnitRoleRow(null, null, null, e1, "H", h, "approver", true, null, null),
+                        new UnitRoleRow(null, null, null, e1, null, h, "approver", true, null, null))));
+    }
+
+    private static QualificationRow qualification(String id, String externalId, String person, String username,
+            String number, String validTo) {
+        return new QualificationRow(id, null, externalId, person, null, username, "license", number, "2020-04-01",
+                validTo, null);
+    }
+
+    private ImportReport importQualifications(QualificationRow... rows) {
+        return service.apply(ImportDocument.of("2026-04-01", false, null, "qualifications", List.of(rows)));
+    }
+
+    @Test
+    void importsQualificationsAndReplacesAStoredOne() {
+        refItems.insert(new RefItem("license-id", RefKind.QUALIFICATION.name(), "license", "免許", Map.of(), 0,
+                Map.of(), true, false, false, false));
+        service.apply(new ImportDocument("2026-04-01", false, null, null, null, null, null,
+                List.of(new PersonRow(null, "P1", null, null, "Ann", null, null, null, null),
+                        new PersonRow(null, "P2", null, null, "Ben", null, null, null, null))));
+
+        ImportReport first = importQualifications(qualification(null, "Q1", "P1", null, "123", null),
+                qualification(null, "Q2", null, "nurse", null, null));
+        ImportReport again = importQualifications(qualification(null, "Q1", "P1", null, "123", null));
+        ImportReport changed = importQualifications(qualification(null, "Q1", null, null, "456", "2030-04-01"));
+
+        assertEquals(List.of(), errors(first));
+        assertEquals(Map.of("qualifications", new Counts(2, 0, 0)), first.counts());
+        assertEquals(Map.of("qualifications", new Counts(0, 0, 1)), again.counts());
+        assertEquals(Map.of("qualifications", new Counts(0, 1, 0)), changed.counts());
+        Qualification q1 = qualificationStore.findByExternalId("import", "Q1").orElseThrow();
+        assertEquals("456", q1.number());
+        assertEquals("2030-04-01", q1.period().to().toString());
+        assertEquals("fuhito/qualifications/" + q1.id(), changed.writes().getFirst().path());
+        assertEquals(personStore.findByUser("user-nurse").orElseThrow().id(),
+                qualificationStore.findByExternalId("import", "Q2").orElseThrow().personId());
+
+        assertEquals(List.of("qualifications[0] invalid.required", "qualifications[1] import.id_unknown",
+                "qualifications[2] import.person_unknown", "qualifications[3] import.person_ways",
+                "qualifications[4] import.id_mismatch", "qualifications[5] import.id_mismatch",
+                "qualifications[6] import.duplicate_row", "qualifications[7] import.username_unknown",
+                "qualifications[8] import.id_unknown"),
+                errors(importQualifications(qualification(null, null, "P1", null, null, null),
+                        qualification("nope", null, null, null, null, null),
+                        qualification(null, "Q3", "NOPE", null, null, null),
+                        qualification(null, "Q4", "P1", "nurse", null, null),
+                        qualification(null, "Q1", "P2", null, null, null),
+                        qualification(q1.id(), "Q2", null, null, null, null),
+                        qualification(null, "Q1", null, null, null, null),
+                        qualification(null, "Q5", null, "nobody", null, null),
+                        new QualificationRow(null, null, "Q6", null, "nope", null, "license", null, null, null,
+                                null))));
+    }
+
+    private ImportReport importExternalIds(ExternalIdRow... rows) {
+        return service.apply(ImportDocument.of("2026-04-01", false, null, "externalIds", List.of(rows)));
+    }
+
+    @Test
+    void importsTheIdsOfOtherSystemsAndRemovesOneWithAnEmptyText() {
+        externalIdStore.resource(ExternalId.Kind.ORG_UNIT, "u-1", "hr", "H");
+
+        ImportReport first = importExternalIds(new ExternalIdRow("ORG_UNIT", "u-1", "payroll", "P-1"));
+        ImportReport again = importExternalIds(new ExternalIdRow("ORG_UNIT", "u-1", "payroll", "P-1"));
+        ImportReport changed = importExternalIds(new ExternalIdRow("ORG_UNIT", "u-1", "payroll", "P-2"));
+        ImportReport removed = importExternalIds(new ExternalIdRow("ORG_UNIT", "u-1", "payroll", ""),
+                new ExternalIdRow("ORG_UNIT", "u-1", "ledger", ""));
+
+        assertEquals(Map.of("externalIds", new Counts(1, 0, 0)), first.counts());
+        assertEquals("fuhito/external-ids/" + first.writes().getFirst().resourceId(), first.writes().getFirst().path());
+        assertEquals(Map.of("externalIds", new Counts(0, 0, 1)), again.counts());
+        assertEquals(Map.of("externalIds", new Counts(0, 1, 0)), changed.counts());
+        assertEquals(Map.of("externalIds", new Counts(0, 1, 1)), removed.counts());
+        assertTrue(removed.writes().getFirst().deleted());
+        assertEquals(List.of(), externalIdStore.rows);
+        assertEquals(List.of("externalIds[1] import.duplicate_row", "externalIds[2] external_id.own_source",
+                "externalIds[3] external_id.resource_unknown", "externalIds[4] invalid.required"),
+                errors(importExternalIds(new ExternalIdRow("ORG_UNIT", "u-1", "payroll", "P-3"),
+                        new ExternalIdRow("ORG_UNIT", "u-1", "payroll", "P-4"),
+                        new ExternalIdRow("ORG_UNIT", "u-1", "hr", "X"),
+                        new ExternalIdRow("ORG_UNIT", "nope", "payroll", "P-5"),
+                        new ExternalIdRow("ORG_UNIT", "u-1", "ledger", null))));
+    }
+
+    private static ChangeOrderRow order(String id, String number, String title, String approverUserId,
+            String approverUsername) {
+        return new ChangeOrderRow(id, number, null, title, null, null, null, approverUserId, approverUsername, null,
+                null, null);
+    }
+
+    private ImportReport importOrders(ChangeOrderRow... rows) {
+        return service.apply(ImportDocument.of("2026-04-01", false, null, "changeOrders", List.of(rows)));
+    }
+
+    @Test
+    void importsChangeOrdersByNumberAndReplacesAStoredOne() {
+        ImportReport first = importOrders(order(null, "2026-01", "異動", null, "doctor"));
+        ImportReport again = importOrders(order(null, "2026-01", "異動", null, "doctor"));
+        ImportReport changed = importOrders(order(null, "2026-01", "人事異動", "user-doctor", null));
+
+        assertEquals(List.of(), errors(first));
+        assertEquals(Map.of("changeOrders", new Counts(1, 0, 0)), first.counts());
+        assertEquals(Map.of("changeOrders", new Counts(0, 0, 1)), again.counts());
+        assertEquals(Map.of("changeOrders", new Counts(0, 1, 0)), changed.counts());
+        ChangeOrder stored = orderStore.findByNumber("2026-01").orElseThrow();
+        assertEquals("人事異動", stored.title());
+        assertEquals("user-doctor", stored.approverUserId());
+        assertEquals("2026-04-01", stored.effectiveDate().toString());
+        assertEquals("fuhito/change-orders/" + stored.id(), changed.writes().getFirst().path());
+        assertEquals(List.of("changeOrders[0] invalid.required", "changeOrders[1] import.id_unknown",
+                "changeOrders[2] import.user_twice", "changeOrders[3] import.username_unknown",
+                "changeOrders[5] import.duplicate_row"),
+                errors(importOrders(order(null, null, "X", null, null), order("nope", null, "X", null, null),
+                        order(null, "2026-02", "X", "user-doctor", "doctor"), order(null, "2026-03", "X", null, "nobody"),
+                        order(stored.id(), null, "人事異動", "user-doctor", null),
+                        order(stored.id(), "2026-01", "人事異動", "user-doctor", null))));
+    }
+
+    private static EmploymentRow continuing(String externalId, String continuesExternalId, String continuesId) {
+        return new EmploymentRow(null, externalId, "nurse", null, null, null, null, null, null, null, null,
+                "2026-04-01", null, null, null, null, null, null, null, continuesExternalId, continuesId);
+    }
+
+    private static AssignmentRow continuingAssignment(String externalId, String employment,
+            String continuesExternalId) {
+        return new AssignmentRow(null, externalId, employment, "W", null, null, null, null, true, null, null, null,
+                "2026-04-01", null, null, null, null, continuesExternalId, null);
+    }
+
+    @Test
+    void linksANewEmploymentAndItsAssignmentToTheOnesTheyContinue() {
+        importUnits("2020-04-01", unit("H", "Hospital", null), unit("W", "Ward", "H"));
+        assertEquals(List.of(), errors(importPeople("2020-04-01",
+                List.of(employment("E1", "nurse", null, "2026-04-01", null)),
+                List.of(assignment("A1", "E1", "W", true, null)))));
+
+        ImportReport first = importPeople("2026-04-01", List.of(continuing("E2", "E1", null)),
+                List.of(continuingAssignment("A2", "E2", "A1")));
+        ImportReport again = importPeople("2026-04-01", List.of(continuing("E2", "E1", null)),
+                List.of(continuingAssignment("A2", "E2", "A1")));
+
+        assertEquals(List.of(), errors(first));
+        Employment e1 = employmentStore.findByExternalId("import", "E1").orElseThrow();
+        assertEquals(e1.id(), employmentStore.findByExternalId("import", "E2").orElseThrow()
+                .continuesEmploymentId());
+        String a1 = assignmentStore.findAssignmentIdByExternalId("import", "A1").orElseThrow();
+        String a2 = assignmentStore.findAssignmentIdByExternalId("import", "A2").orElseThrow();
+        assertEquals(a1, assignmentStore.rows(a2).getFirst().continuesAssignmentId());
+        assertEquals(new Counts(0, 0, 1), again.counts().get("employments"));
+        assertEquals(new Counts(0, 0, 1), again.counts().get("assignments"));
+        assertEquals(List.of("employments[0] import.continues_twice", "employments[1] import.continues_mismatch",
+                "employments[2] import.employment_unknown", "employments[3] employment.continues_unknown",
+                "assignments[0] import.continues_mismatch", "assignments[1] import.assignment_unknown"),
+                errors(importPeople("2026-04-01", List.of(continuing("E3", "E1", e1.id()),
+                        continuing("E2", null, "other"), continuing("E4", "NOPE", null),
+                        continuing("E5", null, "nope")),
+                        List.of(continuingAssignment("A2", "E2", "A2"), continuingAssignment("A3", "E2", "NOPE")))));
+
+        // Another person cannot be continued.
+        importPeople("2020-04-01", List.of(employment("D1", "doctor", null, null, null)), null);
+        String doctor = employmentStore.findByExternalId("import", "D1").orElseThrow().id();
+        AssignmentRow unknown = new AssignmentRow(null, "A4", "E2", "W", null, null, null, null, false, null, null,
+                null, "2026-04-01", null, null, null, null, null, "nope");
+        assertEquals(List.of("employments[0] employment.continues_other", "assignments[0] assignment.continues_unknown"),
+                errors(importPeople("2026-04-01", List.of(continuing("E6", null, doctor)), List.of(unknown))));
     }
 
     private void importTwoUnits() {

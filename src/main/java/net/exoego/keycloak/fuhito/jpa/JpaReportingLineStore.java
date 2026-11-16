@@ -142,6 +142,21 @@ public class JpaReportingLineStore implements ReportingLineStore {
     }
 
     @Override
+    public List<ReportingLine> listOn(LocalDate date, String afterId, int max) {
+        return em.createQuery("""
+                        select l from ReportingLineEntity l where l.realmId = :realmId and l.validFrom <= :date
+                        and (l.validTo is null or l.validTo > :date) and l.id > :after order by l.id""",
+                        ReportingLineEntity.class)
+                .setParameter("realmId", realmId)
+                .setParameter("date", date)
+                .setParameter("after", afterId == null ? "" : afterId)
+                .setMaxResults(max)
+                .getResultStream()
+                .map(JpaReportingLineStore::toDomain)
+                .toList();
+    }
+
+    @Override
     public void insert(ReportingLine line) {
         ReportingLineEntity entity = new ReportingLineEntity();
         entity.id = line.id();

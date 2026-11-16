@@ -149,6 +149,31 @@ final class PeopleImport {
         }
     }
 
+    private String continuedEmployment(EmploymentRow row, String source) {
+        if (row.continuesEmploymentExternalId() != null && row.continuesEmploymentId() != null) {
+            throw FuhitoException.invalid("import.continues_twice", Map.of());
+        }
+        if (row.continuesEmploymentExternalId() == null) {
+            return row.continuesEmploymentId();
+        }
+        return people.employments().findByExternalId(source, row.continuesEmploymentExternalId())
+                .map(Employment::id)
+                .orElseThrow(() -> FuhitoException.invalid("import.employment_unknown",
+                        Map.of("employmentExternalId", row.continuesEmploymentExternalId())));
+    }
+
+    private String continuedAssignment(AssignmentRow row, String source) {
+        if (row.continuesAssignmentExternalId() != null && row.continuesAssignmentId() != null) {
+            throw FuhitoException.invalid("import.continues_twice", Map.of());
+        }
+        if (row.continuesAssignmentExternalId() == null) {
+            return row.continuesAssignmentId();
+        }
+        return people.assignments().findAssignmentIdByExternalId(source, row.continuesAssignmentExternalId())
+                .orElseThrow(() -> FuhitoException.invalid("import.assignment_unknown",
+                        Map.of("assignmentExternalId", row.continuesAssignmentExternalId())));
+    }
+
     // A row with an ID is known by it. Any other row needs an external ID.
     private void requireFirst(Set<String> seen, String source, String externalId, String id) {
         if (id != null) {
@@ -171,13 +196,14 @@ final class PeopleImport {
                 row.externalId()) : Optional.of(employmentById(row, source));
         String personId = personId(row, name, source, stored);
         String employerId = employerId(row, source);
+        String continues = continuedEmployment(row, source);
         if (stored.isEmpty()) {
             EmploymentView created = people.employmentService().start(new NewEmployment(personId,
                     row.validFrom() == null ? effectiveDate : row.validFrom(), row.validTo(), row.staffNumber(),
                     row.employmentType(), row.grade(), row.status(), row.leaveReason(), row.workPercent(),
                     row.attributes(), row.externalId(), source, employerId));
             String id = created.employment().id();
-            written(true, "", created);
+            written(true, "", continues == null ? created : people.employmentService().continueFrom(id, continues));
             if (row.validTo() != null && row.endReason() != null) {
                 written(false, "/end",
                         people.employmentService().end(id, row.validTo(), row.endReason()));
@@ -192,6 +218,9 @@ final class PeopleImport {
         // The employer never changes. A transfer to another employer is the way to move a person.
         if (employerId != null && !employerId.equals(employment.employerId())) {
             throw FuhitoException.conflict("import.employer_mismatch", Map.of("externalId", name));
+        }
+        if (continues != null && !continues.equals(employment.continuesEmploymentId())) {
+            throw FuhitoException.conflict("import.continues_mismatch", Map.of("externalId", name));
         }
         EmploymentView before = people.employmentService().get(id);
         boolean changed = false;
@@ -329,9 +358,11 @@ final class PeopleImport {
                 row.occupation(), row.kind(), row.head(), row.primary(), false, row.allocationPercent(),
                 row.displayOrder(), row.attributes(), row.externalId(), source);
 
+        String continues = continuedAssignment(row, source);
         if (stored.isEmpty()) {
             AssignmentView created = people.assignmentService().add(values);
-            written(true, "", created);
+            written(true, "", continues == null ? created
+                    : people.assignmentService().continueFrom(created.assignmentId(), continues));
             return Outcome.CREATED;
         }
         String id = stored.get();
@@ -339,6 +370,9 @@ final class PeopleImport {
         Assignment first = before.rows().getFirst().row();
         if (!first.employmentId().equals(employmentId) || !first.orgUnitId().equals(orgUnitId)) {
             throw FuhitoException.conflict("import.assignment_mismatch", Map.of("externalId", name));
+        }
+        if (continues != null && !continues.equals(first.continuesAssignmentId())) {
+            throw FuhitoException.conflict("import.continues_mismatch", Map.of("externalId", name));
         }
         boolean changed = false;
         LocalDate date = Checks.date("effectiveDate", effectiveDate);

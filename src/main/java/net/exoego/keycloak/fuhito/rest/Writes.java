@@ -39,9 +39,18 @@ final class Writes {
             case Write.OfHierarchy hierarchy -> HierarchyRepresentation.of(hierarchy.state());
             case Write.OfPerson person -> PersonRepresentation.of(person.state());
             case Write.OfOrgUnit unit -> OrgUnitRepresentation.of(unit.state());
+            case Write.OfSuccession succession -> OrgUnitSuccessionsRepresentation.of(succession.state());
+            case Write.OfTimeSettings time -> new TimeSettingsRepresentation(time.orgUnitId(), time.timeZone(),
+                    time.dayStart());
+            case Write.OfOrganizationLink link -> new OrganizationLinkRepresentation(link.orgUnitId(),
+                    link.organizationId());
             case Write.OfEmployment employment -> EmploymentRepresentation.of(employment.state());
             case Write.OfAssignment assignment -> AssignmentRepresentation.of(assignment.state());
             case Write.OfReportingLine line -> ReportingLineRepresentation.of(line.state());
+            case Write.OfUnitRole role -> UnitRoleRepresentation.of(role.state());
+            case Write.OfQualification qualification -> QualificationRepresentation.of(qualification.state());
+            case Write.OfExternalId externalId -> ExternalIdRepresentation.of(externalId.state());
+            case Write.OfChangeOrder order -> ChangeOrderRepresentation.of(order.state());
             case Write.Removed removed -> null;
         };
         Change change = write.deleted() ? Change.DELETE : write.created() ? Change.CREATE : Change.UPDATE;

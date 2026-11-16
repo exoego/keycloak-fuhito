@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Map;
 
 import net.exoego.keycloak.fuhito.domain.AttributeDefinition;
+import net.exoego.keycloak.fuhito.domain.ChangeOrder;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.Hierarchy;
 import net.exoego.keycloak.fuhito.domain.RefItem;
@@ -250,6 +251,94 @@ public final class ImportReport {
         }
 
         /**
+         * The link of an org unit to a Keycloak organization.
+         *
+         * @param orgUnitId the ID of the unit
+         * @param organizationId the ID of the organization, or null for no link
+         */
+        record OfOrganizationLink(String orgUnitId, String organizationId) implements Write {
+
+            @Override
+            public boolean created() {
+                return false;
+            }
+
+            @Override
+            public String resourceType() {
+                return "FUHITO_ORG_UNIT";
+            }
+
+            @Override
+            public String resourceId() {
+                return orgUnitId;
+            }
+
+            @Override
+            public String path() {
+                return "fuhito/org-units/" + orgUnitId + "/organization";
+            }
+        }
+
+        /**
+         * The time zone and the day start of an org unit.
+         *
+         * @param orgUnitId the ID of the unit
+         * @param timeZone the time zone, or null for none
+         * @param dayStart the day start, or null for none
+         */
+        record OfTimeSettings(String orgUnitId, String timeZone, String dayStart) implements Write {
+
+            @Override
+            public boolean created() {
+                return false;
+            }
+
+            @Override
+            public String resourceType() {
+                return "FUHITO_ORG_UNIT";
+            }
+
+            @Override
+            public String resourceId() {
+                return orgUnitId;
+            }
+
+            @Override
+            public String path() {
+                return "fuhito/org-units/" + orgUnitId + "/time-settings";
+            }
+        }
+
+        /**
+         * The units that follow an org unit that ended.
+         *
+         * @param orgUnitId the ID of the unit that ended
+         * @param state the units before and after the unit
+         */
+        record OfSuccession(String orgUnitId, OrgUnitSuccessions state) implements Write {
+
+            @Override
+            public boolean created() {
+                return false;
+            }
+
+            @Override
+            public String resourceType() {
+                return "FUHITO_ORG_UNIT";
+            }
+
+            @Override
+            public String resourceId() {
+                return orgUnitId;
+            }
+
+            @Override
+            public String path() {
+                return "fuhito/org-units/" + orgUnitId + "/succession";
+            }
+        }
+
+        /**
          * A write of an employment.
          *
          * @param created true for a new employment, false for a change
@@ -321,6 +410,103 @@ public final class ImportReport {
             @Override
             public String path() {
                 return "fuhito/reporting-lines/" + resourceId() + suffix;
+            }
+        }
+
+        /**
+         * A write of a role over an org unit.
+         *
+         * @param created true for a new role, false for a change
+         * @param suffix the end of the path after the ID, for example {@code /end}, or an empty text
+         * @param state the role after the write
+         */
+        record OfUnitRole(boolean created, String suffix, UnitRoleService.View state) implements Write {
+
+            @Override
+            public String resourceType() {
+                return "FUHITO_UNIT_ROLE";
+            }
+
+            @Override
+            public String resourceId() {
+                return state.role().id();
+            }
+
+            @Override
+            public String path() {
+                return "fuhito/unit-roles/" + resourceId() + suffix;
+            }
+        }
+
+        /**
+         * A write of a qualification.
+         *
+         * @param created true for a new qualification, false for a change
+         * @param state the qualification after the write
+         */
+        record OfQualification(boolean created, QualificationView state) implements Write {
+
+            @Override
+            public String resourceType() {
+                return "FUHITO_QUALIFICATION";
+            }
+
+            @Override
+            public String resourceId() {
+                return state.qualification().id();
+            }
+
+            @Override
+            public String path() {
+                return "fuhito/qualifications/" + resourceId();
+            }
+        }
+
+        /**
+         * A write of an ID of another system.
+         *
+         * @param created true for a new ID, false for a change
+         * @param state the ID after the write
+         */
+        record OfExternalId(boolean created, ExternalIdService.View state) implements Write {
+
+            @Override
+            public String resourceType() {
+                return "FUHITO_EXTERNAL_ID";
+            }
+
+            @Override
+            public String resourceId() {
+                return state.rowId();
+            }
+
+            @Override
+            public String path() {
+                return "fuhito/external-ids/" + resourceId();
+            }
+        }
+
+        /**
+         * A write of a change order.
+         *
+         * @param created true for a new order, false for a change
+         * @param state the order after the write
+         */
+        record OfChangeOrder(boolean created, ChangeOrder state) implements Write {
+
+            @Override
+            public String resourceType() {
+                return "FUHITO_CHANGE_ORDER";
+            }
+
+            @Override
+            public String resourceId() {
+                return state.id();
+            }
+
+            @Override
+            public String path() {
+                return "fuhito/change-orders/" + resourceId();
             }
         }
 

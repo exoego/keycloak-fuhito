@@ -71,6 +71,18 @@ Do not repeat it in Javadoc.
 The generator writes OpenAPI 3.1 content under the version 3.2.0. OpenAPI 3.2 only adds to 3.1.
 The annotations cannot say the 3.2 fields of the tags, so `src/main/resources/META-INF/openapi.yaml` adds them.
 
+## Schema diagram
+
+`docs/schema.md` is a Mermaid ER diagram of the tables that Liquibase creates in PostgreSQL. Do not edit it.
+After a change to `src/main/resources/META-INF/fuhito/changelog.xml`, run this and commit the result.
+
+```sh
+./gradlew updateSchemaDiagram
+```
+
+The task starts Keycloak and PostgreSQL in containers, so it needs Docker.
+The integration tests fail when the file is out of date.
+
 ## Quality scan
 
 CI also runs [aislop](https://github.com/scanaislop/aislop), a scanner for common code problems. Run the same gate before you open a pull request.

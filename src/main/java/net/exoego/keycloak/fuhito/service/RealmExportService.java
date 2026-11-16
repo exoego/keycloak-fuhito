@@ -340,7 +340,7 @@ public class RealmExportService {
                 instant(o.announcedAt()), userId(o.announcedBy())))));
         counts.put("erasures", each("erasures", document.erasures(), e -> stores.export().restoreErasure(
                 new RealmExportStore.Erasure(Objects.requireNonNull(e.personId()), Instant.parse(e.erasedAt())))));
-        stores.export().eraseAndMaskAgain();
+        stores.export().eraseAgain();
         return counts;
     }
 

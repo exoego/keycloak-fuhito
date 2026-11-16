@@ -65,7 +65,7 @@ That includes the entries of rows that are gone, for example a qualification tha
 The change log keeps one entry that says who erased the data of which person ID.
 The realm also keeps the person ID and the time of the erase, and nothing else. A restore uses them to erase the person again.
 
-An export of the realm has the data of people as it is stored. An export taken before a mask or an erase still has what they removed. A restore of such an export erases and masks those people again after the load, so the data does not come back. Copies of the export file itself are not changed. Remove old export files that you no longer need.
+An export of the realm has the data of people as it is stored. An export taken before a mask or an erase still has what they removed. A restore of such an export erases those people again after the load, so erased data does not come back. A mask comes back as the export has it, because a masked person stays in use. A person masked after the export gets the data of the export back, and needs a mask again. Copies of the export file itself are not changed. Remove old export files that you no longer need.
 
 A system that follows the change log may hold copies of the cleared or removed data.
 The mask entry and the erase entry tell it which person ID to clean up. See [history.md](history.md).
