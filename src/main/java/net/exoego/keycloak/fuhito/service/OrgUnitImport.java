@@ -1,6 +1,7 @@
 package net.exoego.keycloak.fuhito.service;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -27,6 +28,7 @@ final class OrgUnitImport {
 
     private final OrgUnitService orgUnitService;
     private final OrgUnitStore orgUnits;
+    private final ImportService.Organizations organizations;
     private final String effectiveDate;
     private final String defaultSource;
     private final List<OrgUnitRow> rows;
@@ -36,11 +38,17 @@ final class OrgUnitImport {
     private final Set<Integer> done = new HashSet<>();
     private final Set<Integer> failed = new HashSet<>();
     private final Set<Integer> running = new HashSet<>();
+    private final List<Ending> endings = new ArrayList<>();
 
-    OrgUnitImport(OrgUnitService orgUnitService, OrgUnitStore orgUnits, String effectiveDate, String defaultSource,
-            List<OrgUnitRow> rows, ImportReport report) {
+    // An end with successors waits for every row, because a successor can come later in the document.
+    private record Ending(int index, String unitId, String source, OrgUnitRow row) {
+    }
+
+    OrgUnitImport(OrgUnitService orgUnitService, OrgUnitStore orgUnits, ImportService.Organizations organizations,
+            String effectiveDate, String defaultSource, List<OrgUnitRow> rows, ImportReport report) {
         this.orgUnitService = orgUnitService;
         this.orgUnits = orgUnits;
+        this.organizations = organizations;
         this.effectiveDate = effectiveDate;
         this.defaultSource = defaultSource;
         this.rows = rows;
@@ -60,6 +68,55 @@ final class OrgUnitImport {
         for (int i = 0; i < rows.size(); i++) {
             apply(i);
         }
+        endings.forEach(this::succeed);
+    }
+
+    private static boolean hasSuccessors(OrgUnitRow row) {
+        return (row.successorExternalIds() != null && !row.successorExternalIds().isEmpty())
+                || (row.successorIds() != null && !row.successorIds().isEmpty());
+    }
+
+    // A unit that ended on the same date with the same successors stays as it is, so a document can come again.
+    private void succeed(Ending ending) {
+        if (failed.contains(ending.index())) {
+            return;
+        }
+        try {
+            List<String> successors = successorIds(ending.row(), ending.source());
+            String end = lastDay(ending.unitId());
+            if (end == null) {
+                written(false, "/end", orgUnitService.succeed(ending.unitId(), ending.row().validTo(), successors));
+                report.write(new Write.OfSuccession(ending.unitId(), orgUnitService.successions(ending.unitId())));
+                return;
+            }
+            Set<String> stored = new HashSet<>();
+            orgUnitService.successions(ending.unitId()).successors().stream()
+                    .filter(link -> link.effectiveDate().toString().equals(end))
+                    .forEach(link -> stored.add(link.successorId()));
+            if (!end.equals(ending.row().validTo()) || !stored.equals(new HashSet<>(successors))) {
+                throw FuhitoException.conflict("import.successors_differ", Map.of("id", ending.unitId(),
+                        "validTo", end));
+            }
+        } catch (FuhitoException e) {
+            fail(ending.index(), e);
+        }
+    }
+
+    private List<String> successorIds(OrgUnitRow row, String source) {
+        List<String> ids = new ArrayList<>();
+        for (String externalId : Optional.ofNullable(row.successorExternalIds()).orElse(List.of())) {
+            ids.add(orgUnits.findUnitByExternalId(source, Checks.required("successorExternalIds", externalId))
+                    .map(OrgUnit::id)
+                    .orElseThrow(() -> FuhitoException.invalid("import.successor_unknown",
+                            Map.of("successorExternalId", externalId))));
+        }
+        for (String id : Optional.ofNullable(row.successorIds()).orElse(List.of())) {
+            if (orgUnits.findUnit(Checks.required("successorIds", id)).isEmpty()) {
+                throw FuhitoException.invalid("import.id_unknown", Map.of("id", id));
+            }
+            ids.add(id);
+        }
+        return ids;
     }
 
     private String sourceOf(OrgUnitRow row) {
@@ -130,6 +187,10 @@ final class OrgUnitImport {
     }
 
     private Outcome applyRow(int index, OrgUnitRow row, String source, String parentId) {
+        boolean succeeds = hasSuccessors(row);
+        if (succeeds && row.validTo() == null) {
+            throw FuhitoException.invalid("invalid.required", Map.of("field", "validTo"));
+        }
         Optional<OrgUnit> stored = stored(row, source);
         if (stored.isEmpty()) {
             OrgUnitState created = orgUnitService.create(new NewOrgUnit(row.code(), row.name(), row.names(),
@@ -139,7 +200,11 @@ final class OrgUnitImport {
             String id = created.unit().id();
             unitIdByRow.put(index, id);
             written(true, "", created);
-            if (row.validTo() != null) {
+            link(id, row.organizationAlias());
+            time(id, row);
+            if (succeeds) {
+                endings.add(new Ending(index, id, source, row));
+            } else if (row.validTo() != null) {
                 written(false, "/end", orgUnitService.end(id, row.validTo()));
             }
             return Outcome.CREATED;
@@ -171,7 +236,12 @@ final class OrgUnitImport {
                 changed = true;
             }
         }
-        if (row.validTo() != null && !row.validTo().equals(lastDay(id))) {
+        changed |= link(id, row.organizationAlias());
+        changed |= time(id, row);
+        if (succeeds) {
+            endings.add(new Ending(index, id, source, row));
+            changed |= lastDay(id) == null;
+        } else if (row.validTo() != null && !row.validTo().equals(lastDay(id))) {
             written(false, "/end", orgUnitService.end(id, row.validTo()));
             changed = true;
         }
@@ -190,6 +260,50 @@ final class OrgUnitImport {
             throw FuhitoException.invalid("import.id_mismatch", Map.of("id", row.id(), "externalId", row.externalId()));
         }
         return Optional.of(unit);
+    }
+
+    // A value that the row leaves out keeps the stored one. An empty text removes it.
+    private boolean time(String id, OrgUnitRow row) {
+        if (row.timeZone() == null && row.dayStart() == null) {
+            return false;
+        }
+        OrgUnit unit = orgUnits.findUnit(id).orElseThrow();
+        String zone = row.timeZone() == null ? unit.timeZone() : row.timeZone();
+        String start = row.dayStart() == null ? unit.dayStart() : row.dayStart();
+        if (Objects.equals(setting(zone), unit.timeZone()) && Objects.equals(setting(start), unit.dayStart())) {
+            return false;
+        }
+        OrgUnit changed = orgUnitService.setTime(id, zone, start);
+        report.write(new Write.OfTimeSettings(id, changed.timeZone(), changed.dayStart()));
+        return true;
+    }
+
+    private static String setting(String value) {
+        return value == null || value.isBlank() ? null : value.strip();
+    }
+
+    // A link decides who is a member of the organization, so the caller must manage the old and the new one.
+    private boolean link(String id, String alias) {
+        if (alias == null) {
+            return false;
+        }
+        String wanted = alias.isEmpty() ? null : organizations.directory().idOfAlias(alias).orElseThrow(
+                () -> FuhitoException.invalid("import.organization_unknown", Map.of("alias", alias)));
+        String current = organizations.links().organizationOf(id).orElse(null);
+        if (Objects.equals(current, wanted)) {
+            return false;
+        }
+        if (current != null) {
+            organizations.manage().accept(current);
+        }
+        if (wanted == null) {
+            organizations.links().unlink(id);
+        } else {
+            organizations.manage().accept(wanted);
+            organizations.links().link(id, wanted);
+        }
+        report.write(new Write.OfOrganizationLink(id, wanted));
+        return true;
     }
 
     private String lastDay(String id) {

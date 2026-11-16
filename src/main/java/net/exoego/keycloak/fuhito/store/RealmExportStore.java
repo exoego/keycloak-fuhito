@@ -231,10 +231,10 @@ public interface RealmExportStore {
     void restoreErasure(Erasure erasure);
 
     /**
-     * Erases again each person who has a record of an erase, and masks again each person who has a record of a
-     * mask. A restore does it last, so that an older export never brings their data back.
+     * Erases again each person who has a record of an erase. A restore does it last, so that an older export never
+     * brings their data back.
      */
-    void eraseAndMaskAgain();
+    void eraseAgain();
 
     /**
      * A person whose data was erased.
@@ -246,7 +246,7 @@ public interface RealmExportStore {
     }
 
     /**
-     * Stores the time when a person was masked, unless the realm has a record of a mask of the person already.
+     * Stores the time when a person was masked.
      *
      * @param personId the ID of the person
      * @param maskedAt the time

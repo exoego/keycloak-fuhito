@@ -1,8 +1,10 @@
 package net.exoego.keycloak.fuhito.jpa;
 
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 
 import jakarta.persistence.EntityManager;
 
@@ -15,6 +17,25 @@ import jakarta.persistence.EntityManager;
 public final class UserAttributeValues {
 
     private UserAttributeValues() {
+    }
+
+    /**
+     * Tells which IDs name users of a realm.
+     *
+     * @param em the entity manager of the transaction
+     * @param realmId the ID of the realm
+     * @param userIds the IDs to look for
+     * @return the IDs that name users
+     */
+    public static Set<String> usersAmong(EntityManager em, String realmId, Collection<String> userIds) {
+        if (userIds.isEmpty()) {
+            return Set.of();
+        }
+        return new HashSet<>(em.createQuery("""
+                        select u.id from UserEntity u where u.realmId = :realmId and u.id in :ids""", String.class)
+                .setParameter("realmId", realmId)
+                .setParameter("ids", userIds)
+                .getResultList());
     }
 
     /**

@@ -1,6 +1,8 @@
 package net.exoego.keycloak.fuhito.store;
 
+import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 
 /**
  * The user attributes that an identity provider fills, for example over SCIM, and the settings of the realm
@@ -62,4 +64,13 @@ public interface UserAttributeSource {
      * @return the values of each such user
      */
     List<Values> usersWithDepartment(Settings settings);
+
+    /**
+     * Tells which IDs name users of the realm in the tables of Keycloak, in one read.
+     * A user that only a user storage provider holds is not in them.
+     *
+     * @param userIds the IDs to look for
+     * @return the IDs that name users
+     */
+    Set<String> usersAmong(Collection<String> userIds);
 }

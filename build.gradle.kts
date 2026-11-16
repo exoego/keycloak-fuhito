@@ -108,6 +108,18 @@ val testKeycloakVersion = providers.gradleProperty("testKeycloakVersion")
     .filter { it.isNotBlank() }
     .orElse(libs.versions.keycloak)
 
+val schemaDiagram = layout.projectDirectory.file("docs/schema.md").asFile
+
+fun Test.runsTheProviderJar() {
+    // The tests run the jar, so a new jar must run them again.
+    inputs.files(tasks.jar)
+    systemProperty("keycloak.version", testKeycloakVersion.get())
+    systemProperty("provider.jar", tasks.jar.get().archiveFile.get().asFile.absolutePath)
+    systemProperty("schema.diagram", schemaDiagram.absolutePath)
+    // A hung container call must fail the build, not block it.
+    timeout.set(Duration.ofMinutes(15))
+}
+
 testing {
     suites {
         named<JvmTestSuite>("test") {
@@ -131,10 +143,8 @@ testing {
             }
             targets.all {
                 testTask.configure {
-                    // The tests run the jar, so a new jar must run them again.
-                    inputs.files(tasks.jar)
-                    systemProperty("keycloak.version", testKeycloakVersion.get())
-                    systemProperty("provider.jar", tasks.jar.get().archiveFile.get().asFile.absolutePath)
+                    runsTheProviderJar()
+                    inputs.file(schemaDiagram)
                     // The provider runs in the JVM of Keycloak, so the JaCoCo agent goes into that container.
                     val agent = jacocoContainerAgent
                     val coverageDir = layout.buildDirectory.dir("jacoco/keycloak")
@@ -152,8 +162,6 @@ testing {
                         systemProperty("jacoco.classes", loadedClasses.get().asFile.absolutePath)
                     }
                     shouldRunAfter(tasks.test)
-                    // A hung container call must fail the build, not block it.
-                    timeout.set(Duration.ofMinutes(15))
                 }
             }
         }
@@ -162,6 +170,21 @@ testing {
 
 tasks.check {
     dependsOn(testing.suites.named("integrationTest"))
+}
+
+// docs/schema.md is drawn from the tables that Liquibase creates in PostgreSQL. Run this after a change
+// to the changelog. The integration tests fail when the committed file is out of date.
+tasks.register<Test>("updateSchemaDiagram") {
+    val suite = testing.suites.named<JvmTestSuite>("integrationTest").get()
+    testClassesDirs = suite.sources.output.classesDirs
+    classpath = suite.sources.runtimeClasspath
+    useJUnitPlatform()
+    filter.includeTestsMatching("net.exoego.keycloak.fuhito.SchemaDiagramIT")
+    runsTheProviderJar()
+    systemProperty("schema.diagram.update", "true")
+    outputs.upToDateWhen { false }
+    // The coverage of this run says nothing, and the report would read it with the rest of build/jacoco.
+    extensions.configure<JacocoTaskExtension> { isEnabled = false }
 }
 
 // The javadoc jar goes to Maven Central, so a warning fails the build. check runs it, so a release does not find it first.

@@ -3,7 +3,9 @@
                    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
                    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.1.xsd">
 
-    <changeSet id="0.1.0-hierarchy" author="keycloak-fuhito">
+    <!-- From the first release on, a change of the schema is a new change set at the end, and a change set that a
+         database ran never changes. -->
+    <changeSet id="0.1.0-schema" author="keycloak-fuhito">
         <createTable tableName="FUHITO_HIERARCHY">
             <column name="ID" type="VARCHAR(36)">
                 <constraints primaryKey="true" primaryKeyName="PK_FUHITO_HIERARCHY" nullable="false"/>
@@ -20,8 +22,7 @@
         </createTable>
         <addUniqueConstraint tableName="FUHITO_HIERARCHY" columnNames="REALM_ID, CODE"
                              constraintName="UK_FUHITO_HIERARCHY_CODE"/>
-    </changeSet>
-    <changeSet id="0.1.0-ref-item" author="keycloak-fuhito">
+
         <createTable tableName="FUHITO_REF_ITEM">
             <column name="ID" type="VARCHAR(36)">
                 <constraints primaryKey="true" primaryKeyName="PK_FUHITO_REF_ITEM" nullable="false"/>
@@ -50,11 +51,63 @@
             <column name="ACTIVE" type="BOOLEAN" defaultValueBoolean="true">
                 <constraints nullable="false"/>
             </column>
+            <column name="LEGAL_ENTITY" type="BOOLEAN" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+            <column name="ACTING_HEAD" type="BOOLEAN" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+            <column name="GROUP_UNIT" type="BOOLEAN" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
         </createTable>
         <addUniqueConstraint tableName="FUHITO_REF_ITEM" columnNames="REALM_ID, KIND, CODE"
                              constraintName="UK_FUHITO_REF_ITEM_CODE"/>
-    </changeSet>
-    <changeSet id="0.1.0-org-unit" author="keycloak-fuhito">
+
+        <createTable tableName="FUHITO_REF_KIND">
+            <column name="ID" type="VARCHAR(36)">
+                <constraints primaryKey="true" primaryKeyName="PK_FUHITO_REF_KIND" nullable="false"/>
+            </column>
+            <column name="REALM_ID" type="VARCHAR(36)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="CODE" type="VARCHAR(32)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="NAME" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="NAMES_I18N" type="CLOB">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        <addUniqueConstraint tableName="FUHITO_REF_KIND" columnNames="REALM_ID, CODE"
+                             constraintName="UK_FUHITO_REF_KIND_CODE"/>
+
+        <createTable tableName="FUHITO_ATTRIBUTE_DEFINITION">
+            <column name="ID" type="VARCHAR(36)">
+                <constraints primaryKey="true" primaryKeyName="PK_FUHITO_ATTRIBUTE_DEFINITION" nullable="false"/>
+            </column>
+            <column name="REALM_ID" type="VARCHAR(36)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="TARGET" type="VARCHAR(32)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="NAME" type="VARCHAR(64)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="VALUE_TYPE" type="VARCHAR(16)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="REF_KIND" type="VARCHAR(32)"/>
+            <column name="REQUIRED" type="BOOLEAN" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        <addUniqueConstraint tableName="FUHITO_ATTRIBUTE_DEFINITION" columnNames="REALM_ID, TARGET, NAME"
+                             constraintName="UK_FUHITO_ATTRIBUTE_DEFINITION_NAME"/>
+
         <createTable tableName="FUHITO_ORG_UNIT">
             <column name="ID" type="VARCHAR(36)">
                 <constraints primaryKey="true" primaryKeyName="PK_FUHITO_ORG_UNIT" nullable="false"/>
@@ -62,15 +115,16 @@
             <column name="REALM_ID" type="VARCHAR(36)">
                 <constraints nullable="false"/>
             </column>
-            <column name="CODE" type="VARCHAR(64)"/>
             <column name="EXTERNAL_ID" type="VARCHAR(255)"/>
             <column name="SOURCE" type="VARCHAR(64)"/>
             <column name="KC_ORG_ID" type="VARCHAR(36)"/>
+            <column name="TIME_ZONE" type="VARCHAR(64)"/>
+            <column name="DAY_START" type="VARCHAR(5)"/>
         </createTable>
-        <addUniqueConstraint tableName="FUHITO_ORG_UNIT" columnNames="REALM_ID, CODE"
-                             constraintName="UK_FUHITO_ORG_UNIT_CODE"/>
         <addUniqueConstraint tableName="FUHITO_ORG_UNIT" columnNames="REALM_ID, SOURCE, EXTERNAL_ID"
                              constraintName="UK_FUHITO_ORG_UNIT_EXTERNAL"/>
+        <addUniqueConstraint tableName="FUHITO_ORG_UNIT" columnNames="REALM_ID, KC_ORG_ID"
+                             constraintName="UK_FUHITO_ORG_UNIT_KC_ORG"/>
 
         <createTable tableName="FUHITO_ORG_UNIT_VERSION">
             <column name="ID" type="VARCHAR(36)">
@@ -104,18 +158,24 @@
             <column name="ATTRIBUTES" type="CLOB">
                 <constraints nullable="false"/>
             </column>
+            <column name="CODE" type="VARCHAR(64)"/>
+            <column name="SEARCH_NAMES" type="CLOB"/>
         </createTable>
+        <addUniqueConstraint tableName="FUHITO_ORG_UNIT_VERSION" columnNames="ORG_UNIT_ID, VALID_FROM"
+                             constraintName="UK_FUHITO_ORG_UNIT_VERSION_FROM"/>
         <addForeignKeyConstraint baseTableName="FUHITO_ORG_UNIT_VERSION" baseColumnNames="ORG_UNIT_ID"
                                  referencedTableName="FUHITO_ORG_UNIT" referencedColumnNames="ID"
                                  constraintName="FK_FUHITO_ORG_UNIT_VERSION_UNIT"/>
         <addForeignKeyConstraint baseTableName="FUHITO_ORG_UNIT_VERSION" baseColumnNames="UNIT_TYPE_ID"
                                  referencedTableName="FUHITO_REF_ITEM" referencedColumnNames="ID"
                                  constraintName="FK_FUHITO_ORG_UNIT_VERSION_TYPE"/>
-        <addUniqueConstraint tableName="FUHITO_ORG_UNIT_VERSION" columnNames="ORG_UNIT_ID, VALID_FROM"
-                             constraintName="UK_FUHITO_ORG_UNIT_VERSION_FROM"/>
         <createIndex tableName="FUHITO_ORG_UNIT_VERSION" indexName="IDX_FUHITO_ORG_UNIT_VERSION_REALM">
             <column name="REALM_ID"/>
             <column name="VALID_FROM"/>
+        </createIndex>
+        <createIndex tableName="FUHITO_ORG_UNIT_VERSION" indexName="IDX_FUHITO_ORG_UNIT_VERSION_CODE">
+            <column name="REALM_ID"/>
+            <column name="CODE"/>
         </createIndex>
 
         <createTable tableName="FUHITO_ORG_UNIT_LINK">
@@ -139,6 +199,8 @@
             </column>
             <column name="VALID_TO" type="DATE"/>
         </createTable>
+        <addUniqueConstraint tableName="FUHITO_ORG_UNIT_LINK" columnNames="HIERARCHY_ID, CHILD_ID, VALID_FROM"
+                             constraintName="UK_FUHITO_ORG_UNIT_LINK_FROM"/>
         <addForeignKeyConstraint baseTableName="FUHITO_ORG_UNIT_LINK" baseColumnNames="HIERARCHY_ID"
                                  referencedTableName="FUHITO_HIERARCHY" referencedColumnNames="ID"
                                  constraintName="FK_FUHITO_ORG_UNIT_LINK_HIERARCHY"/>
@@ -148,41 +210,70 @@
         <addForeignKeyConstraint baseTableName="FUHITO_ORG_UNIT_LINK" baseColumnNames="PARENT_ID"
                                  referencedTableName="FUHITO_ORG_UNIT" referencedColumnNames="ID"
                                  constraintName="FK_FUHITO_ORG_UNIT_LINK_PARENT"/>
-        <addUniqueConstraint tableName="FUHITO_ORG_UNIT_LINK" columnNames="HIERARCHY_ID, CHILD_ID, VALID_FROM"
-                             constraintName="UK_FUHITO_ORG_UNIT_LINK_FROM"/>
         <createIndex tableName="FUHITO_ORG_UNIT_LINK" indexName="IDX_FUHITO_ORG_UNIT_LINK_PARENT">
             <column name="HIERARCHY_ID"/>
             <column name="PARENT_ID"/>
         </createIndex>
-    </changeSet>
-    <!-- The exclusion constraints below need btree_gist. A database user that may not create it keeps working.
-         The application checks the same rules, and these two change sets run again at the next start. -->
-    <changeSet id="0.1.0-btree-gist" author="keycloak-fuhito" dbms="postgresql" failOnError="false">
-        <sql>CREATE EXTENSION IF NOT EXISTS btree_gist</sql>
-    </changeSet>
 
-    <changeSet id="0.1.0-org-unit-no-overlap" author="keycloak-fuhito" dbms="postgresql">
-        <preConditions onFail="CONTINUE">
-            <sqlCheck expectedResult="1">SELECT count(*) FROM pg_extension WHERE extname = 'btree_gist'</sqlCheck>
-        </preConditions>
-        <sql>
-            ALTER TABLE FUHITO_ORG_UNIT_VERSION ADD CONSTRAINT EX_FUHITO_ORG_UNIT_VERSION_PERIOD
-            EXCLUDE USING gist (ORG_UNIT_ID WITH =, daterange(VALID_FROM, VALID_TO) WITH &amp;&amp;)
-        </sql>
-        <sql>
-            ALTER TABLE FUHITO_ORG_UNIT_LINK ADD CONSTRAINT EX_FUHITO_ORG_UNIT_LINK_PERIOD
-            EXCLUDE USING gist (HIERARCHY_ID WITH =, CHILD_ID WITH =, daterange(VALID_FROM, VALID_TO) WITH &amp;&amp;)
-        </sql>
-    </changeSet>
-    <changeSet id="0.1.0-employment" author="keycloak-fuhito">
+        <createTable tableName="FUHITO_ORG_UNIT_SUCCESSION">
+            <column name="ID" type="VARCHAR(36)">
+                <constraints primaryKey="true" primaryKeyName="PK_FUHITO_ORG_UNIT_SUCCESSION" nullable="false"/>
+            </column>
+            <column name="REALM_ID" type="VARCHAR(36)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="PREDECESSOR_ID" type="VARCHAR(36)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="SUCCESSOR_ID" type="VARCHAR(36)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="EFFECTIVE_DATE" type="DATE">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        <addUniqueConstraint tableName="FUHITO_ORG_UNIT_SUCCESSION" columnNames="PREDECESSOR_ID, SUCCESSOR_ID"
+                             constraintName="UK_FUHITO_ORG_UNIT_SUCCESSION"/>
+        <addForeignKeyConstraint baseTableName="FUHITO_ORG_UNIT_SUCCESSION" baseColumnNames="PREDECESSOR_ID"
+                                 referencedTableName="FUHITO_ORG_UNIT" referencedColumnNames="ID"
+                                 constraintName="FK_FUHITO_ORG_UNIT_SUCCESSION_PREDECESSOR"/>
+        <addForeignKeyConstraint baseTableName="FUHITO_ORG_UNIT_SUCCESSION" baseColumnNames="SUCCESSOR_ID"
+                                 referencedTableName="FUHITO_ORG_UNIT" referencedColumnNames="ID"
+                                 constraintName="FK_FUHITO_ORG_UNIT_SUCCESSION_SUCCESSOR"/>
+        <createIndex tableName="FUHITO_ORG_UNIT_SUCCESSION" indexName="IDX_FUHITO_ORG_UNIT_SUCCESSION_SUCCESSOR">
+            <column name="SUCCESSOR_ID"/>
+        </createIndex>
+
+        <createTable tableName="FUHITO_PERSON">
+            <column name="ID" type="VARCHAR(36)">
+                <constraints primaryKey="true" primaryKeyName="PK_FUHITO_PERSON" nullable="false"/>
+            </column>
+            <column name="REALM_ID" type="VARCHAR(36)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="USER_ID" type="VARCHAR(255)"/>
+            <column name="NAME" type="VARCHAR(255)"/>
+            <column name="NAMES_I18N" type="CLOB">
+                <constraints nullable="false"/>
+            </column>
+            <column name="PHONETIC_NAME" type="VARCHAR(255)"/>
+            <column name="ATTRIBUTES" type="CLOB">
+                <constraints nullable="false"/>
+            </column>
+            <column name="EXTERNAL_ID" type="VARCHAR(255)"/>
+            <column name="SOURCE" type="VARCHAR(64)"/>
+            <column name="SEARCH_NAMES" type="CLOB"/>
+        </createTable>
+        <addUniqueConstraint tableName="FUHITO_PERSON" columnNames="REALM_ID, USER_ID"
+                             constraintName="UK_FUHITO_PERSON_USER"/>
+        <addUniqueConstraint tableName="FUHITO_PERSON" columnNames="REALM_ID, SOURCE, EXTERNAL_ID"
+                             constraintName="UK_FUHITO_PERSON_EXTERNAL"/>
+
         <createTable tableName="FUHITO_EMPLOYMENT">
             <column name="ID" type="VARCHAR(36)">
                 <constraints primaryKey="true" primaryKeyName="PK_FUHITO_EMPLOYMENT" nullable="false"/>
             </column>
             <column name="REALM_ID" type="VARCHAR(36)">
-                <constraints nullable="false"/>
-            </column>
-            <column name="USER_ID" type="VARCHAR(255)">
                 <constraints nullable="false"/>
             </column>
             <column name="VALID_FROM" type="DATE">
@@ -193,19 +284,47 @@
             <column name="END_REASON_ID" type="VARCHAR(36)"/>
             <column name="EXTERNAL_ID" type="VARCHAR(255)"/>
             <column name="SOURCE" type="VARCHAR(64)"/>
+            <column name="PERSON_ID" type="VARCHAR(36)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="EMPLOYER_ID" type="VARCHAR(36)"/>
+            <column name="CONTINUES_EMPLOYMENT_ID" type="VARCHAR(36)"/>
         </createTable>
+        <addUniqueConstraint tableName="FUHITO_EMPLOYMENT" columnNames="REALM_ID, SOURCE, EXTERNAL_ID"
+                             constraintName="UK_FUHITO_EMPLOYMENT_EXTERNAL"/>
         <addForeignKeyConstraint baseTableName="FUHITO_EMPLOYMENT" baseColumnNames="END_REASON_ID"
                                  referencedTableName="FUHITO_REF_ITEM" referencedColumnNames="ID"
                                  constraintName="FK_FUHITO_EMPLOYMENT_END_REASON"/>
-        <addUniqueConstraint tableName="FUHITO_EMPLOYMENT" columnNames="REALM_ID, SOURCE, EXTERNAL_ID"
-                             constraintName="UK_FUHITO_EMPLOYMENT_EXTERNAL"/>
-        <createIndex tableName="FUHITO_EMPLOYMENT" indexName="IDX_FUHITO_EMPLOYMENT_USER">
-            <column name="REALM_ID"/>
-            <column name="USER_ID"/>
-        </createIndex>
+        <addForeignKeyConstraint baseTableName="FUHITO_EMPLOYMENT" baseColumnNames="PERSON_ID"
+                                 referencedTableName="FUHITO_PERSON" referencedColumnNames="ID"
+                                 constraintName="FK_FUHITO_EMPLOYMENT_PERSON"/>
+        <addForeignKeyConstraint baseTableName="FUHITO_EMPLOYMENT" baseColumnNames="EMPLOYER_ID"
+                                 referencedTableName="FUHITO_ORG_UNIT" referencedColumnNames="ID"
+                                 constraintName="FK_FUHITO_EMPLOYMENT_EMPLOYER"/>
+        <addForeignKeyConstraint baseTableName="FUHITO_EMPLOYMENT" baseColumnNames="CONTINUES_EMPLOYMENT_ID"
+                                 referencedTableName="FUHITO_EMPLOYMENT" referencedColumnNames="ID"
+                                 constraintName="FK_FUHITO_EMPLOYMENT_CONTINUES"/>
         <createIndex tableName="FUHITO_EMPLOYMENT" indexName="IDX_FUHITO_EMPLOYMENT_STAFF_NUMBER">
             <column name="REALM_ID"/>
             <column name="STAFF_NUMBER"/>
+        </createIndex>
+        <createIndex tableName="FUHITO_EMPLOYMENT" indexName="IDX_FUHITO_EMPLOYMENT_PERSON">
+            <column name="PERSON_ID"/>
+        </createIndex>
+        <createIndex tableName="FUHITO_EMPLOYMENT" indexName="IDX_FUHITO_EMPLOYMENT_EMPLOYER">
+            <column name="EMPLOYER_ID"/>
+        </createIndex>
+        <createIndex tableName="FUHITO_EMPLOYMENT" indexName="IDX_FUHITO_EMPLOYMENT_CONTINUES">
+            <column name="CONTINUES_EMPLOYMENT_ID"/>
+        </createIndex>
+        <!-- The read of what takes effect in a range of dates looks rows up by the realm and a date. -->
+        <createIndex tableName="FUHITO_EMPLOYMENT" indexName="IDX_FUHITO_EMPLOYMENT_FROM">
+            <column name="REALM_ID"/>
+            <column name="VALID_FROM"/>
+        </createIndex>
+        <createIndex tableName="FUHITO_EMPLOYMENT" indexName="IDX_FUHITO_EMPLOYMENT_TO">
+            <column name="REALM_ID"/>
+            <column name="VALID_TO"/>
         </createIndex>
 
         <createTable tableName="FUHITO_EMPLOYMENT_TERMS">
@@ -231,7 +350,10 @@
             <column name="ATTRIBUTES" type="CLOB">
                 <constraints nullable="false"/>
             </column>
+            <column name="LEAVE_REASON_ID" type="VARCHAR(36)"/>
         </createTable>
+        <addUniqueConstraint tableName="FUHITO_EMPLOYMENT_TERMS" columnNames="EMPLOYMENT_ID, VALID_FROM"
+                             constraintName="UK_FUHITO_EMPLOYMENT_TERMS_FROM"/>
         <addForeignKeyConstraint baseTableName="FUHITO_EMPLOYMENT_TERMS" baseColumnNames="EMPLOYMENT_ID"
                                  referencedTableName="FUHITO_EMPLOYMENT" referencedColumnNames="ID"
                                  constraintName="FK_FUHITO_EMPLOYMENT_TERMS_EMPLOYMENT"/>
@@ -241,20 +363,21 @@
         <addForeignKeyConstraint baseTableName="FUHITO_EMPLOYMENT_TERMS" baseColumnNames="GRADE_ID"
                                  referencedTableName="FUHITO_REF_ITEM" referencedColumnNames="ID"
                                  constraintName="FK_FUHITO_EMPLOYMENT_TERMS_GRADE"/>
-        <addUniqueConstraint tableName="FUHITO_EMPLOYMENT_TERMS" columnNames="EMPLOYMENT_ID, VALID_FROM"
-                             constraintName="UK_FUHITO_EMPLOYMENT_TERMS_FROM"/>
-    </changeSet>
+        <addForeignKeyConstraint baseTableName="FUHITO_EMPLOYMENT_TERMS" baseColumnNames="LEAVE_REASON_ID"
+                                 referencedTableName="FUHITO_REF_ITEM" referencedColumnNames="ID"
+                                 constraintName="FK_FUHITO_EMPLOYMENT_TERMS_LEAVE_REASON"/>
+        <!-- The read of what takes effect in a range of dates looks rows up by the realm and a date. -->
+        <createIndex tableName="FUHITO_EMPLOYMENT_TERMS" indexName="IDX_FUHITO_EMPLOYMENT_TERMS_FROM">
+            <column name="REALM_ID"/>
+            <column name="VALID_FROM"/>
+        </createIndex>
+        <createIndex tableName="FUHITO_EMPLOYMENT_TERMS" indexName="IDX_FUHITO_EMPLOYMENT_TERMS_TO">
+            <column name="REALM_ID"/>
+            <column name="VALID_TO"/>
+        </createIndex>
 
-    <changeSet id="0.1.0-employment-terms-no-overlap" author="keycloak-fuhito" dbms="postgresql">
-        <preConditions onFail="CONTINUE">
-            <sqlCheck expectedResult="1">SELECT count(*) FROM pg_extension WHERE extname = 'btree_gist'</sqlCheck>
-        </preConditions>
-        <sql>
-            ALTER TABLE FUHITO_EMPLOYMENT_TERMS ADD CONSTRAINT EX_FUHITO_EMPLOYMENT_TERMS_PERIOD
-            EXCLUDE USING gist (EMPLOYMENT_ID WITH =, daterange(VALID_FROM, VALID_TO) WITH &amp;&amp;)
-        </sql>
-    </changeSet>
-    <changeSet id="0.1.0-assignment" author="keycloak-fuhito">
+        <!-- CONTINUES_ASSIGNMENT_ID has no foreign key. The ID of an assignment is shared by its rows, so it is
+             not a key of the table. -->
         <createTable tableName="FUHITO_ASSIGNMENT">
             <column name="ID" type="VARCHAR(36)">
                 <constraints primaryKey="true" primaryKeyName="PK_FUHITO_ASSIGNMENT" nullable="false"/>
@@ -293,7 +416,10 @@
             </column>
             <column name="EXTERNAL_ID" type="VARCHAR(255)"/>
             <column name="SOURCE" type="VARCHAR(64)"/>
+            <column name="CONTINUES_ASSIGNMENT_ID" type="VARCHAR(36)"/>
         </createTable>
+        <addUniqueConstraint tableName="FUHITO_ASSIGNMENT" columnNames="ASSIGNMENT_ID, VALID_FROM"
+                             constraintName="UK_FUHITO_ASSIGNMENT_FROM"/>
         <addForeignKeyConstraint baseTableName="FUHITO_ASSIGNMENT" baseColumnNames="EMPLOYMENT_ID"
                                  referencedTableName="FUHITO_EMPLOYMENT" referencedColumnNames="ID"
                                  constraintName="FK_FUHITO_ASSIGNMENT_EMPLOYMENT"/>
@@ -309,8 +435,6 @@
         <addForeignKeyConstraint baseTableName="FUHITO_ASSIGNMENT" baseColumnNames="KIND_ID"
                                  referencedTableName="FUHITO_REF_ITEM" referencedColumnNames="ID"
                                  constraintName="FK_FUHITO_ASSIGNMENT_KIND"/>
-        <addUniqueConstraint tableName="FUHITO_ASSIGNMENT" columnNames="ASSIGNMENT_ID, VALID_FROM"
-                             constraintName="UK_FUHITO_ASSIGNMENT_FROM"/>
         <createIndex tableName="FUHITO_ASSIGNMENT" indexName="IDX_FUHITO_ASSIGNMENT_EMPLOYMENT">
             <column name="EMPLOYMENT_ID"/>
         </createIndex>
@@ -318,135 +442,16 @@
             <column name="ORG_UNIT_ID"/>
             <column name="VALID_FROM"/>
         </createIndex>
-    </changeSet>
+        <!-- The read of what takes effect in a range of dates looks rows up by the realm and a date. -->
+        <createIndex tableName="FUHITO_ASSIGNMENT" indexName="IDX_FUHITO_ASSIGNMENT_FROM">
+            <column name="REALM_ID"/>
+            <column name="VALID_FROM"/>
+        </createIndex>
+        <createIndex tableName="FUHITO_ASSIGNMENT" indexName="IDX_FUHITO_ASSIGNMENT_TO">
+            <column name="REALM_ID"/>
+            <column name="VALID_TO"/>
+        </createIndex>
 
-    <changeSet id="0.1.0-assignment-no-overlap" author="keycloak-fuhito" dbms="postgresql">
-        <preConditions onFail="CONTINUE">
-            <sqlCheck expectedResult="1">SELECT count(*) FROM pg_extension WHERE extname = 'btree_gist'</sqlCheck>
-        </preConditions>
-        <sql>
-            ALTER TABLE FUHITO_ASSIGNMENT ADD CONSTRAINT EX_FUHITO_ASSIGNMENT_PERIOD
-            EXCLUDE USING gist (ASSIGNMENT_ID WITH =, daterange(VALID_FROM, VALID_TO) WITH &amp;&amp;)
-        </sql>
-    </changeSet>
-    <changeSet id="0.1.0-assignment-one-primary" author="keycloak-fuhito" dbms="postgresql">
-        <preConditions onFail="CONTINUE">
-            <sqlCheck expectedResult="1">SELECT count(*) FROM pg_extension WHERE extname = 'btree_gist'</sqlCheck>
-        </preConditions>
-        <sql>
-            ALTER TABLE FUHITO_ASSIGNMENT ADD CONSTRAINT EX_FUHITO_ASSIGNMENT_PRIMARY
-            EXCLUDE USING gist (EMPLOYMENT_ID WITH =, daterange(VALID_FROM, VALID_TO) WITH &amp;&amp;)
-            WHERE (IS_PRIMARY)
-        </sql>
-    </changeSet>
-    <changeSet id="0.1.0-change-order" author="keycloak-fuhito">
-        <createTable tableName="FUHITO_CHANGE_ORDER">
-            <column name="ID" type="VARCHAR(36)">
-                <constraints primaryKey="true" primaryKeyName="PK_FUHITO_CHANGE_ORDER" nullable="false"/>
-            </column>
-            <column name="REALM_ID" type="VARCHAR(36)">
-                <constraints nullable="false"/>
-            </column>
-            <column name="ORDER_NUMBER" type="VARCHAR(64)"/>
-            <column name="KIND" type="VARCHAR(64)"/>
-            <column name="TITLE" type="VARCHAR(255)">
-                <constraints nullable="false"/>
-            </column>
-            <column name="NOTE" type="CLOB"/>
-            <column name="ORDER_DATE" type="DATE"/>
-            <column name="EFFECTIVE_DATE" type="DATE">
-                <constraints nullable="false"/>
-            </column>
-            <column name="APPROVER_USER_ID" type="VARCHAR(255)"/>
-            <column name="REQUESTER_USER_ID" type="VARCHAR(255)"/>
-            <column name="EXTERNAL_REFERENCE" type="VARCHAR(255)"/>
-            <column name="CREATED_AT" type="TIMESTAMP">
-                <constraints nullable="false"/>
-            </column>
-        </createTable>
-        <addUniqueConstraint tableName="FUHITO_CHANGE_ORDER" columnNames="REALM_ID, ORDER_NUMBER"
-                             constraintName="UK_FUHITO_CHANGE_ORDER_NUMBER"/>
-        <createIndex tableName="FUHITO_CHANGE_ORDER" indexName="IDX_FUHITO_CHANGE_ORDER_EFFECTIVE">
-            <column name="REALM_ID"/>
-            <column name="EFFECTIVE_DATE"/>
-        </createIndex>
-    </changeSet>
-    <changeSet id="0.1.0-change-log" author="keycloak-fuhito">
-        <createTable tableName="FUHITO_CHANGE_LOG">
-            <column name="ID" type="VARCHAR(36)">
-                <constraints primaryKey="true" primaryKeyName="PK_FUHITO_CHANGE_LOG" nullable="false"/>
-            </column>
-            <column name="REALM_ID" type="VARCHAR(36)">
-                <constraints nullable="false"/>
-            </column>
-            <column name="SEQUENCE_NUMBER" type="BIGINT" autoIncrement="true">
-                <constraints nullable="false" unique="true" uniqueConstraintName="UK_FUHITO_CHANGE_LOG_SEQUENCE"/>
-            </column>
-            <column name="RECORDED_AT" type="TIMESTAMP">
-                <constraints nullable="false"/>
-            </column>
-            <column name="ACTOR_USER_ID" type="VARCHAR(255)"/>
-            <column name="RESOURCE_TYPE" type="VARCHAR(64)">
-                <constraints nullable="false"/>
-            </column>
-            <column name="RESOURCE_ID" type="VARCHAR(36)">
-                <constraints nullable="false"/>
-            </column>
-            <column name="OPERATION" type="VARCHAR(16)">
-                <constraints nullable="false"/>
-            </column>
-            <column name="RESOURCE_PATH" type="VARCHAR(255)">
-                <constraints nullable="false"/>
-            </column>
-            <column name="CHANGE_ORDER_ID" type="VARCHAR(36)"/>
-            <column name="REPRESENTATION" type="CLOB"/>
-        </createTable>
-        <addForeignKeyConstraint baseTableName="FUHITO_CHANGE_LOG" baseColumnNames="CHANGE_ORDER_ID"
-                                 referencedTableName="FUHITO_CHANGE_ORDER" referencedColumnNames="ID"
-                                 constraintName="FK_FUHITO_CHANGE_LOG_ORDER"/>
-        <createIndex tableName="FUHITO_CHANGE_LOG" indexName="IDX_FUHITO_CHANGE_LOG_RESOURCE">
-            <column name="REALM_ID"/>
-            <column name="RESOURCE_TYPE"/>
-            <column name="RESOURCE_ID"/>
-        </createIndex>
-        <createIndex tableName="FUHITO_CHANGE_LOG" indexName="IDX_FUHITO_CHANGE_LOG_ORDER">
-            <column name="CHANGE_ORDER_ID"/>
-        </createIndex>
-    </changeSet>
-    <changeSet id="0.1.0-qualification" author="keycloak-fuhito">
-        <createTable tableName="FUHITO_QUALIFICATION">
-            <column name="ID" type="VARCHAR(36)">
-                <constraints primaryKey="true" primaryKeyName="PK_FUHITO_QUALIFICATION" nullable="false"/>
-            </column>
-            <column name="REALM_ID" type="VARCHAR(36)">
-                <constraints nullable="false"/>
-            </column>
-            <column name="USER_ID" type="VARCHAR(255)">
-                <constraints nullable="false"/>
-            </column>
-            <column name="KIND_ID" type="VARCHAR(36)">
-                <constraints nullable="false"/>
-            </column>
-            <column name="QUALIFICATION_NUMBER" type="VARCHAR(255)"/>
-            <column name="VALID_FROM" type="DATE">
-                <constraints nullable="false"/>
-            </column>
-            <column name="VALID_TO" type="DATE"/>
-            <column name="ATTRIBUTES" type="CLOB">
-                <constraints nullable="false"/>
-            </column>
-            <column name="EXTERNAL_ID" type="VARCHAR(255)"/>
-            <column name="SOURCE" type="VARCHAR(64)"/>
-        </createTable>
-        <addForeignKeyConstraint baseTableName="FUHITO_QUALIFICATION" baseColumnNames="KIND_ID"
-                                 referencedTableName="FUHITO_REF_ITEM" referencedColumnNames="ID"
-                                 constraintName="FK_FUHITO_QUALIFICATION_KIND"/>
-        <createIndex tableName="FUHITO_QUALIFICATION" indexName="IDX_FUHITO_QUALIFICATION_USER">
-            <column name="REALM_ID"/>
-            <column name="USER_ID"/>
-        </createIndex>
-    </changeSet>
-    <changeSet id="0.1.0-reporting-line" author="keycloak-fuhito">
         <createTable tableName="FUHITO_REPORTING_LINE">
             <column name="ID" type="VARCHAR(36)">
                 <constraints primaryKey="true" primaryKeyName="PK_FUHITO_REPORTING_LINE" nullable="false"/>
@@ -457,9 +462,6 @@
             <column name="ASSIGNMENT_ID" type="VARCHAR(36)">
                 <constraints nullable="false"/>
             </column>
-            <column name="MANAGER_USER_ID" type="VARCHAR(255)">
-                <constraints nullable="false"/>
-            </column>
             <column name="KIND" type="VARCHAR(16)">
                 <constraints nullable="false"/>
             </column>
@@ -467,283 +469,20 @@
                 <constraints nullable="false"/>
             </column>
             <column name="VALID_TO" type="DATE"/>
-        </createTable>
-        <createIndex tableName="FUHITO_REPORTING_LINE" indexName="IDX_FUHITO_REPORTING_LINE_ASSIGNMENT">
-            <column name="ASSIGNMENT_ID"/>
-        </createIndex>
-        <createIndex tableName="FUHITO_REPORTING_LINE" indexName="IDX_FUHITO_REPORTING_LINE_MANAGER">
-            <column name="REALM_ID"/>
-            <column name="MANAGER_USER_ID"/>
-        </createIndex>
-    </changeSet>
-    <changeSet id="0.1.0-org-unit-organization-unique" author="keycloak-fuhito">
-        <addUniqueConstraint tableName="FUHITO_ORG_UNIT" columnNames="REALM_ID, KC_ORG_ID"
-                             constraintName="UK_FUHITO_ORG_UNIT_KC_ORG"/>
-    </changeSet>
-    <changeSet id="0.1.0-user-mask" author="keycloak-fuhito">
-        <createTable tableName="FUHITO_USER_MASK">
-            <column name="ID" type="VARCHAR(36)">
-                <constraints primaryKey="true" primaryKeyName="PK_FUHITO_USER_MASK" nullable="false"/>
-            </column>
-            <column name="REALM_ID" type="VARCHAR(36)">
-                <constraints nullable="false"/>
-            </column>
-            <column name="USER_ID" type="VARCHAR(255)">
-                <constraints nullable="false"/>
-            </column>
-            <column name="MASKED_AT" type="TIMESTAMP">
+            <column name="MANAGER_PERSON_ID" type="VARCHAR(36)">
                 <constraints nullable="false"/>
             </column>
         </createTable>
-        <addUniqueConstraint tableName="FUHITO_USER_MASK" columnNames="REALM_ID, USER_ID"
-                             constraintName="UK_FUHITO_USER_MASK_USER"/>
-    </changeSet>
-    <changeSet id="0.1.0-org-unit-time-settings" author="keycloak-fuhito">
-        <addColumn tableName="FUHITO_ORG_UNIT">
-            <column name="TIME_ZONE" type="VARCHAR(64)"/>
-            <column name="DAY_START" type="VARCHAR(5)"/>
-        </addColumn>
-    </changeSet>
-    <changeSet id="0.1.0-person" author="keycloak-fuhito">
-        <createTable tableName="FUHITO_PERSON">
-            <column name="ID" type="VARCHAR(36)">
-                <constraints primaryKey="true" primaryKeyName="PK_FUHITO_PERSON" nullable="false"/>
-            </column>
-            <column name="REALM_ID" type="VARCHAR(36)">
-                <constraints nullable="false"/>
-            </column>
-            <column name="USER_ID" type="VARCHAR(255)"/>
-            <column name="NAME" type="VARCHAR(255)"/>
-            <column name="NAMES_I18N" type="CLOB">
-                <constraints nullable="false"/>
-            </column>
-            <column name="PHONETIC_NAME" type="VARCHAR(255)"/>
-            <column name="ATTRIBUTES" type="CLOB">
-                <constraints nullable="false"/>
-            </column>
-            <column name="EXTERNAL_ID" type="VARCHAR(255)"/>
-            <column name="SOURCE" type="VARCHAR(64)"/>
-        </createTable>
-        <addUniqueConstraint tableName="FUHITO_PERSON" columnNames="REALM_ID, USER_ID"
-                             constraintName="UK_FUHITO_PERSON_USER"/>
-        <addUniqueConstraint tableName="FUHITO_PERSON" columnNames="REALM_ID, SOURCE, EXTERNAL_ID"
-                             constraintName="UK_FUHITO_PERSON_EXTERNAL"/>
-    </changeSet>
-    <changeSet id="0.1.0-employment-person" author="keycloak-fuhito">
-        <addColumn tableName="FUHITO_EMPLOYMENT">
-            <column name="PERSON_ID" type="VARCHAR(36)"/>
-        </addColumn>
-        <!-- Every user with an employment gets a person. The person has no name of its own. -->
-        <sql dbms="postgresql">
-            INSERT INTO FUHITO_PERSON (ID, REALM_ID, USER_ID, NAMES_I18N, ATTRIBUTES)
-            SELECT gen_random_uuid(), e.REALM_ID, e.USER_ID, '{}', '{}'
-            FROM (SELECT DISTINCT REALM_ID, USER_ID FROM FUHITO_EMPLOYMENT) e
-            WHERE NOT EXISTS (SELECT 1 FROM FUHITO_PERSON p
-                              WHERE p.REALM_ID = e.REALM_ID AND p.USER_ID = e.USER_ID)
-        </sql>
-        <sql>
-            UPDATE FUHITO_EMPLOYMENT SET PERSON_ID = (SELECT p.ID FROM FUHITO_PERSON p
-                WHERE p.REALM_ID = FUHITO_EMPLOYMENT.REALM_ID AND p.USER_ID = FUHITO_EMPLOYMENT.USER_ID)
-        </sql>
-        <addNotNullConstraint tableName="FUHITO_EMPLOYMENT" columnName="PERSON_ID" columnDataType="VARCHAR(36)"/>
-        <addForeignKeyConstraint baseTableName="FUHITO_EMPLOYMENT" baseColumnNames="PERSON_ID"
-                                 referencedTableName="FUHITO_PERSON" referencedColumnNames="ID"
-                                 constraintName="FK_FUHITO_EMPLOYMENT_PERSON"/>
-        <createIndex tableName="FUHITO_EMPLOYMENT" indexName="IDX_FUHITO_EMPLOYMENT_PERSON">
-            <column name="PERSON_ID"/>
-        </createIndex>
-        <dropIndex tableName="FUHITO_EMPLOYMENT" indexName="IDX_FUHITO_EMPLOYMENT_USER"/>
-        <dropColumn tableName="FUHITO_EMPLOYMENT" columnName="USER_ID"/>
-    </changeSet>
-    <changeSet id="0.1.0-qualification-person" author="keycloak-fuhito">
-        <addColumn tableName="FUHITO_QUALIFICATION">
-            <column name="PERSON_ID" type="VARCHAR(36)"/>
-        </addColumn>
-        <!-- Every user with a qualification gets a person, unless the user has one. -->
-        <sql dbms="postgresql">
-            INSERT INTO FUHITO_PERSON (ID, REALM_ID, USER_ID, NAMES_I18N, ATTRIBUTES)
-            SELECT gen_random_uuid(), t.REALM_ID, t.USER_ID, '{}', '{}'
-            FROM (SELECT DISTINCT REALM_ID, USER_ID FROM FUHITO_QUALIFICATION) t
-            WHERE NOT EXISTS (SELECT 1 FROM FUHITO_PERSON p
-                              WHERE p.REALM_ID = t.REALM_ID AND p.USER_ID = t.USER_ID)
-        </sql>
-        <sql>
-            UPDATE FUHITO_QUALIFICATION SET PERSON_ID = (SELECT p.ID FROM FUHITO_PERSON p
-                WHERE p.REALM_ID = FUHITO_QUALIFICATION.REALM_ID AND p.USER_ID = FUHITO_QUALIFICATION.USER_ID)
-        </sql>
-        <addNotNullConstraint tableName="FUHITO_QUALIFICATION" columnName="PERSON_ID" columnDataType="VARCHAR(36)"/>
-        <addForeignKeyConstraint baseTableName="FUHITO_QUALIFICATION" baseColumnNames="PERSON_ID"
-                                 referencedTableName="FUHITO_PERSON" referencedColumnNames="ID"
-                                 constraintName="FK_FUHITO_QUALIFICATION_PERSON"/>
-        <createIndex tableName="FUHITO_QUALIFICATION" indexName="IDX_FUHITO_QUALIFICATION_PERSON">
-            <column name="PERSON_ID"/>
-        </createIndex>
-        <dropIndex tableName="FUHITO_QUALIFICATION" indexName="IDX_FUHITO_QUALIFICATION_USER"/>
-        <dropColumn tableName="FUHITO_QUALIFICATION" columnName="USER_ID"/>
-    </changeSet>
-    <changeSet id="0.1.0-reporting-line-manager-person" author="keycloak-fuhito">
-        <addColumn tableName="FUHITO_REPORTING_LINE">
-            <column name="MANAGER_PERSON_ID" type="VARCHAR(36)"/>
-        </addColumn>
-        <!-- Every user who is a manager gets a person, unless the user has one. -->
-        <sql dbms="postgresql">
-            INSERT INTO FUHITO_PERSON (ID, REALM_ID, USER_ID, NAMES_I18N, ATTRIBUTES)
-            SELECT gen_random_uuid(), t.REALM_ID, t.MANAGER_USER_ID, '{}', '{}'
-            FROM (SELECT DISTINCT REALM_ID, MANAGER_USER_ID FROM FUHITO_REPORTING_LINE) t
-            WHERE NOT EXISTS (SELECT 1 FROM FUHITO_PERSON p
-                              WHERE p.REALM_ID = t.REALM_ID AND p.USER_ID = t.MANAGER_USER_ID)
-        </sql>
-        <sql>
-            UPDATE FUHITO_REPORTING_LINE SET MANAGER_PERSON_ID = (SELECT p.ID FROM FUHITO_PERSON p
-                WHERE p.REALM_ID = FUHITO_REPORTING_LINE.REALM_ID
-                AND p.USER_ID = FUHITO_REPORTING_LINE.MANAGER_USER_ID)
-        </sql>
-        <addNotNullConstraint tableName="FUHITO_REPORTING_LINE" columnName="MANAGER_PERSON_ID"
-                              columnDataType="VARCHAR(36)"/>
         <addForeignKeyConstraint baseTableName="FUHITO_REPORTING_LINE" baseColumnNames="MANAGER_PERSON_ID"
                                  referencedTableName="FUHITO_PERSON" referencedColumnNames="ID"
                                  constraintName="FK_FUHITO_REPORTING_LINE_MANAGER"/>
+        <createIndex tableName="FUHITO_REPORTING_LINE" indexName="IDX_FUHITO_REPORTING_LINE_ASSIGNMENT">
+            <column name="ASSIGNMENT_ID"/>
+        </createIndex>
         <createIndex tableName="FUHITO_REPORTING_LINE" indexName="IDX_FUHITO_REPORTING_LINE_MANAGER_PERSON">
             <column name="MANAGER_PERSON_ID"/>
         </createIndex>
-        <dropIndex tableName="FUHITO_REPORTING_LINE" indexName="IDX_FUHITO_REPORTING_LINE_MANAGER"/>
-        <dropColumn tableName="FUHITO_REPORTING_LINE" columnName="MANAGER_USER_ID"/>
-    </changeSet>
-    <changeSet id="0.1.0-mask-person" author="keycloak-fuhito">
-        <addColumn tableName="FUHITO_USER_MASK">
-            <column name="PERSON_ID" type="VARCHAR(36)"/>
-        </addColumn>
-        <!-- A masked user with no data has no person yet. -->
-        <sql dbms="postgresql">
-            INSERT INTO FUHITO_PERSON (ID, REALM_ID, USER_ID, NAMES_I18N, ATTRIBUTES)
-            SELECT gen_random_uuid(), t.REALM_ID, t.USER_ID, '{}', '{}'
-            FROM (SELECT DISTINCT REALM_ID, USER_ID FROM FUHITO_USER_MASK) t
-            WHERE NOT EXISTS (SELECT 1 FROM FUHITO_PERSON p
-                              WHERE p.REALM_ID = t.REALM_ID AND p.USER_ID = t.USER_ID)
-        </sql>
-        <sql>
-            UPDATE FUHITO_USER_MASK SET PERSON_ID = (SELECT p.ID FROM FUHITO_PERSON p
-                WHERE p.REALM_ID = FUHITO_USER_MASK.REALM_ID AND p.USER_ID = FUHITO_USER_MASK.USER_ID)
-        </sql>
-        <addNotNullConstraint tableName="FUHITO_USER_MASK" columnName="PERSON_ID" columnDataType="VARCHAR(36)"/>
-        <dropUniqueConstraint tableName="FUHITO_USER_MASK" constraintName="UK_FUHITO_USER_MASK_USER"/>
-        <dropColumn tableName="FUHITO_USER_MASK" columnName="USER_ID"/>
-        <addUniqueConstraint tableName="FUHITO_USER_MASK" columnNames="REALM_ID, PERSON_ID"
-                             constraintName="UK_FUHITO_USER_MASK_PERSON"/>
-    </changeSet>
-    <changeSet id="0.1.0-change-log-realm-sequence" author="keycloak-fuhito">
-        <createTable tableName="FUHITO_CHANGE_LOG_COUNTER">
-            <column name="REALM_ID" type="VARCHAR(36)">
-                <constraints primaryKey="true" primaryKeyName="PK_FUHITO_CHANGE_LOG_COUNTER" nullable="false"/>
-            </column>
-            <column name="LAST_SEQUENCE" type="BIGINT">
-                <constraints nullable="false"/>
-            </column>
-        </createTable>
-        <addColumn tableName="FUHITO_CHANGE_LOG">
-            <column name="REALM_SEQUENCE" type="BIGINT"/>
-        </addColumn>
-        <!-- The entries of each realm keep their order and get the numbers from 1. -->
-        <sql>
-            UPDATE FUHITO_CHANGE_LOG SET REALM_SEQUENCE = (SELECT COUNT(*) FROM FUHITO_CHANGE_LOG o
-                WHERE o.REALM_ID = FUHITO_CHANGE_LOG.REALM_ID
-                AND o.SEQUENCE_NUMBER &lt;= FUHITO_CHANGE_LOG.SEQUENCE_NUMBER)
-        </sql>
-        <sql>
-            INSERT INTO FUHITO_CHANGE_LOG_COUNTER (REALM_ID, LAST_SEQUENCE)
-            SELECT REALM_ID, MAX(REALM_SEQUENCE) FROM FUHITO_CHANGE_LOG GROUP BY REALM_ID
-        </sql>
-        <dropUniqueConstraint tableName="FUHITO_CHANGE_LOG" constraintName="UK_FUHITO_CHANGE_LOG_SEQUENCE"/>
-        <dropColumn tableName="FUHITO_CHANGE_LOG" columnName="SEQUENCE_NUMBER"/>
-        <renameColumn tableName="FUHITO_CHANGE_LOG" oldColumnName="REALM_SEQUENCE" newColumnName="SEQUENCE_NUMBER"
-                      columnDataType="BIGINT"/>
-        <addNotNullConstraint tableName="FUHITO_CHANGE_LOG" columnName="SEQUENCE_NUMBER" columnDataType="BIGINT"/>
-        <addUniqueConstraint tableName="FUHITO_CHANGE_LOG" columnNames="REALM_ID, SEQUENCE_NUMBER"
-                             constraintName="UK_FUHITO_CHANGE_LOG_REALM_SEQUENCE"/>
-    </changeSet>
-    <changeSet id="0.1.0-ref-item-legal-entity" author="keycloak-fuhito">
-        <addColumn tableName="FUHITO_REF_ITEM">
-            <column name="LEGAL_ENTITY" type="BOOLEAN" defaultValueBoolean="false">
-                <constraints nullable="false"/>
-            </column>
-        </addColumn>
-    </changeSet>
-    <changeSet id="0.1.0-employment-employer" author="keycloak-fuhito">
-        <!-- An employment that was stored before this column has no employer. Every new one has. -->
-        <addColumn tableName="FUHITO_EMPLOYMENT">
-            <column name="EMPLOYER_ID" type="VARCHAR(36)"/>
-        </addColumn>
-        <addForeignKeyConstraint baseTableName="FUHITO_EMPLOYMENT" baseColumnNames="EMPLOYER_ID"
-                                 referencedTableName="FUHITO_ORG_UNIT" referencedColumnNames="ID"
-                                 constraintName="FK_FUHITO_EMPLOYMENT_EMPLOYER"/>
-        <createIndex tableName="FUHITO_EMPLOYMENT" indexName="IDX_FUHITO_EMPLOYMENT_EMPLOYER">
-            <column name="EMPLOYER_ID"/>
-        </createIndex>
-    </changeSet>
-    <changeSet id="0.1.0-employment-continues" author="keycloak-fuhito">
-        <addColumn tableName="FUHITO_EMPLOYMENT">
-            <column name="CONTINUES_EMPLOYMENT_ID" type="VARCHAR(36)"/>
-        </addColumn>
-        <addForeignKeyConstraint baseTableName="FUHITO_EMPLOYMENT" baseColumnNames="CONTINUES_EMPLOYMENT_ID"
-                                 referencedTableName="FUHITO_EMPLOYMENT" referencedColumnNames="ID"
-                                 constraintName="FK_FUHITO_EMPLOYMENT_CONTINUES"/>
-        <createIndex tableName="FUHITO_EMPLOYMENT" indexName="IDX_FUHITO_EMPLOYMENT_CONTINUES">
-            <column name="CONTINUES_EMPLOYMENT_ID"/>
-        </createIndex>
-    </changeSet>
-    <changeSet id="0.1.0-assignment-continues" author="keycloak-fuhito">
-        <!-- No foreign key. The ID of an assignment is shared by its rows, so it is not a key of the table. -->
-        <addColumn tableName="FUHITO_ASSIGNMENT">
-            <column name="CONTINUES_ASSIGNMENT_ID" type="VARCHAR(36)"/>
-        </addColumn>
-    </changeSet>
-    <changeSet id="0.1.0-change-order-announced" author="keycloak-fuhito">
-        <addColumn tableName="FUHITO_CHANGE_ORDER">
-            <column name="ANNOUNCED_AT" type="TIMESTAMP"/>
-            <column name="ANNOUNCED_BY_USER_ID" type="VARCHAR(255)"/>
-        </addColumn>
-    </changeSet>
-    <changeSet id="0.1.0-org-unit-own-time-index" author="keycloak-fuhito" dbms="postgresql">
-        <!-- Almost every read asks whether a unit sets its own time. Most realms have no such unit. -->
-        <sql>
-            CREATE INDEX IDX_FUHITO_ORG_UNIT_OWN_TIME ON FUHITO_ORG_UNIT (REALM_ID)
-            WHERE TIME_ZONE IS NOT NULL OR DAY_START IS NOT NULL
-        </sql>
-    </changeSet>
-    <changeSet id="0.1.0-date-indexes" author="keycloak-fuhito">
         <!-- The read of what takes effect in a range of dates looks rows up by the realm and a date. -->
-        <createIndex tableName="FUHITO_EMPLOYMENT" indexName="IDX_FUHITO_EMPLOYMENT_FROM">
-            <column name="REALM_ID"/>
-            <column name="VALID_FROM"/>
-        </createIndex>
-        <createIndex tableName="FUHITO_EMPLOYMENT" indexName="IDX_FUHITO_EMPLOYMENT_TO">
-            <column name="REALM_ID"/>
-            <column name="VALID_TO"/>
-        </createIndex>
-        <createIndex tableName="FUHITO_EMPLOYMENT_TERMS" indexName="IDX_FUHITO_EMPLOYMENT_TERMS_FROM">
-            <column name="REALM_ID"/>
-            <column name="VALID_FROM"/>
-        </createIndex>
-        <createIndex tableName="FUHITO_EMPLOYMENT_TERMS" indexName="IDX_FUHITO_EMPLOYMENT_TERMS_TO">
-            <column name="REALM_ID"/>
-            <column name="VALID_TO"/>
-        </createIndex>
-        <createIndex tableName="FUHITO_ASSIGNMENT" indexName="IDX_FUHITO_ASSIGNMENT_FROM">
-            <column name="REALM_ID"/>
-            <column name="VALID_FROM"/>
-        </createIndex>
-        <createIndex tableName="FUHITO_ASSIGNMENT" indexName="IDX_FUHITO_ASSIGNMENT_TO">
-            <column name="REALM_ID"/>
-            <column name="VALID_TO"/>
-        </createIndex>
-        <createIndex tableName="FUHITO_QUALIFICATION" indexName="IDX_FUHITO_QUALIFICATION_FROM">
-            <column name="REALM_ID"/>
-            <column name="VALID_FROM"/>
-        </createIndex>
-        <createIndex tableName="FUHITO_QUALIFICATION" indexName="IDX_FUHITO_QUALIFICATION_TO">
-            <column name="REALM_ID"/>
-            <column name="VALID_TO"/>
-        </createIndex>
         <createIndex tableName="FUHITO_REPORTING_LINE" indexName="IDX_FUHITO_REPORTING_LINE_FROM">
             <column name="REALM_ID"/>
             <column name="VALID_FROM"/>
@@ -752,98 +491,7 @@
             <column name="REALM_ID"/>
             <column name="VALID_TO"/>
         </createIndex>
-    </changeSet>
-    <changeSet id="0.1.0-tree-walk-indexes" author="keycloak-fuhito">
-        <!-- A walk in the tree looks up one version and one link for each org unit. The exclusion constraints
-             can serve as indexes for that, but they are slow for it, and they are missing without btree_gist. -->
-        <createIndex tableName="FUHITO_ORG_UNIT_VERSION" indexName="IDX_FUHITO_ORG_UNIT_VERSION_UNIT">
-            <column name="ORG_UNIT_ID"/>
-            <column name="VALID_FROM"/>
-        </createIndex>
-        <createIndex tableName="FUHITO_ORG_UNIT_LINK" indexName="IDX_FUHITO_ORG_UNIT_LINK_CHILD">
-            <column name="HIERARCHY_ID"/>
-            <column name="CHILD_ID"/>
-            <column name="VALID_FROM"/>
-        </createIndex>
-    </changeSet>
-    <changeSet id="0.1.0-org-unit-succession" author="keycloak-fuhito">
-        <createTable tableName="FUHITO_ORG_UNIT_SUCCESSION">
-            <column name="ID" type="VARCHAR(36)">
-                <constraints primaryKey="true" primaryKeyName="PK_FUHITO_ORG_UNIT_SUCCESSION" nullable="false"/>
-            </column>
-            <column name="REALM_ID" type="VARCHAR(36)">
-                <constraints nullable="false"/>
-            </column>
-            <column name="PREDECESSOR_ID" type="VARCHAR(36)">
-                <constraints nullable="false"/>
-            </column>
-            <column name="SUCCESSOR_ID" type="VARCHAR(36)">
-                <constraints nullable="false"/>
-            </column>
-            <column name="EFFECTIVE_DATE" type="DATE">
-                <constraints nullable="false"/>
-            </column>
-        </createTable>
-        <addForeignKeyConstraint baseTableName="FUHITO_ORG_UNIT_SUCCESSION" baseColumnNames="PREDECESSOR_ID"
-                                 referencedTableName="FUHITO_ORG_UNIT" referencedColumnNames="ID"
-                                 constraintName="FK_FUHITO_ORG_UNIT_SUCCESSION_PREDECESSOR"/>
-        <addForeignKeyConstraint baseTableName="FUHITO_ORG_UNIT_SUCCESSION" baseColumnNames="SUCCESSOR_ID"
-                                 referencedTableName="FUHITO_ORG_UNIT" referencedColumnNames="ID"
-                                 constraintName="FK_FUHITO_ORG_UNIT_SUCCESSION_SUCCESSOR"/>
-        <addUniqueConstraint tableName="FUHITO_ORG_UNIT_SUCCESSION" columnNames="PREDECESSOR_ID, SUCCESSOR_ID"
-                             constraintName="UK_FUHITO_ORG_UNIT_SUCCESSION"/>
-        <createIndex tableName="FUHITO_ORG_UNIT_SUCCESSION" indexName="IDX_FUHITO_ORG_UNIT_SUCCESSION_SUCCESSOR">
-            <column name="SUCCESSOR_ID"/>
-        </createIndex>
-    </changeSet>
-    <changeSet id="0.1.0-employment-leave-reason" author="keycloak-fuhito">
-        <addColumn tableName="FUHITO_EMPLOYMENT_TERMS">
-            <column name="LEAVE_REASON_ID" type="VARCHAR(36)"/>
-        </addColumn>
-        <addForeignKeyConstraint baseTableName="FUHITO_EMPLOYMENT_TERMS" baseColumnNames="LEAVE_REASON_ID"
-                                 referencedTableName="FUHITO_REF_ITEM" referencedColumnNames="ID"
-                                 constraintName="FK_FUHITO_EMPLOYMENT_TERMS_LEAVE_REASON"/>
-    </changeSet>
-    <changeSet id="0.1.0-ref-item-acting-head" author="keycloak-fuhito">
-        <addColumn tableName="FUHITO_REF_ITEM">
-            <column name="ACTING_HEAD" type="BOOLEAN" defaultValueBoolean="false">
-                <constraints nullable="false"/>
-            </column>
-        </addColumn>
-    </changeSet>
-    <changeSet id="0.1.0-ref-item-group" author="keycloak-fuhito">
-        <addColumn tableName="FUHITO_REF_ITEM">
-            <column name="GROUP_UNIT" type="BOOLEAN" defaultValueBoolean="false">
-                <constraints nullable="false"/>
-            </column>
-        </addColumn>
-    </changeSet>
-    <changeSet id="0.1.0-org-unit-dated-code" author="keycloak-fuhito">
-        <addColumn tableName="FUHITO_ORG_UNIT_VERSION">
-            <column name="CODE" type="VARCHAR(64)"/>
-        </addColumn>
-        <sql>
-            UPDATE FUHITO_ORG_UNIT_VERSION SET CODE =
-            (SELECT u.CODE FROM FUHITO_ORG_UNIT u WHERE u.ID = FUHITO_ORG_UNIT_VERSION.ORG_UNIT_ID)
-        </sql>
-        <dropUniqueConstraint tableName="FUHITO_ORG_UNIT" constraintName="UK_FUHITO_ORG_UNIT_CODE"/>
-        <dropColumn tableName="FUHITO_ORG_UNIT" columnName="CODE"/>
-        <createIndex tableName="FUHITO_ORG_UNIT_VERSION" indexName="IDX_FUHITO_ORG_UNIT_VERSION_CODE">
-            <column name="REALM_ID"/>
-            <column name="CODE"/>
-        </createIndex>
-    </changeSet>
-    <changeSet id="0.1.0-org-unit-code-no-overlap" author="keycloak-fuhito" dbms="postgresql">
-        <preConditions onFail="CONTINUE">
-            <sqlCheck expectedResult="1">SELECT count(*) FROM pg_extension WHERE extname = 'btree_gist'</sqlCheck>
-        </preConditions>
-        <sql>
-            ALTER TABLE FUHITO_ORG_UNIT_VERSION ADD CONSTRAINT EX_FUHITO_ORG_UNIT_VERSION_CODE
-            EXCLUDE USING gist (REALM_ID WITH =, CODE WITH =, daterange(VALID_FROM, VALID_TO) WITH &amp;&amp;)
-            WHERE (CODE IS NOT NULL)
-        </sql>
-    </changeSet>
-    <changeSet id="0.1.0-unit-role" author="keycloak-fuhito">
+
         <createTable tableName="FUHITO_UNIT_ROLE">
             <column name="ID" type="VARCHAR(36)">
                 <constraints primaryKey="true" primaryKeyName="PK_FUHITO_UNIT_ROLE" nullable="false"/>
@@ -883,43 +531,135 @@
         <createIndex tableName="FUHITO_UNIT_ROLE" indexName="IDX_FUHITO_UNIT_ROLE_ORG_UNIT">
             <column name="ORG_UNIT_ID"/>
         </createIndex>
-    </changeSet>
-    <changeSet id="0.1.0-unit-role-no-overlap" author="keycloak-fuhito" dbms="postgresql">
-        <preConditions onFail="CONTINUE">
-            <sqlCheck expectedResult="1">SELECT count(*) FROM pg_extension WHERE extname = 'btree_gist'</sqlCheck>
-        </preConditions>
-        <sql>
-            ALTER TABLE FUHITO_UNIT_ROLE ADD CONSTRAINT EX_FUHITO_UNIT_ROLE_PERIOD
-            EXCLUDE USING gist (EMPLOYMENT_ID WITH =, ORG_UNIT_ID WITH =, ROLE_ID WITH =,
-            daterange(VALID_FROM, VALID_TO) WITH &amp;&amp;)
-        </sql>
-    </changeSet>
-    <changeSet id="0.1.0-attribute-definition" author="keycloak-fuhito">
-        <createTable tableName="FUHITO_ATTRIBUTE_DEFINITION">
+
+        <createTable tableName="FUHITO_QUALIFICATION">
             <column name="ID" type="VARCHAR(36)">
-                <constraints primaryKey="true" primaryKeyName="PK_FUHITO_ATTRIBUTE_DEFINITION" nullable="false"/>
+                <constraints primaryKey="true" primaryKeyName="PK_FUHITO_QUALIFICATION" nullable="false"/>
             </column>
             <column name="REALM_ID" type="VARCHAR(36)">
                 <constraints nullable="false"/>
             </column>
-            <column name="TARGET" type="VARCHAR(32)">
+            <column name="KIND_ID" type="VARCHAR(36)">
                 <constraints nullable="false"/>
             </column>
-            <column name="NAME" type="VARCHAR(64)">
+            <column name="QUALIFICATION_NUMBER" type="VARCHAR(255)"/>
+            <column name="VALID_FROM" type="DATE">
                 <constraints nullable="false"/>
             </column>
-            <column name="VALUE_TYPE" type="VARCHAR(16)">
+            <column name="VALID_TO" type="DATE"/>
+            <column name="ATTRIBUTES" type="CLOB">
                 <constraints nullable="false"/>
             </column>
-            <column name="REF_KIND" type="VARCHAR(32)"/>
-            <column name="REQUIRED" type="BOOLEAN" defaultValueBoolean="false">
+            <column name="EXTERNAL_ID" type="VARCHAR(255)"/>
+            <column name="SOURCE" type="VARCHAR(64)"/>
+            <column name="PERSON_ID" type="VARCHAR(36)">
                 <constraints nullable="false"/>
             </column>
         </createTable>
-        <addUniqueConstraint tableName="FUHITO_ATTRIBUTE_DEFINITION" columnNames="REALM_ID, TARGET, NAME"
-                             constraintName="UK_FUHITO_ATTRIBUTE_DEFINITION_NAME"/>
-    </changeSet>
-    <changeSet id="0.1.0-external-id" author="keycloak-fuhito">
+        <addForeignKeyConstraint baseTableName="FUHITO_QUALIFICATION" baseColumnNames="KIND_ID"
+                                 referencedTableName="FUHITO_REF_ITEM" referencedColumnNames="ID"
+                                 constraintName="FK_FUHITO_QUALIFICATION_KIND"/>
+        <addForeignKeyConstraint baseTableName="FUHITO_QUALIFICATION" baseColumnNames="PERSON_ID"
+                                 referencedTableName="FUHITO_PERSON" referencedColumnNames="ID"
+                                 constraintName="FK_FUHITO_QUALIFICATION_PERSON"/>
+        <createIndex tableName="FUHITO_QUALIFICATION" indexName="IDX_FUHITO_QUALIFICATION_PERSON">
+            <column name="PERSON_ID"/>
+        </createIndex>
+        <!-- The read of what takes effect in a range of dates looks rows up by the realm and a date. -->
+        <createIndex tableName="FUHITO_QUALIFICATION" indexName="IDX_FUHITO_QUALIFICATION_FROM">
+            <column name="REALM_ID"/>
+            <column name="VALID_FROM"/>
+        </createIndex>
+        <createIndex tableName="FUHITO_QUALIFICATION" indexName="IDX_FUHITO_QUALIFICATION_TO">
+            <column name="REALM_ID"/>
+            <column name="VALID_TO"/>
+        </createIndex>
+
+        <createTable tableName="FUHITO_CHANGE_ORDER">
+            <column name="ID" type="VARCHAR(36)">
+                <constraints primaryKey="true" primaryKeyName="PK_FUHITO_CHANGE_ORDER" nullable="false"/>
+            </column>
+            <column name="REALM_ID" type="VARCHAR(36)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="ORDER_NUMBER" type="VARCHAR(64)"/>
+            <column name="KIND" type="VARCHAR(64)"/>
+            <column name="TITLE" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="NOTE" type="CLOB"/>
+            <column name="ORDER_DATE" type="DATE"/>
+            <column name="EFFECTIVE_DATE" type="DATE">
+                <constraints nullable="false"/>
+            </column>
+            <column name="APPROVER_USER_ID" type="VARCHAR(255)"/>
+            <column name="REQUESTER_USER_ID" type="VARCHAR(255)"/>
+            <column name="EXTERNAL_REFERENCE" type="VARCHAR(255)"/>
+            <column name="CREATED_AT" type="TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="ANNOUNCED_AT" type="TIMESTAMP"/>
+            <column name="ANNOUNCED_BY_USER_ID" type="VARCHAR(255)"/>
+        </createTable>
+        <addUniqueConstraint tableName="FUHITO_CHANGE_ORDER" columnNames="REALM_ID, ORDER_NUMBER"
+                             constraintName="UK_FUHITO_CHANGE_ORDER_NUMBER"/>
+        <createIndex tableName="FUHITO_CHANGE_ORDER" indexName="IDX_FUHITO_CHANGE_ORDER_EFFECTIVE">
+            <column name="REALM_ID"/>
+            <column name="EFFECTIVE_DATE"/>
+        </createIndex>
+
+        <createTable tableName="FUHITO_CHANGE_LOG">
+            <column name="ID" type="VARCHAR(36)">
+                <constraints primaryKey="true" primaryKeyName="PK_FUHITO_CHANGE_LOG" nullable="false"/>
+            </column>
+            <column name="REALM_ID" type="VARCHAR(36)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="RECORDED_AT" type="TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="ACTOR_USER_ID" type="VARCHAR(255)"/>
+            <column name="RESOURCE_TYPE" type="VARCHAR(64)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="RESOURCE_ID" type="VARCHAR(36)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="OPERATION" type="VARCHAR(16)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="RESOURCE_PATH" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="CHANGE_ORDER_ID" type="VARCHAR(36)"/>
+            <column name="REPRESENTATION" type="CLOB"/>
+            <column name="SEQUENCE_NUMBER" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        <addUniqueConstraint tableName="FUHITO_CHANGE_LOG" columnNames="REALM_ID, SEQUENCE_NUMBER"
+                             constraintName="UK_FUHITO_CHANGE_LOG_REALM_SEQUENCE"/>
+        <addForeignKeyConstraint baseTableName="FUHITO_CHANGE_LOG" baseColumnNames="CHANGE_ORDER_ID"
+                                 referencedTableName="FUHITO_CHANGE_ORDER" referencedColumnNames="ID"
+                                 constraintName="FK_FUHITO_CHANGE_LOG_ORDER"/>
+        <createIndex tableName="FUHITO_CHANGE_LOG" indexName="IDX_FUHITO_CHANGE_LOG_RESOURCE">
+            <column name="REALM_ID"/>
+            <column name="RESOURCE_TYPE"/>
+            <column name="RESOURCE_ID"/>
+        </createIndex>
+        <createIndex tableName="FUHITO_CHANGE_LOG" indexName="IDX_FUHITO_CHANGE_LOG_ORDER">
+            <column name="CHANGE_ORDER_ID"/>
+        </createIndex>
+
+        <createTable tableName="FUHITO_CHANGE_LOG_COUNTER">
+            <column name="REALM_ID" type="VARCHAR(36)">
+                <constraints primaryKey="true" primaryKeyName="PK_FUHITO_CHANGE_LOG_COUNTER" nullable="false"/>
+            </column>
+            <column name="LAST_SEQUENCE" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
         <createTable tableName="FUHITO_EXTERNAL_ID">
             <column name="ID" type="VARCHAR(36)">
                 <constraints primaryKey="true" primaryKeyName="PK_FUHITO_EXTERNAL_ID" nullable="false"/>
@@ -944,8 +684,7 @@
                              constraintName="UK_FUHITO_EXTERNAL_ID_VALUE"/>
         <addUniqueConstraint tableName="FUHITO_EXTERNAL_ID" columnNames="REALM_ID, RESOURCE_KIND, RESOURCE_ID, SOURCE"
                              constraintName="UK_FUHITO_EXTERNAL_ID_SOURCE"/>
-    </changeSet>
-    <changeSet id="0.1.0-idempotency-key" author="keycloak-fuhito">
+
         <createTable tableName="FUHITO_IDEMPOTENCY_KEY">
             <column name="ID" type="VARCHAR(36)">
                 <constraints primaryKey="true" primaryKeyName="PK_FUHITO_IDEMPOTENCY_KEY" nullable="false"/>
@@ -977,29 +716,7 @@
             <column name="REALM_ID"/>
             <column name="CREATED_AT"/>
         </createIndex>
-    </changeSet>
-    <changeSet id="0.1.0-ref-kind" author="keycloak-fuhito">
-        <createTable tableName="FUHITO_REF_KIND">
-            <column name="ID" type="VARCHAR(36)">
-                <constraints primaryKey="true" primaryKeyName="PK_FUHITO_REF_KIND" nullable="false"/>
-            </column>
-            <column name="REALM_ID" type="VARCHAR(36)">
-                <constraints nullable="false"/>
-            </column>
-            <column name="CODE" type="VARCHAR(32)">
-                <constraints nullable="false"/>
-            </column>
-            <column name="NAME" type="VARCHAR(255)">
-                <constraints nullable="false"/>
-            </column>
-            <column name="NAMES_I18N" type="CLOB">
-                <constraints nullable="false"/>
-            </column>
-        </createTable>
-        <addUniqueConstraint tableName="FUHITO_REF_KIND" columnNames="REALM_ID, CODE"
-                             constraintName="UK_FUHITO_REF_KIND_CODE"/>
-    </changeSet>
-    <changeSet id="0.1.0-job-run" author="keycloak-fuhito">
+
         <createTable tableName="FUHITO_JOB_RUN">
             <column name="ID" type="VARCHAR(36)">
                 <constraints primaryKey="true" primaryKeyName="PK_FUHITO_JOB_RUN" nullable="false"/>
@@ -1022,41 +739,24 @@
         </createTable>
         <addUniqueConstraint tableName="FUHITO_JOB_RUN" columnNames="REALM_ID, JOB"
                              constraintName="UK_FUHITO_JOB_RUN"/>
-    </changeSet>
-    <changeSet id="0.1.0-org-unit-search-names" author="keycloak-fuhito">
-        <addColumn tableName="FUHITO_ORG_UNIT_VERSION">
-            <column name="SEARCH_NAMES" type="CLOB"/>
-        </addColumn>
-    </changeSet>
-    <changeSet id="0.1.0-org-unit-search-names-fill" author="keycloak-fuhito" dbms="postgresql">
-        <comment>The versions of before get the column here. On another database, each gets it at its next write.</comment>
-        <sql>
-            UPDATE FUHITO_ORG_UNIT_VERSION v SET SEARCH_NAMES = lower(concat_ws(chr(10),
-                (SELECT string_agg(e.value, chr(10)) FROM json_each_text(CAST(v.NAMES_I18N AS json)) e),
-                (SELECT string_agg(e.value, chr(10)) FROM json_each_text(CAST(v.SHORT_NAMES_I18N AS json)) e)))
-        </sql>
-    </changeSet>
-    <changeSet id="0.1.0-person-search-names" author="keycloak-fuhito">
-        <addColumn tableName="FUHITO_PERSON">
-            <column name="SEARCH_NAMES" type="CLOB"/>
-        </addColumn>
-    </changeSet>
-    <changeSet id="0.1.0-person-search-names-fill" author="keycloak-fuhito" dbms="postgresql">
-        <comment>The people of before get the column here. On another database, each gets it at its next write.</comment>
-        <sql>
-            UPDATE FUHITO_PERSON p SET SEARCH_NAMES = lower(concat_ws(chr(10), p.NAME, p.PHONETIC_NAME,
-                (SELECT string_agg(e.value, chr(10)) FROM json_each_text(CAST(p.NAMES_I18N AS json)) e)))
-        </sql>
-    </changeSet>
-    <changeSet id="0.1.0-default-hierarchy-of-every-realm" author="keycloak-fuhito">
-        <comment>A realm gets its default hierarchy when it is created. The realms of before get it here.</comment>
-        <sql>
-            INSERT INTO FUHITO_HIERARCHY (ID, REALM_ID, CODE, NAME)
-            SELECT r.ID, r.ID, 'default', 'Default' FROM REALM r
-            WHERE NOT EXISTS (SELECT 1 FROM FUHITO_HIERARCHY h WHERE h.REALM_ID = r.ID AND h.CODE = 'default')
-        </sql>
-    </changeSet>
-    <changeSet id="0.1.0-erasure" author="keycloak-fuhito">
+
+        <createTable tableName="FUHITO_USER_MASK">
+            <column name="ID" type="VARCHAR(36)">
+                <constraints primaryKey="true" primaryKeyName="PK_FUHITO_USER_MASK" nullable="false"/>
+            </column>
+            <column name="REALM_ID" type="VARCHAR(36)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="MASKED_AT" type="TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="PERSON_ID" type="VARCHAR(36)">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        <addUniqueConstraint tableName="FUHITO_USER_MASK" columnNames="REALM_ID, PERSON_ID"
+                             constraintName="UK_FUHITO_USER_MASK_PERSON"/>
+
         <createTable tableName="FUHITO_ERASURE">
             <column name="ID" type="VARCHAR(36)">
                 <constraints primaryKey="true" primaryKeyName="PK_FUHITO_ERASURE" nullable="false"/>
@@ -1073,5 +773,57 @@
         </createTable>
         <addUniqueConstraint tableName="FUHITO_ERASURE" columnNames="REALM_ID, PERSON_ID"
                              constraintName="UK_FUHITO_ERASURE_PERSON"/>
+        <!-- Almost every read asks whether a unit sets its own time. Most realms have no such unit. -->
+        <sql dbms="postgresql">
+            CREATE INDEX IDX_FUHITO_ORG_UNIT_OWN_TIME ON FUHITO_ORG_UNIT (REALM_ID)
+            WHERE TIME_ZONE IS NOT NULL OR DAY_START IS NOT NULL
+        </sql>
+        <!-- A realm gets its default hierarchy when it is created. The realms of before the extension get it here. -->
+        <sql>
+            INSERT INTO FUHITO_HIERARCHY (ID, REALM_ID, CODE, NAME)
+            SELECT r.ID, r.ID, 'default', 'Default' FROM REALM r
+        </sql>
+    </changeSet>
+
+    <!-- The exclusion constraints below need btree_gist. A database user that may not create it keeps working.
+         The application checks the same rules, and these two change sets run again at the next start. -->
+    <changeSet id="0.1.0-btree-gist" author="keycloak-fuhito" dbms="postgresql" failOnError="false">
+        <sql>CREATE EXTENSION IF NOT EXISTS btree_gist</sql>
+    </changeSet>
+    <changeSet id="0.1.0-no-overlap" author="keycloak-fuhito" dbms="postgresql">
+        <preConditions onFail="CONTINUE">
+            <sqlCheck expectedResult="1">SELECT count(*) FROM pg_extension WHERE extname = 'btree_gist'</sqlCheck>
+        </preConditions>
+        <sql>
+            ALTER TABLE FUHITO_ORG_UNIT_VERSION ADD CONSTRAINT EX_FUHITO_ORG_UNIT_VERSION_PERIOD
+            EXCLUDE USING gist (ORG_UNIT_ID WITH =, daterange(VALID_FROM, VALID_TO) WITH &amp;&amp;)
+        </sql>
+        <sql>
+            ALTER TABLE FUHITO_ORG_UNIT_VERSION ADD CONSTRAINT EX_FUHITO_ORG_UNIT_VERSION_CODE
+            EXCLUDE USING gist (REALM_ID WITH =, CODE WITH =, daterange(VALID_FROM, VALID_TO) WITH &amp;&amp;)
+            WHERE (CODE IS NOT NULL)
+        </sql>
+        <sql>
+            ALTER TABLE FUHITO_ORG_UNIT_LINK ADD CONSTRAINT EX_FUHITO_ORG_UNIT_LINK_PERIOD
+            EXCLUDE USING gist (HIERARCHY_ID WITH =, CHILD_ID WITH =, daterange(VALID_FROM, VALID_TO) WITH &amp;&amp;)
+        </sql>
+        <sql>
+            ALTER TABLE FUHITO_EMPLOYMENT_TERMS ADD CONSTRAINT EX_FUHITO_EMPLOYMENT_TERMS_PERIOD
+            EXCLUDE USING gist (EMPLOYMENT_ID WITH =, daterange(VALID_FROM, VALID_TO) WITH &amp;&amp;)
+        </sql>
+        <sql>
+            ALTER TABLE FUHITO_ASSIGNMENT ADD CONSTRAINT EX_FUHITO_ASSIGNMENT_PERIOD
+            EXCLUDE USING gist (ASSIGNMENT_ID WITH =, daterange(VALID_FROM, VALID_TO) WITH &amp;&amp;)
+        </sql>
+        <sql>
+            ALTER TABLE FUHITO_ASSIGNMENT ADD CONSTRAINT EX_FUHITO_ASSIGNMENT_PRIMARY
+            EXCLUDE USING gist (EMPLOYMENT_ID WITH =, daterange(VALID_FROM, VALID_TO) WITH &amp;&amp;)
+            WHERE (IS_PRIMARY)
+        </sql>
+        <sql>
+            ALTER TABLE FUHITO_UNIT_ROLE ADD CONSTRAINT EX_FUHITO_UNIT_ROLE_PERIOD
+            EXCLUDE USING gist (EMPLOYMENT_ID WITH =, ORG_UNIT_ID WITH =, ROLE_ID WITH =,
+            daterange(VALID_FROM, VALID_TO) WITH &amp;&amp;)
+        </sql>
     </changeSet>
 </databaseChangeLog>

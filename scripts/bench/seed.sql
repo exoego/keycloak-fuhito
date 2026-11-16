@@ -1,8 +1,8 @@
 -- Fills one realm with a large organization. psql sets :realm to the ID of the realm, :units to the number of
 -- org units below the company, and :people to the number of people.
 -- 1 company, 50 divisions, 500 departments, and teams for the rest. One move for 30% of the people.
+-- The realm has its default hierarchy from its start.
 
-INSERT INTO fuhito_hierarchy (id, realm_id, code, name) VALUES ('bench-h', :'realm', 'default', 'Default');
 INSERT INTO fuhito_change_log_counter (realm_id, last_sequence) VALUES (:'realm', :people * 4);
 INSERT INTO fuhito_ref_item (id, realm_id, kind, code, name, names_i18n, display_order, attributes, active, legal_entity) VALUES
   ('bench-company', :'realm', 'UNIT_TYPE', 'company', 'Company', '{}', 0, '{}', true, true),
@@ -19,19 +19,20 @@ SELECT n, 'u-' || n AS id,
             ELSE 'u-' || (51 + (n - 551) % 500) END AS parent
 FROM generate_series(0, :units) n;
 
-INSERT INTO fuhito_org_unit (id, realm_id, code) SELECT id, :'realm', 'c' || n FROM bench_unit;
+INSERT INTO fuhito_org_unit (id, realm_id) SELECT id, :'realm' FROM bench_unit;
 -- One unit in five got a new name in 2023, so it has two versions.
-INSERT INTO fuhito_org_unit_version (id, realm_id, org_unit_id, valid_from, valid_to, name, names_i18n, short_names_i18n, phonetic_name, unit_type_id, display_order, attributes)
+INSERT INTO fuhito_org_unit_version (id, realm_id, org_unit_id, valid_from, valid_to, code, name, names_i18n, short_names_i18n, phonetic_name, unit_type_id, display_order, attributes)
 SELECT 'v1-' || n, :'realm', id, DATE '2020-04-01', CASE WHEN n % 5 = 1 THEN DATE '2023-04-01' END,
-       'Unit ' || n, '{}', '{}', 'unit ' || lpad(n::text, 5, '0'),
+       'c' || n, 'Unit ' || n, '{}', '{}', 'unit ' || lpad(n::text, 5, '0'),
        CASE WHEN n = 0 THEN 'bench-company' ELSE 'bench-unit' END, n % 7, '{}'
 FROM bench_unit;
-INSERT INTO fuhito_org_unit_version (id, realm_id, org_unit_id, valid_from, valid_to, name, names_i18n, short_names_i18n, phonetic_name, unit_type_id, display_order, attributes)
-SELECT 'v2-' || n, :'realm', id, DATE '2023-04-01', NULL, 'New unit ' || n, '{}', '{}', 'unit ' || lpad(n::text, 5, '0'),
+INSERT INTO fuhito_org_unit_version (id, realm_id, org_unit_id, valid_from, valid_to, code, name, names_i18n, short_names_i18n, phonetic_name, unit_type_id, display_order, attributes)
+SELECT 'v2-' || n, :'realm', id, DATE '2023-04-01', NULL, 'c' || n, 'New unit ' || n, '{}', '{}', 'unit ' || lpad(n::text, 5, '0'),
        'bench-unit', n % 7, '{}'
 FROM bench_unit WHERE n % 5 = 1;
 INSERT INTO fuhito_org_unit_link (id, realm_id, hierarchy_id, child_id, parent_id, valid_from, valid_to)
-SELECT 'l-' || n, :'realm', 'bench-h', id, parent, DATE '2020-04-01', NULL FROM bench_unit WHERE parent IS NOT NULL;
+SELECT 'l-' || n, :'realm', h.id, u.id, u.parent, DATE '2020-04-01', NULL
+FROM bench_unit u JOIN fuhito_hierarchy h ON h.realm_id = :'realm' AND h.code = 'default' WHERE u.parent IS NOT NULL;
 
 INSERT INTO fuhito_person (id, realm_id, name, names_i18n, attributes)
 SELECT 'p-' || n, :'realm', 'Person ' || n, '{}', '{}' FROM generate_series(0, :people - 1) n;

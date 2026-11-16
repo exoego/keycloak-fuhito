@@ -55,7 +55,9 @@ class CsvImportServiceTest {
             new ImportService(new RefItemService(refItems), refItems, orgUnits, orgUnitStore, people,
                     new ImportService.Setup(new RealmKindService(new MemoryRealmKindStore(), refItems),
                             new AttributeDefinitionService(definitions, refItems, false),
-                            new HierarchyService(new MemoryHierarchyStore()))), refItems,
+                            new HierarchyService(new MemoryHierarchyStore())),
+                    new ImportService.Organizations(new OrganizationLinkService(orgUnitStore, id -> false),
+                            id -> false, id -> { }), new ImportService.Records(null, null, null, null, null)), refItems,
             orgUnitStore, orgUnits, people, definitions::list);
 
     private CsvImportService.Result load(String list, String effectiveDate, String csv) {

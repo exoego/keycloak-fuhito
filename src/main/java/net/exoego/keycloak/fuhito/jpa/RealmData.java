@@ -41,9 +41,9 @@ public final class RealmData {
             HierarchyEntity.class);
 
     // The record of what happened, and the state of requests and of jobs, stay over a restore. So do the records
-    // of erases and masks, which the restore does again.
+    // of erases, which the restore does again. The masks come back as the export has them.
     private static final Set<Class<?>> KEPT_BY_RESTORE = Set.of(ChangeLogEntity.class, ChangeLogCounterEntity.class,
-            IdempotencyKeyEntity.class, JobRunEntity.class, ErasureEntity.class, UserMaskEntity.class);
+            IdempotencyKeyEntity.class, JobRunEntity.class, ErasureEntity.class);
 
     private RealmData() {
     }

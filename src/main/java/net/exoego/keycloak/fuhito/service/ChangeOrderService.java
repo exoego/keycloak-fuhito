@@ -5,6 +5,7 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 import net.exoego.keycloak.fuhito.domain.ChangeOrder;
@@ -102,6 +103,26 @@ public class ChangeOrderService {
     public ChangeOrder get(String id) {
         return store.find(id)
                 .orElseThrow(() -> FuhitoException.notFound("change_order.not_found", Map.of("id", id)));
+    }
+
+    /**
+     * Finds a change order.
+     *
+     * @param id the ID
+     * @return the order, or empty when the realm has no such order
+     */
+    public Optional<ChangeOrder> find(String id) {
+        return store.find(id);
+    }
+
+    /**
+     * Finds a change order by its number.
+     *
+     * @param number the number
+     * @return the order, or empty when no order has the number
+     */
+    public Optional<ChangeOrder> ofNumber(String number) {
+        return store.findByNumber(number);
     }
 
     /**

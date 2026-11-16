@@ -1,0 +1,70 @@
+package net.exoego.keycloak.fuhito.service;
+
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+
+import net.exoego.keycloak.fuhito.domain.Checks;
+import net.exoego.keycloak.fuhito.domain.FuhitoException;
+import net.exoego.keycloak.fuhito.service.ImportDocument.ExternalIdRow;
+import net.exoego.keycloak.fuhito.service.ImportReport.Outcome;
+import net.exoego.keycloak.fuhito.service.ImportReport.Write;
+
+/**
+ * The IDs of other systems of one document. A row is matched by type of resource, resource, and source. Another
+ * external ID replaces the stored one, and an empty text removes it.
+ */
+final class ExternalIdImport {
+
+    static final String EXTERNAL_IDS = "externalIds";
+
+    private final ExternalIdService externalIds;
+    private final String defaultSource;
+    private final ImportReport report;
+    private final Set<String> seen = new HashSet<>();
+
+    ExternalIdImport(ExternalIdService externalIds, String defaultSource, ImportReport report) {
+        this.externalIds = externalIds;
+        this.defaultSource = defaultSource;
+        this.report = report;
+    }
+
+    void run(List<ExternalIdRow> rows) {
+        report.startList(EXTERNAL_IDS);
+        for (int i = 0; i < rows.size(); i++) {
+            try {
+                report.count(EXTERNAL_IDS, apply(Checks.required("row", rows.get(i))));
+            } catch (FuhitoException e) {
+                report.error(EXTERNAL_IDS, i, e);
+            }
+        }
+    }
+
+    private Outcome apply(ExternalIdRow row) {
+        String kind = Checks.required("resourceType", row.resourceType());
+        String resourceId = Checks.required("resourceId", row.resourceId());
+        String source = Checks.code("source", row.source() == null ? defaultSource : row.source());
+        String value = Checks.required("externalId", row.externalId());
+        if (!seen.add(kind + "\u0000" + resourceId + "\u0000" + source)) {
+            throw FuhitoException.invalid("import.duplicate_row", Map.of("externalId", value));
+        }
+        Optional<ExternalIdService.View> stored = externalIds.list(kind, resourceId).stream()
+                .filter(view -> !view.own() && view.source().equals(source))
+                .findFirst();
+        if (value.isEmpty()) {
+            if (stored.isEmpty()) {
+                return Outcome.UNCHANGED;
+            }
+            report.write(ImportReport.Write.Removed.externalId(
+                    externalIds.remove(kind, resourceId, source).rowId()));
+            return Outcome.CHANGED;
+        }
+        if (stored.isPresent() && stored.get().externalId().equals(value)) {
+            return Outcome.UNCHANGED;
+        }
+        report.write(new Write.OfExternalId(stored.isEmpty(), externalIds.put(kind, resourceId, source, value)));
+        return stored.isEmpty() ? Outcome.CREATED : Outcome.CHANGED;
+    }
+}

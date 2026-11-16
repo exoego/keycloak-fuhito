@@ -340,6 +340,27 @@ public class EmploymentService {
     }
 
     /**
+     * Links an employment to the one that it continues, as a transfer between employers does.
+     *
+     * @param id the ID of the employment
+     * @param previousId the ID of the employment that it continues
+     * @return the employment with all its terms
+     * @throws FuhitoException when an employment does not exist, or the two are not of the same person
+     */
+    public EmploymentView continueFrom(String id, String previousId) {
+        Employment employment = get(id).employment();
+        Employment previous = store.find(previousId).orElseThrow(() -> FuhitoException.invalid(
+                "employment.continues_unknown", Map.of("id", previousId)));
+        if (previous.id().equals(id) || !previous.personId().equals(employment.personId())) {
+            throw FuhitoException.invalid("employment.continues_other", Map.of("id", previousId));
+        }
+        store.update(new Employment(id, employment.personId(), employment.userId(), employment.employerId(),
+                employment.period(), employment.staffNumber(), employment.endReasonId(), employment.externalId(),
+                employment.source(), previousId));
+        return get(id);
+    }
+
+    /**
      * Removes the end of an employment, for example to take back a resignation.
      * The last terms get no end either. Assignments stay as they are.
      *

@@ -84,7 +84,7 @@ The reads about one org unit, one person, one team, or one page of the change lo
 | Effective changes of a day on which 150,000 people moved | 202 | 67 |
 
 The plan of the tree walk showed where the time went. For each org unit, the walk looked up the version of the date through the exclusion constraint, which is a GiST index. That took about a second for 50,000 org units.
-So the versions got a plain index on the org unit and `VALID_FROM`, and the parent links got one on the hierarchy, the child, and `VALID_FROM`. The second one is also the only index from a child to its parent in a database without `btree_gist`.
+So the versions got a plain index on the org unit and `VALID_FROM`, and the parent links got one on the hierarchy, the child, and `VALID_FROM`.
 
 What is still slow at this size, and why.
 
@@ -96,6 +96,7 @@ A reader of a late page pays for all pages before it. A cursor that says "go on 
 ## What changed after these runs
 
 - The read of the whole tree, `GET /org-units` with every org unit, is gone. `GET /org-units` now lists the roots. The rows "Org units, first page" and "Org units, last page" above are from before that, and the script no longer measures them. A subtree of a root still walks the whole tree.
+- The two plain indexes were dropped later. The unique keys `UK_FUHITO_ORG_UNIT_VERSION_FROM` and `UK_FUHITO_ORG_UNIT_LINK_FROM` have the same columns, and they are B-tree indexes too. Every database has them, also one without `btree_gist`. A run with 50,001 org units and 500,000 people before and after the drop gave the same times within 5% for every read. The unique key of the versions took the 1.5 million lookups that the plain index had served. The plain index of the links had served none.
 - The number 333 ms for the whole tree with the two indexes does not hold in general. In a second run the planner still chose the GiST index of the exclusion constraint, and the read took 1.2 seconds. It chose the plain index only after the index was built again. Which one it takes depends on the sizes of the two indexes. The section below has the walk that does not depend on that choice.
 
 ## The walk down a subtree
@@ -133,16 +134,16 @@ With the cursor, a late page of the members costs as much as the first page. It 
 `BATCH=1 SYNC=0 scripts/bench/run.sh` also makes one Keycloak user for each person, links the company to one Keycloak organization, and runs `POST /projection/rebuild` twice.
 The realm has 50,000 people and 5,000 org units. The first run makes 5,000 groups, 49,990 memberships of groups, and 50,000 members of the organization.
 
-| Version | First run | Nothing changed |
-|---|---|---|
-| One transaction, with one check of membership for each user | fails | not run |
-| Pieces of 100 org units, each in its own transaction | 226 s | 14 s to 26 s |
-| The memberships of a piece read in one query | 245 s | 3.4 s |
-| The writes of memberships in transactions of 50 | 96 s | 3.5 s |
+Each version keeps the changes of the versions on its left.
+
+| Run | One transaction | Pieces of 100 org units | Memberships of a piece read at once | Memberships written in transactions of 50 |
+|---|---|---|---|---|
+| First run | fails | 226 s | 245 s | 96 s |
+| Nothing changed | not run | 14 s to 26 s | 3.4 s | 3.5 s |
 
 What the runs showed.
 
-- One transaction does not work. Keycloak ends a transaction after 300 seconds. Before that limit, the list of IDs after `in` passed the 65,535 values that PostgreSQL takes in one statement.
+- One transaction, with one check of membership for each user, does not work. Keycloak ends a transaction after 300 seconds. Before that limit, the list of IDs after `in` passed the 65,535 values that PostgreSQL takes in one statement.
 - A list of IDs is now one array, and the SQL is `id = any(?)`. That removed the limit. It did not change the times.
 - With nothing to change, the time went into one question to Keycloak for each user. One query for each piece now reads who is in which group.
 - In the first run, the time goes into the writes. Keycloak flushes after each change of a membership, and a flush looks through everything that the transaction loaded. Small transactions keep each flush small.
@@ -150,22 +151,70 @@ What the runs showed.
 
 The first run still costs about 1 ms for each write. The writes go through the API of Keycloak, so that its caches and its events stay right.
 
+### The writes of one user in one transaction
+
+A profile of a first run with Java Flight Recorder showed where the time went.
+
+- 39% of the samples of the rebuild were in loads of users. Keycloak loads a user again in each transaction that changes it. In a realm with organizations, each load asks the database for the organizations of the user.
+- The membership in the organization and the membership in a group of one user were written in two transactions.
+- Keycloak flushed after each new membership.
+
+| Write of a new member | Before | After |
+|---|---|---|
+| Transactions for the organization and the group of one user | 2 | 1 |
+| Flushes of new memberships | 1 for each membership | 1 at the end of each transaction, in the batch mode of Keycloak |
+
+The batch mode is the one that the import of a realm in Keycloak uses. The events and the user cache of Keycloak work as before. Writing the rows with SQL would be faster, but the cache of organization members and the workflows of Keycloak listen for the events of new members, so that is not done. See #438.
+
+Measured on 2026-11-16 with 50,000 people, at the same commit. One run each.
+
+| Run | Before | Batch mode only | One transaction for each user only | Both |
+|---|---|---|---|---|
+| First run | 95.9 s | 90.4 s | 84.4 s | 79.4 s |
+| Nothing changed | 2.8 s | 3.2 s | 3.2 s | 3.1 s |
+
+A second run before the change took 94.8 s and 3.5 s, so a run with nothing to change moves between about 3 and 3.5 seconds from run to run. The extension uses both changes.
+
 ## The sync from user attributes
 
 `BATCH=1 scripts/bench/run.sh` also runs `POST /attribute-sync/run` twice. Each of the 50,000 users has a department. The first run adds 50,000 assignments.
 
-| Version | First run | Nothing changed |
-|---|---|---|
-| One transaction | fails | fails |
-| Pieces of 100 users, each in its own transaction | fails | fails |
-| The attributes of all users read in one query | 84 s | 16 s |
+Each version keeps the changes of the versions on its left.
+
+| Run | One transaction | Pieces of 100 users | Attributes of all users read at once |
+|---|---|---|---|
+| First run | fails | fails | 84 s |
+| Nothing changed | fails | fails | 16 s |
 
 What the runs showed.
 
 - The time went into the read of the users, before any write. The API of Keycloak loads one user at a time, and each load first looked through every user that the transaction had loaded. The run passed the 300 seconds of a transaction in that read alone.
 - One query on the tables of Keycloak now reads the attributes that the sync needs.
 - The pieces keep each transaction short. A first run writes an assignment, and often a person and an employment, for each user through the services.
-- With nothing to change, a run still asks for the employments and the reporting line of each user. That is the 16 seconds.
+- With nothing to change, a run still asked for the employments and the reporting line of each user. That was the 16 seconds. The next section is about that.
+
+### The reads of a piece at once
+
+A run works in pieces of 100 users. These are the reads of one piece when nothing changes.
+
+| Read | Before | After |
+|---|---|---|
+| The employments of the users | 100 queries, and one more for the person of each employment | 1 query |
+| The reporting lines of their assignments | 100 queries, and one more for the manager of each line | 1 query |
+| Whether their managers exist | 1 call of the API of Keycloak for each user with a manager | 1 query on the tables of Keycloak |
+
+A manager who is not in the tables of Keycloak is still looked up through the API, because a user storage provider can hold that user.
+
+Measured on 2026-11-16, before and after the change at the same commit. One run each.
+
+| People | Run | Before | After | Time saved |
+|---|---|---|---|---|
+| 50,000 | First run | 96 s | 79 s | 18% |
+| 50,000 | Nothing changed | 19.5 s | 3.7 s | 81% |
+| 500,000 | First run | 919 s | 699 s | 24% |
+| 500,000 | Nothing changed | 183 s | 33 s | 82% |
+
+The users of the seed have no manager, so these runs did not measure the third read.
 
 ## The batch jobs in a realm ten times as large
 
@@ -181,7 +230,7 @@ What the runs showed.
 - The times grow about in line with the number of people. A first run is one write at a time through the API of Keycloak or through the services, about 1,000 to 2,000 a second.
 - A rebuild took longer than the 15 minutes of the timer, and the timer started a second one. The two failed on the unique keys of Keycloak. Now only one rebuild runs for a realm at a time.
 - A call that took more than 300 seconds did all its work and then answered with the status 500. The transaction of the request had ended by then, and its end failed. Now a long job ends that transaction before it starts.
-- A sync with nothing to change is close to that limit of 300 seconds for 500,000 people. It asks for the employments and the reporting line of each user.
+- A sync with nothing to change was close to that limit of 300 seconds for 500,000 people, because it asked for the employments and the reporting line of each user. It now takes 33 seconds. See "The reads of a piece at once" above.
 
 ## What the numbers say
 

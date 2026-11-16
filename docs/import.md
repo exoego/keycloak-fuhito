@@ -24,13 +24,19 @@ Every bad row is reported, not only the first one.
 | Hierarchies | Code |
 | Reference items | Kind and code |
 | Org units | Source and external ID, or ID |
+| Parents in hierarchies | Hierarchy and org unit |
 | People | Source and external ID, or ID |
 | Employments | Source and external ID, or ID |
 | Assignments | Source and external ID, or ID |
+| Reporting lines | Assignment, manager, and kind, or ID |
+| Roles over org units | Employment, org unit, and role, or ID |
+| Qualifications | Source and external ID, or ID |
+| IDs of other systems | Type of resource, resource, and source |
+| Change orders | Number, or ID |
 
 The source is the name of the system or the sheet that the rows come from.
 It keeps the external IDs of two systems apart. The default is `import`.
-The import matches by the pair that a resource itself has. The IDs that `/external-ids` adds do not match rows.
+The import matches by the pair that a resource itself has. The IDs that `/external-ids` adds do not match rows. The list of IDs of other systems loads those IDs.
 A row can name a stored thing by `id` in place of the pair, also when the thing has no external ID. A CSV export has it in every row. A new thing has no ID.
 
 ## People
@@ -45,7 +51,7 @@ The list `people` loads people, also those with no Keycloak user, such as staff 
 ## JSON
 
 `POST /imports` takes one document with several lists.
-The lists are applied in the order kinds of reference data, attribute definitions, reference items, hierarchies, org units, people, employments, assignments.
+The lists are applied in the order change orders, kinds of reference data, attribute definitions, reference items, hierarchies, org units, parents in hierarchies, people, qualifications, employments, roles over org units, assignments, reporting lines, IDs of other systems.
 
 ```json
 {
@@ -74,16 +80,26 @@ The lists are applied in the order kinds of reference data, attribute definition
 - The list `hierarchies` adds hierarchies. A row has `code` and `name`. A row of a stored hierarchy changes its name. The code `default` names the default hierarchy.
 - Rows of org units can come in any order. A parent is applied before its children.
 - A parent with no external ID of the same source can be named by `parentId`, the ID of the unit. A row gives `parentExternalId` or `parentId`, not both.
+- The list `orgUnitParents` gives the parent of an org unit in a hierarchy from the effective date. A row has `hierarchy`, the unit by `orgUnitExternalId` or `orgUnitId`, and the parent by `parentExternalId` or `parentId`. A row with no parent takes the unit out of the hierarchy. The parent in the default hierarchy is in the row of the org unit, but a row of this list can name the default hierarchy too.
 - A row of a stored org unit can name it by `id`, also when the unit has no external ID. An external ID beside it must be the one of that unit.
 - A row of a stored employment or assignment can name it by `id` the same way.
 - A row of an employment can name its person by `personId` and its employer by `employerId`. A row gives the external ID or the ID, not both.
 - A row of an assignment can name its employment by `employmentId` and its org unit by `orgUnitId` the same way. A row of a stored assignment that names neither keeps the stored ones.
+- The list `reportingLines` gives the manager of an assignment. A row names the assignment by `assignmentExternalId` or `assignmentId`, and the manager by `managerPersonExternalId`, `managerPersonId`, or `managerUsername`. `kind` is `SOLID` or `DOTTED`, and the default is `SOLID`. A new solid manager ends the solid line that the assignment has on the date, so a change of the manager is one row. With no `validTo`, a line lasts as long as the assignment.
+- The list `unitRoles` gives the roles that employments hold over org units. A row names the employment by `employmentExternalId` or `employmentId`, the unit by `orgUnitExternalId` or `orgUnitId`, and the role by the code of a reference item of the kind `UNIT_ROLE`. A row that changes `includesDescendants` ends the stored role and starts a new one on the date. With no `validTo`, a role lasts as long as the employment.
+- The list `qualifications` gives qualifications such as licenses. A row names the person by `personExternalId`, `personId`, or `username`. A row of a stored qualification may name nobody. A qualification has dates of its own, so a row replaces the kind, the number, the dates, and the attributes of a stored one, as `PUT /qualifications/{id}` does. A row with no `validFrom` starts on the effective date.
+- The list `externalIds` gives the IDs that other systems have for resources, as `PUT /external-ids` does. A row has `resourceType`, `resourceId`, `source`, and `externalId`. Another external ID replaces the stored one, and an empty text removes it. The source of the pair that the resource itself has cannot be a row.
+- The list `changeOrders` gives change orders. A row has the values of `POST /change-orders`. It can name the approver and the requester by `approverUsername` and `requesterUsername` too. A row of a stored order replaces its values, as `PUT /change-orders/{id}` does. A row with no `effectiveDate` takes the effective date of the import. The announcement is a fact of its own, so it is not part of a row. Record it with `POST /change-orders/{id}/announce`.
 - A new row can have its own `validFrom`. An existing row ignores it.
 - A row with `validTo` ends the thing on that date. An employment can also carry `endReason`.
+- A row of an org unit can link the unit to a Keycloak organization by `organizationAlias`. A row that leaves it out keeps the link, and an empty text removes it. As `PUT /org-units/{id}/organization` does, the import asks for the permission to manage the old and the new organization. An unknown alias fails with `import.organization_unknown`.
+- A row of an org unit can set `timeZone` and `dayStart`, as `PUT /org-units/{id}/time-settings` does. A row that leaves one out keeps it, and an empty text removes it.
+- A row of an org unit with `validTo` can name the units that follow it from that date, by `successorExternalIds` with the same source or by `successorIds`. The end and the successors are one write, as in the step `succeed` of a reorganization. One successor is a succession, and several are a split. A successor can come later in the same document. A unit that ended on the same date with the same successors stays as it is. Other successors fail with `import.successors_differ`, because a succession does not change.
 - A row replaces all details of an existing thing. A missing optional value clears it.
 - The same document can be sent again, for example after a timeout. A thing that ended by the effective date only compares its end. A thing that starts after the effective date must match what is stored on its first date, or the row fails with `not_valid_on`.
 - A new employment names its employer by `employerExternalId`. It is the external ID of an org unit that is a legal entity. A row can leave it out when the realm has exactly one legal entity.
 - The employer of a stored employment never changes. A row that names another employer is rejected.
+- After a transfer between employers, a row of the new employment can name the one it continues by `continuesEmploymentExternalId` or `continuesEmploymentId`. A row of a new assignment can name the assignment it continues by `continuesAssignmentExternalId` or `continuesAssignmentId`. Both must be of the same person. The link is set when the row makes the new thing. A stored one with another link fails with `import.continues_mismatch`.
 - A row of a unit type can carry `legalEntity`. The CSV header is `法人`. A row that leaves it out keeps the mark of a stored item.
 - A row of an assignment kind can carry `actingHead`. The CSV header is `代行`. A row that leaves it out keeps the mark of a stored item.
 - A row of a unit type can carry `group`. The CSV header is `グループ`. A row that leaves it out keeps the mark of a stored item.
@@ -92,19 +108,26 @@ The lists are applied in the order kinds of reference data, attribute definition
 
 ## CSV
 
-`POST /imports/csv/{list}` takes one file. The list is `ref-kinds`, `attribute-definitions`, `ref-items`, `hierarchies`, `org-units`, `people`, `employments`, or `assignments`.
+`POST /imports/csv/{list}` takes one file. The list is `ref-kinds`, `attribute-definitions`, `ref-items`, `hierarchies`, `org-units`, `org-unit-parents`, `people`, `employments`, `assignments`, `reporting-lines`, `unit-roles`, `qualifications`, `external-ids`, or `change-orders`.
 
-`GET /imports/csv/org-units?asOf=` gives the org units of a date as such a file, for a change in a spreadsheet. Each row has the column `id`, so a unit with no external ID loads again too. The parent is in the column `parentId`. With `header=ja`, the names of the columns are in Japanese. The file is UTF-8 with a byte order mark, which spreadsheets need to read it as UTF-8. The same file loaded on the same date changes nothing.
+`GET /imports/csv/org-units?asOf=` gives the org units of a date as such a file, for a change in a spreadsheet. Each row has the column `id`, so a unit with no external ID loads again too. The parent is in the column `parentId`. A unit that ends has `validTo`, and its successors are in `successorIds`. A linked unit has the alias of its Keycloak organization in `organizationAlias`. In a file, `#CLEAR` there removes the link. The file has `timeZone` and `dayStart` too, and `#CLEAR` removes one. With `header=ja`, the names of the columns are in Japanese. The file is UTF-8 with a byte order mark, which spreadsheets need to read it as UTF-8. The same file loaded on the same date changes nothing.
 
 `GET /imports/csv/ref-kinds` gives the kinds that the realm added the same way. It takes no `asOf`. `GET /imports/csv/attribute-definitions` gives the definitions of attributes the same way. `GET /imports/csv/hierarchies` gives the hierarchies the same way, the default one too.
 
 `GET /imports/csv/ref-items` gives the reference items of every kind the same way, the inactive ones too. It takes no `asOf`. An item is matched by kind and code, so the file has no `id`. A mark such as `legalEntity` is blank for a kind that cannot have it.
 
+`GET /imports/csv/org-unit-parents?asOf=` gives the parents of the date in every hierarchy but the default one. It names the units by `orgUnitId` and `parentId`. In a file, blank cells of the parent keep the stored parent, and `#CLEAR` takes the unit out of the hierarchy.
+
 `GET /imports/csv/people` gives the people the same way. A person has no date, so it takes no `asOf`. The file leaves out the link to a Keycloak user: a blank cell keeps the stored link, and the ID of a user who was removed from Keycloak would not load again.
 
-`GET /imports/csv/employments?asOf=` gives the employments that hold on the date, with the terms of that date. Each row has `id`. It names the person by `personId` and the employer by `employerId`, because many have no external ID of the source of the row. A row of an employment that starts later is not in the file.
+`GET /imports/csv/employments?asOf=` gives the employments that hold on the date, with the terms of that date. Each row has `id`, and `continuesEmploymentId` for an employment that continues another. It names the person by `personId` and the employer by `employerId`, because many have no external ID of the source of the row. A row of an employment that starts later is not in the file.
 
-`GET /imports/csv/assignments?asOf=` gives the assignments that hold on the date the same way, with the details of that date. It names the employment by `employmentId` and the org unit by `orgUnitId`. `validFrom` and `validTo` are the dates of the whole assignment, not of the details.
+`GET /imports/csv/assignments?asOf=` gives the assignments that hold on the date the same way, with the details of that date. It names the employment by `employmentId` and the org unit by `orgUnitId`. `validFrom` and `validTo` are the dates of the whole assignment, not of the details. An assignment that continues another has `continuesAssignmentId`.
+`GET /imports/csv/reporting-lines?asOf=` gives the reporting lines that hold on the date. It names the assignment by `assignmentId` and the manager by `managerPersonId`.
+`GET /imports/csv/unit-roles?asOf=` gives the roles that hold on the date. It names the employment by `employmentId` and the unit by `orgUnitId`.
+`GET /imports/csv/qualifications` gives every qualification, also those that expired. With `asOf`, it gives only those that hold on the date.
+`GET /imports/csv/external-ids` gives the IDs that `/external-ids` added. The own pair of a resource is in the file of the resource. In a file, `#CLEAR` in `externalId` removes the stored ID.
+`GET /imports/csv/change-orders` gives every change order, newest effective date first.
 The query has `effectiveDate`, and optionally `dryRun` and `source`.
 The content type is `text/csv`.
 
@@ -122,6 +145,7 @@ curl -X POST \
 - A column that is not needed can be left out.
 - The file is UTF-8, with or without a byte order mark. For another encoding, name it in the content type, for example `text/csv; charset=Shift_JIS`.
 - A cell can be in double quotes. A quoted cell can hold commas and line breaks.
+- A cell of several successors separates them with `|`, for example `W1|W2`. An external ID that has `|` must be named by `successorIds`.
 - A row with more cells than the header fails with `csv.too_many_cells`, unless the extra cells are empty. This is usually a comma that should have been in quotes.
 - **A blank cell keeps the stored value.** This differs from JSON, where a missing value clears it. A blank parent keeps the stored parent, also one with no external ID of the source.
 - The cell `#CLEAR` removes the stored value.
@@ -182,6 +206,33 @@ Org units.
 | `displayOrder` | `表示順` |
 | `validFrom` | `開始日` |
 | `validTo` | `終了日` |
+| `successorExternalIds` | `後継の外部ID` |
+| `successorIds` | `後継のID` |
+| `organizationAlias` | `Organizationの別名` |
+| `timeZone` | `タイムゾーン` |
+| `dayStart` | `日の始まり` |
+
+Parents in hierarchies.
+
+| English | Japanese |
+|---|---|
+| `hierarchy` | `階層` |
+| `source` | `ソース` |
+| `orgUnitExternalId` | `組織の外部ID` |
+| `orgUnitId` | `組織のID` |
+| `parentExternalId` | `親の外部ID` |
+| `parentId` | `親のID` |
+
+Parents in hierarchies.
+
+| English | Japanese |
+|---|---|
+| `hierarchy` | `階層` |
+| `source` | `ソース` |
+| `orgUnitExternalId` | `組織の外部ID` |
+| `orgUnitId` | `組織のID` |
+| `parentExternalId` | `親の外部ID` |
+| `parentId` | `親のID` |
 
 People.
 
@@ -217,6 +268,8 @@ Employments.
 | `id` | `ID` |
 | `employerId` | `雇用主のID` |
 | `personId` | `人のID` |
+| `continuesEmploymentExternalId` | `引き継ぎ元の雇用の外部ID` |
+| `continuesEmploymentId` | `引き継ぎ元の雇用のID` |
 
 Assignments.
 
@@ -238,6 +291,79 @@ Assignments.
 | `id` | `ID` |
 | `employmentId` | `雇用のID` |
 | `orgUnitId` | `組織のID` |
+| `continuesAssignmentExternalId` | `引き継ぎ元の所属の外部ID` |
+| `continuesAssignmentId` | `引き継ぎ元の所属のID` |
+
+Reporting lines.
+
+| English | Japanese |
+|---|---|
+| `id` | `ID` |
+| `source` | `ソース` |
+| `assignmentExternalId` | `所属の外部ID` |
+| `assignmentId` | `所属のID` |
+| `managerPersonExternalId` | `上司の人の外部ID` |
+| `managerPersonId` | `上司の人のID` |
+| `managerUsername` | `上司のユーザー名` |
+| `kind` | `種類` |
+| `validFrom` | `開始日` |
+| `validTo` | `終了日` |
+
+Roles over org units.
+
+| English | Japanese |
+|---|---|
+| `id` | `ID` |
+| `source` | `ソース` |
+| `employmentExternalId` | `雇用の外部ID` |
+| `employmentId` | `雇用のID` |
+| `orgUnitExternalId` | `組織の外部ID` |
+| `orgUnitId` | `組織のID` |
+| `role` | `ロール` |
+| `includesDescendants` | `下位の組織も含む` |
+| `validFrom` | `開始日` |
+| `validTo` | `終了日` |
+
+Qualifications.
+
+| English | Japanese |
+|---|---|
+| `id` | `ID` |
+| `externalId` | `外部ID` |
+| `source` | `ソース` |
+| `personExternalId` | `人の外部ID` |
+| `personId` | `人のID` |
+| `username` | `ユーザー名` |
+| `kind` | `種類` |
+| `number` | `番号` |
+| `validFrom` | `開始日` |
+| `validTo` | `終了日` |
+
+IDs of other systems.
+
+| English | Japanese |
+|---|---|
+| `resourceType` | `リソースの種類` |
+| `resourceId` | `リソースのID` |
+| `source` | `ソース` |
+| `externalId` | `外部ID` |
+
+Change orders.
+
+| English | Japanese |
+|---|---|
+| `id` | `ID` |
+| `number` | `番号` |
+| `kind` | `種類` |
+| `title` | `件名` |
+| `note` | `備考` |
+| `orderDate` | `発令日` |
+| `effectiveDate` | `発効日` |
+| `approverUserId` | `承認者のユーザーID` |
+| `approverUsername` | `承認者のユーザー名` |
+| `requesterUserId` | `申請者のユーザーID` |
+| `requesterUsername` | `申請者のユーザー名` |
+| `externalReference` | `外部の参照` |
 
 A row for a stored employment may leave out the user.
 A row that leaves out `leaveReason` keeps the stored reason while the status stays `ON_LEAVE`.
@@ -291,7 +417,8 @@ This copies a realm to a test environment, moves it to another Keycloak, or brin
 - An ID that a row of the database has already, in any realm, fails with 409 and `restore.id_taken`. This happens for a copy into a second realm of the same database while the first realm still has the rows.
 - Rows name Keycloak users by username. A restore fails with `restore.username_unknown` when the target realm has no user with that name. A person whose user Keycloak no longer had is exported with no username, and is restored with no link.
 - Masked data stays masked, with the time of the mask. Erased data is not in an export.
-- An erase keeps the ID of the person and the time, and nothing else. The list `erasures` has them. After the load, a restore erases again each person with such a record, also when the export was taken before the erase. It masks again each person with a record of a mask. So a restore never brings back data that was erased or masked. A replace keeps these records of the realm.
+- An erase keeps the ID of the person and the time, and nothing else. The list `erasures` has them. After the load, a restore erases again each person with such a record, also when the export was taken before the erase. So a restore never brings back erased data. A replace keeps these records of the realm.
+- A mask comes back as the export has it. A mask keeps the person in use, unlike an erase. So a person who was masked after the export gets the data of the export back. Mask the person again when the data must stay hidden. A restore does not change the users of Keycloak, so a name that a mask cleared there stays cleared. The change log keeps its masked copies.
 - An org unit names its Keycloak organization by alias, because the IDs of organizations differ between servers. A restore fails with `restore.organization_unknown` when the realm has no organization with the alias. It asks for the permission to manage each linked organization, as a link does.
 - The change log, the admin events, and the idempotency keys are not part of an export. The restore records one entry, `FUHITO_RESTORE`.
 - The export needs the full read permission, because it has the data of people. The restore needs the permission to write.

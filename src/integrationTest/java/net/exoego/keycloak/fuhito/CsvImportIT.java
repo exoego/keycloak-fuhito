@@ -67,6 +67,204 @@ class CsvImportIT {
     }
 
     @Test
+    void aCsvFileEndsAUnitWithItsSuccessors() throws Exception {
+        TestRealm realm = TestRealm.create("csv-successors");
+        Api api = realm.api;
+        String old = Api.json(api.post("/org-units", "{\"name\": \"旧病棟\", \"validFrom\": \"2020-04-01\"}"))
+                .get("id").asText();
+        String first = Api.json(api.post("/org-units", "{\"name\": \"1病棟\", \"validFrom\": \"2020-04-01\"}"))
+                .get("id").asText();
+        String second = Api.json(api.post("/org-units", "{\"name\": \"2病棟\", \"validFrom\": \"2020-04-01\"}"))
+                .get("id").asText();
+
+        JsonNode report = load(api, "org-units", "effectiveDate=2026-05-01", "id,validTo,successorIds\r\n" + old
+                + ",2027-04-01," + first + "|" + second + "\r\n");
+
+        assertEquals(1, report.get("counts").get("orgUnits").get("changed").asInt(), report.toString());
+        assertEquals(List.of(first, second).stream().sorted().toList(), Api.json(api.get("/org-units/" + old
+                + "/succession")).get("successors").findValuesAsText("orgUnitId").stream().sorted().toList());
+        String exported = api.get("/imports/csv/org-units?asOf=2026-05-01").body();
+        assertTrue(exported.contains(",2027-04-01," + String.join("|", Api.json(api.get("/org-units/" + old
+                + "/succession")).get("successors").findValuesAsText("orgUnitId")) + ",,,\r\n"), exported);
+        JsonNode again = load(api, "org-units", "effectiveDate=2026-05-01", exported).get("counts").get("orgUnits");
+        assertEquals(0, again.get("created").asInt() + again.get("changed").asInt(), again.toString());
+    }
+
+    @Test
+    void aCsvFileLinksAUnitToAnOrganizationByItsAlias() throws Exception {
+        TestRealm realm = TestRealm.create("csv-organizations");
+        Api api = realm.api;
+        String organization = realm.organization("x-hospital");
+        String hospital = Api.json(api.post("/org-units", "{\"name\": \"X病院\", \"validFrom\": \"2020-04-01\"}"))
+                .get("id").asText();
+
+        JsonNode linked = load(api, "org-units", "effectiveDate=2026-05-01", "id,organizationAlias\r\n" + hospital
+                + ",x-hospital\r\n");
+
+        assertEquals(1, linked.get("counts").get("orgUnits").get("changed").asInt(), linked.toString());
+        assertEquals(organization, Api.json(api.get("/org-units/" + hospital + "?asOf=2026-05-01"))
+                .get("keycloakOrganizationId").asText());
+        String exported = api.get("/imports/csv/org-units?asOf=2026-05-01&header=ja").body();
+        assertTrue(exported.contains("Organizationの別名") && exported.contains(",x-hospital"), exported);
+        JsonNode again = load(api, "org-units", "effectiveDate=2026-05-01", exported).get("counts").get("orgUnits");
+        assertEquals(0, again.get("created").asInt() + again.get("changed").asInt(), again.toString());
+        load(api, "org-units", "effectiveDate=2026-05-01", "id,organizationAlias\r\n" + hospital + ",#CLEAR\r\n");
+        load(api, "org-units", "effectiveDate=2026-05-01", "id,タイムゾーン,日の始まり\r\n" + hospital
+                + ",Asia/Tokyo,05:00\r\n");
+        assertTrue(api.get("/imports/csv/org-units?asOf=2026-05-01").body().contains(",Asia/Tokyo,05:00\r\n"));
+        assertTrue(Api.json(api.get("/org-units/" + hospital + "?asOf=2026-05-01")).path("keycloakOrganizationId")
+                .isMissingNode());
+    }
+
+    @Test
+    void anExportOfReportingLinesLoadsAgainWithNoChange() throws Exception {
+        TestRealm realm = TestRealm.withEmployer("csv-export-lines");
+        Api api = realm.api;
+        String ward = Api.json(api.post("/org-units", "{\"name\": \"1病棟\", \"validFrom\": \"2020-04-01\"}"))
+                .get("id").asText();
+        String assignment = Api.json(api.post("/staff", "{\"userId\": \"" + realm.user("nurse") + "\", "
+                + "\"orgUnitId\": \"" + ward + "\", \"validFrom\": \"2020-04-01\"}")).get("assignment").get("id")
+                .asText();
+        String line = Api.json(api.post("/reporting-lines", "{\"assignmentId\": \"" + assignment
+                + "\", \"managerUserId\": \"" + realm.user("doctor") + "\", \"validFrom\": \"2021-04-01\"}"))
+                .get("id").asText();
+
+        for (String header : List.of("en", "ja")) {
+            HttpResponse<String> exported = api.get("/imports/csv/reporting-lines?asOf=2026-05-01&header=" + header);
+            assertEquals(200, exported.statusCode(), exported.body());
+            assertTrue(exported.body().startsWith("﻿" + (header.equals("en")
+                    ? "id,assignmentId,managerPersonId,kind,validFrom,validTo\r\n"
+                    : "ID,所属のID,上司の人のID,種類,開始日,終了日\r\n") + line + "," + assignment + ","), exported.body());
+            assertTrue(exported.body().endsWith(",SOLID,2021-04-01,\r\n"), exported.body());
+            JsonNode counts = load(api, "reporting-lines", "effectiveDate=2026-05-01", exported.body())
+                    .get("counts").get("reportingLines");
+            assertEquals(0, counts.get("created").asInt() + counts.get("changed").asInt(), counts.toString());
+        }
+        // A new solid manager ends the line of the manager before.
+        realm.user("chief");
+        load(api, "reporting-lines", "effectiveDate=2026-06-01", "assignmentId,managerUsername\r\n" + assignment
+                + ",chief\r\n");
+        assertTrue(api.get("/imports/csv/reporting-lines?asOf=2026-05-31").body().contains(line + ","));
+        assertTrue(api.get("/imports/csv/reporting-lines?asOf=2026-05-31").body().endsWith(",2026-06-01\r\n"));
+        assertFalse(api.get("/imports/csv/reporting-lines?asOf=2026-06-01").body().contains(line + ","));
+    }
+
+    @Test
+    void anExportOfRolesOverOrgUnitsLoadsAgainWithNoChange() throws Exception {
+        TestRealm realm = TestRealm.withEmployer("csv-export-roles");
+        Api api = realm.api;
+        realm.refItem("UNIT_ROLE", "approver", "承認者");
+        String ward = Api.json(api.post("/org-units", "{\"name\": \"1病棟\", \"validFrom\": \"2020-04-01\"}"))
+                .get("id").asText();
+        String employment = Api.json(api.post("/staff", "{\"userId\": \"" + realm.user("nurse") + "\", "
+                + "\"orgUnitId\": \"" + ward + "\", \"validFrom\": \"2020-04-01\"}")).get("employment").get("id")
+                .asText();
+        String role = Api.json(api.post("/unit-roles", "{\"employmentId\": \"" + employment + "\", \"orgUnitId\": \""
+                + ward + "\", \"role\": \"approver\", \"validFrom\": \"2021-04-01\"}")).get("id").asText();
+
+        for (String header : List.of("en", "ja")) {
+            HttpResponse<String> exported = api.get("/imports/csv/unit-roles?asOf=2026-05-01&header=" + header);
+            assertEquals(200, exported.statusCode(), exported.body());
+            assertEquals("﻿" + (header.equals("en")
+                    ? "id,employmentId,orgUnitId,role,includesDescendants,validFrom,validTo"
+                    : "ID,雇用のID,組織のID,ロール,下位の組織も含む,開始日,終了日") + "\r\n" + role + "," + employment
+                    + "," + ward + ",approver,false,2021-04-01,\r\n", exported.body());
+            JsonNode counts = load(api, "unit-roles", "effectiveDate=2026-05-01", exported.body())
+                    .get("counts").get("unitRoles");
+            assertEquals(0, counts.get("created").asInt() + counts.get("changed").asInt(), counts.toString());
+        }
+        // A role that now covers the units below starts again on the date.
+        load(api, "unit-roles", "effectiveDate=2026-06-01", "id,includesDescendants\r\n" + role + ",true\r\n");
+        assertTrue(api.get("/imports/csv/unit-roles?asOf=2026-05-31").body().endsWith(",false,2021-04-01,2026-06-01\r\n"));
+        assertTrue(api.get("/imports/csv/unit-roles?asOf=2026-06-01").body().endsWith(",true,2026-06-01,\r\n"));
+    }
+
+    @Test
+    void anExportOfQualificationsLoadsAgainWithNoChange() throws Exception {
+        TestRealm realm = TestRealm.create("csv-export-qualifications");
+        Api api = realm.api;
+        realm.refItem("QUALIFICATION", "license", "免許");
+        assertEquals(201, api.post("/attribute-definitions", "{\"target\": \"QUALIFICATION\", \"name\": \"office\", "
+                + "\"type\": \"STRING\"}").statusCode());
+        String nurse = realm.user("nurse");
+        String license = Api.json(api.post("/qualifications", "{\"userId\": \"" + nurse + "\", \"kind\": \"license\", "
+                + "\"number\": \"123\", \"validFrom\": \"2010-04-01\", \"validTo\": \"2020-04-01\", "
+                + "\"attributes\": {\"office\": \"東京\"}}")).get("id").asText();
+        String person = Api.json(api.get("/qualifications/" + license)).get("personId").asText();
+
+        for (String header : List.of("en", "ja")) {
+            HttpResponse<String> exported = api.get("/imports/csv/qualifications?header=" + header);
+            assertEquals(200, exported.statusCode(), exported.body());
+            assertEquals("﻿" + (header.equals("en")
+                    ? "id,externalId,source,personId,kind,number,validFrom,validTo,attributes.office"
+                    : "ID,外部ID,ソース,人のID,種類,番号,開始日,終了日,attributes.office") + "\r\n" + license + ",,,"
+                    + person + ",license,123,2010-04-01,2020-04-01,東京\r\n", exported.body());
+            JsonNode counts = load(api, "qualifications", "effectiveDate=2026-05-01", exported.body())
+                    .get("counts").get("qualifications");
+            assertEquals(0, counts.get("created").asInt() + counts.get("changed").asInt(), counts.toString());
+        }
+        // A renewal is a change of the stored qualification. A new one names its person by username.
+        load(api, "qualifications", "effectiveDate=2026-05-01", "id,validTo\r\n" + license + ",2030-04-01\r\n");
+        load(api, "qualifications", "effectiveDate=2026-05-01", "externalId,source,username,kind\r\nQ-9,hr,nurse,license\r\n");
+        JsonNode stored = Api.json(api.get("/users/" + nurse + "/qualifications?all=true"));
+        assertEquals(2, stored.size(), stored.toString());
+        assertEquals(List.of("2030-04-01"), stored.findValuesAsText("validTo"), stored.toString());
+        assertTrue(api.get("/imports/csv/qualifications?asOf=2026-05-01").body().contains(",2026-05-01,"));
+    }
+
+    @Test
+    void anExportOfIdsOfOtherSystemsLoadsAgainWithNoChange() throws Exception {
+        TestRealm realm = TestRealm.create("csv-export-external-ids");
+        Api api = realm.api;
+        String ward = Api.json(api.post("/org-units", "{\"name\": \"1病棟\", \"validFrom\": \"2020-04-01\"}"))
+                .get("id").asText();
+        assertEquals(200, api.put("/external-ids", "{\"resourceType\": \"ORG_UNIT\", \"resourceId\": \"" + ward
+                + "\", \"source\": \"payroll\", \"externalId\": \"P-1\"}").statusCode());
+
+        for (String header : List.of("en", "ja")) {
+            HttpResponse<String> exported = api.get("/imports/csv/external-ids?header=" + header);
+            assertEquals(200, exported.statusCode(), exported.body());
+            assertEquals("﻿" + (header.equals("en") ? "resourceType,resourceId,source,externalId"
+                    : "リソースの種類,リソースのID,ソース,外部ID") + "\r\nORG_UNIT," + ward + ",payroll,P-1\r\n",
+                    exported.body());
+            JsonNode counts = load(api, "external-ids", "effectiveDate=2026-05-01", exported.body())
+                    .get("counts").get("externalIds");
+            assertEquals(0, counts.get("created").asInt() + counts.get("changed").asInt(), counts.toString());
+        }
+        load(api, "external-ids", "effectiveDate=2026-05-01", "resourceType,resourceId,source,externalId\r\n"
+                + "ORG_UNIT," + ward + ",payroll,#CLEAR\r\nORG_UNIT," + ward + ",ledger,L-1\r\n");
+        assertEquals("﻿resourceType,resourceId,source,externalId\r\nORG_UNIT," + ward + ",ledger,L-1\r\n",
+                api.get("/imports/csv/external-ids").body());
+    }
+
+    @Test
+    void anExportOfChangeOrdersLoadsAgainWithNoChange() throws Exception {
+        TestRealm realm = TestRealm.create("csv-export-orders");
+        Api api = realm.api;
+        String chief = realm.user("chief");
+        String order = Api.json(api.post("/change-orders", "{\"number\": \"2026-01\", \"title\": \"4月の異動, 本院\", "
+                + "\"effectiveDate\": \"2026-04-01\", \"approverUserId\": \"" + chief + "\"}")).get("id").asText();
+
+        for (String header : List.of("en", "ja")) {
+            HttpResponse<String> exported = api.get("/imports/csv/change-orders?header=" + header);
+            assertEquals(200, exported.statusCode(), exported.body());
+            assertEquals("﻿" + (header.equals("en")
+                    ? "id,number,kind,title,note,orderDate,effectiveDate,approverUserId,requesterUserId,externalReference"
+                    : "ID,番号,種類,件名,備考,発令日,発効日,承認者のユーザーID,申請者のユーザーID,外部の参照") + "\r\n" + order
+                    + ",2026-01,,\"4月の異動, 本院\",,,2026-04-01," + chief + ",,\r\n", exported.body());
+            JsonNode counts = load(api, "change-orders", "effectiveDate=2026-05-01", exported.body())
+                    .get("counts").get("changeOrders");
+            assertEquals(0, counts.get("created").asInt() + counts.get("changed").asInt(), counts.toString());
+        }
+        load(api, "change-orders", "effectiveDate=2026-10-01", String.join("\r\n", "number,title,requesterUsername",
+                "2026-01,4月の異動,chief", "2026-02,10月の異動,"));
+        JsonNode orders = Api.json(api.get("/change-orders"));
+        assertEquals(List.of("2026-02", "2026-01"), orders.findValuesAsText("number"));
+        assertEquals(List.of("2026-10-01", "2026-04-01"), orders.findValuesAsText("effectiveDate"));
+        assertEquals(chief, orders.get(1).get("requesterUserId").asText());
+    }
+
+    @Test
     void anExportOfKindsLoadsAgainWithNoChange() throws Exception {
         TestRealm realm = TestRealm.create("csv-export-kinds");
         Api api = realm.api;
@@ -91,6 +289,7 @@ class CsvImportIT {
         assertTrue(kinds.findValuesAsText("code").contains("cost-center"));
         assertEquals(200, api.put("/ref-kinds/site", "{\"name\": \"拠点\"}").statusCode());
         assertEquals(404, api.put("/ref-kinds/UNIT_TYPE", "{\"name\": \"組織種別\"}").statusCode());
+        assertEquals(204, api.delete("/ref-kinds/cost-center").statusCode());
     }
 
     @Test
@@ -141,6 +340,39 @@ class CsvImportIT {
                 Api.json(api.get("/hierarchies")).findValuesAsText("code"));
         assertEquals(List.of("組織図", "管理会計", "プロジェクト"),
                 Api.json(api.get("/hierarchies")).findValuesAsText("name"));
+    }
+
+    @Test
+    void anExportOfParentsInHierarchiesLoadsAgainWithNoChange() throws Exception {
+        TestRealm realm = TestRealm.create("csv-export-parents");
+        Api api = realm.api;
+        assertEquals(201, api.post("/hierarchies", "{\"code\": \"project\", \"name\": \"プロジェクト\"}")
+                .statusCode());
+        String hospital = Api.json(api.post("/org-units", "{\"name\": \"病院\", \"validFrom\": \"2020-04-01\"}"))
+                .get("id").asText();
+        String first = Api.json(api.post("/org-units", "{\"name\": \"1病棟\", \"validFrom\": \"2020-04-01\"}"))
+                .get("id").asText();
+        String second = Api.json(api.post("/org-units", "{\"name\": \"2病棟\", \"validFrom\": \"2020-04-01\"}"))
+                .get("id").asText();
+        assertEquals(200, api.put("/org-units/" + first + "/parent?hierarchy=project", "{\"parentId\": \""
+                + hospital + "\", \"validFrom\": \"2021-04-01\"}").statusCode());
+
+        for (String header : List.of("en", "ja")) {
+            HttpResponse<String> exported = api.get("/imports/csv/org-unit-parents?asOf=2026-04-01&header=" + header);
+            assertEquals(200, exported.statusCode(), exported.body());
+            assertEquals("﻿" + (header.equals("en") ? "hierarchy,orgUnitId,parentId" : "階層,組織のID,親のID")
+                    + "\r\nproject," + first + "," + hospital + "\r\n", exported.body());
+            JsonNode counts = load(api, "org-unit-parents", "effectiveDate=2026-04-01", exported.body())
+                    .get("counts").get("orgUnitParents");
+            assertEquals(0, counts.get("created").asInt() + counts.get("changed").asInt(), counts.toString());
+        }
+        // The cell #CLEAR takes a unit out of the hierarchy.
+        load(api, "org-unit-parents", "effectiveDate=2026-05-01", "hierarchy,orgUnitId,parentId\r\nproject,"
+                + second + "," + hospital + "\r\nproject," + first + ",#CLEAR\r\n");
+        assertEquals(List.of(second), Api.json(api.get("/org-units/" + hospital
+                + "/children?asOf=2026-05-01&hierarchy=project")).findValuesAsText("id"));
+        assertEquals(List.of(first), Api.json(api.get("/org-units/" + hospital
+                + "/children?asOf=2026-04-30&hierarchy=project")).findValuesAsText("id"));
     }
 
     @Test
@@ -211,7 +443,7 @@ class CsvImportIT {
             assertTrue(exported.body().startsWith("﻿" + (header.equals("en") ? "id,externalId,source,personId,"
                     + "staffNumber,employerId" : "ID,外部ID,ソース,人のID,職員番号,雇用主のID")), exported.body());
             assertEquals(3, exported.body().split("\r\n").length, exported.body());
-            assertTrue(exported.body().contains(",g1,ON_LEAVE,parental,80.5,2020-04-01,,,\"day, night\""),
+            assertTrue(exported.body().contains(",g1,ON_LEAVE,parental,80.5,2020-04-01,,,,\"day, night\""),
                     exported.body());
             assertTrue(exported.body().contains(",ACTIVE,,,2021-04-01,2027-04-01,resignation,"), exported.body());
 
@@ -262,7 +494,7 @@ class CsvImportIT {
             assertTrue(exported.body().startsWith("﻿" + (header.equals("en") ? "id,externalId,source,"
                     + "employmentId,orgUnitId" : "ID,外部ID,ソース,雇用のID,組織のID")), exported.body());
             assertEquals(3, exported.body().split("\r\n").length, exported.body());
-            assertTrue(exported.body().contains(",nurse,,false,true,70,0,2020-04-01,,\"3F, east\""), exported.body());
+            assertTrue(exported.body().contains(",nurse,,false,true,70,0,2020-04-01,,,\"3F, east\""), exported.body());
             assertTrue(exported.body().contains(",A-2,hr,"), exported.body());
             assertTrue(exported.body().contains(",concurrent,false,false,30,0,2021-04-01,2027-04-01,"),
                     exported.body());
