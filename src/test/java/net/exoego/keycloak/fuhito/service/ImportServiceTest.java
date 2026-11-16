@@ -17,6 +17,7 @@ import net.exoego.keycloak.fuhito.service.ImportDocument.AssignmentRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.AttributeDefinitionRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.EmploymentRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.HierarchyRow;
+import net.exoego.keycloak.fuhito.service.ImportDocument.OrgUnitParentRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.OrgUnitRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.PersonRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.RefItemRow;
@@ -176,6 +177,37 @@ class ImportServiceTest {
         assertEquals("組織図", hierarchies.find("default").orElseThrow().name());
         assertEquals("fuhito/hierarchies/" + hierarchies.find("project").orElseThrow().id(),
                 first.writes().getFirst().path());
+    }
+
+    @Test
+    void movesAUnitInAHierarchyAndReportsEveryBadRowOfParents() {
+        importUnits("2026-04-01", unit("P", "P", null), unit("C", "C", null), unit("D", "D", null),
+                unit("E", "E", null), unit("F", "F", null));
+        String p = orgUnitStore.findUnitByExternalId("import", "P").orElseThrow().id();
+        String c = orgUnitStore.findUnitByExternalId("import", "C").orElseThrow().id();
+        List<OrgUnitParentRow> rows = List.of(
+                new OrgUnitParentRow("default", null, "C", null, "P", null),
+                new OrgUnitParentRow("default", null, null, p, null, null),
+                new OrgUnitParentRow("default", null, "C", c, null, null),
+                new OrgUnitParentRow("default", null, null, null, null, null),
+                new OrgUnitParentRow("default", null, null, "nope", null, null),
+                new OrgUnitParentRow("default", null, "NOPE", null, null, null),
+                new OrgUnitParentRow("default", null, "C", null, null, null),
+                new OrgUnitParentRow("default", null, "D", null, "P", p),
+                new OrgUnitParentRow("default", null, "E", null, null, "nope"),
+                new OrgUnitParentRow("default", null, "F", null, "NOPE", null));
+
+        ImportReport report = service.apply(new ImportDocument("2026-04-01", false, null, null, null, null, null,
+                null, null, null, null, rows));
+
+        assertEquals(Map.of("orgUnitParents", new Counts(0, 1, 1)), report.counts());
+        assertEquals(List.of("orgUnitParents[2] import.org_unit_twice", "orgUnitParents[3] invalid.required",
+                "orgUnitParents[4] import.id_unknown", "orgUnitParents[5] import.org_unit_unknown",
+                "orgUnitParents[6] import.duplicate_row", "orgUnitParents[7] import.parent_twice",
+                "orgUnitParents[8] import.parent_id_unknown", "orgUnitParents[9] import.parent_unknown"),
+                errors(report));
+        assertEquals(p, orgUnits.get(c, "2026-04-01").parentId());
+        assertEquals("fuhito/org-units/" + c + "/parent", report.writes().getFirst().path());
     }
 
     private static ImportDocument hierarchies(List<HierarchyRow> rows) {
