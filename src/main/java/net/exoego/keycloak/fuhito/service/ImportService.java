@@ -80,8 +80,9 @@ public class ImportService {
      * The services that an import of the records about people needs.
      *
      * @param reportingLines the operations on the reporting lines of the realm
+     * @param unitRoles the operations on the roles over org units of the realm
      */
-    public record Records(ReportingLineService reportingLines) {
+    public record Records(ReportingLineService reportingLines, UnitRoleService unitRoles) {
     }
 
     /**
@@ -121,6 +122,10 @@ public class ImportService {
 
     Setup setup() {
         return setup;
+    }
+
+    Records records() {
+        return records;
     }
 
     /**
@@ -167,6 +172,10 @@ public class ImportService {
         }
         if (document.assignments() != null) {
             peopleImport.assignments(document.assignments());
+        }
+        if (document.unitRoles() != null) {
+            new UnitRoleImport(records.unitRoles(), people, orgUnits, document.effectiveDate(), defaultSource,
+                    report).run(document.unitRoles());
         }
         if (document.reportingLines() != null) {
             new ReportingLineImport(records.reportingLines(), people, document.effectiveDate(), defaultSource,

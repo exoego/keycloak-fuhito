@@ -383,6 +383,31 @@ public final class ImportReport {
         }
 
         /**
+         * A write of a role over an org unit.
+         *
+         * @param created true for a new role, false for a change
+         * @param suffix the end of the path after the ID, for example {@code /end}, or an empty text
+         * @param state the role after the write
+         */
+        record OfUnitRole(boolean created, String suffix, UnitRoleService.View state) implements Write {
+
+            @Override
+            public String resourceType() {
+                return "FUHITO_UNIT_ROLE";
+            }
+
+            @Override
+            public String resourceId() {
+                return state.role().id();
+            }
+
+            @Override
+            public String path() {
+                return "fuhito/unit-roles/" + resourceId() + suffix;
+            }
+        }
+
+        /**
          * The removal of a resource.
          *
          * @param resourceType the type of the removed resource, as the event log names it

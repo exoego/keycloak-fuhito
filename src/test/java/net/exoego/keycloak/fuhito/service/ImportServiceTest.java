@@ -14,6 +14,7 @@ import net.exoego.keycloak.fuhito.domain.Person;
 import net.exoego.keycloak.fuhito.domain.RefItem;
 import net.exoego.keycloak.fuhito.domain.RefKind;
 import net.exoego.keycloak.fuhito.domain.ReportingLine;
+import net.exoego.keycloak.fuhito.domain.UnitRole;
 import net.exoego.keycloak.fuhito.service.ImportDocument.AssignmentRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.AttributeDefinitionRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.EmploymentRow;
@@ -24,6 +25,7 @@ import net.exoego.keycloak.fuhito.service.ImportDocument.PersonRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.RefItemRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.RefKindRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.ReportingLineRow;
+import net.exoego.keycloak.fuhito.service.ImportDocument.UnitRoleRow;
 import net.exoego.keycloak.fuhito.service.ImportReport.Counts;
 import net.exoego.keycloak.fuhito.store.OrganizationDirectory;
 import net.exoego.keycloak.fuhito.store.UserDirectory;
@@ -57,6 +59,9 @@ class ImportServiceTest {
     };
     private final MemoryPersonStore personStore = new MemoryPersonStore();
     private final MemoryReportingLineStore lineStore = new MemoryReportingLineStore();
+    private final MemoryUnitRoleStore roleStore = new MemoryUnitRoleStore();
+    private final UnitRoleService roles = new UnitRoleService(roleStore,
+            new UnitRoleService.Sources(employmentStore, orgUnitStore, refItems), Today.of(Clock.systemUTC()));
     private final ReportingLineService lines = new ReportingLineService(lineStore, new ReportingLineService.Sources(
             assignmentStore, employmentStore, orgUnitStore, refItems, users, personStore), Clock.systemUTC());
     private final EmploymentService employments =
@@ -87,7 +92,7 @@ class ImportServiceTest {
             new ImportService.Setup(kinds, definitions, hierarchies),
             new ImportService.Organizations(new OrganizationLinkService(orgUnitStore, organizations), organizations,
                     managed::add),
-            new ImportService.Records(lines));
+            new ImportService.Records(lines, roles));
 
     private static ImportDocument doc(String effectiveDate, boolean dryRun, String source, List<RefItemRow> refItems,
             List<OrgUnitRow> orgUnits) {
@@ -719,6 +724,50 @@ class ImportServiceTest {
                         line(null, "A1", "P3", "doctor", null), line(null, "A1", null, "nobody", null),
                         line("nope", null, null, null, null), line(null, "A1", "NOPE", null, null),
                         line(null, "A1", null, null, null))));
+    }
+
+    private static UnitRoleRow role(String id, String employment, String orgUnit, String role, Boolean below,
+            String validTo) {
+        return new UnitRoleRow(id, null, employment, null, orgUnit, null, role, below, null, validTo);
+    }
+
+    private ImportReport importRoles(String effectiveDate, UnitRoleRow... rows) {
+        return service.apply(ImportDocument.of(effectiveDate, false, null, "unitRoles", List.of(rows)));
+    }
+
+    @Test
+    void importsRolesAndStartsANewOneWhenItCoversTheUnitsBelow() {
+        importTwoUnits();
+        importPeople("2026-04-01", List.of(employment("E1", "nurse", null, null, null)), null);
+        refItems.insert(new RefItem("approver-id", RefKind.UNIT_ROLE.name(), "approver", "承認者", Map.of(), 0,
+                Map.of(), true, false, false, false));
+
+        ImportReport first = importRoles("2026-04-01", role(null, "E1", "H", "approver", null, null));
+        ImportReport again = importRoles("2026-04-01", role(null, "E1", "H", "approver", false, null));
+        ImportReport wider = importRoles("2026-05-01", role(null, "E1", "H", "approver", true, null));
+
+        assertEquals(List.of(), errors(first));
+        assertEquals(Map.of("unitRoles", new Counts(1, 0, 0)), first.counts());
+        assertEquals(Map.of("unitRoles", new Counts(0, 0, 1)), again.counts());
+        assertEquals(Map.of("unitRoles", new Counts(0, 1, 0)), wider.counts());
+        List<UnitRole> stored = roleStore.roles.stream()
+                .sorted(java.util.Comparator.comparing(r -> r.period().from()))
+                .toList();
+        assertEquals("2026-05-01", stored.getFirst().period().to().toString());
+        assertTrue(stored.getLast().includesDescendants());
+        assertEquals("fuhito/unit-roles/" + stored.getFirst().id() + "/end", wider.writes().getFirst().path());
+
+        ImportReport ended = importRoles("2026-05-01", role(stored.getLast().id(), null, null, null, true,
+                "2026-06-01"));
+        assertEquals(Map.of("unitRoles", new Counts(0, 1, 0)), ended.counts());
+        assertEquals(List.of("unitRoles[0] import.employment_unknown", "unitRoles[1] import.org_unit_unknown",
+                "unitRoles[2] import.id_unknown", "unitRoles[3] invalid.required",
+                "unitRoles[4] import.id_mismatch", "unitRoles[6] import.duplicate_row"),
+                errors(importRoles("2026-05-01", role(null, "NOPE", "H", "approver", null, null),
+                        role(null, "E1", "NOPE", "approver", null, null), role("nope", null, null, null, null, null),
+                        role(null, "E1", "W", null, null, null),
+                        role(stored.getLast().id(), null, "W", null, true, null),
+                        role(null, "E1", "H", "approver", true, null), role(null, "E1", "H", "approver", true, null))));
     }
 
     private void importTwoUnits() {

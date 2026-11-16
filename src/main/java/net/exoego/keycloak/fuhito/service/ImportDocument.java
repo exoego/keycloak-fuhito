@@ -39,7 +39,9 @@ public record ImportDocument(
         @Schema(description = "The parents of org units in hierarchies. They come after the org units.")
         List<OrgUnitParentRow> orgUnitParents,
         @Schema(description = "The reporting lines. They come after the assignments.")
-        List<ReportingLineRow> reportingLines) {
+        List<ReportingLineRow> reportingLines,
+        @Schema(description = "The roles over org units. They come after the employments.")
+        List<UnitRoleRow> unitRoles) {
 
     /**
      * Makes a document with no list of kinds.
@@ -57,7 +59,7 @@ public record ImportDocument(
             List<OrgUnitRow> orgUnits, List<EmploymentRow> employments, List<AssignmentRow> assignments,
             List<PersonRow> people) {
         this(effectiveDate, dryRun, source, refItems, orgUnits, employments, assignments, people, null, null, null,
-                null, null);
+                null, null, null);
     }
 
     /**
@@ -74,7 +76,41 @@ public record ImportDocument(
     public ImportDocument(String effectiveDate, boolean dryRun, String source, List<RefItemRow> refItems,
             List<OrgUnitRow> orgUnits, List<EmploymentRow> employments, List<AssignmentRow> assignments) {
         this(effectiveDate, dryRun, source, refItems, orgUnits, employments, assignments, null, null, null, null,
-                null, null);
+                null, null, null);
+    }
+
+    @Schema(
+            name = "ImportUnitRoleRow",
+            description = "A role that an employment holds over an org unit. It is matched by employment, org unit, "
+                    + "and role, or by `id`. A row that changes `includesDescendants` ends the stored role and starts "
+                    + "a new one on the date.")
+    public record UnitRoleRow(
+            @Schema(description = "The ID of a stored role. A CSV export has it in every row. A new role has none.")
+            String id,
+            @Schema(
+                    description = "The name of the system that the external IDs come from. The default is the "
+                            + "source of the document.",
+                    maxLength = 64,
+                    pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$")
+            String source,
+            @Schema(description = "The external ID of the employment. Give this or `employmentId`.")
+            String employmentExternalId,
+            @Schema(description = "The ID of the employment.")
+            String employmentId,
+            @Schema(description = "The external ID of the org unit. Give this or `orgUnitId`.")
+            String orgUnitExternalId,
+            @Schema(description = "The ID of the org unit.")
+            String orgUnitId,
+            @Schema(description = "The code of a reference item of the kind `UNIT_ROLE`.")
+            String role,
+            @Schema(description = "True when the role also covers the units below.", defaultValue = "false")
+            Boolean includesDescendants,
+            @Schema(description = "The first date of a new role. The default is the effective date. A stored role "
+                    + "ignores it.", format = "date")
+            String validFrom,
+            @Schema(description = "The first date on which the role no longer holds. The default is the end of the "
+                    + "employment.", format = "date")
+            String validTo) {
     }
 
     @Schema(
@@ -186,7 +222,7 @@ public record ImportDocument(
         return new ImportDocument(effectiveDate, dryRun, source, rows(lists, "refItems"), rows(lists, "orgUnits"),
                 rows(lists, "employments"), rows(lists, "assignments"), rows(lists, "people"),
                 rows(lists, "refKinds"), rows(lists, "attributeDefinitions"), rows(lists, "hierarchies"),
-                rows(lists, "orgUnitParents"), rows(lists, "reportingLines"));
+                rows(lists, "orgUnitParents"), rows(lists, "reportingLines"), rows(lists, "unitRoles"));
     }
 
     // The name of the list tells the type of its rows.

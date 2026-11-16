@@ -147,6 +147,36 @@ class CsvImportIT {
     }
 
     @Test
+    void anExportOfRolesOverOrgUnitsLoadsAgainWithNoChange() throws Exception {
+        TestRealm realm = TestRealm.withEmployer("csv-export-roles");
+        Api api = realm.api;
+        realm.refItem("UNIT_ROLE", "approver", "承認者");
+        String ward = Api.json(api.post("/org-units", "{\"name\": \"1病棟\", \"validFrom\": \"2020-04-01\"}"))
+                .get("id").asText();
+        String employment = Api.json(api.post("/staff", "{\"userId\": \"" + realm.user("nurse") + "\", "
+                + "\"orgUnitId\": \"" + ward + "\", \"validFrom\": \"2020-04-01\"}")).get("employment").get("id")
+                .asText();
+        String role = Api.json(api.post("/unit-roles", "{\"employmentId\": \"" + employment + "\", \"orgUnitId\": \""
+                + ward + "\", \"role\": \"approver\", \"validFrom\": \"2021-04-01\"}")).get("id").asText();
+
+        for (String header : List.of("en", "ja")) {
+            HttpResponse<String> exported = api.get("/imports/csv/unit-roles?asOf=2026-05-01&header=" + header);
+            assertEquals(200, exported.statusCode(), exported.body());
+            assertEquals("﻿" + (header.equals("en")
+                    ? "id,employmentId,orgUnitId,role,includesDescendants,validFrom,validTo"
+                    : "ID,雇用のID,組織のID,ロール,下位の組織も含む,開始日,終了日") + "\r\n" + role + "," + employment
+                    + "," + ward + ",approver,false,2021-04-01,\r\n", exported.body());
+            JsonNode counts = load(api, "unit-roles", "effectiveDate=2026-05-01", exported.body())
+                    .get("counts").get("unitRoles");
+            assertEquals(0, counts.get("created").asInt() + counts.get("changed").asInt(), counts.toString());
+        }
+        // A role that now covers the units below starts again on the date.
+        load(api, "unit-roles", "effectiveDate=2026-06-01", "id,includesDescendants\r\n" + role + ",true\r\n");
+        assertTrue(api.get("/imports/csv/unit-roles?asOf=2026-05-31").body().endsWith(",false,2021-04-01,2026-06-01\r\n"));
+        assertTrue(api.get("/imports/csv/unit-roles?asOf=2026-06-01").body().endsWith(",true,2026-06-01,\r\n"));
+    }
+
+    @Test
     void anExportOfKindsLoadsAgainWithNoChange() throws Exception {
         TestRealm realm = TestRealm.create("csv-export-kinds");
         Api api = realm.api;

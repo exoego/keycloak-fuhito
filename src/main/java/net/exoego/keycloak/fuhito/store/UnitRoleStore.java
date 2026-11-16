@@ -61,6 +61,16 @@ public interface UnitRoleStore {
     void insert(UnitRole role);
 
     /**
+     * Lists a page of the roles that hold on a date, ordered by ID.
+     *
+     * @param date the date
+     * @param afterId the ID after which the page starts, or null for the start
+     * @param max the largest number of roles
+     * @return the roles
+     */
+    List<UnitRole> listOn(LocalDate date, String afterId, int max);
+
+    /**
      * Stores the new period of a role.
      *
      * @param role the role with its new period
