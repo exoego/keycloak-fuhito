@@ -25,8 +25,10 @@ import net.exoego.keycloak.fuhito.domain.OrgUnitSuccession;
 import net.exoego.keycloak.fuhito.domain.OrgUnitVersion;
 import net.exoego.keycloak.fuhito.domain.Person;
 import net.exoego.keycloak.fuhito.domain.RefItem;
+import net.exoego.keycloak.fuhito.domain.Qualification;
 import net.exoego.keycloak.fuhito.domain.RefKind;
 import net.exoego.keycloak.fuhito.domain.ReportingLine;
+import net.exoego.keycloak.fuhito.domain.UnitRole;
 import net.exoego.keycloak.fuhito.store.OrganizationDirectory;
 
 /**
@@ -39,7 +41,7 @@ public class CsvExportService {
     private static final int ROWS_AT_A_TIME = 1000;
     private static final List<String> LISTS = List.of("ref-kinds", "attribute-definitions", "ref-items",
             "hierarchies", "org-units", "org-unit-parents", "people", "employments", "assignments",
-            "reporting-lines");
+            "reporting-lines", "unit-roles", "qualifications");
 
     private final RefItemService refItems;
     private final Supplier<List<RealmKindService.View>> kinds;
@@ -51,6 +53,8 @@ public class CsvExportService {
     private final HierarchyService hierarchies;
     private final OrganizationDirectory organizations;
     private final ReportingLineService reportingLines;
+    private final UnitRoleService unitRoles;
+    private final QualificationService qualifications;
     private final Function<AttributeDefinition.Target, List<AttributeDefinition>> definitions;
 
     /**
@@ -66,13 +70,18 @@ public class CsvExportService {
      * @param hierarchies the operations on the hierarchies of the realm
      * @param organizations the Keycloak organizations of the realm
      * @param reportingLines the operations on the reporting lines of the realm
+     * @param unitRoles the operations on the roles over org units of the realm
+     * @param qualifications the operations on the qualifications of the realm
      * @param definitions the definitions of free attributes of the realm, by the resource that has them
      */
     public CsvExportService(RefItemService refItems, Supplier<List<RealmKindService.View>> kinds,
             OrgUnitService orgUnits,
             PersonService people, EmploymentService employments, AssignmentService assignments, Today today,
             HierarchyService hierarchies, OrganizationDirectory organizations, ReportingLineService reportingLines,
+            UnitRoleService unitRoles, QualificationService qualifications,
             Function<AttributeDefinition.Target, List<AttributeDefinition>> definitions) {
+        this.unitRoles = unitRoles;
+        this.qualifications = qualifications;
         this.reportingLines = reportingLines;
         this.hierarchies = hierarchies;
         this.organizations = organizations;
@@ -107,6 +116,8 @@ public class CsvExportService {
             case "employments" -> employments(asOf, japanese);
             case "assignments" -> assignments(asOf, japanese);
             case "reporting-lines" -> reportingLines(asOf, japanese);
+            case "unit-roles" -> unitRoles(asOf, japanese);
+            case "qualifications" -> qualifications(asOf, japanese);
             default -> throw FuhitoException.invalid("csv.export_list_unknown", Map.of("list", String.valueOf(list),
                     "lists", String.join(", ", LISTS)));
         };
@@ -359,6 +370,63 @@ public class CsvExportService {
                 return csv.toString();
             }
             after = page.getLast().id();
+        }
+    }
+
+    // A qualification has dates of its own, so the file has all of them, unless a date is given.
+    private String qualifications(String asOf, boolean japanese) {
+        List<String> attributes = definitions.apply(AttributeDefinition.Target.QUALIFICATION).stream()
+                .map(AttributeDefinition::name)
+                .toList();
+        List<String> header = new ArrayList<>();
+        for (String field : List.of("id", "externalId", "source", "personId", "kind", "number", "validFrom",
+                "validTo")) {
+            header.add(column(field, japanese));
+        }
+        attributes.forEach(attribute -> header.add(CsvImportService.ATTRIBUTE_COLUMN + attribute));
+        StringBuilder csv = new StringBuilder(BYTE_ORDER_MARK);
+        line(csv, header);
+        String after = null;
+        while (true) {
+            List<QualificationView> page = qualifications.list(null, asOf, Page.of(0, ROWS_AT_A_TIME), after);
+            for (QualificationView view : page) {
+                Qualification q = view.qualification();
+                List<String> cells = new ArrayList<>(List.of(q.id(), text(q.externalId()), text(q.source()),
+                        q.personId(), text(view.kind()), text(q.number()), q.period().from().toString(),
+                        text(q.period().to())));
+                attributes.forEach(attribute -> cells.add(text(Optional.ofNullable(q.attributes())
+                        .map(values -> values.get(attribute)).orElse(null))));
+                line(csv, cells);
+            }
+            if (page.size() < ROWS_AT_A_TIME) {
+                return csv.toString();
+            }
+            after = Cursor.encode(Cursor.QUALIFICATIONS, page.getLast().qualification().id());
+        }
+    }
+
+    private String unitRoles(String asOf, boolean japanese) {
+        LocalDate date = asOf == null ? today.ofRealm() : Checks.date("asOf", asOf);
+        List<String> header = new ArrayList<>();
+        for (String field : List.of("id", "employmentId", "orgUnitId", "role", "includesDescendants", "validFrom",
+                "validTo")) {
+            header.add(column(field, japanese));
+        }
+        StringBuilder csv = new StringBuilder(BYTE_ORDER_MARK);
+        line(csv, header);
+        String after = null;
+        while (true) {
+            List<UnitRoleService.View> page = unitRoles.listOn(date, after, ROWS_AT_A_TIME);
+            for (UnitRoleService.View view : page) {
+                UnitRole role = view.role();
+                line(csv, List.of(role.id(), role.employmentId(), role.orgUnitId(), text(view.code()),
+                        Boolean.toString(role.includesDescendants()), role.period().from().toString(),
+                        text(role.period().to())));
+            }
+            if (page.size() < ROWS_AT_A_TIME) {
+                return csv.toString();
+            }
+            after = page.getLast().role().id();
         }
     }
 

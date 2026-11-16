@@ -80,8 +80,11 @@ public class ImportService {
      * The services that an import of the records about people needs.
      *
      * @param reportingLines the operations on the reporting lines of the realm
+     * @param unitRoles the operations on the roles over org units of the realm
+     * @param qualifications the operations on the qualifications of the realm
      */
-    public record Records(ReportingLineService reportingLines) {
+    public record Records(ReportingLineService reportingLines, UnitRoleService unitRoles,
+            QualificationService qualifications) {
     }
 
     /**
@@ -123,6 +126,10 @@ public class ImportService {
         return setup;
     }
 
+    Records records() {
+        return records;
+    }
+
     /**
      * Applies every row of the document. A bad row does not stop the others, so that the report names all of them.
      *
@@ -162,11 +169,19 @@ public class ImportService {
         if (document.people() != null) {
             peopleImport.people(document.people());
         }
+        if (document.qualifications() != null) {
+            new QualificationImport(records.qualifications(), people, document.effectiveDate(), defaultSource,
+                    report).run(document.qualifications());
+        }
         if (document.employments() != null) {
             peopleImport.employments(document.employments());
         }
         if (document.assignments() != null) {
             peopleImport.assignments(document.assignments());
+        }
+        if (document.unitRoles() != null) {
+            new UnitRoleImport(records.unitRoles(), people, orgUnits, document.effectiveDate(), defaultSource,
+                    report).run(document.unitRoles());
         }
         if (document.reportingLines() != null) {
             new ReportingLineImport(records.reportingLines(), people, document.effectiveDate(), defaultSource,

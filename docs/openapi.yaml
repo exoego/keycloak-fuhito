@@ -1179,6 +1179,16 @@ components:
           items:
             $ref: "#/components/schemas/ImportReportingLineRow"
           description: The reporting lines. They come after the assignments.
+        unitRoles:
+          type: array
+          items:
+            $ref: "#/components/schemas/ImportUnitRoleRow"
+          description: The roles over org units. They come after the employments.
+        qualifications:
+          type: array
+          items:
+            $ref: "#/components/schemas/ImportQualificationRow"
+          description: The qualifications. They come after the people.
     ImportEmploymentRow:
       type: object
       description: "An employment. It is matched by source and external ID, or by\
@@ -1443,6 +1453,59 @@ components:
           type: string
           description: "The ID of a stored person, for a row of a person with no external\
             \ ID. A CSV export has it in every row. A new person has none."
+    ImportQualificationRow:
+      type: object
+      required:
+      - kind
+      description: "A qualification of a person, such as a license. It is matched\
+        \ by source and external ID, or by `id`. A row needs one of them. A row of\
+        \ a stored one replaces its kind, number, dates, and attributes, as `PUT`\
+        \ does."
+      properties:
+        id:
+          type: string
+          description: The ID of a stored qualification. A CSV export has it in every
+            row.
+        source:
+          type: string
+          maxLength: 64
+          pattern: "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
+          description: The name of the system that the row comes from. The default
+            is the source of the document.
+        externalId:
+          type: string
+          description: The ID of the qualification in that system.
+        personExternalId:
+          type: string
+          description: "The external ID of the person, with the same source. Give\
+            \ one of the three ways to name the person. A row of a stored qualification\
+            \ may name nobody."
+        personId:
+          type: string
+          description: The ID of the person.
+        username:
+          type: string
+          description: "The username of the person. The person of the user is used,\
+            \ and created when the user has none."
+        kind:
+          type: string
+          description: The code of a reference item of the kind `QUALIFICATION`.
+        number:
+          type: string
+          maxLength: 255
+          description: "The number, for example of a license."
+        validFrom:
+          type: string
+          description: The first date. The default is the effective date.
+          format: date
+        validTo:
+          type: string
+          description: The first date on which it no longer holds. None for no end.
+          format: date
+        attributes:
+          type: object
+          additionalProperties: {}
+          description: Free values that the realm defines.
     ImportRefItemRow:
       type: object
       required:
@@ -1624,6 +1687,51 @@ components:
         message:
           type: string
           description: The message for people.
+    ImportUnitRoleRow:
+      type: object
+      description: "A role that an employment holds over an org unit. It is matched\
+        \ by employment, org unit, and role, or by `id`. A row that changes `includesDescendants`\
+        \ ends the stored role and starts a new one on the date."
+      properties:
+        id:
+          type: string
+          description: The ID of a stored role. A CSV export has it in every row.
+            A new role has none.
+        source:
+          type: string
+          maxLength: 64
+          pattern: "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
+          description: The name of the system that the external IDs come from. The
+            default is the source of the document.
+        employmentExternalId:
+          type: string
+          description: The external ID of the employment. Give this or `employmentId`.
+        employmentId:
+          type: string
+          description: The ID of the employment.
+        orgUnitExternalId:
+          type: string
+          description: The external ID of the org unit. Give this or `orgUnitId`.
+        orgUnitId:
+          type: string
+          description: The ID of the org unit.
+        role:
+          type: string
+          description: The code of a reference item of the kind `UNIT_ROLE`.
+        includesDescendants:
+          type: boolean
+          description: True when the role also covers the units below.
+          default: false
+        validFrom:
+          type: string
+          description: The first date of a new role. The default is the effective
+            date. A stored role ignores it.
+          format: date
+        validTo:
+          type: string
+          description: The first date on which the role no longer holds. The default
+            is the end of the employment.
+          format: date
     JobRun:
       description: "The last run of a long job, also one that the timer started."
       type: object
@@ -4898,7 +5006,8 @@ paths:
       description: "All rows are written, or none. A dry run does all checks and writes\
         \ nothing. The lists are applied in the order kinds of reference data, definitions\
         \ of attributes, reference items, hierarchies, org units, parents in hierarchies,\
-        \ people, employments, assignments, reporting lines."
+        \ people, qualifications, employments, roles over org units, assignments,\
+        \ reporting lines."
       operationId: applyImport
       tags:
       - bulk
@@ -4951,6 +5060,8 @@ paths:
           - employments
           - assignments
           - reporting-lines
+          - unit-roles
+          - qualifications
         name: list
         in: path
         required: true
@@ -5006,6 +5117,8 @@ paths:
           - employments
           - assignments
           - reporting-lines
+          - unit-roles
+          - qualifications
         name: list
         in: path
         required: true

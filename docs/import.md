@@ -29,6 +29,8 @@ Every bad row is reported, not only the first one.
 | Employments | Source and external ID, or ID |
 | Assignments | Source and external ID, or ID |
 | Reporting lines | Assignment, manager, and kind, or ID |
+| Roles over org units | Employment, org unit, and role, or ID |
+| Qualifications | Source and external ID, or ID |
 
 The source is the name of the system or the sheet that the rows come from.
 It keeps the external IDs of two systems apart. The default is `import`.
@@ -47,7 +49,7 @@ The list `people` loads people, also those with no Keycloak user, such as staff 
 ## JSON
 
 `POST /imports` takes one document with several lists.
-The lists are applied in the order kinds of reference data, attribute definitions, reference items, hierarchies, org units, parents in hierarchies, people, employments, assignments, reporting lines.
+The lists are applied in the order kinds of reference data, attribute definitions, reference items, hierarchies, org units, parents in hierarchies, people, qualifications, employments, roles over org units, assignments, reporting lines.
 
 ```json
 {
@@ -82,6 +84,8 @@ The lists are applied in the order kinds of reference data, attribute definition
 - A row of an employment can name its person by `personId` and its employer by `employerId`. A row gives the external ID or the ID, not both.
 - A row of an assignment can name its employment by `employmentId` and its org unit by `orgUnitId` the same way. A row of a stored assignment that names neither keeps the stored ones.
 - The list `reportingLines` gives the manager of an assignment. A row names the assignment by `assignmentExternalId` or `assignmentId`, and the manager by `managerPersonExternalId`, `managerPersonId`, or `managerUsername`. `kind` is `SOLID` or `DOTTED`, and the default is `SOLID`. A new solid manager ends the solid line that the assignment has on the date, so a change of the manager is one row. With no `validTo`, a line lasts as long as the assignment.
+- The list `unitRoles` gives the roles that employments hold over org units. A row names the employment by `employmentExternalId` or `employmentId`, the unit by `orgUnitExternalId` or `orgUnitId`, and the role by the code of a reference item of the kind `UNIT_ROLE`. A row that changes `includesDescendants` ends the stored role and starts a new one on the date. With no `validTo`, a role lasts as long as the employment.
+- The list `qualifications` gives qualifications such as licenses. A row names the person by `personExternalId`, `personId`, or `username`. A row of a stored qualification may name nobody. A qualification has dates of its own, so a row replaces the kind, the number, the dates, and the attributes of a stored one, as `PUT /qualifications/{id}` does. A row with no `validFrom` starts on the effective date.
 - A new row can have its own `validFrom`. An existing row ignores it.
 - A row with `validTo` ends the thing on that date. An employment can also carry `endReason`.
 - A row of an org unit can link the unit to a Keycloak organization by `organizationAlias`. A row that leaves it out keeps the link, and an empty text removes it. As `PUT /org-units/{id}/organization` does, the import asks for the permission to manage the old and the new organization. An unknown alias fails with `import.organization_unknown`.
@@ -98,7 +102,7 @@ The lists are applied in the order kinds of reference data, attribute definition
 
 ## CSV
 
-`POST /imports/csv/{list}` takes one file. The list is `ref-kinds`, `attribute-definitions`, `ref-items`, `hierarchies`, `org-units`, `org-unit-parents`, `people`, `employments`, `assignments`, or `reporting-lines`.
+`POST /imports/csv/{list}` takes one file. The list is `ref-kinds`, `attribute-definitions`, `ref-items`, `hierarchies`, `org-units`, `org-unit-parents`, `people`, `employments`, `assignments`, `reporting-lines`, `unit-roles`, or `qualifications`.
 
 `GET /imports/csv/org-units?asOf=` gives the org units of a date as such a file, for a change in a spreadsheet. Each row has the column `id`, so a unit with no external ID loads again too. The parent is in the column `parentId`. A unit that ends has `validTo`, and its successors are in `successorIds`. A linked unit has the alias of its Keycloak organization in `organizationAlias`. In a file, `#CLEAR` there removes the link. With `header=ja`, the names of the columns are in Japanese. The file is UTF-8 with a byte order mark, which spreadsheets need to read it as UTF-8. The same file loaded on the same date changes nothing.
 
@@ -114,6 +118,8 @@ The lists are applied in the order kinds of reference data, attribute definition
 
 `GET /imports/csv/assignments?asOf=` gives the assignments that hold on the date the same way, with the details of that date. It names the employment by `employmentId` and the org unit by `orgUnitId`. `validFrom` and `validTo` are the dates of the whole assignment, not of the details.
 `GET /imports/csv/reporting-lines?asOf=` gives the reporting lines that hold on the date. It names the assignment by `assignmentId` and the manager by `managerPersonId`.
+`GET /imports/csv/unit-roles?asOf=` gives the roles that hold on the date. It names the employment by `employmentId` and the unit by `orgUnitId`.
+`GET /imports/csv/qualifications` gives every qualification, also those that expired. With `asOf`, it gives only those that hold on the date.
 The query has `effectiveDate`, and optionally `dryRun` and `source`.
 The content type is `text/csv`.
 
@@ -286,6 +292,36 @@ Reporting lines.
 | `managerPersonId` | `上司の人のID` |
 | `managerUsername` | `上司のユーザー名` |
 | `kind` | `種類` |
+| `validFrom` | `開始日` |
+| `validTo` | `終了日` |
+
+Roles over org units.
+
+| English | Japanese |
+|---|---|
+| `id` | `ID` |
+| `source` | `ソース` |
+| `employmentExternalId` | `雇用の外部ID` |
+| `employmentId` | `雇用のID` |
+| `orgUnitExternalId` | `組織の外部ID` |
+| `orgUnitId` | `組織のID` |
+| `role` | `ロール` |
+| `includesDescendants` | `下位の組織も含む` |
+| `validFrom` | `開始日` |
+| `validTo` | `終了日` |
+
+Qualifications.
+
+| English | Japanese |
+|---|---|
+| `id` | `ID` |
+| `externalId` | `外部ID` |
+| `source` | `ソース` |
+| `personExternalId` | `人の外部ID` |
+| `personId` | `人のID` |
+| `username` | `ユーザー名` |
+| `kind` | `種類` |
+| `number` | `番号` |
 | `validFrom` | `開始日` |
 | `validTo` | `終了日` |
 

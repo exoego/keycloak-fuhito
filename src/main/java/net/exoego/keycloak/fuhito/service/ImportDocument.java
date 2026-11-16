@@ -39,7 +39,11 @@ public record ImportDocument(
         @Schema(description = "The parents of org units in hierarchies. They come after the org units.")
         List<OrgUnitParentRow> orgUnitParents,
         @Schema(description = "The reporting lines. They come after the assignments.")
-        List<ReportingLineRow> reportingLines) {
+        List<ReportingLineRow> reportingLines,
+        @Schema(description = "The roles over org units. They come after the employments.")
+        List<UnitRoleRow> unitRoles,
+        @Schema(description = "The qualifications. They come after the people.")
+        List<QualificationRow> qualifications) {
 
     /**
      * Makes a document with no list of kinds.
@@ -57,7 +61,7 @@ public record ImportDocument(
             List<OrgUnitRow> orgUnits, List<EmploymentRow> employments, List<AssignmentRow> assignments,
             List<PersonRow> people) {
         this(effectiveDate, dryRun, source, refItems, orgUnits, employments, assignments, people, null, null, null,
-                null, null);
+                null, null, null, null);
     }
 
     /**
@@ -74,7 +78,78 @@ public record ImportDocument(
     public ImportDocument(String effectiveDate, boolean dryRun, String source, List<RefItemRow> refItems,
             List<OrgUnitRow> orgUnits, List<EmploymentRow> employments, List<AssignmentRow> assignments) {
         this(effectiveDate, dryRun, source, refItems, orgUnits, employments, assignments, null, null, null, null,
-                null, null);
+                null, null, null, null);
+    }
+
+    @Schema(
+            name = "ImportQualificationRow",
+            description = "A qualification of a person, such as a license. It is matched by source and external ID, "
+                    + "or by `id`. A row needs one of them. A row of a stored one replaces its kind, number, dates, "
+                    + "and attributes, as `PUT` does.",
+            requiredProperties = {"kind"})
+    public record QualificationRow(
+            @Schema(description = "The ID of a stored qualification. A CSV export has it in every row.")
+            String id,
+            @Schema(
+                    description = "The name of the system that the row comes from. The default is the source of the "
+                            + "document.",
+                    maxLength = 64,
+                    pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$")
+            String source,
+            @Schema(description = "The ID of the qualification in that system.")
+            String externalId,
+            @Schema(description = "The external ID of the person, with the same source. Give one of the three ways "
+                    + "to name the person. A row of a stored qualification may name nobody.")
+            String personExternalId,
+            @Schema(description = "The ID of the person.")
+            String personId,
+            @Schema(description = "The username of the person. The person of the user is used, and created when the "
+                    + "user has none.")
+            String username,
+            @Schema(description = "The code of a reference item of the kind `QUALIFICATION`.")
+            String kind,
+            @Schema(description = "The number, for example of a license.", maxLength = 255)
+            String number,
+            @Schema(description = "The first date. The default is the effective date.", format = "date")
+            String validFrom,
+            @Schema(description = "The first date on which it no longer holds. None for no end.", format = "date")
+            String validTo,
+            @Schema(description = "Free values that the realm defines.")
+            Map<String, Object> attributes) {
+    }
+
+    @Schema(
+            name = "ImportUnitRoleRow",
+            description = "A role that an employment holds over an org unit. It is matched by employment, org unit, "
+                    + "and role, or by `id`. A row that changes `includesDescendants` ends the stored role and starts "
+                    + "a new one on the date.")
+    public record UnitRoleRow(
+            @Schema(description = "The ID of a stored role. A CSV export has it in every row. A new role has none.")
+            String id,
+            @Schema(
+                    description = "The name of the system that the external IDs come from. The default is the "
+                            + "source of the document.",
+                    maxLength = 64,
+                    pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$")
+            String source,
+            @Schema(description = "The external ID of the employment. Give this or `employmentId`.")
+            String employmentExternalId,
+            @Schema(description = "The ID of the employment.")
+            String employmentId,
+            @Schema(description = "The external ID of the org unit. Give this or `orgUnitId`.")
+            String orgUnitExternalId,
+            @Schema(description = "The ID of the org unit.")
+            String orgUnitId,
+            @Schema(description = "The code of a reference item of the kind `UNIT_ROLE`.")
+            String role,
+            @Schema(description = "True when the role also covers the units below.", defaultValue = "false")
+            Boolean includesDescendants,
+            @Schema(description = "The first date of a new role. The default is the effective date. A stored role "
+                    + "ignores it.", format = "date")
+            String validFrom,
+            @Schema(description = "The first date on which the role no longer holds. The default is the end of the "
+                    + "employment.", format = "date")
+            String validTo) {
     }
 
     @Schema(
@@ -186,7 +261,8 @@ public record ImportDocument(
         return new ImportDocument(effectiveDate, dryRun, source, rows(lists, "refItems"), rows(lists, "orgUnits"),
                 rows(lists, "employments"), rows(lists, "assignments"), rows(lists, "people"),
                 rows(lists, "refKinds"), rows(lists, "attributeDefinitions"), rows(lists, "hierarchies"),
-                rows(lists, "orgUnitParents"), rows(lists, "reportingLines"));
+                rows(lists, "orgUnitParents"), rows(lists, "reportingLines"), rows(lists, "unitRoles"),
+                rows(lists, "qualifications"));
     }
 
     // The name of the list tells the type of its rows.

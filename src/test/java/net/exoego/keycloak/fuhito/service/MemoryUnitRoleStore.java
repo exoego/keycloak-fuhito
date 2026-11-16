@@ -56,6 +56,15 @@ final class MemoryUnitRoleStore implements UnitRoleStore {
     }
 
     @Override
+    public List<UnitRole> listOn(LocalDate date, String afterId, int max) {
+        return roles.stream()
+                .filter(r -> r.period().contains(date) && (afterId == null || r.id().compareTo(afterId) > 0))
+                .sorted(java.util.Comparator.comparing(UnitRole::id))
+                .limit(max)
+                .toList();
+    }
+
+    @Override
     public void insert(UnitRole role) {
         roles.add(role);
     }

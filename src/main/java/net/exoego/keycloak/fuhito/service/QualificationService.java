@@ -4,6 +4,7 @@ import java.time.Clock;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 import net.exoego.keycloak.fuhito.domain.AttributeDefinition;
@@ -111,6 +112,27 @@ public class QualificationService {
     public QualificationView get(String id) {
         return store.find(id).map(this::view)
                 .orElseThrow(() -> FuhitoException.notFound("qualification.not_found", Map.of("id", id)));
+    }
+
+    /**
+     * Finds a qualification.
+     *
+     * @param id the ID
+     * @return the qualification, or empty when the realm has no such qualification
+     */
+    public Optional<QualificationView> find(String id) {
+        return store.find(id).map(this::view);
+    }
+
+    /**
+     * Finds a qualification by the pair of source and external ID that it has.
+     *
+     * @param source the name of the system
+     * @param externalId the ID in that system
+     * @return the qualification, or empty when none has the pair
+     */
+    public Optional<QualificationView> ofExternalId(String source, String externalId) {
+        return store.findByExternalId(source, externalId).map(this::view);
     }
 
     /**

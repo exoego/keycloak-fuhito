@@ -27,6 +27,7 @@ import net.exoego.keycloak.fuhito.domain.Hierarchy;
 import net.exoego.keycloak.fuhito.domain.OrgUnit;
 import net.exoego.keycloak.fuhito.domain.OrgUnitSuccession;
 import net.exoego.keycloak.fuhito.domain.Person;
+import net.exoego.keycloak.fuhito.domain.Qualification;
 import net.exoego.keycloak.fuhito.domain.RefItem;
 import net.exoego.keycloak.fuhito.domain.RefKind;
 import net.exoego.keycloak.fuhito.service.ImportDocument.AssignmentRow;
@@ -36,8 +37,10 @@ import net.exoego.keycloak.fuhito.service.ImportDocument.HierarchyRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.OrgUnitParentRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.OrgUnitRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.PersonRow;
+import net.exoego.keycloak.fuhito.service.ImportDocument.QualificationRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.RefItemRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.ReportingLineRow;
+import net.exoego.keycloak.fuhito.service.ImportDocument.UnitRoleRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.RefKindRow;
 import net.exoego.keycloak.fuhito.store.OrgUnitStore;
 import net.exoego.keycloak.fuhito.store.RefItemStore;
@@ -95,7 +98,9 @@ public class CsvImportService {
             Map.entry("successorExternalIds", "後継の外部ID"), Map.entry("successorIds", "後継のID"),
             Map.entry("organizationAlias", "Organizationの別名"), Map.entry("assignmentExternalId", "所属の外部ID"),
             Map.entry("assignmentId", "所属のID"), Map.entry("managerPersonExternalId", "上司の人の外部ID"),
-            Map.entry("managerPersonId", "上司の人のID"), Map.entry("managerUsername", "上司のユーザー名"));
+            Map.entry("managerPersonId", "上司の人のID"), Map.entry("managerUsername", "上司のユーザー名"),
+            Map.entry("role", "ロール"), Map.entry("includesDescendants", "下位の組織も含む"),
+            Map.entry("number", "番号"));
 
     // The lists that a file can hold, each with the resource whose attributes it sets.
     private enum Kind {
@@ -104,6 +109,8 @@ public class CsvImportService {
         HIERARCHIES("hierarchies", null),
         ORG_UNIT_PARENTS("orgUnitParents", null),
         REPORTING_LINES("reportingLines", null),
+        UNIT_ROLES("unitRoles", null),
+        QUALIFICATIONS("qualifications", AttributeDefinition.Target.QUALIFICATION),
         REF_ITEMS("refItems", AttributeDefinition.Target.REF_ITEM),
         ORG_UNITS("orgUnits", AttributeDefinition.Target.ORG_UNIT),
         EMPLOYMENTS("employments", AttributeDefinition.Target.EMPLOYMENT_TERMS),
@@ -127,26 +134,31 @@ public class CsvImportService {
         }
     }
 
-    private static final Map<Kind, Set<String>> FIELDS = Map.of(
-            Kind.REF_KINDS, Set.of("code", "name"),
-            Kind.ATTRIBUTE_DEFINITIONS, Set.of("target", "name", "type", "refKind", "required"),
-            Kind.HIERARCHIES, Set.of("code", "name"),
-            Kind.ORG_UNIT_PARENTS, Set.of("hierarchy", "source", "orgUnitExternalId", "orgUnitId", "parentExternalId",
-                    "parentId"),
-            Kind.REPORTING_LINES, Set.of("id", "source", "assignmentExternalId", "assignmentId",
-                    "managerPersonExternalId", "managerPersonId", "managerUsername", "kind", "validFrom", "validTo"),
-            Kind.REF_ITEMS, Set.of("kind", "code", "name", "displayOrder", "active", "legalEntity", "actingHead",
-                    "group"),
-            Kind.ORG_UNITS, Set.of("id", "externalId", "source", "code", "name", "shortName", "phoneticName",
-                    "unitType", "parentExternalId", "parentId", "displayOrder", "validFrom", "validTo",
-                    "successorExternalIds", "successorIds", "organizationAlias"),
-            Kind.EMPLOYMENTS, Set.of("id", "externalId", "source", "username", "userId", "staffNumber",
+    private static final Map<Kind, Set<String>> FIELDS = Map.ofEntries(
+            Map.entry(Kind.REF_KINDS, Set.of("code", "name")),
+            Map.entry(Kind.ATTRIBUTE_DEFINITIONS, Set.of("target", "name", "type", "refKind", "required")),
+            Map.entry(Kind.HIERARCHIES, Set.of("code", "name")),
+            Map.entry(Kind.ORG_UNIT_PARENTS, Set.of("hierarchy", "source", "orgUnitExternalId", "orgUnitId",
+                    "parentExternalId", "parentId")),
+            Map.entry(Kind.QUALIFICATIONS, Set.of("id", "source", "externalId", "personExternalId", "personId",
+                    "username", "kind", "number", "validFrom", "validTo")),
+            Map.entry(Kind.UNIT_ROLES, Set.of("id", "source", "employmentExternalId", "employmentId",
+                    "orgUnitExternalId", "orgUnitId", "role", "includesDescendants", "validFrom", "validTo")),
+            Map.entry(Kind.REPORTING_LINES, Set.of("id", "source", "assignmentExternalId", "assignmentId",
+                    "managerPersonExternalId", "managerPersonId", "managerUsername", "kind", "validFrom", "validTo")),
+            Map.entry(Kind.REF_ITEMS, Set.of("kind", "code", "name", "displayOrder", "active", "legalEntity",
+                    "actingHead", "group")),
+            Map.entry(Kind.ORG_UNITS, Set.of("id", "externalId", "source", "code", "name", "shortName",
+                    "phoneticName", "unitType", "parentExternalId", "parentId", "displayOrder", "validFrom",
+                    "validTo", "successorExternalIds", "successorIds", "organizationAlias")),
+            Map.entry(Kind.EMPLOYMENTS, Set.of("id", "externalId", "source", "username", "userId", "staffNumber",
                     "employmentType", "grade", "status", "leaveReason", "workPercent", "validFrom", "validTo",
-                    "endReason", "employerExternalId", "employerId", "personExternalId", "personId"),
-            Kind.PEOPLE, Set.of("id", "externalId", "source", "username", "userId", "name", "phoneticName"),
-            Kind.ASSIGNMENTS, Set.of("id", "externalId", "source", "employmentExternalId", "employmentId",
+                    "endReason", "employerExternalId", "employerId", "personExternalId", "personId")),
+            Map.entry(Kind.PEOPLE, Set.of("id", "externalId", "source", "username", "userId", "name",
+                    "phoneticName")),
+            Map.entry(Kind.ASSIGNMENTS, Set.of("id", "externalId", "source", "employmentExternalId", "employmentId",
                     "orgUnitExternalId", "orgUnitId", "jobTitle", "occupation", "assignmentKind", "head", "primary",
-                    "allocationPercent", "displayOrder", "validFrom", "validTo"));
+                    "allocationPercent", "displayOrder", "validFrom", "validTo")));
 
     private static final Set<String> LOCALIZED = Set.of("name", "shortName");
     static final String ATTRIBUTE_COLUMN = "attributes.";
@@ -214,6 +226,9 @@ public class CsvImportService {
             case ORG_UNIT_PARENTS -> run(data, columns, defined, cells -> orgUnitParent(cells, date, defaultSource),
                     document);
             case REPORTING_LINES -> run(data, columns, defined, this::reportingLine, document);
+            case UNIT_ROLES -> run(data, columns, defined, this::unitRole, document);
+            case QUALIFICATIONS -> run(data, columns, defined, cells -> qualification(cells, defaultSource),
+                    document);
             case REF_ITEMS -> run(data, columns, defined, this::refItem, document);
             case ORG_UNITS -> run(data, columns, defined, cells -> orgUnit(cells, date, defaultSource), document);
             case EMPLOYMENTS -> run(data, columns, defined, cells -> employment(cells, date, defaultSource),
@@ -286,6 +301,37 @@ public class CsvImportService {
                 : importService.setup().kinds().find(code);
         return new RefKindRow(code, cells.text("name", stored.map(RealmKindService.View::name).orElse(null)),
                 cells.localized("name", stored.map(RealmKindService.View::names).orElse(Map.of())));
+    }
+
+    // Blank cells keep the stored values, as the row replaces every value of a stored qualification.
+    private QualificationRow qualification(Cells cells, String defaultSource) {
+        String id = cells.text("id", null);
+        String source = cells.text("source", null);
+        String externalId = cells.text("externalId", null);
+        QualificationService service = importService.records().qualifications();
+        Optional<QualificationView> stored = id != null ? service.find(id)
+                : externalId == null ? Optional.empty()
+                : service.ofExternalId(source == null ? defaultSource : source, externalId);
+        Optional<Qualification> q = stored.map(QualificationView::qualification);
+        return new QualificationRow(id, source, externalId, cells.text("personExternalId", null),
+                cells.text("personId", null), cells.text("username", null),
+                cells.text("kind", stored.map(QualificationView::kind).orElse(null)),
+                cells.text("number", q.map(Qualification::number).orElse(null)),
+                cells.text("validFrom", q.map(v -> v.period().from().toString()).orElse(null)),
+                cells.text("validTo", q.map(v -> Objects.toString(v.period().to(), null)).orElse(null)),
+                cells.attributes(q.map(Qualification::attributes).orElse(null)));
+    }
+
+    // A row with an ID keeps the stored mark in a blank cell.
+    private UnitRoleRow unitRole(Cells cells) {
+        String id = cells.text("id", null);
+        Optional<UnitRoleService.View> stored = id == null ? Optional.empty()
+                : importService.records().unitRoles().find(id);
+        return new UnitRoleRow(id, cells.text("source", null), cells.text("employmentExternalId", null),
+                cells.text("employmentId", null), cells.text("orgUnitExternalId", null), cells.text("orgUnitId", null),
+                cells.text("role", null),
+                cells.bool("includesDescendants", stored.map(view -> view.role().includesDescendants()).orElse(null)),
+                cells.text("validFrom", null), cells.text("validTo", null));
     }
 
     // A row with an ID keeps the stored assignment, manager, and kind in blank cells.

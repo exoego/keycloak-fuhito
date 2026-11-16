@@ -11,9 +11,11 @@ import java.util.Optional;
 import net.exoego.keycloak.fuhito.domain.Employment;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.Person;
+import net.exoego.keycloak.fuhito.domain.Qualification;
 import net.exoego.keycloak.fuhito.domain.RefItem;
 import net.exoego.keycloak.fuhito.domain.RefKind;
 import net.exoego.keycloak.fuhito.domain.ReportingLine;
+import net.exoego.keycloak.fuhito.domain.UnitRole;
 import net.exoego.keycloak.fuhito.service.ImportDocument.AssignmentRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.AttributeDefinitionRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.EmploymentRow;
@@ -21,9 +23,11 @@ import net.exoego.keycloak.fuhito.service.ImportDocument.HierarchyRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.OrgUnitParentRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.OrgUnitRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.PersonRow;
+import net.exoego.keycloak.fuhito.service.ImportDocument.QualificationRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.RefItemRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.RefKindRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.ReportingLineRow;
+import net.exoego.keycloak.fuhito.service.ImportDocument.UnitRoleRow;
 import net.exoego.keycloak.fuhito.service.ImportReport.Counts;
 import net.exoego.keycloak.fuhito.store.OrganizationDirectory;
 import net.exoego.keycloak.fuhito.store.UserDirectory;
@@ -57,6 +61,12 @@ class ImportServiceTest {
     };
     private final MemoryPersonStore personStore = new MemoryPersonStore();
     private final MemoryReportingLineStore lineStore = new MemoryReportingLineStore();
+    private final MemoryUnitRoleStore roleStore = new MemoryUnitRoleStore();
+    private final MemoryQualificationStore qualificationStore = new MemoryQualificationStore();
+    private final QualificationService qualifications = new QualificationService(qualificationStore, refItems,
+            personStore, users, Clock.systemUTC());
+    private final UnitRoleService roles = new UnitRoleService(roleStore,
+            new UnitRoleService.Sources(employmentStore, orgUnitStore, refItems), Today.of(Clock.systemUTC()));
     private final ReportingLineService lines = new ReportingLineService(lineStore, new ReportingLineService.Sources(
             assignmentStore, employmentStore, orgUnitStore, refItems, users, personStore), Clock.systemUTC());
     private final EmploymentService employments =
@@ -87,7 +97,7 @@ class ImportServiceTest {
             new ImportService.Setup(kinds, definitions, hierarchies),
             new ImportService.Organizations(new OrganizationLinkService(orgUnitStore, organizations), organizations,
                     managed::add),
-            new ImportService.Records(lines));
+            new ImportService.Records(lines, roles, qualifications));
 
     private static ImportDocument doc(String effectiveDate, boolean dryRun, String source, List<RefItemRow> refItems,
             List<OrgUnitRow> orgUnits) {
@@ -719,6 +729,118 @@ class ImportServiceTest {
                         line(null, "A1", "P3", "doctor", null), line(null, "A1", null, "nobody", null),
                         line("nope", null, null, null, null), line(null, "A1", "NOPE", null, null),
                         line(null, "A1", null, null, null))));
+        String a1 = assignmentStore.findAssignmentIdByExternalId("import", "A1").orElseThrow();
+        String chief = personStore.findByExternalId("import", "P3").orElseThrow().id();
+        assertEquals(List.of("reportingLines[0] import.assignment_twice", "reportingLines[1] import.id_mismatch",
+                "reportingLines[3] import.duplicate_row"),
+                errors(importLines("2026-05-01",
+                        new ReportingLineRow(null, null, "A1", a1, "P3", null, null, null, null, null),
+                        new ReportingLineRow(stored.getLast().id(), null, null, null, null, null, "doctor", null,
+                                null, null),
+                        new ReportingLineRow(null, null, null, a1, null, chief, null, null, null, null),
+                        new ReportingLineRow(null, null, null, a1, null, chief, null, null, null, null))));
+    }
+
+    private static UnitRoleRow role(String id, String employment, String orgUnit, String role, Boolean below,
+            String validTo) {
+        return new UnitRoleRow(id, null, employment, null, orgUnit, null, role, below, null, validTo);
+    }
+
+    private ImportReport importRoles(String effectiveDate, UnitRoleRow... rows) {
+        return service.apply(ImportDocument.of(effectiveDate, false, null, "unitRoles", List.of(rows)));
+    }
+
+    @Test
+    void importsRolesAndStartsANewOneWhenItCoversTheUnitsBelow() {
+        importTwoUnits();
+        importPeople("2026-04-01", List.of(employment("E1", "nurse", null, null, null)), null);
+        refItems.insert(new RefItem("approver-id", RefKind.UNIT_ROLE.name(), "approver", "承認者", Map.of(), 0,
+                Map.of(), true, false, false, false));
+
+        ImportReport first = importRoles("2026-04-01", role(null, "E1", "H", "approver", null, null));
+        ImportReport again = importRoles("2026-04-01", role(null, "E1", "H", "approver", false, null));
+        ImportReport wider = importRoles("2026-05-01", role(null, "E1", "H", "approver", true, null));
+
+        assertEquals(List.of(), errors(first));
+        assertEquals(Map.of("unitRoles", new Counts(1, 0, 0)), first.counts());
+        assertEquals(Map.of("unitRoles", new Counts(0, 0, 1)), again.counts());
+        assertEquals(Map.of("unitRoles", new Counts(0, 1, 0)), wider.counts());
+        List<UnitRole> stored = roleStore.roles.stream()
+                .sorted(java.util.Comparator.comparing(r -> r.period().from()))
+                .toList();
+        assertEquals("2026-05-01", stored.getFirst().period().to().toString());
+        assertTrue(stored.getLast().includesDescendants());
+        assertEquals("fuhito/unit-roles/" + stored.getFirst().id() + "/end", wider.writes().getFirst().path());
+
+        ImportReport ended = importRoles("2026-05-01", role(stored.getLast().id(), null, null, null, true,
+                "2026-06-01"));
+        assertEquals(Map.of("unitRoles", new Counts(0, 1, 0)), ended.counts());
+        assertEquals(List.of("unitRoles[0] import.employment_unknown", "unitRoles[1] import.org_unit_unknown",
+                "unitRoles[2] import.id_unknown", "unitRoles[3] invalid.required",
+                "unitRoles[4] import.id_mismatch", "unitRoles[6] import.duplicate_row"),
+                errors(importRoles("2026-05-01", role(null, "NOPE", "H", "approver", null, null),
+                        role(null, "E1", "NOPE", "approver", null, null), role("nope", null, null, null, null, null),
+                        role(null, "E1", "W", null, null, null),
+                        role(stored.getLast().id(), null, "W", null, true, null),
+                        role(null, "E1", "H", "approver", true, null), role(null, "E1", "H", "approver", true, null))));
+        String e1 = employmentStore.findByExternalId("import", "E1").orElseThrow().id();
+        String h = orgUnitStore.findUnitByExternalId("import", "H").orElseThrow().id();
+        assertEquals(List.of("unitRoles[0] import.employment_twice", "unitRoles[1] import.org_unit_twice"),
+                errors(importRoles("2026-05-01",
+                        new UnitRoleRow(null, null, "E1", e1, null, h, "approver", true, null, null),
+                        new UnitRoleRow(null, null, null, e1, "H", h, "approver", true, null, null),
+                        new UnitRoleRow(null, null, null, e1, null, h, "approver", true, null, null))));
+    }
+
+    private static QualificationRow qualification(String id, String externalId, String person, String username,
+            String number, String validTo) {
+        return new QualificationRow(id, null, externalId, person, null, username, "license", number, "2020-04-01",
+                validTo, null);
+    }
+
+    private ImportReport importQualifications(QualificationRow... rows) {
+        return service.apply(ImportDocument.of("2026-04-01", false, null, "qualifications", List.of(rows)));
+    }
+
+    @Test
+    void importsQualificationsAndReplacesAStoredOne() {
+        refItems.insert(new RefItem("license-id", RefKind.QUALIFICATION.name(), "license", "免許", Map.of(), 0,
+                Map.of(), true, false, false, false));
+        service.apply(new ImportDocument("2026-04-01", false, null, null, null, null, null,
+                List.of(new PersonRow(null, "P1", null, null, "Ann", null, null, null, null),
+                        new PersonRow(null, "P2", null, null, "Ben", null, null, null, null))));
+
+        ImportReport first = importQualifications(qualification(null, "Q1", "P1", null, "123", null),
+                qualification(null, "Q2", null, "nurse", null, null));
+        ImportReport again = importQualifications(qualification(null, "Q1", "P1", null, "123", null));
+        ImportReport changed = importQualifications(qualification(null, "Q1", null, null, "456", "2030-04-01"));
+
+        assertEquals(List.of(), errors(first));
+        assertEquals(Map.of("qualifications", new Counts(2, 0, 0)), first.counts());
+        assertEquals(Map.of("qualifications", new Counts(0, 0, 1)), again.counts());
+        assertEquals(Map.of("qualifications", new Counts(0, 1, 0)), changed.counts());
+        Qualification q1 = qualificationStore.findByExternalId("import", "Q1").orElseThrow();
+        assertEquals("456", q1.number());
+        assertEquals("2030-04-01", q1.period().to().toString());
+        assertEquals("fuhito/qualifications/" + q1.id(), changed.writes().getFirst().path());
+        assertEquals(personStore.findByUser("user-nurse").orElseThrow().id(),
+                qualificationStore.findByExternalId("import", "Q2").orElseThrow().personId());
+
+        assertEquals(List.of("qualifications[0] invalid.required", "qualifications[1] import.id_unknown",
+                "qualifications[2] import.person_unknown", "qualifications[3] import.person_ways",
+                "qualifications[4] import.id_mismatch", "qualifications[5] import.id_mismatch",
+                "qualifications[6] import.duplicate_row", "qualifications[7] import.username_unknown",
+                "qualifications[8] import.id_unknown"),
+                errors(importQualifications(qualification(null, null, "P1", null, null, null),
+                        qualification("nope", null, null, null, null, null),
+                        qualification(null, "Q3", "NOPE", null, null, null),
+                        qualification(null, "Q4", "P1", "nurse", null, null),
+                        qualification(null, "Q1", "P2", null, null, null),
+                        qualification(q1.id(), "Q2", null, null, null, null),
+                        qualification(null, "Q1", null, null, null, null),
+                        qualification(null, "Q5", null, "nobody", null, null),
+                        new QualificationRow(null, null, "Q6", null, "nope", null, "license", null, null, null,
+                                null))));
     }
 
     private void importTwoUnits() {

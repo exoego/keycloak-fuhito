@@ -45,6 +45,8 @@ final class Writes {
             case Write.OfEmployment employment -> EmploymentRepresentation.of(employment.state());
             case Write.OfAssignment assignment -> AssignmentRepresentation.of(assignment.state());
             case Write.OfReportingLine line -> ReportingLineRepresentation.of(line.state());
+            case Write.OfUnitRole role -> UnitRoleRepresentation.of(role.state());
+            case Write.OfQualification qualification -> QualificationRepresentation.of(qualification.state());
             case Write.Removed removed -> null;
         };
         Change change = write.deleted() ? Change.DELETE : write.created() ? Change.CREATE : Change.UPDATE;
