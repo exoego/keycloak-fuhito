@@ -41,11 +41,19 @@ class ProjectionServiceTest {
         private int nextId = 1;
         // How often a rebuild asked to put off the writes.
         private int flushes;
+        // The users that each piece wrote memberships of, for the pieces that wrote any.
+        private final List<List<String>> writesOfPieces = new ArrayList<>();
+        private List<String> writesOfPiece = new ArrayList<>();
 
         @Override
         public <T> T inOneFlush(java.util.function.Supplier<T> work) {
             flushes++;
-            return work.get();
+            writesOfPiece = new ArrayList<>();
+            T result = work.get();
+            if (!writesOfPiece.isEmpty()) {
+                writesOfPieces.add(writesOfPiece);
+            }
+            return result;
         }
 
         @Override
@@ -143,6 +151,7 @@ class ProjectionServiceTest {
 
         @Override
         public boolean join(String groupId, String userId) {
+            writesOfPiece.add(userId);
             if (gone.contains(userId)) {
                 return false;
             }
@@ -182,6 +191,7 @@ class ProjectionServiceTest {
 
         @Override
         public boolean addOrganizationMember(String organizationId, String userId) {
+            writesOfPiece.add(userId);
             return organizationMembers.computeIfAbsent(organizationId, id -> new HashSet<>()).add(userId);
         }
 
@@ -484,6 +494,21 @@ class ProjectionServiceTest {
         assertEquals(FuhitoException.Reason.CONFLICT, e.reason());
         assertEquals("projection.disabled", e.code());
         assertEquals(0, keycloak.groups.size());
+    }
+
+    @Test
+    void writesTheMembershipsOfOneUserInOnePiece() {
+        for (int i = 0; i < 30; i++) {
+            assign("staff-" + i, ward, "2026-04-01");
+        }
+
+        rebuild();
+
+        // Each new user joins the organization and the group of the ward, so 33 users make 66 writes.
+        assertEquals(2, keycloak.writesOfPieces.size());
+        assertTrue(keycloak.writesOfPieces.stream().allMatch(piece -> piece.size() <= 50), "pieces too large");
+        Set<String> inFirst = new HashSet<>(keycloak.writesOfPieces.getFirst());
+        assertTrue(keycloak.writesOfPieces.getLast().stream().noneMatch(inFirst::contains), "a user in two pieces");
     }
 
     @Test

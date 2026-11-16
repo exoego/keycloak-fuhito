@@ -151,6 +151,30 @@ What the runs showed.
 
 The first run still costs about 1 ms for each write. The writes go through the API of Keycloak, so that its caches and its events stay right.
 
+### The writes of one user in one transaction
+
+A profile of a first run with Java Flight Recorder showed where the time went.
+
+- 39% of the samples of the rebuild were in loads of users. Keycloak loads a user again in each transaction that changes it. In a realm with organizations, each load asks the database for the organizations of the user.
+- The membership in the organization and the membership in a group of one user were written in two transactions.
+- Keycloak flushed after each new membership.
+
+| Write of a new member | Before | After |
+|---|---|---|
+| Transactions for the organization and the group of one user | 2 | 1 |
+| Flushes of new memberships | 1 for each membership | 1 at the end of each transaction, in the batch mode of Keycloak |
+
+The batch mode is the one that the import of a realm in Keycloak uses. The events and the user cache of Keycloak work as before. Writing the rows with SQL would be faster, but the cache of organization members and the workflows of Keycloak listen for the events of new members, so that is not done. See #438.
+
+Measured on 2026-11-16 with 50,000 people, at the same commit. One run each.
+
+| Run | Before | Batch mode only | One transaction for each user only | Both |
+|---|---|---|---|---|
+| First run | 95.9 s | 90.4 s | 84.4 s | 79.4 s |
+| Nothing changed | 2.8 s | 3.2 s | 3.2 s | 3.1 s |
+
+A second run before the change took 94.8 s and 3.5 s, so a run with nothing to change moves between about 3 and 3.5 seconds from run to run. The extension uses both changes.
+
 ## The sync from user attributes
 
 `BATCH=1 scripts/bench/run.sh` also runs `POST /attribute-sync/run` twice. Each of the 50,000 users has a department. The first run adds 50,000 assignments.
