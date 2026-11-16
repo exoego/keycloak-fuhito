@@ -160,13 +160,15 @@ The first run still costs about 1 ms for each write. The writes go through the A
 | One transaction | fails | fails |
 | Pieces of 100 users, each in its own transaction | fails | fails |
 | The attributes of all users read in one query | 84 s | 16 s |
+| The employments, the reporting lines, and the managers of a piece read at once | 79 s | 3.7 s |
 
 What the runs showed.
 
 - The time went into the read of the users, before any write. The API of Keycloak loads one user at a time, and each load first looked through every user that the transaction had loaded. The run passed the 300 seconds of a transaction in that read alone.
 - One query on the tables of Keycloak now reads the attributes that the sync needs.
 - The pieces keep each transaction short. A first run writes an assignment, and often a person and an employment, for each user through the services.
-- With nothing to change, a run still asks for the employments and the reporting line of each user. That is the 16 seconds.
+- With nothing to change, a run asked for the employments and the reporting line of each user. That was the 16 seconds. Each piece now reads them for its 100 users in two queries, and asks the tables of Keycloak once whether the managers of the piece exist. Only a manager who is not in them is looked up through the API of Keycloak, because a user storage provider can hold that user.
+- The last row was measured on 2026-11-16 at a later commit, where the run before the change took 96 s and 19.5 s.
 
 ## The batch jobs in a realm ten times as large
 
@@ -176,13 +178,14 @@ What the runs showed.
 |---|---|---|
 | Projection | 1,793 s | 43 s |
 | Sync from user attributes | 933 s | 186 s |
+| Sync, with the reads of each piece at once | 699 s | 33 s |
 
 What the runs showed.
 
 - The times grow about in line with the number of people. A first run is one write at a time through the API of Keycloak or through the services, about 1,000 to 2,000 a second.
 - A rebuild took longer than the 15 minutes of the timer, and the timer started a second one. The two failed on the unique keys of Keycloak. Now only one rebuild runs for a realm at a time.
 - A call that took more than 300 seconds did all its work and then answered with the status 500. The transaction of the request had ended by then, and its end failed. Now a long job ends that transaction before it starts.
-- A sync with nothing to change is close to that limit of 300 seconds for 500,000 people. It asks for the employments and the reporting line of each user.
+- A sync with nothing to change was close to that limit of 300 seconds for 500,000 people, because it asked for the employments and the reporting line of each user. With the reads of each piece at once, it takes 33 seconds. The run before the change took 919 s and 183 s at the same commit.
 
 ## What the numbers say
 
