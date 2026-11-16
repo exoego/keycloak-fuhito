@@ -1,6 +1,7 @@
 package net.exoego.keycloak.fuhito.keycloak;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -59,6 +60,12 @@ final class KeycloakUserAttributes implements UserAttributeSource {
             }
         });
         return result;
+    }
+
+    @Override
+    public Set<String> usersAmong(Collection<String> userIds) {
+        return UserAttributeValues.usersAmong(session.getProvider(JpaConnectionProvider.class).getEntityManager(),
+                realm.getId(), userIds);
     }
 
     private static String value(Map<String, String> values, String attribute) {

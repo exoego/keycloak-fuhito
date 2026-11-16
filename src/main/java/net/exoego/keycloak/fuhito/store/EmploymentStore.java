@@ -47,6 +47,14 @@ public interface EmploymentStore {
     List<Employment> findByUser(String userId);
 
     /**
+     * Lists the employments of several users, oldest first.
+     *
+     * @param userIds the IDs of the users
+     * @return the employments of those users
+     */
+    List<Employment> findByUsers(Collection<String> userIds);
+
+    /**
      * Lists the employments with the given IDs.
      *
      * @param ids the IDs

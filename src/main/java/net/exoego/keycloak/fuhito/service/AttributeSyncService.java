@@ -118,6 +118,10 @@ public class AttributeSyncService {
     private Sources from;
     private Today today;
     private Consumer<Write> record;
+    // What the users of the piece that runs now need, read for all of them at once.
+    private Map<String, List<Employment>> employmentsOfUsers = Map.of();
+    private Map<String, List<ReportingLine>> linesOfAssignments = Map.of();
+    private Set<String> usersFound = Set.of();
 
     private final List<Unmatched> unmatched = new ArrayList<>();
     private final List<Write> writes = new ArrayList<>();
@@ -181,6 +185,7 @@ public class AttributeSyncService {
         Set<String> withDepartment = new HashSet<>();
         for (List<Values> some : inPieces(plan.users())) {
             piece(() -> {
+                readAhead(some, plan.owned());
                 for (Values user : some) {
                     withDepartment.add(user.userId());
                     Optional<String> orgUnitId = plan.matcher().orgUnit(user);
@@ -224,6 +229,21 @@ public class AttributeSyncService {
                 .orElseThrow(() -> FuhitoException.conflict("sync.employer_unknown",
                         Map.of("code", settings.employerCode())));
         return new Plan(new Matcher(today.ofRealm()), ownedByUser(), from.attributes().usersWithDepartment(settings));
+    }
+
+    private void readAhead(List<Values> users, Map<String, Assignment> owned) {
+        employmentsOfUsers = from.employments().findByUsers(users.stream().map(Values::userId).toList()).stream()
+                .collect(Collectors.groupingBy(Employment::userId));
+        linesOfAssignments = from.lines().findByAssignments(users.stream()
+                        .map(user -> owned.get(user.userId()))
+                        .filter(Objects::nonNull)
+                        .map(Assignment::assignmentId)
+                        .toList()).stream()
+                .collect(Collectors.groupingBy(ReportingLine::assignmentId));
+        usersFound = from.attributes().usersAmong(users.stream()
+                .map(Values::managerUserId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet()));
     }
 
     private static <E> List<List<E>> inPieces(List<E> all) {
@@ -297,7 +317,7 @@ public class AttributeSyncService {
     }
 
     private Employment employmentOf(Values user, LocalDate today) {
-        List<Employment> all = from.employments().findByUser(user.userId());
+        List<Employment> all = employmentsOfUsers.getOrDefault(user.userId(), List.of());
         Optional<Employment> active = all.stream()
                 .filter(employment -> employment.period().contains(today))
                 .findFirst()
@@ -363,11 +383,12 @@ public class AttributeSyncService {
 
     private void syncManager(Values user, String assignmentId, LocalDate today) {
         String wanted = user.managerUserId();
-        if (wanted != null && (wanted.equals(user.userId()) || !from.users().exists(wanted))) {
+        if (wanted != null && (wanted.equals(user.userId()) || !exists(wanted))) {
             unmatched.add(new Unmatched(user.userId(), "manager", wanted, "unknown"));
             wanted = null;
         }
-        Optional<ReportingLine> current = from.lines().findByAssignment(assignmentId).stream()
+        // A new assignment has no lines, and the read ahead has none for it.
+        Optional<ReportingLine> current = linesOfAssignments.getOrDefault(assignmentId, List.of()).stream()
                 .filter(line -> line.kind() == ReportingLine.Kind.SOLID && line.period().contains(today))
                 .findFirst();
         if (Objects.equals(wanted, current.map(ReportingLine::managerUserId).orElse(null))) {
@@ -388,6 +409,11 @@ public class AttributeSyncService {
                     from.lineService().add(assignmentId, managerPersonId, "SOLID", today.toString(), null)));
         }
         reportingLinesChanged++;
+    }
+
+    // A user of a user storage provider is not in the tables of Keycloak, so the API looks for one that is missing.
+    private boolean exists(String userId) {
+        return usersFound.contains(userId) || from.users().exists(userId);
     }
 
     private void written(AssignmentView view, boolean created, String suffix) {

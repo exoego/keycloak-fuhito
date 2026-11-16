@@ -2,6 +2,7 @@ package net.exoego.keycloak.fuhito.service;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
@@ -33,6 +34,13 @@ final class MemoryReportingLineStore implements ReportingLineStore {
     public List<ReportingLine> findByManager(String managerPersonId) {
         return lines.stream().filter(l -> l.managerPersonId().equals(managerPersonId))
                 .sorted(Comparator.comparing(l -> l.period().from())).toList();
+    }
+
+    @Override
+    public List<ReportingLine> findByAssignments(Collection<String> assignmentIds) {
+        return lines.stream().filter(l -> assignmentIds.contains(l.assignmentId()))
+                .sorted(Comparator.comparing(l -> l.period().from()))
+                .toList();
     }
 
     @Override
