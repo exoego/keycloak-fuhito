@@ -1380,6 +1380,22 @@ components:
           type: string
           description: "The ID of a stored unit, for a row of a unit with no external\
             \ ID. A CSV export has it in every row. A new unit has none."
+        successorExternalIds:
+          type: array
+          items:
+            type: string
+          description: "The external IDs of the units that follow this one from `validTo`,\
+            \ with the same source. A row with successors needs `validTo`. The end\
+            \ and the successors are one write."
+        successorIds:
+          type: array
+          items:
+            type: string
+          description: The IDs of the units that follow this one from `validTo`.
+        organizationAlias:
+          type: string
+          description: The alias of the Keycloak organization that the unit is linked
+            to. A row that leaves it out keeps the link. An empty text removes it.
     ImportPersonRow:
       type: object
       description: "A person, also one with no Keycloak user. It is matched by source\

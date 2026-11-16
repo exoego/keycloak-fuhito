@@ -656,6 +656,18 @@ public class OrgUnitService {
     }
 
     /**
+     * Returns the first date on which an org unit no longer exists.
+     *
+     * @param id the ID
+     * @return the date, or empty for a unit with no end
+     * @throws FuhitoException when the unit does not exist
+     */
+    public Optional<LocalDate> endOf(String id) {
+        requireUnit(id);
+        return Optional.ofNullable(store.versions(id).getLast().period().to());
+    }
+
+    /**
      * Lists the parent links of a hierarchy on a date.
      *
      * @param hierarchy the code of the hierarchy

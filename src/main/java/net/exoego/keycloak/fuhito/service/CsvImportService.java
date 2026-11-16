@@ -25,6 +25,7 @@ import net.exoego.keycloak.fuhito.domain.EmploymentStatus;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.Hierarchy;
 import net.exoego.keycloak.fuhito.domain.OrgUnit;
+import net.exoego.keycloak.fuhito.domain.OrgUnitSuccession;
 import net.exoego.keycloak.fuhito.domain.Person;
 import net.exoego.keycloak.fuhito.domain.RefItem;
 import net.exoego.keycloak.fuhito.domain.RefKind;
@@ -89,7 +90,9 @@ public class CsvImportService {
             Map.entry("id", "ID"), Map.entry("parentId", "親のID"), Map.entry("personId", "人のID"),
             Map.entry("employerId", "雇用主のID"), Map.entry("employmentId", "雇用のID"),
             Map.entry("orgUnitId", "組織のID"), Map.entry("target", "対象"), Map.entry("type", "型"),
-            Map.entry("refKind", "参照の種類"), Map.entry("required", "必須"), Map.entry("hierarchy", "階層"));
+            Map.entry("refKind", "参照の種類"), Map.entry("required", "必須"), Map.entry("hierarchy", "階層"),
+            Map.entry("successorExternalIds", "後継の外部ID"), Map.entry("successorIds", "後継のID"),
+            Map.entry("organizationAlias", "Organizationの別名"));
 
     // The lists that a file can hold, each with the resource whose attributes it sets.
     private enum Kind {
@@ -129,7 +132,8 @@ public class CsvImportService {
             Kind.REF_ITEMS, Set.of("kind", "code", "name", "displayOrder", "active", "legalEntity", "actingHead",
                     "group"),
             Kind.ORG_UNITS, Set.of("id", "externalId", "source", "code", "name", "shortName", "phoneticName",
-                    "unitType", "parentExternalId", "parentId", "displayOrder", "validFrom", "validTo"),
+                    "unitType", "parentExternalId", "parentId", "displayOrder", "validFrom", "validTo",
+                    "successorExternalIds", "successorIds", "organizationAlias"),
             Kind.EMPLOYMENTS, Set.of("id", "externalId", "source", "username", "userId", "staffNumber",
                     "employmentType", "grade", "status", "leaveReason", "workPercent", "validFrom", "validTo",
                     "endReason", "employerExternalId", "employerId", "personExternalId", "personId"),
@@ -371,7 +375,18 @@ public class CsvImportService {
                 parentExternalId, keptParentId,
                 cells.integer("displayOrder", version.map(v -> v.displayOrder()).orElse(null)),
                 cells.attributes(version.map(v -> v.attributes()).orElse(null)),
-                cells.text("validFrom", null), cells.text("validTo", null), id);
+                cells.text("validFrom", null), cells.text("validTo", null), id,
+                cells.list("successorExternalIds"), successorIds(cells, stored), cells.clearable("organizationAlias"));
+    }
+
+    // Blank cells of the successors keep the stored ones of a row with an end.
+    private List<String> successorIds(Cells cells, Optional<OrgUnitState> stored) {
+        if (!cells.blank("successorExternalIds") || !cells.blank("successorIds") || cells.blank("validTo")) {
+            return cells.list("successorIds");
+        }
+        List<String> successors = stored.map(state -> orgUnitService.successions(state.unit().id()).successors()
+                .stream().map(OrgUnitSuccession::successorId).toList()).orElse(List.of());
+        return successors.isEmpty() ? null : successors;
     }
 
     private PersonRow person(Cells cells, String defaultSource) {
@@ -509,6 +524,27 @@ public class CsvImportService {
                 return whole.intValue();
             }
             return whole.bitLength() < Long.SIZE ? (Object) whole.longValue() : whole;
+        }
+
+        // A blank cell keeps the stored value, and the cell #CLEAR gives an empty text, which removes it.
+        String clearable(String field) {
+            String value = values.getOrDefault(field, "");
+            if (value.isEmpty()) {
+                return null;
+            }
+            return value.equals(CLEAR) ? "" : value;
+        }
+
+        // Several values in one cell are separated by a vertical bar.
+        List<String> list(String field) {
+            String value = values.getOrDefault(field, "");
+            if (value.isEmpty()) {
+                return null;
+            }
+            return value.equals(CLEAR) ? List.of() : Arrays.stream(value.split("\\|"))
+                    .map(String::strip)
+                    .filter(part -> !part.isEmpty())
+                    .toList();
         }
 
         boolean blank(String field) {

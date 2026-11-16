@@ -250,6 +250,64 @@ public final class ImportReport {
         }
 
         /**
+         * The link of an org unit to a Keycloak organization.
+         *
+         * @param orgUnitId the ID of the unit
+         * @param organizationId the ID of the organization, or null for no link
+         */
+        record OfOrganizationLink(String orgUnitId, String organizationId) implements Write {
+
+            @Override
+            public boolean created() {
+                return false;
+            }
+
+            @Override
+            public String resourceType() {
+                return "FUHITO_ORG_UNIT";
+            }
+
+            @Override
+            public String resourceId() {
+                return orgUnitId;
+            }
+
+            @Override
+            public String path() {
+                return "fuhito/org-units/" + orgUnitId + "/organization";
+            }
+        }
+
+        /**
+         * The units that follow an org unit that ended.
+         *
+         * @param orgUnitId the ID of the unit that ended
+         * @param state the units before and after the unit
+         */
+        record OfSuccession(String orgUnitId, OrgUnitSuccessions state) implements Write {
+
+            @Override
+            public boolean created() {
+                return false;
+            }
+
+            @Override
+            public String resourceType() {
+                return "FUHITO_ORG_UNIT";
+            }
+
+            @Override
+            public String resourceId() {
+                return orgUnitId;
+            }
+
+            @Override
+            public String path() {
+                return "fuhito/org-units/" + orgUnitId + "/succession";
+            }
+        }
+
+        /**
          * A write of an employment.
          *
          * @param created true for a new employment, false for a change

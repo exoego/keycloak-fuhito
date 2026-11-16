@@ -21,10 +21,12 @@ import net.exoego.keycloak.fuhito.domain.Employment;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.Hierarchy;
 import net.exoego.keycloak.fuhito.domain.OrgUnitLink;
+import net.exoego.keycloak.fuhito.domain.OrgUnitSuccession;
 import net.exoego.keycloak.fuhito.domain.OrgUnitVersion;
 import net.exoego.keycloak.fuhito.domain.Person;
 import net.exoego.keycloak.fuhito.domain.RefItem;
 import net.exoego.keycloak.fuhito.domain.RefKind;
+import net.exoego.keycloak.fuhito.store.OrganizationDirectory;
 
 /**
  * Writes a list of the realm on a date as a CSV that the CSV import loads again with no change.
@@ -45,6 +47,7 @@ public class CsvExportService {
     private final AssignmentService assignments;
     private final Today today;
     private final HierarchyService hierarchies;
+    private final OrganizationDirectory organizations;
     private final Function<AttributeDefinition.Target, List<AttributeDefinition>> definitions;
 
     /**
@@ -58,13 +61,16 @@ public class CsvExportService {
      * @param assignments the operations on assignments of the realm
      * @param today what today is for the realm
      * @param hierarchies the operations on the hierarchies of the realm
+     * @param organizations the Keycloak organizations of the realm
      * @param definitions the definitions of free attributes of the realm, by the resource that has them
      */
     public CsvExportService(RefItemService refItems, Supplier<List<RealmKindService.View>> kinds,
             OrgUnitService orgUnits,
             PersonService people, EmploymentService employments, AssignmentService assignments, Today today,
-            HierarchyService hierarchies, Function<AttributeDefinition.Target, List<AttributeDefinition>> definitions) {
+            HierarchyService hierarchies, OrganizationDirectory organizations,
+            Function<AttributeDefinition.Target, List<AttributeDefinition>> definitions) {
         this.hierarchies = hierarchies;
+        this.organizations = organizations;
         this.refItems = refItems;
         this.kinds = kinds;
         this.orgUnits = orgUnits;
@@ -369,7 +375,8 @@ public class CsvExportService {
         names.forEach(language -> header.add(column("name", japanese) + ":" + language));
         header.add(column("shortName", japanese));
         shortNames.forEach(language -> header.add(column("shortName", japanese) + ":" + language));
-        for (String field : List.of("phoneticName", "unitType", "parentId", "displayOrder")) {
+        for (String field : List.of("phoneticName", "unitType", "parentId", "displayOrder", "validTo",
+                "successorIds", "organizationAlias")) {
             header.add(column(field, japanese));
         }
         attributes.forEach(attribute -> header.add(CsvImportService.ATTRIBUTE_COLUMN + attribute));
@@ -387,6 +394,14 @@ public class CsvExportService {
             cells.add(text(unit.unitType()));
             cells.add(text(unit.parentId()));
             cells.add(Integer.toString(version.displayOrder()));
+            // Only a unit whose details of the date end can end. The others need no more reads.
+            Optional<LocalDate> end = version.period().to() == null ? Optional.empty()
+                    : orgUnits.endOf(unit.unit().id());
+            cells.add(text(end.orElse(null)));
+            cells.add(end.isEmpty() ? "" : String.join("|", orgUnits.successions(unit.unit().id()).successors()
+                    .stream().map(OrgUnitSuccession::successorId).toList()));
+            cells.add(text(Optional.ofNullable(unit.unit().keycloakOrganizationId())
+                    .flatMap(organizations::aliasOf).orElse(null)));
             attributes.forEach(attribute -> cells.add(text(Optional.ofNullable(version.attributes())
                     .map(values -> values.get(attribute)).orElse(null))));
             line(csv, cells);

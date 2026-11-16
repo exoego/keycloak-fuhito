@@ -480,13 +480,16 @@ public class FuhitoResource {
                 assignmentService(), new JpaAssignmentStore(entityManager, realmId), users, personService());
         var importService = new ImportService(refItemService(), refItemStore,
                 orgUnitService(), orgUnitStore, people, new ImportService.Setup(realmKinds(), attributeRules(),
-                        new HierarchyService(new JpaHierarchyStore(entityManager, realmId))));
+                        new HierarchyService(new JpaHierarchyStore(entityManager, realmId))),
+                new ImportService.Organizations(new OrganizationLinkService(orgUnitStore, organizations),
+                        organizations, context::requireManageOrganization));
         var definitions = new JpaAttributeDefinitionStore(entityManager, realmId);
         return new ImportsResource(context, importService, new CsvImportService(importService, refItemStore,
                 orgUnitStore, orgUnitService(), people, definitions::list),
                 new CsvExportService(refItemService(), () -> realmKinds().list(), orgUnitService(), personService(),
                         employmentService(), assignmentService(), today(),
-                        new HierarchyService(new JpaHierarchyStore(entityManager, realmId)), definitions::list));
+                        new HierarchyService(new JpaHierarchyStore(entityManager, realmId)), organizations,
+                        definitions::list));
     }
 
     private OrgUnitService orgUnitService() {

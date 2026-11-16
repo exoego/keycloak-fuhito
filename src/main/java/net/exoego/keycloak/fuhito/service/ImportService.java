@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 import net.exoego.keycloak.fuhito.domain.AttributeDefinition;
@@ -21,6 +22,7 @@ import net.exoego.keycloak.fuhito.service.ImportReport.Write;
 import net.exoego.keycloak.fuhito.store.AssignmentStore;
 import net.exoego.keycloak.fuhito.store.EmploymentStore;
 import net.exoego.keycloak.fuhito.store.OrgUnitStore;
+import net.exoego.keycloak.fuhito.store.OrganizationDirectory;
 import net.exoego.keycloak.fuhito.store.RefItemStore;
 import net.exoego.keycloak.fuhito.store.UserDirectory;
 
@@ -71,6 +73,18 @@ public class ImportService {
     private final OrgUnitStore orgUnits;
     private final People people;
     private final Setup setup;
+    private final Organizations organizations;
+
+    /**
+     * What a link of an org unit to a Keycloak organization needs.
+     *
+     * @param links the operations on the links of the realm
+     * @param directory the Keycloak organizations of the realm
+     * @param manage checks that the caller may manage an organization, by its ID
+     */
+    public record Organizations(OrganizationLinkService links, OrganizationDirectory directory,
+            Consumer<String> manage) {
+    }
 
     /**
      * Creates the service.
@@ -81,9 +95,11 @@ public class ImportService {
      * @param orgUnits the storage of org units of the realm
      * @param people what an import of employments and assignments needs
      * @param setup what an import of the setup of the realm needs
+     * @param organizations what a link to a Keycloak organization needs
      */
     public ImportService(RefItemService refItemService, RefItemStore refItems, OrgUnitService orgUnitService,
-            OrgUnitStore orgUnits, People people, Setup setup) {
+            OrgUnitStore orgUnits, People people, Setup setup, Organizations organizations) {
+        this.organizations = organizations;
         this.refItemService = refItemService;
         this.refItems = refItems;
         this.orgUnitService = orgUnitService;
@@ -123,7 +139,7 @@ public class ImportService {
         }
         String defaultSource = source == null ? DEFAULT_SOURCE : source;
         if (document.orgUnits() != null) {
-            new OrgUnitImport(orgUnitService, orgUnits, document.effectiveDate(), defaultSource,
+            new OrgUnitImport(orgUnitService, orgUnits, organizations, document.effectiveDate(), defaultSource,
                     document.orgUnits(), report).run();
         }
         if (document.orgUnitParents() != null) {
