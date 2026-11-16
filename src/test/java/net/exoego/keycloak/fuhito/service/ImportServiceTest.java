@@ -16,6 +16,7 @@ import net.exoego.keycloak.fuhito.domain.RefKind;
 import net.exoego.keycloak.fuhito.service.ImportDocument.AssignmentRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.AttributeDefinitionRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.EmploymentRow;
+import net.exoego.keycloak.fuhito.service.ImportDocument.HierarchyRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.OrgUnitRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.PersonRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.RefItemRow;
@@ -58,12 +59,13 @@ class ImportServiceTest {
             new AssignmentService(assignmentStore, employmentStore, orgUnitStore, refItems,
             new MemoryReportingLineStore());
     private final RealmKindService kinds = new RealmKindService(new MemoryRealmKindStore(), refItems);
+    private final HierarchyService hierarchies = new HierarchyService(new MemoryHierarchyStore());
     private final AttributeDefinitionService definitions =
             new AttributeDefinitionService(new MemoryAttributeDefinitionStore(), refItems, false, kinds::isKnown);
     private final ImportService service = new ImportService(new RefItemService(refItems), refItems, orgUnits,
             orgUnitStore, new ImportService.People(employments, employmentStore, assignments, assignmentStore, users,
                     new PersonService(personStore, users, id -> false)),
-            new ImportService.Setup(kinds, definitions));
+            new ImportService.Setup(kinds, definitions, hierarchies));
 
     private static ImportDocument doc(String effectiveDate, boolean dryRun, String source, List<RefItemRow> refItems,
             List<OrgUnitRow> orgUnits) {
@@ -133,7 +135,7 @@ class ImportServiceTest {
     }
 
     private static ImportDocument kinds(List<RefKindRow> rows) {
-        return new ImportDocument("2026-04-01", false, null, null, null, null, null, null, rows, null);
+        return new ImportDocument("2026-04-01", false, null, null, null, null, null, null, rows, null, null);
     }
 
     @Test
@@ -158,7 +160,26 @@ class ImportServiceTest {
     }
 
     private static ImportDocument definitions(List<AttributeDefinitionRow> rows) {
-        return new ImportDocument("2026-04-01", false, null, null, null, null, null, null, null, rows);
+        return new ImportDocument("2026-04-01", false, null, null, null, null, null, null, null, rows, null);
+    }
+
+    @Test
+    void importsTheHierarchiesAndRenamesTheDefaultOne() {
+        List<HierarchyRow> rows = List.of(new HierarchyRow("project", "プロジェクト"),
+                new HierarchyRow("default", "組織図"));
+
+        ImportReport first = service.apply(hierarchies(rows));
+        ImportReport second = service.apply(hierarchies(rows));
+
+        assertEquals(Map.of("hierarchies", new Counts(1, 1, 0)), first.counts());
+        assertEquals(Map.of("hierarchies", new Counts(0, 0, 2)), second.counts());
+        assertEquals("組織図", hierarchies.find("default").orElseThrow().name());
+        assertEquals("fuhito/hierarchies/" + hierarchies.find("project").orElseThrow().id(),
+                first.writes().getFirst().path());
+    }
+
+    private static ImportDocument hierarchies(List<HierarchyRow> rows) {
+        return new ImportDocument("2026-04-01", false, null, null, null, null, null, null, null, null, rows);
     }
 
     @Test

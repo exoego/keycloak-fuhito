@@ -18,6 +18,7 @@ import net.exoego.keycloak.fuhito.domain.AttributeDefinition;
 import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.Employment;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
+import net.exoego.keycloak.fuhito.domain.Hierarchy;
 import net.exoego.keycloak.fuhito.domain.OrgUnitVersion;
 import net.exoego.keycloak.fuhito.domain.Person;
 import net.exoego.keycloak.fuhito.domain.RefItem;
@@ -32,7 +33,7 @@ public class CsvExportService {
     private static final String BYTE_ORDER_MARK = "﻿";
     private static final int ROWS_AT_A_TIME = 1000;
     private static final List<String> LISTS = List.of("ref-kinds", "attribute-definitions", "ref-items",
-            "org-units", "people", "employments", "assignments");
+            "hierarchies", "org-units", "people", "employments", "assignments");
 
     private final RefItemService refItems;
     private final Supplier<List<RealmKindService.View>> kinds;
@@ -41,6 +42,7 @@ public class CsvExportService {
     private final EmploymentService employments;
     private final AssignmentService assignments;
     private final Today today;
+    private final HierarchyService hierarchies;
     private final Function<AttributeDefinition.Target, List<AttributeDefinition>> definitions;
 
     /**
@@ -53,12 +55,14 @@ public class CsvExportService {
      * @param employments the operations on employments of the realm
      * @param assignments the operations on assignments of the realm
      * @param today what today is for the realm
+     * @param hierarchies the operations on the hierarchies of the realm
      * @param definitions the definitions of free attributes of the realm, by the resource that has them
      */
     public CsvExportService(RefItemService refItems, Supplier<List<RealmKindService.View>> kinds,
             OrgUnitService orgUnits,
             PersonService people, EmploymentService employments, AssignmentService assignments, Today today,
-            Function<AttributeDefinition.Target, List<AttributeDefinition>> definitions) {
+            HierarchyService hierarchies, Function<AttributeDefinition.Target, List<AttributeDefinition>> definitions) {
+        this.hierarchies = hierarchies;
         this.refItems = refItems;
         this.kinds = kinds;
         this.orgUnits = orgUnits;
@@ -82,6 +86,7 @@ public class CsvExportService {
         return switch (String.valueOf(list)) {
             case "ref-kinds" -> refKinds(japanese);
             case "attribute-definitions" -> attributeDefinitions(japanese);
+            case "hierarchies" -> hierarchies(japanese);
             case "ref-items" -> refItems(japanese);
             case "org-units" -> orgUnits(asOf, japanese);
             case "people" -> people(japanese);
@@ -107,6 +112,18 @@ public class CsvExportService {
             line(csv, cells);
         }
         return csv.toString();
+    }
+
+    private String hierarchies(boolean japanese) {
+        StringBuilder csv = new StringBuilder(BYTE_ORDER_MARK);
+        line(csv, List.of(column("code", japanese), column("name", japanese)));
+        for (int first = 0;; first += ROWS_AT_A_TIME) {
+            List<Hierarchy> page = hierarchies.list(Page.of(first, ROWS_AT_A_TIME));
+            page.forEach(hierarchy -> line(csv, List.of(hierarchy.code(), hierarchy.name())));
+            if (page.size() < ROWS_AT_A_TIME) {
+                return csv.toString();
+            }
+        }
     }
 
     private String attributeDefinitions(boolean japanese) {

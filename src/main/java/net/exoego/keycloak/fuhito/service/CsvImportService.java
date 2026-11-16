@@ -23,6 +23,7 @@ import net.exoego.keycloak.fuhito.domain.Csv;
 import net.exoego.keycloak.fuhito.domain.Employment;
 import net.exoego.keycloak.fuhito.domain.EmploymentStatus;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
+import net.exoego.keycloak.fuhito.domain.Hierarchy;
 import net.exoego.keycloak.fuhito.domain.OrgUnit;
 import net.exoego.keycloak.fuhito.domain.Person;
 import net.exoego.keycloak.fuhito.domain.RefItem;
@@ -30,6 +31,7 @@ import net.exoego.keycloak.fuhito.domain.RefKind;
 import net.exoego.keycloak.fuhito.service.ImportDocument.AssignmentRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.AttributeDefinitionRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.EmploymentRow;
+import net.exoego.keycloak.fuhito.service.ImportDocument.HierarchyRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.OrgUnitRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.PersonRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.RefItemRow;
@@ -92,6 +94,7 @@ public class CsvImportService {
     private enum Kind {
         REF_KINDS("refKinds", null),
         ATTRIBUTE_DEFINITIONS("attributeDefinitions", null),
+        HIERARCHIES("hierarchies", null),
         REF_ITEMS("refItems", AttributeDefinition.Target.REF_ITEM),
         ORG_UNITS("orgUnits", AttributeDefinition.Target.ORG_UNIT),
         EMPLOYMENTS("employments", AttributeDefinition.Target.EMPLOYMENT_TERMS),
@@ -118,6 +121,7 @@ public class CsvImportService {
     private static final Map<Kind, Set<String>> FIELDS = Map.of(
             Kind.REF_KINDS, Set.of("code", "name"),
             Kind.ATTRIBUTE_DEFINITIONS, Set.of("target", "name", "type", "refKind", "required"),
+            Kind.HIERARCHIES, Set.of("code", "name"),
             Kind.REF_ITEMS, Set.of("kind", "code", "name", "displayOrder", "active", "legalEntity", "actingHead",
                     "group"),
             Kind.ORG_UNITS, Set.of("id", "externalId", "source", "code", "name", "shortName", "phoneticName",
@@ -189,10 +193,12 @@ public class CsvImportService {
         // Each list has its own type of row, so the rows keep that type from the cells to the import.
         return switch (kind) {
             case REF_KINDS -> run(data, columns, defined, this::refKind, typed -> new ImportDocument(effectiveDate,
-                    dryRun, defaultSource, null, null, null, null, null, typed, null));
+                    dryRun, defaultSource, null, null, null, null, null, typed, null, null));
+            case HIERARCHIES -> run(data, columns, defined, this::hierarchy, typed -> new ImportDocument(
+                    effectiveDate, dryRun, defaultSource, null, null, null, null, null, null, null, typed));
             case ATTRIBUTE_DEFINITIONS -> run(data, columns, defined, this::attributeDefinition,
                     typed -> new ImportDocument(effectiveDate, dryRun, defaultSource, null, null, null, null, null,
-                            null, typed));
+                            null, typed, null));
             case REF_ITEMS -> run(data, columns, defined, this::refItem,
                     typed -> new ImportDocument(effectiveDate, dryRun, defaultSource, typed, null, null, null));
             case ORG_UNITS -> run(data, columns, defined, cells -> orgUnit(cells, date, defaultSource),
@@ -268,6 +274,12 @@ public class CsvImportService {
                 : importService.setup().kinds().find(code);
         return new RefKindRow(code, cells.text("name", stored.map(RealmKindService.View::name).orElse(null)),
                 cells.localized("name", stored.map(RealmKindService.View::names).orElse(Map.of())));
+    }
+
+    private HierarchyRow hierarchy(Cells cells) {
+        String code = cells.text("code", null);
+        Optional<Hierarchy> stored = code == null ? Optional.empty() : importService.setup().hierarchies().find(code);
+        return new HierarchyRow(code, cells.text("name", stored.map(Hierarchy::name).orElse(null)));
     }
 
     private AttributeDefinitionRow attributeDefinition(Cells cells) {

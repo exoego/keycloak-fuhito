@@ -36,6 +36,7 @@ final class Writes {
             case Write.OfRefItem item -> RefItemRepresentation.of(item.state());
             case Write.OfRefKind kind -> RefKindRepresentation.of(kind.state());
             case Write.OfAttributeDefinition definition -> AttributeDefinitionRepresentation.of(definition.state());
+            case Write.OfHierarchy hierarchy -> HierarchyRepresentation.of(hierarchy.state());
             case Write.OfPerson person -> PersonRepresentation.of(person.state());
             case Write.OfOrgUnit unit -> OrgUnitRepresentation.of(unit.state());
             case Write.OfEmployment employment -> EmploymentRepresentation.of(employment.state());

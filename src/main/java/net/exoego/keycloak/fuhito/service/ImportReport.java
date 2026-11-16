@@ -8,6 +8,7 @@ import java.util.Map;
 
 import net.exoego.keycloak.fuhito.domain.AttributeDefinition;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
+import net.exoego.keycloak.fuhito.domain.Hierarchy;
 import net.exoego.keycloak.fuhito.domain.RefItem;
 import net.exoego.keycloak.fuhito.domain.ReportingLine;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
@@ -163,6 +164,30 @@ public final class ImportReport {
             @Override
             public String path() {
                 return "fuhito/attribute-definitions/" + resourceId();
+            }
+        }
+
+        /**
+         * A write of a hierarchy.
+         *
+         * @param created true for a new hierarchy, false for a change
+         * @param state the hierarchy after the write
+         */
+        record OfHierarchy(boolean created, Hierarchy state) implements Write {
+
+            @Override
+            public String resourceType() {
+                return "FUHITO_HIERARCHY";
+            }
+
+            @Override
+            public String resourceId() {
+                return state.id();
+            }
+
+            @Override
+            public String path() {
+                return "fuhito/hierarchies/" + resourceId();
             }
         }
 

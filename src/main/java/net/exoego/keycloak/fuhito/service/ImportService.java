@@ -9,9 +9,11 @@ import java.util.function.Function;
 import net.exoego.keycloak.fuhito.domain.AttributeDefinition;
 import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
+import net.exoego.keycloak.fuhito.domain.Hierarchy;
 import net.exoego.keycloak.fuhito.domain.RefItem;
 import net.exoego.keycloak.fuhito.domain.RefKind;
 import net.exoego.keycloak.fuhito.service.ImportDocument.AttributeDefinitionRow;
+import net.exoego.keycloak.fuhito.service.ImportDocument.HierarchyRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.RefItemRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.RefKindRow;
 import net.exoego.keycloak.fuhito.service.ImportReport.Outcome;
@@ -36,14 +38,17 @@ public class ImportService {
     private static final String REF_ITEMS = "refItems";
     private static final String REF_KINDS = "refKinds";
     private static final String ATTRIBUTE_DEFINITIONS = "attributeDefinitions";
+    private static final String HIERARCHIES = "hierarchies";
 
     /**
      * The services that an import of the setup of a realm needs.
      *
      * @param kinds the operations on the kinds of reference data of the realm
      * @param definitions the operations on the definitions of free attributes of the realm
+     * @param hierarchies the operations on the hierarchies of the realm
      */
-    public record Setup(RealmKindService kinds, AttributeDefinitionService definitions) {
+    public record Setup(RealmKindService kinds, AttributeDefinitionService definitions,
+            HierarchyService hierarchies) {
     }
 
     /**
@@ -113,6 +118,9 @@ public class ImportService {
         if (document.refItems() != null) {
             each(REF_ITEMS, document.refItems(), report, row -> importRefItem(row, report));
         }
+        if (document.hierarchies() != null) {
+            each(HIERARCHIES, document.hierarchies(), report, row -> importHierarchy(row, report));
+        }
         String defaultSource = source == null ? DEFAULT_SOURCE : source;
         if (document.orgUnits() != null) {
             new OrgUnitImport(orgUnitService, orgUnits, document.effectiveDate(), defaultSource,
@@ -177,6 +185,19 @@ public class ImportService {
         }
         report.write(new Write.OfAttributeDefinition(false, definitions.replace(before.id(), row.type(),
                 row.refKind(), row.required())));
+        return Outcome.CHANGED;
+    }
+
+    private Outcome importHierarchy(HierarchyRow row, ImportReport report) {
+        Optional<Hierarchy> stored = setup.hierarchies().find(Checks.required("code", row.code()));
+        if (stored.isEmpty()) {
+            report.write(new Write.OfHierarchy(true, setup.hierarchies().create(row.code(), row.name())));
+            return Outcome.CREATED;
+        }
+        if (Checks.name("name", row.name()).equals(stored.get().name())) {
+            return Outcome.UNCHANGED;
+        }
+        report.write(new Write.OfHierarchy(false, setup.hierarchies().rename(stored.get().id(), row.name())));
         return Outcome.CHANGED;
     }
 

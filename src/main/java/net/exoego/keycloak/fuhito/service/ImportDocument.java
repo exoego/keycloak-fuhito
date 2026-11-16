@@ -33,7 +33,9 @@ public record ImportDocument(
         List<RefKindRow> refKinds,
         @Schema(description = "The definitions of free attributes. They come after the kinds and before the "
                 + "reference items, whose attributes they check.")
-        List<AttributeDefinitionRow> attributeDefinitions) {
+        List<AttributeDefinitionRow> attributeDefinitions,
+        @Schema(description = "The hierarchies. They come before the org units.")
+        List<HierarchyRow> hierarchies) {
 
     /**
      * Makes a document with no list of kinds.
@@ -50,7 +52,7 @@ public record ImportDocument(
     public ImportDocument(String effectiveDate, boolean dryRun, String source, List<RefItemRow> refItems,
             List<OrgUnitRow> orgUnits, List<EmploymentRow> employments, List<AssignmentRow> assignments,
             List<PersonRow> people) {
-        this(effectiveDate, dryRun, source, refItems, orgUnits, employments, assignments, people, null, null);
+        this(effectiveDate, dryRun, source, refItems, orgUnits, employments, assignments, people, null, null, null);
     }
 
     /**
@@ -66,7 +68,19 @@ public record ImportDocument(
      */
     public ImportDocument(String effectiveDate, boolean dryRun, String source, List<RefItemRow> refItems,
             List<OrgUnitRow> orgUnits, List<EmploymentRow> employments, List<AssignmentRow> assignments) {
-        this(effectiveDate, dryRun, source, refItems, orgUnits, employments, assignments, null, null, null);
+        this(effectiveDate, dryRun, source, refItems, orgUnits, employments, assignments, null, null, null, null);
+    }
+
+    @Schema(
+            name = "ImportHierarchyRow",
+            description = "A hierarchy. It is matched by code. A row of a stored hierarchy changes its name. The "
+                    + "code `default` names the default hierarchy.",
+            requiredProperties = {"code", "name"})
+    public record HierarchyRow(
+            @Schema(maxLength = 64, pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$")
+            String code,
+            @Schema(maxLength = 255)
+            String name) {
     }
 
     @Schema(
