@@ -32,6 +32,7 @@ import net.exoego.keycloak.fuhito.service.ImportDocument.AssignmentRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.AttributeDefinitionRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.EmploymentRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.HierarchyRow;
+import net.exoego.keycloak.fuhito.service.ImportDocument.OrgUnitParentRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.OrgUnitRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.PersonRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.RefItemRow;
@@ -88,13 +89,14 @@ public class CsvImportService {
             Map.entry("id", "ID"), Map.entry("parentId", "親のID"), Map.entry("personId", "人のID"),
             Map.entry("employerId", "雇用主のID"), Map.entry("employmentId", "雇用のID"),
             Map.entry("orgUnitId", "組織のID"), Map.entry("target", "対象"), Map.entry("type", "型"),
-            Map.entry("refKind", "参照の種類"), Map.entry("required", "必須"));
+            Map.entry("refKind", "参照の種類"), Map.entry("required", "必須"), Map.entry("hierarchy", "階層"));
 
     // The lists that a file can hold, each with the resource whose attributes it sets.
     private enum Kind {
         REF_KINDS("refKinds", null),
         ATTRIBUTE_DEFINITIONS("attributeDefinitions", null),
         HIERARCHIES("hierarchies", null),
+        ORG_UNIT_PARENTS("orgUnitParents", null),
         REF_ITEMS("refItems", AttributeDefinition.Target.REF_ITEM),
         ORG_UNITS("orgUnits", AttributeDefinition.Target.ORG_UNIT),
         EMPLOYMENTS("employments", AttributeDefinition.Target.EMPLOYMENT_TERMS),
@@ -122,6 +124,8 @@ public class CsvImportService {
             Kind.REF_KINDS, Set.of("code", "name"),
             Kind.ATTRIBUTE_DEFINITIONS, Set.of("target", "name", "type", "refKind", "required"),
             Kind.HIERARCHIES, Set.of("code", "name"),
+            Kind.ORG_UNIT_PARENTS, Set.of("hierarchy", "source", "orgUnitExternalId", "orgUnitId", "parentExternalId",
+                    "parentId"),
             Kind.REF_ITEMS, Set.of("kind", "code", "name", "displayOrder", "active", "legalEntity", "actingHead",
                     "group"),
             Kind.ORG_UNITS, Set.of("id", "externalId", "source", "code", "name", "shortName", "phoneticName",
@@ -193,12 +197,15 @@ public class CsvImportService {
         // Each list has its own type of row, so the rows keep that type from the cells to the import.
         return switch (kind) {
             case REF_KINDS -> run(data, columns, defined, this::refKind, typed -> new ImportDocument(effectiveDate,
-                    dryRun, defaultSource, null, null, null, null, null, typed, null, null));
+                    dryRun, defaultSource, null, null, null, null, null, typed, null, null, null));
             case HIERARCHIES -> run(data, columns, defined, this::hierarchy, typed -> new ImportDocument(
-                    effectiveDate, dryRun, defaultSource, null, null, null, null, null, null, null, typed));
+                    effectiveDate, dryRun, defaultSource, null, null, null, null, null, null, null, typed, null));
+            case ORG_UNIT_PARENTS -> run(data, columns, defined, cells -> orgUnitParent(cells, date, defaultSource),
+                    typed -> new ImportDocument(effectiveDate, dryRun, defaultSource, null, null, null, null, null,
+                            null, null, null, typed));
             case ATTRIBUTE_DEFINITIONS -> run(data, columns, defined, this::attributeDefinition,
                     typed -> new ImportDocument(effectiveDate, dryRun, defaultSource, null, null, null, null, null,
-                            null, typed, null));
+                            null, typed, null, null));
             case REF_ITEMS -> run(data, columns, defined, this::refItem,
                     typed -> new ImportDocument(effectiveDate, dryRun, defaultSource, typed, null, null, null));
             case ORG_UNITS -> run(data, columns, defined, cells -> orgUnit(cells, date, defaultSource),
@@ -274,6 +281,25 @@ public class CsvImportService {
                 : importService.setup().kinds().find(code);
         return new RefKindRow(code, cells.text("name", stored.map(RealmKindService.View::name).orElse(null)),
                 cells.localized("name", stored.map(RealmKindService.View::names).orElse(Map.of())));
+    }
+
+    // Blank cells of the parent keep the stored parent. The cell #CLEAR takes the unit out of the hierarchy.
+    private OrgUnitParentRow orgUnitParent(Cells cells, LocalDate date, String defaultSource) {
+        String hierarchy = cells.text("hierarchy", null);
+        String source = cells.text("source", null);
+        String externalId = cells.text("orgUnitExternalId", null);
+        String id = cells.text("orgUnitId", null);
+        String parentId = cells.text("parentId", null);
+        if (cells.blank("parentExternalId") && cells.blank("parentId") && hierarchy != null) {
+            Optional<String> unit = id != null ? Optional.of(id) : externalId == null ? Optional.empty()
+                    : orgUnits.findUnitByExternalId(source == null ? defaultSource : source, externalId)
+                            .map(OrgUnit::id);
+            parentId = unit.flatMap(u -> quietly(() -> orgUnitService.get(u, date.toString(), hierarchy)))
+                    .map(OrgUnitState::parentId)
+                    .orElse(null);
+        }
+        return new OrgUnitParentRow(hierarchy, source, externalId, id, cells.text("parentExternalId", null),
+                parentId);
     }
 
     private HierarchyRow hierarchy(Cells cells) {

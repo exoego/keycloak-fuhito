@@ -126,6 +126,10 @@ public class ImportService {
             new OrgUnitImport(orgUnitService, orgUnits, document.effectiveDate(), defaultSource,
                     document.orgUnits(), report).run();
         }
+        if (document.orgUnitParents() != null) {
+            new ParentImport(orgUnitService, orgUnits, document.effectiveDate(), defaultSource, report)
+                    .run(document.orgUnitParents());
+        }
         PeopleImport peopleImport =
                 new PeopleImport(people, orgUnits, document.effectiveDate(), defaultSource, report);
         if (document.people() != null) {

@@ -144,6 +144,39 @@ class CsvImportIT {
     }
 
     @Test
+    void anExportOfParentsInHierarchiesLoadsAgainWithNoChange() throws Exception {
+        TestRealm realm = TestRealm.create("csv-export-parents");
+        Api api = realm.api;
+        assertEquals(201, api.post("/hierarchies", "{\"code\": \"project\", \"name\": \"プロジェクト\"}")
+                .statusCode());
+        String hospital = Api.json(api.post("/org-units", "{\"name\": \"病院\", \"validFrom\": \"2020-04-01\"}"))
+                .get("id").asText();
+        String first = Api.json(api.post("/org-units", "{\"name\": \"1病棟\", \"validFrom\": \"2020-04-01\"}"))
+                .get("id").asText();
+        String second = Api.json(api.post("/org-units", "{\"name\": \"2病棟\", \"validFrom\": \"2020-04-01\"}"))
+                .get("id").asText();
+        assertEquals(200, api.put("/org-units/" + first + "/parent?hierarchy=project", "{\"parentId\": \""
+                + hospital + "\", \"validFrom\": \"2021-04-01\"}").statusCode());
+
+        for (String header : List.of("en", "ja")) {
+            HttpResponse<String> exported = api.get("/imports/csv/org-unit-parents?asOf=2026-04-01&header=" + header);
+            assertEquals(200, exported.statusCode(), exported.body());
+            assertEquals("﻿" + (header.equals("en") ? "hierarchy,orgUnitId,parentId" : "階層,組織のID,親のID")
+                    + "\r\nproject," + first + "," + hospital + "\r\n", exported.body());
+            JsonNode counts = load(api, "org-unit-parents", "effectiveDate=2026-04-01", exported.body())
+                    .get("counts").get("orgUnitParents");
+            assertEquals(0, counts.get("created").asInt() + counts.get("changed").asInt(), counts.toString());
+        }
+        // The cell #CLEAR takes a unit out of the hierarchy.
+        load(api, "org-unit-parents", "effectiveDate=2026-05-01", "hierarchy,orgUnitId,parentId\r\nproject,"
+                + second + "," + hospital + "\r\nproject," + first + ",#CLEAR\r\n");
+        assertEquals(List.of(second), Api.json(api.get("/org-units/" + hospital
+                + "/children?asOf=2026-05-01&hierarchy=project")).findValuesAsText("id"));
+        assertEquals(List.of(first), Api.json(api.get("/org-units/" + hospital
+                + "/children?asOf=2026-04-30&hierarchy=project")).findValuesAsText("id"));
+    }
+
+    @Test
     void anExportOfReferenceItemsLoadsAgainWithNoChange() throws Exception {
         TestRealm realm = TestRealm.withEmployer("csv-export-items");
         Api api = realm.api;
