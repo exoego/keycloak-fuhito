@@ -135,7 +135,7 @@ class ImportServiceTest {
     }
 
     private static ImportDocument kinds(List<RefKindRow> rows) {
-        return new ImportDocument("2026-04-01", false, null, null, null, null, null, null, rows, null, null);
+        return new ImportDocument("2026-04-01", false, null, null, null, null, null, null, rows, null, null, null);
     }
 
     @Test
@@ -160,7 +160,7 @@ class ImportServiceTest {
     }
 
     private static ImportDocument definitions(List<AttributeDefinitionRow> rows) {
-        return new ImportDocument("2026-04-01", false, null, null, null, null, null, null, null, rows, null);
+        return new ImportDocument("2026-04-01", false, null, null, null, null, null, null, null, rows, null, null);
     }
 
     @Test
@@ -179,7 +179,7 @@ class ImportServiceTest {
     }
 
     private static ImportDocument hierarchies(List<HierarchyRow> rows) {
-        return new ImportDocument("2026-04-01", false, null, null, null, null, null, null, null, null, rows);
+        return new ImportDocument("2026-04-01", false, null, null, null, null, null, null, null, null, rows, null);
     }
 
     @Test
