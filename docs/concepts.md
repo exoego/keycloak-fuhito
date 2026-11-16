@@ -16,7 +16,7 @@ All data in this document belongs to one realm.
 | Unit Type | 組織種別 | The kind of an org unit, for example "hospital" or "department". Each realm defines its own list. |
 | Hierarchy | 階層 | A named tree of org units. Each realm has one default hierarchy. More hierarchies put the same units in other trees, such as regions that gather branches of several divisions. |
 | Legal Entity | 法人 | An org unit whose unit type has the mark `legalEntity`, such as a company or a medical corporation. A realm can have several. `GET /org-units?legalEntity=true` lists them. |
-| Group | グループ | An org unit outside the line organization, such as a committee, a project team, or a labor union. Its unit type has the mark `group`. A group can be a root or sit below any org unit. A line unit is never below a group in the default hierarchy. A group gives no derived manager. `group=true` and `group=false` on the reads of the tree pick groups or line units. |
+| Lateral Unit | 横断組織 | An org unit outside the line organization, such as a committee, a project team, or a labor union. The line organization is the vertical structure, and a lateral unit cuts across it. Its unit type has the mark `lateral`. A lateral unit can be a root or sit below any org unit, and lateral units can nest, such as a committee with subcommittees, a labor union with branches, or squads below a tribe. A line unit is never below a lateral unit in the default hierarchy. A lateral unit gives no derived manager. `lateral=true` and `lateral=false` on the reads of the tree pick lateral units or line units. |
 | Root | ルート | An org unit with no parent in a hierarchy. A realm can have several roots, for example one for each hospital. |
 
 An org unit keeps its identity when its name or its parent changes.
@@ -141,7 +141,7 @@ It is not a translation.
 ### A corporation with several hospitals
 
 - One root org unit for each hospital.
-- Each hospital has departments and wards below it. Its committees are groups below the hospital.
+- Each hospital has departments and wards below it. Its committees are lateral units below the hospital.
 - A physician has a primary assignment in one hospital and a concurrent assignment in another.
 - A part-time nurse has employment terms with a part-time employment type and a work ratio.
 - A nurse on parental leave has the status "on leave" and the leave reason "parental leave". The assignment stays.
@@ -154,7 +154,7 @@ It is not a translation.
 - Each employee has a grade.
 - A second hierarchy puts the same org units in another tree, such as regions that gather branches of several divisions. `POST /hierarchies` creates it, and `PUT /org-units/{id}/parent?hierarchy=` gives a unit a parent in it.
 - A person is in an org unit, not in a hierarchy. So the members of a unit show in every tree that has the unit.
-- A project team is a group. Its members hold concurrent assignments, and keep their managers in the line organization.
+- A project team is a lateral unit. Its members hold concurrent assignments, and keep their managers in the line organization.
 - A dotted reporting line links a member to a project manager.
 
 ## Employers

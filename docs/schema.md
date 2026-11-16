@@ -171,7 +171,7 @@ erDiagram
         boolean ACTIVE
         boolean LEGAL_ENTITY
         boolean ACTING_HEAD
-        boolean GROUP_UNIT
+        boolean LATERAL_UNIT
     }
     FUHITO_REPORTING_LINE {
         varchar(36) ID PK

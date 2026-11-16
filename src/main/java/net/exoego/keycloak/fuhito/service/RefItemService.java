@@ -103,16 +103,16 @@ public class RefItemService {
      *
      * @param legalEntity true for a unit type whose org units are legal entities, or null for false
      * @param actingHead true for an assignment kind whose heads stand in for an absent head, or null for false
-     * @param group true for a unit type whose org units are groups outside the line organization, or null for
+     * @param lateral true for a unit type whose org units are lateral units outside the line organization, or null for
      *        false
      */
-    public record Marks(Boolean legalEntity, Boolean actingHead, Boolean group) {
+    public record Marks(Boolean legalEntity, Boolean actingHead, Boolean lateral) {
 
         /** No mark. */
         public static final Marks NONE = new Marks(null, null, null);
 
         static Marks of(RefItem item) {
-            return new Marks(item.legalEntity(), item.actingHead(), item.group());
+            return new Marks(item.legalEntity(), item.actingHead(), item.lateral());
         }
     }
 
@@ -218,8 +218,8 @@ public class RefItemService {
         RefItem changed = item(current.id(), current.kind(), current.code(), name, names, displayOrder, attributes,
                 active == null || active, marks);
         // Only org units refer to a unit type, so an item in use is the type of an org unit.
-        if (changed.group() != current.group() && store.isInUse(id)) {
-            throw FuhitoException.conflict("ref_item.group_in_use", Map.of("id", id, "code", current.code()));
+        if (changed.lateral() != current.lateral() && store.isInUse(id)) {
+            throw FuhitoException.conflict("ref_item.lateral_in_use", Map.of("id", id, "code", current.code()));
         }
         store.update(changed);
         return changed;
@@ -243,14 +243,14 @@ public class RefItemService {
             Integer displayOrder, Map<String, Object> attributes, boolean active, Marks marks) {
         boolean legalEntity = mark(kind, RefKind.UNIT_TYPE, marks.legalEntity(), "ref_item.legal_entity_kind");
         boolean actingHead = mark(kind, RefKind.ASSIGNMENT_KIND, marks.actingHead(), "ref_item.acting_head_kind");
-        boolean group = mark(kind, RefKind.UNIT_TYPE, marks.group(), "ref_item.group_kind");
-        if (legalEntity && group) {
-            throw FuhitoException.invalid("ref_item.group_legal_entity", Map.of("code", code));
+        boolean lateral = mark(kind, RefKind.UNIT_TYPE, marks.lateral(), "ref_item.lateral_kind");
+        if (legalEntity && lateral) {
+            throw FuhitoException.invalid("ref_item.lateral_legal_entity", Map.of("code", code));
         }
         return new RefItem(id, kind, code, Checks.name("name", name), Checks.localizedNames("names", names),
                 displayOrder == null ? 0 : displayOrder,
                 attributeRules.check(AttributeDefinition.Target.REF_ITEM, attributes), active,
-                legalEntity, actingHead, group);
+                legalEntity, actingHead, lateral);
     }
 
     private static boolean mark(String kind, RefKind allowed, Boolean value, String error) {

@@ -235,9 +235,9 @@ public class OrgUnitsResource {
             @Parameter(description = "The code of the hierarchy. The default is the hierarchy `default`.")
             @QueryParam("hierarchy") String hierarchy,
             @Parameter(
-                    description = "True for groups outside the line organization only, such as committees. False for "
-                            + "line units only. Leave it out for both.")
-            @QueryParam("group") Boolean group,
+                    description = "True for lateral units only, such as committees. False for line units only. "
+                            + "Leave it out for both.")
+            @QueryParam("lateral") Boolean lateral,
             @Parameter(
                     description = "The number of entries to skip.",
                     schema = @Schema(minimum = "0", defaultValue = "0"))
@@ -249,7 +249,7 @@ public class OrgUnitsResource {
         context.requireReadStructure();
         return Calls.run(context, () -> represent(legalEntity
                 ? service.legalEntities(limit.checked(asOf), Page.of(first, max))
-                : service.roots(limit.checked(asOf), hierarchy, group, Page.of(first, max))));
+                : service.roots(limit.checked(asOf), hierarchy, lateral, Page.of(first, max))));
     }
 
     @GET
@@ -280,9 +280,9 @@ public class OrgUnitsResource {
             @Parameter(description = "The code of the unit type.")
             @QueryParam("unitType") String unitType,
             @Parameter(
-                    description = "True for groups outside the line organization only. False for line units only. "
+                    description = "True for lateral units only, such as committees. False for line units only. "
                             + "Leave it out for both.")
-            @QueryParam("group") Boolean group,
+            @QueryParam("lateral") Boolean lateral,
             @Parameter(
                     description = "The date to read. The default is today in the time zone of the realm.",
                     schema = @Schema(format = "date"))
@@ -301,7 +301,7 @@ public class OrgUnitsResource {
             @QueryParam("count") boolean count) {
         context.requireReadStructure();
         return Calls.run(context, () -> {
-            OrgUnitService.Search search = new OrgUnitService.Search(q, code, unitType, group,
+            OrgUnitService.Search search = new OrgUnitService.Search(q, code, unitType, lateral,
                     limit.checked(asOf));
             Response.ResponseBuilder response = Response.ok(represent(service.search(search, Page.of(first, max))));
             if (count) {
@@ -329,9 +329,9 @@ public class OrgUnitsResource {
             @Parameter(description = "The code of the hierarchy. The default is the hierarchy `default`.")
             @QueryParam("hierarchy") String hierarchy,
             @Parameter(
-                    description = "True for groups outside the line organization only, such as committees. False for "
-                            + "line units only. Leave it out for both.")
-            @QueryParam("group") Boolean group,
+                    description = "True for lateral units only, such as committees. False for line units only. "
+                            + "Leave it out for both.")
+            @QueryParam("lateral") Boolean lateral,
             @Parameter(
                     description = "The number of entries to skip.",
                     schema = @Schema(minimum = "0", defaultValue = "0"))
@@ -341,7 +341,7 @@ public class OrgUnitsResource {
                     schema = @Schema(minimum = "0", maximum = "1000", defaultValue = "100"))
             @QueryParam("max") Integer max) {
         context.requireReadStructure();
-        return Calls.run(context, () -> represent(service.children(id, limit.checked(asOf), hierarchy, group,
+        return Calls.run(context, () -> represent(service.children(id, limit.checked(asOf), hierarchy, lateral,
                 Page.of(first, max))));
     }
 
@@ -366,9 +366,9 @@ public class OrgUnitsResource {
             @Parameter(description = "The code of the hierarchy. The default is the hierarchy `default`.")
             @QueryParam("hierarchy") String hierarchy,
             @Parameter(
-                    description = "True for groups outside the line organization only, such as committees. False for "
-                            + "line units only. Leave it out for both.")
-            @QueryParam("group") Boolean group,
+                    description = "True for lateral units only, such as committees. False for line units only. "
+                            + "Leave it out for both.")
+            @QueryParam("lateral") Boolean lateral,
             @Parameter(
                     description = "The number of entries to skip.",
                     schema = @Schema(minimum = "0", defaultValue = "0"))
@@ -378,7 +378,7 @@ public class OrgUnitsResource {
                     schema = @Schema(minimum = "0", maximum = "1000", defaultValue = "100"))
             @QueryParam("max") Integer max) {
         context.requireReadStructure();
-        return Calls.run(context, () -> represent(service.subtree(id, limit.checked(asOf), hierarchy, group,
+        return Calls.run(context, () -> represent(service.subtree(id, limit.checked(asOf), hierarchy, lateral,
                 Page.of(first, max))));
     }
 

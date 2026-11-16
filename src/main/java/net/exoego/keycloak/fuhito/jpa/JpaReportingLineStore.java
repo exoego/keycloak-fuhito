@@ -55,14 +55,15 @@ public class JpaReportingLineStore implements ReportingLineStore {
 
     // A unit that the manager leads below another one is reached twice in Down. Units counts it once, from the top.
     // The database goes down from the line units that the manager leads. It does not go below an org unit that
-    // has a head of its own, nor into a group. So a read of one page does not load the tree or the people of the whole realm.
+    // has a head of its own, nor into a lateral unit. So a read of one page does not load the tree or the people of
+    // the whole realm.
     private static final String REPORTS = """
             with Down as (
                 select a.orgUnitId as id, 0 as depth, 1 as open
                 from AssignmentEntity a join EmploymentEntity e on e.id = a.employmentId
                 where a.realmId = :realmId and e.personId = :managerId and a.%1$s and %6$s
                 and not exists (select 1 from OrgUnitVersionEntity gv, RefItemEntity g where gv.realmId = :realmId
-                    and gv.orgUnitId = a.orgUnitId and gv.%9$s and g.id = gv.unitTypeId and g.groupUnit = true)
+                    and gv.orgUnitId = a.orgUnitId and gv.%9$s and g.id = gv.unitTypeId and g.lateralUnit = true)
                 union all
                 select l.childId as id, d.depth + 1 as depth,
                     case when exists (select 1 from AssignmentEntity h join EmploymentEntity he
@@ -74,7 +75,7 @@ public class JpaReportingLineStore implements ReportingLineStore {
                     and l.hierarchyId = :hierarchyId and l.%3$s
                 join OrgUnitVersionEntity v on v.orgUnitId = l.childId and v.realmId = :realmId and v.%4$s
                 where d.open = 1 and not exists (select 1 from RefItemEntity g where g.id = v.unitTypeId
-                    and g.groupUnit = true)
+                    and g.lateralUnit = true)
             ),
             Units as (select d.id as id, min(d.depth) as depth, max(d.open) as open from Down d group by d.id)
             select 0 as derived, 0 as depth, a.orgUnitId as orgUnitId, a.assignmentId as assignmentId,

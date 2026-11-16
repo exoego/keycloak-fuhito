@@ -95,37 +95,37 @@ class OrgUnitsIT {
     }
 
     @Test
-    void keepsGroupsApartFromTheLineOrganization() throws Exception {
-        TestRealm realm = TestRealm.create("org-unit-groups");
-        Api groups = realm.api;
+    void keepsLateralUnitsApartFromTheLineOrganization() throws Exception {
+        TestRealm realm = TestRealm.create("org-unit-lateral");
+        Api units = realm.api;
         realm.refItem("UNIT_TYPE", "department", "部");
-        JsonNode type = created(groups.post("/ref-items", "{\"kind\": \"UNIT_TYPE\", \"code\": \"committee\", "
-                + "\"name\": \"委員会\", \"group\": true}"));
-        assertTrue(type.get("group").asBoolean());
-        String hospital = created(groups.post("/org-units", "{\"name\": \"病院\", \"validFrom\": \"2026-04-01\"}"))
+        JsonNode type = created(units.post("/ref-items", "{\"kind\": \"UNIT_TYPE\", \"code\": \"committee\", "
+                + "\"name\": \"委員会\", \"lateral\": true}"));
+        assertTrue(type.get("lateral").asBoolean());
+        String hospital = created(units.post("/org-units", "{\"name\": \"病院\", \"validFrom\": \"2026-04-01\"}"))
                 .get("id").asText();
-        JsonNode committee = created(groups.post("/org-units", "{\"name\": \"医療安全委員会\", \"unitType\": "
+        JsonNode committee = created(units.post("/org-units", "{\"name\": \"医療安全委員会\", \"unitType\": "
                 + "\"committee\", \"parentId\": \"" + hospital + "\", \"validFrom\": \"2026-04-01\"}"));
-        assertTrue(committee.get("group").asBoolean());
-        created(groups.post("/org-units", "{\"name\": \"労働組合\", \"unitType\": \"committee\", "
+        assertTrue(committee.get("lateral").asBoolean());
+        created(units.post("/org-units", "{\"name\": \"労働組合\", \"unitType\": \"committee\", "
                 + "\"validFrom\": \"2026-04-01\"}"));
-        created(groups.post("/org-units", "{\"name\": \"内科\", \"unitType\": \"department\", \"parentId\": \""
+        created(units.post("/org-units", "{\"name\": \"内科\", \"unitType\": \"department\", \"parentId\": \""
                 + hospital + "\", \"validFrom\": \"2026-04-01\"}"));
         String on = "asOf=2026-05-01";
 
-        assertEquals(List.of("労働組合", "病院"), Api.json(groups.get("/org-units?" + on)).findValuesAsText("name"));
-        assertEquals(List.of("病院"), Api.json(groups.get("/org-units?group=false&" + on)).findValuesAsText("name"));
-        assertEquals(List.of("労働組合"), Api.json(groups.get("/org-units?group=true&" + on)).findValuesAsText("name"));
-        assertEquals(List.of("内科"), Api.json(groups.get("/org-units/" + hospital + "/children?group=false&" + on))
+        assertEquals(List.of("労働組合", "病院"), Api.json(units.get("/org-units?" + on)).findValuesAsText("name"));
+        assertEquals(List.of("病院"), Api.json(units.get("/org-units?lateral=false&" + on)).findValuesAsText("name"));
+        assertEquals(List.of("労働組合"), Api.json(units.get("/org-units?lateral=true&" + on)).findValuesAsText("name"));
+        assertEquals(List.of("内科"), Api.json(units.get("/org-units/" + hospital + "/children?lateral=false&" + on))
                 .findValuesAsText("name"));
-        assertEquals(List.of("医療安全委員会"), Api.json(groups.get("/org-units/" + hospital
-                + "/subtree?group=true&" + on)).findValuesAsText("name"));
-        assertEquals(List.of("病院", "内科"), Api.json(groups.get("/org-units/" + hospital
-                + "/subtree?group=false&" + on)).findValuesAsText("name"));
+        assertEquals(List.of("医療安全委員会"), Api.json(units.get("/org-units/" + hospital
+                + "/subtree?lateral=true&" + on)).findValuesAsText("name"));
+        assertEquals(List.of("病院", "内科"), Api.json(units.get("/org-units/" + hospital
+                + "/subtree?lateral=false&" + on)).findValuesAsText("name"));
 
-        assertEquals("org_unit.line_below_group", errorOf(409, groups.post("/org-units", "{\"name\": \"分科会\", "
+        assertEquals("org_unit.line_below_lateral", errorOf(409, units.post("/org-units", "{\"name\": \"分科会\", "
                 + "\"parentId\": \"" + committee.get("id").asText() + "\", \"validFrom\": \"2026-04-01\"}")));
-        assertEquals("ref_item.group_in_use", errorOf(409, groups.put("/ref-items/" + type.get("id").asText(),
+        assertEquals("ref_item.lateral_in_use", errorOf(409, units.put("/ref-items/" + type.get("id").asText(),
                 "{\"name\": \"委員会\"}")));
     }
 

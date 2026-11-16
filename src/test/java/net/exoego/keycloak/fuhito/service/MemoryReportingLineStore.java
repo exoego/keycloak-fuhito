@@ -92,7 +92,7 @@ final class MemoryReportingLineStore implements ReportingLineStore {
         OrgUnitTree tree = new OrgUnitTree(orgUnits, refItems, date, hierarchyId);
         assignments.rows.stream()
                 .filter(row -> row.period().contains(date) && managerPersonId.equals(personOf(row))
-                        && leads(row, date) && !tree.path(row.orgUnitId()).getLast().group())
+                        && leads(row, date) && !tree.path(row.orgUnitId()).getLast().lateral())
                 .forEach(own -> collect(tree, own.orgUnitId(), 0, managerPersonId, date, found));
         return found.stream()
                 .sorted(Comparator.comparing((Found f) -> f.report().derived())
@@ -118,7 +118,7 @@ final class MemoryReportingLineStore implements ReportingLineStore {
         }
         rows.stream().filter(row -> depth > 0 || !row.head())
                 .forEach(row -> addDerived(row, depth, date, found));
-        tree.children(orgUnitId).stream().filter(child -> !child.group())
+        tree.children(orgUnitId).stream().filter(child -> !child.lateral())
                 .forEach(child -> collect(tree, child.unit().id(), depth + 1, managerPersonId, date, found));
     }
 

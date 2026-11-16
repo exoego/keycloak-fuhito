@@ -71,7 +71,7 @@ class RealmKindServiceTest {
                 .map(item -> item.code()).toList());
         assertEquals("invalid.kind", code(() -> refItems.create("cost-center", "c1", "C1", null, null, null,
                 RefItemService.Marks.NONE)));
-        assertEquals("ref_item.group_kind", code(() -> refItems.create("work-location", "osaka", "大阪", null, null,
+        assertEquals("ref_item.lateral_kind", code(() -> refItems.create("work-location", "osaka", "大阪", null, null,
                 null, new RefItemService.Marks(null, null, true))));
 
         // An attribute can point to the kind of the realm.

@@ -73,27 +73,27 @@ final class MemoryOrgUnitStore implements OrgUnitStore {
         units.put(unit.id(), unit);
     }
 
-    /** The unit types that tell groups from line units. A test of groups sets it. */
+    /** The unit types that tell lateral units from line units. A test of lateral units sets it. */
     MemoryRefItemStore refItems = new MemoryRefItemStore();
 
     @Override
-    public List<PlacedOrgUnit> treeOn(String hierarchyId, String rootId, Boolean group, LocalDate date, int first,
+    public List<PlacedOrgUnit> treeOn(String hierarchyId, String rootId, Boolean lateral, LocalDate date, int first,
             int max) {
-        return placed(of(group, new OrgUnitTree(this, refItems, date, hierarchyId).subtree(rootId)), first, max);
+        return placed(of(lateral, new OrgUnitTree(this, refItems, date, hierarchyId).subtree(rootId)), first, max);
     }
 
     @Override
-    public List<PlacedOrgUnit> childrenOn(String hierarchyId, String parentId, boolean linkedOnly, Boolean group,
+    public List<PlacedOrgUnit> childrenOn(String hierarchyId, String parentId, boolean linkedOnly, Boolean lateral,
             LocalDate date, int first, int max) {
         OrgUnitTree tree = new OrgUnitTree(this, refItems, date, hierarchyId);
         if (parentId != null) {
-            return placed(of(group, tree.children(parentId)), first, max);
+            return placed(of(lateral, tree.children(parentId)), first, max);
         }
-        return placed(of(group, linkedOnly ? tree.linkedRoots() : tree.roots()), first, max);
+        return placed(of(lateral, linkedOnly ? tree.linkedRoots() : tree.roots()), first, max);
     }
 
-    private static List<OrgUnitState> of(Boolean group, List<OrgUnitState> states) {
-        return states.stream().filter(state -> group == null || state.group() == group).toList();
+    private static List<OrgUnitState> of(Boolean lateral, List<OrgUnitState> states) {
+        return states.stream().filter(state -> lateral == null || state.lateral() == lateral).toList();
     }
 
     @Override
@@ -114,7 +114,7 @@ final class MemoryOrgUnitStore implements OrgUnitStore {
 
     private List<OrgUnitState> found(String hierarchyId, Search search, LocalDate date) {
         String text = search.text() == null ? null : search.text().toLowerCase(Locale.ROOT);
-        return of(search.group(), new OrgUnitTree(this, refItems, date, hierarchyId).all()).stream()
+        return of(search.lateral(), new OrgUnitTree(this, refItems, date, hierarchyId).all()).stream()
                 .filter(state -> text == null || java.util.stream.Stream.of(
                                 java.util.stream.Stream.of(state.version().name(), state.version().shortName(),
                                         state.version().phoneticName()),

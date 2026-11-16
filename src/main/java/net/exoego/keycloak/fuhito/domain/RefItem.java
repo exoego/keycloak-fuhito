@@ -15,11 +15,12 @@ import java.util.Map;
  * @param active false when the item must not be used for new data
  * @param legalEntity true for a unit type whose org units are legal entities, such as a company
  * @param actingHead true for an assignment kind whose heads stand in for an absent head
- * @param group true for a unit type whose org units are groups outside the line organization, such as a committee
+ * @param lateral true for a unit type whose org units are lateral units outside the line organization, such as a
+ *        committee
  */
 public record RefItem(String id, String kind, String code, String name, Map<String, String> names,
         int displayOrder, Map<String, Object> attributes, boolean active, boolean legalEntity, boolean actingHead,
-        boolean group) {
+        boolean lateral) {
 
     /**
      * Makes an item of a fixed kind.
@@ -34,11 +35,11 @@ public record RefItem(String id, String kind, String code, String name, Map<Stri
      * @param active false when the item must not be used for new data
      * @param legalEntity true for a unit type whose org units are legal entities, such as a company
      * @param actingHead true for an assignment kind whose heads stand in for an absent head
-     * @param group true for a unit type whose org units are groups outside the line organization
+     * @param lateral true for a unit type whose org units are lateral units outside the line organization
      */
     public RefItem(String id, RefKind kind, String code, String name, Map<String, String> names, int displayOrder,
-            Map<String, Object> attributes, boolean active, boolean legalEntity, boolean actingHead, boolean group) {
-        this(id, kind.name(), code, name, names, displayOrder, attributes, active, legalEntity, actingHead, group);
+            Map<String, Object> attributes, boolean active, boolean legalEntity, boolean actingHead, boolean lateral) {
+        this(id, kind.name(), code, name, names, displayOrder, attributes, active, legalEntity, actingHead, lateral);
     }
 
     /**
@@ -52,7 +53,7 @@ public record RefItem(String id, String kind, String code, String name, Map<Stri
     }
 
     /**
-     * Makes an item that is no unit type of groups.
+     * Makes an item that is no unit type of lateral units.
      *
      * @param id the ID
      * @param kind the kind

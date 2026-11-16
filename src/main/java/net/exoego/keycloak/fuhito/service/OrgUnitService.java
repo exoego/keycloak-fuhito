@@ -104,7 +104,7 @@ public class OrgUnitService {
         requireFreeCode(Checks.optionalCode("code", request.code()), unit.id(), period);
         if (request.parentId() != null) {
             requireParentCovers(request.parentId(), period);
-            requireLineParent(unit.id(), List.of(new Nature(period, unitType != null && unitType.group())),
+            requireLineParent(unit.id(), List.of(new Nature(period, unitType != null && unitType.lateral())),
                     request.parentId(), natures(request.parentId()), period);
         }
 
@@ -148,7 +148,7 @@ public class OrgUnitService {
         ValidPeriod changed = current.period().from().equals(from) ? current.period()
                 : current.period().splitAt(from).get(1);
         requireFreeCode(Checks.optionalCode("code", request.code()), id, changed);
-        List<Nature> nature = List.of(new Nature(changed, unitType != null && unitType.group()));
+        List<Nature> nature = List.of(new Nature(changed, unitType != null && unitType.lateral()));
         String hierarchyId = store.defaultHierarchyId();
         for (OrgUnitLink link : store.parentLinks(hierarchyId, id)) {
             requireLineParent(id, nature, link.parentId(), natures(link.parentId()), link.period());
@@ -336,7 +336,7 @@ public class OrgUnitService {
         for (OrgUnitLink link : ending) {
             requireParentCovers(link.parentId(), added);
             if (link.hierarchyId().equals(store.defaultHierarchyId())) {
-                requireLineParent(id, List.of(new Nature(added, natures(id).getLast().group())), link.parentId(),
+                requireLineParent(id, List.of(new Nature(added, natures(id).getLast().lateral())), link.parentId(),
                         natures(link.parentId()), added);
             }
         }
@@ -495,16 +495,16 @@ public class OrgUnitService {
      *
      * @param asOf the date as {@code YYYY-MM-DD}, or null for today
      * @param hierarchy the code of the hierarchy, or null for the default one
-     * @param group true for groups only, false for line units only, or null for both
+     * @param lateral true for lateral units only, false for line units only, or null for both
      * @param page the part of the list to return
      * @return the roots of the page on the date
      * @throws FuhitoException when the date is bad or the hierarchy does not exist
      */
-    public List<OrgUnitState> roots(String asOf, String hierarchy, Boolean group, Page page) {
+    public List<OrgUnitState> roots(String asOf, String hierarchy, Boolean lateral, Page page) {
         LocalDate date = dateOrToday(asOf, null);
         String hierarchyId = hierarchyId(hierarchy);
         boolean linkedOnly = !hierarchyId.equals(store.defaultHierarchyId());
-        return states(store.childrenOn(hierarchyId, null, linkedOnly, group, date, page.first(), page.max()));
+        return states(store.childrenOn(hierarchyId, null, linkedOnly, lateral, date, page.first(), page.max()));
     }
 
     /**
@@ -513,14 +513,14 @@ public class OrgUnitService {
      * @param id the ID
      * @param asOf the date as {@code YYYY-MM-DD}, or null for today
      * @param hierarchy the code of the hierarchy, or null for the default one
-     * @param group true for groups only, false for line units only, or null for both
+     * @param lateral true for lateral units only, false for line units only, or null for both
      * @param page the part of the list to return
      * @return the children of the page on the date
      * @throws FuhitoException when the unit or the hierarchy does not exist, or the unit does not exist on the date
      */
-    public List<OrgUnitState> children(String id, String asOf, String hierarchy, Boolean group, Page page) {
+    public List<OrgUnitState> children(String id, String asOf, String hierarchy, Boolean lateral, Page page) {
         LocalDate date = dateOfUnit(id, asOf);
-        return states(store.childrenOn(hierarchyId(hierarchy), id, false, group, date, page.first(),
+        return states(store.childrenOn(hierarchyId(hierarchy), id, false, lateral, date, page.first(),
                 page.max()));
     }
 
@@ -530,14 +530,14 @@ public class OrgUnitService {
      * @param id the ID
      * @param asOf the date as {@code YYYY-MM-DD}, or null for today
      * @param hierarchy the code of the hierarchy, or null for the default one
-     * @param group true for groups only, false for line units only, or null for both
+     * @param lateral true for lateral units only, false for line units only, or null for both
      * @param page the part of the list to return
      * @return the units of the page on the date
      * @throws FuhitoException when the unit or the hierarchy does not exist, or the unit does not exist on the date
      */
-    public List<OrgUnitState> subtree(String id, String asOf, String hierarchy, Boolean group, Page page) {
+    public List<OrgUnitState> subtree(String id, String asOf, String hierarchy, Boolean lateral, Page page) {
         LocalDate date = dateOfUnit(id, asOf);
-        return states(store.treeOn(hierarchyId(hierarchy), id, group, date, page.first(), page.max()));
+        return states(store.treeOn(hierarchyId(hierarchy), id, lateral, date, page.first(), page.max()));
     }
 
     /**
@@ -546,10 +546,10 @@ public class OrgUnitService {
      * @param q a part of a name, a short name, or the phonetic name, in any language, with no regard to case
      * @param code the code
      * @param unitType the code of the unit type
-     * @param group true for groups only, false for line units only
+     * @param lateral true for lateral units only, false for line units only
      * @param asOf the date as {@code YYYY-MM-DD}, or null for today of the realm
      */
-    public record Search(String q, String code, String unitType, Boolean group, String asOf) {
+    public record Search(String q, String code, String unitType, Boolean lateral, String asOf) {
     }
 
     /**
@@ -584,7 +584,7 @@ public class OrgUnitService {
                 .orElseThrow(() -> FuhitoException.invalid("org_unit.unit_type_unknown",
                         Map.of("unitType", search.unitType())));
         String text = search.q() == null || search.q().isBlank() ? null : search.q().strip();
-        return new OrgUnitStore.Search(text, search.code(), unitTypeId, search.group());
+        return new OrgUnitStore.Search(text, search.code(), unitTypeId, search.lateral());
     }
 
     /**
@@ -744,29 +744,29 @@ public class OrgUnitService {
         }
     }
 
-    // Whether a unit is a group in a period of its details.
-    private record Nature(ValidPeriod period, boolean group) {
+    // Whether a unit is a lateral unit in a period of its details.
+    private record Nature(ValidPeriod period, boolean lateral) {
     }
 
     private List<Nature> natures(String unitId) {
         return store.versions(unitId).stream()
                 .map(v -> new Nature(v.period(), v.unitTypeId() != null
-                        && refItems.find(v.unitTypeId()).map(RefItem::group).orElse(false)))
+                        && refItems.find(v.unitTypeId()).map(RefItem::lateral).orElse(false)))
                 .toList();
     }
 
-    // In the default hierarchy, the parent of a line unit is a line unit on every date. A group may be anywhere.
+    // In the default hierarchy, the parent of a line unit is a line unit on every date. A lateral unit may be anywhere.
     private static void requireLineParent(String childId, List<Nature> child, String parentId, List<Nature> parent,
             ValidPeriod link) {
         for (Nature below : child) {
             for (Nature above : parent) {
-                if (below.group() || !above.group()) {
+                if (below.lateral() || !above.lateral()) {
                     continue;
                 }
                 Optional<ValidPeriod> both = link.intersection(below.period())
                         .flatMap(period -> period.intersection(above.period()));
                 if (both.isPresent()) {
-                    throw FuhitoException.conflict("org_unit.line_below_group", Map.of("id", childId,
+                    throw FuhitoException.conflict("org_unit.line_below_lateral", Map.of("id", childId,
                             "parentId", parentId, "date", both.get().from().toString()));
                 }
             }

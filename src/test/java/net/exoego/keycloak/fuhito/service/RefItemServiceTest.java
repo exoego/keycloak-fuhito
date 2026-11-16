@@ -203,22 +203,22 @@ class RefItemServiceTest {
     }
 
     @Test
-    void aGroupIsAUnitTypeThatIsNoLegalEntityAndKeepsItsMarkWhileInUse() {
+    void aLateralUnitTypeIsNoLegalEntityAndKeepsItsMarkWhileInUse() {
         RefItem committee = service.create(RefKind.UNIT_TYPE, "committee", "Committee", null, null, null,
                 new RefItemService.Marks(null, null, true));
 
-        assertTrue(committee.group());
-        assertEquals("ref_item.group_kind", assertThrows(FuhitoException.class,
+        assertTrue(committee.lateral());
+        assertEquals("ref_item.lateral_kind", assertThrows(FuhitoException.class,
                 () -> service.create(RefKind.JOB_TITLE, "chair", "Chair", null, null, null,
                         new RefItemService.Marks(null, null, true))).code());
-        assertEquals("ref_item.group_legal_entity", assertThrows(FuhitoException.class,
+        assertEquals("ref_item.lateral_legal_entity", assertThrows(FuhitoException.class,
                 () -> service.create(RefKind.UNIT_TYPE, "union", "Union", null, null, null,
                         new RefItemService.Marks(true, null, true))).code());
         assertFalse(service.update(committee.id(), "Committee", null, null, null, null, RefItemService.Marks.NONE)
-                .group());
+                .lateral());
 
         store.inUse.add(committee.id());
-        assertEquals("ref_item.group_in_use", assertThrows(FuhitoException.class,
+        assertEquals("ref_item.lateral_in_use", assertThrows(FuhitoException.class,
                 () -> service.update(committee.id(), "Committee", null, null, null, null,
                         new RefItemService.Marks(null, null, true))).code());
         assertEquals("Board", service.update(committee.id(), "Board", null, null, null, null).name());
