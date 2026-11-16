@@ -69,14 +69,25 @@ class InParallelTest {
                 assertThrows(IllegalStateException.class, () -> InParallel.run(tasks, 1)).getCause());
     }
 
+    // The task waits, so the wait for it is still going when the interrupt comes. A task that already ended gives
+    // its result without a look at the interrupt.
     @Test
     void anInterruptStopsTheWaitAndKeepsTheFlag() {
+        CountDownLatch release = new CountDownLatch(1);
+        Runnable waiting = () -> {
+            try {
+                assertTrue(release.await(10, TimeUnit.SECONDS));
+            } catch (InterruptedException e) {
+                throw new IllegalStateException(e);
+            }
+        };
         Thread.currentThread().interrupt();
         try {
-            assertThrows(IllegalStateException.class, () -> InParallel.run(List.of(() -> { }), 1));
+            assertThrows(IllegalStateException.class, () -> InParallel.run(List.of(waiting), 1));
             assertTrue(Thread.currentThread().isInterrupted());
         } finally {
             Thread.interrupted();
+            release.countDown();
         }
     }
 }
