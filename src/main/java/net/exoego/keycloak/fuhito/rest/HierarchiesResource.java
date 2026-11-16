@@ -86,8 +86,8 @@ public class HierarchiesResource {
     @Operation(
             operationId = "createHierarchy",
             summary = "Creates a hierarchy.",
-            description = "A second hierarchy describes another view of the same org units, such as a matrix "
-                    + "organization. The body needs `code` and `name`.")
+            description = "A second hierarchy puts the same org units in another tree, such as regions that "
+                    + "gather branches of several divisions. The body needs `code` and `name`.")
     @Parameter(ref = "changeOrder")
     @APIResponse(
             responseCode = "201",
