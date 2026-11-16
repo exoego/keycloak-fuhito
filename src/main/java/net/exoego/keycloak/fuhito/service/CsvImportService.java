@@ -108,7 +108,8 @@ public class CsvImportService {
             Map.entry("orderDate", "発令日"), Map.entry("effectiveDate", "発効日"),
             Map.entry("approverUserId", "承認者のユーザーID"), Map.entry("approverUsername", "承認者のユーザー名"),
             Map.entry("requesterUserId", "申請者のユーザーID"), Map.entry("requesterUsername", "申請者のユーザー名"),
-            Map.entry("externalReference", "外部の参照"));
+            Map.entry("externalReference", "外部の参照"), Map.entry("timeZone", "タイムゾーン"),
+            Map.entry("dayStart", "日の始まり"));
 
     // The lists that a file can hold, each with the resource whose attributes it sets.
     private enum Kind {
@@ -164,7 +165,7 @@ public class CsvImportService {
                     "actingHead", "group")),
             Map.entry(Kind.ORG_UNITS, Set.of("id", "externalId", "source", "code", "name", "shortName",
                     "phoneticName", "unitType", "parentExternalId", "parentId", "displayOrder", "validFrom",
-                    "validTo", "successorExternalIds", "successorIds", "organizationAlias")),
+                    "validTo", "successorExternalIds", "successorIds", "organizationAlias", "timeZone", "dayStart")),
             Map.entry(Kind.EMPLOYMENTS, Set.of("id", "externalId", "source", "username", "userId", "staffNumber",
                     "employmentType", "grade", "status", "leaveReason", "workPercent", "validFrom", "validTo",
                     "endReason", "employerExternalId", "employerId", "personExternalId", "personId")),
@@ -488,7 +489,8 @@ public class CsvImportService {
                 cells.integer("displayOrder", version.map(v -> v.displayOrder()).orElse(null)),
                 cells.attributes(version.map(v -> v.attributes()).orElse(null)),
                 cells.text("validFrom", null), cells.text("validTo", null), id,
-                cells.list("successorExternalIds"), successorIds(cells, stored), cells.clearable("organizationAlias"));
+                cells.list("successorExternalIds"), successorIds(cells, stored), cells.clearable("organizationAlias"),
+                cells.clearable("timeZone"), cells.clearable("dayStart"));
     }
 
     // Blank cells of the successors keep the stored ones of a row with an end.

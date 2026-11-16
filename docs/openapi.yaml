@@ -1500,6 +1500,15 @@ components:
           type: string
           description: The alias of the Keycloak organization that the unit is linked
             to. A row that leaves it out keeps the link. An empty text removes it.
+        timeZone:
+          type: string
+          description: "The time zone of the unit and the units below, for example\
+            \ `Asia/Tokyo`. A row that leaves it out keeps it. An empty text removes\
+            \ it."
+        dayStart:
+          type: string
+          description: "The time of day when the date changes, as `HH:mm`. A row that\
+            \ leaves it out keeps it. An empty text removes it."
     ImportPersonRow:
       type: object
       description: "A person, also one with no Keycloak user. It is matched by source\

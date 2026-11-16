@@ -201,6 +201,7 @@ final class OrgUnitImport {
             unitIdByRow.put(index, id);
             written(true, "", created);
             link(id, row.organizationAlias());
+            time(id, row);
             if (succeeds) {
                 endings.add(new Ending(index, id, source, row));
             } else if (row.validTo() != null) {
@@ -236,6 +237,7 @@ final class OrgUnitImport {
             }
         }
         changed |= link(id, row.organizationAlias());
+        changed |= time(id, row);
         if (succeeds) {
             endings.add(new Ending(index, id, source, row));
             changed |= lastDay(id) == null;
@@ -258,6 +260,26 @@ final class OrgUnitImport {
             throw FuhitoException.invalid("import.id_mismatch", Map.of("id", row.id(), "externalId", row.externalId()));
         }
         return Optional.of(unit);
+    }
+
+    // A value that the row leaves out keeps the stored one. An empty text removes it.
+    private boolean time(String id, OrgUnitRow row) {
+        if (row.timeZone() == null && row.dayStart() == null) {
+            return false;
+        }
+        OrgUnit unit = orgUnits.findUnit(id).orElseThrow();
+        String zone = row.timeZone() == null ? unit.timeZone() : row.timeZone();
+        String start = row.dayStart() == null ? unit.dayStart() : row.dayStart();
+        if (Objects.equals(setting(zone), unit.timeZone()) && Objects.equals(setting(start), unit.dayStart())) {
+            return false;
+        }
+        OrgUnit changed = orgUnitService.setTime(id, zone, start);
+        report.write(new Write.OfTimeSettings(id, changed.timeZone(), changed.dayStart()));
+        return true;
+    }
+
+    private static String setting(String value) {
+        return value == null || value.isBlank() ? null : value.strip();
     }
 
     // A link decides who is a member of the organization, so the caller must manage the old and the new one.

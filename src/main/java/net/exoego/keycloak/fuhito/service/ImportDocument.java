@@ -651,14 +651,21 @@ public record ImportDocument(
             List<String> successorIds,
             @Schema(description = "The alias of the Keycloak organization that the unit is linked to. A row that "
                     + "leaves it out keeps the link. An empty text removes it.")
-            String organizationAlias) {
+            String organizationAlias,
+            @Schema(description = "The time zone of the unit and the units below, for example `Asia/Tokyo`. A row "
+                    + "that leaves it out keeps it. An empty text removes it.")
+            String timeZone,
+            @Schema(description = "The time of day when the date changes, as `HH:mm`. A row that leaves it out keeps "
+                    + "it. An empty text removes it.")
+            String dayStart) {
 
         public OrgUnitRow(String source, String externalId, String code, String name, Map<String, String> names,
                 String shortName, Map<String, String> shortNames, String phoneticName, String unitType,
                 String parentExternalId, String parentId, Integer displayOrder, Map<String, Object> attributes,
                 String validFrom, String validTo, String id) {
             this(source, externalId, code, name, names, shortName, shortNames, phoneticName, unitType,
-                    parentExternalId, parentId, displayOrder, attributes, validFrom, validTo, id, null, null, null);
+                    parentExternalId, parentId, displayOrder, attributes, validFrom, validTo, id, null, null, null,
+                    null, null);
         }
     }
 }

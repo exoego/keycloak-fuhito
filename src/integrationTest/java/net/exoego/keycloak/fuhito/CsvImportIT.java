@@ -85,7 +85,7 @@ class CsvImportIT {
                 + "/succession")).get("successors").findValuesAsText("orgUnitId").stream().sorted().toList());
         String exported = api.get("/imports/csv/org-units?asOf=2026-05-01").body();
         assertTrue(exported.contains(",2027-04-01," + String.join("|", Api.json(api.get("/org-units/" + old
-                + "/succession")).get("successors").findValuesAsText("orgUnitId")) + ",\r\n"), exported);
+                + "/succession")).get("successors").findValuesAsText("orgUnitId")) + ",,,\r\n"), exported);
         JsonNode again = load(api, "org-units", "effectiveDate=2026-05-01", exported).get("counts").get("orgUnits");
         assertEquals(0, again.get("created").asInt() + again.get("changed").asInt(), again.toString());
     }
@@ -109,6 +109,9 @@ class CsvImportIT {
         JsonNode again = load(api, "org-units", "effectiveDate=2026-05-01", exported).get("counts").get("orgUnits");
         assertEquals(0, again.get("created").asInt() + again.get("changed").asInt(), again.toString());
         load(api, "org-units", "effectiveDate=2026-05-01", "id,organizationAlias\r\n" + hospital + ",#CLEAR\r\n");
+        load(api, "org-units", "effectiveDate=2026-05-01", "id,タイムゾーン,日の始まり\r\n" + hospital
+                + ",Asia/Tokyo,05:00\r\n");
+        assertTrue(api.get("/imports/csv/org-units?asOf=2026-05-01").body().contains(",Asia/Tokyo,05:00\r\n"));
         assertTrue(Api.json(api.get("/org-units/" + hospital + "?asOf=2026-05-01")).path("keycloakOrganizationId")
                 .isMissingNode());
     }

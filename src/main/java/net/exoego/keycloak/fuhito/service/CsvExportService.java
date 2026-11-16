@@ -519,7 +519,7 @@ public class CsvExportService {
         header.add(column("shortName", japanese));
         shortNames.forEach(language -> header.add(column("shortName", japanese) + ":" + language));
         for (String field : List.of("phoneticName", "unitType", "parentId", "displayOrder", "validTo",
-                "successorIds", "organizationAlias")) {
+                "successorIds", "organizationAlias", "timeZone", "dayStart")) {
             header.add(column(field, japanese));
         }
         attributes.forEach(attribute -> header.add(CsvImportService.ATTRIBUTE_COLUMN + attribute));
@@ -545,6 +545,8 @@ public class CsvExportService {
                     .stream().map(OrgUnitSuccession::successorId).toList()));
             cells.add(text(Optional.ofNullable(unit.unit().keycloakOrganizationId())
                     .flatMap(organizations::aliasOf).orElse(null)));
+            cells.add(text(unit.unit().timeZone()));
+            cells.add(text(unit.unit().dayStart()));
             attributes.forEach(attribute -> cells.add(text(Optional.ofNullable(version.attributes())
                     .map(values -> values.get(attribute)).orElse(null))));
             line(csv, cells);
