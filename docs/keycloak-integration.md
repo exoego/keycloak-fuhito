@@ -452,7 +452,7 @@ The database applies the filters, the order, and the page.
 | `/qualifications` | Licenses and certificates of users. The list finds them by kind and date |
 | `/reporting-lines` | Links from an assignment to a manager |
 | `/unit-roles` | Roles of employments over org units that are not membership |
-| `/org-units/{id}/role-holders` | Who has a role over an org unit on a date, also from a unit above |
+| `/org-units/{id}/role-holders` | Who has a role over an org unit on a date, also from a unit above. `nearest=true` keeps only the nearest holders of each role |
 | `/people/{id}/unit-roles` | The roles over org units of a person on a date |
 | `/attribute-definitions` | The names and types of the free attributes of each kind of resource |
 | `/ref-kinds` | The kinds of reference data, the fixed ones and the ones that the realm added |

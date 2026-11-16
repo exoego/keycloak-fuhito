@@ -6026,8 +6026,9 @@ paths:
       summary: Lists who has a role over an org unit on a date.
       description: "These are the roles over the unit, and the roles over a unit above\
         \ in the default hierarchy that cover the units below. The nearest unit comes\
-        \ first, then the code of the role. They name people, so the read needs the\
-        \ full read permission."
+        \ first, then the code of the role. Nearness is the number of steps up the\
+        \ default hierarchy on the date. They name people, so the read needs the full\
+        \ read permission."
       operationId: listOrgUnitRoleHolders
       tags:
       - org-units
@@ -6061,6 +6062,14 @@ paths:
           minimum: 0
           default: 100
         name: max
+        in: query
+      - description: "True to keep, for each role, only the holders of the nearest\
+          \ unit. A holder of a unit above is then left out when a nearer unit has\
+          \ a holder of the same role."
+        schema:
+          type: boolean
+          default: false
+        name: nearest
         in: query
       - description: The code of a role to keep.
         name: role

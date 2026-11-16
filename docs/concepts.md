@@ -53,7 +53,7 @@ Reads, the mask, and the erase work by person. Each has a shortcut by the ID of 
 | Head | 長 | A flag on an assignment. It marks the person who leads the org unit. |
 | Acting Head | 代行、事務取扱 | A head whose assignment kind has the mark `actingHead`. It leads the unit while its assignment holds, in place of the other heads. |
 | Reporting Line | レポートライン | A link from an assignment to a manager. It has a kind, solid or dotted, and a period. |
-| Unit Role | 組織への役割 | A role that an employment holds over an org unit without being a member, such as the HR contact of a division or the approver of expenses of a department. The role is a reference item of the kind `UNIT_ROLE`. With `includesDescendants`, it covers the units below too. It is data for products. The extension decides no access with it. |
+| Unit Role | 組織への役割 | A role that an employment holds over an org unit without being a member, such as the HR contact of a division or the approver of expenses of a department. The role is a reference item of the kind `UNIT_ROLE`. With `includesDescendants`, it covers the units below too. `GET /org-units/{id}/role-holders?nearest=true` keeps, for each role, only the holders of the nearest unit, the way an approval goes up until it finds an approver. It is data for products. The extension decides no access with it. |
 | Qualification | 資格、免許 | A license or certificate that a person holds, with a number and a period. |
 
 Job title, occupation, grade, and employment type are four separate things.

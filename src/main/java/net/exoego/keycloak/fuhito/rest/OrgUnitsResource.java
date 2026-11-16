@@ -589,7 +589,8 @@ public class OrgUnitsResource {
             summary = "Lists who has a role over an org unit on a date.",
             description = "These are the roles over the unit, and the roles over a unit above in the default "
                     + "hierarchy that cover the units below. The nearest unit comes first, then the code of the "
-                    + "role. They name people, so the read needs the full read permission.")
+                    + "role. Nearness is the number of steps up the default hierarchy on the date. They name "
+                    + "people, so the read needs the full read permission.")
     @APIResponse(responseCode = "200", description = "The roles.")
     @BadRequest
     @NotFound
@@ -599,6 +600,11 @@ public class OrgUnitsResource {
             @PathParam("id") String id,
             @Parameter(description = "The code of a role to keep.")
             @QueryParam("role") String role,
+            @Parameter(
+                    description = "True to keep, for each role, only the holders of the nearest unit. A holder of "
+                            + "a unit above is then left out when a nearer unit has a holder of the same role.",
+                    schema = @Schema(defaultValue = "false"))
+            @QueryParam("nearest") boolean nearest,
             @Parameter(
                     description = "The date to read. The default is today for the org unit. It is the date of the "
                             + "realm unless a unit sets its own time zone.",
@@ -613,7 +619,7 @@ public class OrgUnitsResource {
                     schema = @Schema(minimum = "0", maximum = "1000", defaultValue = "100"))
             @QueryParam("max") Integer max) {
         context.requireRead();
-        return Calls.run(context, () -> unitRoles.holders(id, role, asOf, Page.of(first, max)).stream()
+        return Calls.run(context, () -> unitRoles.holders(id, role, nearest, asOf, Page.of(first, max)).stream()
                 .map(UnitRoleRepresentation::of)
                 .toList());
     }

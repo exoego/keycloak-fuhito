@@ -34,13 +34,14 @@ public interface UnitRoleStore {
      * @param hierarchyId the ID of the default hierarchy
      * @param orgUnitId the ID of the org unit
      * @param roleId the ID of the role to keep, or null for every role
+     * @param nearest true to keep, for each role, only the holders of the nearest unit
      * @param date the date
      * @param first the number of roles to skip
      * @param max the largest number of roles to return
      * @return the roles of the page
      */
-    List<UnitRole> holdersOn(String hierarchyId, String orgUnitId, String roleId, LocalDate date, int first,
-            int max);
+    List<UnitRole> holdersOn(String hierarchyId, String orgUnitId, String roleId, boolean nearest, LocalDate date,
+            int first, int max);
 
     /**
      * Lists a page of the roles of a person on a date, in the order of the start, then the ID.

@@ -38,8 +38,15 @@ public class JpaUnitRoleStore implements UnitRoleStore {
             join EmploymentEntity e on e.id = r.employmentId
             join PersonEntity p on p.id = e.personId
             join RefItemEntity k on k.id = r.roleId
-            where (a.depth = 0 or r.includesDescendants = true)%%s
+            where (a.depth = 0 or r.includesDescendants = true)%%s%%s
             order by a.depth, k.code, r.id""".formatted(TreeQuery.onDate("l"), TreeQuery.onDate("r"));
+
+    // A role is left out when a nearer unit has a holder of the same role over the unit.
+    private static final String NEAREST = """
+             and not exists (select 1 from Above b
+                join UnitRoleEntity o on o.orgUnitId = b.id and o.realmId = :realmId and o.%s
+                where o.roleId = r.roleId and b.depth < a.depth and (b.depth = 0 or o.includesDescendants = true))"""
+            .formatted(TreeQuery.onDate("o"));
 
     private final EntityManager em;
     private final String realmId;
@@ -68,10 +75,10 @@ public class JpaUnitRoleStore implements UnitRoleStore {
     }
 
     @Override
-    public List<UnitRole> holdersOn(String hierarchyId, String orgUnitId, String roleId, LocalDate date, int first,
-            int max) {
-        TypedQuery<Object[]> query = em.createQuery(HOLDERS.formatted(roleId == null ? "" : " and r.roleId = :roleId"),
-                        Object[].class)
+    public List<UnitRole> holdersOn(String hierarchyId, String orgUnitId, String roleId, boolean nearest,
+            LocalDate date, int first, int max) {
+        TypedQuery<Object[]> query = em.createQuery(HOLDERS.formatted(roleId == null ? "" : " and r.roleId = :roleId",
+                        nearest ? NEAREST : ""), Object[].class)
                 .setParameter("hierarchyId", hierarchyId)
                 .setParameter("orgUnitId", orgUnitId)
                 .setParameter("date", date);

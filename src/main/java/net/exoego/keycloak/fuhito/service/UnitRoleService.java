@@ -194,12 +194,13 @@ public class UnitRoleService {
      *
      * @param orgUnitId the ID of the org unit
      * @param role the code of the role to keep, or null for every role
+     * @param nearest true to keep, for each role, only the holders of the nearest unit
      * @param asOf the date as {@code YYYY-MM-DD}, or null for today of the org unit
      * @param page the part of the list to return
      * @return the roles of the page
      * @throws FuhitoException when the org unit does not exist, the role is unknown, or the date is bad
      */
-    public List<View> holders(String orgUnitId, String role, String asOf, Page page) {
+    public List<View> holders(String orgUnitId, String role, boolean nearest, String asOf, Page page) {
         if (sources.orgUnits().findUnit(orgUnitId).isEmpty()) {
             throw FuhitoException.notFound("org_unit.not_found", Map.of("id", orgUnitId));
         }
@@ -208,7 +209,7 @@ public class UnitRoleService {
                 .orElseThrow(() -> FuhitoException.invalid("ref_item.unknown",
                         Map.of("kind", RefKind.UNIT_ROLE.name(), "code", role)));
         LocalDate date = asOf == null ? today.ofUnit(orgUnitId) : Checks.optionalDate("asOf", asOf);
-        return views(store.holdersOn(sources.orgUnits().defaultHierarchyId(), orgUnitId, roleId, date,
+        return views(store.holdersOn(sources.orgUnits().defaultHierarchyId(), orgUnitId, roleId, nearest, date,
                 page.first(), page.max()));
     }
 
