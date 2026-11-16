@@ -303,7 +303,7 @@ public class JpaRealmExportStore implements RealmExportStore {
     }
 
     @Override
-    public void eraseAndMaskAgain() {
+    public void eraseAgain() {
         em.flush();
         em.createQuery("""
                         select e.personId from ErasureEntity e where e.realmId = :realmId
@@ -312,21 +312,10 @@ public class JpaRealmExportStore implements RealmExportStore {
                 .setParameter("realmId", realmId)
                 .getResultList()
                 .forEach(personId -> RealmData.deletePerson(em, realmId, personId));
-        JpaUserDataMasker masker = new JpaUserDataMasker(em, realmId);
-        em.createQuery("""
-                        select m from UserMaskEntity m where m.realmId = :realmId
-                        and m.personId in (select p.id from PersonEntity p where p.realmId = :realmId)""",
-                        UserMaskEntity.class)
-                .setParameter("realmId", realmId)
-                .getResultList()
-                .forEach(mask -> masker.mask(mask.personId, mask.maskedAt));
     }
 
     @Override
     public void restoreMask(String personId, Instant maskedAt) {
-        if (new JpaUserDataMasker(em, realmId).maskedAt(personId).isPresent()) {
-            return;
-        }
         UserMaskEntity mark = new UserMaskEntity();
         mark.id = UUID.randomUUID().toString();
         mark.realmId = realmId;
