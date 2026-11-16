@@ -7,6 +7,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
@@ -17,6 +18,7 @@ import net.exoego.keycloak.fuhito.jpa.OneFlush;
 import net.exoego.keycloak.fuhito.store.OrganizationDirectory;
 import net.exoego.keycloak.fuhito.store.OrganizationGroups;
 import org.keycloak.connections.jpa.JpaConnectionProvider;
+import org.keycloak.connections.jpa.support.EntityManagers;
 import org.keycloak.models.GroupModel;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.OrganizationModel;
@@ -235,10 +237,13 @@ final class KeycloakOrganizations implements OrganizationDirectory, Organization
     }
 
     // The rebuild writes only through the providers of Keycloak, and those do not read back what they wrote
-    // before the end of a piece.
+    // before the end of a piece. In the batch mode of Keycloak a new membership waits for that flush too, and
+    // the events and the invalidation of the user cache happen as usual.
     @Override
     public <T> T inOneFlush(Supplier<T> work) {
-        return OneFlush.run(entityManager(), work);
+        AtomicReference<T> result = new AtomicReference<>();
+        EntityManagers.runInBatch(session, () -> result.set(OneFlush.run(entityManager(), work)), false);
+        return result.get();
     }
 
     private GroupModel group(String groupId) {
