@@ -27,6 +27,7 @@ import net.exoego.keycloak.fuhito.domain.Hierarchy;
 import net.exoego.keycloak.fuhito.domain.OrgUnit;
 import net.exoego.keycloak.fuhito.domain.OrgUnitSuccession;
 import net.exoego.keycloak.fuhito.domain.Person;
+import net.exoego.keycloak.fuhito.domain.Qualification;
 import net.exoego.keycloak.fuhito.domain.RefItem;
 import net.exoego.keycloak.fuhito.domain.RefKind;
 import net.exoego.keycloak.fuhito.service.ImportDocument.AssignmentRow;
@@ -36,6 +37,7 @@ import net.exoego.keycloak.fuhito.service.ImportDocument.HierarchyRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.OrgUnitParentRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.OrgUnitRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.PersonRow;
+import net.exoego.keycloak.fuhito.service.ImportDocument.QualificationRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.RefItemRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.ReportingLineRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.UnitRoleRow;
@@ -97,7 +99,8 @@ public class CsvImportService {
             Map.entry("organizationAlias", "Organizationの別名"), Map.entry("assignmentExternalId", "所属の外部ID"),
             Map.entry("assignmentId", "所属のID"), Map.entry("managerPersonExternalId", "上司の人の外部ID"),
             Map.entry("managerPersonId", "上司の人のID"), Map.entry("managerUsername", "上司のユーザー名"),
-            Map.entry("role", "ロール"), Map.entry("includesDescendants", "下位の組織も含む"));
+            Map.entry("role", "ロール"), Map.entry("includesDescendants", "下位の組織も含む"),
+            Map.entry("number", "番号"));
 
     // The lists that a file can hold, each with the resource whose attributes it sets.
     private enum Kind {
@@ -107,6 +110,7 @@ public class CsvImportService {
         ORG_UNIT_PARENTS("orgUnitParents", null),
         REPORTING_LINES("reportingLines", null),
         UNIT_ROLES("unitRoles", null),
+        QUALIFICATIONS("qualifications", AttributeDefinition.Target.QUALIFICATION),
         REF_ITEMS("refItems", AttributeDefinition.Target.REF_ITEM),
         ORG_UNITS("orgUnits", AttributeDefinition.Target.ORG_UNIT),
         EMPLOYMENTS("employments", AttributeDefinition.Target.EMPLOYMENT_TERMS),
@@ -136,6 +140,8 @@ public class CsvImportService {
             Map.entry(Kind.HIERARCHIES, Set.of("code", "name")),
             Map.entry(Kind.ORG_UNIT_PARENTS, Set.of("hierarchy", "source", "orgUnitExternalId", "orgUnitId",
                     "parentExternalId", "parentId")),
+            Map.entry(Kind.QUALIFICATIONS, Set.of("id", "source", "externalId", "personExternalId", "personId",
+                    "username", "kind", "number", "validFrom", "validTo")),
             Map.entry(Kind.UNIT_ROLES, Set.of("id", "source", "employmentExternalId", "employmentId",
                     "orgUnitExternalId", "orgUnitId", "role", "includesDescendants", "validFrom", "validTo")),
             Map.entry(Kind.REPORTING_LINES, Set.of("id", "source", "assignmentExternalId", "assignmentId",
@@ -221,6 +227,8 @@ public class CsvImportService {
                     document);
             case REPORTING_LINES -> run(data, columns, defined, this::reportingLine, document);
             case UNIT_ROLES -> run(data, columns, defined, this::unitRole, document);
+            case QUALIFICATIONS -> run(data, columns, defined, cells -> qualification(cells, defaultSource),
+                    document);
             case REF_ITEMS -> run(data, columns, defined, this::refItem, document);
             case ORG_UNITS -> run(data, columns, defined, cells -> orgUnit(cells, date, defaultSource), document);
             case EMPLOYMENTS -> run(data, columns, defined, cells -> employment(cells, date, defaultSource),
@@ -293,6 +301,25 @@ public class CsvImportService {
                 : importService.setup().kinds().find(code);
         return new RefKindRow(code, cells.text("name", stored.map(RealmKindService.View::name).orElse(null)),
                 cells.localized("name", stored.map(RealmKindService.View::names).orElse(Map.of())));
+    }
+
+    // Blank cells keep the stored values, as the row replaces every value of a stored qualification.
+    private QualificationRow qualification(Cells cells, String defaultSource) {
+        String id = cells.text("id", null);
+        String source = cells.text("source", null);
+        String externalId = cells.text("externalId", null);
+        QualificationService service = importService.records().qualifications();
+        Optional<QualificationView> stored = id != null ? service.find(id)
+                : externalId == null ? Optional.empty()
+                : service.ofExternalId(source == null ? defaultSource : source, externalId);
+        Optional<Qualification> q = stored.map(QualificationView::qualification);
+        return new QualificationRow(id, source, externalId, cells.text("personExternalId", null),
+                cells.text("personId", null), cells.text("username", null),
+                cells.text("kind", stored.map(QualificationView::kind).orElse(null)),
+                cells.text("number", q.map(Qualification::number).orElse(null)),
+                cells.text("validFrom", q.map(v -> v.period().from().toString()).orElse(null)),
+                cells.text("validTo", q.map(v -> Objects.toString(v.period().to(), null)).orElse(null)),
+                cells.attributes(q.map(Qualification::attributes).orElse(null)));
     }
 
     // A row with an ID keeps the stored mark in a blank cell.

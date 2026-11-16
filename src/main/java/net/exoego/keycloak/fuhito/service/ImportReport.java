@@ -408,6 +408,30 @@ public final class ImportReport {
         }
 
         /**
+         * A write of a qualification.
+         *
+         * @param created true for a new qualification, false for a change
+         * @param state the qualification after the write
+         */
+        record OfQualification(boolean created, QualificationView state) implements Write {
+
+            @Override
+            public String resourceType() {
+                return "FUHITO_QUALIFICATION";
+            }
+
+            @Override
+            public String resourceId() {
+                return state.qualification().id();
+            }
+
+            @Override
+            public String path() {
+                return "fuhito/qualifications/" + resourceId();
+            }
+        }
+
+        /**
          * The removal of a resource.
          *
          * @param resourceType the type of the removed resource, as the event log names it

@@ -177,6 +177,39 @@ class CsvImportIT {
     }
 
     @Test
+    void anExportOfQualificationsLoadsAgainWithNoChange() throws Exception {
+        TestRealm realm = TestRealm.create("csv-export-qualifications");
+        Api api = realm.api;
+        realm.refItem("QUALIFICATION", "license", "免許");
+        assertEquals(201, api.post("/attribute-definitions", "{\"target\": \"QUALIFICATION\", \"name\": \"office\", "
+                + "\"type\": \"STRING\"}").statusCode());
+        String nurse = realm.user("nurse");
+        String license = Api.json(api.post("/qualifications", "{\"userId\": \"" + nurse + "\", \"kind\": \"license\", "
+                + "\"number\": \"123\", \"validFrom\": \"2010-04-01\", \"validTo\": \"2020-04-01\", "
+                + "\"attributes\": {\"office\": \"東京\"}}")).get("id").asText();
+        String person = Api.json(api.get("/qualifications/" + license)).get("personId").asText();
+
+        for (String header : List.of("en", "ja")) {
+            HttpResponse<String> exported = api.get("/imports/csv/qualifications?header=" + header);
+            assertEquals(200, exported.statusCode(), exported.body());
+            assertEquals("﻿" + (header.equals("en")
+                    ? "id,externalId,source,personId,kind,number,validFrom,validTo,attributes.office"
+                    : "ID,外部ID,ソース,人のID,種類,番号,開始日,終了日,attributes.office") + "\r\n" + license + ",,,"
+                    + person + ",license,123,2010-04-01,2020-04-01,東京\r\n", exported.body());
+            JsonNode counts = load(api, "qualifications", "effectiveDate=2026-05-01", exported.body())
+                    .get("counts").get("qualifications");
+            assertEquals(0, counts.get("created").asInt() + counts.get("changed").asInt(), counts.toString());
+        }
+        // A renewal is a change of the stored qualification. A new one names its person by username.
+        load(api, "qualifications", "effectiveDate=2026-05-01", "id,validTo\r\n" + license + ",2030-04-01\r\n");
+        load(api, "qualifications", "effectiveDate=2026-05-01", "externalId,source,username,kind\r\nQ-9,hr,nurse,license\r\n");
+        JsonNode stored = Api.json(api.get("/users/" + nurse + "/qualifications?all=true"));
+        assertEquals(2, stored.size(), stored.toString());
+        assertEquals(List.of("2030-04-01"), stored.findValuesAsText("validTo"), stored.toString());
+        assertTrue(api.get("/imports/csv/qualifications?asOf=2026-05-01").body().contains(",2026-05-01,"));
+    }
+
+    @Test
     void anExportOfKindsLoadsAgainWithNoChange() throws Exception {
         TestRealm realm = TestRealm.create("csv-export-kinds");
         Api api = realm.api;

@@ -36,6 +36,15 @@ public interface QualificationStore {
     List<Qualification> findByPerson(String personId);
 
     /**
+     * Finds a qualification by the pair of source and external ID that it has.
+     *
+     * @param source the name of the system
+     * @param externalId the ID in that system
+     * @return the qualification, or empty when none has the pair
+     */
+    Optional<Qualification> findByExternalId(String source, String externalId);
+
+    /**
      * Stores a new qualification.
      *
      * @param qualification the qualification
