@@ -4,6 +4,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -47,6 +48,18 @@ class OrgUnitServiceTest {
         return assertThrows(FuhitoException.class, () -> service.create(request));
     }
 
+    private static OrgUnitService.Search search(String q, String code, String unitType, String asOf) {
+        return new OrgUnitService.Search(q, code, unitType, null, null, false, null, asOf);
+    }
+
+    private static OrgUnitService.Search roots(String asOf, String hierarchy, Boolean lateral) {
+        return new OrgUnitService.Search(null, null, null, lateral, null, true, hierarchy, asOf);
+    }
+
+    private static OrgUnitService.Search legalEntities(String asOf) {
+        return new OrgUnitService.Search(null, null, null, null, true, false, null, asOf);
+    }
+
     private RefItem unitType(String code, boolean active) {
         RefItem item = new RefItem("type-" + code, RefKind.UNIT_TYPE, code, code, Map.of(), 0, Map.of(), active);
         refItems.insert(item);
@@ -68,26 +81,20 @@ class OrgUnitServiceTest {
                 null, null, null));
         Page all = Page.of(null, null);
 
-        assertEquals(List.of("1病棟", "2病棟"), names(service.search(new OrgUnitService.Search("病棟", null, null,
-                null, null), all)));
-        assertEquals(List.of("1病棟"), names(service.search(new OrgUnitService.Search("ward ONE", null, null, null,
-                null), all)));
-        assertEquals(List.of("1病棟"), names(service.search(new OrgUnitService.Search("いち", null, null, null,
-                null), all)));
-        assertEquals(List.of("2病棟"), names(service.search(new OrgUnitService.Search("二病", null, null, null,
-                null), all)));
-        assertEquals(List.of("2病棟"), names(service.search(new OrgUnitService.Search(null, "W2", null, null, null),
-                all)));
-        assertEquals(2, service.countSearch(new OrgUnitService.Search(null, null, "ward", null, null)));
-        assertEquals(3, service.countSearch(new OrgUnitService.Search(" ", null, null, null, null)));
+        assertEquals(List.of("1病棟", "2病棟"), names(service.list(search("病棟", null, null, null), all, null)));
+        assertEquals(List.of("1病棟"), names(service.list(search("ward ONE", null, null, null), all, null)));
+        assertEquals(List.of("1病棟"), names(service.list(search("いち", null, null, null), all, null)));
+        assertEquals(List.of("2病棟"), names(service.list(search("二病", null, null, null), all, null)));
+        assertEquals(List.of("2病棟"), names(service.list(search(null, "W2", null, null), all, null)));
+        assertEquals(2, service.count(search(null, null, "ward", null)));
+        assertEquals(3, service.count(search(" ", null, null, null)));
         // A unit with a phonetic name comes before the units with none.
-        assertEquals(List.of("1病棟"), names(service.search(new OrgUnitService.Search(null, null, null, null, null),
-                Page.of(0, 1))));
-        assertEquals(0, service.countSearch(new OrgUnitService.Search("病棟", null, null, null, "2026-03-31")));
-        assertEquals(ward.id(), store.versions(service.search(new OrgUnitService.Search(null, "W1", null, null,
-                null), all).getFirst().unit().id()).getFirst().unitTypeId());
+        assertEquals(List.of("1病棟"), names(service.list(search(null, null, null, null), Page.of(0, 1), null)));
+        assertEquals(0, service.count(search("病棟", null, null, "2026-03-31")));
+        assertEquals(ward.id(), store.versions(service.list(search(null, "W1", null, null), all, null).getFirst()
+                .unit().id()).getFirst().unitTypeId());
         assertEquals("org_unit.unit_type_unknown", assertThrows(FuhitoException.class,
-                () -> service.search(new OrgUnitService.Search(null, null, "room", null, null), all)).code());
+                () -> service.list(search(null, null, "room", null), all, null)).code());
     }
 
     @Test
@@ -104,9 +111,9 @@ class OrgUnitServiceTest {
 
         assertTrue(service.get(committee, null).lateral());
         assertFalse(service.get(hospital, null).lateral());
-        assertEquals(List.of("Hospital", "Union"), names(service.roots(null, null, null, all)));
-        assertEquals(List.of("Hospital"), names(service.roots(null, null, false, all)));
-        assertEquals(List.of("Union"), names(service.roots(null, null, true, all)));
+        assertEquals(List.of("Hospital", "Union"), names(service.list(roots(null, null, null), all, null)));
+        assertEquals(List.of("Hospital"), names(service.list(roots(null, null, false), all, null)));
+        assertEquals(List.of("Union"), names(service.list(roots(null, null, true), all, null)));
         assertEquals(List.of("Safety", "Drugs"), names(service.subtree(hospital, null, null, true, all)));
         assertEquals(List.of("Hospital"), names(service.subtree(hospital, null, null, false, all)));
         assertEquals(List.of(), names(service.children(hospital, null, null, false, all)));
@@ -122,11 +129,11 @@ class OrgUnitServiceTest {
         assertEquals("org_unit.line_below_lateral", assertThrows(FuhitoException.class,
                 () -> service.changeDetails(sub, new OrgUnitChange("2026-08-01", null, "Drugs", null, null, null, null,
                         "department", null, null))).code());
-        assertEquals(List.of("Hospital", "Union"), names(service.roots("2026-09-01", null, null, all)));
+        assertEquals(List.of("Hospital", "Union"), names(service.list(roots("2026-09-01", null, null), all, null)));
 
         // A lateral unit can go below a line unit or another lateral.
         service.move(union, hospital, "2026-09-01");
-        assertEquals(List.of("Hospital"), names(service.roots("2026-09-01", null, null, all)));
+        assertEquals(List.of("Hospital"), names(service.list(roots("2026-09-01", null, null), all, null)));
 
         // A unit that was a lateral unit before a date can take a line unit below it from that date.
         String board = unitOfType("Board", "committee", null);
@@ -760,13 +767,13 @@ class OrgUnitServiceTest {
 
         assertEquals(List.of("X Hospital", "Medicine", "Nursing", "Ward 1", "Ward 2", "Y Hospital", "Admin"),
                 names(Trees.all(service, "2026-04-01", null)));
-        assertEquals(List.of("X Hospital", "Y Hospital"), names(service.roots("2026-04-01", null, null, Page.of(null, null))));
+        assertEquals(List.of("X Hospital", "Y Hospital"), names(service.list(roots("2026-04-01", null, null), Page.of(null, null), null)));
         assertEquals(List.of("Medicine", "Nursing"), names(service.children(x, "2026-04-01", null, null, Page.of(null, null))));
         assertEquals(List.of("Admin"), names(service.children(y, "2026-04-01", null, null, Page.of(null, null))));
         assertEquals(List.of("Nursing", "Ward 1", "Ward 2"), names(service.subtree(nursing, "2026-04-01", null, null, Page.of(null, null))));
         assertEquals(nursing, service.subtree(nursing, "2026-04-01", null, null, Page.of(null, null)).get(1).parentId());
         assertEquals(List.of("Nursing", "Ward 1"), names(service.subtree(x, "2026-04-01", null, null, Page.of(2, 2))));
-        assertEquals(List.of("Y Hospital"), names(service.roots("2026-04-01", null, null, Page.of(1, 5))));
+        assertEquals(List.of("Y Hospital"), names(service.list(roots("2026-04-01", null, null), Page.of(1, 5), null)));
         assertEquals(List.of("Nursing"), names(service.children(x, "2026-04-01", null, null, Page.of(1, 1))));
         assertEquals(List.of("Ward 2"), names(service.subtree(nursing, "2026-04-01", null, null, Page.of(2, 1))));
     }
@@ -783,6 +790,71 @@ class OrgUnitServiceTest {
 
         assertEquals(List.of("総務", "眼科", "外科", "内科", "Alpha", "Zebra"),
                 names(service.children(root, "2026-04-01", null, null, Page.of(null, null))));
+    }
+
+    @Test
+    void listsEveryUnitOfTheDateAndGoesOnAfterACursor() {
+        String root = root("Root");
+        unit("外科", root, 1, "げか");
+        unit("内科", root, 1, "ないか");
+        unit("眼科", root, 1, "がんか");
+        unit("Zebra", root, 1, null);
+        unit("Alpha", root, 1, null);
+        unit("総務", root, 0, "そうむ");
+        String later = service.create(named("Later", root, "2026-05-01")).unit().id();
+        OrgUnitService.Search on = OrgUnitService.Search.all("2026-04-01");
+
+        List<OrgUnitState> every = service.list(on, Page.of(null, null), null);
+        assertEquals(List.of("総務", "Root", "眼科", "外科", "内科", "Alpha", "Zebra"), names(every));
+        assertEquals(root, every.get(2).parentId());
+        assertEquals(7, service.count(on));
+
+        // Pages of two that each go on after the last unit of the page before.
+        List<OrgUnitState> paged = new ArrayList<>();
+        String after = null;
+        List<OrgUnitState> page;
+        do {
+            page = service.list(on, Page.of(null, 2), after);
+            paged.addAll(page);
+            after = page.isEmpty() ? null : Cursor.encode(Cursor.ORG_UNITS, page.getLast().unit().id());
+        } while (page.size() == 2);
+        assertEquals(names(every), names(paged));
+
+        assertEquals("invalid.cursor", assertThrows(FuhitoException.class,
+                () -> service.list(on, Page.of(null, 2), Cursor.encode(Cursor.PEOPLE, root))).code());
+        FuhitoException gone = assertThrows(FuhitoException.class,
+                () -> service.list(on, Page.of(null, 2), Cursor.encode(Cursor.ORG_UNITS, later)));
+        assertEquals("invalid.cursor_unit", gone.code());
+        assertEquals(Map.of("field", "after", "id", later, "date", "2026-04-01"), gone.params());
+    }
+
+    @Test
+    void theFiltersOfTheListGoTogether() {
+        store.refItems = refItems;
+        refItems.insert(new RefItem("type-company", RefKind.UNIT_TYPE, "company", "Company", Map.of(), 0, Map.of(),
+                true, true));
+        store.legalEntityTypes.add("type-company");
+        refItems.insert(new RefItem("type-committee", RefKind.UNIT_TYPE, "committee", "committee", Map.of(), 0,
+                Map.of(), true, false, false, true));
+        String company = unitOfType("Company", "company", null);
+        unitOfType("Sales", null, company);
+        unitOfType("Safety", "committee", company);
+        unitOfType("Union", "committee", null);
+        unitOfType("Branch", "company", company);
+        Page all = Page.of(null, null);
+
+        assertEquals(List.of("Branch", "Company", "Safety", "Sales", "Union"),
+                names(service.list(OrgUnitService.Search.all(null), all, null)));
+        assertEquals(List.of("Branch", "Company"), names(service.list(legalEntities(null), all, null)));
+        assertEquals(List.of("Safety", "Sales", "Union"), names(service.list(
+                new OrgUnitService.Search(null, null, null, null, false, false, null, null), all, null)));
+        assertEquals(List.of("Union"), names(service.list(
+                new OrgUnitService.Search(null, null, null, null, false, true, null, null), all, null)));
+        assertEquals(List.of("Company"), names(service.list(
+                new OrgUnitService.Search(null, null, null, null, true, true, null, null), all, null)));
+        assertEquals(List.of("Safety"), names(service.list(
+                new OrgUnitService.Search("a", null, "committee", true, null, false, null, null), all, null)));
+        assertEquals(1, service.count(new OrgUnitService.Search(null, null, null, false, null, true, null, null)));
     }
 
     @Test
@@ -884,7 +956,7 @@ class OrgUnitServiceTest {
 
         // Only the units with a parent or a child in the matrix are in it.
         assertEquals(List.of("Project", "Team"), names(Trees.all(service, on, "matrix")));
-        assertEquals(List.of("Project"), names(service.roots(on, "matrix", null, all)));
+        assertEquals(List.of("Project"), names(service.list(roots(on, "matrix", null), all, null)));
         assertEquals(List.of("Alone", "Line", "Team", "Squad", "Project"), names(Trees.all(service, on, null)));
         assertEquals(List.of("Alone", "Line", "Team", "Squad", "Project"),
                 names(Trees.all(service, on, "default")));
@@ -926,19 +998,19 @@ class OrgUnitServiceTest {
                 .stream().map(OrgUnitState::legalEntity).toList());
         assertEquals(List.of(true), service.history(holding).versions().stream().map(OrgUnitState::legalEntity).toList());
 
-        List<OrgUnitState> entities = service.legalEntities("2026-04-01", Page.of(null, null));
+        List<OrgUnitState> entities = service.list(legalEntities("2026-04-01"), Page.of(null, null), null);
         assertEquals(List.of("Subsidiary", "Holding"), names(entities));
         assertEquals(holding, entities.getFirst().parentId());
-        assertEquals(List.of("Holding"), names(service.legalEntities("2026-04-01", Page.of(1, 1))));
-        assertEquals(List.of(), service.legalEntities("2026-03-31", Page.of(null, null)));
+        assertEquals(List.of("Holding"), names(service.list(legalEntities("2026-04-01"), Page.of(1, 1), null)));
+        assertEquals(List.of(), service.list(legalEntities("2026-03-31"), Page.of(null, null), null));
 
         // The type of a unit is dated, so a unit becomes a legal entity on a date.
         service.changeDetails(sales, new OrgUnitChange("2027-04-01", null, "Sales Inc.", null, null, null, null, "company",
                 null, null));
         assertFalse(service.get(sales, "2027-03-31").legalEntity());
         assertTrue(service.get(sales, "2027-04-01").legalEntity());
-        assertEquals(subsidiary, service.legalEntities("2027-04-01", Page.of(null, null)).get(1).unit().id());
-        assertEquals(3, service.legalEntities("2027-04-01", Page.of(null, null)).size());
+        assertEquals(subsidiary, service.list(legalEntities("2027-04-01"), Page.of(null, null), null).get(1).unit().id());
+        assertEquals(3, service.list(legalEntities("2027-04-01"), Page.of(null, null), null).size());
     }
 
     @Test

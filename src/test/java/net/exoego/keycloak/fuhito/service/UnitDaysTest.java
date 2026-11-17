@@ -156,7 +156,8 @@ class UnitDaysTest {
         assertEquals(2, reads.subtree(america, "2026-04-01", null, null, Page.of(null, null)).size());
         // The roots are a read about the realm, so they are on the date of the realm.
         assertEquals(List.of(america),
-                reads.roots(null, null, null, Page.of(null, null)).stream().map(state -> state.unit().id()).toList());
+                reads.list(new OrgUnitService.Search(null, null, null, null, null, true, null, null), Page.of(null, null),
+                        null).stream().map(state -> state.unit().id()).toList());
         assertEquals("org_unit.not_valid_on",
                 assertThrows(FuhitoException.class, () -> reads.get(opensInApril, null)).code());
     }

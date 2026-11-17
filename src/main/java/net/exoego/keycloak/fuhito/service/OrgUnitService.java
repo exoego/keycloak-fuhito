@@ -514,25 +514,6 @@ public class OrgUnitService {
     }
 
     /**
-     * Lists a page of the org units with no parent on a date, in a hierarchy.
-     * They follow the display order, then the phonetic name, then the name.
-     * Every unit is in the default hierarchy. Another hierarchy has only the units with a parent or a child in it.
-     *
-     * @param asOf the date as {@code YYYY-MM-DD}, or null for today
-     * @param hierarchy the code of the hierarchy, or null for the default one
-     * @param lateral true for lateral units only, false for line units only, or null for both
-     * @param page the part of the list to return
-     * @return the roots of the page on the date
-     * @throws FuhitoException when the date is bad or the hierarchy does not exist
-     */
-    public List<OrgUnitState> roots(String asOf, String hierarchy, Boolean lateral, Page page) {
-        LocalDate date = dateOrToday(asOf, null);
-        String hierarchyId = hierarchyId(hierarchy);
-        boolean linkedOnly = !hierarchyId.equals(store.defaultHierarchyId());
-        return states(store.childrenOn(hierarchyId, null, linkedOnly, lateral, date, page.first(), page.max()), date);
-    }
-
-    /**
      * Lists a page of the direct children of an org unit on a date.
      *
      * @param id the ID
@@ -545,8 +526,7 @@ public class OrgUnitService {
      */
     public List<OrgUnitState> children(String id, String asOf, String hierarchy, Boolean lateral, Page page) {
         LocalDate date = dateOfUnit(id, asOf);
-        return states(store.childrenOn(hierarchyId(hierarchy), id, false, lateral, date, page.first(),
-                page.max()), date);
+        return states(store.childrenOn(hierarchyId(hierarchy), id, lateral, date, page.first(), page.max()), date);
     }
 
     /**
@@ -566,64 +546,86 @@ public class OrgUnitService {
     }
 
     /**
-     * The values of a search of org units. They are not checked yet. A value that is null keeps everything.
+     * The values of a list of org units. They are not checked yet. A value that is null keeps everything.
      *
      * @param q a part of a name, a short name, or the phonetic name, in any language, with no regard to case
      * @param code the code
      * @param unitType the code of the unit type
      * @param lateral true for lateral units only, false for line units only
+     * @param legalEntity true for legal entities only, false for the other units
+     * @param roots true for the roots of the hierarchy only, false for every unit
+     * @param hierarchy the code of the hierarchy of the parents and of the roots, or null for the default one
      * @param asOf the date as {@code YYYY-MM-DD}, or null for today of the realm
      */
-    public record Search(String q, String code, String unitType, Boolean lateral, String asOf) {
+    public record Search(String q, String code, String unitType, Boolean lateral, Boolean legalEntity,
+            boolean roots, String hierarchy, String asOf) {
+
+        /**
+         * Makes a search that keeps every unit of a date.
+         *
+         * @param asOf the date as {@code YYYY-MM-DD}, or null for today of the realm
+         * @return the search
+         */
+        public static Search all(String asOf) {
+            return new Search(null, null, null, null, null, false, null, asOf);
+        }
     }
 
     /**
-     * Lists a page of the org units of a date that match a search, each with its parent in the default
-     * hierarchy. They follow the display order, then the phonetic name, then the name.
+     * Lists a page of the org units of a date that match a search, at any depth, each with its parent in the
+     * hierarchy of the search. They follow the display order, then the phonetic name, then the name, then the ID.
+     * Every unit is in the default hierarchy. The roots of another hierarchy are the units with no parent and with
+     * a child in it.
      *
-     * @param search what to keep and the date
+     * @param search what to keep, the hierarchy, and the date
      * @param page the part of the list to return
+     * @param after the cursor after which the page starts, or null
      * @return the units of the page
-     * @throws FuhitoException when a value is bad or the unit type is unknown
+     * @throws FuhitoException when a value is bad, the unit type or the hierarchy is unknown, or the unit of the
+     *         cursor does not exist on the date
      */
-    public List<OrgUnitState> search(Search search, Page page) {
+    public List<OrgUnitState> list(Search search, Page page, String after) {
         LocalDate date = dateOrToday(search.asOf(), null);
-        return states(store.searchOn(store.defaultHierarchyId(), storeSearch(search), date, page.first(),
-                page.max()), date);
+        String hierarchyId = hierarchyId(search.hierarchy());
+        OrgUnitStore.Search filter = storeSearch(search, hierarchyId);
+        OrgUnitVersion last = after == null ? null : versionAfter(after, date);
+        return states(store.searchOn(hierarchyId, filter, date, last, page.first(), page.max()), date);
     }
 
     /**
      * Counts the org units of a date that match a search.
      *
-     * @param search what to keep and the date
+     * @param search what to keep, the hierarchy, and the date
      * @return the number of units
-     * @throws FuhitoException when a value is bad or the unit type is unknown
+     * @throws FuhitoException when a value is bad, or the unit type or the hierarchy is unknown
      */
-    public long countSearch(Search search) {
-        return store.countSearchOn(storeSearch(search), dateOrToday(search.asOf(), null));
+    public long count(Search search) {
+        String hierarchyId = hierarchyId(search.hierarchy());
+        return store.countSearchOn(hierarchyId, storeSearch(search, hierarchyId), dateOrToday(search.asOf(), null));
     }
 
-    private OrgUnitStore.Search storeSearch(Search search) {
+    private OrgUnitStore.Search storeSearch(Search search, String hierarchyId) {
         String unitTypeId = search.unitType() == null ? null : refItems.findByCode(RefKind.UNIT_TYPE,
                         search.unitType())
                 .map(RefItem::id)
                 .orElseThrow(() -> FuhitoException.invalid("org_unit.unit_type_unknown",
                         Map.of("unitType", search.unitType())));
         String text = search.q() == null || search.q().isBlank() ? null : search.q().strip();
-        return new OrgUnitStore.Search(text, search.code(), unitTypeId, search.lateral());
+        OrgUnitStore.Roots roots = !search.roots() ? null
+                : hierarchyId.equals(store.defaultHierarchyId()) ? OrgUnitStore.Roots.NO_PARENT
+                : OrgUnitStore.Roots.LINKED;
+        return new OrgUnitStore.Search(text, search.code(), unitTypeId, search.lateral(), search.legalEntity(),
+                roots);
     }
 
-    /**
-     * Lists a page of the org units that are legal entities on a date. An org unit is one when its unit type
-     * says so. The order is the display order, then the phonetic name, then the name.
-     *
-     * @param asOf the date as {@code YYYY-MM-DD}, or null for today
-     * @param page the part of the list to return
-     * @return the legal entities of the page on the date, each with its parent in the default hierarchy
-     */
-    public List<OrgUnitState> legalEntities(String asOf, Page page) {
-        LocalDate date = dateOrToday(asOf, null);
-        return states(store.legalEntitiesOn(store.defaultHierarchyId(), date, page.first(), page.max()), date);
+    // The cursor has only the ID. The details of the unit on the date give the other values of the order.
+    private OrgUnitVersion versionAfter(String after, LocalDate date) {
+        String id = Cursor.decode(Cursor.ORG_UNITS, after).getFirst();
+        return store.versions(id).stream()
+                .filter(version -> version.period().contains(date))
+                .findFirst()
+                .orElseThrow(() -> FuhitoException.invalid("invalid.cursor_unit",
+                        Map.of("field", "after", "id", id, "date", date.toString())));
     }
 
     private LocalDate dateOfUnit(String id, String asOf) {

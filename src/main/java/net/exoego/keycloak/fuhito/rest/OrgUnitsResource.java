@@ -221,63 +221,30 @@ public class OrgUnitsResource {
     @GET
     @Operation(
             operationId = "listOrgUnits",
-            summary = "Lists the org units with no parent on a date, the roots.",
-            description = "There is no read of the whole tree. Go down with the children of an org unit, or "
-                    + "read one branch with its subtree. Siblings follow the display order, then the phonetic "
-                    + "name, then the name.")
-    @APIResponse(responseCode = "200", description = "The roots on the date.")
-    @BadRequest
-    @ApiErrors
-    public List<OrgUnitRepresentation> list(
-            @Parameter(
-                    description = "The date to read. The default is today in the time zone of the realm.",
-                    schema = @Schema(format = "date"))
-            @QueryParam("asOf") String asOf,
-            @Parameter(
-                    description = "True to list the units that are legal entities, such as companies, in place "
-                            + "of the roots. A unit is one when its unit type says so. `hierarchy` then has no "
-                            + "effect.",
-                    schema = @Schema(defaultValue = "false"))
-            @QueryParam("legalEntity") boolean legalEntity,
-            @Parameter(description = "The code of the hierarchy. The default is the hierarchy `default`.")
-            @QueryParam("hierarchy") String hierarchy,
-            @Parameter(
-                    description = "True for lateral units only, such as committees. False for line units only. "
-                            + "Leave it out for both.")
-            @QueryParam("lateral") Boolean lateral,
-            @Parameter(
-                    description = "The number of entries to skip.",
-                    schema = @Schema(minimum = "0", defaultValue = "0"))
-            @QueryParam("first") Integer first,
-            @Parameter(
-                    description = "The largest number of entries to return.",
-                    schema = @Schema(minimum = "0", maximum = "1000", defaultValue = "100"))
-            @QueryParam("max") Integer max) {
-        context.requireReadStructure();
-        return Calls.run(context, () -> represent(legalEntity
-                ? service.legalEntities(limit.checked(asOf), Page.of(first, max))
-                : service.roots(limit.checked(asOf), hierarchy, lateral, Page.of(first, max))));
-    }
-
-    @GET
-    @Path("search")
-    @Operation(
-            operationId = "searchOrgUnits",
-            summary = "Lists the org units of a date that match a search, at any depth.",
-            description = "Each unit comes with its parent in the default hierarchy. The order is the display "
-                    + "order, then the phonetic name, then the name.")
+            summary = "Lists the org units of a date that match the filters, at any depth.",
+            description = "With no filter, the list has every org unit of the date. The filters apply together. "
+                    + "Each unit comes with its parent in `hierarchy`. The order is the display order, then the "
+                    + "phonetic name, then the name. To read every unit, follow the `Link` header of each response. "
+                    + "The list is not in tree order. For the tree, start from the roots, then read the children of "
+                    + "an org unit or one branch with its subtree.")
     @APIResponse(
             responseCode = "200",
             description = "The units that match.",
-            headers = @Header(
-                    name = "X-Total-Count",
-                    description = "The number of units on all pages. It is there with `count=true`.",
-                    schema = @Schema(type = SchemaType.INTEGER)),
+            headers = {
+                @Header(
+                        name = "Link",
+                        description = "The URL of the next page, with `rel=\"next\"`. It is there when the page "
+                                + "is full. A full page can be the last one, and the next page is then empty.",
+                        schema = @Schema(type = SchemaType.STRING)),
+                @Header(
+                        name = "X-Total-Count",
+                        description = "The number of units on all pages. It is there with `count=true`.",
+                        schema = @Schema(type = SchemaType.INTEGER))},
             content = @Content(mediaType = "application/json",
                     schema = @Schema(type = SchemaType.ARRAY, implementation = OrgUnitRepresentation.class)))
     @BadRequest
     @ApiErrors
-    public Response search(
+    public Response list(
             @Parameter(
                     description = "A part of the name, of the short name, or of the phonetic name, in any language, "
                             + "with no regard to case.")
@@ -291,30 +258,45 @@ public class OrgUnitsResource {
                             + "Leave it out for both.")
             @QueryParam("lateral") Boolean lateral,
             @Parameter(
+                    description = "True for the units that are legal entities only, such as companies. False for "
+                            + "the other units only. Leave it out for both. A unit is one when its unit type says so.")
+            @QueryParam("legalEntity") Boolean legalEntity,
+            @Parameter(
+                    description = "True for the units with no parent in `hierarchy` only, the roots. In a hierarchy "
+                            + "other than the default one, a root also has a child in it.",
+                    schema = @Schema(defaultValue = "false"))
+            @QueryParam("roots") boolean roots,
+            @Parameter(
+                    description = "The code of the hierarchy of the parents and of `roots`. The default is the "
+                            + "hierarchy `default`.")
+            @QueryParam("hierarchy") String hierarchy,
+            @Parameter(
                     description = "The date to read. The default is today in the time zone of the realm.",
                     schema = @Schema(format = "date"))
             @QueryParam("asOf") String asOf,
             @Parameter(
-                    description = "The number of entries to skip.",
+                    description = "The number of entries to skip. It cannot be used with `after`.",
                     schema = @Schema(minimum = "0", defaultValue = "0"))
             @QueryParam("first") Integer first,
             @Parameter(
                     description = "The largest number of entries to return.",
                     schema = @Schema(minimum = "0", maximum = "1000", defaultValue = "100"))
             @QueryParam("max") Integer max,
+            @Parameter(description = "The cursor from the `Link` header of the page before.")
+            @QueryParam("after") String after,
             @Parameter(
                     description = "True to get the number of units on all pages in the header `X-Total-Count`.",
                     schema = @Schema(defaultValue = "false"))
             @QueryParam("count") boolean count) {
         context.requireReadStructure();
         return Calls.run(context, () -> {
-            OrgUnitService.Search search = new OrgUnitService.Search(q, code, unitType, lateral,
-                    limit.checked(asOf));
-            Response.ResponseBuilder response = Response.ok(represent(service.search(search, Page.of(first, max))));
-            if (count) {
-                response.header(Pages.TOTAL, service.countSearch(search));
-            }
-            return response.build();
+            Cursor.requireAlone(after, first);
+            OrgUnitService.Search search = new OrgUnitService.Search(q, code, unitType, lateral, legalEntity, roots,
+                    hierarchy, limit.checked(asOf));
+            return Pages.of(context, represent(service.list(search, Page.of(first, max), after)),
+                    Page.of(first, max).max(),
+                    unit -> Cursor.encode(Cursor.ORG_UNITS, unit.id()),
+                    count ? service.count(search) : null);
         });
     }
 

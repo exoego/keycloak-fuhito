@@ -115,17 +115,28 @@ public interface OrgUnitStore {
      * Lists a page of the direct children of a unit on a date, in the order of siblings.
      *
      * @param hierarchyId the ID of the hierarchy
-     * @param parentId the ID of the parent, or null for the units with no parent
-     * @param linkedOnly true to take only roots that have a child in the hierarchy. It has no effect with a
-     *        {@code parentId}.
+     * @param parentId the ID of the parent
      * @param lateral true for lateral units only, false for line units only, or null for both
      * @param date the date
      * @param first the number of units to skip
      * @param max the largest number of units to return
      * @return the units of the page
      */
-    List<PlacedOrgUnit> childrenOn(String hierarchyId, String parentId, boolean linkedOnly, Boolean lateral,
-            LocalDate date, int first, int max);
+    List<PlacedOrgUnit> childrenOn(String hierarchyId, String parentId, Boolean lateral, LocalDate date, int first,
+            int max);
+
+    /**
+     * The roots that a search of org units keeps.
+     */
+    enum Roots {
+        /** The units with no parent in the hierarchy. */
+        NO_PARENT,
+        /**
+         * The units with no parent and with a child in the hierarchy. These are the roots of a hierarchy other than
+         * the default one.
+         */
+        LINKED
+    }
 
     /**
      * What a search of org units keeps. A value that is null keeps everything.
@@ -134,42 +145,36 @@ public interface OrgUnitStore {
      * @param code the code
      * @param unitTypeId the ID of the unit type
      * @param lateral true for lateral units only, false for line units only
+     * @param legalEntity true for legal entities only, false for the other units
+     * @param roots the roots to keep in the hierarchy of the search, or null for every unit
      */
-    record Search(String text, String code, String unitTypeId, Boolean lateral) {
+    record Search(String text, String code, String unitTypeId, Boolean lateral, Boolean legalEntity, Roots roots) {
     }
 
     /**
      * Lists a page of the org units that match a search on a date, in the order of siblings.
+     * Siblings follow the display order, then the phonetic name, then the name, then the ID.
      *
-     * @param hierarchyId the ID of the hierarchy whose parents the units come with
+     * @param hierarchyId the ID of the hierarchy whose parents the units come with, and whose roots the search keeps
      * @param search what to keep
      * @param date the date
+     * @param after the details on the date of the unit after which the page starts, or null
      * @param first the number of units to skip
      * @param max the largest number of units to return
      * @return the units of the page
      */
-    List<PlacedOrgUnit> searchOn(String hierarchyId, Search search, LocalDate date, int first, int max);
+    List<PlacedOrgUnit> searchOn(String hierarchyId, Search search, LocalDate date, OrgUnitVersion after, int first,
+            int max);
 
     /**
      * Counts the org units that match a search on a date.
      *
+     * @param hierarchyId the ID of the hierarchy whose roots the search keeps
      * @param search what to keep
      * @param date the date
      * @return the number of units
      */
-    long countSearchOn(Search search, LocalDate date);
-
-    /**
-     * Lists a page of the units that are legal entities on a date. A unit is one when its unit type says so.
-     * The order is the display order, then the phonetic name, then the name, then the ID.
-     *
-     * @param hierarchyId the ID of the hierarchy that the parents come from
-     * @param date the date
-     * @param first the number of units to skip
-     * @param max the largest number of units to return
-     * @return the units of the page
-     */
-    List<PlacedOrgUnit> legalEntitiesOn(String hierarchyId, LocalDate date, int first, int max);
+    long countSearchOn(String hierarchyId, Search search, LocalDate date);
 
     /**
      * Counts the employments that name an org unit as their employer and start in a period.

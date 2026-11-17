@@ -17,6 +17,9 @@ import net.exoego.keycloak.fuhito.store.RefItemStore;
  */
 public class LegalEntityEmployers implements Employers {
 
+    private static final OrgUnitStore.Search LEGAL_ENTITIES = new OrgUnitStore.Search(null, null, null, null, true,
+            null);
+
     private final OrgUnitStore orgUnits;
     private final RefItemStore refItems;
 
@@ -36,7 +39,7 @@ public class LegalEntityEmployers implements Employers {
         String hierarchy = orgUnits.defaultHierarchyId();
         if (requestedId == null) {
             // Two are enough to know that there is more than one.
-            List<PlacedOrgUnit> entities = orgUnits.legalEntitiesOn(hierarchy, firstDate, 0, 2);
+            List<PlacedOrgUnit> entities = orgUnits.searchOn(hierarchy, LEGAL_ENTITIES, firstDate, null, 0, 2);
             if (entities.isEmpty()) {
                 throw FuhitoException.invalid("employment.no_legal_entity", Map.of("date", firstDate.toString()));
             }

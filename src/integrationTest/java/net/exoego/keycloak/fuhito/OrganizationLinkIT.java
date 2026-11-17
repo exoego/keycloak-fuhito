@@ -67,7 +67,7 @@ class OrganizationLinkIT {
         assertEquals(xOrganization, Api.json(linked).get("organizationId").asText());
         assertEquals(200, api.put("/org-units/" + yHospital + "/organization", "{\"organizationId\": \"" + yOrganization + "\"}").statusCode());
 
-        JsonNode roots = Api.json(api.get("/org-units?asOf=2026-04-01"));
+        JsonNode roots = Api.json(api.get("/org-units?roots=true&asOf=2026-04-01"));
         assertEquals(List.of(xOrganization, yOrganization).stream().sorted().toList(),
                 roots.findValuesAsText("keycloakOrganizationId").stream().sorted().toList());
         assertEquals(xOrganization, Api.json(api.get("/org-units/" + xHospital + "?asOf=2026-04-01")).get("keycloakOrganizationId").asText());

@@ -46,15 +46,6 @@ public class JpaOrgUnitStore implements OrgUnitStore {
             where v.realmId = :realmId and %s and v.%s""".formatted(TreeQuery.onDate("l"),
             ManyIds.has("v.orgUnitId", "ids"), TreeQuery.onDate("v"));
 
-    private static final String LEGAL_ENTITIES = """
-            select u, v, (select l.parentId from OrgUnitLinkEntity l where l.realmId = :realmId
-                and l.hierarchyId = :hierarchyId and l.childId = v.orgUnitId and l.%s)
-            from OrgUnitVersionEntity v join OrgUnitEntity u on u.id = v.orgUnitId
-            where v.realmId = :realmId and v.%s and v.unitTypeId in
-                (select r.id from RefItemEntity r where r.realmId = :realmId and r.legalEntity = true)
-            order by v.displayOrder, v.phoneticName nulls last, v.name, v.orgUnitId""".formatted(
-            TreeQuery.onDate("l"), TreeQuery.onDate("v"));
-
     private static final String ANCESTORS = """
             with Above as (
                 select v.orgUnitId as unitId, v.orgUnitId as ancestorId
@@ -119,13 +110,18 @@ public class JpaOrgUnitStore implements OrgUnitStore {
             )
             select a.id from Above a order by a.depth""".formatted(TreeQuery.onDate("l"));
 
-    // The condition that keeps only lateral units, only line units, or both, for the version v.
-    private static String nature(Boolean lateral) {
-        if (lateral == null) {
+    // The condition that keeps only the units whose unit type has a mark, only the others, or both, for the
+    // version v. The mark is a field name in the code, never a value of a request.
+    private static String marked(String mark, Boolean wanted) {
+        if (wanted == null) {
             return "";
         }
-        return (lateral ? " and" : " and not")
-                + " exists (select 1 from RefItemEntity g where g.id = v.unitTypeId and g.lateralUnit = true)";
+        return (wanted ? " and" : " and not")
+                + " exists (select 1 from RefItemEntity g where g.id = v.unitTypeId and g." + mark + " = true)";
+    }
+
+    private static String nature(Boolean lateral) {
+        return marked("lateralUnit", lateral);
     }
 
     private static final String SIBLINGS = """
@@ -274,8 +270,19 @@ public class JpaOrgUnitStore implements OrgUnitStore {
                 .toList();
     }
 
+    // The units after the unit of the cursor, in the order of siblings. A unit with no phonetic name comes after
+    // the ones that have it, so the cursor of such a unit needs a text of its own.
+    private static final String AFTER = """
+             and (v.displayOrder > :afterOrder or v.displayOrder = :afterOrder and (v.phoneticName > :afterPhonetic
+            or v.phoneticName is null or v.phoneticName = :afterPhonetic and (v.name > :afterName
+            or v.name = :afterName and v.orgUnitId > :afterId)))""";
+
+    private static final String AFTER_NO_PHONETIC = """
+             and (v.displayOrder > :afterOrder or v.displayOrder = :afterOrder and v.phoneticName is null
+            and (v.name > :afterName or v.name = :afterName and v.orgUnitId > :afterId))""";
+
     // Each piece is a fixed text. The values of the search go in as parameters.
-    private static String searchText(OrgUnitStore.Search search, boolean count) {
+    private static String searchText(OrgUnitStore.Search search, OrgUnitVersion after, boolean count) {
         StringBuilder text = new StringBuilder(count ? "select count(v)" : """
                 select u, v, (select l.parentId from OrgUnitLinkEntity l where l.realmId = :realmId
                     and l.hierarchyId = :hierarchyId and l.childId = v.orgUnitId and l.%s)""".formatted(
@@ -295,13 +302,27 @@ public class JpaOrgUnitStore implements OrgUnitStore {
             text.append(" and v.unitTypeId = :unitTypeId");
         }
         text.append(nature(search.lateral()));
+        text.append(marked("legalEntity", search.legalEntity()));
+        if (search.roots() != null) {
+            text.append(" and ").append(search.roots() == OrgUnitStore.Roots.LINKED ? LINKED_ROOT : NO_PARENT);
+        }
+        if (after != null) {
+            text.append(after.phoneticName() == null ? AFTER_NO_PHONETIC : AFTER);
+        }
         if (!count) {
             text.append(" order by v.displayOrder, v.phoneticName nulls last, v.name, v.orgUnitId");
         }
         return text.toString();
     }
 
-    private static void bind(TypedQuery<?> query, OrgUnitStore.Search search) {
+    private <T> TypedQuery<T> searchQuery(String hierarchyId, OrgUnitStore.Search search, LocalDate date,
+            OrgUnitVersion after, boolean count, Class<T> type) {
+        TypedQuery<T> query = em.createQuery(searchText(search, after, count), type)
+                .setParameter("realmId", realmId)
+                .setParameter("date", date);
+        if (!count || search.roots() != null) {
+            query.setParameter("hierarchyId", hierarchyId);
+        }
         if (search.text() != null) {
             String escaped = search.text().toLowerCase(Locale.ROOT).replace("!", "!!").replace("%", "!%")
                     .replace("_", "!_");
@@ -313,43 +334,30 @@ public class JpaOrgUnitStore implements OrgUnitStore {
         if (search.unitTypeId() != null) {
             query.setParameter("unitTypeId", search.unitTypeId());
         }
+        if (after != null) {
+            query.setParameter("afterOrder", after.displayOrder())
+                    .setParameter("afterName", after.name())
+                    .setParameter("afterId", after.orgUnitId());
+            if (after.phoneticName() != null) {
+                query.setParameter("afterPhonetic", after.phoneticName());
+            }
+        }
+        return query;
     }
 
     @Override
-    public List<PlacedOrgUnit> searchOn(String hierarchyId, OrgUnitStore.Search search, LocalDate date, int first,
-            int max) {
-        TypedQuery<Object[]> query = em.createQuery(searchText(search, false), Object[].class)
-                .setParameter("realmId", realmId)
-                .setParameter("hierarchyId", hierarchyId)
-                .setParameter("date", date);
-        bind(query, search);
-        return query.setFirstResult(first).setMaxResults(max).getResultStream()
+    public List<PlacedOrgUnit> searchOn(String hierarchyId, OrgUnitStore.Search search, LocalDate date,
+            OrgUnitVersion after, int first, int max) {
+        return searchQuery(hierarchyId, search, date, after, false, Object[].class)
+                .setFirstResult(first).setMaxResults(max).getResultStream()
                 .map(row -> new PlacedOrgUnit(toDomain((OrgUnitEntity) row[0]),
                         toDomain((OrgUnitVersionEntity) row[1]), (String) row[2]))
                 .toList();
     }
 
     @Override
-    public long countSearchOn(OrgUnitStore.Search search, LocalDate date) {
-        TypedQuery<Long> query = em.createQuery(searchText(search, true), Long.class)
-                .setParameter("realmId", realmId)
-                .setParameter("date", date);
-        bind(query, search);
-        return query.getSingleResult();
-    }
-
-    @Override
-    public List<PlacedOrgUnit> legalEntitiesOn(String hierarchyId, LocalDate date, int first, int max) {
-        return em.createQuery(LEGAL_ENTITIES, Object[].class)
-                .setParameter("realmId", realmId)
-                .setParameter("hierarchyId", hierarchyId)
-                .setParameter("date", date)
-                .setFirstResult(first)
-                .setMaxResults(max)
-                .getResultStream()
-                .map(row -> new PlacedOrgUnit(toDomain((OrgUnitEntity) row[0]),
-                        toDomain((OrgUnitVersionEntity) row[1]), (String) row[2]))
-                .toList();
+    public long countSearchOn(String hierarchyId, OrgUnitStore.Search search, LocalDate date) {
+        return searchQuery(hierarchyId, search, date, null, true, Long.class).getSingleResult();
     }
 
     @Override
@@ -469,17 +477,14 @@ public class JpaOrgUnitStore implements OrgUnitStore {
     }
 
     @Override
-    public List<PlacedOrgUnit> childrenOn(String hierarchyId, String parentId, boolean linkedOnly, Boolean lateral,
-            LocalDate date, int first, int max) {
-        String place = parentId != null ? CHILD_OF : linkedOnly ? LINKED_ROOT : NO_PARENT;
-        var query = em.createQuery(SIBLINGS.formatted(place, nature(lateral)), Object[].class)
+    public List<PlacedOrgUnit> childrenOn(String hierarchyId, String parentId, Boolean lateral, LocalDate date,
+            int first, int max) {
+        return em.createQuery(SIBLINGS.formatted(CHILD_OF, nature(lateral)), Object[].class)
                 .setParameter("realmId", realmId)
                 .setParameter("hierarchyId", hierarchyId)
-                .setParameter("date", date);
-        if (parentId != null) {
-            query.setParameter("parentId", parentId);
-        }
-        return query.setFirstResult(first).setMaxResults(max).getResultStream()
+                .setParameter("date", date)
+                .setParameter("parentId", parentId)
+                .setFirstResult(first).setMaxResults(max).getResultStream()
                 .map(row -> new PlacedOrgUnit(toDomain((OrgUnitEntity) row[0]),
                         toDomain((OrgUnitVersionEntity) row[1]), parentId))
                 .toList();

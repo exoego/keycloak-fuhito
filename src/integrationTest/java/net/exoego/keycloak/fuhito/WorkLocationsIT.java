@@ -93,7 +93,7 @@ class WorkLocationsIT {
                 each(get("/org-units/" + team + "/path?asOf=2021-04-01")));
         assertEquals(List.of("osaka cc-hq osaka cc-hq", "null cc-sales osaka cc-sales", "null null osaka cc-sales"),
                 each(get("/org-units/" + company + "/subtree?asOf=2021-04-01")));
-        assertEquals(List.of("null null osaka cc-sales"), each(get("/org-units/search?q="
+        assertEquals(List.of("null null osaka cc-sales"), each(get("/org-units?q="
                 + URLEncoder.encode("営業第1課", StandardCharsets.UTF_8) + "&asOf=2021-04-01")));
         // A history has the values of each version only.
         assertEquals(List.of("tokyo cc-hq null null", "osaka cc-hq null null"),
