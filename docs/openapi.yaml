@@ -2069,6 +2069,22 @@ components:
         kind:
           type: string
           description: The code of the assignment kind.
+        workLocation:
+          type: string
+          description: The code of the work location of the assignment itself.
+        costCenter:
+          type: string
+          description: The code of the cost center of the assignment itself.
+        effectiveWorkLocation:
+          type: string
+          description: "The code of the work location that applies on the date. It\
+            \ is the one of the assignment, else the one of the org unit, else the\
+            \ one of the nearest unit above it in the default hierarchy."
+        effectiveCostCenter:
+          type: string
+          description: "The code of the cost center that applies on the date. It is\
+            \ the one of the assignment, else the one of the org unit, else the one\
+            \ of the nearest unit above it in the default hierarchy."
         head:
           type: boolean
           description: True when the person leads the org unit.
@@ -5937,6 +5953,14 @@ paths:
           format: date
         name: asOf
         in: query
+      - description: "The code of a cost center to keep. It keeps the members whose\
+          \ cost center that applies on the date is this one. That is the one of the\
+          \ assignment, else the one of its org unit, else the one of the nearest\
+          \ unit above it in the default hierarchy."
+        name: costCenter
+        in: query
+        schema:
+          type: string
       - description: True to get the number of members on all pages in the header
           `X-Total-Count`. It costs one more query.
         schema:
@@ -5993,6 +6017,14 @@ paths:
           $ref: "#/components/schemas/EmploymentStatus"
         name: status
         in: query
+      - description: "The code of a work location to keep. It keeps the members whose\
+          \ work location that applies on the date is this one. That is the one of\
+          \ the assignment, else the one of its org unit, else the one of the nearest\
+          \ unit above it in the default hierarchy."
+        name: workLocation
+        in: query
+        schema:
+          type: string
       responses:
         "200":
           description: The members on the date.

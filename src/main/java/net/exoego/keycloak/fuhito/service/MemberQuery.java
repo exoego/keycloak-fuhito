@@ -13,9 +13,12 @@ package net.exoego.keycloak.fuhito.service;
  * @param hierarchy the code of the hierarchy that says what is below the unit, or null for the default one
  * @param after the cursor of the page before, or null to start at the first member
  * @param seconded true to keep the seconded people, false to keep everyone else, or null for all
+ * @param workLocation the code of a work location that applies to the members to keep, or null for all
+ * @param costCenter the code of a cost center that applies to the members to keep, or null for all
  */
 public record MemberQuery(String asOf, boolean includeDescendants, String occupation, String jobTitle,
-        String status, Integer first, Integer max, String hierarchy, String after, Boolean seconded) {
+        String status, Integer first, Integer max, String hierarchy, String after, Boolean seconded,
+        String workLocation, String costCenter) {
 
     /**
      * Makes the options of a request that uses the default hierarchy.
@@ -30,6 +33,6 @@ public record MemberQuery(String asOf, boolean includeDescendants, String occupa
      */
     public MemberQuery(String asOf, boolean includeDescendants, String occupation, String jobTitle, String status,
             Integer first, Integer max) {
-        this(asOf, includeDescendants, occupation, jobTitle, status, first, max, null, null, null);
+        this(asOf, includeDescendants, occupation, jobTitle, status, first, max, null, null, null, null, null);
     }
 }

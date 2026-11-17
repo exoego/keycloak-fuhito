@@ -74,6 +74,9 @@ measure 'Members of a team' '/org-units/u-4321/members'
 measure 'Members below the company, first page' '/org-units/u-0/members?includeDescendants=true&max=100'
 measure 'Members below the company, deep page' "/org-units/u-0/members?includeDescendants=true&first=$((PEOPLE * 8 / 10))&max=100"
 measure 'Members below a division' '/org-units/u-1/members?includeDescendants=true&max=1000'
+measure 'Members of a team, by work location' '/org-units/u-4321/members?workLocation=site-0'
+measure 'Members below the company, by work location' '/org-units/u-0/members?includeDescendants=true&max=100&workLocation=site-0'
+measure 'Members below a division, by cost center' '/org-units/u-1/members?includeDescendants=true&max=1000&costCenter=cc-1'
 measure 'People, first page' '/people?max=100'
 measure 'People, deep page' "/people?first=$((PEOPLE - 1000))&max=100"
 measure 'Assignments of a person' '/people/p-12345/assignments?includePath=true'

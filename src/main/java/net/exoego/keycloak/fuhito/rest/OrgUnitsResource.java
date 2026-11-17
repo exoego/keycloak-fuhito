@@ -534,6 +534,16 @@ public class OrgUnitsResource {
                     + "them. False to keep everyone else. The default is everyone.")
             @QueryParam("seconded") Boolean seconded,
             @Parameter(
+                    description = "The code of a work location to keep. It keeps the members whose work location "
+                            + "that applies on the date is this one. That is the one of the assignment, else the one "
+                            + "of its org unit, else the one of the nearest unit above it in the default hierarchy.")
+            @QueryParam("workLocation") String workLocation,
+            @Parameter(
+                    description = "The code of a cost center to keep. It keeps the members whose cost center that "
+                            + "applies on the date is this one. That is the one of the assignment, else the one of "
+                            + "its org unit, else the one of the nearest unit above it in the default hierarchy.")
+            @QueryParam("costCenter") String costCenter,
+            @Parameter(
                     description = "The number of entries to skip.",
                     schema = @Schema(minimum = "0", defaultValue = "0"))
             @QueryParam("first") Integer first,
@@ -552,7 +562,7 @@ public class OrgUnitsResource {
         context.requireRead();
         return Calls.run(context, () -> {
             MemberQuery query = new MemberQuery(asOf, includeDescendants, occupation, jobTitle, status, first, max,
-                    hierarchy, after, seconded);
+                    hierarchy, after, seconded, workLocation, costCenter);
             return Pages.of(context, membership.members(id, query).stream().map(MemberRepresentation::of).toList(),
                     Page.of(first, max).max(),
                     // The values that the order of the list uses, as MembershipService reads them back.

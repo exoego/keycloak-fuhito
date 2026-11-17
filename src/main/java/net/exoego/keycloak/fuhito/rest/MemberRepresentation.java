@@ -43,6 +43,20 @@ public record MemberRepresentation(
         String occupation,
         @Schema(description = "The code of the assignment kind.")
         String kind,
+        @Schema(description = "The code of the work location of the assignment itself.")
+        String workLocation,
+        @Schema(description = "The code of the cost center of the assignment itself.")
+        String costCenter,
+        @Schema(
+                description = "The code of the work location that applies on the date. It is the one of the "
+                        + "assignment, else the one of the org unit, else the one of the nearest unit above it in the "
+                        + "default hierarchy.")
+        String effectiveWorkLocation,
+        @Schema(
+                description = "The code of the cost center that applies on the date. It is the one of the "
+                        + "assignment, else the one of the org unit, else the one of the nearest unit above it in the "
+                        + "default hierarchy.")
+        String effectiveCostCenter,
         @Schema(description = "True when the person leads the org unit.")
         boolean head,
         @Schema(description = "True when this is the main assignment of the employment.")
@@ -92,7 +106,9 @@ public record MemberRepresentation(
                 member.employment().staffNumber(), row.orgUnitId(), member.orgUnit().version().name(),
                 member.orgUnitPath() == null ? null : member.orgUnitPath().stream().map(PathEntry::of).toList(),
                 row.period().from().toString(), Objects.toString(row.period().to(), null),
-                member.jobTitle(), member.occupation(), member.kind(), row.head(), row.primary(),
+                member.jobTitle(), member.occupation(), member.kind(), member.places().workLocation(),
+                member.places().costCenter(), member.places().effectiveWorkLocation(),
+                member.places().effectiveCostCenter(), row.head(), row.primary(),
                 Numbers.plain(row.allocationPercent()), row.displayOrder(), row.attributes(),
                 member.employmentType(), member.grade(), terms.status().name(), Numbers.plain(terms.workPercent()));
     }

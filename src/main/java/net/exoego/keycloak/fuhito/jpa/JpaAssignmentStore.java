@@ -1,6 +1,7 @@
 package net.exoego.keycloak.fuhito.jpa;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -113,6 +114,13 @@ public class JpaAssignmentStore implements AssignmentStore {
             )
             """.formatted(TreeQuery.onDate("l"));
 
+    private static final String ROOT_PLACES = TreeQuery.places("""
+            from OrgUnitVersionEntity v where v.realmId = :realmId and v.orgUnitId = :rootId and v.%s"""
+            .formatted(TreeQuery.onDate("v")));
+
+    private static final String TREE_PLACES = TreeQuery.places(
+            "from Tree t join OrgUnitVersionEntity v on v.id = t.versionId");
+
     @Override
     public List<Assignment> membersOn(MemberFilter filter, MemberCursor after, int first, int max) {
         var query = em.createQuery(membersText(filter, after, false), AssignmentEntity.class);
@@ -132,17 +140,48 @@ public class JpaAssignmentStore implements AssignmentStore {
     private static String membersText(MemberFilter filter, MemberCursor after, boolean count) {
         // Each piece is a fixed text. The values of the request go in as parameters.
         String selected = count ? "select count(a)" : "select a";
-        StringBuilder text = new StringBuilder();
-        if (filter.includeDescendants()) {
-            text.append(TreeQuery.SUBTREE).append(filter.seconded() == null ? "" : ", " + OWNED).append(selected)
-                    .append("""
+        MemberFilter.Places places = filter.places();
+        boolean below = filter.includeDescendants();
+        // In the default hierarchy, the walk down carries the values. In another one, each unit walks up.
+        boolean carried = places != null && below && places.hierarchyId().equals(filter.hierarchyId());
+        List<String> tables = new ArrayList<>();
+        if (places != null && (carried || !below)) {
+            tables.add(ROOT_PLACES);
+        }
+        if (below) {
+            tables.add(carried ? TreeQuery.TREE_WITH_PLACES : TreeQuery.TREE);
+        }
+        if (places != null && below && !carried) {
+            tables.add(TREE_PLACES);
+        }
+        if (filter.seconded() != null) {
+            tables.add(OWNED);
+        }
+        StringBuilder text = new StringBuilder(tables.isEmpty() ? "" : "with " + String.join(", ", tables));
+        if (below) {
+            text.append(selected).append("""
                      from AssignmentEntity a join Tree t on t.id = a.orgUnitId
                     where a.realmId = :realmId""");
         } else {
-            text.append(filter.seconded() == null ? "" : "with " + OWNED).append(selected)
+            text.append(selected)
                     .append(" from AssignmentEntity a where a.realmId = :realmId and a.orgUnitId = :rootId");
         }
         text.append(" and a.").append(TreeQuery.onDate("a"));
+        if (places != null) {
+            // The value of the assignment wins over the one that applies to its org unit.
+            if (places.workLocationId() != null) {
+                text.append(carried ? " and (coalesce(a.workLocationId, t.workLocationId) = :workLocationId)"
+                        : """
+                         and (a.workLocationId = :workLocationId or (a.workLocationId is null and a.orgUnitId in
+                        (select u.unitId from Places u where u.workLocationId = :workLocationId)))""");
+            }
+            if (places.costCenterId() != null) {
+                text.append(carried ? " and (coalesce(a.costCenterId, t.costCenterId) = :costCenterId)"
+                        : """
+                         and (a.costCenterId = :costCenterId or (a.costCenterId is null and a.orgUnitId in
+                        (select u.unitId from Places u where u.costCenterId = :costCenterId)))""");
+            }
+        }
         if (filter.occupationId() != null) {
             text.append(" and a.occupationId = :occupationId");
         }
@@ -204,6 +243,15 @@ public class JpaAssignmentStore implements AssignmentStore {
         }
         if (filter.seconded() != null) {
             query.setParameter("employerHierarchyId", filter.seconded().hierarchyId());
+        }
+        if (filter.places() != null) {
+            query.setParameter("placesHierarchyId", filter.places().hierarchyId());
+            if (filter.places().workLocationId() != null) {
+                query.setParameter("workLocationId", filter.places().workLocationId());
+            }
+            if (filter.places().costCenterId() != null) {
+                query.setParameter("costCenterId", filter.places().costCenterId());
+            }
         }
         if (after != null) {
             query.setParameter("afterOrder", after.displayOrder())
