@@ -317,6 +317,21 @@ class RealmExportIT {
     }
 
     @Test
+    void anAdminOfAnotherRealmIsNotNamedInTheExport() throws Exception {
+        // The admin of the tests belongs to the master realm.
+        TestRealm source = TestRealm.create("export-announcer");
+        String order = id(source.api.post("/change-orders", "{\"title\": \"異動\", \"effectiveDate\": \"2026-04-01\"}"));
+        ok(source.api.post("/change-orders/" + order + "/announce", ""));
+        ObjectNode document = export(source.api);
+
+        JsonNode announcedBy = document.get("changeOrders").get(0).get("announcedBy");
+        assertTrue(announcedBy == null || announcedBy.isNull(), String.valueOf(announcedBy));
+        TestRealm target = TestRealm.create("export-announcer");
+        source.remove();
+        ok(target.api.post("/restore", JSON.writeValueAsString(document)));
+    }
+
+    @Test
     void aRestoreNeedsTheUsersAndTheFormat() throws Exception {
         TestRealm target = TestRealm.create("export-users");
         ObjectNode document = JSON.createObjectNode().put("format", "fuhito.export.v1");
