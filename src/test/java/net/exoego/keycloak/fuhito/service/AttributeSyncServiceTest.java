@@ -15,6 +15,7 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import net.exoego.keycloak.fuhito.domain.Assignment;
 import net.exoego.keycloak.fuhito.domain.Employment;
@@ -506,6 +507,53 @@ class AttributeSyncServiceTest {
         assertEquals(List.of("Internal Medicine 2026-06-15 null - primary"), assignmentsOf("carol"));
         assertEquals(List.of(), managersOf("carol"));
         assertEquals(2, report.assignmentsAdded());
+    }
+
+    @Test
+    void anOrgUnitThatClosesLaterEndsTheAssignmentOnTheSameDate() {
+        OrgUnitService orgUnits = new OrgUnitService(orgUnitStore, externalIds, assignmentStore, refItems, clock);
+        String clinic = orgUnits.create(unit("clinic", "Clinic", null)).unit().id();
+        orgUnits.end(clinic, "2026-07-01");
+        set("alice", "clinic", null, "bob", null);
+        set("bob", "med", null, null, null);
+        set("carol", "clinic", null, null, null);
+        set("dave", "clinic", null, null, null);
+        employments().start(new NewEmployment("carol", "2020-04-01", "2026-06-20", null, null, null, null, null,
+                null, null, null));
+        employments().start(new NewEmployment("dave", "2020-04-01", "2027-04-01", null, null, null, null, null,
+                null, null, null));
+        run();
+        nextDay();
+        set("bob", "clinic", null, null, null);
+
+        SyncReport moved = run();
+
+        assertEquals(List.of(), moved.failed());
+        assertEquals(1, moved.assignmentsMoved());
+        assertEquals(List.of("Clinic 2026-06-15 2026-07-01 - primary"), assignmentsOf("alice"));
+        assertEquals(List.of("bob 2026-06-15 2026-07-01"), managersOf("alice"));
+        assertEquals(List.of("Internal Medicine 2026-06-15 2026-06-16 - primary",
+                "Clinic 2026-06-16 2026-07-01 - primary"), assignmentsOf("bob"));
+        // An employment that ends first ends the assignment.
+        assertEquals(List.of("Clinic 2026-06-15 2026-06-20 - primary"), assignmentsOf("carol"));
+        assertEquals(List.of("Clinic 2026-06-15 2026-07-01 - primary"), assignmentsOf("dave"));
+
+        // The unit closed, and the department still names it. That name matches nothing now.
+        clock = Clock.offset(clock, Duration.ofDays(15));
+        SyncReport closed = run();
+
+        assertEquals(new SyncReport(4, 0, 0, 0, 0, 0, 0, Stream.of("alice", "bob", "carol", "dave")
+                .map(user -> new Unmatched(user, "department", "clinic", "unknown"))
+                .toList(), List.of(), List.of()), closed);
+        assertEquals(List.of("Clinic 2026-06-15 2026-07-01 - primary"), assignmentsOf("alice"));
+
+        // The unit goes on after all. The assignments keep their end, and the run adds new ones.
+        orgUnits.removeEnd(clinic);
+        SyncReport reopened = run();
+
+        assertEquals(4, reopened.assignmentsAdded());
+        assertEquals(List.of("Clinic 2026-06-15 2026-07-01 - primary", "Clinic 2026-07-01 null - primary"),
+                assignmentsOf("alice"));
     }
 
     @Test

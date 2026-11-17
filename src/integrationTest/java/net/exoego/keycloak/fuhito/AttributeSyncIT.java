@@ -282,6 +282,24 @@ class AttributeSyncIT {
         assertEquals(employer, Api.json(api.get("/users/" + alice + "/history")).get("employments").get(0).get("employerId").asText());
     }
 
+    @Test
+    void placesAUserInAnOrgUnitThatClosesLater() throws Exception {
+        createRealm(Map.of("fuhito.sync.enabled", "true"));
+        String clinic = unit("診療所", "clinic", null);
+        String end = LocalDate.now(ZoneOffset.UTC).plusMonths(3).toString();
+        HttpResponse<String> ended = api.put("/org-units/" + clinic + "/end", "{\"validTo\": \"" + end + "\"}");
+        assertEquals(200, ended.statusCode(), ended.body());
+        String alice = user("alice", Map.of("department", "clinic"));
+
+        JsonNode report = run("");
+
+        assertEquals(0, report.get("failed").size(), report.toString());
+        assertEquals(1, report.get("assignmentsAdded").asInt());
+        JsonNode assignment = assignmentsOf(alice).get(0);
+        assertEquals(clinic, assignment.get("orgUnitId").asText());
+        assertEquals(end, assignment.get("validTo").asText());
+    }
+
     private List<String> changeLog(String resourceType) throws Exception {
         return Api.json(api.get("/change-log?resourceType=" + resourceType)).findValuesAsText("resourceId");
     }

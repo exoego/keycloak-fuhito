@@ -151,6 +151,8 @@ public class AttributeSyncService {
     private final List<Failed> failed = new ArrayList<>();
     private final List<Write> writes = new ArrayList<>();
     private String employerId;
+    // The end of each org unit that the run placed a user in, read once for each unit. Empty for no end.
+    private final Map<String, Optional<LocalDate>> unitEnds = new HashMap<>();
 
     /**
      * Creates the service for one run that works in pieces.
@@ -336,11 +338,11 @@ public class AttributeSyncService {
         LocalDate today = later(unitDate, employment.period().from());
         String assignmentId;
         if (current == null) {
-            assignmentId = add(employmentId, orgUnitId, jobTitle, today);
+            assignmentId = add(employment, orgUnitId, jobTitle, today);
             tally.assignmentsAdded++;
         } else if (!current.orgUnitId().equals(orgUnitId) || !current.employmentId().equals(employmentId)) {
             retire(current, today);
-            assignmentId = add(employmentId, orgUnitId, jobTitle, today);
+            assignmentId = add(employment, orgUnitId, jobTitle, today);
             tally.assignmentsMoved++;
         } else {
             assignmentId = current.assignmentId();
@@ -403,14 +405,26 @@ public class AttributeSyncService {
     }
 
     // The assignment of the sync is the primary one, unless the user has a primary assignment from elsewhere.
-    private String add(String employmentId, String orgUnitId, String jobTitle, LocalDate today) {
-        boolean hasPrimary = from.assignments().rowsOfEmployment(employmentId).stream()
+    // It ends with its org unit, because the unit must exist on every date of the assignment.
+    private String add(Employment employment, String orgUnitId, String jobTitle, LocalDate today) {
+        boolean hasPrimary = from.assignments().rowsOfEmployment(employment.id()).stream()
                 .anyMatch(row -> row.primary() && row.period().overlaps(ValidPeriod.startingAt(today)));
-        AssignmentView added = from.assignmentService().add(new AssignmentValues(employmentId, orgUnitId,
-                today.toString(), null, jobTitle, null, null, null, !hasPrimary, false, null, null, null, null,
-                SOURCE));
+        LocalDate end = firstEnd(endOf(orgUnitId), employment.period().to());
+        AssignmentView added = from.assignmentService().add(new AssignmentValues(employment.id(), orgUnitId,
+                today.toString(), Objects.toString(end, null), jobTitle, null, null, null, !hasPrimary, false, null,
+                null, null, null, SOURCE));
         written(added, true, "");
         return added.assignmentId();
+    }
+
+    private LocalDate endOf(String orgUnitId) {
+        return unitEnds.computeIfAbsent(orgUnitId,
+                id -> Optional.ofNullable(from.orgUnits().versions(id).getLast().period().to())).orElse(null);
+    }
+
+    // Null is no end.
+    private static LocalDate firstEnd(LocalDate a, LocalDate b) {
+        return a == null || (b != null && b.isBefore(a)) ? b : a;
     }
 
     // An assignment that started today never held, so it is removed. Any other ends today.
