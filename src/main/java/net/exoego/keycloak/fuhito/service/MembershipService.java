@@ -95,9 +95,24 @@ public class MembershipService {
         String hierarchy = filter.hierarchyId();
         Cursor.requireAlone(query.after(), query.first());
         Page page = Page.of(query.first(), query.max());
-        List<Assignment> rows = assignments.membersOn(filter, cursor(query.after()), page.first(), page.max());
+        MemberCursor after = cursor(query.after());
+        requireInTree(filter, after);
+        List<Assignment> rows = assignments.membersOn(filter, after, page.first(), page.max());
 
         return toMembers(rows, date, unitsOn(hierarchy, rows, date)::get, null);
+    }
+
+    // With descendants, the next page starts after the place of the unit of the cursor in the tree.
+    private void requireInTree(MemberFilter filter, MemberCursor after) {
+        if (after == null || !filter.includeDescendants()) {
+            return;
+        }
+        String id = after.orgUnitId();
+        if (!orgUnits.ancestorsOn(filter.hierarchyId(), List.of(id), filter.date()).getOrDefault(id, Set.of())
+                .contains(filter.orgUnitId())) {
+            throw FuhitoException.invalid("invalid.cursor_unit",
+                    Map.of("field", "after", "id", id, "date", filter.date().toString()));
+        }
     }
 
     /**

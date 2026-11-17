@@ -701,6 +701,36 @@ class AttributeSyncServiceTest {
     }
 
     @Test
+    void aDeactivatedTitleStaysOnTheAssignmentsThatHaveItAndGoesToNoNewOne() {
+        set("alice", "med", "staff", null, null);
+        set("bob", "med", "Staff", null, null);
+        set("carol", "med", "staff", null, null);
+        run();
+        refItems.update(new RefItem("t2", RefKind.JOB_TITLE, "staff", "Staff", Map.of(), 0, Map.of(), false));
+        nextDay();
+        set("carol", "Surgery", "staff", null, null);
+        set("dave", "med", "Staff", null, null);
+
+        SyncReport report = run();
+
+        assertEquals(0, report.assignmentsChanged());
+        assertEquals(List.of(new Unmatched("carol", "title", "staff", "unknown"),
+                new Unmatched("dave", "title", "Staff", "unknown")), report.unmatched());
+        assertEquals(List.of("Internal Medicine 2026-06-15 null staff primary"), assignmentsOf("alice"));
+        assertEquals(List.of("Internal Medicine 2026-06-15 null staff primary"), assignmentsOf("bob"));
+        assertEquals(List.of("Internal Medicine 2026-06-15 2026-06-16 staff primary",
+                "Surgery 2026-06-16 null - primary"), assignmentsOf("carol"));
+        assertEquals(List.of("Internal Medicine 2026-06-16 null - primary"), assignmentsOf("dave"));
+
+        // A user who drops the title loses it, as with an active one.
+        nextDay();
+        set("alice", "med", null, null, null);
+        assertEquals(1, run().assignmentsChanged());
+        assertEquals(List.of("Internal Medicine 2026-06-15 2026-06-17 staff primary",
+                "Internal Medicine 2026-06-17 null - primary"), assignmentsOf("alice"));
+    }
+
+    @Test
     void anAssignmentThatEndedForItsUnitIsNotFoundAgainFromTheDateOfTheRealm() {
         putSurgeryOnTheNextDate();
         clock = Clock.offset(clock, Duration.ofDays(-2));
