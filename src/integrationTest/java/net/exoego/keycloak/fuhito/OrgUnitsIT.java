@@ -1,6 +1,7 @@
 package net.exoego.keycloak.fuhito;
 
 import java.net.http.HttpResponse;
+import java.util.ArrayList;
 import java.util.List;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
@@ -52,7 +53,7 @@ class OrgUnitsIT {
     }
 
     @Test
-    void searchesUnitsAndCountsMembers() throws Exception {
+    void filtersTheListOfUnitsAndCountsMembers() throws Exception {
         TestRealm realm = TestRealm.withEmployer("org-unit-search");
         Api search = realm.api;
         realm.refItem("UNIT_TYPE", "ward", "病棟");
@@ -65,21 +66,37 @@ class OrgUnitsIT {
                 + "\", \"validFrom\": \"2026-04-01\"}"));
         String on = "&asOf=2026-05-01";
 
-        assertEquals(List.of(ward), Api.json(search.get("/org-units/search?q=ward%20one" + on)).findValuesAsText("id"));
-        assertEquals(List.of(hospital), Api.json(search.get("/org-units/search?q=ward%20one" + on))
+        // With no filter, the list has every unit of the date at any depth.
+        assertEquals(List.of("1病棟", "50%病棟", "X病院", "法人"), Api.json(search.get("/org-units?" + on))
+                .findValuesAsText("name"));
+        assertEquals(List.of("X病院", "法人"), Api.json(search.get("/org-units?roots=true" + on))
+                .findValuesAsText("name"));
+        assertEquals(List.of(ward), Api.json(search.get("/org-units?q=ward%20one" + on)).findValuesAsText("id"));
+        assertEquals(List.of(hospital), Api.json(search.get("/org-units?q=ward%20one" + on))
                 .findValuesAsText("parentId"));
-        assertEquals(List.of("50%病棟"), Api.json(search.get("/org-units/search?q=50%25" + on))
+        assertEquals(List.of("50%病棟"), Api.json(search.get("/org-units?q=50%25" + on))
                 .findValuesAsText("name"));
         // The search reads the names in other languages, not the JSON that keeps them.
         for (String structure : List.of("en", "%22", "%7B", "%3A")) {
-            assertEquals(List.of(), Api.json(search.get("/org-units/search?q=" + structure + on)).findValuesAsText("id"),
+            assertEquals(List.of(), Api.json(search.get("/org-units?q=" + structure + on)).findValuesAsText("id"),
                     structure);
         }
-        assertEquals(List.of("1病棟"), Api.json(search.get("/org-units/search?unitType=ward&code=W1" + on))
+        assertEquals(List.of("1病棟"), Api.json(search.get("/org-units?unitType=ward&code=W1" + on))
                 .findValuesAsText("name"));
-        HttpResponse<String> counted = search.get("/org-units/search?q=%E7%97%85%E6%A3%9F&max=1&count=true" + on);
+        HttpResponse<String> counted = search.get("/org-units?q=%E7%97%85%E6%A3%9F&max=1&count=true" + on);
         assertEquals(1, Api.json(counted).size());
         assertEquals("2", counted.headers().firstValue("X-Total-Count").orElseThrow());
+        // The filters apply together, also to the count.
+        assertEquals(List.of("X病院"), Api.json(search.get("/org-units?roots=true&legalEntity=false" + on))
+                .findValuesAsText("name"));
+        assertEquals(List.of("法人"), Api.json(search.get("/org-units?roots=true&legalEntity=true&lateral=false" + on))
+                .findValuesAsText("name"));
+        assertEquals(0, Api.json(search.get("/org-units?roots=true&q=%E7%97%85%E6%A3%9F&unitType=ward" + on)).size());
+        assertEquals("3", search.get("/org-units?legalEntity=false&count=true" + on).headers()
+                .firstValue("X-Total-Count").orElseThrow());
+        assertEquals("1", search.get("/org-units?roots=true&legalEntity=false&count=true" + on).headers()
+                .firstValue("X-Total-Count").orElseThrow());
+        assertEquals("org_unit.unit_type_unknown", errorOf(400, search.get("/org-units?unitType=room" + on)));
 
         for (String name : List.of("nurse-a", "nurse-b")) {
             HttpResponse<String> staff = search.post("/staff", "{\"userId\": \"" + realm.user(name)
@@ -113,18 +130,23 @@ class OrgUnitsIT {
                 + hospital + "\", \"validFrom\": \"2026-04-01\"}"));
         String on = "asOf=2026-05-01";
 
-        assertEquals(List.of("労働組合", "病院"), Api.json(units.get("/org-units?" + on)).findValuesAsText("name"));
-        assertEquals(List.of("病院"), Api.json(units.get("/org-units?lateral=false&" + on)).findValuesAsText("name"));
-        assertEquals(List.of("労働組合"), Api.json(units.get("/org-units?lateral=true&" + on)).findValuesAsText("name"));
+        assertEquals(List.of("労働組合", "病院"), Api.json(units.get("/org-units?roots=true&" + on))
+                .findValuesAsText("name"));
+        assertEquals(List.of("病院"), Api.json(units.get("/org-units?roots=true&lateral=false&" + on))
+                .findValuesAsText("name"));
+        assertEquals(List.of("労働組合"), Api.json(units.get("/org-units?roots=true&lateral=true&" + on))
+                .findValuesAsText("name"));
         assertEquals(List.of("内科"), Api.json(units.get("/org-units/" + hospital + "/children?lateral=false&" + on))
                 .findValuesAsText("name"));
         assertEquals(List.of("医療安全委員会"), Api.json(units.get("/org-units/" + hospital
                 + "/subtree?lateral=true&" + on)).findValuesAsText("name"));
         assertEquals(List.of("病院", "内科"), Api.json(units.get("/org-units/" + hospital
                 + "/subtree?lateral=false&" + on)).findValuesAsText("name"));
-        assertEquals(List.of("内科"), Api.json(units.get("/org-units/search?unitType=department&lateral=false&" + on))
+        assertEquals(List.of("内科"), Api.json(units.get("/org-units?unitType=department&lateral=false&" + on))
                 .findValuesAsText("name"));
-        assertEquals(List.of(), Api.json(units.get("/org-units/search?unitType=department&lateral=true&" + on))
+        assertEquals(List.of(), Api.json(units.get("/org-units?unitType=department&lateral=true&" + on))
+                .findValuesAsText("name"));
+        assertEquals(List.of("内科", "病院"), Api.json(units.get("/org-units?lateral=false&" + on))
                 .findValuesAsText("name"));
 
         assertEquals("org_unit.line_below_lateral", errorOf(409, units.post("/org-units", "{\"name\": \"分科会\", "
@@ -396,7 +418,7 @@ class OrgUnitsIT {
         assertEquals(200, moved.statusCode(), moved.body());
         assertFalse(Api.json(moved).has("parentId"));
         assertEquals(0, Api.json(realm.api.get("/org-units/" + branch + "/history")).get("parents").size());
-        assertEquals(2, Api.json(realm.api.get("/org-units?asOf=2026-04-01")).size());
+        assertEquals(2, Api.json(realm.api.get("/org-units?roots=true&asOf=2026-04-01")).size());
     }
 
     @Test
@@ -470,12 +492,20 @@ class OrgUnitsIT {
         String on = "asOf=2026-04-01";
 
         // Only the units with a parent or a child in the matrix are in it.
-        assertEquals(List.of("Project"), namesOf(matrixApi.get("/org-units?hierarchy=matrix&" + on)));
+        assertEquals(List.of("Project"), namesOf(matrixApi.get("/org-units?roots=true&hierarchy=matrix&" + on)));
+        assertEquals("1", matrixApi.get("/org-units?roots=true&hierarchy=matrix&count=true&" + on).headers()
+                .firstValue("X-Total-Count").orElseThrow());
+        // Every unit is in the list, each with its parent in the hierarchy of the request.
+        JsonNode inMatrix = Api.json(matrixApi.get("/org-units?hierarchy=matrix&" + on));
+        assertEquals(List.of("Alone", "Line", "Project", "Squad", "Team"), inMatrix.findValuesAsText("name"));
+        assertEquals(List.of(project), inMatrix.findValuesAsText("parentId"));
+        assertEquals(List.of(team, line), Api.json(matrixApi.get("/org-units?" + on)).findValuesAsText("parentId"));
         assertEquals(List.of("Project", "Team"), matrixApi.tree("hierarchy=matrix&" + on).findValuesAsText("name"));
         assertEquals(List.of("Team"), namesOf(matrixApi.get("/org-units/" + project
                 + "/subtree?hierarchy=matrix&first=1&max=1&" + on)));
         assertEquals(List.of("Alone", "Line", "Team", "Squad", "Project"), matrixApi.tree(on).findValuesAsText("name"));
-        assertEquals(List.of("Alone", "Line", "Project"), namesOf(matrixApi.get("/org-units?hierarchy=default&" + on)));
+        assertEquals(List.of("Alone", "Line", "Project"),
+                namesOf(matrixApi.get("/org-units?roots=true&hierarchy=default&" + on)));
 
         assertEquals(List.of("Team"), namesOf(matrixApi.get("/org-units/" + project + "/children?hierarchy=matrix&" + on)));
         assertEquals(List.of(), namesOf(matrixApi.get("/org-units/" + project + "/children?" + on)));
@@ -530,6 +560,8 @@ class OrgUnitsIT {
         assertEquals(List.of("Holding"),
                 namesOf(entityApi.get("/org-units?legalEntity=true&asOf=2026-04-01&first=1&max=1")));
         assertEquals(List.of(), namesOf(entityApi.get("/org-units?legalEntity=true&asOf=2026-03-31")));
+        // A unit with no unit type is not a legal entity.
+        assertEquals(List.of("Sales", "Untyped"), namesOf(entityApi.get("/org-units?legalEntity=false&asOf=2026-04-01")));
 
         // The sales department becomes a company of its own in 2027.
         assertEquals(200, entityApi.put("/org-units/" + sales, "{\"name\": \"Sales Inc.\", \"unitType\": \"company\", "
@@ -542,5 +574,53 @@ class OrgUnitsIT {
         String companyId = company.get("id").asText();
         assertFalse(Api.json(entityApi.put("/ref-items/" + companyId, "{\"name\": \"株式会社\"}")).has("legalEntity"));
         assertEquals(List.of(), namesOf(entityApi.get("/org-units?legalEntity=true&asOf=2027-04-01")));
+    }
+
+    @Test
+    void listsEveryUnitInPagesThatGoOnAfterACursor() throws Exception {
+        TestRealm realm = TestRealm.create("org-units-cursor");
+        Api api = realm.api;
+        String root = created(api.post("/org-units", "{\"name\": \"Root\", \"validFrom\": \"2026-04-01\"}"))
+                .get("id").asText();
+        // Some units tie on the display order, the phonetic name, and the name. Some have no phonetic name.
+        for (String unit : List.of(
+                "\"name\": \"外科\", \"phoneticName\": \"げか\", \"displayOrder\": 1",
+                "\"name\": \"内科\", \"phoneticName\": \"ないか\", \"displayOrder\": 1",
+                "\"name\": \"同名\", \"phoneticName\": \"どうめい\", \"displayOrder\": 1",
+                "\"name\": \"同名\", \"phoneticName\": \"どうめい\", \"displayOrder\": 1",
+                "\"name\": \"Twin\", \"displayOrder\": 1",
+                "\"name\": \"Twin\", \"displayOrder\": 1",
+                "\"name\": \"Alpha\", \"displayOrder\": 1",
+                "\"name\": \"総務\", \"phoneticName\": \"そうむ\"",
+                "\"name\": \"Zebra\", \"displayOrder\": 2")) {
+            created(api.post("/org-units", "{" + unit + ", \"parentId\": \"" + root
+                    + "\", \"validFrom\": \"2026-04-01\"}"));
+        }
+        String later = created(api.post("/org-units", "{\"name\": \"Later\", \"validFrom\": \"2026-06-01\"}"))
+                .get("id").asText();
+        String on = "asOf=2026-05-01";
+        JsonNode every = Api.json(api.get("/org-units?" + on));
+        assertEquals(List.of("総務", "Root", "外科", "同名", "同名", "内科", "Alpha", "Twin", "Twin", "Zebra"),
+                every.findValuesAsText("name"));
+
+        List<String> followed = new ArrayList<>();
+        List<String> skipped = new ArrayList<>();
+        String path = "/org-units?max=2&" + on;
+        for (int first = 0; path != null; first += 2) {
+            HttpResponse<String> page = api.get(path);
+            assertEquals(200, page.statusCode(), page.body());
+            followed.addAll(Api.json(page).findValuesAsText("id"));
+            skipped.addAll(Api.json(api.get("/org-units?max=2&first=" + first + "&" + on)).findValuesAsText("id"));
+            path = page.headers().firstValue("Link")
+                    .map(link -> link.substring(link.indexOf("/fuhito") + "/fuhito".length(), link.indexOf('>')))
+                    .orElse(null);
+        }
+        assertEquals(every.findValuesAsText("id"), followed);
+        assertEquals(followed, skipped);
+
+        assertEquals("invalid.cursor_with_first",
+                errorOf(400, api.get("/org-units?first=2&after=org-units.v1__" + root + "&" + on)));
+        assertEquals("invalid.cursor", errorOf(400, api.get("/org-units?after=people.v1__" + root + "&" + on)));
+        assertEquals("invalid.cursor_unit", errorOf(400, api.get("/org-units?after=org-units.v1__" + later + "&" + on)));
     }
 }

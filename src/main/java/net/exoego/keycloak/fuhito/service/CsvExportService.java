@@ -513,8 +513,8 @@ public class CsvExportService {
     private String orgUnits(String asOf, boolean japanese) {
         List<OrgUnitState> units = new ArrayList<>();
         for (int first = 0;; first += ROWS_AT_A_TIME) {
-            List<OrgUnitState> page = orgUnits.search(new OrgUnitService.Search(null, null, null, null, asOf),
-                    Page.of(first, ROWS_AT_A_TIME));
+            List<OrgUnitState> page = orgUnits.list(OrgUnitService.Search.all(asOf), Page.of(first, ROWS_AT_A_TIME),
+                    null);
             units.addAll(page);
             if (page.size() < ROWS_AT_A_TIME) {
                 break;

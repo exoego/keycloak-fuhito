@@ -85,9 +85,8 @@ class OrgUnitTreeIT {
         assertEquals(List.of("X病院", "診療部", "看護部", "2病棟", "Y病院", "東病棟"),
                 api.tree("asOf=2027-04-01").findValuesAsText("name"));
         assertEquals(List.of("看護部", "1病棟"), names(api.get("/org-units/" + xHospital + "/subtree?asOf=2027-03-31&first=2&max=2")));
-        assertEquals(List.of("Y病院"), names(api.get("/org-units?asOf=2027-03-31&first=1")));
-        // The list itself has the roots only.
-        assertEquals(List.of("X病院", "Y病院"), names(api.get("/org-units?asOf=2027-03-31")));
+        assertEquals(List.of("Y病院"), names(api.get("/org-units?roots=true&asOf=2027-03-31&first=1")));
+        assertEquals(List.of("X病院", "Y病院"), names(api.get("/org-units?roots=true&asOf=2027-03-31")));
         assertEquals(List.of(), names(api.get("/org-units?asOf=2026-03-31")));
         assertEquals(List.of(), names(emptyRealmApi.get("/org-units?asOf=2027-04-01")));
     }
@@ -110,7 +109,10 @@ class OrgUnitTreeIT {
         List<String> children = List.of("総務", "眼科", "外科", "内科", "Alpha", "Zebra");
         assertEquals(children, names(realm.api.get("/org-units/" + root + "/children?" + on)));
         assertEquals(children.subList(2, 5), names(realm.api.get("/org-units/" + root + "/children?first=2&max=3&" + on)));
-        assertEquals(List.of("Root", "Other"), names(realm.api.get("/org-units?" + on)));
+        assertEquals(List.of("Root", "Other"), names(realm.api.get("/org-units?roots=true&" + on)));
+        // The list of every unit has the same order as siblings, at any depth.
+        assertEquals(List.of("総務", "Root", "眼科", "外科", "第一内科", "内科", "Alpha", "Other", "Zebra", "第二内科"),
+                names(realm.api.get("/org-units?" + on)));
 
         List<String> tree = List.of("Root", "総務", "眼科", "外科", "内科", "第一内科", "第二内科", "Alpha", "Zebra", "Other");
         assertEquals(tree, realm.api.tree(on).findValuesAsText("name"));
@@ -139,7 +141,7 @@ class OrgUnitTreeIT {
 
     @Test
     void listsRootsWithTheirUnitType() throws Exception {
-        JsonNode roots = Api.json(api.get("/org-units?asOf=2026-04-01"));
+        JsonNode roots = Api.json(api.get("/org-units?roots=true&asOf=2026-04-01"));
 
         assertEquals(List.of("X病院", "Y病院"), roots.findValuesAsText("name"));
         assertEquals(List.of("hospital", "hospital"), roots.findValuesAsText("unitType"));

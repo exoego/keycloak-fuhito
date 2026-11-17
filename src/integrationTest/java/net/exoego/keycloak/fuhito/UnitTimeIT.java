@@ -77,7 +77,7 @@ class UnitTimeIT {
         assertEquals(headSees, count(realm, "/users/" + headUser + "/assignments"), where);
         assertEquals(1 - headSees, branchSees);
         // The roots are the head office, the branch, and the legal entity of the realm, on any date.
-        assertEquals(3, count(realm, "/org-units"), where);
+        assertEquals(3, count(realm, "/org-units?roots=true"), where);
         // A date in the request never depends on a time zone.
         assertEquals(1, count(realm, "/org-units/" + branchTeam + "/children?asOf=" + later));
         assertEquals(0, count(realm, "/org-units/" + branchTeam + "/children?asOf=" + earlier));

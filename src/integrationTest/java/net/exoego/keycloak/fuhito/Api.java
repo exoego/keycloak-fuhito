@@ -88,12 +88,12 @@ final class Api {
     }
 
     /**
-     * Reads every org unit of a date, root by root. The API has no read of the whole tree.
+     * Reads every org unit of a date in tree order, root by root. The list of every unit is not in tree order.
      * The query is for example {@code asOf=2026-04-01}, or an empty text.
      */
     JsonNode tree(String query) throws Exception {
         var all = MAPPER.createArrayNode();
-        for (JsonNode root : json(get("/org-units?max=1000&" + query))) {
+        for (JsonNode root : json(get("/org-units?roots=true&max=1000&" + query))) {
             all.addAll((com.fasterxml.jackson.databind.node.ArrayNode) json(
                     get("/org-units/" + root.get("id").asText() + "/subtree?max=1000&" + query)));
         }

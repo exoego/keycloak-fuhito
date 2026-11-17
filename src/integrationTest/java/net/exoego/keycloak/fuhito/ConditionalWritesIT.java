@@ -168,7 +168,7 @@ class ConditionalWritesIT {
         assertEquals(201, again.statusCode(), again.body());
         assertEquals(Api.json(first), Api.json(again));
         assertEquals(first.headers().firstValue("Location"), again.headers().firstValue("Location"));
-        assertEquals(1, Api.json(api.get("/org-units/search?q=1%E7%97%85%E6%A3%9F&asOf=2026-05-01")).size());
+        assertEquals(1, Api.json(api.get("/org-units?q=1%E7%97%85%E6%A3%9F&asOf=2026-05-01")).size());
         assertEquals(422, api.post("/org-units", "{\"name\": \"2病棟\", \"validFrom\": \"2026-04-01\"}",
                 "Idempotency-Key", "order-1").statusCode());
         assertEquals("idempotency.bad_key", Api.json(api.post("/org-units", body, "Idempotency-Key", " "))

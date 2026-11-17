@@ -55,7 +55,7 @@ class ImportIT {
         assertEquals(4, first.get("counts").get("orgUnits").get("created").asInt());
         assertEquals(List.of("X病院", "診療部", "看護部", "1病棟"), names(api, "2026-04-01"));
         assertEquals(List.of("X病院"), names(api, "1998-04-01"));
-        JsonNode root = Api.json(api.get("/org-units?asOf=2026-04-01")).get(0);
+        JsonNode root = Api.json(api.get("/org-units?roots=true&asOf=2026-04-01")).get(0);
         assertEquals(List.of("sheet=H"), Api.externalIds(root));
         assertEquals("sheet", root.get("source").asText());
         assertEquals("hospital", root.get("unitType").asText());
@@ -99,7 +99,7 @@ class ImportIT {
 
         assertEquals(1, first.get("counts").get("orgUnitParents").get("changed").asInt(), first.toString());
         assertEquals(1, again.get("counts").get("orgUnitParents").get("unchanged").asInt(), again.toString());
-        JsonNode roots = Api.json(realm.api.get("/org-units?asOf=2026-04-01&hierarchy=project"));
+        JsonNode roots = Api.json(realm.api.get("/org-units?roots=true&asOf=2026-04-01&hierarchy=project"));
         assertEquals(List.of("P"), roots.findValuesAsText("name"));
         assertEquals(List.of("C"), Api.json(realm.api.get("/org-units/" + roots.get(0).get("id").asText()
                 + "/children?asOf=2026-04-01&hierarchy=project")).findValuesAsText("name"));

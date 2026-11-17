@@ -370,7 +370,7 @@ A list that grows with the realm is read in pages.
 `max` is 100 by default and 1000 at most. A larger value counts as 1000.
 A read with fewer entries than `max` has reached the end.
 
-A list that has a cursor is better read with it. These are the lists of people, employments, assignments, and qualifications, and the members of an org unit.
+A list that has a cursor is better read with it. These are the lists of org units, people, employments, assignments, and qualifications, and the members of an org unit.
 
 - A response with a full page has the header `Link` with the URL of the next page and `rel="next"`. Follow it until a response has no such header.
 - The URL has the parameter `after` with a cursor. The cursor says where the next page starts, so a late page costs as much as the first one. With `first`, the database counts past every skipped row.
@@ -380,16 +380,19 @@ A list that has a cursor is better read with it. These are the lists of people, 
 - The name says which list the cursor belongs to. A cursor of another list gets 400 with `invalid.cursor`.
 - When the order of a list changes, its format gets a new version. A cursor of the old version gets 400, and the caller starts again from the first page.
 - A request gives `after` or `first`, not both.
-These are the lists of roots, children, subtrees, the search of org units, members, people, employments, assignments, qualifications, reference items, change orders, the change log, and the effective changes.
+- The cursor of the org units has only the ID of the last unit, for example `org-units.v1__<org unit ID>`. The other values of the order come from that unit on the date of the request. A unit that does not exist on that date gets 400 with `invalid.cursor_unit`.
+These are the lists of org units, children, subtrees, members, people, employments, assignments, qualifications, reference items, change orders, the change log, and the effective changes.
 
-The members of an org unit, the search of org units, and the lists of employments, assignments, and qualifications take `count=true`. The response then has the header `X-Total-Count` with the number of entries on all pages. It costs one more query, so a caller that only follows the pages leaves it out.
+The list of org units, the members of an org unit, and the lists of employments, assignments, and qualifications take `count=true`. The response then has the header `X-Total-Count` with the number of entries on all pages. It costs one more query, so a caller that only follows the pages leaves it out.
 
 The lists of one person and the history of one resource are returned whole. The reports of a person are the exception. They are read in pages, because the head of a large org unit has many.
 
-There is no read of the whole tree. `GET /org-units` lists the org units with no parent, the roots.
-A caller goes down with `GET /org-units/{id}/children`, or reads one branch with `GET /org-units/{id}/subtree`.
+`GET /org-units` lists every org unit of a date at any depth, or the ones that match its filters. The filters apply together. The list is not in tree order.
+`GET /org-units?roots=true` lists the org units with no parent, the roots.
+A caller goes down from them with `GET /org-units/{id}/children`, or reads one branch with `GET /org-units/{id}/subtree`.
 A subtree comes in tree order. Each parent comes before its children.
 Siblings follow the display order, then the phonetic name, then the name. A unit with no phonetic name comes after the ones that have it.
+The list of every org unit has the same order as siblings, and then the ID.
 The database orders the names, so the order of two names follows the collation of the database.
 The database also walks the subtree, so a read of one page does not load it into memory.
 The path of an org unit is read with a walk upward from the unit. The assignments of a person and the managers of a person use the same walk.
@@ -423,6 +426,7 @@ Every realm has the hierarchy `default`. A realm can create more with `POST /hie
 An org unit has at most one parent in each hierarchy on a date.
 
 - `PUT /org-units/{id}/parent`, `GET /org-units`, `GET /org-units/{id}`, `/children`, `/subtree`, `/path`, and `/members` take `hierarchy` with the code of a hierarchy. The default is `default`.
+- In `GET /org-units`, `hierarchy` names the hierarchy of the `parentId` of each unit and of `roots=true`. It does not leave out the units that are not in that hierarchy.
 - Every org unit is in the default hierarchy. Another hierarchy has only the units with a parent or a child in it on the date.
 - The history of an org unit lists its parents in every hierarchy.
 - An org unit cannot end while it has a child in any hierarchy. Its end ends its parent links in every hierarchy.
@@ -438,9 +442,8 @@ The database applies the filters, the order, and the page.
 | Path | Purpose |
 |---|---|
 | `/ref-items` | The lists that a realm defines, such as unit types and occupations |
-| `/org-units` | Org units. The list has the roots of a date, or the legal entities |
+| `/org-units` | Org units. The list has every unit of a date, found by name, code, unit type, lateral, legal entity, or root |
 | `/org-units/{id}/children`, `/subtree`, `/path` | The tree of a date, one level, one branch, or the way up |
-| `/org-units/search` | Every org unit of a date whose name, short name, or phonetic name has a text, with a code, or of a unit type |
 | `/org-units/{id}/succession` | The org units that a unit follows after a merger or a split, and the ones that follow it |
 | `/people` | The people that the realm knows, with or without a Keycloak user |
 | `/employments` | Employments of people, with their terms over time. The list finds them by staff number, employer, and date |

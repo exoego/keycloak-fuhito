@@ -52,6 +52,12 @@ public final class Cursor {
      */
     public static final Format QUALIFICATIONS = new Format("qualifications.v1", 1);
 
+    /**
+     * The org units of a date, in the order of siblings. The value is the ID of the org unit. The other values of
+     * the order come from its details on the date, so they need no place in the cursor.
+     */
+    public static final Format ORG_UNITS = new Format("org-units.v1", 1);
+
     // No value has this text. The values are IDs that the extension makes, numbers, and dates.
     private static final String SEPARATOR = "__";
 

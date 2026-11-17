@@ -77,13 +77,9 @@ final class MemoryOrgUnitStore implements OrgUnitStore {
     }
 
     @Override
-    public List<PlacedOrgUnit> childrenOn(String hierarchyId, String parentId, boolean linkedOnly, Boolean lateral,
-            LocalDate date, int first, int max) {
-        OrgUnitTree tree = new OrgUnitTree(this, refItems, date, hierarchyId);
-        if (parentId != null) {
-            return placed(of(lateral, tree.children(parentId)), first, max);
-        }
-        return placed(of(lateral, linkedOnly ? tree.linkedRoots() : tree.roots()), first, max);
+    public List<PlacedOrgUnit> childrenOn(String hierarchyId, String parentId, Boolean lateral, LocalDate date,
+            int first, int max) {
+        return placed(of(lateral, new OrgUnitTree(this, refItems, date, hierarchyId).children(parentId)), first, max);
     }
 
     private static List<OrgUnitState> of(Boolean lateral, List<OrgUnitState> states) {
@@ -96,19 +92,31 @@ final class MemoryOrgUnitStore implements OrgUnitStore {
                 .filter(state -> ids.contains(state.unit().id())).toList(), 0, Integer.MAX_VALUE);
     }
 
+    // The order of siblings that the database uses.
+    private static final Comparator<OrgUnitVersion> ORDER = Comparator.comparingInt(OrgUnitVersion::displayOrder)
+            .thenComparing(OrgUnitVersion::phoneticName, Comparator.nullsLast(Comparator.naturalOrder()))
+            .thenComparing(OrgUnitVersion::name)
+            .thenComparing(OrgUnitVersion::orgUnitId);
+
     @Override
-    public List<PlacedOrgUnit> searchOn(String hierarchyId, Search search, LocalDate date, int first, int max) {
-        return placed(found(hierarchyId, search, date), first, max);
+    public List<PlacedOrgUnit> searchOn(String hierarchyId, Search search, LocalDate date, OrgUnitVersion after,
+            int first, int max) {
+        return placed(found(hierarchyId, search, date).stream()
+                .filter(state -> after == null || ORDER.compare(state.version(), after) > 0)
+                .toList(), first, max);
     }
 
     @Override
-    public long countSearchOn(Search search, LocalDate date) {
-        return found(defaultHierarchyId(), search, date).size();
+    public long countSearchOn(String hierarchyId, Search search, LocalDate date) {
+        return found(hierarchyId, search, date).size();
     }
 
     private List<OrgUnitState> found(String hierarchyId, Search search, LocalDate date) {
         String text = search.text() == null ? null : search.text().toLowerCase(Locale.ROOT);
-        return of(search.lateral(), new OrgUnitTree(this, refItems, date, hierarchyId).all()).stream()
+        OrgUnitTree tree = new OrgUnitTree(this, refItems, date, hierarchyId);
+        List<OrgUnitState> units = search.roots() == null ? tree.all()
+                : search.roots() == Roots.LINKED ? tree.linkedRoots() : tree.roots();
+        return of(search.lateral(), units).stream()
                 .filter(state -> text == null || java.util.stream.Stream.of(
                                 java.util.stream.Stream.of(state.version().name(), state.version().shortName(),
                                         state.version().phoneticName()),
@@ -119,22 +127,14 @@ final class MemoryOrgUnitStore implements OrgUnitStore {
                 .filter(state -> search.code() == null || search.code().equals(state.version().code()))
                 .filter(state -> search.unitTypeId() == null
                         || search.unitTypeId().equals(state.version().unitTypeId()))
-                .sorted(Comparator.comparingInt((OrgUnitState state) -> state.version().displayOrder())
-                        .thenComparing(state -> state.version().name()))
+                .filter(state -> search.legalEntity() == null
+                        || search.legalEntity() == legalEntityTypes.contains(state.version().unitTypeId()))
+                .sorted(Comparator.comparing(OrgUnitState::version, ORDER))
                 .toList();
     }
 
     /** The IDs of the unit types that mark a legal entity. A test of legal entities sets them. */
     final Set<String> legalEntityTypes = new HashSet<>();
-
-    @Override
-    public List<PlacedOrgUnit> legalEntitiesOn(String hierarchyId, LocalDate date, int first, int max) {
-        return placed(new OrgUnitTree(this, new MemoryRefItemStore(), date, hierarchyId).all().stream()
-                .filter(state -> legalEntityTypes.contains(state.version().unitTypeId()))
-                .sorted(Comparator.comparingInt((OrgUnitState state) -> state.version().displayOrder())
-                        .thenComparing(state -> state.version().name()))
-                .toList(), first, max);
-    }
 
     /** The roles over org units. A test of roles sets it. */
     MemoryUnitRoleStore unitRoles;

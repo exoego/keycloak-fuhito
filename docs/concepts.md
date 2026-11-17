@@ -17,7 +17,7 @@ All data in this document belongs to one realm.
 | Hierarchy | 階層 | A named tree of org units. Each realm has one default hierarchy. More hierarchies put the same units in other trees, such as regions that gather branches of several divisions. |
 | Legal Entity | 法人 | An org unit whose unit type has the mark `legalEntity`, such as a company or a medical corporation. A realm can have several. `GET /org-units?legalEntity=true` lists them. |
 | Lateral Unit | 横断組織 | An org unit outside the line organization, such as a committee, a project team, or a labor union. The line organization is the vertical structure, and a lateral unit cuts across it. Its unit type has the mark `lateral`. A lateral unit can be a root or sit below any org unit, and lateral units can nest, such as a committee with subcommittees, a labor union with branches, or squads below a tribe. A line unit is never below a lateral unit in the default hierarchy. A lateral unit gives no derived manager. `lateral=true` and `lateral=false` on the reads of the tree pick lateral units or line units. |
-| Root | ルート | An org unit with no parent in a hierarchy. A realm can have several roots, for example one for each hospital. |
+| Root | ルート | An org unit with no parent in a hierarchy. A realm can have several roots, for example one for each hospital. `GET /org-units?roots=true` lists them. |
 
 An org unit keeps its identity when its name or its parent changes.
 The name and the other details live in dated versions.
