@@ -29,17 +29,17 @@ class AdminEventsIT {
 
         String typeId = Api.json(api.post("/ref-items",
                 "{\"kind\": \"UNIT_TYPE\", \"code\": \"dept\", \"name\": \"部\"}")).get("id").asText();
-        api.put("/ref-items/" + typeId, "{\"name\": \"部門\"}");
+        api.putWithVersion("/ref-items/" + typeId, "{\"name\": \"部門\"}");
         String parentId = Api.json(api.post("/org-units", "{\"name\": \"本部\", \"validFrom\": \"2026-04-01\"}")).get("id").asText();
         String unitId = Api.json(api.post("/org-units", "{\"name\": \"経理部\", \"validFrom\": \"2026-04-01\"}")).get("id").asText();
-        api.put("/org-units/" + unitId, "{\"name\": \"財務部\", \"validFrom\": \"2027-04-01\"}");
-        api.put("/org-units/" + unitId + "/parent", "{\"parentId\": \"" + parentId + "\", \"validFrom\": \"2028-04-01\"}");
-        api.put("/org-units/" + unitId + "/end", "{\"validTo\": \"2029-04-01\"}");
+        api.putWithVersion("/org-units/" + unitId, "{\"name\": \"財務部\", \"validFrom\": \"2027-04-01\"}");
+        api.putWithVersion("/org-units/" + unitId + "/parent", "{\"parentId\": \"" + parentId + "\", \"validFrom\": \"2028-04-01\"}");
+        api.putWithVersion("/org-units/" + unitId + "/end", "{\"validTo\": \"2029-04-01\"}");
         // Failed requests and reads record nothing.
-        assertEquals(404, api.put("/org-units/" + unitId + "/end", "{\"validTo\": \"2026-01-01\"}").statusCode());
+        assertEquals(404, api.putWithVersion("/org-units/" + unitId + "/end", "{\"validTo\": \"2026-01-01\"}").statusCode());
         assertEquals(400, api.post("/org-units", "{\"name\": \" \", \"validFrom\": \"2026-04-01\"}").statusCode());
         assertEquals(200, api.get("/org-units?asOf=2026-04-01").statusCode());
-        assertEquals(204, api.delete("/ref-items/" + typeId).statusCode());
+        assertEquals(204, api.deleteWithVersion("/ref-items/" + typeId).statusCode());
 
         List<AdminEventRepresentation> events = admin.realm(realm.getRealm()).getAdminEvents().stream()
                 .filter(e -> e.getResourceType().startsWith("FUHITO_"))

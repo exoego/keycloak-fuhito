@@ -54,7 +54,7 @@ class ReorganizationIT {
                 + "\", \"validFrom\": \"2026-04-01\"}")).get("id").asText();
 
         // A failed step writes no link.
-        HttpResponse<String> bad = own.post("/reorganizations", """
+        HttpResponse<String> bad = own.postWithVersion("/reorganizations", """
                 {"effectiveDate": "2027-04-01", "steps": [
                   {"op": "create", "ref": "merged", "name": "中央病棟", "parentId": "%s"},
                   {"op": "succeed", "id": "%s", "successorRefs": ["merged"]},
@@ -66,7 +66,7 @@ class ReorganizationIT {
         assertEquals("2", Api.json(bad).get("params").get("step").asText());
         assertEquals(0, Api.json(own.get("/org-units/" + east + "/succession")).get("successors").size());
 
-        HttpResponse<String> response = own.post("/reorganizations", """
+        HttpResponse<String> response = own.postWithVersion("/reorganizations", """
                 {"effectiveDate": "2027-04-01", "steps": [
                   {"op": "create", "ref": "merged", "name": "中央病棟", "parentId": "%s"},
                   {"op": "succeed", "id": "%s", "successorRefs": ["merged"]},
@@ -102,7 +102,7 @@ class ReorganizationIT {
         String order = Api.json(api.post("/change-orders",
                 "{\"title\": \"2027年度組織改編\", \"kind\": \"reorganization\", \"effectiveDate\": \"2027-04-01\"}")).get("id").asText();
 
-        HttpResponse<String> response = api.post("/reorganizations?changeOrder=" + order, """
+        HttpResponse<String> response = api.postWithVersion("/reorganizations?changeOrder=" + order, """
                 {"effectiveDate": "2027-04-01", "steps": [
                   {"op": "change", "id": "%s", "name": "X総合病院"},
                   {"op": "create", "ref": "clinical", "name": "診療部", "parentId": "%s", "displayOrder": 1},
@@ -143,7 +143,7 @@ class ReorganizationIT {
         assertEquals("2", KeycloakEnvironment.sql(logRows));
 
         // The last step fails, because the root still has a child.
-        HttpResponse<String> response = scratch.api.post("/reorganizations", """
+        HttpResponse<String> response = scratch.api.postWithVersion("/reorganizations", """
                 {"effectiveDate": "2027-04-01", "steps": [
                   {"op": "change", "id": "%s", "name": "Renamed"},
                   {"op": "create", "ref": "new", "name": "New"},
@@ -161,14 +161,44 @@ class ReorganizationIT {
     }
 
     @Test
+    void aStepOfAStoredUnitNamesItsVersion() throws Exception {
+        Api own = TestRealm.create("reorganization-versions").api;
+        String root = Api.json(own.post("/org-units", "{\"name\": \"Root\", \"validFrom\": \"2026-04-01\"}"))
+                .get("id").asText();
+        String steps = """
+                {"effectiveDate": "2027-04-01", "steps": [
+                  {"op": "create", "ref": "new", "name": "New"},
+                  {"op": "change", "id": "%s", "name": "Renamed"%s},
+                  {"op": "move", "unitRef": "new", "parentId": "%s"}
+                ]}""";
+
+        HttpResponse<String> none = own.post("/reorganizations", steps.formatted(root, "", root));
+        assertEquals(400, none.statusCode(), none.body());
+        assertEquals("version.required", Api.json(none).get("error").asText());
+        assertEquals("1", Api.json(none).get("params").get("step").asText());
+        HttpResponse<String> old = own.post("/reorganizations", steps.formatted(root, ", \"version\": 2", root));
+        assertEquals(409, old.statusCode(), old.body());
+        assertEquals("version.conflict", Api.json(old).get("error").asText());
+        assertEquals("1", Api.json(old).get("params").get("version").asText());
+        assertEquals("1", Api.json(old).get("params").get("step").asText());
+        assertEquals(List.of("Root"), own.tree("asOf=2027-04-01").findValuesAsText("name"));
+
+        // A unit of a create step of the same request needs no version.
+        HttpResponse<String> done = own.post("/reorganizations", steps.formatted(root, ", \"version\": 1", root));
+        assertEquals(200, done.statusCode(), done.body());
+        assertEquals(List.of("Renamed", "New"), own.tree("asOf=2027-04-01").findValuesAsText("name"));
+        assertEquals(2, Api.json(own.get("/org-units/" + root + "/history")).get("version").asLong());
+    }
+
+    @Test
     void rejectsBadRequests() throws Exception {
-        assertEquals(400, api.post("/reorganizations", "{\"steps\": [{\"op\": \"end\", \"id\": \"" + oldOffice + "\"}]}").statusCode());
+        assertEquals(400, api.postWithVersion("/reorganizations", "{\"steps\": [{\"op\": \"end\", \"id\": \"" + oldOffice + "\"}]}").statusCode());
         assertEquals(400, api.post("/reorganizations", "{\"effectiveDate\": \"2027-04-01\", \"steps\": []}").statusCode());
         HttpResponse<String> badRef = api.post("/reorganizations",
                 "{\"effectiveDate\": \"2028-04-01\", \"steps\": [{\"op\": \"create\", \"name\": \"x\", \"parentRef\": \"nope\"}]}");
         assertEquals(400, badRef.statusCode());
         assertEquals("reorganization.ref_unknown", Api.json(badRef).get("error").asText());
-        HttpResponse<String> badOp = api.post("/reorganizations",
+        HttpResponse<String> badOp = api.postWithVersion("/reorganizations",
                 "{\"effectiveDate\": \"2028-04-01\", \"steps\": [{\"op\": \"merge\", \"id\": \"" + medicine + "\"}]}");
         assertEquals("invalid.choice", Api.json(badOp).get("error").asText());
         assertEquals(401, new Api(realm.name, null).post("/reorganizations", "{}").statusCode());

@@ -49,7 +49,9 @@ public class ReorganizationsResource {
     @Operation(
             operationId = "applyReorganization",
             summary = "Changes many org units on one date, in one transaction.",
-            description = "A failed step writes nothing.")
+            description = "A failed step writes nothing. A step that changes a stored unit names the `version` of "
+                    + "the unit that the caller read. An old version fails with 409 and `version.conflict`, and "
+                    + "`step` in the values of the error.")
     @Parameter(ref = "changeOrder")
     @APIResponse(responseCode = "200", description = "What each step did.")
     @BadRequest
@@ -60,7 +62,9 @@ public class ReorganizationsResource {
         return Calls.once(context, body, ReorganizationRepresentation.class, () -> Calls.run(context, () -> {
             Checks.required("body", body);
             List<ReorganizationRepresentation.Result> results = new ArrayList<>();
-            List<ReorganizationService.Result> applied = service.apply(body.effectiveDate(), body.steps());
+            // A second request that changes the same unit waits for the first one.
+            List<ReorganizationService.Result> applied = service.apply(body.effectiveDate(), body.steps(),
+                    id -> context.lock("org-units", id));
             ExternalIdLists ids = externalIds.lists(ExternalId.Kind.ORG_UNIT,
                     applied.stream().map(result -> result.unit().unit().id()).distinct().toList());
             for (ReorganizationService.Result result : applied) {

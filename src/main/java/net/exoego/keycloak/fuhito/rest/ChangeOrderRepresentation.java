@@ -13,9 +13,8 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
 public record ChangeOrderRepresentation(
         @Schema(readOnly = true)
         String id,
-        @Schema(
-                description = "The version of the order. A new order has 1. Each write counts it up by one.",
-                readOnly = true)
+        @Schema(description = "The version of the order. A new order has 1. Each write counts it up by one. A write "
+                + "of a stored order sends the version that the caller read. A create needs none.")
         Long version,
         @Schema(
                 description = "The number that the legal entity gives to the order.",
@@ -51,7 +50,7 @@ public record ChangeOrderRepresentation(
                 readOnly = true)
         String announcedAt,
         @Schema(description = "The ID of the Keycloak user who recorded the announcement.", readOnly = true)
-        String announcedByUserId) {
+        String announcedByUserId) implements Versioned {
 
     static ChangeOrderRepresentation of(ChangeOrder order) {
         return new ChangeOrderRepresentation(order.id(), order.version(), order.number(), order.kind(), order.title(),

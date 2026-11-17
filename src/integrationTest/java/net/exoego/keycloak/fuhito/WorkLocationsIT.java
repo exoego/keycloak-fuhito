@@ -77,9 +77,9 @@ class WorkLocationsIT {
         String sales = unit("営業部", company, ", \"costCenter\": \"cc-sales\"");
         String team = unit("営業第1課", sales, "");
         String other = unit("別会社", null, "");
-        ok(api.put("/org-units/" + company, "{\"name\": \"会社\", \"workLocation\": \"osaka\", "
+        ok(api.putWithVersion("/org-units/" + company, "{\"name\": \"会社\", \"workLocation\": \"osaka\", "
                 + "\"costCenter\": \"cc-hq\", \"validFrom\": \"2021-04-01\"}"));
-        ok(api.put("/org-units/" + team + "/parent", "{\"parentId\": \"" + other + "\", \"validFrom\": "
+        ok(api.putWithVersion("/org-units/" + team + "/parent", "{\"parentId\": \"" + other + "\", \"validFrom\": "
                 + "\"2022-04-01\"}"));
 
         assertEquals("tokyo cc-hq tokyo cc-hq", places(get("/org-units/" + company + "?asOf=2020-04-01")));
@@ -100,7 +100,7 @@ class WorkLocationsIT {
                 each(get("/org-units/" + company + "/history").get("versions")));
 
         // A step of a reorganization gives a unit its values.
-        ok(api.post("/reorganizations", "{\"effectiveDate\": \"2023-04-01\", \"steps\": [{\"op\": \"change\", "
+        ok(api.postWithVersion("/reorganizations", "{\"effectiveDate\": \"2023-04-01\", \"steps\": [{\"op\": \"change\", "
                 + "\"id\": \"" + other + "\", \"name\": \"別会社\", \"workLocation\": \"nagoya\"}]}"));
         assertEquals("null null nagoya null", places(get("/org-units/" + team + "?asOf=2023-04-01")));
         // A unit with a work location of its own takes only the cost center from above.
@@ -109,7 +109,7 @@ class WorkLocationsIT {
 
         assertEquals("ref_item.unknown", errorOf(api.post("/org-units", "{\"name\": \"X\", \"costCenter\": \"nope\", "
                 + "\"validFrom\": \"2020-04-01\"}")));
-        assertEquals("ref_item.unknown", errorOf(api.put("/org-units/" + team, "{\"name\": \"営業第1課\", "
+        assertEquals("ref_item.unknown", errorOf(api.putWithVersion("/org-units/" + team, "{\"name\": \"営業第1課\", "
                 + "\"workLocation\": \"cc-hq\", \"validFrom\": \"2024-04-01\"}")));
     }
 
@@ -132,7 +132,7 @@ class WorkLocationsIT {
         String sales = unit("営業本部", office, ", \"costCenter\": \"cc-sales\"");
         String branch = unit("名古屋営業所", sales, ", \"workLocation\": \"nagoya\", \"displayOrder\": 1");
         String team = unit("営業課", sales, ", \"displayOrder\": 2");
-        ok(api.put("/org-units/" + office, "{\"name\": \"本部\", \"workLocation\": \"osaka\", "
+        ok(api.putWithVersion("/org-units/" + office, "{\"name\": \"本部\", \"workLocation\": \"osaka\", "
                 + "\"costCenter\": \"cc-hq\", \"validFrom\": \"2021-04-01\"}"));
         String atTop = assign("at-top", office, ", \"displayOrder\": 0");
         String inTeam = assign("in-team", team, ", \"displayOrder\": 1");
@@ -190,7 +190,7 @@ class WorkLocationsIT {
         ok(api.post("/hierarchies", "{\"code\": \"project\", \"name\": \"プロジェクト\"}"));
         String project = unit("新製品プロジェクト", null, ", \"workLocation\": \"osaka\"");
         String inProject = assign("in-project", project, "");
-        ok(api.put("/org-units/" + team + "/parent?hierarchy=project", "{\"parentId\": \"" + project
+        ok(api.putWithVersion("/org-units/" + team + "/parent?hierarchy=project", "{\"parentId\": \"" + project
                 + "\", \"validFrom\": \"2020-04-01\"}"));
         String inProjectTree = "hierarchy=project&" + below;
         assertEquals(List.of(inProject, inTeam, atHome, ownTokyo), members(project, inProjectTree));
@@ -212,9 +212,9 @@ class WorkLocationsIT {
                 + sales + "\", \"validFrom\": \"2020-04-01\", \"costCenter\": \"cc-hq\"}")).get("assignment");
         String firstId = first.get("id").asText();
         assertEquals(List.of("null cc-hq tokyo cc-hq"), each(first.get("periods")));
-        ok(api.put("/assignments/" + firstId + "/details", "{\"validFrom\": \"2021-01-01\", \"workLocation\": "
+        ok(api.putWithVersion("/assignments/" + firstId + "/details", "{\"validFrom\": \"2021-01-01\", \"workLocation\": "
                 + "\"home\", \"primary\": true}"));
-        ok(api.put("/org-units/" + company, "{\"name\": \"本社\", \"workLocation\": \"osaka\", "
+        ok(api.putWithVersion("/org-units/" + company, "{\"name\": \"本社\", \"workLocation\": \"osaka\", "
                 + "\"costCenter\": \"cc-hq\", \"validFrom\": \"2021-04-01\"}"));
         String second = ok(api.post("/staff", "{\"userId\": \"" + realm.user("second") + "\", \"orgUnitId\": \""
                 + sales + "\", \"validFrom\": \"2020-04-01\"}")).get("assignment").get("id").asText();
@@ -225,16 +225,15 @@ class WorkLocationsIT {
         HttpResponse<String> read = api.get("/assignments/" + second);
         assertEquals(List.of("null null osaka cc-sales"), each(Api.json(read).get("periods")));
 
-        // A correction of the unit changes what applies to the assignment, but not its ETag.
-        ok(api.put("/org-units/" + company, "{\"name\": \"本社\", \"workLocation\": \"nagoya\", "
+        // A correction of the unit changes what applies to the assignment, but not its version.
+        ok(api.putWithVersion("/org-units/" + company, "{\"name\": \"本社\", \"workLocation\": \"nagoya\", "
                 + "\"costCenter\": \"cc-hq\", \"validFrom\": \"2021-04-01\"}"));
         HttpResponse<String> again = api.get("/assignments/" + second);
         assertEquals(List.of("null null nagoya cc-sales"), each(Api.json(again).get("periods")));
-        assertEquals(read.headers().firstValue("ETag").orElseThrow(), again.headers().firstValue("ETag")
-                .orElseThrow());
+        assertEquals(Api.json(read).get("version"), Api.json(again).get("version"));
 
         // A move does not keep the values of the old assignment, and can give new ones.
-        JsonNode move = ok(api.post("/assignments/" + second + "/move", "{\"orgUnitId\": \"" + elsewhere
+        JsonNode move = ok(api.postWithVersion("/assignments/" + second + "/move", "{\"orgUnitId\": \"" + elsewhere
                 + "\", \"validFrom\": \"2022-04-01\", \"costCenter\": \"cc-hq\"}"));
         assertEquals(List.of("null null nagoya cc-sales"), each(move.get("ended").get("periods")));
         assertEquals(List.of("null cc-hq null cc-hq"), each(move.get("started").get("periods")));
@@ -242,7 +241,7 @@ class WorkLocationsIT {
         assertEquals("ref_item.unknown", errorOf(api.post("/assignments", "{\"employmentId\": \""
                 + first.get("employmentId").asText() + "\", \"orgUnitId\": \"" + sales + "\", \"validFrom\": "
                 + "\"2020-04-01\", \"workLocation\": \"cc-hq\"}")));
-        assertEquals("ref_item.unknown", errorOf(api.put("/assignments/" + firstId + "/details",
+        assertEquals("ref_item.unknown", errorOf(api.putWithVersion("/assignments/" + firstId + "/details",
                 "{\"validFrom\": \"2022-01-01\", \"costCenter\": \"tokyo\"}")));
     }
 }

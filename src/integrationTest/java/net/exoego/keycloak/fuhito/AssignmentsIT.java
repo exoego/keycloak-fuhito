@@ -104,7 +104,7 @@ class AssignmentsIT {
     void changesAJobTitleOnADateAndEndsTheAssignment() throws Exception {
         String id = id(api.post("/assignments", assign(xMedicine, ", \"jobTitle\": \"staff\"")));
 
-        HttpResponse<String> response = api.put("/assignments/" + id + "/details",
+        HttpResponse<String> response = api.putWithVersion("/assignments/" + id + "/details",
                 "{\"validFrom\": \"2027-04-01\", \"jobTitle\": \"director\", \"head\": true}");
         assertEquals(200, response.statusCode(), response.body());
         JsonNode changed = Api.json(response);
@@ -113,17 +113,17 @@ class AssignmentsIT {
         assertEquals("2027-04-01", changed.get("periods").get(0).get("validTo").asText());
         assertTrue(changed.get("periods").get(1).get("head").asBoolean());
 
-        JsonNode ended = Api.json(api.put("/assignments/" + id + "/end", "{\"validTo\": \"2028-04-01\"}"));
+        JsonNode ended = Api.json(api.putWithVersion("/assignments/" + id + "/end", "{\"validTo\": \"2028-04-01\"}"));
         assertEquals("2028-04-01", ended.get("validTo").asText());
         assertEquals("2028-04-01", ended.get("periods").get(1).get("validTo").asText());
         assertEquals(ended, Api.json(api.get("/assignments/" + id)));
         // The end can move later, and it can be removed.
-        assertEquals("2029-04-01", Api.json(api.put("/assignments/" + id + "/end", "{\"validTo\": \"2029-04-01\"}")).get("validTo").asText());
-        HttpResponse<String> reopened = api.delete("/assignments/" + id + "/end");
+        assertEquals("2029-04-01", Api.json(api.putWithVersion("/assignments/" + id + "/end", "{\"validTo\": \"2029-04-01\"}")).get("validTo").asText());
+        HttpResponse<String> reopened = api.deleteWithVersion("/assignments/" + id + "/end");
         assertEquals(200, reopened.statusCode(), reopened.body());
         assertFalse(Api.json(reopened).has("validTo"));
-        assertEquals("assignment.later_changes_exist", errorOf(409, api.put("/assignments/" + id + "/end", "{\"validTo\": \"2027-01-01\"}")));
-        assertEquals("ref_item.in_use", errorOf(409, api.delete("/ref-items/" + directorId)));
+        assertEquals("assignment.later_changes_exist", errorOf(409, api.putWithVersion("/assignments/" + id + "/end", "{\"validTo\": \"2027-01-01\"}")));
+        assertEquals("ref_item.in_use", errorOf(409, api.deleteWithVersion("/ref-items/" + directorId)));
     }
 
     @Test
@@ -146,9 +146,9 @@ class AssignmentsIT {
         assertEquals(List.of("true"), Api.json(api.get("/assignments/" + now)).get("periods").findValuesAsText("primary"));
 
         // The old assignment takes the flag back from 2028 with a change of its details.
-        assertEquals("assignment.primary_exists", errorOf(409, api.put("/assignments/" + old + "/details",
+        assertEquals("assignment.primary_exists", errorOf(409, api.putWithVersion("/assignments/" + old + "/details",
                 "{\"validFrom\": \"2028-04-01\", \"primary\": true}")));
-        assertEquals(200, api.put("/assignments/" + old + "/details",
+        assertEquals(200, api.putWithVersion("/assignments/" + old + "/details",
                 "{\"validFrom\": \"2028-04-01\", \"primary\": true, \"switchPrimary\": true}").statusCode());
         assertEquals(List.of("true", "false", "true"),
                 Api.json(api.get("/assignments/" + old)).get("periods").findValuesAsText("primary"));
@@ -178,22 +178,22 @@ class AssignmentsIT {
         String first = id(api.post("/assignments", assign(unit, "")));
         id(api.post("/assignments", assign(unit, ", \"validTo\": \"2027-04-01\"")));
 
-        HttpResponse<String> rejected = api.put("/org-units/" + unit + "/end", "{\"validTo\": \"2027-01-01\"}");
+        HttpResponse<String> rejected = api.putWithVersion("/org-units/" + unit + "/end", "{\"validTo\": \"2027-01-01\"}");
         assertEquals("org_unit.has_assignments", errorOf(409, rejected));
         assertEquals("2", Api.json(rejected).get("params").get("count").asText());
-        assertEquals("1", Api.json(api.put("/org-units/" + unit + "/end", "{\"validTo\": \"2027-04-01\"}"))
+        assertEquals("1", Api.json(api.putWithVersion("/org-units/" + unit + "/end", "{\"validTo\": \"2027-04-01\"}"))
                 .get("params").get("count").asText());
 
         // Once the last assignment ends on the date, the unit can end on it.
-        assertEquals(200, api.put("/assignments/" + first + "/end", "{\"validTo\": \"2027-04-01\"}").statusCode());
-        assertEquals(200, api.put("/org-units/" + unit + "/end", "{\"validTo\": \"2027-04-01\"}").statusCode());
+        assertEquals(200, api.putWithVersion("/assignments/" + first + "/end", "{\"validTo\": \"2027-04-01\"}").statusCode());
+        assertEquals(200, api.putWithVersion("/org-units/" + unit + "/end", "{\"validTo\": \"2027-04-01\"}").statusCode());
     }
 
     @Test
     void rejectsBadRequests() throws Exception {
         String id = id(api.post("/assignments", assign(xMedicine, "")));
         String closing = unit("閉鎖予定", null);
-        assertEquals(200, api.put("/org-units/" + closing + "/end", "{\"validTo\": \"2027-04-01\"}").statusCode());
+        assertEquals(200, api.putWithVersion("/org-units/" + closing + "/end", "{\"validTo\": \"2027-04-01\"}").statusCode());
 
         assertEquals("assignment.employment_unknown", errorOf(400, api.post("/assignments",
                 "{\"employmentId\": \"nope\", \"orgUnitId\": \"" + xMedicine + "\", \"validFrom\": \"2026-04-01\"}")));
@@ -205,10 +205,10 @@ class AssignmentsIT {
         assertEquals("ref_item.unknown", errorOf(400, api.post("/assignments", assign(xMedicine, ", \"jobTitle\": \"physician\""))));
         assertEquals("invalid.percent", errorOf(400, api.post("/assignments", assign(xMedicine, ", \"allocationPercent\": 0"))));
         assertEquals("invalid.required", errorOf(400, api.post("/assignments", "{\"employmentId\": \"" + employment + "\"}")));
-        assertEquals("assignment.not_valid_on", errorOf(404, api.put("/assignments/" + id + "/details", "{\"validFrom\": \"2026-03-31\"}")));
+        assertEquals("assignment.not_valid_on", errorOf(404, api.putWithVersion("/assignments/" + id + "/details", "{\"validFrom\": \"2026-03-31\"}")));
         assertEquals("assignment.not_found", errorOf(404, api.get("/assignments/nope")));
         assertEquals("assignment.not_found", errorOf(404, otherRealm.api.get("/assignments/" + id)));
-        assertEquals("assignment.not_found", errorOf(404, otherRealm.api.put("/assignments/" + id + "/end", "{\"validTo\": \"2027-04-01\"}")));
+        assertEquals("assignment.not_found", errorOf(404, otherRealm.api.putWithVersion("/assignments/" + id + "/end", "{\"validTo\": \"2027-04-01\"}")));
         assertEquals("assignment.employment_unknown", errorOf(400, otherRealm.api.post("/assignments", assign(xMedicine, ""))));
         assertEquals(401, new Api(realm.name, null).post("/assignments", "{}").statusCode());
     }
@@ -226,12 +226,12 @@ class AssignmentsIT {
                 + "\", \"jobTitle\": \"staff\", \"validFrom\": \"2020-04-01\"}"));
         String old = hired.get("assignment").get("id").asText();
 
-        assertEquals("assignment.same_org_unit", errorOf(400, scratchApi.post("/assignments/" + old + "/move",
+        assertEquals("assignment.same_org_unit", errorOf(400, scratchApi.postWithVersion("/assignments/" + old + "/move",
                 "{\"orgUnitId\": \"" + medicine + "\", \"validFrom\": \"2027-04-01\"}")));
-        assertEquals("assignment.not_valid_on", errorOf(404, scratchApi.post("/assignments/" + old + "/move",
+        assertEquals("assignment.not_valid_on", errorOf(404, scratchApi.postWithVersion("/assignments/" + old + "/move",
                 "{\"orgUnitId\": \"" + surgery + "\", \"validFrom\": \"2020-04-01\"}")));
 
-        HttpResponse<String> response = scratchApi.post("/assignments/" + old + "/move",
+        HttpResponse<String> response = scratchApi.postWithVersion("/assignments/" + old + "/move",
                 "{\"orgUnitId\": \"" + surgery + "\", \"validFrom\": \"2027-04-01\", \"jobTitle\": \"director\", \"head\": true}");
 
         assertEquals(201, response.statusCode(), response.body());

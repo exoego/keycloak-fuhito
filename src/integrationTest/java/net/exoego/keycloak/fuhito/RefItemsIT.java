@@ -159,7 +159,7 @@ class RefItemsIT {
         String id = created(api.post("/ref-items",
                 "{\"kind\": \"UNIT_TYPE\", \"code\": \"to-update\", \"name\": \"Old\", \"names\": {\"ja\": \"旧\"}}")).get("id").asText();
 
-        HttpResponse<String> response = api.put("/ref-items/" + id,
+        HttpResponse<String> response = api.putWithVersion("/ref-items/" + id,
                 "{\"kind\": \"IGNORED\", \"code\": \"ignored\", \"name\": \"New\", \"displayOrder\": 5, \"active\": false}");
 
         assertEquals(200, response.statusCode(), response.body());
@@ -186,11 +186,11 @@ class RefItemsIT {
         String id = created(api.post("/ref-items",
                 "{\"kind\": \"UNIT_TYPE\", \"code\": \"to-delete\", \"name\": \"x\"}")).get("id").asText();
 
-        assertEquals(204, api.delete("/ref-items/" + id).statusCode());
+        assertEquals(204, api.deleteWithVersion("/ref-items/" + id).statusCode());
 
         assertEquals("ref_item.not_found", errorOf(404, api.get("/ref-items/" + id)));
-        assertEquals("ref_item.not_found", errorOf(404, api.delete("/ref-items/" + id)));
-        assertEquals("ref_item.not_found", errorOf(404, api.put("/ref-items/" + id, "{\"name\": \"x\"}")));
+        assertEquals("ref_item.not_found", errorOf(404, api.deleteWithVersion("/ref-items/" + id)));
+        assertEquals("ref_item.not_found", errorOf(404, api.putWithVersion("/ref-items/" + id, "{\"name\": \"x\"}")));
     }
 
     @Test
@@ -200,8 +200,8 @@ class RefItemsIT {
 
         assertFalse(codes(otherRealmApi.get("/ref-items?kind=UNIT_TYPE")).contains("per-realm"));
         assertEquals(404, otherRealmApi.get("/ref-items/" + id).statusCode());
-        assertEquals(404, otherRealmApi.put("/ref-items/" + id, "{\"name\": \"stolen\"}").statusCode());
-        assertEquals(404, otherRealmApi.delete("/ref-items/" + id).statusCode());
+        assertEquals(404, otherRealmApi.putWithVersion("/ref-items/" + id, "{\"name\": \"stolen\"}").statusCode());
+        assertEquals(404, otherRealmApi.deleteWithVersion("/ref-items/" + id).statusCode());
         created(otherRealmApi.post("/ref-items", body));
         assertEquals("x", Api.json(api.get("/ref-items/" + id)).get("name").asText());
     }

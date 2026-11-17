@@ -213,13 +213,19 @@ public class EmploymentsResource {
             description = "It works only when the employment has no assignment and no role over an org unit, and no employment continues it. Its terms go with it. End an employment that held for a while instead.")
     @Parameter(ref = "changeOrder")
     @APIResponse(responseCode = "204", description = "The resource is gone.")
+    @BadRequest
     @NotFound
     @ApiErrors
     public Response remove(
             @Parameter(description = "The ID of the resource.")
-            @PathParam("id") String id) {
+            @PathParam("id") String id,
+            @Parameter(
+                    description = "The version of the employment that the caller read.",
+                    required = true,
+                    schema = @Schema(type = SchemaType.INTEGER, format = "int64"))
+            @QueryParam("version") String version) {
         context.requireWrite();
-        return Calls.guardedRemoval(context, () -> state(id), () -> {
+        return Calls.guarded(context, version, () -> version(id), () -> {
             removals.remove(ResourceRemoval.Kind.EMPLOYMENT, id);
             context.recordChange(Change.DELETE, RESOURCE_TYPE, id, "fuhito/employments/" + id, null);
             return Response.noContent().build();
@@ -243,8 +249,7 @@ public class EmploymentsResource {
             @PathParam("id") String id,
             EmploymentRepresentation.Terms body) {
         context.requireWrite();
-        return Calls.guarded(context, () -> state(id), () -> {
-            Checks.required("body", body);
+        return Calls.guarded(context, body, () -> version(id), () -> {
             var employment = represent(service.changeTerms(id, new TermsChange(body.validFrom(),
                     body.employmentType(), body.grade(), body.status(), body.leaveReason(), body.workPercent(),
                     body.contractEndDate(), body.attributes())));
@@ -270,8 +275,7 @@ public class EmploymentsResource {
             @PathParam("id") String id,
             EndRepresentation body) {
         context.requireWrite();
-        return Calls.guarded(context, () -> state(id), () -> {
-            Checks.required("body", body);
+        return Calls.guarded(context, body, () -> version(id), () -> {
             var employment = represent(service.end(id, body.validTo(), body.endReason()));
             context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, "fuhito/employments/" + id + "/end", employment);
             return employment;
@@ -301,8 +305,7 @@ public class EmploymentsResource {
             PromotionRepresentation body) {
         context.requireWrite();
         return Calls.once(context, body, PromotionRepresentation.class,
-                () -> Calls.guarded(context, () -> state(id), () -> {
-            Checks.required("body", body);
+                () -> Calls.guarded(context, body, () -> version(id), () -> {
             PromotionService.Promotion promotion = promotions.promote(id, body.toRequest());
             var employment = represent(promotion.employment());
             context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, "fuhito/employments/" + id + "/promotion",
@@ -336,8 +339,7 @@ public class EmploymentsResource {
             LeaveRepresentation body) {
         context.requireWrite();
         return Calls.once(context, body, EmploymentRepresentation.class,
-                () -> Calls.guarded(context, () -> state(id), () -> {
-            Checks.required("body", body);
+                () -> Calls.guarded(context, body, () -> version(id), () -> {
             var employment = represent(leaves.start(id, body.validFrom(), body.validTo(),
                     body.reason()));
             context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, "fuhito/employments/" + id + "/leave", employment);
@@ -363,8 +365,7 @@ public class EmploymentsResource {
             ReturnRepresentation body) {
         context.requireWrite();
         return Calls.once(context, body, EmploymentRepresentation.class,
-                () -> Calls.guarded(context, () -> state(id), () -> {
-            Checks.required("body", body);
+                () -> Calls.guarded(context, body, () -> version(id), () -> {
             var employment = represent(leaves.end(id, body.validFrom()));
             context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, "fuhito/employments/" + id + "/return", employment);
             return employment;
@@ -394,8 +395,7 @@ public class EmploymentsResource {
             @PathParam("id") String id,
             TransferRepresentation body) {
         context.requireWrite();
-        return Calls.once(context, body, Response.class, () -> Calls.guarded(context, () -> state(id), () -> {
-            Checks.required("body", body);
+        return Calls.once(context, body, Response.class, () -> Calls.guarded(context, body, () -> version(id), () -> {
             return Response.status(Response.Status.CREATED)
                     .entity(record(service.transfer(id, body.toRequest())))
                     .build();
@@ -479,9 +479,14 @@ public class EmploymentsResource {
     @ApiErrors
     public EmploymentRepresentation removeEnd(
             @Parameter(description = "The ID of the resource.")
-            @PathParam("id") String id) {
+            @PathParam("id") String id,
+            @Parameter(
+                    description = "The version of the employment that the caller read.",
+                    required = true,
+                    schema = @Schema(type = SchemaType.INTEGER, format = "int64"))
+            @QueryParam("version") String version) {
         context.requireWrite();
-        return Calls.guarded(context, () -> state(id), () -> {
+        return Calls.guarded(context, version, () -> version(id), () -> {
             var employment = represent(service.removeEnd(id));
             context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, "fuhito/employments/" + id + "/end", employment);
             return employment;
@@ -498,7 +503,7 @@ public class EmploymentsResource {
             @Parameter(description = "The ID of the resource.")
             @PathParam("id") String id) {
         context.requireRead();
-        return Calls.tagged(context, () -> represent(service.get(id)));
+        return Calls.run(context, () -> represent(service.get(id)));
     }
 
     // The IDs of every employment of a list are read with one query.
@@ -512,8 +517,7 @@ public class EmploymentsResource {
         return represent(List.of(view)).getFirst();
     }
 
-    // The whole stored state of one resource, which its ETag covers.
-    private Object state(String id) {
-        return represent(service.get(id));
+    private long version(String id) {
+        return service.get(id).employment().version();
     }
 }

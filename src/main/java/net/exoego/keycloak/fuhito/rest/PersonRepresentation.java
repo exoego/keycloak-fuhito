@@ -15,10 +15,9 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
 public record PersonRepresentation(
         @Schema(readOnly = true)
         String id,
-        @Schema(
-                description = "The version of the person. A new person has 1. Each write counts it up by one, also a "
-                        + "mask or a change of an ID of another system.",
-                readOnly = true)
+        @Schema(description = "The version of the person. A new person has 1. Each write counts it up by one, also a "
+                + "mask or a change of an ID of another system. A write of a stored person sends the version that "
+                + "the caller read. A create needs none.")
         Long version,
         @Schema(description = "The ID of the linked Keycloak user. One user is linked to at most one person.")
         String userId,
@@ -56,7 +55,7 @@ public record PersonRepresentation(
                 description = "Every ID that a system has for the person. The one of `source` comes first, then "
                         + "the others by system.",
                 readOnly = true)
-        List<ExternalIdPairRepresentation> externalIds) {
+        List<ExternalIdPairRepresentation> externalIds) implements Versioned {
 
     static PersonRepresentation of(PersonView view, ExternalIdLists ids) {
         var p = view.person();

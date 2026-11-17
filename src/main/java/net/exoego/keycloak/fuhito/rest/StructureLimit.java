@@ -73,16 +73,6 @@ final class StructureLimit {
     }
 
     /**
-     * Tells whether the caller is limited. A limited caller cannot write, so it needs no ETag, and an ETag of the
-     * whole history would tell it that a later change was stored.
-     *
-     * @return true when the realm limits the caller
-     */
-    boolean active() {
-        return lastDay().isPresent();
-    }
-
-    /**
      * Leaves out an end of the details of an org unit after the last date that the caller may read. Such an end
      * is the date of a later change.
      *

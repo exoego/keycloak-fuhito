@@ -60,18 +60,18 @@ class PeopleIT {
         assertEquals("hr", person.get("source").asText());
         assertEquals(person, ok(api.get("/people/" + id)));
 
-        JsonNode changed = ok(api.put("/people/" + id, "{\"name\": \"山田 花子\"}"));
+        JsonNode changed = ok(api.putWithVersion("/people/" + id, "{\"name\": \"山田 花子\"}"));
         assertEquals("山田 花子", changed.get("name").asText());
         assertEquals(0, changed.get("names").size());
         assertFalse(changed.has("phoneticName"));
         assertEquals(List.of("hr=P-1"), Api.externalIds(changed));
         // A replace with the ID of another system adds it. The person keeps the system that made it.
-        JsonNode payroll = ok(api.put("/people/" + id, "{\"name\": \"山田 花子\", \"source\": \"payroll\", "
+        JsonNode payroll = ok(api.putWithVersion("/people/" + id, "{\"name\": \"山田 花子\", \"source\": \"payroll\", "
                 + "\"externalId\": \"E-5\"}"));
         assertEquals(List.of("hr=P-1", "payroll=E-5"), Api.externalIds(payroll));
         assertEquals("hr", payroll.get("source").asText());
 
-        assertEquals(204, api.delete("/people/" + id).statusCode());
+        assertEquals(204, api.deleteWithVersion("/people/" + id).statusCode());
         assertEquals("person.not_found", errorOf(404, api.get("/people/" + id)));
         assertEquals(List.of("CREATE", "UPDATE", "UPDATE", "DELETE"),
                 Api.json(api.get("/change-log?resourceType=FUHITO_PERSON&resourceId=" + id))
@@ -96,7 +96,7 @@ class PeopleIT {
         assertFalse(noName.has("nameSource"));
 
         // A name of the record wins from then on.
-        JsonNode named = ok(api.put("/people/" + person.get("id").asText(),
+        JsonNode named = ok(api.putWithVersion("/people/" + person.get("id").asText(),
                 "{\"userId\": \"" + user + "\", \"name\": \"山田 太郎\"}"));
         assertEquals("山田 太郎", named.get("name").asText());
         assertEquals("RECORD", named.get("nameSource").asText());
@@ -195,14 +195,14 @@ class PeopleIT {
         assertEquals("person.name_required", errorOf(400, api.post("/people", "{}")));
         assertEquals("person.user_unknown", errorOf(400, api.post("/people", "{\"userId\": \"nobody\"}")));
         assertEquals("person.user_taken", errorOf(409, api.post("/people", "{\"userId\": \"" + user + "\"}")));
-        assertEquals("person.user_taken", errorOf(409, api.put("/people/" + other,
+        assertEquals("person.user_taken", errorOf(409, api.putWithVersion("/people/" + other,
                 "{\"name\": \"Other\", \"userId\": \"" + user + "\"}")));
         assertEquals("external_id.taken", errorOf(409, api.post("/people",
                 "{\"name\": \"X\", \"externalId\": \"P-9\", \"source\": \"hr\"}")));
         assertEquals("invalid.required", errorOf(400, api.post("/people", "{\"name\": \"X\", \"externalId\": \"P-8\"}")));
         assertEquals("person.not_found", errorOf(404, otherRealm.api.get("/people/" + id)));
-        assertEquals("person.not_found", errorOf(404, otherRealm.api.put("/people/" + id, "{\"name\": \"X\"}")));
-        assertEquals("person.not_found", errorOf(404, otherRealm.api.delete("/people/" + id)));
+        assertEquals("person.not_found", errorOf(404, otherRealm.api.putWithVersion("/people/" + id, "{\"name\": \"X\"}")));
+        assertEquals("person.not_found", errorOf(404, otherRealm.api.deleteWithVersion("/people/" + id)));
         assertEquals(401, new Api(realm.name, null).get("/people").statusCode());
         assertEquals(401, new Api(realm.name, null).post("/people", "{}").statusCode());
     }
@@ -237,7 +237,7 @@ class PeopleIT {
         assertEquals(List.of(), ok(scratchApi.get("/people?q=en")).findValuesAsText("id"));
 
         // A masked person has no name to find.
-        assertEquals(200, scratchApi.post("/people/" + hanako + "/mask", "").statusCode());
+        assertEquals(200, scratchApi.postWithVersion("/people/" + hanako + "/mask", "").statusCode());
         assertEquals(List.of(), ok(scratchApi.get("/people?q=hanako")).findValuesAsText("id"));
     }
 
@@ -319,12 +319,12 @@ class PeopleIT {
 
         // The person gets an account later. The employment then shows the user.
         String account = scratch.user("cleaner");
-        ok(scratchApi.put("/people/" + cleaner, "{\"name\": \"清掃 花子\", \"userId\": \"" + account + "\"}"));
+        ok(scratchApi.putWithVersion("/people/" + cleaner, "{\"name\": \"清掃 花子\", \"userId\": \"" + account + "\"}"));
         assertEquals(account, ok(scratchApi.get("/employments/" + employment.get("id").asText())).get("userId").asText());
         assertEquals(List.of(unit), ok(scratchApi.get("/users/" + account + "/assignments")).findValuesAsText("orgUnitId"));
         assertEquals(List.of(account), ok(scratchApi.get("/users/" + nurse + "/managers")).findValuesAsText("userId"));
 
-        assertEquals("person.in_use", errorOf(409, scratchApi.delete("/people/" + cleaner)));
+        assertEquals("person.in_use", errorOf(409, scratchApi.deleteWithVersion("/people/" + cleaner)));
     }
 
     @Test
@@ -342,7 +342,7 @@ class PeopleIT {
                 + "\", \"kind\": \"license\", \"validFrom\": \"2010-05-01\"}"));
         assertEquals(visiting, license.get("personId").asText());
         assertFalse(license.has("userId"));
-        assertEquals("person.in_use", errorOf(409, scratchApi.delete("/people/" + visiting)));
+        assertEquals("person.in_use", errorOf(409, scratchApi.deleteWithVersion("/people/" + visiting)));
 
         String assignment = created(scratchApi.post("/staff", "{\"userId\": \"" + resident + "\", \"orgUnitId\": \""
                 + unit + "\", \"validFrom\": \"2020-04-01\"}")).get("assignment").get("id").asText();
@@ -350,7 +350,7 @@ class PeopleIT {
                 + "\", \"managerPersonId\": \"" + advisor + "\", \"validFrom\": \"2020-04-01\"}"));
         assertEquals(advisor, line.get("managerPersonId").asText());
         assertFalse(line.has("managerUserId"));
-        assertEquals("person.in_use", errorOf(409, scratchApi.delete("/people/" + advisor)));
+        assertEquals("person.in_use", errorOf(409, scratchApi.deleteWithVersion("/people/" + advisor)));
 
         JsonNode managers = ok(scratchApi.get("/users/" + resident + "/managers"));
         assertEquals(List.of(advisor), managers.findValuesAsText("personId"));
@@ -429,7 +429,7 @@ class PeopleIT {
         assertEquals(List.of(staff.get("employment").get("id").asText()), history.get("employments").findValuesAsText("id"));
         assertEquals(1, history.get("assignments").size());
 
-        JsonNode mask = ok(scratchApi.post(people + "/mask", ""));
+        JsonNode mask = ok(scratchApi.postWithVersion(people + "/mask", ""));
         assertEquals(member, mask.get("personId").asText());
         assertFalse(mask.has("userId"));
         JsonNode masked = ok(scratchApi.get(people));
@@ -439,11 +439,11 @@ class PeopleIT {
         assertEquals(mask.get("maskedAt").asText(), maskedHistory.get("maskedAt").asText());
         assertFalse(maskedHistory.get("employments").get(0).has("staffNumber"));
         assertFalse(ok(scratchApi.get(people + "/qualifications?all=true")).get(0).has("number"));
-        assertEquals(mask.get("maskedAt").asText(), ok(scratchApi.post(people + "/mask", "")).get("maskedAt").asText());
+        assertEquals(mask.get("maskedAt").asText(), ok(scratchApi.postWithVersion(people + "/mask", "")).get("maskedAt").asText());
 
-        assertEquals(204, scratchApi.delete(people + "/data").statusCode());
+        assertEquals(204, scratchApi.deleteWithVersion(people + "/data").statusCode());
         assertEquals("person.not_found", errorOf(404, scratchApi.get(people)));
-        assertEquals("person.not_found", errorOf(404, scratchApi.delete(people + "/data")));
+        assertEquals("person.not_found", errorOf(404, scratchApi.deleteWithVersion(people + "/data")));
         assertEquals(404, scratchApi.get("/employments/" + staff.get("employment").get("id").asText()).statusCode());
         // Only the entry of the erase stays.
         assertEquals(List.of("DELETE"), Api.json(scratchApi.get(
@@ -458,8 +458,8 @@ class PeopleIT {
             assertEquals("person.not_found", errorOf(404, scratchApi.get("/people/nobody" + path)));
             assertEquals("person.not_found", errorOf(404, otherRealm.api.get("/people/" + chief + path)));
         }
-        assertEquals("person.not_found", errorOf(404, scratchApi.post("/people/nobody/mask", "")));
-        assertEquals("person.still_employed", errorOf(409, scratchApi.post("/people/" + created(scratchApi.post("/staff",
+        assertEquals("person.not_found", errorOf(404, scratchApi.postWithVersion("/people/nobody/mask", "")));
+        assertEquals("person.still_employed", errorOf(409, scratchApi.postWithVersion("/people/" + created(scratchApi.post("/staff",
                 "{\"personId\": \"" + chief + "\", \"orgUnitId\": \"" + unit + "\", \"validFrom\": \"2025-04-01\"}"))
                 .get("employment").get("personId").asText() + "/mask", "")));
         assertEquals("invalid.date", errorOf(400, scratchApi.get("/people/" + chief + "/managers?asOf=x")));

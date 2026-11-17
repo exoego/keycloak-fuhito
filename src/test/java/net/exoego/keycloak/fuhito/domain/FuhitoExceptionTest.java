@@ -25,10 +25,9 @@ class FuhitoExceptionTest {
 
     @Test
     void namesEveryReasonAndKind() {
-        assertEquals(6, FuhitoException.Reason.values().length);
+        assertEquals(5, FuhitoException.Reason.values().length);
         assertEquals(FuhitoException.Reason.FORBIDDEN, FuhitoException.forbidden("x", Map.of()).reason());
         assertEquals(FuhitoException.Reason.UNPROCESSABLE, FuhitoException.unprocessable("x", Map.of()).reason());
-        assertEquals(FuhitoException.Reason.PRECONDITION, FuhitoException.precondition("x", Map.of()).reason());
         assertEquals(List.of("UNIT_TYPE", "JOB_TITLE", "OCCUPATION", "EMPLOYMENT_TYPE", "GRADE", "END_REASON",
                 "ASSIGNMENT_KIND", "QUALIFICATION", "LEAVE_REASON", "UNIT_ROLE", "WORK_LOCATION",
                 "COST_CENTER"), Arrays.stream(RefKind.values()).map(RefKind::name).toList());

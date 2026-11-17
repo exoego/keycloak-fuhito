@@ -92,10 +92,10 @@ class EmploymentsIT {
                 .get("id").asText();
 
         // Parental leave from October, back in April as full-time staff.
-        HttpResponse<String> leave = api.put("/employments/" + id + "/terms",
+        HttpResponse<String> leave = api.putWithVersion("/employments/" + id + "/terms",
                 "{\"validFrom\": \"2026-10-01\", \"employmentType\": \"temporary\", \"status\": \"ON_LEAVE\", \"workPercent\": 50}");
         assertEquals(200, leave.statusCode(), leave.body());
-        JsonNode employment = Api.json(api.put("/employments/" + id + "/terms",
+        JsonNode employment = Api.json(api.putWithVersion("/employments/" + id + "/terms",
                 "{\"validFrom\": \"2027-04-01\", \"employmentType\": \"full-time\", \"grade\": \"g3\", \"workPercent\": 100}"));
 
         JsonNode terms = employment.get("terms");
@@ -113,7 +113,7 @@ class EmploymentsIT {
         assertEquals(employment, Api.json(api.get("/employments/" + id)));
 
         // A change on the first date of stored terms corrects them.
-        JsonNode corrected = Api.json(api.put("/employments/" + id + "/terms",
+        JsonNode corrected = Api.json(api.putWithVersion("/employments/" + id + "/terms",
                 "{\"validFrom\": \"2026-10-01\", \"status\": \"SUSPENDED\"}"));
         assertEquals(3, corrected.get("terms").size());
         assertEquals("SUSPENDED", corrected.get("terms").get(1).get("status").asText());
@@ -125,12 +125,12 @@ class EmploymentsIT {
         String id = created(api.post("/employments", "{\"userId\": \"" + nurse
                 + "\", \"validFrom\": \"2026-04-01\", \"validTo\": \"2027-04-01\"}")).get("id").asText();
 
-        assertEquals("employment.not_valid_on", errorOf(404, api.put("/employments/" + id + "/terms", "{\"validFrom\": \"2027-04-01\"}")));
-        assertEquals("employment.not_valid_on", errorOf(404, api.put("/employments/" + id + "/terms", "{\"validFrom\": \"2026-03-31\"}")));
-        assertEquals("invalid.required", errorOf(400, api.put("/employments/" + id + "/terms", "{}")));
-        assertEquals("invalid.choice", errorOf(400, api.put("/employments/" + id + "/terms", "{\"validFrom\": \"2026-10-01\", \"status\": \"x\"}")));
-        assertEquals("employment.not_found", errorOf(404, api.put("/employments/nope/terms", "{\"validFrom\": \"2026-10-01\"}")));
-        assertEquals("employment.not_found", errorOf(404, otherRealm.api.put("/employments/" + id + "/terms", "{\"validFrom\": \"2026-10-01\"}")));
+        assertEquals("employment.not_valid_on", errorOf(404, api.putWithVersion("/employments/" + id + "/terms", "{\"validFrom\": \"2027-04-01\"}")));
+        assertEquals("employment.not_valid_on", errorOf(404, api.putWithVersion("/employments/" + id + "/terms", "{\"validFrom\": \"2026-03-31\"}")));
+        assertEquals("invalid.required", errorOf(400, api.putWithVersion("/employments/" + id + "/terms", "{}")));
+        assertEquals("invalid.choice", errorOf(400, api.putWithVersion("/employments/" + id + "/terms", "{\"validFrom\": \"2026-10-01\", \"status\": \"x\"}")));
+        assertEquals("employment.not_found", errorOf(404, api.putWithVersion("/employments/nope/terms", "{\"validFrom\": \"2026-10-01\"}")));
+        assertEquals("employment.not_found", errorOf(404, otherRealm.api.putWithVersion("/employments/" + id + "/terms", "{\"validFrom\": \"2026-10-01\"}")));
         assertEquals(1, Api.json(api.get("/employments/" + id)).get("terms").size());
     }
 
@@ -146,9 +146,9 @@ class EmploymentsIT {
         String assignment = "{\"employmentId\": \"" + id + "\", \"orgUnitId\": \"" + unit + "\", \"validFrom\": \"";
         String open = created(api.post("/assignments", assignment + "2026-04-01\"}")).get("id").asText();
         String future = created(api.post("/assignments", assignment + "2028-04-01\"}")).get("id").asText();
-        assertEquals(200, api.put("/employments/" + id + "/terms", "{\"validFrom\": \"2028-04-01\", \"status\": \"ON_LEAVE\"}").statusCode());
+        assertEquals(200, api.putWithVersion("/employments/" + id + "/terms", "{\"validFrom\": \"2028-04-01\", \"status\": \"ON_LEAVE\"}").statusCode());
 
-        HttpResponse<String> response = api.put("/employments/" + id + "/end",
+        HttpResponse<String> response = api.putWithVersion("/employments/" + id + "/end",
                 "{\"validTo\": \"2027-04-01\", \"endReason\": \"" + reason + "\"}");
 
         assertEquals(200, response.statusCode(), response.body());
@@ -167,7 +167,7 @@ class EmploymentsIT {
         assertFalse(Api.json(api.get("/employments/" + rehire)).has("validTo"));
 
         // The resignation is taken back.
-        JsonNode reopened = Api.json(api.delete("/employments/" + id + "/end"));
+        JsonNode reopened = Api.json(api.deleteWithVersion("/employments/" + id + "/end"));
         assertFalse(reopened.has("validTo"));
         assertFalse(reopened.has("endReason"));
         assertFalse(reopened.get("terms").get(0).has("validTo"));
@@ -179,16 +179,16 @@ class EmploymentsIT {
         String id = created(api.post("/employments", "{\"userId\": \"" + user
                 + "\", \"validFrom\": \"2026-04-01\", \"validTo\": \"2027-04-01\", \"employmentType\": \"temporary\"}")).get("id").asText();
 
-        JsonNode extended = Api.json(api.put("/employments/" + id + "/end", "{\"validTo\": \"2028-04-01\"}"));
+        JsonNode extended = Api.json(api.putWithVersion("/employments/" + id + "/end", "{\"validTo\": \"2028-04-01\"}"));
 
         assertEquals("2028-04-01", extended.get("validTo").asText());
         assertEquals("2028-04-01", extended.get("terms").get(0).get("validTo").asText());
         assertEquals("temporary", extended.get("terms").get(0).get("employmentType").asText());
-        assertEquals("employment.not_valid_on", errorOf(404, api.put("/employments/" + id + "/end", "{\"validTo\": \"2026-04-01\"}")));
-        assertEquals("ref_item.unknown", errorOf(400, api.put("/employments/" + id + "/end", "{\"validTo\": \"2027-04-01\", \"endReason\": \"nope\"}")));
-        assertEquals("invalid.required", errorOf(400, api.put("/employments/" + id + "/end", "{}")));
-        assertEquals("employment.not_found", errorOf(404, otherRealm.api.put("/employments/" + id + "/end", "{\"validTo\": \"2027-04-01\"}")));
-        assertEquals("employment.not_found", errorOf(404, otherRealm.api.delete("/employments/" + id + "/end")));
+        assertEquals("employment.not_valid_on", errorOf(404, api.putWithVersion("/employments/" + id + "/end", "{\"validTo\": \"2026-04-01\"}")));
+        assertEquals("ref_item.unknown", errorOf(400, api.putWithVersion("/employments/" + id + "/end", "{\"validTo\": \"2027-04-01\", \"endReason\": \"nope\"}")));
+        assertEquals("invalid.required", errorOf(400, api.putWithVersion("/employments/" + id + "/end", "{}")));
+        assertEquals("employment.not_found", errorOf(404, otherRealm.api.putWithVersion("/employments/" + id + "/end", "{\"validTo\": \"2027-04-01\"}")));
+        assertEquals("employment.not_found", errorOf(404, otherRealm.api.deleteWithVersion("/employments/" + id + "/end")));
         assertEquals(extended, Api.json(api.get("/employments/" + id)));
     }
 
@@ -202,7 +202,7 @@ class EmploymentsIT {
         created(contracts.api.post("/employments", "{\"userId\": \"" + contracts.user("doctor")
                 + "\", \"validFrom\": \"2025-04-01\"}"));
 
-        JsonNode renewed = Api.json(contracts.api.put("/employments/" + first + "/terms",
+        JsonNode renewed = Api.json(contracts.api.putWithVersion("/employments/" + first + "/terms",
                 "{\"validFrom\": \"2026-04-01\", \"contractEndDate\": \"2027-03-31\"}"));
 
         assertFalse(renewed.has("validTo"));
@@ -215,7 +215,7 @@ class EmploymentsIT {
         assertEquals(List.of(first), Api.json(contracts.api.get("/employments?contractEndFrom=2027-01-01"
                 + "&contractEndTo=2027-04-01")).findValuesAsText("id"));
         assertEquals(2, contracts.api.count("/employments/count?asOf=2026-03-01&contractEndTo=2027-01-01"));
-        assertEquals("employment.contract_end_before_terms", errorOf(400, contracts.api.put("/employments/"
+        assertEquals("employment.contract_end_before_terms", errorOf(400, contracts.api.putWithVersion("/employments/"
                 + second + "/terms", "{\"validFrom\": \"2026-06-01\", \"contractEndDate\": \"2026-05-31\"}")));
         assertEquals("invalid.period", errorOf(400, contracts.api.get("/employments?contractEndFrom=2026-04-01"
                 + "&contractEndTo=2026-04-01")));
@@ -256,7 +256,7 @@ class EmploymentsIT {
         created(api.post("/employments", "{\"userId\": \"" + nurse
                 + "\", \"validFrom\": \"2026-04-01\", \"employmentType\": \"full-time\"}"));
 
-        assertEquals("ref_item.in_use", errorOf(409, api.delete("/ref-items/" + fullTimeId)));
+        assertEquals("ref_item.in_use", errorOf(409, api.deleteWithVersion("/ref-items/" + fullTimeId)));
     }
 
     @Test
@@ -321,7 +321,7 @@ class EmploymentsIT {
                 + "/members?includeDescendants=true&asOf=2026-04-01")).size());
 
         // An end does not change the employer.
-        assertEquals(company, Api.json(groupApi.put("/employments/" + seconded.get("employment").get("id").asText() + "/end",
+        assertEquals(company, Api.json(groupApi.putWithVersion("/employments/" + seconded.get("employment").get("id").asText() + "/end",
                 "{\"validTo\": \"2030-04-01\"}")).get("employerId").asText());
     }
 
@@ -335,27 +335,27 @@ class EmploymentsIT {
         String employment = created(scratchApi.post("/employments", "{\"userId\": \"" + scratch.user("taro")
                 + "\", \"validFrom\": \"2026-04-01\", \"validTo\": \"2028-04-01\"}")).get("id").asText();
 
-        assertEquals("ref_item.legal_entity_in_use", errorOf(409, scratchApi.put("/ref-items/" + type, "{\"name\": \"法人\"}")));
-        assertEquals(200, scratchApi.put("/ref-items/" + type, "{\"name\": \"会社\", \"legalEntity\": true}").statusCode());
-        assertEquals("org_unit.is_employer", errorOf(409, scratchApi.put("/org-units/" + company,
+        assertEquals("ref_item.legal_entity_in_use", errorOf(409, scratchApi.putWithVersion("/ref-items/" + type, "{\"name\": \"法人\"}")));
+        assertEquals(200, scratchApi.putWithVersion("/ref-items/" + type, "{\"name\": \"会社\", \"legalEntity\": true}").statusCode());
+        assertEquals("org_unit.is_employer", errorOf(409, scratchApi.putWithVersion("/org-units/" + company,
                 "{\"name\": \"株式会社Z\", \"unitType\": \"department\", \"validFrom\": \"2026-01-01\"}")));
-        assertEquals("org_unit.is_employer", errorOf(409, scratchApi.put("/org-units/" + company,
+        assertEquals("org_unit.is_employer", errorOf(409, scratchApi.putWithVersion("/org-units/" + company,
                 "{\"name\": \"株式会社Z\", \"validFrom\": \"2026-01-01\"}")));
-        assertEquals(200, scratchApi.put("/org-units/" + company,
+        assertEquals(200, scratchApi.putWithVersion("/org-units/" + company,
                 "{\"name\": \"Z社\", \"unitType\": \"legal-entity\", \"validFrom\": \"2026-01-01\"}").statusCode());
         assertEquals("org_unit.has_employments",
-                errorOf(409, scratchApi.put("/org-units/" + company + "/end", "{\"validTo\": \"2028-03-31\"}")));
+                errorOf(409, scratchApi.putWithVersion("/org-units/" + company + "/end", "{\"validTo\": \"2028-03-31\"}")));
         assertEquals(company, Api.json(scratchApi.get("/employments/" + employment)).get("employerId").asText());
 
         // The company can end on the day after the last day of the employment.
-        assertEquals(200, scratchApi.put("/org-units/" + company + "/end", "{\"validTo\": \"2028-04-01\"}").statusCode());
+        assertEquals(200, scratchApi.putWithVersion("/org-units/" + company + "/end", "{\"validTo\": \"2028-04-01\"}").statusCode());
     }
 
     @Test
     void anEmploymentEndsByTheEndOfItsEmployer() throws Exception {
         TestRealm closing = TestRealm.create("employments-closing");
         String company = closing.legalEntity("閉鎖予定の会社");
-        assertEquals(200, closing.api.put("/org-units/" + company + "/end", "{\"validTo\": \"2030-04-01\"}")
+        assertEquals(200, closing.api.putWithVersion("/org-units/" + company + "/end", "{\"validTo\": \"2030-04-01\"}")
                 .statusCode());
         String user = closing.user("staff-of-closing");
 
@@ -363,8 +363,8 @@ class EmploymentsIT {
                 "{\"userId\": \"" + user + "\", \"validFrom\": \"2026-04-01\"}")));
         String id = created(closing.api.post("/employments", "{\"userId\": \"" + user
                 + "\", \"validFrom\": \"2026-04-01\", \"validTo\": \"2030-04-01\"}")).get("id").asText();
-        assertEquals("employment.employer_ends", errorOf(409, closing.api.delete("/employments/" + id + "/end")));
-        assertEquals("employment.employer_ends", errorOf(409, closing.api.put("/employments/" + id + "/end",
+        assertEquals("employment.employer_ends", errorOf(409, closing.api.deleteWithVersion("/employments/" + id + "/end")));
+        assertEquals("employment.employer_ends", errorOf(409, closing.api.putWithVersion("/employments/" + id + "/end",
                 "{\"validTo\": \"2031-04-01\"}")));
     }
 
@@ -389,22 +389,22 @@ class EmploymentsIT {
         created(groupApi.post("/unit-roles", "{\"employmentId\": \"" + old + "\", \"orgUnitId\": \"" + kitchen
                 + "\", \"role\": \"hr-contact\", \"validFrom\": \"2020-04-01\"}"));
         // A leave that is planned for 2029 must not get lost.
-        assertEquals(200, groupApi.put("/employments/" + old + "/terms",
+        assertEquals(200, groupApi.putWithVersion("/employments/" + old + "/terms",
                 "{\"validFrom\": \"2029-04-01\", \"status\": \"ON_LEAVE\"}").statusCode());
 
         String transferPath = "/employments/" + old + "/transfer";
-        assertEquals("employment.same_employer", errorOf(400, groupApi.post(transferPath,
+        assertEquals("employment.same_employer", errorOf(400, groupApi.postWithVersion(transferPath,
                 "{\"employerId\": \"" + company + "\", \"validFrom\": \"2027-04-01\"}")));
-        assertEquals("employment.employer_not_legal_entity", errorOf(400, groupApi.post(transferPath,
+        assertEquals("employment.employer_not_legal_entity", errorOf(400, groupApi.postWithVersion(transferPath,
                 "{\"employerId\": \"" + kitchen + "\", \"validFrom\": \"2027-04-01\"}")));
-        assertEquals("employment.not_valid_on", errorOf(404, groupApi.post(transferPath,
+        assertEquals("employment.not_valid_on", errorOf(404, groupApi.postWithVersion(transferPath,
                 "{\"employerId\": \"" + corporation + "\", \"validFrom\": \"2020-04-01\"}")));
-        assertEquals(400, groupApi.post(transferPath, "{\"validFrom\": \"2027-04-01\"}").statusCode());
-        assertEquals(404, groupApi.post("/employments/nope/transfer",
+        assertEquals(400, groupApi.postWithVersion(transferPath, "{\"validFrom\": \"2027-04-01\"}").statusCode());
+        assertEquals(404, groupApi.postWithVersion("/employments/nope/transfer",
                 "{\"employerId\": \"" + corporation + "\", \"validFrom\": \"2027-04-01\"}").statusCode());
         assertEquals(1, Api.json(groupApi.get("/users/" + suzuki + "/history")).get("employments").size());
 
-        JsonNode transfer = created(groupApi.post(transferPath, "{\"employerId\": \"" + corporation
+        JsonNode transfer = created(groupApi.postWithVersion(transferPath, "{\"employerId\": \"" + corporation
                 + "\", \"validFrom\": \"2027-04-01\", \"staffNumber\": \"X-2040\", \"endReason\": \"transfer\"}"));
 
         JsonNode ended = transfer.get("ended");
@@ -474,7 +474,7 @@ class EmploymentsIT {
 
         // The company cannot end while it employs people.
         assertEquals("org_unit.has_employments",
-                errorOf(409, groupApi.put("/org-units/" + company + "/end", "{\"validTo\": \"2028-04-01\"}")));
+                errorOf(409, groupApi.putWithVersion("/org-units/" + company + "/end", "{\"validTo\": \"2028-04-01\"}")));
         // A bad part rejects the whole merger, and nobody moves.
         assertEquals("employment.not_transferred",
                 errorOf(400, groupApi.post("/employments/transfers", merger + ", \"staffNumbers\": {\"nope\": \"1\"}}")));

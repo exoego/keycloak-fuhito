@@ -17,6 +17,9 @@ public record ReorganizationStep(
         String id,
         @Schema(description = "The `ref` of an earlier create step, in place of `id`.")
         String unitRef,
+        @Schema(description = "The version of the unit of `id` that the caller read. A change, move, end, or "
+                + "succeed step with `id` needs it. Two steps of one unit name the same version.")
+        Long version,
         @Schema(description = "The ID of the parent for a create or a move.")
         String parentId,
         @Schema(description = "The `ref` of an earlier create step, in place of `parentId`.")

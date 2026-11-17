@@ -10,15 +10,18 @@ import jakarta.ws.rs.PUT;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.rest.RequestContext.Change;
 import net.exoego.keycloak.fuhito.service.RealmKindService;
 import org.eclipse.microprofile.openapi.annotations.Operation;
+import org.eclipse.microprofile.openapi.annotations.enums.SchemaType;
 import org.eclipse.microprofile.openapi.annotations.media.Content;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 import org.eclipse.microprofile.openapi.annotations.parameters.Parameter;
+import org.eclipse.microprofile.openapi.annotations.parameters.RequestBody;
 import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
 import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 
@@ -99,10 +102,11 @@ public class RefKindsResource {
     public RefKindRepresentation rename(
             @Parameter(description = "The code of the kind.")
             @PathParam("code") String code,
+            @RequestBody(required = true, content = @Content(mediaType = MediaType.APPLICATION_JSON,
+                    schema = @Schema(allOf = {RefKindRepresentation.class, VersionCheckRepresentation.class})))
             RefKindRepresentation body) {
         context.requireWrite();
-        return Calls.guarded(context, () -> RefKindRepresentation.of(service.get(code)), () -> {
-            Checks.required("body", body);
+        return Calls.guarded(context, body, () -> version(code), () -> {
             var kind = RefKindRepresentation.of(service.rename(code, body.name(), body.names()));
             context.recordChange(Change.UPDATE, RESOURCE_TYPE, code, path(code), kind);
             return kind;
@@ -114,13 +118,19 @@ public class RefKindsResource {
     @Operation(operationId = "deleteRefKind", summary = "Removes a kind of the realm that has no items.")
     @Parameter(ref = "changeOrder")
     @APIResponse(responseCode = "204", description = "The kind is gone.")
+    @BadRequest
     @NotFound
     @ApiErrors
     public Response delete(
             @Parameter(description = "The code of the kind.")
-            @PathParam("code") String code) {
+            @PathParam("code") String code,
+            @Parameter(
+                    description = "The version of the kind that the caller read.",
+                    required = true,
+                    schema = @Schema(type = SchemaType.INTEGER, format = "int64"))
+            @QueryParam("version") String version) {
         context.requireWrite();
-        return Calls.run(context, () -> {
+        return Calls.guarded(context, version, () -> version(code), () -> {
             service.delete(code);
             context.recordChange(Change.DELETE, RESOURCE_TYPE, code, path(code), null);
             return Response.noContent().build();
@@ -129,5 +139,9 @@ public class RefKindsResource {
 
     private static String path(String code) {
         return "fuhito/ref-kinds/" + code;
+    }
+
+    private long version(String code) {
+        return service.get(code).version();
     }
 }

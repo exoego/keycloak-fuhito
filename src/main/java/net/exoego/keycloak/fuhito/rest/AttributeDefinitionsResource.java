@@ -17,9 +17,11 @@ import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.rest.RequestContext.Change;
 import net.exoego.keycloak.fuhito.service.AttributeDefinitionService;
 import org.eclipse.microprofile.openapi.annotations.Operation;
+import org.eclipse.microprofile.openapi.annotations.enums.SchemaType;
 import org.eclipse.microprofile.openapi.annotations.media.Content;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 import org.eclipse.microprofile.openapi.annotations.parameters.Parameter;
+import org.eclipse.microprofile.openapi.annotations.parameters.RequestBody;
 import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
 import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 
@@ -79,7 +81,7 @@ public class AttributeDefinitionsResource {
             @Parameter(description = "The ID of the resource.")
             @PathParam("id") String id) {
         context.requireReadStructure();
-        return Calls.tagged(context, () -> AttributeDefinitionRepresentation.of(service.get(id)));
+        return Calls.run(context, () -> AttributeDefinitionRepresentation.of(service.get(id)));
     }
 
     @POST
@@ -121,10 +123,11 @@ public class AttributeDefinitionsResource {
     public AttributeDefinitionRepresentation replace(
             @Parameter(description = "The ID of the resource.")
             @PathParam("id") String id,
+            @RequestBody(required = true, content = @Content(mediaType = MediaType.APPLICATION_JSON,
+                    schema = @Schema(allOf = {AttributeDefinitionRepresentation.class, VersionCheckRepresentation.class})))
             AttributeDefinitionRepresentation body) {
         context.requireWrite();
-        return Calls.guarded(context, () -> state(id), () -> {
-            Checks.required("body", body);
+        return Calls.guarded(context, body, () -> version(id), () -> {
             var definition = AttributeDefinitionRepresentation.of(service.replace(id, body.type(), body.refKind(),
                     body.multiple(), body.required()));
             context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, path(id), definition);
@@ -140,13 +143,19 @@ public class AttributeDefinitionsResource {
             description = "Stored values stay as they are.")
     @Parameter(ref = "changeOrder")
     @APIResponse(responseCode = "204", description = "The definition is gone.")
+    @BadRequest
     @NotFound
     @ApiErrors
     public Response delete(
             @Parameter(description = "The ID of the resource.")
-            @PathParam("id") String id) {
+            @PathParam("id") String id,
+            @Parameter(
+                    description = "The version of the definition that the caller read.",
+                    required = true,
+                    schema = @Schema(type = SchemaType.INTEGER, format = "int64"))
+            @QueryParam("version") String version) {
         context.requireWrite();
-        return Calls.guardedRemoval(context, () -> state(id), () -> {
+        return Calls.guarded(context, version, () -> version(id), () -> {
             service.delete(id);
             context.recordChange(Change.DELETE, RESOURCE_TYPE, id, path(id), null);
             return Response.noContent().build();
@@ -157,8 +166,7 @@ public class AttributeDefinitionsResource {
         return "fuhito/attribute-definitions/" + id;
     }
 
-    // The whole stored state of one resource, which its ETag covers.
-    private Object state(String id) {
-        return AttributeDefinitionRepresentation.of(service.get(id));
+    private long version(String id) {
+        return service.get(id).version();
     }
 }

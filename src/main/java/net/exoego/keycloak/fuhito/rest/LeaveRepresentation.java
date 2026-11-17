@@ -5,8 +5,13 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
 /**
  * A request to put a person on leave.
  */
-@Schema(name = "Leave", description = "A request to put a person on leave.", requiredProperties = {"validFrom"})
+@Schema(
+        name = "Leave",
+        description = "A request to put a person on leave.",
+        requiredProperties = {"version", "validFrom"})
 public record LeaveRepresentation(
+        @Schema(description = "The version of the employment that the caller read.")
+        Long version,
         @Schema(description = "The first date of the leave.", format = "date")
         String validFrom,
         @Schema(
@@ -15,5 +20,5 @@ public record LeaveRepresentation(
                 format = "date")
         String validTo,
         @Schema(description = "The code of the leave reason.")
-        String reason) {
+        String reason) implements Versioned {
 }

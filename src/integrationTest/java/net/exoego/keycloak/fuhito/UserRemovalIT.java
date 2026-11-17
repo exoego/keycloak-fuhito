@@ -137,13 +137,13 @@ class UserRemovalIT {
     private static List<String> employ(Api api, String userId, String unit) throws Exception {
         String first = Api.json(api.post("/employments", "{\"userId\": \"" + userId
                 + "\", \"validFrom\": \"2020-04-01\", \"validTo\": \"2024-04-01\"}")).get("id").asText();
-        assertEquals(200, api.put("/employments/" + first + "/terms",
+        assertEquals(200, api.putWithVersion("/employments/" + first + "/terms",
                 "{\"validFrom\": \"2022-04-01\", \"status\": \"ON_LEAVE\"}").statusCode());
         String second = Api.json(api.post("/employments", "{\"userId\": \"" + userId
                 + "\", \"validFrom\": \"2025-04-01\"}")).get("id").asText();
         String assignment = Api.json(api.post("/assignments", "{\"employmentId\": \"" + second + "\", \"orgUnitId\": \""
                 + unit + "\", \"validFrom\": \"2025-04-01\"}")).get("id").asText();
-        assertEquals(200, api.put("/assignments/" + assignment + "/details",
+        assertEquals(200, api.putWithVersion("/assignments/" + assignment + "/details",
                 "{\"validFrom\": \"2025-10-01\", \"head\": true}").statusCode());
         assertEquals(201, api.post("/assignments", "{\"employmentId\": \"" + second + "\", \"orgUnitId\": \"" + unit
                 + "\", \"validFrom\": \"2025-10-01\"}").statusCode());
@@ -167,10 +167,10 @@ class UserRemovalIT {
         String employment = hired.get("employment").get("id").asText();
         assertEquals(201, api.post("/unit-roles", "{\"employmentId\": \"" + employment + "\", \"orgUnitId\": \""
                 + first + "\", \"role\": \"hr-contact\", \"validFrom\": \"" + TOMORROW + "\"}").statusCode());
-        assertEquals(200, api.put("/external-ids", "{\"resourceType\": \"EMPLOYMENT\", \"resourceId\": \""
+        assertEquals(200, api.putWithVersion("/external-ids", "{\"resourceType\": \"EMPLOYMENT\", \"resourceId\": \""
                 + employment + "\", \"source\": \"payroll\", \"externalId\": \"P-1\"}").statusCode());
         String later = LocalDate.parse(TOMORROW).plusDays(30).toString();
-        assertEquals(201, api.post("/employments/" + employment + "/transfer", "{\"employerId\": \"" + second
+        assertEquals(201, api.postWithVersion("/employments/" + employment + "/transfer", "{\"employerId\": \"" + second
                 + "\", \"validFrom\": \"" + later + "\"}").statusCode());
         String realmId = realm.id();
         assertEquals("2", rows("fuhito_employment", realmId));
@@ -201,20 +201,20 @@ class UserRemovalIT {
         // A qualification that is deleted, and an employment that never starts because the user goes.
         String license = Api.json(api.post("/qualifications", "{\"userId\": \"" + user + "\", \"kind\": \"license\", "
                 + "\"number\": \"L-777\", \"validFrom\": \"2010-05-01\"}")).get("id").asText();
-        assertEquals(204, api.delete("/qualifications/" + license).statusCode());
+        assertEquals(204, api.deleteWithVersion("/qualifications/" + license).statusCode());
         assertEquals(201, api.post("/employments", "{\"userId\": \"" + user + "\", \"staffNumber\": \"S-555\", "
                 + "\"validFrom\": \"" + TOMORROW + "\"}").statusCode());
         realm.removeUser(user);
         assertTrue(api.get("/change-log").body().contains("L-777"));
         assertTrue(api.get("/change-log").body().contains("S-555"));
 
-        assertEquals(200, api.post("/people/" + person + "/mask", "").statusCode());
+        assertEquals(200, api.postWithVersion("/people/" + person + "/mask", "").statusCode());
 
         String masked = api.get("/change-log").body();
         assertFalse(masked.contains("L-777"), masked);
         assertFalse(masked.contains("S-555"), masked);
 
-        assertEquals(204, api.delete("/people/" + person + "/data").statusCode());
+        assertEquals(204, api.deleteWithVersion("/people/" + person + "/data").statusCode());
 
         JsonNode left = Api.json(api.get("/change-log"));
         assertFalse(left.findValuesAsText("resourceType").contains("FUHITO_QUALIFICATION"), left.toString());

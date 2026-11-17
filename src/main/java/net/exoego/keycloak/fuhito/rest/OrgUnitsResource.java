@@ -1,7 +1,6 @@
 package net.exoego.keycloak.fuhito.rest;
 
 import java.util.List;
-import java.util.function.Supplier;
 
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.DELETE;
@@ -36,6 +35,7 @@ import org.eclipse.microprofile.openapi.annotations.headers.Header;
 import org.eclipse.microprofile.openapi.annotations.media.Content;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 import org.eclipse.microprofile.openapi.annotations.parameters.Parameter;
+import org.eclipse.microprofile.openapi.annotations.parameters.RequestBody;
 import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
 import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 
@@ -123,12 +123,12 @@ public class OrgUnitsResource {
     public OrgUnitRepresentation changeDetails(
             @Parameter(description = "The ID of the resource.")
             @PathParam("id") String id,
+            @RequestBody(required = true, content = @Content(mediaType = MediaType.APPLICATION_JSON,
+                    schema = @Schema(allOf = {OrgUnitRepresentation.class, VersionCheckRepresentation.class})))
             OrgUnitRepresentation body) {
         context.requireWrite();
-        return Calls.guarded(context, () -> state(id), () -> {
-            Checks.required("body", body);
-            return updated(path(id), service.changeDetails(id, body.toChange(), body.source(), body.externalId()));
-        });
+        return Calls.guarded(context, body, () -> version(id),
+                () -> updated(path(id), service.changeDetails(id, body.toChange(), body.source(), body.externalId())));
     }
 
     @PUT
@@ -149,10 +149,8 @@ public class OrgUnitsResource {
             @QueryParam("hierarchy") String hierarchy,
             ParentChangeRepresentation body) {
         context.requireWrite();
-        return Calls.guarded(context, () -> state(id), () -> {
-            Checks.required("body", body);
-            return updated(path(id) + "/parent", service.move(id, body.parentId(), body.validFrom(), hierarchy));
-        });
+        return Calls.guarded(context, body, () -> version(id),
+                () -> updated(path(id) + "/parent", service.move(id, body.parentId(), body.validFrom(), hierarchy)));
     }
 
     @DELETE
@@ -163,13 +161,19 @@ public class OrgUnitsResource {
             description = "It works only when no unit had it as a parent, no assignment, employment, role, or succession names it, and it has no link to a Keycloak organization. Its periods and its parents go with it. End a unit that existed for a while instead.")
     @Parameter(ref = "changeOrder")
     @APIResponse(responseCode = "204", description = "The resource is gone.")
+    @BadRequest
     @NotFound
     @ApiErrors
     public Response remove(
             @Parameter(description = "The ID of the resource.")
-            @PathParam("id") String id) {
+            @PathParam("id") String id,
+            @Parameter(
+                    description = "The version of the org unit that the caller read.",
+                    required = true,
+                    schema = @Schema(type = SchemaType.INTEGER, format = "int64"))
+            @QueryParam("version") String version) {
         context.requireWrite();
-        return Calls.guardedRemoval(context, () -> state(id), () -> {
+        return Calls.guarded(context, version, () -> version(id), () -> {
             removals.remove(ResourceRemoval.Kind.ORG_UNIT, id);
             context.recordChange(Change.DELETE, RESOURCE_TYPE, id, path(id), null);
             return Response.noContent().build();
@@ -194,10 +198,8 @@ public class OrgUnitsResource {
             @PathParam("id") String id,
             EndRepresentation body) {
         context.requireWrite();
-        return Calls.guarded(context, () -> state(id), () -> {
-            Checks.required("body", body);
-            return updated(path(id) + "/end", service.end(id, body.validTo()));
-        });
+        return Calls.guarded(context, body, () -> version(id),
+                () -> updated(path(id) + "/end", service.end(id, body.validTo())));
     }
 
     @DELETE
@@ -209,13 +211,20 @@ public class OrgUnitsResource {
                     + "parent must have no end then.")
     @Parameter(ref = "changeOrder")
     @APIResponse(responseCode = "200", description = "The unit as it is on the first date of its last details.")
+    @BadRequest
     @NotFound
     @ApiErrors
     public OrgUnitRepresentation removeEnd(
             @Parameter(description = "The ID of the resource.")
-            @PathParam("id") String id) {
+            @PathParam("id") String id,
+            @Parameter(
+                    description = "The version of the org unit that the caller read.",
+                    required = true,
+                    schema = @Schema(type = SchemaType.INTEGER, format = "int64"))
+            @QueryParam("version") String version) {
         context.requireWrite();
-        return Calls.guarded(context, () -> state(id), () -> updated(path(id) + "/end", service.removeEnd(id)));
+        return Calls.guarded(context, version, () -> version(id),
+                () -> updated(path(id) + "/end", service.removeEnd(id)));
     }
 
     @GET
@@ -501,8 +510,7 @@ public class OrgUnitsResource {
             @PathParam("id") String id,
             OrganizationLinkRepresentation body) {
         context.requireWrite();
-        return Calls.guarded(context, () -> state(id), () -> {
-            Checks.required("body", body);
+        return Calls.guarded(context, body, () -> version(id), () -> {
             // A link decides who is a member of the organization, as the admin API of Keycloak does.
             organizationLinks.organizationOf(id).ifPresent(context::requireManageOrganization);
             context.requireManageOrganization(body.organizationId());
@@ -525,9 +533,14 @@ public class OrgUnitsResource {
     @ApiErrors
     public OrganizationLinkRepresentation unlinkOrganization(
             @Parameter(description = "The ID of the resource.")
-            @PathParam("id") String id) {
+            @PathParam("id") String id,
+            @Parameter(
+                    description = "The version of the org unit that the caller read.",
+                    required = true,
+                    schema = @Schema(type = SchemaType.INTEGER, format = "int64"))
+            @QueryParam("version") String version) {
         context.requireWrite();
-        return Calls.guarded(context, () -> state(id), () -> {
+        return Calls.guarded(context, version, () -> version(id), () -> {
             organizationLinks.organizationOf(id).ifPresent(context::requireManageOrganization);
             var unit = organizationLinks.unlink(id);
             var link = new OrganizationLinkRepresentation(unit.id(), unit.version(), null);
@@ -553,8 +566,7 @@ public class OrgUnitsResource {
             @PathParam("id") String id,
             TimeSettingsRepresentation body) {
         context.requireWrite();
-        return Calls.guarded(context, () -> state(id), () -> {
-            Checks.required("body", body);
+        return Calls.guarded(context, body, () -> version(id), () -> {
             var unit = service.setTime(id, body.timeZone(), body.dayStart());
             var settings = new TimeSettingsRepresentation(unit.id(), unit.version(), unit.timeZone(),
                     unit.dayStart());
@@ -847,13 +859,10 @@ public class OrgUnitsResource {
             @Parameter(description = "The code of the hierarchy. The default is the hierarchy `default`.")
             @QueryParam("hierarchy") String hierarchy) {
         context.requireReadStructure();
-        Supplier<OrgUnitRepresentation> read = () -> represent(
-                limit.readable(service.get(id, limit.checked(asOf), hierarchy)));
-        return limit.active() ? Calls.run(context, read) : Calls.tagged(context, () -> state(id), read);
+        return Calls.run(context, () -> represent(limit.readable(service.get(id, limit.checked(asOf), hierarchy))));
     }
 
-    // The whole stored state of one resource, which its ETag covers.
-    private Object state(String id) {
-        return history(service.history(id));
+    private long version(String id) {
+        return service.version(id);
     }
 }

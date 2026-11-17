@@ -4,6 +4,9 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
@@ -34,6 +37,8 @@ public class ReorganizationService {
         }
     }
 
+    private static final Set<String> CHANGES = Set.of("change", "move", "end", "succeed");
+
     private final OrgUnitService orgUnits;
 
     /**
@@ -48,31 +53,50 @@ public class ReorganizationService {
     /**
      * Applies the steps in the order given, all on the effective date.
      * A later step can name a unit that an earlier create step made, by the {@code ref} of that step.
+     * A step that changes a stored unit names the version of the unit that the caller read.
      *
      * @param effectiveDate the date of every step, as {@code YYYY-MM-DD}
      * @param steps the steps
+     * @param lock locks a stored unit until the end of the transaction, before its version is read
      * @return what each step did, in the same order
-     * @throws FuhitoException when a step fails. Its values hold the position of the failed step, counted
-     *         from 0, under the key "step".
+     * @throws FuhitoException when a step fails, or names no version or an old one. Its values hold the position
+     *         of the step, counted from 0, under the key "step".
      */
-    public List<Result> apply(String effectiveDate, List<ReorganizationStep> steps) {
+    public List<Result> apply(String effectiveDate, List<ReorganizationStep> steps, Consumer<String> lock) {
         Checks.date("effectiveDate", effectiveDate);
         Checks.required("steps", steps);
         if (steps.isEmpty()) {
             throw FuhitoException.invalid("invalid.required", Map.of("field", "steps"));
         }
+        // Every version is checked before the first step counts one up.
+        for (int i = 0; i < steps.size(); i++) {
+            ReorganizationStep step = steps.get(i);
+            if (step != null && step.op() != null && CHANGES.contains(step.op()) && step.unitRef() == null
+                    && step.id() != null) {
+                atStep(i, () -> {
+                    lock.accept(step.id());
+                    Checks.version(step.version(), orgUnits.version(step.id()));
+                    return step;
+                });
+            }
+        }
         Map<String, String> created = new HashMap<>();
         List<Result> results = new ArrayList<>();
         for (int i = 0; i < steps.size(); i++) {
-            try {
-                results.add(apply(effectiveDate, steps.get(i), created));
-            } catch (FuhitoException e) {
-                Map<String, String> params = new HashMap<>(e.params());
-                params.put("step", Integer.toString(i));
-                throw new FuhitoException(e.reason(), e.code(), params).causedBy(e);
-            }
+            ReorganizationStep step = steps.get(i);
+            results.add(atStep(i, () -> apply(effectiveDate, step, created)));
         }
         return results;
+    }
+
+    private static <T> T atStep(int index, Supplier<T> work) {
+        try {
+            return work.get();
+        } catch (FuhitoException e) {
+            Map<String, String> params = new HashMap<>(e.params());
+            params.put("step", Integer.toString(index));
+            throw new FuhitoException(e.reason(), e.code(), params).causedBy(e);
+        }
     }
 
     private Result apply(String date, ReorganizationStep step, Map<String, String> created) {

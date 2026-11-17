@@ -5,10 +5,12 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
 /**
  * A request to give an org unit a new parent.
  */
-@Schema(name = "ParentChange", requiredProperties = {"validFrom"})
+@Schema(name = "ParentChange", requiredProperties = {"version", "validFrom"})
 public record ParentChangeRepresentation(
+        @Schema(description = "The version of the org unit that the caller read.")
+        Long version,
         @Schema(description = "The ID of the new parent. Leave it out to make the unit a root.")
         String parentId,
         @Schema(description = "The first date under the new parent.", format = "date")
-        String validFrom) {
+        String validFrom) implements Versioned {
 }

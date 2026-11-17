@@ -46,11 +46,11 @@ class OrgUnitTreeIT {
         surgery = create("外科", "げか", yHospital, 0, null);
 
         // On 2027-04-01 ward 1 moves to the other hospital with a new name, and surgery ends.
-        assertEquals(200, api.put("/org-units/" + ward1 + "/parent",
+        assertEquals(200, api.putWithVersion("/org-units/" + ward1 + "/parent",
                 "{\"parentId\": \"" + yHospital + "\", \"validFrom\": \"2027-04-01\"}").statusCode());
-        assertEquals(200, api.put("/org-units/" + ward1,
+        assertEquals(200, api.putWithVersion("/org-units/" + ward1,
                 "{\"name\": \"東病棟\", \"phoneticName\": \"ひがしびょうとう\", \"validFrom\": \"2027-04-01\"}").statusCode());
-        assertEquals(200, api.put("/org-units/" + surgery + "/end", "{\"validTo\": \"2027-04-01\"}").statusCode());
+        assertEquals(200, api.putWithVersion("/org-units/" + surgery + "/end", "{\"validTo\": \"2027-04-01\"}").statusCode());
     }
 
     private static String createRealm(Keycloak admin) {

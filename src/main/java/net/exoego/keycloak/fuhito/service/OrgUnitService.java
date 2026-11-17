@@ -716,6 +716,17 @@ public class OrgUnitService {
     }
 
     /**
+     * Returns the version of an org unit.
+     *
+     * @param id the ID
+     * @return the number that each write of the unit counts up
+     * @throws FuhitoException when the unit does not exist
+     */
+    public long version(String id) {
+        return requireUnit(id).version();
+    }
+
+    /**
      * Returns the first date on which an org unit no longer exists.
      *
      * @param id the ID

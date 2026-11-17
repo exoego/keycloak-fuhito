@@ -59,6 +59,7 @@ final class KeycloakRequestContext implements RequestContext {
     private final AdminEventBuilder adminEvent;
     private final EntityManager entityManager;
     private final FuhitoException timeSettingsError;
+    private boolean writing;
 
     KeycloakRequestContext(KeycloakSession session, RealmModel realm, AdminPermissionEvaluator auth,
             AdminEventBuilder adminEvent, EntityManager entityManager, FuhitoException timeSettingsError) {
@@ -124,6 +125,7 @@ final class KeycloakRequestContext implements RequestContext {
     @Override
     public void requireWrite() {
         requireRole(FuhitoRoles.MANAGE);
+        writing = true;
         requireTimeSettings();
         String changeOrderId = changeOrderId();
         if (changeOrderId != null
@@ -172,7 +174,20 @@ final class KeycloakRequestContext implements RequestContext {
         List<String> segments = List.of(requestPath().split("/"));
         int realms = segments.indexOf("realms");
         if (realms >= 0 && segments.size() > realms + 4) {
-            RowLocks.lock(entityManager, realm.getId(), segments.get(realms + 3), segments.get(realms + 4));
+            lock(segments.get(realms + 3), segments.get(realms + 4));
+        }
+    }
+
+    @Override
+    public void lock(String collection, String id) {
+        RowLocks.lock(entityManager, realm.getId(), collection, id);
+    }
+
+    @Override
+    public void flush() {
+        // A long job ends the transaction of the request first, and writes in transactions of its own.
+        if (writing && session.getTransactionManager().isActive()) {
+            RowLocks.flush(entityManager);
         }
     }
 
@@ -184,11 +199,6 @@ final class KeycloakRequestContext implements RequestContext {
     @Override
     public IdempotencyStore idempotency() {
         return new JpaIdempotencyStore(entityManager, realm.getId());
-    }
-
-    @Override
-    public void responseHeader(String name, String value) {
-        session.getContext().getHttpResponse().setHeader(name, value);
     }
 
     @Override

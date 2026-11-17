@@ -91,24 +91,24 @@ class RealmExportIT {
         ok(api.post("/hierarchies", "{\"code\": \"project\", \"name\": \"プロジェクト\"}"));
         // The default hierarchy goes with its ID and its name.
         line = defaultHierarchy(api).get("id").asText();
-        ok(api.put("/hierarchies/" + line, "{\"name\": \"組織図\"}"));
+        ok(api.putWithVersion("/hierarchies/" + line, "{\"name\": \"組織図\"}"));
         String hospital = id(api.post("/org-units", "{\"name\": \"病院\", \"workLocation\": \"tokyo\", "
                 + "\"validFrom\": \"2020-04-01\", \"externalId\": \"H-1\", \"source\": \"hr\"}"));
-        ok(api.put("/org-units/" + hospital + "/organization", "{\"organizationId\": \""
+        ok(api.putWithVersion("/org-units/" + hospital + "/organization", "{\"organizationId\": \""
                 + source.organization("x-hospital") + "\"}"));
         String ward = id(api.post("/org-units", "{\"name\": \"1病棟\", \"parentId\": \"" + hospital
                 + "\", \"validFrom\": \"2020-04-01\"}"));
-        ok(api.put("/org-units/" + ward, "{\"code\": \"W1\", \"name\": \"第1病棟\", \"validFrom\": \"2024-04-01\"}"));
-        ok(api.put("/org-units/" + ward + "/parent?hierarchy=project", "{\"parentId\": \"" + hospital
+        ok(api.putWithVersion("/org-units/" + ward, "{\"code\": \"W1\", \"name\": \"第1病棟\", \"validFrom\": \"2024-04-01\"}"));
+        ok(api.putWithVersion("/org-units/" + ward + "/parent?hierarchy=project", "{\"parentId\": \"" + hospital
                 + "\", \"validFrom\": \"2021-04-01\"}"));
         String old = id(api.post("/org-units", "{\"name\": \"旧病棟\", \"validFrom\": \"2020-04-01\"}"));
-        ok(api.post("/reorganizations", "{\"effectiveDate\": \"2023-04-01\", \"steps\": [{\"op\": \"succeed\", "
+        ok(api.postWithVersion("/reorganizations", "{\"effectiveDate\": \"2023-04-01\", \"steps\": [{\"op\": \"succeed\", "
                 + "\"id\": \"" + old + "\", \"successorIds\": [\"" + ward + "\"]}]}"));
         JsonNode nurse = Api.json(api.post("/staff", "{\"userId\": \"" + ids.get("nurse") + "\", \"orgUnitId\": \""
                 + ward + "\", \"validFrom\": \"2020-04-01\", \"jobTitle\": \"chief\", \"costCenter\": \"cc-ward\", "
                 + "\"contractEndDate\": \"2030-03-31\"}"));
         String nurseEmployment = nurse.get("employment").get("id").asText();
-        ok(api.post("/employments/" + nurseEmployment + "/leave", "{\"validFrom\": \"2022-04-01\", "
+        ok(api.postWithVersion("/employments/" + nurseEmployment + "/leave", "{\"validFrom\": \"2022-04-01\", "
                 + "\"validTo\": \"2023-04-01\", \"reason\": \"parental\"}"));
         JsonNode doctor = Api.json(api.post("/staff", "{\"userId\": \"" + ids.get("doctor")
                 + "\", \"orgUnitId\": \"" + hospital + "\", \"validFrom\": \"2020-04-01\"}"));
@@ -118,7 +118,7 @@ class RealmExportIT {
                 + "\", \"orgUnitId\": \"" + ward + "\", \"role\": \"approver\", \"validFrom\": \"2020-04-01\"}"));
         ok(api.post("/qualifications", "{\"userId\": \"" + ids.get("nurse") + "\", \"kind\": \"license\", "
                 + "\"number\": \"1\", \"validFrom\": \"2010-04-01\"}"));
-        ok(api.put("/external-ids", "{\"resourceType\": \"ORG_UNIT\", \"resourceId\": \"" + ward
+        ok(api.putWithVersion("/external-ids", "{\"resourceType\": \"ORG_UNIT\", \"resourceId\": \"" + ward
                 + "\", \"source\": \"payroll\", \"externalId\": \"P-1\"}"));
         ok(api.post("/change-orders", "{\"title\": \"異動\", \"effectiveDate\": \"2024-04-01\", \"approverUserId\": \""
                 + ids.get("doctor") + "\"}"));
@@ -181,10 +181,10 @@ class RealmExportIT {
         String nurse = realm.user("nurse");
         String hospital = id(api.post("/org-units", "{\"name\": \"病院\", \"validFrom\": \"2020-04-01\", "
                 + "\"externalId\": \"H-1\", \"source\": \"hr\"}"));
-        ok(api.put("/external-ids", "{\"resourceType\": \"ORG_UNIT\", \"resourceId\": \"" + hospital
+        ok(api.putWithVersion("/external-ids", "{\"resourceType\": \"ORG_UNIT\", \"resourceId\": \"" + hospital
                 + "\", \"source\": \"payroll\", \"externalId\": \"P-1\"}"));
         String organization = realm.organization("x-hospital");
-        ok(api.put("/org-units/" + hospital + "/organization", "{\"organizationId\": \"" + organization + "\"}"));
+        ok(api.putWithVersion("/org-units/" + hospital + "/organization", "{\"organizationId\": \"" + organization + "\"}"));
         ok(api.post("/staff", "{\"userId\": \"" + nurse + "\", \"orgUnitId\": \"" + hospital
                 + "\", \"validFrom\": \"2020-04-01\"}"));
         realm.refItem("QUALIFICATION", "license", "免許");
@@ -195,10 +195,10 @@ class RealmExportIT {
 
         // Changes by mistake after the export.
         ok(api.post("/org-units", "{\"name\": \"新病棟\", \"validFrom\": \"2020-04-01\"}"));
-        ok(api.put("/org-units/" + hospital, "{\"name\": \"誤った名前\", \"validFrom\": \"2025-04-01\"}"));
-        ok(api.delete("/qualifications/" + license));
-        ok(api.delete("/org-units/" + hospital + "/organization"));
-        ok(api.delete("/external-ids?resourceType=ORG_UNIT&resourceId=" + hospital + "&source=hr"));
+        ok(api.putWithVersion("/org-units/" + hospital, "{\"name\": \"誤った名前\", \"validFrom\": \"2025-04-01\"}"));
+        ok(api.deleteWithVersion("/qualifications/" + license));
+        ok(api.deleteWithVersion("/org-units/" + hospital + "/organization"));
+        ok(api.deleteWithVersion("/external-ids?resourceType=ORG_UNIT&resourceId=" + hospital + "&source=hr"));
 
         assertEquals("restore.realm_not_empty", error(api.post("/restore", JSON.writeValueAsString(before))));
         HttpResponse<String> restored = api.post("/restore?replace=true", JSON.writeValueAsString(before));
@@ -227,8 +227,8 @@ class RealmExportIT {
                 + "\", \"validFrom\": \"2020-04-01\"}"));
         ObjectNode before = export(realm.api);
 
-        assertEquals(204, realm.api.delete("/people/" + people.get("erased") + "/data").statusCode());
-        ok(realm.api.post("/people/" + people.get("masked") + "/mask", ""));
+        assertEquals(204, realm.api.deleteWithVersion("/people/" + people.get("erased") + "/data").statusCode());
+        ok(realm.api.postWithVersion("/people/" + people.get("masked") + "/mask", ""));
         ok(realm.api.post("/restore?replace=true", JSON.writeValueAsString(before)));
 
         assertEquals(404, realm.api.get("/people/" + people.get("erased")).statusCode());
@@ -321,7 +321,7 @@ class RealmExportIT {
         // The admin of the tests belongs to the master realm.
         TestRealm source = TestRealm.create("export-announcer");
         String order = id(source.api.post("/change-orders", "{\"title\": \"異動\", \"effectiveDate\": \"2026-04-01\"}"));
-        ok(source.api.post("/change-orders/" + order + "/announce", ""));
+        ok(source.api.postWithVersion("/change-orders/" + order + "/announce", ""));
         ObjectNode document = export(source.api);
 
         JsonNode announcedBy = document.get("changeOrders").get(0).get("announcedBy");

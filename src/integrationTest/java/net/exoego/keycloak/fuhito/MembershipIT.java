@@ -54,10 +54,10 @@ class MembershipIT {
         post("/assignments", "{\"employmentId\": \"" + physicianEmployment + "\", \"orgUnitId\": \"" + yHospital
                 + "\", \"validFrom\": \"2026-04-01\", \"occupation\": \"physician\", \"allocationPercent\": 20}");
         String nurseEmployment = staff(nurse, ward, ", \"occupation\": \"nurse\", \"employmentType\": \"part-time\", \"workPercent\": 50");
-        assertEquals(200, api.put("/employments/" + nurseEmployment + "/terms",
+        assertEquals(200, api.putWithVersion("/employments/" + nurseEmployment + "/terms",
                 "{\"validFrom\": \"2026-10-01\", \"employmentType\": \"part-time\", \"status\": \"ON_LEAVE\"}").statusCode());
         String clerkEmployment = staff(clerk, nursing, "");
-        assertEquals(200, api.put("/employments/" + clerkEmployment + "/end", "{\"validTo\": \"2027-04-01\"}").statusCode());
+        assertEquals(200, api.putWithVersion("/employments/" + clerkEmployment + "/end", "{\"validTo\": \"2027-04-01\"}").statusCode());
         post("/staff", "{\"userId\": \"" + clerk + "\", \"orgUnitId\": \"" + ward + "\", \"validFrom\": \"2028-04-01\"}");
     }
 
@@ -240,7 +240,7 @@ class MembershipIT {
                 .headers().firstValue("Link").orElseThrow();
         String next = link.substring(link.indexOf(prefix) + prefix.length(), link.indexOf('>'));
         assertTrue(next.contains("after=members.v1__" + wardA), next);
-        assertEquals(200, scratchApi.put("/org-units/" + wardA + "/parent",
+        assertEquals(200, scratchApi.putWithVersion("/org-units/" + wardA + "/parent",
                 "{\"parentId\": null, \"validFrom\": \"2026-06-01\"}").statusCode());
         HttpResponse<String> gone = scratchApi.get(next.replace("asOf=2026-04-01", "asOf=2026-06-01"));
         assertEquals(400, gone.statusCode(), gone.body());

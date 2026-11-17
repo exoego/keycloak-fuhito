@@ -72,6 +72,15 @@ class OrgUnitServiceTest {
     }
 
     @Test
+    void readsTheVersionOfAUnit() {
+        String hospital = service.create(named("X病院", null, "2026-04-01")).unit().id();
+
+        assertEquals(service.history(hospital).unit().version(), service.version(hospital));
+        assertEquals("org_unit.not_found",
+                assertThrows(FuhitoException.class, () -> service.version("nope")).code());
+    }
+
+    @Test
     void searchesUnitsAtAnyDepthByNameCodeAndType() {
         RefItem ward = unitType("ward", true);
         String hospital = service.create(named("X病院", null, "2026-04-01")).unit().id();

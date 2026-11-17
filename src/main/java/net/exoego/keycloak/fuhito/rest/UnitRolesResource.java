@@ -159,7 +159,7 @@ public class UnitRolesResource {
             @Parameter(description = "The ID of the resource.")
             @PathParam("id") String id) {
         context.requireRead();
-        return Calls.tagged(context, () -> UnitRoleRepresentation.of(service.get(id)));
+        return Calls.run(context, () -> UnitRoleRepresentation.of(service.get(id)));
     }
 
     @PUT
@@ -175,8 +175,7 @@ public class UnitRolesResource {
             @PathParam("id") String id,
             EndRepresentation body) {
         context.requireWrite();
-        return Calls.guarded(context, () -> state(id), () -> {
-            Checks.required("body", body);
+        return Calls.guarded(context, body, () -> version(id), () -> {
             var role = UnitRoleRepresentation.of(service.end(id, body.validTo()));
             context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, path(id) + "/end", role);
             return role;
@@ -191,13 +190,19 @@ public class UnitRolesResource {
             description = "End a role that held for a while. Its entries in the change log stay.")
     @Parameter(ref = "changeOrder")
     @APIResponse(responseCode = "204", description = "The role is gone.")
+    @BadRequest
     @NotFound
     @ApiErrors
     public Response delete(
             @Parameter(description = "The ID of the resource.")
-            @PathParam("id") String id) {
+            @PathParam("id") String id,
+            @Parameter(
+                    description = "The version of the role that the caller read.",
+                    required = true,
+                    schema = @Schema(type = SchemaType.INTEGER, format = "int64"))
+            @QueryParam("version") String version) {
         context.requireWrite();
-        return Calls.guardedRemoval(context, () -> state(id), () -> {
+        return Calls.guarded(context, version, () -> version(id), () -> {
             service.delete(id);
             context.recordChange(Change.DELETE, RESOURCE_TYPE, id, path(id), null);
             return Response.noContent().build();
@@ -208,8 +213,7 @@ public class UnitRolesResource {
         return "fuhito/unit-roles/" + id;
     }
 
-    // The whole stored state of one resource, which its ETag covers.
-    private Object state(String id) {
-        return UnitRoleRepresentation.of(service.get(id));
+    private long version(String id) {
+        return service.get(id).role().version();
     }
 }

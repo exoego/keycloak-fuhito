@@ -180,7 +180,7 @@ public class AssignmentsResource {
             @Parameter(description = "The ID of the resource.")
             @PathParam("id") String id) {
         context.requireRead();
-        return Calls.tagged(context, () -> state(id), () -> represent(service.get(id)));
+        return Calls.run(context, () -> represent(service.get(id)));
     }
 
     @DELETE
@@ -191,13 +191,19 @@ public class AssignmentsResource {
             description = "It works only when the assignment has no reporting line and no assignment continues it. Every period of it goes. End an assignment that held for a while instead.")
     @Parameter(ref = "changeOrder")
     @APIResponse(responseCode = "204", description = "The resource is gone.")
+    @BadRequest
     @NotFound
     @ApiErrors
     public Response remove(
             @Parameter(description = "The ID of the resource.")
-            @PathParam("id") String id) {
+            @PathParam("id") String id,
+            @Parameter(
+                    description = "The version of the assignment that the caller read.",
+                    required = true,
+                    schema = @Schema(type = SchemaType.INTEGER, format = "int64"))
+            @QueryParam("version") String version) {
         context.requireWrite();
-        return Calls.guardedRemoval(context, () -> state(id), () -> {
+        return Calls.guarded(context, version, () -> version(id), () -> {
             removals.remove(ResourceRemoval.Kind.ASSIGNMENT, id);
             context.recordChange(Change.DELETE, RESOURCE_TYPE, id, "fuhito/assignments/" + id, null);
             return Response.noContent().build();
@@ -220,8 +226,7 @@ public class AssignmentsResource {
             @PathParam("id") String id,
             AssignmentRepresentation.Details body) {
         context.requireWrite();
-        return Calls.guarded(context, () -> state(id), () -> {
-            Checks.required("body", body);
+        return Calls.guarded(context, body, () -> version(id), () -> {
             var assignment = represent(service.changeDetails(id, body.toValues()));
             context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, path(id) + "/details", assignment);
             return assignment;
@@ -244,8 +249,7 @@ public class AssignmentsResource {
             @PathParam("id") String id,
             EndRepresentation body) {
         context.requireWrite();
-        return Calls.guarded(context, () -> state(id), () -> {
-            Checks.required("body", body);
+        return Calls.guarded(context, body, () -> version(id), () -> {
             var assignment = represent(service.end(id, body.validTo()));
             context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, path(id) + "/end", assignment);
             return assignment;
@@ -277,8 +281,7 @@ public class AssignmentsResource {
             @PathParam("id") String id,
             MoveRepresentation body) {
         context.requireWrite();
-        return Calls.once(context, body, Response.class, () -> Calls.guarded(context, () -> state(id), () -> {
-            Checks.required("body", body);
+        return Calls.once(context, body, Response.class, () -> Calls.guarded(context, body, () -> version(id), () -> {
             AssignmentService.Move move = service.move(id, body.toRequest());
             var ended = represent(move.ended());
             var started = represent(move.started());
@@ -301,9 +304,14 @@ public class AssignmentsResource {
     @ApiErrors
     public AssignmentRepresentation removeEnd(
             @Parameter(description = "The ID of the resource.")
-            @PathParam("id") String id) {
+            @PathParam("id") String id,
+            @Parameter(
+                    description = "The version of the assignment that the caller read.",
+                    required = true,
+                    schema = @Schema(type = SchemaType.INTEGER, format = "int64"))
+            @QueryParam("version") String version) {
         context.requireWrite();
-        return Calls.guarded(context, () -> state(id), () -> {
+        return Calls.guarded(context, version, () -> version(id), () -> {
             var assignment = represent(service.removeEnd(id));
             context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, path(id) + "/end", assignment);
             return assignment;
@@ -325,8 +333,7 @@ public class AssignmentsResource {
         return represent(List.of(view), externalIds).getFirst();
     }
 
-    // The whole stored state of one resource, which its ETag covers.
-    private Object state(String id) {
-        return represent(service.get(id)).stored();
+    private long version(String id) {
+        return service.version(id);
     }
 }

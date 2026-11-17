@@ -55,7 +55,7 @@ class ChangeOrdersIT {
         assertTrue(order.get("createdAt").asText().endsWith("Z"));
         assertEquals(order, Api.json(api.get("/change-orders/" + id)));
 
-        HttpResponse<String> response = api.put("/change-orders/" + id,
+        HttpResponse<String> response = api.putWithVersion("/change-orders/" + id,
                 "{\"number\": \"2026-0042\", \"title\": \"訂正後\", \"effectiveDate\": \"2026-05-01\"}");
         assertEquals(200, response.statusCode(), response.body());
         JsonNode changed = Api.json(response);
@@ -64,7 +64,7 @@ class ChangeOrdersIT {
         assertEquals(order.get("createdAt"), changed.get("createdAt"));
         assertEquals(changed, Api.json(api.get("/change-orders/" + id)));
 
-        assertEquals(204, api.delete("/change-orders/" + id).statusCode());
+        assertEquals(204, api.deleteWithVersion("/change-orders/" + id).statusCode());
         assertEquals("change_order.not_found", errorOf(404, api.get("/change-orders/" + id)));
     }
 
@@ -77,7 +77,7 @@ class ChangeOrdersIT {
         assertFalse(created(api.post("/change-orders", "{\"title\": \"x\", \"effectiveDate\": \"2027-04-01\", "
                 + "\"announcedAt\": \"2020-01-01T00:00:00Z\"}")).has("announcedAt"));
 
-        HttpResponse<String> response = api.post("/change-orders/" + id + "/announce", "");
+        HttpResponse<String> response = api.postWithVersion("/change-orders/" + id + "/announce", "");
 
         assertEquals(200, response.statusCode(), response.body());
         JsonNode announced = Api.json(response);
@@ -85,15 +85,15 @@ class ChangeOrdersIT {
         assertFalse(announced.get("announcedByUserId").asText().isEmpty());
         assertEquals(announced, Api.json(api.get("/change-orders/" + id)));
         // A replace keeps it.
-        assertEquals(announced.get("announcedAt"), Api.json(api.put("/change-orders/" + id,
+        assertEquals(announced.get("announcedAt"), Api.json(api.putWithVersion("/change-orders/" + id,
                 "{\"title\": \"発令\", \"effectiveDate\": \"2027-04-01\"}")).get("announcedAt"));
         assertEquals(List.of("CREATE", "UPDATE", "UPDATE"), Api.json(api.get(
                 "/change-log?resourceType=FUHITO_CHANGE_ORDER&resourceId=" + id)).findValuesAsText("operation"));
 
-        assertEquals("change_order.already_announced", errorOf(409, api.post("/change-orders/" + id + "/announce", "")));
-        assertEquals("change_order.not_found", errorOf(404, api.post("/change-orders/nope/announce", "")));
+        assertEquals("change_order.already_announced", errorOf(409, api.postWithVersion("/change-orders/" + id + "/announce", "")));
+        assertEquals("change_order.not_found", errorOf(404, api.postWithVersion("/change-orders/nope/announce", "")));
         assertEquals("change_order.not_found",
-                errorOf(404, otherRealm.api.post("/change-orders/" + id + "/announce", "")));
+                errorOf(404, otherRealm.api.postWithVersion("/change-orders/" + id + "/announce", "")));
     }
 
     @Test
@@ -135,8 +135,8 @@ class ChangeOrdersIT {
         String id = created(api.post("/change-orders", body)).get("id").asText();
 
         assertEquals("change_order.not_found", errorOf(404, otherRealm.api.get("/change-orders/" + id)));
-        assertEquals("change_order.not_found", errorOf(404, otherRealm.api.put("/change-orders/" + id, body)));
-        assertEquals("change_order.not_found", errorOf(404, otherRealm.api.delete("/change-orders/" + id)));
+        assertEquals("change_order.not_found", errorOf(404, otherRealm.api.putWithVersion("/change-orders/" + id, body)));
+        assertEquals("change_order.not_found", errorOf(404, otherRealm.api.deleteWithVersion("/change-orders/" + id)));
         assertFalse(Api.json(otherRealm.api.get("/change-orders")).findValuesAsText("id").contains(id));
         assertEquals("change_order.user_unknown", errorOf(400, otherRealm.api.post("/change-orders",
                 "{\"title\": \"x\", \"effectiveDate\": \"2026-04-01\", \"approverUserId\": \"" + director + "\"}")));

@@ -372,6 +372,15 @@ class AssignmentServiceTest {
     }
 
     @Test
+    void readsTheVersionOfAnAssignment() {
+        String id = service.add(to(ward, "2026-04-01")).assignmentId();
+
+        assertEquals(service.get(id).rows().getFirst().row().version(), service.version(id));
+        assertEquals("assignment.not_found",
+                assertThrows(FuhitoException.class, () -> service.version("nope")).code());
+    }
+
+    @Test
     void movesTheEndOfAnAssignmentEarlierAndLaterAndRemovesIt() {
         String id = service.add(to(ward, "2026-04-01")).assignmentId();
 

@@ -152,6 +152,23 @@ public final class Checks {
     }
 
     /**
+     * Requires that a write of a stored resource names the version that the resource has.
+     *
+     * @param version the version that the caller read, or null when the request has none
+     * @param current the version that the resource has
+     * @throws FuhitoException when the request has no version, or another one. The error of another one has the
+     *         current version.
+     */
+    public static void version(Long version, long current) {
+        if (version == null) {
+            throw FuhitoException.invalid("version.required", Map.of());
+        }
+        if (version != current) {
+            throw FuhitoException.conflict("version.conflict", Map.of("version", Long.toString(current)));
+        }
+    }
+
+    /**
      * Checks a share of full-time work in percent.
      *
      * @param field the name of the field, for the error

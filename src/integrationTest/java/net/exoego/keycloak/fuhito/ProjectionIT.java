@@ -115,7 +115,7 @@ class ProjectionIT {
         String hospital = unit("X病院", null);
         String nurse = user("nurse");
         staff(nurse, unit("1病棟", hospital));
-        assertEquals(200, api.put("/org-units/" + hospital + "/organization",
+        assertEquals(200, api.putWithVersion("/org-units/" + hospital + "/organization",
                 "{\"organizationId\": \"" + organization + "\"}").statusCode());
 
         CompletableFuture<HttpResponse<String>> first;
@@ -169,7 +169,7 @@ class ProjectionIT {
         staff(headNurse, nursing);
         String nurseAssignment = staff(nurse, ward);
         staff(clerk, office);
-        assertEquals(200, api.put("/org-units/" + hospital + "/organization",
+        assertEquals(200, api.putWithVersion("/org-units/" + hospital + "/organization",
                 "{\"organizationId\": \"" + organization + "\"}").statusCode());
 
         JsonNode first = rebuild();
@@ -201,12 +201,12 @@ class ProjectionIT {
 
         // The ward moves to the top with a new name, the office ends, and the nurse leaves the ward.
         // A new office takes the name of the old one on the same date.
-        assertEquals(200, api.put("/org-units/" + ward + "/parent", "{\"validFrom\": \"2021-04-01\", \"parentId\": \"" + hospital + "\"}").statusCode());
-        assertEquals(200, api.put("/org-units/" + ward, "{\"name\": \"東病棟\", \"validFrom\": \"2021-04-01\"}").statusCode());
-        assertEquals(200, api.put("/assignments/" + nurseAssignment + "/end", "{\"validTo\": \"2021-04-01\"}").statusCode());
+        assertEquals(200, api.putWithVersion("/org-units/" + ward + "/parent", "{\"validFrom\": \"2021-04-01\", \"parentId\": \"" + hospital + "\"}").statusCode());
+        assertEquals(200, api.putWithVersion("/org-units/" + ward, "{\"name\": \"東病棟\", \"validFrom\": \"2021-04-01\"}").statusCode());
+        assertEquals(200, api.putWithVersion("/assignments/" + nurseAssignment + "/end", "{\"validTo\": \"2021-04-01\"}").statusCode());
         JsonNode clerkAssignments = Api.json(api.get("/users/" + clerk + "/assignments"));
-        assertEquals(200, api.put("/assignments/" + clerkAssignments.get(0).get("assignmentId").asText() + "/end", "{\"validTo\": \"2021-04-01\"}").statusCode());
-        assertEquals(200, api.put("/org-units/" + office + "/end", "{\"validTo\": \"2021-04-01\"}").statusCode());
+        assertEquals(200, api.putWithVersion("/assignments/" + clerkAssignments.get(0).get("assignmentId").asText() + "/end", "{\"validTo\": \"2021-04-01\"}").statusCode());
+        assertEquals(200, api.putWithVersion("/org-units/" + office + "/end", "{\"validTo\": \"2021-04-01\"}").statusCode());
         post("/org-units", "{\"name\": \"事務室\", \"parentId\": \"" + hospital + "\", \"validFrom\": \"2021-04-01\"}");
 
         JsonNode second = rebuild();
@@ -233,7 +233,7 @@ class ProjectionIT {
         String organization = OrganizationLinkIT.createOrganization(admin, realm, "x-hospital");
         String hospital = unit("X病院", null);
         unit("看護部", hospital);
-        assertEquals(200, api.put("/org-units/" + hospital + "/organization",
+        assertEquals(200, api.putWithVersion("/org-units/" + hospital + "/organization",
                 "{\"organizationId\": \"" + organization + "\"}").statusCode());
 
         HttpResponse<String> response = api.post("/projection/rebuild", "");
@@ -258,8 +258,8 @@ class ProjectionIT {
         for (String unit : List.of(xMedicine, ySurgery)) {
             post("/assignments", "{\"employmentId\": \"" + employment + "\", \"orgUnitId\": \"" + unit + "\", \"validFrom\": \"2020-04-01\"}");
         }
-        assertEquals(200, api.put("/org-units/" + xHospital + "/organization", "{\"organizationId\": \"" + xOrganization + "\"}").statusCode());
-        assertEquals(200, api.put("/org-units/" + yHospital + "/organization", "{\"organizationId\": \"" + yOrganization + "\"}").statusCode());
+        assertEquals(200, api.putWithVersion("/org-units/" + xHospital + "/organization", "{\"organizationId\": \"" + xOrganization + "\"}").statusCode());
+        assertEquals(200, api.putWithVersion("/org-units/" + yHospital + "/organization", "{\"organizationId\": \"" + yOrganization + "\"}").statusCode());
 
         JsonNode report = rebuild();
 
@@ -279,13 +279,13 @@ class ProjectionIT {
         String hospital = unit("Y病院", null);
         String nursing = unit("看護部", hospital);
         String office = unit("事務室", hospital);
-        assertEquals(200, api.put("/org-units/" + hospital + "/organization",
+        assertEquals(200, api.putWithVersion("/org-units/" + hospital + "/organization",
                 "{\"organizationId\": \"" + organization + "\"}").statusCode());
         rebuild();
         String groups = "/organizations/" + organization + "/groups";
         assertEquals(List.of("事務室", "看護部"), sorted(keycloak(groups), "name"));
 
-        assertEquals(200, api.put("/org-units/" + office + "/parent",
+        assertEquals(200, api.putWithVersion("/org-units/" + office + "/parent",
                 "{\"parentId\": \"" + nursing + "\", \"validFrom\": \"2021-04-01\"}").statusCode());
         JsonNode moved = rebuild();
 
@@ -308,7 +308,7 @@ class ProjectionIT {
         staff(stays, ward);
         staff(gone, ward);
         staff(gone, hospital);
-        assertEquals(200, api.put("/org-units/" + hospital + "/organization",
+        assertEquals(200, api.putWithVersion("/org-units/" + hospital + "/organization",
                 "{\"organizationId\": \"" + organization + "\"}").statusCode());
         for (String table : List.of("user_role_mapping", "user_group_membership", "user_attribute", "credential",
                 "user_required_action")) {

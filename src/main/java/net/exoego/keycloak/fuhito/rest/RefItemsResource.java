@@ -18,9 +18,11 @@ import net.exoego.keycloak.fuhito.rest.RequestContext.Change;
 import net.exoego.keycloak.fuhito.service.Page;
 import net.exoego.keycloak.fuhito.service.RefItemService;
 import org.eclipse.microprofile.openapi.annotations.Operation;
+import org.eclipse.microprofile.openapi.annotations.enums.SchemaType;
 import org.eclipse.microprofile.openapi.annotations.media.Content;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 import org.eclipse.microprofile.openapi.annotations.parameters.Parameter;
+import org.eclipse.microprofile.openapi.annotations.parameters.RequestBody;
 import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
 import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 
@@ -104,7 +106,7 @@ public class RefItemsResource {
             @Parameter(description = "The ID of the resource.")
             @PathParam("id") String id) {
         context.requireReadStructure();
-        return Calls.tagged(context, () -> RefItemRepresentation.of(service.get(id)));
+        return Calls.run(context, () -> RefItemRepresentation.of(service.get(id)));
     }
 
     @POST
@@ -145,10 +147,11 @@ public class RefItemsResource {
     public RefItemRepresentation update(
             @Parameter(description = "The ID of the resource.")
             @PathParam("id") String id,
+            @RequestBody(required = true, content = @Content(mediaType = MediaType.APPLICATION_JSON,
+                    schema = @Schema(allOf = {RefItemRepresentation.class, VersionCheckRepresentation.class})))
             RefItemRepresentation body) {
         context.requireWrite();
-        return Calls.guarded(context, () -> state(id), () -> {
-            Checks.required("body", body);
+        return Calls.guarded(context, body, () -> version(id), () -> {
             var item = RefItemRepresentation.of(service.update(id, body.name(), body.names(), body.displayOrder(),
                     body.attributes(), body.active(), body.marks()));
             context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, path(id), item);
@@ -166,9 +169,14 @@ public class RefItemsResource {
     @ApiErrors
     public Response delete(
             @Parameter(description = "The ID of the resource.")
-            @PathParam("id") String id) {
+            @PathParam("id") String id,
+            @Parameter(
+                    description = "The version of the item that the caller read.",
+                    required = true,
+                    schema = @Schema(type = SchemaType.INTEGER, format = "int64"))
+            @QueryParam("version") String version) {
         context.requireWrite();
-        return Calls.guardedRemoval(context, () -> state(id), () -> {
+        return Calls.guarded(context, version, () -> version(id), () -> {
             service.delete(id);
             context.recordChange(Change.DELETE, RESOURCE_TYPE, id, path(id), null);
             return Response.noContent().build();
@@ -179,8 +187,7 @@ public class RefItemsResource {
         return "fuhito/ref-items/" + id;
     }
 
-    // The whole stored state of one resource, which its ETag covers.
-    private Object state(String id) {
-        return RefItemRepresentation.of(service.get(id));
+    private long version(String id) {
+        return service.get(id).version();
     }
 }

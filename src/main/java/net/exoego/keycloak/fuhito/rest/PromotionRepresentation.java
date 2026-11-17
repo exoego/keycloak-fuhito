@@ -10,8 +10,10 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
         name = "Promotion",
         description = "A request to promote a person on a date, and its response. The request names a grade, a "
                 + "job title, or a head flag, or several of them.",
-        requiredProperties = {"validFrom"})
+        requiredProperties = {"version", "validFrom"})
 public record PromotionRepresentation(
+        @Schema(description = "The version of the employment that the caller read.", writeOnly = true)
+        Long version,
         @Schema(description = "The first date of the new values.", format = "date", writeOnly = true)
         String validFrom,
         @Schema(description = "The code of the new grade. Leave it out to keep the grade.", writeOnly = true)
@@ -33,13 +35,13 @@ public record PromotionRepresentation(
                 description = "The assignment with all its details. It is absent when the request named no job "
                         + "title and no head flag.",
                 readOnly = true)
-        AssignmentRepresentation assignment) {
+        AssignmentRepresentation assignment) implements Versioned {
 
     PromotionRequest toRequest() {
         return new PromotionRequest(validFrom, grade, jobTitle, assignmentId, head);
     }
 
     static PromotionRepresentation of(EmploymentRepresentation employment, AssignmentRepresentation assignment) {
-        return new PromotionRepresentation(null, null, null, null, null, employment, assignment);
+        return new PromotionRepresentation(null, null, null, null, null, null, employment, assignment);
     }
 }

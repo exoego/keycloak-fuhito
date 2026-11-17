@@ -27,6 +27,7 @@ import org.eclipse.microprofile.openapi.annotations.headers.Header;
 import org.eclipse.microprofile.openapi.annotations.media.Content;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 import org.eclipse.microprofile.openapi.annotations.parameters.Parameter;
+import org.eclipse.microprofile.openapi.annotations.parameters.RequestBody;
 import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
 import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 
@@ -151,7 +152,7 @@ public class PeopleResource {
             @Parameter(description = "The ID of the resource.")
             @PathParam("id") String id) {
         context.requireRead();
-        return Calls.tagged(context, () -> represent(service.get(id)));
+        return Calls.run(context, () -> represent(service.get(id)));
     }
 
     @PUT
@@ -169,10 +170,11 @@ public class PeopleResource {
     public PersonRepresentation replace(
             @Parameter(description = "The ID of the resource.")
             @PathParam("id") String id,
+            @RequestBody(required = true, content = @Content(mediaType = MediaType.APPLICATION_JSON,
+                    schema = @Schema(allOf = {PersonRepresentation.class, VersionCheckRepresentation.class})))
             PersonRepresentation body) {
         context.requireWrite();
-        return Calls.guarded(context, () -> state(id), () -> {
-            Checks.required("body", body);
+        return Calls.guarded(context, body, () -> version(id), () -> {
             var person = represent(service.replace(id, body.toValues()));
             context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, path(id), person);
             return person;
@@ -189,9 +191,14 @@ public class PeopleResource {
     @ApiErrors
     public Response delete(
             @Parameter(description = "The ID of the resource.")
-            @PathParam("id") String id) {
+            @PathParam("id") String id,
+            @Parameter(
+                    description = "The version of the person that the caller read.",
+                    required = true,
+                    schema = @Schema(type = SchemaType.INTEGER, format = "int64"))
+            @QueryParam("version") String version) {
         context.requireWrite();
-        return Calls.guardedRemoval(context, () -> state(id), () -> {
+        return Calls.guarded(context, version, () -> version(id), () -> {
             service.delete(id);
             context.recordChange(Change.DELETE, RESOURCE_TYPE, id, path(id), null);
             return Response.noContent().build();
@@ -420,9 +427,11 @@ public class PeopleResource {
                             The masking then fails with 409 and `person.keycloak_name_read_only`, \
                             and nothing is written.""",
                     schema = @Schema(defaultValue = "false"))
-            @QueryParam("clearKeycloakName") boolean clearKeycloakName) {
+            @QueryParam("clearKeycloakName") boolean clearKeycloakName,
+            VersionCheckRepresentation body) {
         context.requireWrite();
-        return Calls.guarded(context, () -> state(id), () -> data.mask(service.get(id).person(), clearKeycloakName));
+        return Calls.guarded(context, body, () -> version(id),
+                () -> data.mask(service.get(id).person(), clearKeycloakName));
     }
 
     @DELETE
@@ -440,9 +449,14 @@ public class PeopleResource {
     @ApiErrors
     public Response erase(
             @Parameter(description = "The ID of the resource.")
-            @PathParam("id") String id) {
+            @PathParam("id") String id,
+            @Parameter(
+                    description = "The version of the person that the caller read.",
+                    required = true,
+                    schema = @Schema(type = SchemaType.INTEGER, format = "int64"))
+            @QueryParam("version") String version) {
         context.requireWrite();
-        return Calls.guardedRemoval(context, () -> state(id), () -> {
+        return Calls.guarded(context, version, () -> version(id), () -> {
             data.erase(service.get(id).person().id());
             return Response.noContent().build();
         });
@@ -463,8 +477,7 @@ public class PeopleResource {
         return represent(List.of(view)).getFirst();
     }
 
-    // The whole stored state of one resource, which its ETag covers.
-    private Object state(String id) {
-        return represent(service.get(id));
+    private long version(String id) {
+        return service.get(id).person().version();
     }
 }

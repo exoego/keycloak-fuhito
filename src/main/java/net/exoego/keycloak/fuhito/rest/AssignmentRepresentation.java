@@ -94,8 +94,10 @@ public record AssignmentRepresentation(
     @Schema(
             name = "AssignmentDetails",
             description = "The details of an assignment for a period.",
-            requiredProperties = {"validFrom"})
+            requiredProperties = {"version", "validFrom"})
     public record Details(
+            @Schema(description = "The version of the assignment that the caller read.", writeOnly = true)
+            Long version,
             @Schema(description = "The first date of these details.", format = "date")
             String validFrom,
             @Schema(
@@ -147,17 +149,12 @@ public record AssignmentRepresentation(
             @Schema(description = "The position among the members of the org unit, lowest first.")
             Integer displayOrder,
             @Schema(description = "Free values that the realm defines.")
-            Map<String, Object> attributes) {
+            Map<String, Object> attributes) implements Versioned {
 
         AssignmentValues toValues() {
             return new AssignmentValues(null, null, validFrom, null, jobTitle, occupation, kind, workLocation,
                     costCenter, head, primary, switchPrimary, allocationPercent, displayOrder, attributes, null,
                     null);
-        }
-
-        private Details stored() {
-            return new Details(validFrom, validTo, jobTitle, occupation, kind, workLocation, costCenter, null, null,
-                    head, primary, switchPrimary, allocationPercent, displayOrder, attributes);
         }
     }
 
@@ -168,21 +165,13 @@ public record AssignmentRepresentation(
                 first.source(), ExternalIdPairRepresentation.of(ids.of(view.assignmentId(), first.source())),
                 view.continuesAssignmentId(), null, null, null, null, null, null, null, null, null,
                 null, null, view.rows().stream()
-                        .map(r -> new Details(r.row().period().from().toString(), text(r.row().period().to()),
+                        .map(r -> new Details(null, r.row().period().from().toString(), text(r.row().period().to()),
                                 r.jobTitle(), r.occupation(), r.kind(), r.places().workLocation(),
                                 r.places().costCenter(), r.places().effectiveWorkLocation(),
                                 r.places().effectiveCostCenter(), r.row().head(), r.row().primary(), null,
                                 Numbers.plain(r.row().allocationPercent()), r.row().displayOrder(),
                                 r.row().attributes()))
                         .toList());
-    }
-
-    // The values that apply come from the org units, so a change of a unit does not change the ETag.
-    AssignmentRepresentation stored() {
-        return new AssignmentRepresentation(id, version, employmentId, userId, orgUnitId, validFrom, validTo,
-                externalId, source, externalIds, continuesAssignmentId, jobTitle, occupation, kind, workLocation,
-                costCenter, head, primary, switchPrimary, allocationPercent, displayOrder, attributes,
-                periods.stream().map(Details::stored).toList());
     }
 
     AssignmentValues toValues() {

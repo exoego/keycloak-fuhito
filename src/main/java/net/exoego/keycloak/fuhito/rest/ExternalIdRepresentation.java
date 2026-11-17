@@ -22,10 +22,9 @@ public record ExternalIdRepresentation(
                 description = "True when the system made the resource, as the `source` of the resource says.",
                 readOnly = true)
         Boolean own,
-        @Schema(
-                description = "The version of this ID. A new one has 1. Each write counts it up by one. A write of "
-                        + "an ID also counts up the version of its resource.",
-                readOnly = true)
+        @Schema(description = "The version of this ID. A new one has 1. Each write counts it up by one. A write of an "
+                + "ID also counts up the version of its resource. A write of a stored ID sends the version that the "
+                + "caller read. A new ID needs none.")
         Long version) {
 
     static ExternalIdRepresentation of(ExternalIdService.View view) {

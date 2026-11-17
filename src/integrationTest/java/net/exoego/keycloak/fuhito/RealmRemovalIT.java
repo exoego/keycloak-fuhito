@@ -55,7 +55,7 @@ class RealmRemovalIT {
                 + Api.json(parent).get("id").asText() + "\", \"validFrom\": \"2026-04-01\"}").statusCode());
         var old = api.post("/org-units", "{\"name\": \"Old\", \"validFrom\": \"2026-04-01\"}");
         assertEquals(201, old.statusCode(), old.body());
-        var succession = api.post("/reorganizations", "{\"effectiveDate\": \"2027-04-01\", \"steps\": [{\"op\": "
+        var succession = api.postWithVersion("/reorganizations", "{\"effectiveDate\": \"2027-04-01\", \"steps\": [{\"op\": "
                 + "\"succeed\", \"id\": \"" + Api.json(old).get("id").asText() + "\", \"successorIds\": [\""
                 + Api.json(parent).get("id").asText() + "\"]}]}");
         assertEquals(200, succession.statusCode(), succession.body());
@@ -64,7 +64,7 @@ class RealmRemovalIT {
         assertEquals(201, api.post("/people", "{\"name\": \"Visitor\"}").statusCode());
         var erased = api.post("/people", "{\"name\": \"Erased\"}");
         assertEquals(201, erased.statusCode(), erased.body());
-        assertEquals(204, api.delete("/people/" + Api.json(erased).get("id").asText() + "/data").statusCode());
+        assertEquals(204, api.deleteWithVersion("/people/" + Api.json(erased).get("id").asText() + "/data").statusCode());
         String staff = realm.user("staff");
         realm.refItem("QUALIFICATION", "license", "License");
         assertEquals(201, api.post("/qualifications", "{\"userId\": \"" + staff
@@ -84,7 +84,7 @@ class RealmRemovalIT {
                 + "\", \"managerUserId\": \"" + realm.user("manager") + "\", \"validFrom\": \"2026-04-01\"}").statusCode());
         assertEquals(201, api.post("/attribute-definitions",
                 "{\"target\": \"PERSON\", \"name\": \"note\", \"type\": \"STRING\"}").statusCode());
-        assertEquals(200, api.put("/external-ids", "{\"resourceType\": \"ORG_UNIT\", \"resourceId\": \""
+        assertEquals(200, api.putWithVersion("/external-ids", "{\"resourceType\": \"ORG_UNIT\", \"resourceId\": \""
                 + Api.json(parent).get("id").asText() + "\", \"source\": \"payroll\", \"externalId\": \"P-1\"}")
                 .statusCode());
         assertEquals(201, api.post("/people", "{\"name\": \"Guest\"}", "Idempotency-Key", "guest-1").statusCode());

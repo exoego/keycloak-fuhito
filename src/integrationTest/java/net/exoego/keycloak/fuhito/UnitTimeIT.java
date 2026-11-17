@@ -57,7 +57,7 @@ class UnitTimeIT {
         int branchSees = branchToday.equals(later) ? 1 : 0;
         assertEquals(headSees, count(realm, "/org-units/" + branchTeam + "/children"));
 
-        HttpResponse<String> set = realm.api.put("/org-units/" + branch + "/time-settings",
+        HttpResponse<String> set = realm.api.putWithVersion("/org-units/" + branch + "/time-settings",
                 "{\"timeZone\": \"" + zone + "\"}");
 
         assertEquals(200, set.statusCode(), set.body());
@@ -82,7 +82,7 @@ class UnitTimeIT {
         assertEquals(1, count(realm, "/org-units/" + branchTeam + "/children?asOf=" + later));
         assertEquals(0, count(realm, "/org-units/" + branchTeam + "/children?asOf=" + earlier));
 
-        assertEquals(200, realm.api.put("/org-units/" + branch + "/time-settings", "{}").statusCode());
+        assertEquals(200, realm.api.putWithVersion("/org-units/" + branch + "/time-settings", "{}").statusCode());
 
         assertEquals(headSees, count(realm, "/org-units/" + branchTeam + "/children"));
         assertEquals("", KeycloakEnvironment.sql(
@@ -93,12 +93,12 @@ class UnitTimeIT {
     void rejectsBadSettings() throws Exception {
         TestRealm realm = TestRealm.create("unit-time-bad");
         String unit = unit(realm, "Branch", null, LocalDate.of(2020, 4, 1));
-        assertEquals(200, realm.api.put("/org-units/" + unit + "/time-settings",
+        assertEquals(200, realm.api.putWithVersion("/org-units/" + unit + "/time-settings",
                 "{\"timeZone\": \"Asia/Tokyo\", \"dayStart\": \"04:00\"}").statusCode());
 
         HttpResponse<String> badZone = realm.api.withAcceptLanguage("ja")
-                .put("/org-units/" + unit + "/time-settings", "{\"timeZone\": \"Tokyo\"}");
-        HttpResponse<String> badStart = realm.api.put("/org-units/" + unit + "/time-settings",
+                .putWithVersion("/org-units/" + unit + "/time-settings", "{\"timeZone\": \"Tokyo\"}");
+        HttpResponse<String> badStart = realm.api.putWithVersion("/org-units/" + unit + "/time-settings",
                 "{\"dayStart\": \"4am\"}");
 
         assertEquals(400, badZone.statusCode(), badZone.body());
@@ -108,7 +108,7 @@ class UnitTimeIT {
         assertTrue(zoneError.get("message").asText().contains("タイムゾーン"), zoneError.toString());
         assertEquals(400, badStart.statusCode(), badStart.body());
         assertEquals("org_unit.day_start_invalid", Api.json(badStart).get("error").asText());
-        assertEquals(404, realm.api.put("/org-units/nope/time-settings", "{}").statusCode());
+        assertEquals(404, realm.api.putWithVersion("/org-units/nope/time-settings", "{}").statusCode());
         JsonNode kept = Api.json(realm.api.get("/org-units/" + unit));
         assertEquals("Asia/Tokyo", kept.get("timeZone").asText());
         assertEquals("04:00", kept.get("dayStart").asText());

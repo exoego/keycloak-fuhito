@@ -21,6 +21,11 @@
 
                         A write belongs to a change order when its request has the query parameter `changeOrder`.
 
+                        A write of a stored resource names the `version` of the resource that the caller read.
+                        It is in the body, or in the query of a `DELETE`. A write with no version fails with 400 and
+                        `version.required`. When the resource changed since the read, the write fails with 409 and
+                        `version.conflict`, and the values of the error have the current version.
+
                         A failed request writes nothing.
                         """,
                 license = @License(name = "Apache License, Version 2.0", identifier = "Apache-2.0")),
@@ -79,6 +84,7 @@
                     @APIResponse(name = "Conflict",
                             description = """
                                     The request conflicts with existing data.
+                                    A write with an old version gets it with `version.conflict`.
                                     A realm with no usable time zone also gets this status on every request.
                                     """,
                             content = @Content(mediaType = "application/json",

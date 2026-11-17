@@ -63,7 +63,7 @@ class StaffIT {
         String employmentId = staff.get("employment").get("id").asText();
         String assignmentId = staff.get("assignment").get("id").asText();
 
-        HttpResponse<String> response = api.post("/employments/" + employmentId + "/promotion",
+        HttpResponse<String> response = api.postWithVersion("/employments/" + employmentId + "/promotion",
                 "{\"validFrom\": \"2026-10-01\", \"grade\": \"g2\", \"jobTitle\": \"chief\", \"head\": true}");
 
         assertEquals(200, response.statusCode(), response.body());
@@ -87,12 +87,12 @@ class StaffIT {
                 .asText());
 
         // A bad job title undoes the good grade of the same request.
-        HttpResponse<String> bad = api.post("/employments/" + employmentId + "/promotion",
+        HttpResponse<String> bad = api.postWithVersion("/employments/" + employmentId + "/promotion",
                 "{\"validFrom\": \"2027-04-01\", \"grade\": \"g1\", \"jobTitle\": \"nope\"}");
         assertEquals(400, bad.statusCode(), bad.body());
         assertEquals("ref_item.unknown", Api.json(bad).get("error").asText());
         assertEquals(2, Api.json(api.get("/employments/" + employmentId)).get("terms").size());
-        HttpResponse<String> empty = api.post("/employments/" + employmentId + "/promotion",
+        HttpResponse<String> empty = api.postWithVersion("/employments/" + employmentId + "/promotion",
                 "{\"validFrom\": \"2027-04-01\"}");
         assertEquals(400, empty.statusCode(), empty.body());
         assertEquals("employment.promotion_empty", Api.json(empty).get("error").asText());
@@ -105,7 +105,7 @@ class StaffIT {
                 + "\", \"validFrom\": \"2026-04-01\", \"employmentType\": \"part-time\", \"workPercent\": 50}"))
                 .get("employment").get("id").asText();
 
-        HttpResponse<String> leave = api.post("/employments/" + employmentId + "/leave",
+        HttpResponse<String> leave = api.postWithVersion("/employments/" + employmentId + "/leave",
                 "{\"validFrom\": \"2026-10-01\", \"validTo\": \"2027-04-01\", \"reason\": \"parental\"}");
 
         assertEquals(200, leave.statusCode(), leave.body());
@@ -118,7 +118,7 @@ class StaffIT {
         assertEquals(50, terms.get(1).get("workPercent").asInt());
 
         // The person comes back early.
-        HttpResponse<String> back = api.post("/employments/" + employmentId + "/return",
+        HttpResponse<String> back = api.postWithVersion("/employments/" + employmentId + "/return",
                 "{\"validFrom\": \"2027-01-01\"}");
         assertEquals(200, back.statusCode(), back.body());
         assertEquals(java.util.List.of("ACTIVE", "ON_LEAVE", "ACTIVE", "ACTIVE"),
@@ -129,11 +129,11 @@ class StaffIT {
                 "/change-log?resourceType=FUHITO_EMPLOYMENT&resourceId=" + employmentId))
                 .findValuesAsText("resourcePath"));
 
-        HttpResponse<String> notOnLeave = api.post("/employments/" + employmentId + "/return",
+        HttpResponse<String> notOnLeave = api.postWithVersion("/employments/" + employmentId + "/return",
                 "{\"validFrom\": \"2027-02-01\"}");
         assertEquals(409, notOnLeave.statusCode(), notOnLeave.body());
         assertEquals("employment.not_on_leave", Api.json(notOnLeave).get("error").asText());
-        HttpResponse<String> stored = api.post("/employments/" + employmentId + "/leave",
+        HttpResponse<String> stored = api.postWithVersion("/employments/" + employmentId + "/leave",
                 "{\"validFrom\": \"2026-05-01\"}");
         assertEquals(409, stored.statusCode(), stored.body());
         assertEquals("employment.terms_change_stored", Api.json(stored).get("error").asText());
