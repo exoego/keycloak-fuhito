@@ -629,6 +629,37 @@ class AttributeSyncServiceTest {
     }
 
     @Test
+    void aUnitThatDoesNotExistOnItsOwnDateMatchesNothing() {
+        putSurgeryOnTheNextDate();
+        OrgUnitService orgUnits = new OrgUnitService(orgUnitStore, externalIds, assignmentStore, refItems, clock);
+        orgUnits.end(surgery, "2026-06-15");
+        set("alice", "Surgery", null, null, null);
+        set("carol", "med", null, null, null);
+
+        // Surgery still exists on the date of the realm, but not on its own date.
+        SyncReport closed = run();
+
+        assertEquals(List.of(), closed.failed());
+        assertEquals(List.of(new Unmatched("alice", "department", "Surgery", "unknown")), closed.unmatched());
+        assertEquals(List.of(), assignmentsOf("alice"));
+        assertEquals(List.of("Internal Medicine 2026-06-14 null - primary"), assignmentsOf("carol"));
+
+        // 1:00 on June 15 in New York. The lab opens that day in Los Angeles, where it is still June 14.
+        clock = Clock.offset(clock, Duration.ofHours(2));
+        String lab = orgUnits.create(new NewOrgUnit("lab", "Lab", null, null, null, null, null, null, "2026-06-15",
+                null, null, null, null)).unit().id();
+        orgUnits.setTime(lab, "America/Los_Angeles", null);
+        attributes.remove("alice");
+        set("bob", "lab", null, null, null);
+
+        SyncReport opened = run();
+
+        assertEquals(List.of(), opened.failed());
+        assertEquals(List.of(new Unmatched("bob", "department", "lab", "unknown")), opened.unmatched());
+        assertEquals(List.of(), assignmentsOf("bob"));
+    }
+
+    @Test
     void aMoveBetweenUnitsOnDifferentDatesKeepsOneEmploymentAndOneAssignment() {
         putSurgeryOnTheNextDate();
         set("alice", "Surgery", null, null, null);

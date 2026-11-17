@@ -20,6 +20,7 @@ import net.exoego.keycloak.fuhito.domain.Assignment;
 import net.exoego.keycloak.fuhito.domain.Employment;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.OrgUnit;
+import net.exoego.keycloak.fuhito.domain.OrgUnitVersion;
 import net.exoego.keycloak.fuhito.domain.RefItem;
 import net.exoego.keycloak.fuhito.domain.RefKind;
 import net.exoego.keycloak.fuhito.domain.ReportingLine;
@@ -151,8 +152,8 @@ public class AttributeSyncService {
     private final List<Failed> failed = new ArrayList<>();
     private final List<Write> writes = new ArrayList<>();
     private String employerId;
-    // The end of each org unit that the run placed a user in, read once for each unit. Empty for no end.
-    private final Map<String, Optional<LocalDate>> unitEnds = new HashMap<>();
+    // The period in which each org unit exists, read once for each unit that the run looks at.
+    private final Map<String, ValidPeriod> unitLives = new HashMap<>();
 
     /**
      * Creates the service for one run that works in pieces.
@@ -422,7 +423,7 @@ public class AttributeSyncService {
     private String add(Employment employment, String orgUnitId, String jobTitle, LocalDate today) {
         boolean hasPrimary = from.assignments().rowsOfEmployment(employment.id()).stream()
                 .anyMatch(row -> row.primary() && row.period().overlaps(ValidPeriod.startingAt(today)));
-        LocalDate end = firstEnd(endOf(orgUnitId), employment.period().to());
+        LocalDate end = firstEnd(lifeOf(orgUnitId).to(), employment.period().to());
         AssignmentView added = from.assignmentService().add(new AssignmentValues(employment.id(), orgUnitId,
                 today.toString(), Objects.toString(end, null), jobTitle, null, null, null, !hasPrimary, false, null,
                 null, null, null, SOURCE));
@@ -430,9 +431,12 @@ public class AttributeSyncService {
         return added.assignmentId();
     }
 
-    private LocalDate endOf(String orgUnitId) {
-        return unitEnds.computeIfAbsent(orgUnitId,
-                id -> Optional.ofNullable(from.orgUnits().versions(id).getLast().period().to())).orElse(null);
+    // The versions of one org unit have no gaps.
+    private ValidPeriod lifeOf(String orgUnitId) {
+        return unitLives.computeIfAbsent(orgUnitId, id -> {
+            List<OrgUnitVersion> versions = from.orgUnits().versions(id);
+            return new ValidPeriod(versions.getFirst().period().from(), versions.getLast().period().to());
+        });
     }
 
     // Null is no end.
@@ -503,11 +507,13 @@ public class AttributeSyncService {
      */
     private final class Matcher {
 
+        private final LocalDate matchedOn;
         private final Map<String, String> unitByCode = new HashMap<>();
         private final Map<String, List<String>> unitsByName = new HashMap<>();
         private final Map<String, RefItem> titles = new HashMap<>();
 
         Matcher(LocalDate today) {
+            matchedOn = today;
             for (OrgUnitState unit : new OrgUnitTree(from.orgUnits(), from.refItems(), today).all()) {
                 if (unit.version().code() != null) {
                     unitByCode.put(unit.version().code(), unit.unit().id());
@@ -528,14 +534,25 @@ public class AttributeSyncService {
             String department = user.department();
             String byCode = unitByCode.get(department);
             if (byCode != null) {
-                return Optional.of(byCode);
+                return onItsDate(user, byCode);
             }
             List<String> byName = unitsByName.getOrDefault(department, List.of());
             if (byName.size() == 1) {
-                return Optional.of(byName.getFirst());
+                return onItsDate(user, byName.getFirst());
             }
             tally.unmatched.add(new Unmatched(user.userId(), "department", department,
                     byName.isEmpty() ? "unknown" : "ambiguous"));
+            return Optional.empty();
+        }
+
+        // For some hours of a day, a unit with its own time zone is on another date than the realm. The unit may
+        // not exist yet or any more on its date.
+        private Optional<String> onItsDate(Values user, String id) {
+            LocalDate date = today.ofUnit(id);
+            if (date.equals(matchedOn) || lifeOf(id).contains(date)) {
+                return Optional.of(id);
+            }
+            tally.unmatched.add(new Unmatched(user.userId(), "department", user.department(), "unknown"));
             return Optional.empty();
         }
 
