@@ -65,7 +65,11 @@ See "What today is" in [keycloak-integration.md](keycloak-integration.md).
 The sync never touches an assignment that it does not own.
 So an administrator can add further assignments by hand, and the sync leaves them alone.
 
-A department or a title that matches nothing is reported, and that user is skipped.
+A department that matches nothing is reported, and the sync skips that user.
+The user gets nothing new, and what the sync gave the user before stays as it is.
+A title that matches nothing is reported, but the user is not skipped.
+The sync goes on as if the user had no title. So the assignment has no title, and an assignment that had one loses it from today.
+A manager that matches nothing is reported too, and the sync goes on as if the user had no manager.
 The sync does not create org units or job titles. A typing mistake in the identity provider must not grow the tree.
 
 ### How to run it
@@ -77,12 +81,26 @@ The response counts the employments that were started and the assignments that w
 It lists every value that matched nothing, with the user, the field, and the reason.
 The reason is `unknown` when nothing has the value, and `ambiguous` when more than one org unit has the name.
 
+A user that the sync cannot handle does not stop the other users.
+The response lists each such user in `failed`, with the error code that an error response would have.
+The code is `internal` when the error has no code. The log of the server then has the cause.
+Nothing of a failed user is written, and the next run tries the user again.
+For example, a user who needs a new employment fails with `employment.employer_required` when the realm has several legal entities and no `fuhito.sync.employer`.
+
+A failed user is not in `unmatched`. An entry there names the field and the value to fix.
+A failure has neither, and its cause can be outside the attributes of the user, as in the example above.
+
 Every write of the sync is in the change log, like any other write.
 
 A run does its work in pieces of 100 users, and each piece is one transaction. One transaction for a large realm would run into the transaction timeout of Keycloak.
-So a run that fails in the middle keeps the pieces that it finished, with their entries in the change log. The next run does the rest.
+So a run that stops in the middle keeps the pieces that it finished, with their entries in the change log. The next run does the rest.
 A dry run works in the same pieces, and undoes each piece at its end.
 
+When a piece fails, each of its users runs again in a transaction of its own.
+An error of the database can spoil the transaction of the whole piece, so the users that did not fail run again too.
+Only the users that fail on their own are left out. A piece that does not fail costs no extra transaction.
+
+The run as a whole still fails when the realm did not turn the sync on, or when `fuhito.sync.employer` names no org unit.
 Only one run goes on for a realm at a time, on all nodes of a cluster. A second call fails with `sync.running` and the status 409. A dry run counts as a run.
 
 A run reads the attributes of all users from the tables of Keycloak in one query.
