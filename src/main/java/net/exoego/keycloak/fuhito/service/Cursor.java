@@ -58,6 +58,11 @@ public final class Cursor {
      */
     public static final Format ORG_UNITS = new Format("org-units.v1", 1);
 
+    /**
+     * The roles over org units of a date across the realm, ordered by ID. The value is the ID of the role.
+     */
+    public static final Format UNIT_ROLES = new Format("unit-roles.v1", 1);
+
     // No value has this text. The values are IDs that the extension makes, numbers, and dates.
     private static final String SEPARATOR = "__";
 

@@ -35,6 +35,27 @@ public class UnitRoleService {
     }
 
     /**
+     * A role on a date, with the names that show it.
+     *
+     * @param view the role with the code of its reference item
+     * @param roleName the name of the role, or null when the role is unknown
+     * @param orgUnitName the name of the org unit on the date, or null when the unit does not exist on the date
+     */
+    public record Holder(View view, String roleName, String orgUnitName) {
+    }
+
+    /**
+     * The values of a list of the roles of a date across the realm. They are not checked yet. A value that is null
+     * keeps everything.
+     *
+     * @param role the code of the role
+     * @param orgUnitId the ID of the org unit that the role is over. A unit above does not count.
+     * @param asOf the date as {@code YYYY-MM-DD}, or null for today of the realm
+     */
+    public record Search(String role, String orgUnitId, String asOf) {
+    }
+
+    /**
      * The stores that the service reads besides its own.
      *
      * @param employments the storage of employments of the realm
@@ -154,7 +175,57 @@ public class UnitRoleService {
      * @return the roles
      */
     public List<View> listOn(LocalDate date, String afterId, int max) {
-        return views(store.listOn(date, afterId, max));
+        return views(store.searchOn(new UnitRoleStore.Search(null, null, date), afterId, 0, max));
+    }
+
+    /**
+     * Lists a page of the roles of a date across the realm that match a search, ordered by ID, with their names.
+     *
+     * @param search what to keep and the date
+     * @param page the part of the list to return
+     * @param after the cursor after which the page starts, or null
+     * @return the roles of the page
+     * @throws FuhitoException when a value is bad, the role is unknown, or the cursor is not of this list
+     */
+    public List<Holder> list(Search search, Page page, String after) {
+        UnitRoleStore.Search filter = filter(search);
+        String afterId = after == null ? null : Cursor.decode(Cursor.UNIT_ROLES, after).getFirst();
+        List<UnitRole> roles = store.searchOn(filter, afterId, page.first(), page.max());
+        Map<String, RefItem> items = new HashMap<>();
+        sources.refItems().list(RefKind.UNIT_ROLE, true).forEach(item -> items.put(item.id(), item));
+        Map<String, String> unitNames = new HashMap<>();
+        sources.orgUnits().placedOn(sources.orgUnits().defaultHierarchyId(),
+                        roles.stream().map(UnitRole::orgUnitId).distinct().toList(), filter.date())
+                .forEach(placed -> unitNames.put(placed.unit().id(), placed.version().name()));
+        return roles.stream().map(role -> {
+            Optional<RefItem> item = Optional.ofNullable(items.get(role.roleId()));
+            return new Holder(new View(role, item.map(RefItem::code).orElse(null)),
+                    item.map(RefItem::name).orElse(null), unitNames.get(role.orgUnitId()));
+        }).toList();
+    }
+
+    /**
+     * Counts the roles of a date across the realm that match a search.
+     *
+     * @param search what to keep and the date
+     * @return the number of roles
+     * @throws FuhitoException when a value is bad or the role is unknown
+     */
+    public long count(Search search) {
+        return store.countSearchOn(filter(search));
+    }
+
+    private UnitRoleStore.Search filter(Search search) {
+        LocalDate date = search.asOf() == null ? today.ofRealm() : Checks.optionalDate("asOf", search.asOf());
+        return new UnitRoleStore.Search(roleId(search.role()), search.orgUnitId(), date);
+    }
+
+    // A filter may name a role that is no longer active, because old rows may still use it.
+    private String roleId(String role) {
+        return role == null ? null : sources.refItems().findByCode(RefKind.UNIT_ROLE, role)
+                .map(RefItem::id)
+                .orElseThrow(() -> FuhitoException.invalid("ref_item.unknown",
+                        Map.of("kind", RefKind.UNIT_ROLE.name(), "code", role)));
     }
 
     /**
@@ -204,10 +275,7 @@ public class UnitRoleService {
         if (sources.orgUnits().findUnit(orgUnitId).isEmpty()) {
             throw FuhitoException.notFound("org_unit.not_found", Map.of("id", orgUnitId));
         }
-        String roleId = role == null ? null : sources.refItems().findByCode(RefKind.UNIT_ROLE, role)
-                .map(RefItem::id)
-                .orElseThrow(() -> FuhitoException.invalid("ref_item.unknown",
-                        Map.of("kind", RefKind.UNIT_ROLE.name(), "code", role)));
+        String roleId = roleId(role);
         LocalDate date = asOf == null ? today.ofUnit(orgUnitId) : Checks.optionalDate("asOf", asOf);
         return views(store.holdersOn(sources.orgUnits().defaultHierarchyId(), orgUnitId, roleId, nearest, date,
                 page.first(), page.max()));

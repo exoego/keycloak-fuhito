@@ -62,14 +62,33 @@ public interface UnitRoleStore {
     void insert(UnitRole role);
 
     /**
-     * Lists a page of the roles that hold on a date, ordered by ID.
+     * What a list of the roles of a date across the realm keeps. A value that is null keeps everything.
      *
-     * @param date the date
-     * @param afterId the ID after which the page starts, or null for the start
-     * @param max the largest number of roles
-     * @return the roles
+     * @param roleId the ID of the role
+     * @param orgUnitId the ID of the org unit that the role is over. A unit above does not count.
+     * @param date the date on which the roles hold
      */
-    List<UnitRole> listOn(LocalDate date, String afterId, int max);
+    record Search(String roleId, String orgUnitId, LocalDate date) {
+    }
+
+    /**
+     * Lists a page of the roles that match a search, ordered by ID.
+     *
+     * @param search what to keep
+     * @param afterId the ID after which the page starts, or null for the start
+     * @param first the number of roles to skip
+     * @param max the largest number of roles to return
+     * @return the roles of the page
+     */
+    List<UnitRole> searchOn(Search search, String afterId, int first, int max);
+
+    /**
+     * Counts the roles that match a search.
+     *
+     * @param search what to keep
+     * @return the number of roles
+     */
+    long countSearchOn(Search search);
 
     /**
      * Stores the new period of a role.

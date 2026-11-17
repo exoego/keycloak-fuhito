@@ -3,9 +3,11 @@ package net.exoego.keycloak.fuhito.service;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Stream;
 
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.RefItem;
@@ -100,6 +102,69 @@ class UnitRoleServiceTest {
                 Page.of(null, null))));
         assertEquals(List.of("bob approver", "bob hr-contact"), summary(service.ofPerson("bob", null,
                 Page.of(null, null))));
+    }
+
+    private static List<String> ids(List<UnitRoleService.Holder> holders) {
+        return holders.stream().map(holder -> holder.view().role().id()).toList();
+    }
+
+    private static List<String> sorted(String... ids) {
+        return Stream.of(ids).sorted().toList();
+    }
+
+    @Test
+    void listsTheRolesOfADateAcrossTheRealmByIdWithTheirNames() {
+        refItems.insert(new RefItem("safety", RefKind.UNIT_ROLE, "safety-officer", "Safety officer", Map.of(), 0,
+                Map.of(), true));
+        String contact = service.add(alice, division, "hr-contact", true, "2026-04-01", null).role().id();
+        String officer = service.add(bob, ward, "safety-officer", null, "2026-04-01", null).role().id();
+        String approver = service.add(bob, division, "approver", null, "2026-07-01", null).role().id();
+        UnitRoleService.Search today = new UnitRoleService.Search(null, null, null);
+        UnitRoleService.Search july = new UnitRoleService.Search(null, null, "2026-07-01");
+
+        List<UnitRoleService.Holder> listed = service.list(today, Page.of(null, null), null);
+        assertEquals(sorted(contact, officer), ids(listed));
+        UnitRoleService.Holder safety = listed.get(ids(listed).indexOf(officer));
+        assertEquals("safety-officer", safety.view().code());
+        assertEquals("Safety officer", safety.roleName());
+        assertEquals("Ward", safety.orgUnitName());
+        assertEquals("bob", safety.view().role().userId());
+        assertEquals(2, service.count(today));
+        assertEquals(sorted(contact, officer, approver), ids(service.list(july, Page.of(null, null), null)));
+        service.end(officer, "2026-09-01");
+        assertEquals(sorted(contact, approver), ids(service.list(new UnitRoleService.Search(null, null,
+                "2026-09-01"), Page.of(null, null), null)));
+
+        UnitRoleService.Search approvers = new UnitRoleService.Search("approver", null, "2026-07-01");
+        assertEquals(List.of(approver), ids(service.list(approvers, Page.of(null, null), null)));
+        assertEquals(1, service.count(approvers));
+        // The HR contact of the division covers the ward, but it is over the division.
+        assertEquals(List.of(officer), ids(service.list(new UnitRoleService.Search(null, ward, "2026-07-01"),
+                Page.of(null, null), null)));
+        assertEquals(sorted(contact, approver), ids(service.list(
+                new UnitRoleService.Search(null, division, "2026-07-01"), Page.of(null, null), null)));
+        assertEquals(0, service.count(new UnitRoleService.Search("approver", ward, "2026-07-01")));
+
+        List<String> pages = new ArrayList<>();
+        String after = null;
+        do {
+            List<UnitRoleService.Holder> page = service.list(july, Page.of(null, 2), after);
+            pages.addAll(ids(page));
+            after = page.size() < 2 ? null : Cursor.encode(Cursor.UNIT_ROLES, page.getLast().view().role().id());
+        } while (after != null);
+        assertEquals(sorted(contact, officer, approver), pages);
+        assertEquals(List.of(pages.get(1)), ids(service.list(july, Page.of(1, 1), null)));
+    }
+
+    @Test
+    void rejectsAListWithAnUnknownRoleABadDateOrACursorOfAnotherList() {
+        assertEquals("ref_item.unknown", code(() -> service.list(new UnitRoleService.Search("nurse", null, null),
+                Page.of(null, null), null)));
+        assertEquals("ref_item.unknown", code(() -> service.count(new UnitRoleService.Search("nurse", null, null))));
+        assertEquals("invalid.date", code(() -> service.list(new UnitRoleService.Search(null, null, "soon"),
+                Page.of(null, null), null)));
+        assertEquals("invalid.cursor", code(() -> service.list(new UnitRoleService.Search(null, null, null),
+                Page.of(null, null), Cursor.encode(Cursor.PEOPLE, alice))));
     }
 
     @Test

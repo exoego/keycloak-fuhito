@@ -1,12 +1,14 @@
 package net.exoego.keycloak.fuhito;
 
 import java.net.http.HttpResponse;
+import java.util.ArrayList;
 import java.util.List;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class UnitRolesIT {
@@ -14,6 +16,81 @@ class UnitRolesIT {
     private static JsonNode created(HttpResponse<String> response) throws Exception {
         assertEquals(201, response.statusCode(), response.body());
         return Api.json(response);
+    }
+
+    private static String error(int status, HttpResponse<String> response) throws Exception {
+        assertEquals(status, response.statusCode(), response.body());
+        return Api.json(response).get("error").asText();
+    }
+
+    @Test
+    void listsTheRolesOfADateAcrossTheRealmInPagesByIdWithTheirNames() throws Exception {
+        TestRealm realm = TestRealm.withEmployer("unit-roles-list");
+        Api api = realm.api;
+        realm.refItem("UNIT_ROLE", "safety-officer", "安全管理者");
+        realm.refItem("UNIT_ROLE", "approver", "承認者");
+        String division = created(api.post("/org-units", "{\"name\": \"看護部\", \"validFrom\": \"2026-04-01\"}"))
+                .get("id").asText();
+        String ward = created(api.post("/org-units", "{\"name\": \"1病棟\", \"parentId\": \"" + division
+                + "\", \"validFrom\": \"2026-04-01\"}")).get("id").asText();
+        List<String> ids = new ArrayList<>();
+        List<String> roles = List.of("safety-officer", "safety-officer", "approver");
+        List<String> units = List.of(division, ward, ward);
+        List<String> starts = List.of("2026-04-01", "2026-04-01", "2026-05-01");
+        for (int i = 0; i < 3; i++) {
+            String employment = created(api.post("/employments", "{\"userId\": \"" + realm.user("holder-" + i)
+                    + "\", \"validFrom\": \"2026-04-01\"}")).get("id").asText();
+            ids.add(created(api.post("/unit-roles", "{\"employmentId\": \"" + employment + "\", \"orgUnitId\": \""
+                    + units.get(i) + "\", \"role\": \"" + roles.get(i) + "\", \"includesDescendants\": " + (i == 0)
+                    + ", \"validFrom\": \"" + starts.get(i) + "\"}")).get("id").asText());
+        }
+        String on = "asOf=2026-05-01";
+
+        JsonNode every = Api.json(api.get("/unit-roles?" + on));
+        assertEquals(ids.stream().sorted().toList(), every.findValuesAsText("id"));
+        JsonNode approver = every.get(every.findValuesAsText("id").indexOf(ids.get(2)));
+        JsonNode stored = Api.json(api.get("/unit-roles/" + ids.get(2)));
+        for (String field : List.of("employmentId", "personId", "userId", "orgUnitId", "role", "validFrom")) {
+            assertEquals(stored.get(field), approver.get(field), field);
+        }
+        assertEquals("承認者", approver.get("roleName").asText());
+        assertEquals("1病棟", approver.get("orgUnitName").asText());
+        assertFalse(approver.get("includesDescendants").asBoolean());
+        assertFalse(approver.has("validTo"));
+        // The default is today of the realm.
+        assertEquals(ids.stream().sorted().toList(), Api.json(api.get("/unit-roles")).findValuesAsText("id"));
+        assertEquals(ids.subList(0, 2).stream().sorted().toList(),
+                Api.json(api.get("/unit-roles?asOf=2026-04-30")).findValuesAsText("id"));
+
+        assertEquals(ids.subList(0, 2).stream().sorted().toList(),
+                Api.json(api.get("/unit-roles?role=safety-officer&" + on)).findValuesAsText("id"));
+        // The safety officer of the division covers the ward, but is over the division.
+        assertEquals(ids.subList(1, 3).stream().sorted().toList(),
+                Api.json(api.get("/unit-roles?orgUnitId=" + ward + "&" + on)).findValuesAsText("id"));
+        assertEquals(List.of(ids.get(2)),
+                Api.json(api.get("/unit-roles?role=approver&orgUnitId=" + ward + "&" + on)).findValuesAsText("id"));
+        assertEquals("2", api.get("/unit-roles?role=safety-officer&count=true&" + on).headers()
+                .firstValue("X-Total-Count").orElseThrow());
+
+        List<String> followed = new ArrayList<>();
+        List<String> skipped = new ArrayList<>();
+        String path = "/unit-roles?max=2&" + on;
+        for (int first = 0; path != null; first += 2) {
+            HttpResponse<String> page = api.get(path);
+            assertEquals(200, page.statusCode(), page.body());
+            followed.addAll(Api.json(page).findValuesAsText("id"));
+            skipped.addAll(Api.json(api.get("/unit-roles?max=2&first=" + first + "&" + on)).findValuesAsText("id"));
+            path = page.headers().firstValue("Link")
+                    .map(link -> link.substring(link.indexOf("/fuhito") + "/fuhito".length(), link.indexOf('>')))
+                    .orElse(null);
+        }
+        assertEquals(every.findValuesAsText("id"), followed);
+        assertEquals(followed, skipped);
+
+        assertEquals("ref_item.unknown", error(400, api.get("/unit-roles?role=nurse")));
+        assertEquals("invalid.cursor_with_first", error(400, api.get("/unit-roles?first=1&after=unit-roles.v1__"
+                + ids.getFirst())));
+        assertEquals("invalid.cursor", error(400, api.get("/unit-roles?after=people.v1__" + ids.getFirst())));
     }
 
     @Test

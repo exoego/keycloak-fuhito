@@ -370,7 +370,7 @@ A list that grows with the realm is read in pages.
 `max` is 100 by default and 1000 at most. A larger value counts as 1000.
 A read with fewer entries than `max` has reached the end.
 
-A list that has a cursor is better read with it. These are the lists of org units, people, employments, assignments, and qualifications, and the members of an org unit.
+A list that has a cursor is better read with it. These are the lists of org units, people, employments, assignments, qualifications, and unit roles, and the members of an org unit.
 
 - A response with a full page has the header `Link` with the URL of the next page and `rel="next"`. Follow it until a response has no such header.
 - The URL has the parameter `after` with a cursor. The cursor says where the next page starts, so a late page costs as much as the first one. With `first`, the database counts past every skipped row.
@@ -381,9 +381,9 @@ A list that has a cursor is better read with it. These are the lists of org unit
 - When the order of a list changes, its format gets a new version. A cursor of the old version gets 400, and the caller starts again from the first page.
 - A request gives `after` or `first`, not both.
 - The cursor of the org units has only the ID of the last unit, for example `org-units.v1__<org unit ID>`. The other values of the order come from that unit on the date of the request. A unit that does not exist on that date gets 400 with `invalid.cursor_unit`.
-These are the lists of org units, children, subtrees, members, people, employments, assignments, qualifications, reference items, change orders, the change log, and the effective changes.
+These are the lists of org units, children, subtrees, members, people, employments, assignments, qualifications, unit roles, reference items, change orders, the change log, and the effective changes.
 
-The list of org units, the members of an org unit, and the lists of employments, assignments, and qualifications take `count=true`. The response then has the header `X-Total-Count` with the number of entries on all pages. It costs one more query, so a caller that only follows the pages leaves it out.
+The list of org units, the members of an org unit, and the lists of employments, assignments, qualifications, and unit roles take `count=true`. The response then has the header `X-Total-Count` with the number of entries on all pages. It costs one more query, so a caller that only follows the pages leaves it out.
 
 The lists of one person and the history of one resource are returned whole. The reports of a person are the exception. They are read in pages, because the head of a large org unit has many.
 
@@ -456,7 +456,7 @@ The database applies the filters, the order, and the page.
 | `/people/{id}/data` | Erases everything about one person, for a request to delete personal data |
 | `/qualifications` | Licenses and certificates of users. The list finds them by kind and date |
 | `/reporting-lines` | Links from an assignment to a manager |
-| `/unit-roles` | Roles of employments over org units that are not membership |
+| `/unit-roles` | Roles of employments over org units that are not membership. The list has the roles of a date across the realm, by role and org unit |
 | `/org-units/{id}/role-holders` | Who has a role over an org unit on a date, also from a unit above. `nearest=true` keeps only the nearest holders of each role |
 | `/people/{id}/unit-roles` | The roles over org units of a person on a date |
 | `/attribute-definitions` | The names and types of the free attributes of each kind of resource |
