@@ -125,6 +125,9 @@ class MembershipIT {
         assertEquals(List.of(clerk), users(api.get(all + "&asOf=2026-04-01&first=1&max=1")));
         assertEquals(List.of(nurse), users(api.get(all + "&asOf=2026-10-01&first=2&max=5")));
         assertEquals(List.of(), users(api.get(all + "&asOf=2026-10-01&status=ON_LEAVE&occupation=physician")));
+        // The employer of the realm is not above X病院, so every member there is seconded.
+        assertEquals(List.of(nurse), users(api.get(all + "&asOf=2026-04-01&occupation=nurse&seconded=true")));
+        assertEquals(List.of(), users(api.get(all + "&asOf=2026-04-01&jobTitle=director&seconded=false")));
         String direct = "/org-units/" + xHospital + "/members?asOf=2026-04-01";
         assertEquals(List.of(physician), users(api.get(direct + "&occupation=physician&jobTitle=director&status=ACTIVE")));
         assertEquals(List.of(), users(api.get(direct + "&occupation=nurse")));
