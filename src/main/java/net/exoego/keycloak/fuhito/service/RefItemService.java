@@ -179,13 +179,33 @@ public class RefItemService {
      */
     public RefItem create(String kind, String code, String name, Map<String, String> names, Integer displayOrder,
             Map<String, Object> attributes, Marks marks) {
+        return create(kind, code, name, names, displayOrder, attributes, marks, true);
+    }
+
+    /**
+     * Creates an item of a fixed kind or of a kind of the realm, with its marks, active or not.
+     *
+     * @param kind the code of the kind
+     * @param code the code
+     * @param name the default name
+     * @param names the names in other languages, or null
+     * @param displayOrder the position in lists, or null for 0
+     * @param attributes free values, or null
+     * @param marks the marks
+     * @param active false for an item that must not be used for new data
+     * @return the new item
+     * @throws FuhitoException when a value is bad, the kind is unknown, the code is taken, or the kind cannot have a
+     *         mark
+     */
+    public RefItem create(String kind, String code, String name, Map<String, String> names, Integer displayOrder,
+            Map<String, Object> attributes, Marks marks, boolean active) {
         knownKind(kind);
         Checks.code("code", code);
         if (store.findByCode(kind, code).isPresent()) {
             throw FuhitoException.conflict("ref_item.code_taken", Map.of("kind", kind, "code", code));
         }
-        RefItem item = item(UUID.randomUUID().toString(), kind, code, name, names, displayOrder, attributes, true,
-                marks);
+        RefItem item = item(UUID.randomUUID().toString(), kind, code, name, names, displayOrder, attributes, active,
+                marks, 1);
         store.insert(item);
         return item;
     }
@@ -228,13 +248,13 @@ public class RefItemService {
             throw FuhitoException.conflict("ref_item.legal_entity_in_use", Map.of("id", id, "code", current.code()));
         }
         RefItem changed = item(current.id(), current.kind(), current.code(), name, names, displayOrder, attributes,
-                active == null || active, marks);
+                active == null || active, marks, current.version());
         // Only org units refer to a unit type, so an item in use is the type of an org unit.
         if (changed.lateral() != current.lateral() && store.isInUse(id)) {
             throw FuhitoException.conflict("ref_item.lateral_in_use", Map.of("id", id, "code", current.code()));
         }
         store.update(changed);
-        return changed;
+        return get(id);
     }
 
     /**
@@ -252,7 +272,7 @@ public class RefItemService {
     }
 
     private RefItem item(String id, String kind, String code, String name, Map<String, String> names,
-            Integer displayOrder, Map<String, Object> attributes, boolean active, Marks marks) {
+            Integer displayOrder, Map<String, Object> attributes, boolean active, Marks marks, long version) {
         boolean legalEntity = mark(kind, RefKind.UNIT_TYPE, marks.legalEntity(), "ref_item.legal_entity_kind");
         boolean actingHead = mark(kind, RefKind.ASSIGNMENT_KIND, marks.actingHead(), "ref_item.acting_head_kind");
         boolean lateral = mark(kind, RefKind.UNIT_TYPE, marks.lateral(), "ref_item.lateral_kind");
@@ -262,7 +282,7 @@ public class RefItemService {
         return new RefItem(id, kind, code, Checks.name("name", name), Checks.localizedNames("names", names),
                 displayOrder == null ? 0 : displayOrder,
                 attributeRules.check(AttributeDefinition.Target.REF_ITEM, attributes), active,
-                legalEntity, actingHead, lateral);
+                legalEntity, actingHead, lateral, version);
     }
 
     private static boolean mark(String kind, RefKind allowed, Boolean value, String error) {

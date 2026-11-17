@@ -426,9 +426,9 @@ class EmploymentServiceTest {
         assignment("past-row", "past", old, "2020-04-01", "2025-04-01");
         assignment("future-row", "future", old, "2028-04-01", null);
         lines.insert(new ReportingLine("solid", "ward", "bob", "bob", ReportingLine.Kind.SOLID,
-                new ValidPeriod(LocalDate.of(2020, 4, 1), LocalDate.of(2029, 4, 1))));
+                new ValidPeriod(LocalDate.of(2020, 4, 1), LocalDate.of(2029, 4, 1)), 1));
         lines.insert(new ReportingLine("old-line", "ward", "bob", "bob", ReportingLine.Kind.DOTTED,
-                new ValidPeriod(LocalDate.of(2020, 4, 1), LocalDate.of(2021, 4, 1))));
+                new ValidPeriod(LocalDate.of(2020, 4, 1), LocalDate.of(2021, 4, 1)), 1));
 
         EmploymentService.Transfer transfer = service.transfer(old,
                 new TransferRequest("company-x", "2027-04-01", "X-2040", "transfer"));
@@ -572,8 +572,8 @@ class EmploymentServiceTest {
         // The move to the ward is planned for July, and the transfer comes in April.
         assignments.insert(new Assignment("moved-row", "moved", old, "ward", ValidPeriod.startingAt(
                 LocalDate.of(2027, 7, 1)), null, null, null, "home", "cc", false, false, null, 0, Map.of(), "hr",
-                "first"));
-        externalIds.insert(new ExternalId("x-moved", ExternalId.Kind.ASSIGNMENT, "moved", "hr", "M-1"));
+                "first", 1));
+        externalIds.insert(new ExternalId("x-moved", ExternalId.Kind.ASSIGNMENT, "moved", "hr", "M-1", 1));
 
         EmploymentService.Transfer transfer = service.transfer(old, new TransferRequest("company-z", "2027-04-01",
                 null, null));
@@ -596,7 +596,7 @@ class EmploymentServiceTest {
     private Assignment assignment(String rowId, String assignmentId, String employmentId, String from, String to) {
         Assignment row = new Assignment(rowId, assignmentId, employmentId, "unit", new ValidPeriod(
                 LocalDate.parse(from), to == null ? null : LocalDate.parse(to)), null, null, null, null, null, false,
-                false, null, 0, Map.of(), null, null);
+                false, null, 0, Map.of(), null, null, 1);
         assignments.insert(row);
         return row;
     }

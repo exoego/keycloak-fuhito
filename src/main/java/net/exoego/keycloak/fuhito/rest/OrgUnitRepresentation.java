@@ -18,6 +18,11 @@ public record OrgUnitRepresentation(
         @Schema(readOnly = true)
         String id,
         @Schema(
+                description = "The version of the unit. A new unit has 1. Each write counts it up by one, also a "
+                        + "change of a period, of a parent, or of an ID of another system.",
+                readOnly = true)
+        Long version,
+        @Schema(
                 description = "A code that no other org unit has on the same date. It is part of the details, so "
                         + "it can change on a date. A change of details that leaves it out clears it.",
                 maxLength = 64,
@@ -105,7 +110,7 @@ public record OrgUnitRepresentation(
         var version = state.version();
         var period = version.period();
         var places = state.places();
-        return new OrgUnitRepresentation(unit.id(), version.code(), version.name(), version.names(),
+        return new OrgUnitRepresentation(unit.id(), unit.version(), version.code(), version.name(), version.names(),
                 version.shortName(), version.shortNames(), version.phoneticName(), state.unitType(),
                 places.workLocation(), places.costCenter(), places.effectiveWorkLocation(),
                 places.effectiveCostCenter(), state.legalEntity() ? Boolean.TRUE : null,

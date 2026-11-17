@@ -14,7 +14,8 @@ import java.util.Map;
  * @param attributes free values that the realm defines
  * @param source the name of the system that made the qualification, or null. Its IDs in each system are stored
  *        apart.
+ * @param version the number that each write of the resource counts up. A new resource has 1.
  */
 public record Qualification(String id, String personId, String userId, String kindId, String number, ValidPeriod period,
-        Map<String, Object> attributes, String source) {
+        Map<String, Object> attributes, String source, long version) {
 }

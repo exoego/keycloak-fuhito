@@ -107,7 +107,7 @@ public class ReportingLineService {
                     });
         }
         ReportingLine line = new ReportingLine(UUID.randomUUID().toString(), assignmentId, managerPersonId,
-                manager.userId(), lineKind, period);
+                manager.userId(), lineKind, period, 1);
         store.insert(line);
         return line;
     }
@@ -173,9 +173,8 @@ public class ReportingLineService {
             throw FuhitoException.invalid("invalid.period",
                     Map.of("validFrom", line.period().from().toString(), "validTo", validTo));
         }
-        ReportingLine changed = line.withPeriod(line.period().endingAt(to));
-        store.update(changed);
-        return changed;
+        store.update(line.withPeriod(line.period().endingAt(to)));
+        return get(id);
     }
 
     /**

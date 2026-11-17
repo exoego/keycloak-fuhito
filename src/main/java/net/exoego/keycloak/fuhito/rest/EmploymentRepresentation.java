@@ -19,6 +19,11 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
 public record EmploymentRepresentation(
         @Schema(readOnly = true)
         String id,
+        @Schema(
+                description = "The version of the employment. A new employment has 1. Each write counts it up by one, "
+                        + "also a change of the terms or of an ID of another system.",
+                readOnly = true)
+        Long version,
         @Schema(description = "The ID of the person.")
         String personId,
         @Schema(
@@ -140,7 +145,7 @@ public record EmploymentRepresentation(
      */
     public static EmploymentRepresentation of(EmploymentView view, ExternalIdLists ids) {
         var e = view.employment();
-        return new EmploymentRepresentation(e.id(), e.personId(), e.userId(), e.employerId(),
+        return new EmploymentRepresentation(e.id(), e.version(), e.personId(), e.userId(), e.employerId(),
                 e.period().from().toString(), text(e.period().to()),
                 e.staffNumber(), view.endReason(), null, e.source(),
                 ExternalIdPairRepresentation.of(ids.of(e.id(), e.source())), e.continuesEmploymentId(), null, null,

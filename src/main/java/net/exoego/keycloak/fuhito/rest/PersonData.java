@@ -7,6 +7,7 @@ import java.util.function.Consumer;
 import net.exoego.keycloak.fuhito.domain.Person;
 import net.exoego.keycloak.fuhito.rest.RequestContext.Change;
 import net.exoego.keycloak.fuhito.rest.UsersResource.MaskRepresentation;
+import net.exoego.keycloak.fuhito.service.PersonService;
 import net.exoego.keycloak.fuhito.service.UserMaskingService;
 import net.exoego.keycloak.fuhito.store.UserDirectory;
 
@@ -21,12 +22,15 @@ final class PersonData {
     private final UserMaskingService masking;
     private final UserDirectory users;
     private final Consumer<String> erase;
+    private final PersonService people;
 
-    PersonData(RequestContext context, UserMaskingService masking, UserDirectory users, Consumer<String> erase) {
+    PersonData(RequestContext context, UserMaskingService masking, UserDirectory users, Consumer<String> erase,
+            PersonService people) {
         this.context = context;
         this.masking = masking;
         this.users = users;
         this.erase = erase;
+        this.people = people;
     }
 
     MaskRepresentation mask(Person person, boolean clearKeycloakName) {
@@ -36,7 +40,8 @@ final class PersonData {
         String id = person.id();
         String maskedAt = masking.mask(id).toString();
         boolean cleared = clearKeycloakName && person.userId() != null && users.clearName(person.userId());
-        var mask = new MaskRepresentation(id, person.userId(), maskedAt, cleared);
+        var mask = new MaskRepresentation(id, people.get(id).person().version(), person.userId(), maskedAt,
+                cleared);
         context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, "fuhito/people/" + id + "/mask", mask);
         return mask;
     }

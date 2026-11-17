@@ -87,7 +87,7 @@ public class QualificationService {
                 () -> FuhitoException.invalid("qualification.person_unknown", Map.of("personId", personId)));
         ExternalId.Pair externalId = externalIds.check(null, request.source(), request.externalId());
         Qualification qualification = checked(UUID.randomUUID().toString(), person, request, null,
-                Checks.optionalCode("source", request.source()));
+                Checks.optionalCode("source", request.source()), 1);
         store.insert(qualification);
         externalIds.store(qualification.id(), externalId);
         return view(qualification);
@@ -108,12 +108,11 @@ public class QualificationService {
         Checks.required("body", request);
         Qualification current = get(id).qualification();
         ExternalId.Pair externalId = externalIds.check(id, request.source(), request.externalId());
-        Qualification changed = checked(id,
-                new Person(current.personId(), current.userId(), null, Map.of(), null, Map.of(), null),
-                request, current.kindId(), current.source());
-        store.update(changed);
+        store.update(checked(id,
+                new Person(current.personId(), current.userId(), null, Map.of(), null, Map.of(), null, 0),
+                request, current.kindId(), current.source(), current.version()));
         externalIds.store(id, externalId);
-        return view(changed);
+        return get(id);
     }
 
     /**
@@ -187,7 +186,7 @@ public class QualificationService {
     }
 
     private Qualification checked(String id, Person person, QualificationValues request, String currentKindId,
-            String source) {
+            String source, long version) {
         String kind = Checks.required("kind", request.kind());
         // A qualification may keep a kind that was deactivated after it got it.
         String kindId = refItems.findByCode(RefKind.QUALIFICATION, kind)
@@ -198,7 +197,8 @@ public class QualificationService {
         ValidPeriod period = Checks.period(Checks.date("validFrom", request.validFrom()),
                 Checks.optionalDate("validTo", request.validTo()));
         return new Qualification(id, person.id(), person.userId(), kindId, Checks.optionalName("number", request.number()), period,
-                attributeRules.check(AttributeDefinition.Target.QUALIFICATION, request.attributes()), source);
+                attributeRules.check(AttributeDefinition.Target.QUALIFICATION, request.attributes()), source,
+                version);
     }
 
     /**

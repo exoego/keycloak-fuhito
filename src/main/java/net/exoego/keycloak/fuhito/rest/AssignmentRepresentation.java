@@ -18,6 +18,11 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
 public record AssignmentRepresentation(
         @Schema(readOnly = true)
         String id,
+        @Schema(
+                description = "The version of the assignment. A new assignment has 1. Each write counts it up by one, "
+                        + "also a change of a period or of an ID of another system.",
+                readOnly = true)
+        Long version,
         String employmentId,
         @Schema(description = "The ID of the Keycloak user of the employment.", readOnly = true)
         String userId,
@@ -158,8 +163,8 @@ public record AssignmentRepresentation(
 
     static AssignmentRepresentation of(AssignmentView view, ExternalIdLists ids) {
         var first = view.rows().getFirst().row();
-        return new AssignmentRepresentation(view.assignmentId(), first.employmentId(), view.userId(),
-                first.orgUnitId(), view.period().from().toString(), text(view.period().to()), null,
+        return new AssignmentRepresentation(view.assignmentId(), first.version(), first.employmentId(),
+                view.userId(), first.orgUnitId(), view.period().from().toString(), text(view.period().to()), null,
                 first.source(), ExternalIdPairRepresentation.of(ids.of(view.assignmentId(), first.source())),
                 view.continuesAssignmentId(), null, null, null, null, null, null, null, null, null,
                 null, null, view.rows().stream()
@@ -174,9 +179,9 @@ public record AssignmentRepresentation(
 
     // The values that apply come from the org units, so a change of a unit does not change the ETag.
     AssignmentRepresentation stored() {
-        return new AssignmentRepresentation(id, employmentId, userId, orgUnitId, validFrom, validTo, externalId,
-                source, externalIds, continuesAssignmentId, jobTitle, occupation, kind, workLocation, costCenter,
-                head, primary, switchPrimary, allocationPercent, displayOrder, attributes,
+        return new AssignmentRepresentation(id, version, employmentId, userId, orgUnitId, validFrom, validTo,
+                externalId, source, externalIds, continuesAssignmentId, jobTitle, occupation, kind, workLocation,
+                costCenter, head, primary, switchPrimary, allocationPercent, displayOrder, attributes,
                 periods.stream().map(Details::stored).toList());
     }
 

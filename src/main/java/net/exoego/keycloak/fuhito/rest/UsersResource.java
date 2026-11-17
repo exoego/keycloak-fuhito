@@ -124,9 +124,11 @@ public class UsersResource {
     @Schema(
             name = "Mask",
             description = "The result of a masking.",
-            requiredProperties = {"personId", "maskedAt", "keycloakNameCleared"})
+            requiredProperties = {"personId", "version", "maskedAt", "keycloakNameCleared"})
     public record MaskRepresentation(
             String personId,
+            @Schema(description = "The version of the person after the mask.")
+            long version,
             @Schema(description = "The ID of the Keycloak user that the person is linked to.")
             String userId,
             @Schema(description = "When the data was first masked, in UTC.", format = "date-time")

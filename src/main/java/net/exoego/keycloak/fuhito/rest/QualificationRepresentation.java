@@ -16,6 +16,11 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
 public record QualificationRepresentation(
         @Schema(readOnly = true)
         String id,
+        @Schema(
+                description = "The version of the qualification. A new qualification has 1. Each write counts it "
+                        + "up by one, also a change of an ID of another system.",
+                readOnly = true)
+        Long version,
         @Schema(description = "The ID of the person. Only a request to add reads it.")
         String personId,
         @Schema(
@@ -56,7 +61,7 @@ public record QualificationRepresentation(
 
     static QualificationRepresentation of(QualificationView view, ExternalIdLists ids) {
         var q = view.qualification();
-        return new QualificationRepresentation(q.id(), q.personId(), q.userId(), view.kind(), q.number(),
+        return new QualificationRepresentation(q.id(), q.version(), q.personId(), q.userId(), view.kind(), q.number(),
                 q.period().from().toString(), Objects.toString(q.period().to(), null),
                 q.attributes(), null, q.source(), ExternalIdPairRepresentation.of(ids.of(q.id(), q.source())));
     }

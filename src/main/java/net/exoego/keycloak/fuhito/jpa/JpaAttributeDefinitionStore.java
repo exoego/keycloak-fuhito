@@ -53,6 +53,7 @@ public class JpaAttributeDefinitionStore implements AttributeDefinitionStore {
         entity.realmId = realmId;
         entity.target = definition.target().name();
         entity.name = definition.name();
+        entity.version = definition.version();
         copy(definition, entity);
         em.persist(entity);
         em.flush();
@@ -83,6 +84,6 @@ public class JpaAttributeDefinitionStore implements AttributeDefinitionStore {
 
     static AttributeDefinition toDomain(AttributeDefinitionEntity e) {
         return new AttributeDefinition(e.id, AttributeDefinition.Target.valueOf(e.target), e.name,
-                AttributeDefinition.Type.valueOf(e.type), e.refKind, e.multiple, e.required);
+                AttributeDefinition.Type.valueOf(e.type), e.refKind, e.multiple, e.required, e.version);
     }
 }

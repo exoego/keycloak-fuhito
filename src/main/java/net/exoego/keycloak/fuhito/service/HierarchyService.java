@@ -84,7 +84,7 @@ public class HierarchyService {
         if (store.findByCode(code).isPresent()) {
             throw FuhitoException.conflict("hierarchy.code_taken", Map.of("code", code));
         }
-        Hierarchy hierarchy = new Hierarchy(UUID.randomUUID().toString(), code, Checks.name("name", name));
+        Hierarchy hierarchy = new Hierarchy(UUID.randomUUID().toString(), code, Checks.name("name", name), 1);
         store.insert(hierarchy);
         return hierarchy;
     }
@@ -98,9 +98,9 @@ public class HierarchyService {
      * @throws FuhitoException when the hierarchy does not exist or the name is bad
      */
     public Hierarchy rename(String id, String name) {
-        Hierarchy changed = new Hierarchy(id, get(id).code(), Checks.name("name", name));
-        store.update(changed);
-        return changed;
+        Hierarchy current = get(id);
+        store.update(new Hierarchy(id, current.code(), Checks.name("name", name), current.version()));
+        return get(id);
     }
 
     /**

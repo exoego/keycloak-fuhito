@@ -6,6 +6,8 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
 public record OrganizationLinkRepresentation(
         @Schema(readOnly = true)
         String orgUnitId,
+        @Schema(description = "The version of the org unit after the write.", readOnly = true)
+        Long version,
         @Schema(
                 description = "The ID of the Keycloak organization. A request to link needs it. A response has none "
                         + "after the link was removed.")

@@ -9,6 +9,8 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
 public record TimeSettingsRepresentation(
         @Schema(readOnly = true)
         String orgUnitId,
+        @Schema(description = "The version of the org unit after the write.", readOnly = true)
+        Long version,
         @Schema(
                 description = "The time zone. Leave it out to use the one from above.",
                 examples = {"America/New_York"})

@@ -19,6 +19,9 @@
             <column name="NAME" type="VARCHAR(255)">
                 <constraints nullable="false"/>
             </column>
+            <column name="VERSION" type="BIGINT" defaultValueNumeric="1">
+                <constraints nullable="false"/>
+            </column>
         </createTable>
         <addUniqueConstraint tableName="FUHITO_HIERARCHY" columnNames="REALM_ID, CODE"
                              constraintName="UK_FUHITO_HIERARCHY_CODE"/>
@@ -60,6 +63,9 @@
             <column name="LATERAL_UNIT" type="BOOLEAN" defaultValueBoolean="false">
                 <constraints nullable="false"/>
             </column>
+            <column name="VERSION" type="BIGINT" defaultValueNumeric="1">
+                <constraints nullable="false"/>
+            </column>
         </createTable>
         <addUniqueConstraint tableName="FUHITO_REF_ITEM" columnNames="REALM_ID, KIND, CODE"
                              constraintName="UK_FUHITO_REF_ITEM_CODE"/>
@@ -78,6 +84,9 @@
                 <constraints nullable="false"/>
             </column>
             <column name="NAMES_I18N" type="CLOB">
+                <constraints nullable="false"/>
+            </column>
+            <column name="VERSION" type="BIGINT" defaultValueNumeric="1">
                 <constraints nullable="false"/>
             </column>
         </createTable>
@@ -107,6 +116,9 @@
             <column name="REQUIRED" type="BOOLEAN" defaultValueBoolean="false">
                 <constraints nullable="false"/>
             </column>
+            <column name="VERSION" type="BIGINT" defaultValueNumeric="1">
+                <constraints nullable="false"/>
+            </column>
         </createTable>
         <addUniqueConstraint tableName="FUHITO_ATTRIBUTE_DEFINITION" columnNames="REALM_ID, TARGET, NAME"
                              constraintName="UK_FUHITO_ATTRIBUTE_DEFINITION_NAME"/>
@@ -122,6 +134,10 @@
             <column name="KC_ORG_ID" type="VARCHAR(36)"/>
             <column name="TIME_ZONE" type="VARCHAR(64)"/>
             <column name="DAY_START" type="VARCHAR(5)"/>
+            <!-- A change of a period or of a parent of the unit counts it up too. -->
+            <column name="VERSION" type="BIGINT" defaultValueNumeric="1">
+                <constraints nullable="false"/>
+            </column>
         </createTable>
         <addUniqueConstraint tableName="FUHITO_ORG_UNIT" columnNames="REALM_ID, KC_ORG_ID"
                              constraintName="UK_FUHITO_ORG_UNIT_KC_ORG"/>
@@ -270,6 +286,9 @@
             </column>
             <column name="SOURCE" type="VARCHAR(64)"/>
             <column name="SEARCH_NAMES" type="CLOB"/>
+            <column name="VERSION" type="BIGINT" defaultValueNumeric="1">
+                <constraints nullable="false"/>
+            </column>
         </createTable>
         <addUniqueConstraint tableName="FUHITO_PERSON" columnNames="REALM_ID, USER_ID"
                              constraintName="UK_FUHITO_PERSON_USER"/>
@@ -293,6 +312,10 @@
             </column>
             <column name="EMPLOYER_ID" type="VARCHAR(36)"/>
             <column name="CONTINUES_EMPLOYMENT_ID" type="VARCHAR(36)"/>
+            <!-- A change of the terms of the employment counts it up too. -->
+            <column name="VERSION" type="BIGINT" defaultValueNumeric="1">
+                <constraints nullable="false"/>
+            </column>
         </createTable>
         <addForeignKeyConstraint baseTableName="FUHITO_EMPLOYMENT" baseColumnNames="END_REASON_ID"
                                  referencedTableName="FUHITO_REF_ITEM" referencedColumnNames="ID"
@@ -421,6 +444,10 @@
             </column>
             <column name="SOURCE" type="VARCHAR(64)"/>
             <column name="CONTINUES_ASSIGNMENT_ID" type="VARCHAR(36)"/>
+            <!-- The version of the assignment. Every row of one assignment has the same one. -->
+            <column name="VERSION" type="BIGINT" defaultValueNumeric="1">
+                <constraints nullable="false"/>
+            </column>
         </createTable>
         <addUniqueConstraint tableName="FUHITO_ASSIGNMENT" columnNames="ASSIGNMENT_ID, VALID_FROM"
                              constraintName="UK_FUHITO_ASSIGNMENT_FROM"/>
@@ -482,6 +509,9 @@
             <column name="MANAGER_PERSON_ID" type="VARCHAR(36)">
                 <constraints nullable="false"/>
             </column>
+            <column name="VERSION" type="BIGINT" defaultValueNumeric="1">
+                <constraints nullable="false"/>
+            </column>
         </createTable>
         <addForeignKeyConstraint baseTableName="FUHITO_REPORTING_LINE" baseColumnNames="MANAGER_PERSON_ID"
                                  referencedTableName="FUHITO_PERSON" referencedColumnNames="ID"
@@ -525,6 +555,9 @@
                 <constraints nullable="false"/>
             </column>
             <column name="VALID_TO" type="DATE"/>
+            <column name="VERSION" type="BIGINT" defaultValueNumeric="1">
+                <constraints nullable="false"/>
+            </column>
         </createTable>
         <addForeignKeyConstraint baseTableName="FUHITO_UNIT_ROLE" baseColumnNames="EMPLOYMENT_ID"
                                  referencedTableName="FUHITO_EMPLOYMENT" referencedColumnNames="ID"
@@ -562,6 +595,9 @@
             </column>
             <column name="SOURCE" type="VARCHAR(64)"/>
             <column name="PERSON_ID" type="VARCHAR(36)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="VERSION" type="BIGINT" defaultValueNumeric="1">
                 <constraints nullable="false"/>
             </column>
         </createTable>
@@ -609,6 +645,9 @@
             </column>
             <column name="ANNOUNCED_AT" type="TIMESTAMP"/>
             <column name="ANNOUNCED_BY_USER_ID" type="VARCHAR(255)"/>
+            <column name="VERSION" type="BIGINT" defaultValueNumeric="1">
+                <constraints nullable="false"/>
+            </column>
         </createTable>
         <addUniqueConstraint tableName="FUHITO_CHANGE_ORDER" columnNames="REALM_ID, ORDER_NUMBER"
                              constraintName="UK_FUHITO_CHANGE_ORDER_NUMBER"/>
@@ -686,6 +725,9 @@
                 <constraints nullable="false"/>
             </column>
             <column name="EXTERNAL_ID" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="VERSION" type="BIGINT" defaultValueNumeric="1">
                 <constraints nullable="false"/>
             </column>
         </createTable>

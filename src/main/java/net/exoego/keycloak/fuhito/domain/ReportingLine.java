@@ -10,9 +10,10 @@ package net.exoego.keycloak.fuhito.domain;
  *        person.
  * @param kind solid or dotted
  * @param period the dates when the link holds
+ * @param version the number that each write of the resource counts up. A new resource has 1.
  */
 public record ReportingLine(String id, String assignmentId, String managerPersonId, String managerUserId, Kind kind,
-        ValidPeriod period) {
+        ValidPeriod period, long version) {
 
     /**
      * The kind of a reporting line.
@@ -31,6 +32,6 @@ public record ReportingLine(String id, String assignmentId, String managerPerson
      * @return the line with the new period
      */
     public ReportingLine withPeriod(ValidPeriod newPeriod) {
-        return new ReportingLine(id, assignmentId, managerPersonId, managerUserId, kind, newPeriod);
+        return new ReportingLine(id, assignmentId, managerPersonId, managerUserId, kind, newPeriod, version);
     }
 }

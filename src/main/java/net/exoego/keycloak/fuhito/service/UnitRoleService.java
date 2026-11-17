@@ -129,7 +129,7 @@ public class UnitRoleService {
                     throw FuhitoException.conflict("unit_role.overlap", Map.of("id", other.id()));
                 });
         UnitRole added = new UnitRole(UUID.randomUUID().toString(), employmentId, employment.personId(),
-                employment.userId(), orgUnitId, item.id(), Boolean.TRUE.equals(includesDescendants), period);
+                employment.userId(), orgUnitId, item.id(), Boolean.TRUE.equals(includesDescendants), period, 1);
         store.insert(added);
         return new View(added, item.code());
     }

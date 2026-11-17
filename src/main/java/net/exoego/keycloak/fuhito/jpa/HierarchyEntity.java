@@ -4,6 +4,7 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 
 /**
  * A named tree of org units in a realm.
@@ -24,6 +25,10 @@ public class HierarchyEntity {
 
     @Column(name = "NAME", nullable = false, length = 255)
     private String name;
+
+    @Version
+    @Column(name = "VERSION", nullable = false)
+    private long version;
 
     /**
      * Creates an empty entity for JPA.
@@ -101,5 +106,23 @@ public class HierarchyEntity {
      */
     public void setName(String name) {
         this.name = name;
+    }
+
+    /**
+     * Returns the version, which each write counts up.
+     *
+     * @return the version
+     */
+    public long getVersion() {
+        return version;
+    }
+
+    /**
+     * Sets the version of a new row.
+     *
+     * @param version the version
+     */
+    public void setVersion(long version) {
+        this.version = version;
     }
 }

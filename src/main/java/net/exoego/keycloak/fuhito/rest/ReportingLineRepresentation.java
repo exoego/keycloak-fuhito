@@ -12,6 +12,10 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
 public record ReportingLineRepresentation(
         @Schema(readOnly = true)
         String id,
+        @Schema(
+                description = "The version of the line. A new line has 1. Each write counts it up by one.",
+                readOnly = true)
+        Long version,
         @Schema(description = "The ID of the assignment of the person who reports.")
         String assignmentId,
         @Schema(description = "The ID of the person who is the manager.")
@@ -37,7 +41,7 @@ public record ReportingLineRepresentation(
      * @return the representation
      */
     public static ReportingLineRepresentation of(ReportingLine line) {
-        return new ReportingLineRepresentation(line.id(), line.assignmentId(), line.managerPersonId(),
+        return new ReportingLineRepresentation(line.id(), line.version(), line.assignmentId(), line.managerPersonId(),
                 line.managerUserId(),
                 line.kind().name(), line.period().from().toString(),
                 Objects.toString(line.period().to(), null));

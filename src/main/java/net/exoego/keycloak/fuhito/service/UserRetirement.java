@@ -91,9 +91,8 @@ public class UserRetirement {
                 lines.delete(line.id());
                 written.add(Write.Removed.line(line.id()));
             } else if (line.period().endsAfter(today)) {
-                ReportingLine ended = line.withPeriod(line.period().endingAt(today));
-                lines.update(ended);
-                written.add(new Write.OfReportingLine(false, "/end", ended));
+                lines.update(line.withPeriod(line.period().endingAt(today)));
+                written.add(new Write.OfReportingLine(false, "/end", lines.find(line.id()).orElseThrow()));
             }
         }
         return written;

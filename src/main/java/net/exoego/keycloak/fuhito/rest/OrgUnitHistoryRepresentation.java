@@ -13,6 +13,11 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
         requiredProperties = {"id", "externalIds", "versions", "parents"})
 public record OrgUnitHistoryRepresentation(
         String id,
+        @Schema(
+                description = "The version of the unit. A new unit has 1. Each write counts it up by one, also a "
+                        + "change of a period, of a parent, or of an ID of another system.",
+                readOnly = true)
+        Long version,
         @Schema(description = "The name of the system that made the unit.")
         String source,
         @Schema(description = "Every ID that a system has for the unit. The one of `source` comes first, then the "
@@ -40,7 +45,7 @@ public record OrgUnitHistoryRepresentation(
 
     static OrgUnitHistoryRepresentation of(OrgUnitHistory history, ExternalIdLists ids) {
         var unit = history.unit();
-        return new OrgUnitHistoryRepresentation(unit.id(), unit.source(),
+        return new OrgUnitHistoryRepresentation(unit.id(), unit.version(), unit.source(),
                 ExternalIdPairRepresentation.of(ids.of(unit.id(), unit.source())),
                 history.versions().stream().map(version -> OrgUnitRepresentation.of(version, ids)).toList(),
                 history.parents().stream()

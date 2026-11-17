@@ -9,6 +9,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 
 /**
  * A link from an assignment to a manager, for a period.
@@ -43,6 +44,10 @@ public class ReportingLineEntity {
 
     @Column(name = "VALID_TO")
     LocalDate validTo;
+
+    @Version
+    @Column(name = "VERSION", nullable = false)
+    long version;
 
     /**
      * Creates an empty entity for JPA.

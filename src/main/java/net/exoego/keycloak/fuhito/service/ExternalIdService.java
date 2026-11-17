@@ -27,9 +27,10 @@ public class ExternalIdService {
      * @param externalId the ID in that system
      * @param own true when the system made the resource
      * @param rowId the ID of the stored row
+     * @param version the number that each write of the stored row counts up
      */
     public record View(ExternalId.Kind kind, String resourceId, String source, String externalId, boolean own,
-            String rowId) {
+            String rowId, long version) {
     }
 
     private final ExternalIdStore store;
@@ -93,7 +94,7 @@ public class ExternalIdService {
                 .orElseThrow(() -> FuhitoException.notFound("external_id.not_found",
                         Map.of("source", String.valueOf(source), "resourceId", resourceId)));
         store.delete(row.id());
-        return new View(of, resourceId, row.source(), row.externalId(), false, row.id());
+        return new View(of, resourceId, row.source(), row.externalId(), false, row.id(), row.version());
     }
 
     /**
@@ -177,7 +178,8 @@ public class ExternalIdService {
      */
     public List<View> list(String afterId, int max) {
         return store.list(afterId, max).stream()
-                .map(row -> new View(row.kind(), row.resourceId(), row.source(), row.externalId(), false, row.id()))
+                .map(row -> new View(row.kind(), row.resourceId(), row.source(), row.externalId(), false, row.id(),
+                        row.version()))
                 .toList();
     }
 
@@ -204,6 +206,6 @@ public class ExternalIdService {
 
     private static View view(ExternalId row, ExternalId.Origin origin) {
         return new View(row.kind(), row.resourceId(), row.source(), row.externalId(),
-                Objects.equals(row.source(), origin.source()), row.id());
+                Objects.equals(row.source(), origin.source()), row.id(), row.version());
     }
 }

@@ -82,10 +82,10 @@ final class Writes {
             case Write.OfOrgUnit unit -> OrgUnitRepresentation.of(unit.state(),
                     ids.apply(ExternalId.Kind.ORG_UNIT));
             case Write.OfSuccession succession -> OrgUnitSuccessionsRepresentation.of(succession.state());
-            case Write.OfTimeSettings time -> new TimeSettingsRepresentation(time.orgUnitId(), time.timeZone(),
-                    time.dayStart());
+            case Write.OfTimeSettings time -> new TimeSettingsRepresentation(time.orgUnitId(), time.version(),
+                    time.timeZone(), time.dayStart());
             case Write.OfOrganizationLink link -> new OrganizationLinkRepresentation(link.orgUnitId(),
-                    link.organizationId());
+                    link.version(), link.organizationId());
             case Write.OfEmployment employment -> EmploymentRepresentation.of(employment.state(),
                     ids.apply(ExternalId.Kind.EMPLOYMENT));
             case Write.OfAssignment assignment -> AssignmentRepresentation.of(assignment.state(),

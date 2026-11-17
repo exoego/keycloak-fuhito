@@ -20,8 +20,9 @@ import java.time.LocalDate;
  * @param createdAt when the order was stored
  * @param announcedAt when the order was announced, or null when it was not announced yet
  * @param announcedByUserId the ID of the Keycloak user who recorded the announcement, or null
+ * @param version the number that each write of the resource counts up. A new resource has 1.
  */
 public record ChangeOrder(String id, String number, String kind, String title, String note, LocalDate orderDate,
         LocalDate effectiveDate, String approverUserId, String requesterUserId, String externalReference,
-        Instant createdAt, Instant announcedAt, String announcedByUserId) {
+        Instant createdAt, Instant announcedAt, String announcedByUserId, long version) {
 }

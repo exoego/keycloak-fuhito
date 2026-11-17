@@ -267,12 +267,8 @@ public class ImportService {
         Optional<RefItem> stored = refItems.findByCode(kind, code);
         if (stored.isEmpty()) {
             RefItemService.Marks marks = new RefItemService.Marks(row.legalEntity(), row.actingHead(), row.lateral());
-            RefItem created = refItemService.create(kind, code, row.name(), row.names(), row.displayOrder(),
-                    row.attributes(), marks);
-            RefItem item = Boolean.FALSE.equals(row.active())
-                    ? refItemService.update(created.id(), row.name(), row.names(), row.displayOrder(),
-                            row.attributes(), false, marks)
-                    : created;
+            RefItem item = refItemService.create(kind, code, row.name(), row.names(), row.displayOrder(),
+                    row.attributes(), marks, !Boolean.FALSE.equals(row.active()));
             report.write(new Write.OfRefItem(true, item));
             return Outcome.CREATED;
         }
@@ -282,7 +278,7 @@ public class ImportService {
                 row.attributes() == null ? Map.of() : row.attributes(), row.active() == null || row.active(),
                 row.legalEntity() == null ? before.legalEntity() : row.legalEntity(),
                 row.actingHead() == null ? before.actingHead() : row.actingHead(),
-                row.lateral() == null ? before.lateral() : row.lateral());
+                row.lateral() == null ? before.lateral() : row.lateral(), before.version());
         if (wanted.equals(before)) {
             return Outcome.UNCHANGED;
         }

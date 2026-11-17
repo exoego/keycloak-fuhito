@@ -9,6 +9,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.Transient;
 
 /**
  * The relationship between a user and the legal entity of the realm, for a period.
@@ -53,9 +54,24 @@ public class EmploymentEntity {
     @Column(name = "SOURCE", length = 64)
     String source;
 
+    @Column(name = "VERSION", nullable = false)
+    long version;
+
+    // True once a write of this session counted up the version. A session of Keycloak has one transaction.
+    @Transient
+    boolean counted;
+
     /**
      * Creates an empty entity for JPA.
      */
     public EmploymentEntity() {
+    }
+
+    // A write may change several rows of the resource. It counts up the version once.
+    void countUp() {
+        if (!counted) {
+            version++;
+            counted = true;
+        }
     }
 }

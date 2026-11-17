@@ -40,7 +40,7 @@ class HierarchyServiceTest {
         assertEquals(List.of("matrix"), service.list(Page.of(1, 1)).stream().map(Hierarchy::code).toList());
 
         Hierarchy renamed = service.rename(matrix.id(), "Projects");
-        assertEquals(new Hierarchy(matrix.id(), "matrix", "Projects"), renamed);
+        assertEquals(new Hierarchy(matrix.id(), "matrix", "Projects", 1), renamed);
         assertEquals(renamed, service.get(matrix.id()));
 
         service.delete(matrix.id());

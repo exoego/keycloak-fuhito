@@ -279,7 +279,7 @@ final class OrgUnitImport {
             return false;
         }
         OrgUnit changed = orgUnitService.setTime(id, zone, start);
-        report.write(new Write.OfTimeSettings(id, changed.timeZone(), changed.dayStart()));
+        report.write(new Write.OfTimeSettings(id, changed.timeZone(), changed.dayStart(), changed.version()));
         return true;
     }
 
@@ -301,13 +301,14 @@ final class OrgUnitImport {
         if (current != null) {
             organizations.manage().accept(current);
         }
+        OrgUnit linked;
         if (wanted == null) {
-            organizations.links().unlink(id);
+            linked = organizations.links().unlink(id);
         } else {
             organizations.manage().accept(wanted);
-            organizations.links().link(id, wanted);
+            linked = organizations.links().link(id, wanted);
         }
-        report.write(new Write.OfOrganizationLink(id, wanted));
+        report.write(new Write.OfOrganizationLink(id, wanted, linked.version()));
         return true;
     }
 

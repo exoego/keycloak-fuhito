@@ -15,6 +15,8 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
         requiredProperties = {"assignmentId", "employmentId", "personId", "seconded", "orgUnitId", "orgUnitName", "validFrom", "head", "primary", "displayOrder", "status"})
 public record MemberRepresentation(
         String assignmentId,
+        @Schema(description = "The version of the assignment.", readOnly = true)
+        Long version,
         String employmentId,
         @Schema(description = "The ID of the person.")
         String personId,
@@ -101,8 +103,9 @@ public record MemberRepresentation(
     static MemberRepresentation of(Member member) {
         var row = member.assignment();
         var terms = member.terms();
-        return new MemberRepresentation(row.assignmentId(), row.employmentId(), member.employment().personId(),
-                member.employment().userId(), member.employment().employerId(), member.seconded(),
+        return new MemberRepresentation(row.assignmentId(), row.version(), row.employmentId(),
+                member.employment().personId(), member.employment().userId(), member.employment().employerId(),
+                member.seconded(),
                 member.employment().staffNumber(), row.orgUnitId(), member.orgUnit().version().name(),
                 member.orgUnitPath() == null ? null : member.orgUnitPath().stream().map(PathEntry::of).toList(),
                 row.period().from().toString(), Objects.toString(row.period().to(), null),

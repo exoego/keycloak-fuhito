@@ -60,11 +60,15 @@ final class ExternalIdWrites {
                 .filter(row -> row.source().equals(pair.source()))
                 .findFirst();
         ExternalId row = new ExternalId(current.map(ExternalId::id).orElseGet(() -> UUID.randomUUID().toString()),
-                kind, resourceId, pair.source(), pair.externalId());
+                kind, resourceId, pair.source(), pair.externalId(), current.map(ExternalId::version).orElse(1L));
         if (current.isEmpty()) {
             store.insert(row);
         } else if (!current.get().equals(row)) {
             store.update(row);
+            return store.ofResource(kind, resourceId).stream()
+                    .filter(stored -> stored.id().equals(row.id()))
+                    .findFirst()
+                    .orElseThrow();
         }
         return row;
     }

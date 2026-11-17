@@ -118,7 +118,7 @@ class AssignmentServiceTest {
                 "nurse", null, true, true, null, new BigDecimal("60"), 3, Map.of("shift", "night"), "A-1", "hr"))
                 .assignmentId();
         lines.insert(new ReportingLine("line", old, "boss", "boss", ReportingLine.Kind.SOLID,
-                ValidPeriod.startingAt(LocalDate.of(2026, 4, 1))));
+                ValidPeriod.startingAt(LocalDate.of(2026, 4, 1)), 1));
 
         AssignmentService.Move move = service.move(old, new MoveRequest(yHospital, "2027-04-01", null, null, null));
 

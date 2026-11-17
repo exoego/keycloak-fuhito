@@ -92,7 +92,8 @@ class AdminApiIT {
         HttpResponse<String> response = get("/hierarchies", adminToken);
 
         assertEquals(200, response.statusCode());
-        assertTrue(response.body().matches("\\[\\{\"id\":\"[^\"]+\",\"code\":\"default\",\"name\":\"Default\"}]"),
+        assertTrue(response.body().matches(
+                "\\[\\{\"id\":\"[^\"]+\",\"version\":1,\"code\":\"default\",\"name\":\"Default\"}]"),
                 response.body());
     }
 

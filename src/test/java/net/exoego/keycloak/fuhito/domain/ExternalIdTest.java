@@ -9,7 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 class ExternalIdTest {
 
     private static ExternalId id(String source) {
-        return new ExternalId("row-" + source, ExternalId.Kind.PERSON, "person", source, "ID-" + source);
+        return new ExternalId("row-" + source, ExternalId.Kind.PERSON, "person", source, "ID-" + source, 1);
     }
 
     private static List<String> sources(List<ExternalId> ids) {

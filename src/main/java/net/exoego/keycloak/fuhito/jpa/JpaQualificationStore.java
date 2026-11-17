@@ -110,13 +110,17 @@ public class JpaQualificationStore implements QualificationStore {
         // The same session reads the row back, and it then needs the person.
         entity.person = em.getReference(PersonEntity.class, qualification.personId());
         entity.source = qualification.source();
+        entity.version = qualification.version();
+        entity.counted = true;
         copy(qualification, entity);
         em.persist(entity);
     }
 
     @Override
     public void update(Qualification qualification) {
-        copy(qualification, findEntity(qualification.id()).orElseThrow());
+        QualificationEntity entity = findEntity(qualification.id()).orElseThrow();
+        copy(qualification, entity);
+        entity.countUp();
     }
 
     @Override
@@ -143,6 +147,6 @@ public class JpaQualificationStore implements QualificationStore {
 
     static Qualification toDomain(QualificationEntity e) {
         return new Qualification(e.id, e.personId, e.person.userId, e.kindId, e.number, new ValidPeriod(e.validFrom, e.validTo),
-                e.attributes, e.source);
+                e.attributes, e.source, e.version);
     }
 }

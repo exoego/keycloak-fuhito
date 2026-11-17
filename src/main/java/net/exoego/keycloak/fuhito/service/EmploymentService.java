@@ -144,7 +144,7 @@ public class EmploymentService {
         }
 
         Employment employment = new Employment(newId(), personId, person.userId(), employerId, period, staffNumber,
-                null, Checks.optionalCode("source", request.source()), continuesEmploymentId);
+                null, Checks.optionalCode("source", request.source()), continuesEmploymentId, 1);
         store.insert(employment);
         writes.store(employment.id(), externalId);
         store.insertTerms(terms.copy(terms.id(), employment.id(), terms.period()));
@@ -304,7 +304,7 @@ public class EmploymentService {
         EmploymentView ended = end(id, request.validFrom(), request.endReason());
 
         Employment started = new Employment(newId(), old.personId(), old.userId(), employerId,
-                from(date, old.period()), staffNumber, null, null, id);
+                from(date, old.period()), staffNumber, null, null, id, 1);
         store.insert(started);
         terms.forEach(t -> store.insertTerms(t.copy(newId(), started.id(), from(date, t.period()))));
         for (Assignment row : rows) {
@@ -316,19 +316,19 @@ public class EmploymentService {
             assignments.insert(new Assignment(newId(), newAssignmentIds.get(row.assignmentId()), started.id(),
                     row.orgUnitId(), from(date, row.period()), row.jobTitleId(), row.occupationId(), row.kindId(),
                     row.workLocationId(), row.costCenterId(), row.head(), row.primary(), row.allocationPercent(),
-                    row.displayOrder(), row.attributes(), stays ? null : row.source(), continues));
+                    row.displayOrder(), row.attributes(), stays ? null : row.source(), continues, 1));
         }
         List<ReportingLine> newLines = new ArrayList<>();
         lines.forEach((oldAssignmentId, ofAssignment) -> ofAssignment.forEach(line -> {
             ReportingLine next = new ReportingLine(newId(), newAssignmentIds.get(oldAssignmentId),
-                    line.managerPersonId(), line.managerUserId(), line.kind(), from(date, line.period()));
+                    line.managerPersonId(), line.managerUserId(), line.kind(), from(date, line.period()), 1);
             reportingLines.insert(next);
             newLines.add(next);
         }));
         List<UnitRoleService.View> newRoles = new ArrayList<>();
         for (UnitRole role : roles) {
             UnitRole next = new UnitRole(newId(), started.id(), started.personId(), started.userId(),
-                    role.orgUnitId(), role.roleId(), role.includesDescendants(), from(date, role.period()));
+                    role.orgUnitId(), role.roleId(), role.includesDescendants(), from(date, role.period()), 1);
             unitRoles.insert(next);
             newRoles.add(new UnitRoleService.View(next, refItems.find(role.roleId()).map(RefItem::code).orElse(null)));
         }
@@ -404,7 +404,7 @@ public class EmploymentService {
         store.update(new Employment(id, employment.personId(), employment.userId(), employment.employerId(),
                 employment.period().endingAt(to),
                 employment.staffNumber(), endReasonId, employment.source(),
-                employment.continuesEmploymentId()));
+                employment.continuesEmploymentId(), employment.version()));
 
         List<EmploymentTerms> terms = store.terms(id);
         if (to != null) {
@@ -554,7 +554,8 @@ public class EmploymentService {
     private void moveExternalIds(String fromAssignmentId, String toAssignmentId) {
         externalIds.ofResource(ExternalId.Kind.ASSIGNMENT, fromAssignmentId).forEach(row -> {
             externalIds.delete(row.id());
-            externalIds.insert(new ExternalId(row.id(), row.kind(), toAssignmentId, row.source(), row.externalId()));
+            externalIds.insert(new ExternalId(row.id(), row.kind(), toAssignmentId, row.source(), row.externalId(),
+                    row.version() + 1));
         });
     }
 

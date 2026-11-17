@@ -32,6 +32,7 @@ erDiagram
         text ATTRIBUTES
         varchar(64) SOURCE
         varchar(36) CONTINUES_ASSIGNMENT_ID
+        bigint VERSION
     }
     FUHITO_CHANGE_LOG {
         varchar(36) ID PK
@@ -61,6 +62,7 @@ erDiagram
         timestamp CREATED_AT
         timestamp ANNOUNCED_AT
         varchar(255) ANNOUNCED_BY_USER_ID
+        bigint VERSION
     }
     FUHITO_EMPLOYMENT {
         varchar(36) ID PK
@@ -73,6 +75,7 @@ erDiagram
         varchar(36) PERSON_ID FK
         varchar(36) EMPLOYER_ID FK
         varchar(36) CONTINUES_EMPLOYMENT_ID FK
+        bigint VERSION
     }
     FUHITO_EMPLOYMENT_TERMS {
         varchar(36) ID PK
@@ -93,6 +96,7 @@ erDiagram
         varchar(36) REALM_ID
         varchar(64) CODE
         varchar(255) NAME
+        bigint VERSION
     }
     FUHITO_ORG_UNIT {
         varchar(36) ID PK
@@ -101,6 +105,7 @@ erDiagram
         varchar(36) KC_ORG_ID
         varchar(64) TIME_ZONE
         varchar(5) DAY_START
+        bigint VERSION
     }
     FUHITO_ORG_UNIT_LINK {
         varchar(36) ID PK
@@ -147,6 +152,7 @@ erDiagram
         text ATTRIBUTES
         varchar(64) SOURCE
         text SEARCH_NAMES
+        bigint VERSION
     }
     FUHITO_QUALIFICATION {
         varchar(36) ID PK
@@ -158,6 +164,7 @@ erDiagram
         text ATTRIBUTES
         varchar(64) SOURCE
         varchar(36) PERSON_ID FK
+        bigint VERSION
     }
     FUHITO_REF_ITEM {
         varchar(36) ID PK
@@ -172,6 +179,7 @@ erDiagram
         boolean LEGAL_ENTITY
         boolean ACTING_HEAD
         boolean LATERAL_UNIT
+        bigint VERSION
     }
     FUHITO_REPORTING_LINE {
         varchar(36) ID PK
@@ -181,6 +189,7 @@ erDiagram
         date VALID_FROM
         date VALID_TO
         varchar(36) MANAGER_PERSON_ID FK
+        bigint VERSION
     }
     FUHITO_UNIT_ROLE {
         varchar(36) ID PK
@@ -191,6 +200,7 @@ erDiagram
         boolean INCLUDES_DESCENDANTS
         date VALID_FROM
         date VALID_TO
+        bigint VERSION
     }
     FUHITO_REF_ITEM |o..o{ FUHITO_ASSIGNMENT : "COST_CENTER_ID"
     FUHITO_EMPLOYMENT ||..o{ FUHITO_ASSIGNMENT : "EMPLOYMENT_ID"
@@ -241,6 +251,7 @@ erDiagram
         varchar(32) REF_KIND
         boolean MULTIPLE
         boolean REQUIRED
+        bigint VERSION
     }
     FUHITO_CHANGE_LOG_COUNTER {
         varchar(36) REALM_ID PK
@@ -259,6 +270,7 @@ erDiagram
         varchar(36) RESOURCE_ID
         varchar(64) SOURCE
         varchar(255) EXTERNAL_ID
+        bigint VERSION
     }
     FUHITO_IDEMPOTENCY_KEY {
         varchar(36) ID PK
@@ -287,6 +299,7 @@ erDiagram
         varchar(32) CODE
         varchar(255) NAME
         text NAMES_I18N
+        bigint VERSION
     }
     FUHITO_USER_MASK {
         varchar(36) ID PK
