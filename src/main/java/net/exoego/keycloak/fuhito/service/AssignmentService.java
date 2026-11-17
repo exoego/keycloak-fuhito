@@ -1,13 +1,14 @@
 package net.exoego.keycloak.fuhito.service;
 
+import java.time.Clock;
 import java.time.LocalDate;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import net.exoego.keycloak.fuhito.domain.Assignment;
 import net.exoego.keycloak.fuhito.domain.AttributeDefinition;
@@ -34,10 +35,11 @@ public class AssignmentService {
     private final OrgUnitStore orgUnits;
     private final RefItemStore refItems;
     private final ReportingLineStore reportingLines;
+    private final Today today;
     private final AttributeRules attributeRules;
 
     /**
-     * Creates the service.
+     * Creates the service where today is the date in UTC.
      *
      * @param store the storage of assignments of the realm
      * @param employments the storage of employments of the realm
@@ -47,7 +49,8 @@ public class AssignmentService {
      */
     public AssignmentService(AssignmentStore store, EmploymentStore employments, OrgUnitStore orgUnits,
             RefItemStore refItems, ReportingLineStore reportingLines) {
-        this(store, employments, orgUnits, refItems, reportingLines, AttributeRules.NONE);
+        this(store, employments, orgUnits, refItems, reportingLines, Today.of(Clock.systemUTC()),
+                AttributeRules.NONE);
     }
 
     /**
@@ -58,10 +61,12 @@ public class AssignmentService {
      * @param orgUnits the storage of org units of the realm
      * @param refItems the storage of reference items of the realm
      * @param reportingLines the storage of reporting lines of the realm
+     * @param today what today is for each org unit. The values that apply to an assignment are read on it.
      * @param attributeRules the check of free attributes against the definitions of the realm
      */
     public AssignmentService(AssignmentStore store, EmploymentStore employments, OrgUnitStore orgUnits,
-            RefItemStore refItems, ReportingLineStore reportingLines, AttributeRules attributeRules) {
+            RefItemStore refItems, ReportingLineStore reportingLines, Today today, AttributeRules attributeRules) {
+        this.today = today;
         this.attributeRules = attributeRules;
         this.reportingLines = reportingLines;
         this.store = store;
@@ -125,7 +130,8 @@ public class AssignmentService {
             throw FuhitoException.invalid("assignment.continues_other", Map.of("id", previousId));
         }
         rows.forEach(row -> store.update(new Assignment(row.rowId(), id, row.employmentId(), row.orgUnitId(),
-                row.period(), row.jobTitleId(), row.occupationId(), row.kindId(), row.head(), row.primary(),
+                row.period(), row.jobTitleId(), row.occupationId(), row.kindId(), row.workLocationId(),
+                row.costCenterId(), row.head(), row.primary(),
                 row.allocationPercent(), row.displayOrder(), row.attributes(), row.externalId(), row.source(),
                 previousId)));
         return get(id);
@@ -205,8 +211,8 @@ public class AssignmentService {
      * The assignment ends on the date, and a new assignment of the same employment to the new org unit starts on
      * the same date. The new one lasts as long as the old one would have, and names the old one as the one that
      * it continues. It keeps the occupation, the kind, the primary flag, the allocation, and the attributes.
-     * It keeps the job title unless the request gives one. It does not keep the head flag or the display order,
-     * because those belong to the old org unit.
+     * It keeps the job title unless the request gives one. It does not keep the head flag, the display order, the
+     * work location, or the cost center, because those belong to the old org unit. The request can give new ones.
      * The reporting lines of the old assignment end with it. The new assignment has none.
      *
      * @param id the ID of the assignment to end
@@ -233,8 +239,9 @@ public class AssignmentService {
         String jobTitleId = request.jobTitle() == null ? last.jobTitleId()
                 : idOf(RefKind.JOB_TITLE, request.jobTitle(), last.jobTitleId());
         Assignment next = new Assignment(newId(), newId(), last.employmentId(), orgUnitId, period, jobTitleId,
-                last.occupationId(), last.kindId(), Boolean.TRUE.equals(request.head()), last.primary(),
-                last.allocationPercent(), request.displayOrder() == null ? 0 : request.displayOrder(),
+                last.occupationId(), last.kindId(), idOf(RefKind.WORK_LOCATION, request.workLocation(), null),
+                idOf(RefKind.COST_CENTER, request.costCenter(), null), Boolean.TRUE.equals(request.head()),
+                last.primary(), last.allocationPercent(), request.displayOrder() == null ? 0 : request.displayOrder(),
                 last.attributes(), null, null, id);
         // The end rejects a change that is stored for the date or later, and ends the reporting lines.
         AssignmentView ended = end(id, request.validFrom());
@@ -281,6 +288,7 @@ public class AssignmentService {
 
     /**
      * Returns an assignment with its details over time.
+     * The work location and the cost center that apply to each period are the ones on its date nearest to today.
      *
      * @param id the ID of the assignment
      * @return the assignment
@@ -290,14 +298,21 @@ public class AssignmentService {
         List<Assignment> rows = requireRows(id);
         String userId = employments.find(rows.getFirst().employmentId()).map(Employment::userId).orElse(null);
         ValidPeriod period = new ValidPeriod(rows.getFirst().period().from(), rows.getLast().period().to());
-        return new AssignmentView(id, userId, period, rows.getFirst().continuesAssignmentId(), rows.stream()
-                .map(r -> new AssignmentView.Row(r, codeOf(r.jobTitleId()), codeOf(r.occupationId()),
-                        codeOf(r.kindId())))
-                .toList());
+        Function<String, String> code = UnitPlaces.codes(refItems);
+        List<LocationAndCost> places = UnitPlaces.ofRows(rows, today.ofUnit(rows.getFirst().orgUnitId()), orgUnits,
+                code);
+        return new AssignmentView(id, userId, period, rows.getFirst().continuesAssignmentId(),
+                IntStream.range(0, rows.size()).mapToObj(i -> row(rows.get(i), code, places.get(i))).toList());
+    }
+
+    private static AssignmentView.Row row(Assignment row, Function<String, String> code, LocationAndCost places) {
+        return new AssignmentView.Row(row, code.apply(row.jobTitleId()), code.apply(row.occupationId()),
+                code.apply(row.kindId()), places);
     }
 
     /**
      * Lists a page of the assignments that hold on a date, by ID, each with its details over time.
+     * The rows have their own work location and cost center, and not the ones that apply.
      *
      * @param date the date
      * @param afterId the ID of the assignment after which the page starts, or null for the start
@@ -314,16 +329,14 @@ public class AssignmentService {
         Map<String, Employment> employmentsById = employments.findAll(rowsById.values().stream()
                         .map(rows -> rows.getFirst().employmentId()).distinct().toList()).stream()
                 .collect(Collectors.toMap(Employment::id, Function.identity()));
-        Map<String, String> codes = new HashMap<>();
-        Function<String, String> code = id -> id == null ? null : codes.computeIfAbsent(id, this::codeOf);
+        Function<String, String> code = UnitPlaces.codes(refItems);
         return ids.stream().map(id -> {
             List<Assignment> rows = rowsById.get(id);
             Employment employment = employmentsById.get(rows.getFirst().employmentId());
             return new AssignmentView(id, employment == null ? null : employment.userId(),
                     new ValidPeriod(rows.getFirst().period().from(), rows.getLast().period().to()),
                     rows.getFirst().continuesAssignmentId(), rows.stream()
-                            .map(r -> new AssignmentView.Row(r, code.apply(r.jobTitleId()),
-                                    code.apply(r.occupationId()), code.apply(r.kindId())))
+                            .map(r -> row(r, code, UnitPlaces.ownOfRow(r, code)))
                             .toList());
         }).toList();
     }
@@ -394,6 +407,8 @@ public class AssignmentService {
                 idOf(RefKind.JOB_TITLE, values.jobTitle(), current == null ? null : current.jobTitleId()),
                 idOf(RefKind.OCCUPATION, values.occupation(), current == null ? null : current.occupationId()),
                 idOf(RefKind.ASSIGNMENT_KIND, values.kind(), current == null ? null : current.kindId()),
+                idOf(RefKind.WORK_LOCATION, values.workLocation(), current == null ? null : current.workLocationId()),
+                idOf(RefKind.COST_CENTER, values.costCenter(), current == null ? null : current.costCenterId()),
                 Boolean.TRUE.equals(values.head()),
                 Boolean.TRUE.equals(values.primary()),
                 Checks.optionalPercent("allocationPercent", values.allocationPercent()),
@@ -411,10 +426,6 @@ public class AssignmentService {
                 .map(RefItem::id)
                 .orElseThrow(() -> FuhitoException.invalid("ref_item.unknown",
                         Map.of("kind", kind.name(), "code", code)));
-    }
-
-    private String codeOf(String refItemId) {
-        return Optional.ofNullable(refItemId).flatMap(refItems::find).map(RefItem::code).orElse(null);
     }
 
     private static String newId() {

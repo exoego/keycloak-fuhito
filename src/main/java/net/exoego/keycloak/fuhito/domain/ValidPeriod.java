@@ -137,4 +137,17 @@ public record ValidPeriod(LocalDate from, LocalDate to) {
     public boolean endsAfter(LocalDate date) {
         return to == null || to.isAfter(date);
     }
+
+    /**
+     * Returns the date of the period that is nearest to a date.
+     *
+     * @param date the date
+     * @return the date itself when the period contains it, else the first or the last date of the period
+     */
+    public LocalDate nearest(LocalDate date) {
+        if (date.isBefore(from)) {
+            return from;
+        }
+        return endsAfter(date) ? date : to.minusDays(1);
+    }
 }

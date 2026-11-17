@@ -194,9 +194,9 @@ final class OrgUnitImport {
         Optional<OrgUnit> stored = stored(row, source);
         if (stored.isEmpty()) {
             OrgUnitState created = orgUnitService.create(new NewOrgUnit(row.code(), row.name(), row.names(),
-                    row.shortName(), row.shortNames(), row.phoneticName(), row.unitType(), parentId,
-                    row.validFrom() == null ? effectiveDate : row.validFrom(), row.displayOrder(),
-                    row.attributes(), row.externalId(), source));
+                    row.shortName(), row.shortNames(), row.phoneticName(), row.unitType(), row.workLocation(),
+                    row.costCenter(), parentId, row.validFrom() == null ? effectiveDate : row.validFrom(),
+                    row.displayOrder(), row.attributes(), row.externalId(), source));
             String id = created.unit().id();
             unitIdByRow.put(index, id);
             written(true, "", created);
@@ -228,7 +228,8 @@ final class OrgUnitImport {
             if (!sameDetails(row, before)) {
                 written(false, "", orgUnitService.changeDetails(id, new OrgUnitChange(effectiveDate, row.code(),
                         row.name(), row.names(), row.shortName(), row.shortNames(), row.phoneticName(),
-                        row.unitType(), row.displayOrder(), row.attributes())));
+                        row.unitType(), row.workLocation(), row.costCenter(), row.displayOrder(),
+                        row.attributes())));
                 changed = true;
             }
             if (!Objects.equals(parentId, before.parentId())) {
@@ -329,6 +330,8 @@ final class OrgUnitImport {
                 && Objects.equals(Checks.optionalName("phoneticName", row.phoneticName()),
                         version.phoneticName())
                 && Objects.equals(row.unitType(), before.unitType())
+                && Objects.equals(row.workLocation(), before.places().workLocation())
+                && Objects.equals(row.costCenter(), before.places().costCenter())
                 && (row.displayOrder() == null ? 0 : row.displayOrder()) == version.displayOrder()
                 && (row.attributes() == null ? Map.of() : row.attributes()).equals(version.attributes());
     }

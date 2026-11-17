@@ -562,7 +562,11 @@ public record ImportDocument(
             String continuesAssignmentExternalId,
             @Schema(description = "The ID of the assignment that this one continues. Give this or "
                     + "`continuesAssignmentExternalId`, not both.")
-            String continuesAssignmentId) {
+            String continuesAssignmentId,
+            @Schema(description = "The code of the work location. With none, the one of the org unit applies.")
+            String workLocation,
+            @Schema(description = "The code of the cost center. With none, the one of the org unit applies.")
+            String costCenter) {
 
         public AssignmentRow(String source, String externalId, String employmentExternalId,
                 String orgUnitExternalId, String jobTitle, String occupation, String kind, Boolean head,
@@ -570,7 +574,7 @@ public record ImportDocument(
                 String validFrom, String validTo, String employmentId, String orgUnitId, String id) {
             this(source, externalId, employmentExternalId, orgUnitExternalId, jobTitle, occupation, kind, head,
                     primary, allocationPercent, displayOrder, attributes, validFrom, validTo, employmentId, orgUnitId,
-                    id, null, null);
+                    id, null, null, null, null);
         }
 
         /**
@@ -597,7 +601,7 @@ public record ImportDocument(
                 String validFrom, String validTo) {
             this(source, externalId, employmentExternalId, orgUnitExternalId, jobTitle, occupation, kind, head,
                     primary, allocationPercent, displayOrder, attributes, validFrom, validTo, null, null, null, null,
-                    null);
+                    null, null, null);
         }
     }
 
@@ -710,7 +714,11 @@ public record ImportDocument(
             String timeZone,
             @Schema(description = "The time of day when the date changes, as `HH:mm`. A row that leaves it out keeps "
                     + "it. An empty text removes it.")
-            String dayStart) {
+            String dayStart,
+            @Schema(description = "The code of the work location that the unit gives its members.")
+            String workLocation,
+            @Schema(description = "The code of the cost center that the unit gives its members.")
+            String costCenter) {
 
         public OrgUnitRow(String source, String externalId, String code, String name, Map<String, String> names,
                 String shortName, Map<String, String> shortNames, String phoneticName, String unitType,
@@ -718,7 +726,7 @@ public record ImportDocument(
                 String validFrom, String validTo, String id) {
             this(source, externalId, code, name, names, shortName, shortNames, phoneticName, unitType,
                     parentExternalId, parentId, displayOrder, attributes, validFrom, validTo, id, null, null, null,
-                    null, null);
+                    null, null, null, null);
         }
     }
 }

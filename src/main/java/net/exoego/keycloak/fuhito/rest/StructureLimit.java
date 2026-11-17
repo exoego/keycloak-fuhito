@@ -99,8 +99,8 @@ final class StructureLimit {
         return new OrgUnitState(state.unit(), new OrgUnitVersion(version.id(), version.orgUnitId(),
                 ValidPeriod.startingAt(version.period().from()), version.code(), version.name(), version.names(),
                 version.shortName(), version.shortNames(), version.phoneticName(), version.unitTypeId(),
-                version.displayOrder(), version.attributes()), state.unitType(), state.parentId(),
-                state.legalEntity(), state.lateral());
+                version.workLocationId(), version.costCenterId(), version.displayOrder(), version.attributes()),
+                state.unitType(), state.parentId(), state.legalEntity(), state.lateral(), state.places());
     }
 
     /**

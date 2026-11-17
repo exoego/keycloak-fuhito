@@ -181,7 +181,8 @@ public class RealmExportService {
                 versions.getOrDefault(unit.id(), List.of()).stream()
                         .map(v -> new RealmExport.Version(v.id(), from(v.period()), to(v.period()), v.code(),
                                 v.name(), v.names(), v.shortName(), v.shortNames(), v.phoneticName(),
-                                v.unitTypeId(), v.displayOrder(), v.attributes()))
+                                v.unitTypeId(), v.workLocationId(), v.costCenterId(), v.displayOrder(),
+                                v.attributes()))
                         .toList(),
                 // The ID of the default hierarchy differs between realms, so the code gives the order.
                 links.getOrDefault(unit.id(), List.of()).stream()
@@ -223,9 +224,9 @@ public class RealmExportService {
                 : stores.export().rowsOf(ids).stream().collect(Collectors.groupingBy(Assignment::assignmentId));
         return page(ids, Function.identity(), id -> new AssignmentRows(id, rows.getOrDefault(id, List.of()).stream()
                 .map(a -> new RealmExport.Period(a.rowId(), a.employmentId(), a.orgUnitId(), from(a.period()),
-                        to(a.period()), a.jobTitleId(), a.occupationId(), a.kindId(), a.head(), a.primary(),
-                        a.allocationPercent(), a.displayOrder(), a.attributes(), a.externalId(), a.source(),
-                        a.continuesAssignmentId()))
+                        to(a.period()), a.jobTitleId(), a.occupationId(), a.kindId(), a.workLocationId(),
+                        a.costCenterId(), a.head(), a.primary(), a.allocationPercent(), a.displayOrder(),
+                        a.attributes(), a.externalId(), a.source(), a.continuesAssignmentId()))
                 .toList()));
     }
 
@@ -374,7 +375,7 @@ public class RealmExportService {
         for (RealmExport.Unit u : units) {
             u.versions().forEach(v -> store.insertVersion(new OrgUnitVersion(v.id(), u.id(), period(v.validFrom(),
                     v.validTo()), v.code(), v.name(), v.names(), v.shortName(), v.shortNames(), v.phoneticName(),
-                    v.unitTypeId(), v.displayOrder(), v.attributes())));
+                    v.unitTypeId(), v.workLocationId(), v.costCenterId(), v.displayOrder(), v.attributes())));
         }
         for (RealmExport.Unit u : units) {
             for (RealmExport.Parent p : u.parents()) {
@@ -416,8 +417,9 @@ public class RealmExportService {
         assignments.forEach(a -> a.periods().forEach(r -> assignmentOfRow.put(r.rowId(), a.assignmentId())));
         rows.forEach(r -> stores.assignments().insert(new Assignment(r.rowId(), assignmentOfRow.get(r.rowId()),
                 r.employmentId(), r.orgUnitId(), period(r.validFrom(), r.validTo()), r.jobTitleId(),
-                r.occupationId(), r.kindId(), r.head(), r.primary(), r.allocationPercent(), r.displayOrder(),
-                r.attributes(), r.externalId(), r.source(), r.continuesAssignmentId())));
+                r.occupationId(), r.kindId(), r.workLocationId(), r.costCenterId(), r.head(), r.primary(),
+                r.allocationPercent(), r.displayOrder(), r.attributes(), r.externalId(), r.source(),
+                r.continuesAssignmentId())));
         counts.put("assignments", assignments.size());
     }
 

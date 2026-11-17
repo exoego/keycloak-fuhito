@@ -108,6 +108,16 @@ components:
           type: string
           description: The code of the first assignment kind.
           writeOnly: true
+        workLocation:
+          type: string
+          description: The code of the first work location. Leave it out to take the
+            one of the org unit.
+          writeOnly: true
+        costCenter:
+          type: string
+          description: The code of the first cost center. Leave it out to take the
+            one of the org unit.
+          writeOnly: true
         head:
           type: boolean
           description: Whether the person leads the org unit at first.
@@ -167,6 +177,28 @@ components:
         kind:
           type: string
           description: The code of the assignment kind.
+        workLocation:
+          type: string
+          description: The code of the work location of the assignment itself. Leave
+            it out to take the one of the org unit.
+        costCenter:
+          type: string
+          description: The code of the cost center of the assignment itself. Leave
+            it out to take the one of the org unit.
+        effectiveWorkLocation:
+          type: string
+          description: "The code of the work location that applies. It is the one\
+            \ of the assignment, else the one of the org unit, else the one of the\
+            \ nearest unit above it in the default hierarchy. It is read on the date\
+            \ of the period nearest to today."
+          readOnly: true
+        effectiveCostCenter:
+          type: string
+          description: "The code of the cost center that applies. It is the one of\
+            \ the assignment, else the one of the org unit, else the one of the nearest\
+            \ unit above it in the default hierarchy. It is read on the date of the\
+            \ period nearest to today."
+          readOnly: true
         head:
           type: boolean
           description: True when the person leads the org unit.
@@ -583,6 +615,10 @@ components:
           type: string
         kindId:
           type: string
+        workLocationId:
+          type: string
+        costCenterId:
+          type: string
         head:
           type: boolean
         primary:
@@ -810,6 +846,10 @@ components:
         phoneticName:
           type: string
         unitTypeId:
+          type: string
+        workLocationId:
+          type: string
+        costCenterId:
           type: string
         displayOrder:
           type: integer
@@ -1078,6 +1118,14 @@ components:
           type: string
           description: "The ID of the assignment that this one continues. Give this\
             \ or `continuesAssignmentExternalId`, not both."
+        workLocation:
+          type: string
+          description: "The code of the work location. With none, the one of the org\
+            \ unit applies."
+        costCenter:
+          type: string
+          description: "The code of the cost center. With none, the one of the org\
+            \ unit applies."
     ImportAttributeDefinitionRow:
       type: object
       required:
@@ -1559,6 +1607,12 @@ components:
           type: string
           description: "The time of day when the date changes, as `HH:mm`. A row that\
             \ leaves it out keeps it. An empty text removes it."
+        workLocation:
+          type: string
+          description: The code of the work location that the unit gives its members.
+        costCenter:
+          type: string
+          description: The code of the cost center that the unit gives its members.
     ImportPersonRow:
       type: object
       description: "A person, also one with no Keycloak user. It is matched by source\
@@ -2081,6 +2135,18 @@ components:
           description: The position among the members of the new org unit.
           writeOnly: true
           default: 0
+        workLocation:
+          type: string
+          description: The code of the work location in the new org unit. Leave it
+            out to take the one of the new org unit. The one of the old assignment
+            is not kept.
+          writeOnly: true
+        costCenter:
+          type: string
+          description: The code of the cost center in the new org unit. Leave it out
+            to take the one of the new org unit. The one of the old assignment is
+            not kept.
+          writeOnly: true
         ended:
           description: "The assignment to the old org unit, with its end."
           readOnly: true
@@ -2149,6 +2215,26 @@ components:
         unitType:
           type: string
           description: The code of the unit type.
+        workLocation:
+          type: string
+          description: The code of the work location that the unit gives its members.
+            Leave it out to take the one of the nearest unit above.
+        costCenter:
+          type: string
+          description: The code of the cost center that the unit gives its members.
+            Leave it out to take the one of the nearest unit above.
+        effectiveWorkLocation:
+          type: string
+          description: "The code of the work location that applies on the date. It\
+            \ is the one of the unit, else the one of the nearest unit above it in\
+            \ the default hierarchy. A history has none."
+          readOnly: true
+        effectiveCostCenter:
+          type: string
+          description: "The code of the cost center that applies on the date. It is\
+            \ the one of the unit, else the one of the nearest unit above it in the\
+            \ default hierarchy. A history has none."
+          readOnly: true
         legalEntity:
           type: boolean
           description: "True when the unit type marks the unit as a legal entity,\
@@ -2633,6 +2719,8 @@ components:
       - QUALIFICATION
       - LEAVE_REASON
       - UNIT_ROLE
+      - WORK_LOCATION
+      - COST_CENTER
       description: The kinds of reference items. Each realm defines its own items
         for each kind.
     RefKindDefinition:
@@ -2771,6 +2859,12 @@ components:
         unitType:
           type: string
           description: The code of the unit type.
+        workLocation:
+          type: string
+          description: The code of the work location that the unit gives its members.
+        costCenter:
+          type: string
+          description: The code of the cost center that the unit gives its members.
         displayOrder:
           type: integer
           format: int32
@@ -2944,6 +3038,16 @@ components:
         occupation:
           type: string
           description: The code of the occupation.
+          writeOnly: true
+        workLocation:
+          type: string
+          description: The code of the work location. Leave it out to take the one
+            of the org unit.
+          writeOnly: true
+        costCenter:
+          type: string
+          description: The code of the cost center. Leave it out to take the one of
+            the org unit.
           writeOnly: true
         head:
           type: boolean
@@ -3658,9 +3762,9 @@ paths:
         \ employment to the new org unit starts on the same date, and names the old\
         \ one in `continuesAssignmentId`. It keeps the occupation, the kind, the primary\
         \ flag, the allocation, and the attributes. It keeps the job title unless\
-        \ the request gives one. The head flag and the display order belong to the\
-        \ old org unit and are not kept. The reporting lines of the old assignment\
-        \ end with it. A failure writes nothing."
+        \ the request gives one. The head flag, the display order, the work location,\
+        \ and the cost center belong to the old org unit and are not kept. The reporting\
+        \ lines of the old assignment end with it. A failure writes nothing."
       operationId: moveAssignment
       tags:
       - assignments
@@ -7286,8 +7390,8 @@ paths:
         "409":
           $ref: "#/components/responses/Conflict"
     post:
-      summary: "Adds a kind of reference data to the realm, such as a work location\
-        \ or a cost center."
+      summary: "Adds a kind of reference data to the realm, such as a working time\
+        \ system or a collective agreement."
       description: Its items are reference items with the code as their kind. Attributes
         of the type `REF_ITEM` can point to it.
       operationId: createRefKind

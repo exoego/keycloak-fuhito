@@ -48,8 +48,8 @@ final class MemoryAssignmentStore implements AssignmentStore {
                 .filter(row -> filter.seconded() == null || filter.seconded().wanted() == seconded(row, filter))
                 .sorted(order)
                 .filter(row -> after == null || order.compare(row, new Assignment(null, after.assignmentId(), null,
-                        after.orgUnitId(), ValidPeriod.startingAt(after.validFrom()), null, null, null, false,
-                        false, null, after.displayOrder(), Map.of(), null, null, null)) > 0)
+                        after.orgUnitId(), ValidPeriod.startingAt(after.validFrom()), null, null, null, null, null,
+                        false, false, null, after.displayOrder(), Map.of(), null, null, null)) > 0)
                 .skip(first)
                 .limit(max)
                 .toList();

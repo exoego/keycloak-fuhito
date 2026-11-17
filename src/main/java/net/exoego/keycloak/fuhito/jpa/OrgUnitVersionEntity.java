@@ -60,6 +60,12 @@ public class OrgUnitVersionEntity {
     @Column(name = "UNIT_TYPE_ID", length = 36)
     String unitTypeId;
 
+    @Column(name = "WORK_LOCATION_ID", length = 36)
+    String workLocationId;
+
+    @Column(name = "COST_CENTER_ID", length = 36)
+    String costCenterId;
+
     @Column(name = "DISPLAY_ORDER", nullable = false)
     int displayOrder;
 

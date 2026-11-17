@@ -83,13 +83,16 @@ class RealmExportIT {
         source.refItem("LEAVE_REASON", "parental", "育児休業");
         source.refItem("UNIT_ROLE", "approver", "承認者");
         source.refItem("QUALIFICATION", "license", "免許");
+        source.refItem("WORK_LOCATION", "tokyo", "東京");
+        source.refItem("COST_CENTER", "cc-ward", "病棟");
         ok(api.post("/attribute-definitions", "{\"target\": \"PERSON\", \"name\": \"site\", \"type\": \"REF_ITEM\", "
                 + "\"refKind\": \"site\", \"multiple\": true}"));
         ok(api.post("/hierarchies", "{\"code\": \"project\", \"name\": \"プロジェクト\"}"));
         // The default hierarchy goes with its ID and its name.
         line = defaultHierarchy(api).get("id").asText();
         ok(api.put("/hierarchies/" + line, "{\"name\": \"組織図\"}"));
-        String hospital = id(api.post("/org-units", "{\"name\": \"病院\", \"validFrom\": \"2020-04-01\"}"));
+        String hospital = id(api.post("/org-units", "{\"name\": \"病院\", \"workLocation\": \"tokyo\", "
+                + "\"validFrom\": \"2020-04-01\"}"));
         ok(api.put("/org-units/" + hospital + "/organization", "{\"organizationId\": \""
                 + source.organization("x-hospital") + "\"}"));
         String ward = id(api.post("/org-units", "{\"name\": \"1病棟\", \"parentId\": \"" + hospital
@@ -101,8 +104,8 @@ class RealmExportIT {
         ok(api.post("/reorganizations", "{\"effectiveDate\": \"2023-04-01\", \"steps\": [{\"op\": \"succeed\", "
                 + "\"id\": \"" + old + "\", \"successorIds\": [\"" + ward + "\"]}]}"));
         JsonNode nurse = Api.json(api.post("/staff", "{\"userId\": \"" + ids.get("nurse") + "\", \"orgUnitId\": \""
-                + ward + "\", \"validFrom\": \"2020-04-01\", \"jobTitle\": \"chief\", \"contractEndDate\": "
-                + "\"2030-03-31\"}"));
+                + ward + "\", \"validFrom\": \"2020-04-01\", \"jobTitle\": \"chief\", \"costCenter\": \"cc-ward\", "
+                + "\"contractEndDate\": \"2030-03-31\"}"));
         String nurseEmployment = nurse.get("employment").get("id").asText();
         ok(api.post("/employments/" + nurseEmployment + "/leave", "{\"validFrom\": \"2022-04-01\", "
                 + "\"validTo\": \"2023-04-01\", \"reason\": \"parental\"}"));
@@ -147,6 +150,10 @@ class RealmExportIT {
         assertEquals(first, export(target.api));
         assertEquals(organization, Api.json(target.api.get("/org-units/" + hospital + "?asOf=2024-04-01"))
                 .get("keycloakOrganizationId").asText());
+        JsonNode nursePeriod = Api.json(target.api.get("/assignments/" + nurse.get("assignment").get("id").asText()))
+                .get("periods").get(0);
+        assertEquals("tokyo", nursePeriod.get("effectiveWorkLocation").asText());
+        assertEquals("cc-ward", nursePeriod.get("costCenter").asText());
         assertEquals(line, defaultHierarchy(target.api).get("id").asText());
         assertEquals("組織図", defaultHierarchy(target.api).get("name").asText());
         assertEquals("restore.realm_not_empty", Api.json(target.api.post("/restore", JSON.writeValueAsString(first)))
@@ -241,6 +248,16 @@ class RealmExportIT {
         assertEquals(400, named.statusCode(), named.body());
         assertEquals("restore.reference_unknown", Api.json(named).get("error").asText());
         assertEquals("personId", Api.json(named).get("params").get("field").asText());
+
+        ObjectNode located = JSON.createObjectNode().put("format", "fuhito.export.v1");
+        ObjectNode placed = located.putArray("orgUnits").addObject().put("id", "u-0");
+        placed.putArray("versions").addObject().put("id", "v-0").put("validFrom", "2020-04-01").put("name", "X")
+                .put("workLocationId", "l-1");
+        placed.putArray("parents");
+        placed.putArray("successors");
+        HttpResponse<String> location = target.api.post("/restore", JSON.writeValueAsString(located));
+        assertEquals("restore.reference_unknown", error(location));
+        assertEquals("workLocationId", Api.json(location).get("params").get("field").asText());
 
         // A date that cannot be read, and a unit with no list of versions.
         ObjectNode badDate = JSON.createObjectNode().put("format", "fuhito.export.v1");

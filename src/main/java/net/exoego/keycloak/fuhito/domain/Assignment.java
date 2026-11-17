@@ -16,6 +16,8 @@ import java.util.Map;
  * @param jobTitleId the ID of the job title, or null
  * @param occupationId the ID of the occupation, or null
  * @param kindId the ID of the assignment kind, or null
+ * @param workLocationId the ID of the work location, or null to take the one of the org unit
+ * @param costCenterId the ID of the cost center, or null to take the one of the org unit
  * @param head true when the person leads the org unit
  * @param primary true when this is the main assignment of the employment
  * @param allocationPercent the share of the person's work that goes to this assignment in percent, or null
@@ -27,9 +29,9 @@ import java.util.Map;
  *        or a transfer to another employer, or null
  */
 public record Assignment(String rowId, String assignmentId, String employmentId, String orgUnitId,
-        ValidPeriod period, String jobTitleId, String occupationId, String kindId, boolean head, boolean primary,
-        BigDecimal allocationPercent, int displayOrder, Map<String, Object> attributes, String externalId,
-        String source, String continuesAssignmentId) {
+        ValidPeriod period, String jobTitleId, String occupationId, String kindId, String workLocationId,
+        String costCenterId, boolean head, boolean primary, BigDecimal allocationPercent, int displayOrder,
+        Map<String, Object> attributes, String externalId, String source, String continuesAssignmentId) {
 
     /**
      * Returns a copy of this row for another period, with another row ID and another primary flag.
@@ -41,8 +43,8 @@ public record Assignment(String rowId, String assignmentId, String employmentId,
      */
     public Assignment part(String newRowId, ValidPeriod newPeriod, boolean newPrimary) {
         return new Assignment(newRowId, assignmentId, employmentId, orgUnitId, newPeriod, jobTitleId, occupationId,
-                kindId, head, newPrimary, allocationPercent, displayOrder, attributes, externalId, source,
-                continuesAssignmentId);
+                kindId, workLocationId, costCenterId, head, newPrimary, allocationPercent, displayOrder, attributes,
+                externalId, source, continuesAssignmentId);
     }
 
     /**
@@ -53,7 +55,7 @@ public record Assignment(String rowId, String assignmentId, String employmentId,
      */
     public Assignment withPeriod(ValidPeriod newPeriod) {
         return new Assignment(rowId, assignmentId, employmentId, orgUnitId, newPeriod, jobTitleId, occupationId,
-                kindId, head, primary, allocationPercent, displayOrder, attributes, externalId, source,
-                continuesAssignmentId);
+                kindId, workLocationId, costCenterId, head, primary, allocationPercent, displayOrder, attributes,
+                externalId, source, continuesAssignmentId);
     }
 }

@@ -94,6 +94,7 @@ The lists are applied in the order change orders, kinds of reference data, attri
 - A row with `validTo` ends the thing on that date. An employment can also carry `endReason`.
 - A row of an org unit can link the unit to a Keycloak organization by `organizationAlias`. A row that leaves it out keeps the link, and an empty text removes it. As `PUT /org-units/{id}/organization` does, the import asks for the permission to manage the old and the new organization. An unknown alias fails with `import.organization_unknown`.
 - A row of an org unit can set `timeZone` and `dayStart`, as `PUT /org-units/{id}/time-settings` does. A row that leaves one out keeps it, and an empty text removes it.
+- A row of an org unit or of an assignment can carry `workLocation` and `costCenter`, the codes of items of the kinds `WORK_LOCATION` and `COST_CENTER`. They are details like the others, so a row that leaves one out clears it. The record then takes the one of the unit or of a unit above it. An unknown code fails with `ref_item.unknown`.
 - A row of an org unit with `validTo` can name the units that follow it from that date, by `successorExternalIds` with the same source or by `successorIds`. The end and the successors are one write, as in the step `succeed` of a reorganization. One successor is a succession, and several are a split. A successor can come later in the same document. A unit that ended on the same date with the same successors stays as it is. Other successors fail with `import.successors_differ`, because a succession does not change.
 - A row replaces all details of an existing thing. A missing optional value clears it.
 - The same document can be sent again, for example after a timeout. A thing that ended by the effective date only compares its end. A thing that starts after the effective date must match what is stored on its first date, or the row fails with `not_valid_on`.
@@ -123,6 +124,7 @@ The lists are applied in the order change orders, kinds of reference data, attri
 `GET /imports/csv/employments?asOf=` gives the employments that hold on the date, with the terms of that date. Each row has `id`, and `continuesEmploymentId` for an employment that continues another. It names the person by `personId` and the employer by `employerId`, because many have no external ID of the source of the row. A row of an employment that starts later is not in the file.
 
 `GET /imports/csv/assignments?asOf=` gives the assignments that hold on the date the same way, with the details of that date. It names the employment by `employmentId` and the org unit by `orgUnitId`. `validFrom` and `validTo` are the dates of the whole assignment, not of the details. An assignment that continues another has `continuesAssignmentId`.
+The files of org units and of assignments have the work location and the cost center of the record itself, not the ones that apply. So a value that comes from a unit above is not copied into the rows.
 `GET /imports/csv/reporting-lines?asOf=` gives the reporting lines that hold on the date. It names the assignment by `assignmentId` and the manager by `managerPersonId`.
 `GET /imports/csv/unit-roles?asOf=` gives the roles that hold on the date. It names the employment by `employmentId` and the unit by `orgUnitId`.
 `GET /imports/csv/qualifications` gives every qualification, also those that expired. With `asOf`, it gives only those that hold on the date.
@@ -201,6 +203,8 @@ Org units.
 | `shortName` | `略称` |
 | `phoneticName` | `よみがな` |
 | `unitType` | `組織種別` |
+| `workLocation` | `勤務地` |
+| `costCenter` | `コストセンター` |
 | `parentExternalId` | `親の外部ID` |
 | `parentId` | `親のID` |
 | `id` | `ID` |
@@ -284,6 +288,8 @@ Assignments.
 | `jobTitle` | `役職` |
 | `occupation` | `職種` |
 | `assignmentKind` | `所属区分` |
+| `workLocation` | `勤務地` |
+| `costCenter` | `コストセンター` |
 | `head` | `長` |
 | `primary` | `主務` |
 | `allocationPercent` | `配分割合` |

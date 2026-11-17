@@ -257,6 +257,28 @@ class AttributeSyncServiceTest {
     }
 
     @Test
+    void aNewTitleKeepsTheWorkLocationAndTheCostCenterOfTheAssignment() {
+        refItems.insert(new RefItem("home", RefKind.WORK_LOCATION, "home", "Home", Map.of(), 0, Map.of(), true));
+        refItems.insert(new RefItem("cc", RefKind.COST_CENTER, "cc", "CC", Map.of(), 0, Map.of(), true));
+        set("boss", "med", null, null, null);
+        run();
+        Assignment row = assignmentStore.rowsOfEmployment(employmentStore.findByUser("boss").getFirst().id())
+                .getFirst();
+        assignments().changeDetails(row.assignmentId(), new AssignmentValues(null, null,
+                row.period().from().toString(), null, null, null, null, "home", "cc", row.head(), row.primary(), false,
+                null, null, null, null, null));
+        nextDay();
+        set("boss", "med", "director", null, null);
+
+        run();
+
+        Assignment last = assignmentStore.rows(row.assignmentId()).getLast();
+        assertEquals("t1", last.jobTitleId());
+        assertEquals("home", last.workLocationId());
+        assertEquals("cc", last.costCenterId());
+    }
+
+    @Test
     void aChangeOnTheSameDayLeavesNoTrace() {
         set("boss", "med", null, null, null);
         set("chief", "Surgery", null, null, null);

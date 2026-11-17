@@ -2,7 +2,9 @@ package net.exoego.keycloak.fuhito.service;
 
 import java.math.BigDecimal;
 import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
 
@@ -547,5 +549,101 @@ class AssignmentServiceTest {
         assertNull(view.rows().getFirst().jobTitle());
         assertEquals("assignment.not_found",
                 assertThrows(FuhitoException.class, () -> service.get("nope")).code());
+    }
+
+    // 2027-06-15 in Tokyo.
+    private static final Clock JUNE_2027 = Clock.fixed(Instant.parse("2027-06-15T03:00:00Z"), ZoneId.of("Asia/Tokyo"));
+
+    private void placeItems() {
+        item(RefKind.WORK_LOCATION, "tokyo", true);
+        item(RefKind.WORK_LOCATION, "osaka", true);
+        item(RefKind.WORK_LOCATION, "nagoya", true);
+        item(RefKind.WORK_LOCATION, "home", true);
+        item(RefKind.COST_CENTER, "cc-hq", true);
+        item(RefKind.COST_CENTER, "cc-x", true);
+    }
+
+    private void giveUnit(String id, String name, String validFrom, String workLocation, String costCenter) {
+        orgUnitService.changeDetails(id, new OrgUnitChange(validFrom, null, name, null, null, null, null, null,
+                workLocation, costCenter, null, null));
+    }
+
+    private AssignmentValues placedIn(String orgUnitId, String workLocation, String costCenter) {
+        return new AssignmentValues(employment, orgUnitId, "2026-04-01", null, null, null, null, workLocation,
+                costCenter, null, null, null, null, null, null, null, null);
+    }
+
+    private static List<String> places(AssignmentView view) {
+        return view.rows().stream().map(r -> r.places().workLocation() + " " + r.places().costCenter() + " "
+                + r.places().effectiveWorkLocation() + " " + r.places().effectiveCostCenter()).toList();
+    }
+
+    @Test
+    void anAssignmentTakesWhatItsUnitOrAUnitAboveGivesUnlessItHasItsOwn() {
+        placeItems();
+        giveUnit(xHospital, "X Hospital", "2026-04-01", "tokyo", "cc-hq");
+        giveUnit(ward, "Ward", "2026-04-01", null, "cc-x");
+
+        assertEquals(List.of("null null tokyo cc-hq"), places(service.add(placedIn(xHospital, null, null))));
+        assertEquals(List.of("null null tokyo cc-x"), places(service.add(placedIn(ward, null, null))));
+        AssignmentView home = service.add(placedIn(ward, "home", null));
+        assertEquals(List.of("home null home cc-x"), places(home));
+        assertEquals("WORK_LOCATION-home", home.rows().getFirst().row().workLocationId());
+        assertEquals(List.of("null null null null"), places(service.add(placedIn(yHospital, null, null))));
+        // A change of details replaces the values, so one that leaves them out takes the ones of the unit again.
+        assertEquals(List.of("null null tokyo cc-x"), places(service.changeDetails(home.assignmentId(),
+                details("2026-04-01", null, null))));
+        // A read of a page of many assignments gives only the values of the records.
+        assertEquals(List.of("null null null null"), places(service.listOn(LocalDate.of(2026, 4, 1), null, 1)
+                .getFirst()));
+    }
+
+    @Test
+    void eachPeriodOfAnAssignmentTakesTheValuesOnItsDateNearestToToday() {
+        placeItems();
+        AssignmentService inJune = new AssignmentService(store, employments, orgUnits, refItems, lines,
+                Today.of(JUNE_2027), AttributeRules.NONE);
+        giveUnit(xHospital, "X Hospital", "2026-04-01", "tokyo", null);
+        giveUnit(xHospital, "X Hospital", "2027-04-01", "osaka", null);
+        giveUnit(xHospital, "X Hospital", "2028-04-01", "nagoya", null);
+        String id = inJune.add(to(ward, "2026-04-01")).assignmentId();
+        inJune.changeDetails(id, details("2027-01-01", null, true));
+        inJune.changeDetails(id, details("2028-06-01", null, false));
+        int reads = orgUnits.defaultsReads;
+
+        AssignmentView view = inJune.get(id);
+
+        assertEquals(List.of("null null tokyo null", "null null osaka null", "null null nagoya null"), places(view));
+        // One read for each date.
+        assertEquals(3, orgUnits.defaultsReads - reads);
+    }
+
+    @Test
+    void aMoveDropsTheValuesOfTheOldAssignmentAndCanGiveNewOnes() {
+        placeItems();
+        giveUnit(yHospital, "Y Hospital", "2026-04-01", "osaka", null);
+        String id = service.add(placedIn(ward, "home", "cc-x")).assignmentId();
+
+        AssignmentService.Move move = service.move(id, new MoveRequest(yHospital, "2027-04-01", null, null, null));
+        assertEquals(List.of("null null osaka null"), places(move.started()));
+
+        String other = service.add(placedIn(ward, "home", "cc-x")).assignmentId();
+        AssignmentService.Move kept = service.move(other, new MoveRequest(yHospital, "2027-04-01", null, null, null,
+                "home", "cc-hq"));
+        assertEquals(List.of("home cc-hq home cc-hq"), places(kept.started()));
+        assertEquals("ref_item.unknown", assertThrows(FuhitoException.class, () -> service.move(kept.started()
+                .assignmentId(), new MoveRequest(ward, "2028-04-01", null, null, null, "cc-hq", null))).code());
+    }
+
+    @Test
+    void anAssignmentNamesOnlyActiveItemsOfTheRightKind() {
+        placeItems();
+        item(RefKind.COST_CENTER, "closed", false);
+
+        FuhitoException wrongKind = addFailure(placedIn(ward, "cc-hq", null));
+        assertEquals("ref_item.unknown", wrongKind.code());
+        assertEquals(Map.of("kind", "WORK_LOCATION", "code", "cc-hq"), wrongKind.params());
+        assertEquals(Map.of("kind", "COST_CENTER", "code", "closed"), addFailure(placedIn(ward, null, "closed"))
+                .params());
     }
 }

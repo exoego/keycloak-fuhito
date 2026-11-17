@@ -21,6 +21,7 @@ import net.exoego.keycloak.fuhito.domain.OrgUnitLink;
 import net.exoego.keycloak.fuhito.domain.OrgUnitSuccession;
 import net.exoego.keycloak.fuhito.domain.OrgUnitVersion;
 import net.exoego.keycloak.fuhito.domain.PlacedOrgUnit;
+import net.exoego.keycloak.fuhito.domain.UnitDefaults;
 import net.exoego.keycloak.fuhito.domain.ValidPeriod;
 import net.exoego.keycloak.fuhito.store.OrgUnitStore;
 
@@ -66,6 +67,24 @@ public class JpaOrgUnitStore implements OrgUnitStore {
                     and l.hierarchyId = :hierarchyId and l.%2$s
             )
             select a.unitId, a.ancestorId from Above a""".formatted(TreeQuery.onDate("v"), TreeQuery.onDate("l"),
+            ManyIds.has("v.orgUnitId", "ids"));
+
+    // Each unit reads its own version and the versions above it, nearest first.
+    private static final String DEFAULTS = """
+            with Above as (
+                select v.orgUnitId as unitId, v.orgUnitId as ancestorId, 0 as depth
+                from OrgUnitVersionEntity v
+                where v.realmId = :realmId and %3$s and v.%1$s
+                union all
+                select a.unitId as unitId, l.parentId as ancestorId, a.depth + 1 as depth
+                from Above a
+                join OrgUnitLinkEntity l on l.childId = a.ancestorId and l.realmId = :realmId
+                    and l.hierarchyId = :hierarchyId and l.%2$s
+            )
+            select a.unitId, v.workLocationId, v.costCenterId from Above a
+            join OrgUnitVersionEntity v on v.orgUnitId = a.ancestorId and v.realmId = :realmId and v.%1$s
+            where v.workLocationId is not null or v.costCenterId is not null
+            order by a.unitId, a.depth""".formatted(TreeQuery.onDate("v"), TreeQuery.onDate("l"),
             ManyIds.has("v.orgUnitId", "ids"));
 
     private static final String PATH = """
@@ -413,6 +432,22 @@ public class JpaOrgUnitStore implements OrgUnitStore {
     }
 
     @Override
+    public Map<String, UnitDefaults> defaultsOn(Collection<String> ids, LocalDate date) {
+        Map<String, UnitDefaults> result = new HashMap<>();
+        em.createQuery(DEFAULTS, Object[].class)
+                .setParameter("realmId", realmId)
+                .setParameter("hierarchyId", defaultHierarchyId())
+                .setParameter("ids", ManyIds.of(ids))
+                .setParameter("date", date)
+                .getResultStream()
+                .forEach(row -> result.merge((String) row[0], new UnitDefaults((String) row[1], (String) row[2]),
+                        (near, far) -> new UnitDefaults(
+                                near.workLocationId() == null ? far.workLocationId() : near.workLocationId(),
+                                near.costCenterId() == null ? far.costCenterId() : near.costCenterId())));
+        return result;
+    }
+
+    @Override
     public List<PlacedOrgUnit> pathOn(String hierarchyId, String id, LocalDate date) {
         return em.createQuery(PATH, Object[].class)
                 .setParameter("realmId", realmId)
@@ -540,6 +575,8 @@ public class JpaOrgUnitStore implements OrgUnitStore {
                 .map(value -> value.toLowerCase(Locale.ROOT))
                 .collect(Collectors.joining("\n"));
         entity.unitTypeId = version.unitTypeId();
+        entity.workLocationId = version.workLocationId();
+        entity.costCenterId = version.costCenterId();
         entity.displayOrder = version.displayOrder();
         entity.attributes = version.attributes();
     }
@@ -665,6 +702,7 @@ public class JpaOrgUnitStore implements OrgUnitStore {
 
     static OrgUnitVersion toDomain(OrgUnitVersionEntity e) {
         return new OrgUnitVersion(e.id, e.orgUnitId, new ValidPeriod(e.validFrom, e.validTo), e.code, e.name, e.names,
-                e.shortName, e.shortNames, e.phoneticName, e.unitTypeId, e.displayOrder, e.attributes);
+                e.shortName, e.shortNames, e.phoneticName, e.unitTypeId, e.workLocationId, e.costCenterId,
+                e.displayOrder, e.attributes);
     }
 }

@@ -48,6 +48,12 @@ public class AssignmentEntity {
     @Column(name = "KIND_ID", length = 36)
     String kindId;
 
+    @Column(name = "WORK_LOCATION_ID", length = 36)
+    String workLocationId;
+
+    @Column(name = "COST_CENTER_ID", length = 36)
+    String costCenterId;
+
     @Column(name = "IS_HEAD", nullable = false)
     boolean head;
 

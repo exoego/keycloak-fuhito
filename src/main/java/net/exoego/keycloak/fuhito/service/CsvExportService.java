@@ -335,8 +335,8 @@ public class CsvExportService {
                 .toList();
         List<String> header = new ArrayList<>();
         for (String field : List.of("id", "externalId", "source", "employmentId", "orgUnitId", "jobTitle",
-                "occupation", "assignmentKind", "head", "primary", "allocationPercent", "displayOrder", "validFrom",
-                "validTo", "continuesAssignmentId")) {
+                "occupation", "assignmentKind", "workLocation", "costCenter", "head", "primary", "allocationPercent",
+                "displayOrder", "validFrom", "validTo", "continuesAssignmentId")) {
             header.add(column(field, japanese));
         }
         attributes.forEach(attribute -> header.add(CsvImportService.ATTRIBUTE_COLUMN + attribute));
@@ -353,7 +353,8 @@ public class CsvExportService {
                 Assignment row = current.row();
                 List<String> cells = new ArrayList<>(List.of(view.assignmentId(), text(row.externalId()),
                         text(row.source()), row.employmentId(), row.orgUnitId(), text(current.jobTitle()),
-                        text(current.occupation()), text(current.kind()), Boolean.toString(row.head()),
+                        text(current.occupation()), text(current.kind()), text(current.places().workLocation()),
+                        text(current.places().costCenter()), Boolean.toString(row.head()),
                         Boolean.toString(row.primary()), number(row.allocationPercent()),
                         Integer.toString(row.displayOrder()), view.period().from().toString(),
                         text(view.period().to()), text(view.continuesAssignmentId())));
@@ -524,8 +525,8 @@ public class CsvExportService {
         names.forEach(language -> header.add(column("name", japanese) + ":" + language));
         header.add(column("shortName", japanese));
         shortNames.forEach(language -> header.add(column("shortName", japanese) + ":" + language));
-        for (String field : List.of("phoneticName", "unitType", "parentId", "displayOrder", "validTo",
-                "successorIds", "organizationAlias", "timeZone", "dayStart")) {
+        for (String field : List.of("phoneticName", "unitType", "workLocation", "costCenter", "parentId",
+                "displayOrder", "validTo", "successorIds", "organizationAlias", "timeZone", "dayStart")) {
             header.add(column(field, japanese));
         }
         attributes.forEach(attribute -> header.add(CsvImportService.ATTRIBUTE_COLUMN + attribute));
@@ -541,6 +542,8 @@ public class CsvExportService {
             shortNames.forEach(language -> cells.add(text(version.shortNames().get(language))));
             cells.add(text(version.phoneticName()));
             cells.add(text(unit.unitType()));
+            cells.add(text(unit.places().workLocation()));
+            cells.add(text(unit.places().costCenter()));
             cells.add(text(unit.parentId()));
             cells.add(Integer.toString(version.displayOrder()));
             // Only a unit whose details of the date end can end. The others need no more reads.

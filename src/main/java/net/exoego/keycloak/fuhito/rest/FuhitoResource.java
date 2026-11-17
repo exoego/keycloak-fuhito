@@ -358,7 +358,7 @@ public class FuhitoResource {
         return new AssignmentService(new JpaAssignmentStore(entityManager, realmId),
                 new JpaEmploymentStore(entityManager, realmId), new JpaOrgUnitStore(entityManager, realmId),
                 new JpaRefItemStore(entityManager, realmId), new JpaReportingLineStore(entityManager, realmId),
-                attributeRules());
+                today(), attributeRules());
     }
 
     private EmploymentService employmentService() {

@@ -63,7 +63,8 @@ public class RefKindsResource {
     @POST
     @Operation(
             operationId = "createRefKind",
-            summary = "Adds a kind of reference data to the realm, such as a work location or a cost center.",
+            summary = "Adds a kind of reference data to the realm, such as a working time system or a collective "
+                    + "agreement.",
             description = "Its items are reference items with the code as their kind. Attributes of the type "
                     + "`REF_ITEM` can point to it.")
     @Parameter(ref = "changeOrder")

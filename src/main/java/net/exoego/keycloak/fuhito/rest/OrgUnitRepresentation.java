@@ -34,6 +34,24 @@ public record OrgUnitRepresentation(
         @Schema(description = "The code of the unit type.")
         String unitType,
         @Schema(
+                description = "The code of the work location that the unit gives its members. Leave it out to take "
+                        + "the one of the nearest unit above.")
+        String workLocation,
+        @Schema(
+                description = "The code of the cost center that the unit gives its members. Leave it out to take the "
+                        + "one of the nearest unit above.")
+        String costCenter,
+        @Schema(
+                description = "The code of the work location that applies on the date. It is the one of the unit, "
+                        + "else the one of the nearest unit above it in the default hierarchy. A history has none.",
+                readOnly = true)
+        String effectiveWorkLocation,
+        @Schema(
+                description = "The code of the cost center that applies on the date. It is the one of the unit, else "
+                        + "the one of the nearest unit above it in the default hierarchy. A history has none.",
+                readOnly = true)
+        String effectiveCostCenter,
+        @Schema(
                 description = "True when the unit type marks the unit as a legal entity, such as a company.",
                 readOnly = true)
         Boolean legalEntity,
@@ -70,20 +88,23 @@ public record OrgUnitRepresentation(
         var unit = state.unit();
         var version = state.version();
         var period = version.period();
+        var places = state.places();
         return new OrgUnitRepresentation(unit.id(), version.code(), version.name(), version.names(),
                 version.shortName(), version.shortNames(), version.phoneticName(), state.unitType(),
-                state.legalEntity() ? Boolean.TRUE : null, state.lateral() ? Boolean.TRUE : null, state.parentId(), period.from().toString(), Objects.toString(period.to(), null),
-                version.displayOrder(), version.attributes(), unit.externalId(), unit.source(),
-                unit.keycloakOrganizationId(), unit.timeZone(), unit.dayStart());
+                places.workLocation(), places.costCenter(), places.effectiveWorkLocation(),
+                places.effectiveCostCenter(), state.legalEntity() ? Boolean.TRUE : null,
+                state.lateral() ? Boolean.TRUE : null, state.parentId(), period.from().toString(),
+                Objects.toString(period.to(), null), version.displayOrder(), version.attributes(), unit.externalId(),
+                unit.source(), unit.keycloakOrganizationId(), unit.timeZone(), unit.dayStart());
     }
 
     OrgUnitChange toChange() {
-        return new OrgUnitChange(validFrom, code, name, names, shortName, shortNames, phoneticName, unitType, displayOrder,
-                attributes);
+        return new OrgUnitChange(validFrom, code, name, names, shortName, shortNames, phoneticName, unitType,
+                workLocation, costCenter, displayOrder, attributes);
     }
 
     NewOrgUnit toNewOrgUnit() {
-        return new NewOrgUnit(code, name, names, shortName, shortNames, phoneticName, unitType, parentId, validFrom,
-                displayOrder, attributes, externalId, source);
+        return new NewOrgUnit(code, name, names, shortName, shortNames, phoneticName, unitType, workLocation,
+                costCenter, parentId, validFrom, displayOrder, attributes, externalId, source);
     }
 }

@@ -335,6 +335,8 @@ public class JpaAssignmentStore implements AssignmentStore {
         entity.jobTitleId = row.jobTitleId();
         entity.occupationId = row.occupationId();
         entity.kindId = row.kindId();
+        entity.workLocationId = row.workLocationId();
+        entity.costCenterId = row.costCenterId();
         entity.head = row.head();
         entity.primary = row.primary();
         entity.allocationPercent = row.allocationPercent();
@@ -344,8 +346,8 @@ public class JpaAssignmentStore implements AssignmentStore {
 
     static Assignment toDomain(AssignmentEntity e) {
         return new Assignment(e.id, e.assignmentId, e.employmentId, e.orgUnitId,
-                new ValidPeriod(e.validFrom, e.validTo), e.jobTitleId, e.occupationId, e.kindId, e.head, e.primary,
-                e.allocationPercent, e.displayOrder, e.attributes, e.externalId, e.source,
-                e.continuesAssignmentId);
+                new ValidPeriod(e.validFrom, e.validTo), e.jobTitleId, e.occupationId, e.kindId, e.workLocationId,
+                e.costCenterId, e.head, e.primary, e.allocationPercent, e.displayOrder, e.attributes, e.externalId,
+                e.source, e.continuesAssignmentId);
     }
 }

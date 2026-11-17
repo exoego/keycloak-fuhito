@@ -220,7 +220,7 @@ class ImportServiceTest {
     private static OrgUnitRow ending(String externalId, String validTo, List<String> successorExternalIds,
             List<String> successorIds) {
         return new OrgUnitRow(null, externalId, null, externalId, null, null, null, null, null, null, null, null,
-                null, "2020-04-01", validTo, null, successorExternalIds, successorIds, null, null, null);
+                null, "2020-04-01", validTo, null, successorExternalIds, successorIds, null, null, null, null, null);
     }
 
     private static OrgUnitRow starting(String externalId, String validFrom) {
@@ -256,12 +256,12 @@ class ImportServiceTest {
 
     private static OrgUnitRow linked(String externalId, String organizationAlias) {
         return new OrgUnitRow(null, externalId, null, externalId, null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, organizationAlias, null, null);
+                null, null, null, null, null, null, organizationAlias, null, null, null, null);
     }
 
     private static OrgUnitRow timed(String externalId, String timeZone, String dayStart) {
         return new OrgUnitRow(null, externalId, null, externalId, null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, timeZone, dayStart);
+                null, null, null, null, null, null, null, timeZone, dayStart, null, null);
     }
 
     @Test
@@ -943,7 +943,7 @@ class ImportServiceTest {
     private static AssignmentRow continuingAssignment(String externalId, String employment,
             String continuesExternalId) {
         return new AssignmentRow(null, externalId, employment, "W", null, null, null, null, true, null, null, null,
-                "2026-04-01", null, null, null, null, continuesExternalId, null);
+                "2026-04-01", null, null, null, null, continuesExternalId, null, null, null);
     }
 
     @Test
@@ -979,7 +979,7 @@ class ImportServiceTest {
         importPeople("2020-04-01", List.of(employment("D1", "doctor", null, null, null)), null);
         String doctor = employmentStore.findByExternalId("import", "D1").orElseThrow().id();
         AssignmentRow unknown = new AssignmentRow(null, "A4", "E2", "W", null, null, null, null, false, null, null,
-                null, "2026-04-01", null, null, null, null, null, "nope");
+                null, "2026-04-01", null, null, null, null, null, "nope", null, null);
         assertEquals(List.of("employments[0] employment.continues_other", "assignments[0] assignment.continues_unknown"),
                 errors(importPeople("2026-04-01", List.of(continuing("E6", null, doctor)), List.of(unknown))));
     }
@@ -1190,6 +1190,8 @@ class ImportServiceTest {
     @Test
     void eachDetailOfAnOrgUnitAloneMakesTheRowAChange() {
         refItems.insert(new RefItem("w", RefKind.UNIT_TYPE, "ward", "x", Map.of(), 0, Map.of(), true));
+        refItems.insert(new RefItem("l", RefKind.WORK_LOCATION, "tokyo", "x", Map.of(), 0, Map.of(), true));
+        refItems.insert(new RefItem("c", RefKind.COST_CENTER, "cc", "x", Map.of(), 0, Map.of(), true));
         List<OrgUnitRow> steps = List.of(
                 new OrgUnitRow(null, "U", null, "Unit", null, null, null, null, null, null, null, null, null, null, null, null),
                 new OrgUnitRow(null, "U", null, "Unit", null, "U1", null, null, null, null, null, null, null, null, null, null),
@@ -1202,7 +1204,11 @@ class ImportServiceTest {
                 new OrgUnitRow(null, "U", null, "Unit", null, "U1", Map.of("en", "U-1"), "ゆにっと", "ward", null, null, 7,
                         null, null, null, null),
                 new OrgUnitRow(null, "U", null, "Unit", null, "U1", Map.of("en", "U-1"), "ゆにっと", "ward", null, null, 7,
-                        Map.of("beds", 40), null, null, null));
+                        Map.of("beds", 40), null, null, null),
+                new OrgUnitRow(null, "U", null, "Unit", null, "U1", Map.of("en", "U-1"), "ゆにっと", "ward", null, null, 7,
+                        Map.of("beds", 40), null, null, null, null, null, null, null, null, "tokyo", null),
+                new OrgUnitRow(null, "U", null, "Unit", null, "U1", Map.of("en", "U-1"), "ゆにっと", "ward", null, null, 7,
+                        Map.of("beds", 40), null, null, null, null, null, null, null, null, "tokyo", "cc"));
 
         assertEquals(new Counts(1, 0, 0), changed(importUnits("2026-04-01", steps.getFirst()), "orgUnits"));
         for (OrgUnitRow step : steps.subList(1, steps.size())) {
@@ -1257,6 +1263,8 @@ class ImportServiceTest {
         refItems.insert(new RefItem("j", RefKind.JOB_TITLE, "director", "x", Map.of(), 0, Map.of(), true));
         refItems.insert(new RefItem("o", RefKind.OCCUPATION, "nurse", "x", Map.of(), 0, Map.of(), true));
         refItems.insert(new RefItem("k", RefKind.ASSIGNMENT_KIND, "support", "x", Map.of(), 0, Map.of(), true));
+        refItems.insert(new RefItem("l", RefKind.WORK_LOCATION, "home", "x", Map.of(), 0, Map.of(), true));
+        refItems.insert(new RefItem("c", RefKind.COST_CENTER, "cc", "x", Map.of(), 0, Map.of(), true));
         importPeople("2026-04-01", List.of(employment("E", "nurse", null, null, null)), null);
         BigDecimal all = new BigDecimal("100");
         List<AssignmentRow> steps = List.of(
@@ -1276,7 +1284,11 @@ class ImportServiceTest {
                 new AssignmentRow(null, "A", "E", "W", "director", "nurse", "support", true, true, all, 4, null,
                         null, null),
                 new AssignmentRow(null, "A", "E", "W", "director", "nurse", "support", true, true, all, 4,
-                        Map.of("room", "3"), null, null));
+                        Map.of("room", "3"), null, null),
+                new AssignmentRow(null, "A", "E", "W", "director", "nurse", "support", true, true, all, 4,
+                        Map.of("room", "3"), null, null, null, null, null, null, null, "home", null),
+                new AssignmentRow(null, "A", "E", "W", "director", "nurse", "support", true, true, all, 4,
+                        Map.of("room", "3"), null, null, null, null, null, null, null, "home", "cc"));
 
         assertEquals(new Counts(1, 0, 0),
                 changed(importPeople("2026-04-01", null, List.of(steps.getFirst())), "assignments"));

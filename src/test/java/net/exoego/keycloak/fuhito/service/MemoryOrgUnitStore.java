@@ -18,6 +18,7 @@ import net.exoego.keycloak.fuhito.domain.OrgUnitLink;
 import net.exoego.keycloak.fuhito.domain.OrgUnitSuccession;
 import net.exoego.keycloak.fuhito.domain.OrgUnitVersion;
 import net.exoego.keycloak.fuhito.domain.PlacedOrgUnit;
+import net.exoego.keycloak.fuhito.domain.UnitDefaults;
 import net.exoego.keycloak.fuhito.store.OrgUnitStore;
 
 final class MemoryOrgUnitStore implements OrgUnitStore {
@@ -185,6 +186,33 @@ final class MemoryOrgUnitStore implements OrgUnitStore {
         return tree.exists(id) ? placed(tree.path(id), 0, Integer.MAX_VALUE) : List.of();
     }
 
+    /** How often the work locations and the cost centers that apply were read. */
+    int defaultsReads;
+
+    @Override
+    public Map<String, UnitDefaults> defaultsOn(Collection<String> ids, LocalDate date) {
+        defaultsReads++;
+        Map<String, UnitDefaults> result = new LinkedHashMap<>();
+        for (String id : ids) {
+            String workLocationId = null;
+            String costCenterId = null;
+            for (String unitId : line(defaultHierarchyId(), id, date)) {
+                Optional<OrgUnitVersion> version = versions(unitId).stream()
+                        .filter(v -> v.period().contains(date))
+                        .findFirst();
+                if (version.isEmpty()) {
+                    break;
+                }
+                workLocationId = workLocationId == null ? version.get().workLocationId() : workLocationId;
+                costCenterId = costCenterId == null ? version.get().costCenterId() : costCenterId;
+            }
+            if (workLocationId != null || costCenterId != null) {
+                result.put(id, new UnitDefaults(workLocationId, costCenterId));
+            }
+        }
+        return result;
+    }
+
     @Override
     public List<OrgUnit> unitsWithOwnTime() {
         return units.values().stream().filter(unit -> unit.timeZone() != null || unit.dayStart() != null).toList();
@@ -196,6 +224,10 @@ final class MemoryOrgUnitStore implements OrgUnitStore {
     @Override
     public List<String> lineOn(String hierarchyId, String id, LocalDate date) {
         lineReads++;
+        return line(hierarchyId, id, date);
+    }
+
+    private List<String> line(String hierarchyId, String id, LocalDate date) {
         List<String> line = new ArrayList<>();
         for (String next = units.containsKey(id) ? id : null; next != null && !line.contains(next);) {
             line.add(next);

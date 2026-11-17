@@ -275,8 +275,9 @@ public class EmploymentService {
                     : newAssignmentIds.getOrDefault(row.continuesAssignmentId(), row.continuesAssignmentId());
             assignments.insert(new Assignment(newId(), newAssignmentIds.get(row.assignmentId()), started.id(),
                     row.orgUnitId(), from(date, row.period()), row.jobTitleId(), row.occupationId(), row.kindId(),
-                    row.head(), row.primary(), row.allocationPercent(), row.displayOrder(), row.attributes(),
-                    stays ? null : row.externalId(), stays ? null : row.source(), continues));
+                    row.workLocationId(), row.costCenterId(), row.head(), row.primary(), row.allocationPercent(),
+                    row.displayOrder(), row.attributes(), stays ? null : row.externalId(),
+                    stays ? null : row.source(), continues));
         }
         List<ReportingLine> newLines = new ArrayList<>();
         lines.forEach((oldAssignmentId, ofAssignment) -> ofAssignment.forEach(line -> {
