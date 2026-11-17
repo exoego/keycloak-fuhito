@@ -138,8 +138,12 @@ class UnitRolesIT {
         // The HR contact of the ward hides the one of the division when only the nearest are asked for.
         assertEquals(List.of(wardContact), Api.json(api.get("/org-units/" + ward
                 + "/role-holders?nearest=true&asOf=2026-05-01")).findValuesAsText("id"));
+        assertEquals(List.of(wardContact), Api.json(api.get("/org-units/" + ward
+                + "/role-holders?role=hr-contact&nearest=true&asOf=2026-05-01")).findValuesAsText("id"));
         assertEquals(2, api.count("/org-units/" + ward + "/role-holders/count?asOf=2026-05-01"));
         assertEquals(1, api.count("/org-units/" + ward + "/role-holders/count?nearest=true&asOf=2026-05-01"));
+        assertEquals(1, api.count("/org-units/" + ward
+                + "/role-holders/count?role=hr-contact&nearest=true&asOf=2026-05-01"));
         assertEquals(1, api.count("/org-units/" + division + "/role-holders/count?role=hr-contact&asOf=2026-05-01"));
         assertEquals(0, api.count("/org-units/" + ward + "/role-holders/count?role=approver&asOf=2026-05-01"));
         assertEquals("ref_item.unknown", Api.json(api.get("/org-units/" + ward
