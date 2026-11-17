@@ -65,7 +65,11 @@ See "What today is" in [keycloak-integration.md](keycloak-integration.md).
 The sync never touches an assignment that it does not own.
 So an administrator can add further assignments by hand, and the sync leaves them alone.
 
-A department or a title that matches nothing is reported, and that user is skipped.
+A department that matches nothing is reported, and the sync skips that user.
+The user gets nothing new, and what the sync gave the user before stays as it is.
+A title that matches nothing is reported, but the user is not skipped.
+The sync goes on as if the user had no title. So the assignment has no title, and an assignment that had one loses it from today.
+A manager that matches nothing is reported too, and the sync goes on as if the user had no manager.
 The sync does not create org units or job titles. A typing mistake in the identity provider must not grow the tree.
 
 ### How to run it
