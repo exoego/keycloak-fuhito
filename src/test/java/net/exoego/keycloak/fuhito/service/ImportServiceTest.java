@@ -994,12 +994,17 @@ class ImportServiceTest {
                         List.of(continuingAssignment("A2", "E2", "A2"), continuingAssignment("A3", "E2", "NOPE")))));
 
         // Another person cannot be continued.
-        importPeople("2020-04-01", List.of(employment("D1", "doctor", null, null, null)), null);
+        importPeople("2020-04-01", List.of(employment("D1", "doctor", null, null, null)),
+                List.of(assignment("DA", "D1", "W", true, null)));
         String doctor = stored(ExternalId.Kind.EMPLOYMENT, "import", "D1");
         AssignmentRow unknown = new AssignmentRow(null, "A4", "E2", "W", null, null, null, null, false, null, null,
                 null, "2026-04-01", null, null, null, null, null, "nope", null, null);
-        assertEquals(List.of("employments[0] employment.continues_other", "assignments[0] assignment.continues_unknown"),
-                errors(importPeople("2026-04-01", List.of(continuing("E6", null, doctor)), List.of(unknown))));
+        AssignmentRow ofDoctor = new AssignmentRow(null, "A5", "E2", "W", null, null, null, null, false, null, null,
+                null, "2026-04-01", null, null, null, null, null, stored(ExternalId.Kind.ASSIGNMENT, "import", "DA"),
+                null, null);
+        assertEquals(List.of("employments[0] employment.continues_other", "assignments[0] assignment.continues_unknown",
+                "assignments[1] assignment.continues_other"), errors(importPeople("2026-04-01",
+                List.of(continuing("E6", null, doctor)), List.of(unknown, ofDoctor))));
     }
 
     private void importTwoUnits() {

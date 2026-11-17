@@ -93,6 +93,20 @@ public class AssignmentService {
      *         the external ID belongs to another assignment
      */
     public AssignmentView add(AssignmentValues request) {
+        return add(request, null);
+    }
+
+    /**
+     * Adds an assignment that continues another assignment of the same person, as a transfer between employers
+     * does. The link is written with the new assignment, and it never changes.
+     *
+     * @param request the values of the request. The assignment keeps the source as the system that made it.
+     * @param continuesAssignmentId the ID of the assignment that the new one continues, or null
+     * @return the new assignment
+     * @throws FuhitoException as {@link #add(AssignmentValues)} does, and when the assignment to continue does not
+     *         exist or is of another person
+     */
+    AssignmentView add(AssignmentValues request, String continuesAssignmentId) {
         Checks.required("body", request);
         String employmentId = Checks.required("employmentId", request.employmentId());
         String orgUnitId = Checks.required("orgUnitId", request.orgUnitId());
@@ -107,43 +121,24 @@ public class AssignmentService {
         }
         requireOrgUnitCovers(orgUnitId, period);
         ExternalId.Pair externalId = externalIds.check(null, request.source(), request.externalId());
+        if (continuesAssignmentId != null) {
+            List<Assignment> previous = store.rows(continuesAssignmentId);
+            if (previous.isEmpty()) {
+                throw FuhitoException.invalid("assignment.continues_unknown", Map.of("id", continuesAssignmentId));
+            }
+            if (!employments.find(previous.getFirst().employmentId()).map(Employment::personId)
+                    .equals(Optional.of(employment.personId()))) {
+                throw FuhitoException.invalid("assignment.continues_other", Map.of("id", continuesAssignmentId));
+            }
+        }
 
         String assignmentId = newId();
         Assignment row = row(newId(), assignmentId, employmentId, orgUnitId, period, request, null,
-                Checks.optionalCode("source", request.source()));
+                Checks.optionalCode("source", request.source()), continuesAssignmentId);
         claimPrimary(row, request);
         store.insert(row);
         externalIds.store(assignmentId, externalId);
         return get(assignmentId);
-    }
-
-    /**
-     * Links an assignment to the one that it continues, as a transfer between employers does.
-     *
-     * @param id the ID of the assignment
-     * @param previousId the ID of the assignment that it continues
-     * @return the assignment
-     * @throws FuhitoException when an assignment does not exist, or the two are not of the same person
-     */
-    public AssignmentView continueFrom(String id, String previousId) {
-        List<Assignment> rows = store.rows(id);
-        List<Assignment> previous = store.rows(previousId);
-        if (rows.isEmpty()) {
-            throw FuhitoException.notFound("assignment.not_found", Map.of("id", id));
-        }
-        if (previous.isEmpty()) {
-            throw FuhitoException.invalid("assignment.continues_unknown", Map.of("id", previousId));
-        }
-        Optional<String> person = employments.find(rows.getFirst().employmentId()).map(Employment::personId);
-        if (previousId.equals(id) || !person.equals(employments.find(previous.getFirst().employmentId())
-                .map(Employment::personId))) {
-            throw FuhitoException.invalid("assignment.continues_other", Map.of("id", previousId));
-        }
-        rows.forEach(row -> store.update(new Assignment(row.rowId(), id, row.employmentId(), row.orgUnitId(),
-                row.period(), row.jobTitleId(), row.occupationId(), row.kindId(), row.workLocationId(),
-                row.costCenterId(), row.head(), row.primary(),
-                row.allocationPercent(), row.displayOrder(), row.attributes(), row.source(), previousId)));
-        return get(id);
     }
 
     /**
@@ -168,14 +163,14 @@ public class AssignmentService {
 
         if (current.period().from().equals(from)) {
             Assignment corrected = row(current.rowId(), id, current.employmentId(), current.orgUnitId(),
-                    current.period(), request, current, current.source());
+                    current.period(), request, current, current.source(), current.continuesAssignmentId());
             claimPrimary(corrected, request);
             store.update(corrected);
         } else {
             List<ValidPeriod> parts = current.period().splitAt(from);
             // Build the new row first, so that a bad value fails before anything is written.
             Assignment next = row(newId(), id, current.employmentId(), current.orgUnitId(), parts.get(1), request,
-                    current, current.source());
+                    current, current.source(), current.continuesAssignmentId());
             claimPrimary(next, request);
             store.update(current.withPeriod(parts.getFirst()));
             store.insert(next);
@@ -411,7 +406,8 @@ public class AssignmentService {
 
     // A row may keep a reference item that was deactivated after the row got it.
     private Assignment row(String rowId, String assignmentId, String employmentId, String orgUnitId,
-            ValidPeriod period, AssignmentValues values, Assignment current, String source) {
+            ValidPeriod period, AssignmentValues values, Assignment current, String source,
+            String continuesAssignmentId) {
         return new Assignment(rowId, assignmentId, employmentId, orgUnitId, period,
                 idOf(RefKind.JOB_TITLE, values.jobTitle(), current == null ? null : current.jobTitleId()),
                 idOf(RefKind.OCCUPATION, values.occupation(), current == null ? null : current.occupationId()),
@@ -423,7 +419,7 @@ public class AssignmentService {
                 Checks.optionalPercent("allocationPercent", values.allocationPercent()),
                 values.displayOrder() == null ? 0 : values.displayOrder(),
                 attributeRules.check(AttributeDefinition.Target.ASSIGNMENT, values.attributes()),
-                source, current == null ? null : current.continuesAssignmentId());
+                source, continuesAssignmentId);
     }
 
     private String idOf(RefKind kind, String code, String currentId) {

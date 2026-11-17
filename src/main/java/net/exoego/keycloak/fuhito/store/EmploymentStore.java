@@ -110,6 +110,7 @@ public interface EmploymentStore {
 
     /**
      * Stores the new state of an existing employment.
+     * The link to the employment that it continues never changes, so only {@link #insert} writes it.
      *
      * @param employment the employment
      */

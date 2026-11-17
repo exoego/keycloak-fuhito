@@ -209,9 +209,9 @@ final class PeopleImport {
             EmploymentView created = people.employmentService().start(new NewEmployment(personId,
                     row.validFrom() == null ? effectiveDate : row.validFrom(), row.validTo(), row.staffNumber(),
                     row.employmentType(), row.grade(), row.status(), row.leaveReason(), row.workPercent(),
-                    row.contractEndDate(), row.attributes(), row.externalId(), source, employerId));
+                    row.contractEndDate(), row.attributes(), row.externalId(), source, employerId), continues);
             String id = created.employment().id();
-            written(true, "", continues == null ? created : people.employmentService().continueFrom(id, continues));
+            written(true, "", created);
             if (row.validTo() != null && row.endReason() != null) {
                 written(false, "/end",
                         people.employmentService().end(id, row.validTo(), row.endReason()));
@@ -366,9 +366,7 @@ final class PeopleImport {
 
         String continues = continuedAssignment(row, source);
         if (stored.isEmpty()) {
-            AssignmentView created = people.assignmentService().add(values);
-            written(true, "", continues == null ? created
-                    : people.assignmentService().continueFrom(created.assignmentId(), continues));
+            written(true, "", people.assignmentService().add(values, continues));
             return Outcome.CREATED;
         }
         String id = stored.get();

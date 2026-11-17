@@ -105,6 +105,20 @@ public class EmploymentService {
      *         or another person has the staff number at the same employer
      */
     public EmploymentView start(NewEmployment request) {
+        return start(request, null);
+    }
+
+    /**
+     * Starts an employment of a person that continues another employment of the person, as a transfer between
+     * employers does. The link is written with the new employment, and it never changes.
+     *
+     * @param request the values of the request
+     * @param continuesEmploymentId the ID of the employment that the new one continues, or null
+     * @return the new employment with its first terms
+     * @throws FuhitoException as {@link #start(NewEmployment)} does, and when the employment to continue does not
+     *         exist or is of another person
+     */
+    EmploymentView start(NewEmployment request, String continuesEmploymentId) {
         Checks.required("body", request);
         String personId = Checks.required("personId", request.personId());
         LocalDate from = Checks.date("validFrom", request.validFrom());
@@ -121,9 +135,16 @@ public class EmploymentService {
         requireFreeStaffNumber(staffNumber, employerId, personId);
         ExternalIdWrites writes = new ExternalIdWrites(externalIds, ExternalId.Kind.EMPLOYMENT);
         ExternalId.Pair externalId = writes.check(null, request.source(), request.externalId());
+        if (continuesEmploymentId != null) {
+            Employment previous = store.find(continuesEmploymentId).orElseThrow(() -> FuhitoException.invalid(
+                    "employment.continues_unknown", Map.of("id", continuesEmploymentId)));
+            if (!previous.personId().equals(personId)) {
+                throw FuhitoException.invalid("employment.continues_other", Map.of("id", continuesEmploymentId));
+            }
+        }
 
         Employment employment = new Employment(newId(), personId, person.userId(), employerId, period, staffNumber,
-                null, Checks.optionalCode("source", request.source()), null);
+                null, Checks.optionalCode("source", request.source()), continuesEmploymentId);
         store.insert(employment);
         writes.store(employment.id(), externalId);
         store.insertTerms(terms.copy(terms.id(), employment.id(), terms.period()));
@@ -362,27 +383,6 @@ public class EmploymentService {
                 .anyMatch(e -> employerId.equals(e.employerId()) && !e.personId().equals(personId))) {
             throw FuhitoException.conflict("employment.staff_number_taken", Map.of("staffNumber", staffNumber));
         }
-    }
-
-    /**
-     * Links an employment to the one that it continues, as a transfer between employers does.
-     *
-     * @param id the ID of the employment
-     * @param previousId the ID of the employment that it continues
-     * @return the employment with all its terms
-     * @throws FuhitoException when an employment does not exist, or the two are not of the same person
-     */
-    public EmploymentView continueFrom(String id, String previousId) {
-        Employment employment = get(id).employment();
-        Employment previous = store.find(previousId).orElseThrow(() -> FuhitoException.invalid(
-                "employment.continues_unknown", Map.of("id", previousId)));
-        if (previous.id().equals(id) || !previous.personId().equals(employment.personId())) {
-            throw FuhitoException.invalid("employment.continues_other", Map.of("id", previousId));
-        }
-        store.update(new Employment(id, employment.personId(), employment.userId(), employment.employerId(),
-                employment.period(), employment.staffNumber(), employment.endReasonId(), employment.source(),
-                previousId));
-        return get(id);
     }
 
     /**

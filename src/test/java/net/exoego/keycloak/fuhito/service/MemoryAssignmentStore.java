@@ -123,7 +123,11 @@ final class MemoryAssignmentStore implements AssignmentStore {
 
     @Override
     public void update(Assignment row) {
-        rows.replaceAll(r -> r.rowId().equals(row.rowId()) ? row : r);
+        rows.replaceAll(r -> r.rowId().equals(row.rowId()) ? new Assignment(row.rowId(), row.assignmentId(),
+                row.employmentId(), row.orgUnitId(), row.period(), row.jobTitleId(), row.occupationId(),
+                row.kindId(), row.workLocationId(), row.costCenterId(), row.head(), row.primary(),
+                row.allocationPercent(), row.displayOrder(), row.attributes(), row.source(),
+                r.continuesAssignmentId()) : r);
     }
 
     @Override
