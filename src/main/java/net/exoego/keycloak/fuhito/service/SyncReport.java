@@ -11,7 +11,7 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
  * @param employmentsStarted the number of employments that were started
  * @param assignmentsAdded the number of assignments that were added for users who had none from the sync
  * @param assignmentsMoved the number of users whose assignment ended and started again in another org unit
- * @param assignmentsChanged the number of assignments that got a new job title
+ * @param assignmentsChanged the number of assignments whose job title changed. One that lost its title counts too.
  * @param assignmentsEnded the number of assignments that ended because the department was removed
  * @param reportingLinesChanged the number of users whose reporting line was added, replaced, or ended
  * @param unmatched the values that matched nothing
@@ -32,8 +32,9 @@ public record SyncReport(int users, int employmentsStarted, int assignmentsAdded
             String field,
             String value,
             @Schema(
-                    description = "`unknown` when nothing has the value. `ambiguous` when more than one org unit "
-                            + "has the name.",
+                    description = "`unknown` when nothing has the value, or when it names a deactivated job title "
+                            + "that the assignment does not have. `ambiguous` when more than one org unit has the "
+                            + "name.",
                     enumeration = {"unknown", "ambiguous"})
             String reason) {
     }

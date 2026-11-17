@@ -234,5 +234,16 @@ class MembershipIT {
         HttpResponse<String> bad = scratchApi.get("/org-units/" + hospital + "/members?after=people.v1__x");
         assertEquals(400, bad.statusCode(), bad.body());
         assertEquals("invalid.cursor", Api.json(bad).get("error").asText());
+
+        // The ward of the cursor is no longer under the hospital on the date of the next page.
+        String link = scratchApi.get("/org-units/" + hospital + "/members?includeDescendants=true&max=2&asOf=2026-04-01")
+                .headers().firstValue("Link").orElseThrow();
+        String next = link.substring(link.indexOf(prefix) + prefix.length(), link.indexOf('>'));
+        assertTrue(next.contains("after=members.v1__" + wardA), next);
+        assertEquals(200, scratchApi.put("/org-units/" + wardA + "/parent",
+                "{\"parentId\": null, \"validFrom\": \"2026-06-01\"}").statusCode());
+        HttpResponse<String> gone = scratchApi.get(next.replace("asOf=2026-04-01", "asOf=2026-06-01"));
+        assertEquals(400, gone.statusCode(), gone.body());
+        assertEquals("invalid.cursor_unit", Api.json(gone).get("error").asText());
     }
 }

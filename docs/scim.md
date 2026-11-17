@@ -60,6 +60,7 @@ When the attributes change:
 "Today" is the date of the org unit that the department matches.
 It is the date of the realm unless the unit, or one above it, sets its own time zone.
 When a user moves to another unit, the date of the new unit is used.
+The department is matched on the date of the realm. For some hours of a day, a unit with its own time zone is on another date, where it may not exist yet or any more. Then the department matches nothing until that changes.
 See "What today is" in [keycloak-integration.md](keycloak-integration.md).
 
 The sync never touches an assignment that it does not own.
@@ -69,6 +70,7 @@ A department that matches nothing is reported, and the sync skips that user.
 The user gets nothing new, and what the sync gave the user before stays as it is.
 A title that matches nothing is reported, but the user is not skipped.
 The sync goes on as if the user had no title. So the assignment has no title, and an assignment that had one loses it from today.
+A deactivated job title stays on an assignment that has it. The sync gives it to no other assignment. There it is reported as `unknown`, and the assignment gets no title.
 A manager that matches nothing is reported too, and the sync goes on as if the user had no manager.
 The sync does not create org units or job titles. A typing mistake in the identity provider must not grow the tree.
 
@@ -84,7 +86,7 @@ When the end of the unit moves later, the assignment keeps its end. The first ru
 
 The response counts the employments that were started and the assignments that were added, moved, changed, and ended.
 It lists every value that matched nothing, with the user, the field, and the reason.
-The reason is `unknown` when nothing has the value, and `ambiguous` when more than one org unit has the name.
+The reason is `unknown` when nothing has the value, or when it names a deactivated job title that the assignment does not have. It is `ambiguous` when more than one org unit has the name.
 
 A user that the sync cannot handle does not stop the other users.
 The response lists each such user in `failed`, with the error code that an error response would have.

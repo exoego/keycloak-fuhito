@@ -20,6 +20,7 @@ import net.exoego.keycloak.fuhito.domain.Assignment;
 import net.exoego.keycloak.fuhito.domain.Employment;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.OrgUnit;
+import net.exoego.keycloak.fuhito.domain.OrgUnitVersion;
 import net.exoego.keycloak.fuhito.domain.RefItem;
 import net.exoego.keycloak.fuhito.domain.RefKind;
 import net.exoego.keycloak.fuhito.domain.ReportingLine;
@@ -151,8 +152,8 @@ public class AttributeSyncService {
     private final List<Failed> failed = new ArrayList<>();
     private final List<Write> writes = new ArrayList<>();
     private String employerId;
-    // The end of each org unit that the run placed a user in, read once for each unit. Empty for no end.
-    private final Map<String, Optional<LocalDate>> unitEnds = new HashMap<>();
+    // The period in which each org unit exists, read once for each unit that the run looks at.
+    private final Map<String, ValidPeriod> unitLives = new HashMap<>();
 
     /**
      * Creates the service for one run that works in pieces.
@@ -330,7 +331,7 @@ public class AttributeSyncService {
         return result;
     }
 
-    private void sync(Values user, String orgUnitId, String jobTitle, Assignment current, LocalDate unitDate) {
+    private void sync(Values user, String orgUnitId, RefItem title, Assignment current, LocalDate unitDate) {
         Employment employment = employmentOf(user, unitDate);
         String employmentId = employment.id();
         // An employment that started on the date of another org unit can start after the date of this one.
@@ -338,15 +339,16 @@ public class AttributeSyncService {
         LocalDate today = later(unitDate, employment.period().from());
         String assignmentId;
         if (current == null) {
-            assignmentId = add(employment, orgUnitId, jobTitle, today);
+            assignmentId = add(employment, orgUnitId, titleCode(user, title, null), today);
             tally.assignmentsAdded++;
         } else if (!current.orgUnitId().equals(orgUnitId) || !current.employmentId().equals(employmentId)) {
             retire(current, today);
-            assignmentId = add(employment, orgUnitId, jobTitle, today);
+            assignmentId = add(employment, orgUnitId, titleCode(user, title, null), today);
             tally.assignmentsMoved++;
         } else {
             assignmentId = current.assignmentId();
             today = later(today, current.period().from());
+            String jobTitle = titleCode(user, title, current.jobTitleId());
             if (!Objects.equals(jobTitle, codeOf(current.jobTitleId()))) {
                 written(from.assignmentService().changeDetails(assignmentId, new AssignmentValues(null, null,
                         today.toString(), null, jobTitle, codeOf(current.occupationId()), codeOf(current.kindId()),
@@ -357,6 +359,18 @@ public class AttributeSyncService {
             }
         }
         syncManager(user, assignmentId, today);
+    }
+
+    // A deactivated title stays on an assignment that has it. Any other assignment gets no title, as when nothing
+    // has the title.
+    private String titleCode(Values user, RefItem title, String currentId) {
+        if (title != null && (title.active() || title.id().equals(currentId))) {
+            return title.code();
+        }
+        if (user.title() != null) {
+            tally.unmatched.add(new Unmatched(user.userId(), "title", user.title(), "unknown"));
+        }
+        return null;
     }
 
     private static LocalDate later(LocalDate a, LocalDate b) {
@@ -409,7 +423,7 @@ public class AttributeSyncService {
     private String add(Employment employment, String orgUnitId, String jobTitle, LocalDate today) {
         boolean hasPrimary = from.assignments().rowsOfEmployment(employment.id()).stream()
                 .anyMatch(row -> row.primary() && row.period().overlaps(ValidPeriod.startingAt(today)));
-        LocalDate end = firstEnd(endOf(orgUnitId), employment.period().to());
+        LocalDate end = firstEnd(lifeOf(orgUnitId).to(), employment.period().to());
         AssignmentView added = from.assignmentService().add(new AssignmentValues(employment.id(), orgUnitId,
                 today.toString(), Objects.toString(end, null), jobTitle, null, null, null, !hasPrimary, false, null,
                 null, null, null, SOURCE));
@@ -417,9 +431,12 @@ public class AttributeSyncService {
         return added.assignmentId();
     }
 
-    private LocalDate endOf(String orgUnitId) {
-        return unitEnds.computeIfAbsent(orgUnitId,
-                id -> Optional.ofNullable(from.orgUnits().versions(id).getLast().period().to())).orElse(null);
+    // The versions of one org unit have no gaps.
+    private ValidPeriod lifeOf(String orgUnitId) {
+        return unitLives.computeIfAbsent(orgUnitId, id -> {
+            List<OrgUnitVersion> versions = from.orgUnits().versions(id);
+            return new ValidPeriod(versions.getFirst().period().from(), versions.getLast().period().to());
+        });
     }
 
     // Null is no end.
@@ -490,21 +507,26 @@ public class AttributeSyncService {
      */
     private final class Matcher {
 
+        private final LocalDate matchedOn;
         private final Map<String, String> unitByCode = new HashMap<>();
         private final Map<String, List<String>> unitsByName = new HashMap<>();
-        private final Map<String, String> titleByCode;
-        private final Map<String, String> titleByName;
+        private final Map<String, RefItem> titles = new HashMap<>();
 
         Matcher(LocalDate today) {
+            matchedOn = today;
             for (OrgUnitState unit : new OrgUnitTree(from.orgUnits(), from.refItems(), today).all()) {
                 if (unit.version().code() != null) {
                     unitByCode.put(unit.version().code(), unit.unit().id());
                 }
                 unitsByName.computeIfAbsent(unit.version().name(), name -> new ArrayList<>()).add(unit.unit().id());
             }
-            List<RefItem> titles = from.refItems().list(RefKind.JOB_TITLE, false);
-            titleByCode = titles.stream().collect(Collectors.toMap(RefItem::code, RefItem::code));
-            titleByName = titles.stream().collect(Collectors.toMap(RefItem::name, RefItem::code, (a, b) -> a));
+            // The code wins over the name, and an active title wins over a deactivated one.
+            List<RefItem> all = from.refItems().list(RefKind.JOB_TITLE, true);
+            for (boolean active : List.of(true, false)) {
+                List<RefItem> some = all.stream().filter(item -> item.active() == active).toList();
+                some.forEach(item -> titles.putIfAbsent(item.code(), item));
+                some.forEach(item -> titles.putIfAbsent(item.name(), item));
+            }
         }
 
         // The code wins over the name. A name that two units share matches neither.
@@ -512,26 +534,31 @@ public class AttributeSyncService {
             String department = user.department();
             String byCode = unitByCode.get(department);
             if (byCode != null) {
-                return Optional.of(byCode);
+                return onItsDate(user, byCode);
             }
             List<String> byName = unitsByName.getOrDefault(department, List.of());
             if (byName.size() == 1) {
-                return Optional.of(byName.getFirst());
+                return onItsDate(user, byName.getFirst());
             }
             tally.unmatched.add(new Unmatched(user.userId(), "department", department,
                     byName.isEmpty() ? "unknown" : "ambiguous"));
             return Optional.empty();
         }
 
-        String jobTitle(Values user) {
-            if (user.title() == null) {
-                return null;
+        // For some hours of a day, a unit with its own time zone is on another date than the realm. The unit may
+        // not exist yet or any more on its date.
+        private Optional<String> onItsDate(Values user, String id) {
+            LocalDate date = today.ofUnit(id);
+            if (date.equals(matchedOn) || lifeOf(id).contains(date)) {
+                return Optional.of(id);
             }
-            String code = Optional.ofNullable(titleByCode.get(user.title())).orElse(titleByName.get(user.title()));
-            if (code == null) {
-                tally.unmatched.add(new Unmatched(user.userId(), "title", user.title(), "unknown"));
-            }
-            return code;
+            tally.unmatched.add(new Unmatched(user.userId(), "department", user.department(), "unknown"));
+            return Optional.empty();
+        }
+
+        // A deactivated title matches too, so that an assignment that has it can keep it.
+        RefItem jobTitle(Values user) {
+            return user.title() == null ? null : titles.get(user.title());
         }
     }
 }

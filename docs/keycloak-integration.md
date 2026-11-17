@@ -388,6 +388,7 @@ A list that has a cursor is better read with it. These are the lists of org unit
 - When the order of a list changes, its format gets a new version. A cursor of the old version gets 400, and the caller starts again from the first page.
 - A request gives `after` or `first`, not both.
 - The cursor of the org units has only the ID of the last unit, for example `org-units.v1__<org unit ID>`. The other values of the order come from that unit on the date of the request. A unit that does not exist on that date gets 400 with `invalid.cursor_unit`.
+- The cursor of the members names the org unit of the last row. With `includeDescendants=true`, the next page starts after the place of that unit in the tree. A unit that is not in that tree on the date of the request gets 400 with `invalid.cursor_unit`.
 
 Each paged list has a count, a read of its own at the path of the list plus `/count`. For example, `GET /org-units/{id}/members/count` counts the members of an org unit.
 
