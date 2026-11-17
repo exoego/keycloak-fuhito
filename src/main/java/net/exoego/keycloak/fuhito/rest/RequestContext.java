@@ -101,6 +101,23 @@ public interface RequestContext {
     void lockTarget();
 
     /**
+     * Locks the stored row of one resource until the end of the transaction, as {@link #lockTarget()} does for the
+     * resource of the path.
+     *
+     * @param collection the first part of the path of the resource, for example {@code org-units}
+     * @param id the ID of the resource
+     */
+    void lock(String collection, String id);
+
+    /**
+     * Sends the changes of a write to the database now, so that a conflict with another write fails the request.
+     * A read sends nothing.
+     *
+     * @throws jakarta.persistence.OptimisticLockException when another write changed a row after this one read it
+     */
+    void flush();
+
+    /**
      * Returns the query of the request, as it came.
      *
      * @return the query, or null when the request has none
@@ -113,14 +130,6 @@ public interface RequestContext {
      * @return the storage of the realm
      */
     IdempotencyStore idempotency();
-
-    /**
-     * Sets a header of the response.
-     *
-     * @param name the name of the header
-     * @param value the value
-     */
-    void responseHeader(String name, String value);
 
     /**
      * Makes an exception that ends the request with the response and rolls back the transaction.

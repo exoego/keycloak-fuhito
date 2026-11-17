@@ -82,7 +82,7 @@ class RestrictedDatabaseIT {
         HttpResponse<String> unit = api.post("/org-units", "{\"name\": \"Clinic\", \"validFrom\": \"2020-04-01\"}");
         assertEquals(201, unit.statusCode(), unit.body());
 
-        HttpResponse<String> linked = api.put("/org-units/" + Api.json(unit).get("id").asText() + "/organization",
+        HttpResponse<String> linked = api.putWithVersion("/org-units/" + Api.json(unit).get("id").asText() + "/organization",
                 "{\"organizationId\": \"any\"}");
 
         assertEquals(400, linked.statusCode(), linked.body());

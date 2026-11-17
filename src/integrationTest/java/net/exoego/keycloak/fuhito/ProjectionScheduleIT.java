@@ -107,7 +107,7 @@ class ProjectionScheduleIT {
                 post(failing, "/org-units", "{\"name\": \"Office\", \"parentId\": \"" + clinic
                         + "\", \"validFrom\": \"2020-04-01\"}");
             }
-            assertEquals(200, failing.put("/org-units/" + clinic + "/organization",
+            assertEquals(200, failing.putWithVersion("/org-units/" + clinic + "/organization",
                     "{\"organizationId\": \"" + failingOrganization + "\"}").statusCode());
             // The org unit of this realm points to an organization that is gone, so its rebuild crashes.
             createRealm(admin, "a-crashing", "UTC");
@@ -116,7 +116,7 @@ class ProjectionScheduleIT {
             String lost = post(crashing, "/org-units", "{\"name\": \"Lost\", \"validFrom\": \"2020-04-01\"}");
             post(crashing, "/org-units", "{\"name\": \"Below\", \"parentId\": \"" + lost
                     + "\", \"validFrom\": \"2020-04-01\"}");
-            assertEquals(200, crashing.put("/org-units/" + lost + "/organization",
+            assertEquals(200, crashing.putWithVersion("/org-units/" + lost + "/organization",
                     "{\"organizationId\": \"" + crashingOrganization + "\"}").statusCode());
             // Keycloak would remove the link with the organization. Only broken data keeps it.
             KeycloakEnvironment.run(postgres, "update fuhito_org_unit set kc_org_id = 'no-such-organization'"
@@ -137,7 +137,7 @@ class ProjectionScheduleIT {
             }
             post(api, "/staff", "{\"userId\": \"" + nurse + "\", \"orgUnitId\": \"" + nursing
                     + "\", \"validFrom\": \"2020-04-01\"}");
-            assertEquals(200, api.put("/org-units/" + hospital + "/organization",
+            assertEquals(200, api.putWithVersion("/org-units/" + hospital + "/organization",
                     "{\"organizationId\": \"" + organization + "\"}").statusCode());
 
             assertEquals(List.of("Nursing"), waitForGroups(keycloak, token, "b-working", organization,

@@ -13,9 +13,8 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
 public record RefItemRepresentation(
         @Schema(readOnly = true)
         String id,
-        @Schema(
-                description = "The version of the item. A new item has 1. Each write counts it up by one.",
-                readOnly = true)
+        @Schema(description = "The version of the item. A new item has 1. Each write counts it up by one. A write "
+                + "of a stored item sends the version that the caller read. A create needs none.")
         Long version,
         @Schema(description = "A fixed kind such as `UNIT_TYPE`, or the code of a kind that the realm added. Only a "
                 + "create request reads it.")
@@ -50,7 +49,7 @@ public record RefItemRepresentation(
                         + "line organization, such as a committee or a project team. Only the kind `UNIT_TYPE` can have "
                         + "it. It cannot change while an org unit has the type.",
                 defaultValue = "false")
-        Boolean lateral) {
+        Boolean lateral) implements Versioned {
 
     RefItemService.Marks marks() {
         return new RefItemService.Marks(legalEntity, actingHead, lateral);

@@ -309,6 +309,17 @@ public class AssignmentService {
                 IntStream.range(0, rows.size()).mapToObj(i -> row(rows.get(i), code, places.get(i))).toList());
     }
 
+    /**
+     * Returns the version of an assignment.
+     *
+     * @param id the ID of the assignment
+     * @return the number that each write of the assignment counts up
+     * @throws FuhitoException when the assignment does not exist
+     */
+    public long version(String id) {
+        return requireRows(id).getFirst().version();
+    }
+
     private static AssignmentView.Row row(Assignment row, Function<String, String> code, LocationAndCost places) {
         return new AssignmentView.Row(row, code.apply(row.jobTitleId()), code.apply(row.occupationId()),
                 code.apply(row.kindId()), places);

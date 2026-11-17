@@ -103,8 +103,10 @@ public record EmploymentRepresentation(
     @Schema(
             name = "EmploymentTerms",
             description = "The conditions of an employment for a period.",
-            requiredProperties = {"validFrom"})
+            requiredProperties = {"version", "validFrom"})
     public record Terms(
+            @Schema(description = "The version of the employment that the caller read.", writeOnly = true)
+            Long version,
             @Schema(description = "The first date of these conditions.", format = "date")
             String validFrom,
             @Schema(
@@ -133,7 +135,7 @@ public record EmploymentRepresentation(
                     format = "date")
             String contractEndDate,
             @Schema(description = "Free values that the realm defines.")
-            Map<String, Object> attributes) {
+            Map<String, Object> attributes) implements Versioned {
     }
 
     /**
@@ -151,7 +153,7 @@ public record EmploymentRepresentation(
                 ExternalIdPairRepresentation.of(ids.of(e.id(), e.source())), e.continuesEmploymentId(), null, null,
                 null, null, null, null, null,
                 view.terms().stream()
-                        .map(t -> new Terms(t.terms().period().from().toString(), text(t.terms().period().to()),
+                        .map(t -> new Terms(null, t.terms().period().from().toString(), text(t.terms().period().to()),
                                 t.employmentType(), t.grade(), t.terms().status().name(), t.leaveReason(),
                                 Numbers.plain(t.terms().workPercent()), text(t.terms().contractEndDate()),
                                 t.terms().attributes()))

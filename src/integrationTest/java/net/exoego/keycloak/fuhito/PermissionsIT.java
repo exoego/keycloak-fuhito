@@ -217,13 +217,11 @@ class PermissionsIT {
             JsonNode all = Api.json(everything.get("/org-units/" + unit + "/succession"));
             assertEquals(List.of(after), all.get("successors").findValuesAsText("orgUnitId"));
 
-            // The end of the unit is a later change, and so is a new ETag.
+            // The end of the unit is a later change.
             var limitedRead = limited.get("/org-units/" + unit + "?asOf=" + lastDay);
             assertFalse(Api.json(limitedRead).has("validTo"), limitedRead.body());
-            assertTrue(limitedRead.headers().firstValue("ETag").isEmpty());
             var fullRead = everything.get("/org-units/" + unit + "?asOf=" + lastDay);
             assertEquals(lastDay.plusDays(1).toString(), Api.json(fullRead).get("validTo").asText());
-            assertTrue(fullRead.headers().firstValue("ETag").isPresent());
             assertFalse(Api.json(limited.get("/org-units/" + unit + "/path?asOf=" + lastDay)).get(0).has("validTo"));
 
             // A unit that starts after the limit is unknown to the limited caller, also by an ID of another system.
@@ -264,13 +262,13 @@ class PermissionsIT {
             String link = "/org-units/" + unit + "/organization";
             String body = "{\"organizationId\": \"" + organization + "\"}";
 
-            assertEquals(403, userAdmin.put(link, body).statusCode());
-            assertEquals(200, all.put(link, body).statusCode());
-            assertEquals(403, userAdmin.delete(link).statusCode());
+            assertEquals(403, userAdmin.putWithVersion(link, body).statusCode());
+            assertEquals(200, all.putWithVersion(link, body).statusCode());
+            assertEquals(403, userAdmin.deleteWithVersion(link).statusCode());
             // The other writes need the role of the extension only.
             assertEquals(201, userAdmin.post("/org-units", "{\"name\": \"Other\", \"validFrom\": \"2020-04-01\"}")
                     .statusCode());
-            assertEquals(200, all.delete(link).statusCode());
+            assertEquals(200, all.deleteWithVersion(link).statusCode());
         } finally {
             admin.realm(realm).remove();
         }
@@ -291,7 +289,7 @@ class PermissionsIT {
             Api all = new Api(realm, admin.tokenManager().getAccessTokenString());
             String organization = OrganizationLinkIT.createOrganization(admin, realm, "rebuild-org");
             String unit = unit(all, "Linked");
-            assertEquals(200, all.put("/org-units/" + unit + "/organization",
+            assertEquals(200, all.putWithVersion("/org-units/" + unit + "/organization",
                     "{\"organizationId\": \"" + organization + "\"}").statusCode());
             Api writer = administrator(admin, realm, "realm-management", "writer", "fuhito-manage");
             Api organizationAdmin = administrator(admin, realm, "realm-management", "organization-admin",
@@ -333,9 +331,9 @@ class PermissionsIT {
             HttpResponse<String> masked = writer.post("/users/" + user + "/mask", "");
             assertEquals(200, masked.statusCode(), masked.body());
             String person = Api.json(masked).get("personId").asText();
-            assertEquals(403, writer.post("/people/" + person + "/mask?clearKeycloakName=true", "").statusCode());
+            assertEquals(403, writer.postWithVersion("/people/" + person + "/mask?clearKeycloakName=true", "").statusCode());
 
-            HttpResponse<String> cleared = userAdmin.post("/people/" + person + "/mask?clearKeycloakName=true", "");
+            HttpResponse<String> cleared = userAdmin.postWithVersion("/people/" + person + "/mask?clearKeycloakName=true", "");
             assertEquals(200, cleared.statusCode(), cleared.body());
             assertTrue(Api.json(cleared).get("keycloakNameCleared").asBoolean());
         } finally {
@@ -350,7 +348,7 @@ class PermissionsIT {
     }
 
     private static void succeed(Api api, LocalDate date, String id, String successorId) throws Exception {
-        var done = api.post("/reorganizations", "{\"effectiveDate\": \"" + date + "\", \"steps\": [{\"op\": "
+        var done = api.postWithVersion("/reorganizations", "{\"effectiveDate\": \"" + date + "\", \"steps\": [{\"op\": "
                 + "\"succeed\", \"id\": \"" + id + "\", \"successorIds\": [\"" + successorId + "\"]}]}");
         assertEquals(200, done.statusCode(), done.body());
     }

@@ -19,6 +19,7 @@ import net.exoego.keycloak.fuhito.rest.RequestContext.Change;
 import net.exoego.keycloak.fuhito.service.ExternalIdService;
 import net.exoego.keycloak.fuhito.service.OrgUnitService;
 import org.eclipse.microprofile.openapi.annotations.Operation;
+import org.eclipse.microprofile.openapi.annotations.enums.SchemaType;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 import org.eclipse.microprofile.openapi.annotations.parameters.Parameter;
 import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
@@ -117,7 +118,8 @@ public class ExternalIdsResource {
             operationId = "putExternalId",
             summary = "Stores the ID of one system for a resource, or replaces it.",
             description = "A resource has at most one ID for each system. One ID of one system names one resource "
-                    + "of a kind. The ID of the system that made the resource can change here too.")
+                    + "of a kind. The ID of the system that made the resource can change here too. A request that "
+                    + "replaces a stored ID needs the `version` of that ID that the caller read.")
     @Parameter(ref = "changeOrder")
     @APIResponse(responseCode = "200", description = "The stored ID.")
     @BadRequest
@@ -127,6 +129,7 @@ public class ExternalIdsResource {
         context.requireWrite();
         return Calls.run(context, () -> {
             Checks.required("body", body);
+            requireVersion(body.resourceType(), body.resourceId(), body.source(), body.version());
             ExternalIdService.View view = service.put(body.resourceType(), body.resourceId(), body.source(),
                     body.externalId());
             var stored = ExternalIdRepresentation.of(view);
@@ -152,13 +155,27 @@ public class ExternalIdsResource {
             @Parameter(description = "The ID of the resource.", required = true)
             @QueryParam("resourceId") String resourceId,
             @Parameter(description = "The name of the system.", required = true, schema = @Schema(maxLength = 64))
-            @QueryParam("source") String source) {
+            @QueryParam("source") String source,
+            @Parameter(
+                    description = "The version of the ID that the caller read.",
+                    required = true,
+                    schema = @Schema(type = SchemaType.INTEGER, format = "int64"))
+            @QueryParam("version") String version) {
         context.requireWrite();
         return Calls.run(context, () -> {
+            requireVersion(resourceType, resourceId, source, Calls.versionOf(version));
             ExternalIdService.View view = service.remove(resourceType, resourceId, source);
             context.recordChange(Change.DELETE, RESOURCE_TYPE, view.rowId(), path(view.rowId()), null);
             return Response.noContent().build();
         });
+    }
+
+    // A new ID needs no version. JPA checks the version of the row again when it writes it.
+    private void requireVersion(String resourceType, String resourceId, String source, Long version) {
+        service.list(resourceType, resourceId).stream()
+                .filter(stored -> stored.source().equals(source))
+                .findFirst()
+                .ifPresent(stored -> Checks.version(version, stored.version()));
     }
 
     private void requireRead(String resourceType) {

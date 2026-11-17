@@ -36,9 +36,9 @@ class ExternalIdsIT {
         assertEquals(ward, own.get("resourceId").asText());
         assertTrue(own.get("own").asBoolean());
 
-        ok(api.put("/external-ids", "{\"resourceType\": \"ORG_UNIT\", \"resourceId\": \"" + ward
+        ok(api.putWithVersion("/external-ids", "{\"resourceType\": \"ORG_UNIT\", \"resourceId\": \"" + ward
                 + "\", \"source\": \"payroll\", \"externalId\": \"P-9\"}"));
-        ok(api.put("/external-ids", "{\"resourceType\": \"ORG_UNIT\", \"resourceId\": \"" + ward
+        ok(api.putWithVersion("/external-ids", "{\"resourceType\": \"ORG_UNIT\", \"resourceId\": \"" + ward
                 + "\", \"source\": \"budget\", \"externalId\": \"B-3\"}"));
         JsonNode ids = ok(api.get("/external-ids?resourceType=ORG_UNIT&resourceId=" + ward));
         assertEquals(List.of("hr", "budget", "payroll"), ids.findValuesAsText("source"));
@@ -49,7 +49,7 @@ class ExternalIdsIT {
                 .get("resourceId").asText());
         assertFalse(Api.json(api.get("/change-log?resourceType=FUHITO_EXTERNAL_ID")).isEmpty());
         // A change of the details can give the unit the ID of one more system.
-        assertEquals(List.of("hr=W-1", "budget=B-3", "ledger=L-1", "payroll=P-9"), Api.externalIds(ok(api.put(
+        assertEquals(List.of("hr=W-1", "budget=B-3", "ledger=L-1", "payroll=P-9"), Api.externalIds(ok(api.putWithVersion(
                 "/org-units/" + ward, "{\"name\": \"1病棟\", \"validFrom\": \"2020-04-01\", \"source\": \"ledger\", "
                         + "\"externalId\": \"L-1\"}"))));
         // A new unit or person cannot take an ID that names another one, whichever system made that one.
@@ -59,21 +59,21 @@ class ExternalIdsIT {
                     "{\"name\": \"2病棟\", \"validFrom\": \"2020-04-01\", " + taken + "}")));
         }
         String other = Api.json(api.post("/people", "{\"name\": \"Other\"}")).get("id").asText();
-        ok(api.put("/external-ids", "{\"resourceType\": \"PERSON\", \"resourceId\": \"" + other
+        ok(api.putWithVersion("/external-ids", "{\"resourceType\": \"PERSON\", \"resourceId\": \"" + other
                 + "\", \"source\": \"payroll\", \"externalId\": \"E-1\"}"));
         assertEquals("external_id.taken", errorOf(409, api.post("/people",
                 "{\"name\": \"New\", \"externalId\": \"E-1\", \"source\": \"payroll\"}")));
         String third = Api.json(api.post("/org-units", "{\"name\": \"3病棟\", \"validFrom\": \"2020-04-01\"}"))
                 .get("id").asText();
-        assertEquals("external_id.taken", errorOf(409, api.put("/external-ids", "{\"resourceType\": \"ORG_UNIT\", "
+        assertEquals("external_id.taken", errorOf(409, api.putWithVersion("/external-ids", "{\"resourceType\": \"ORG_UNIT\", "
                 + "\"resourceId\": \"" + third + "\", \"source\": \"hr\", \"externalId\": \"W-1\"}")));
 
         // The ID of the system that made the unit can change and go. The unit keeps the name of that system.
-        ok(api.put("/external-ids", "{\"resourceType\": \"ORG_UNIT\", \"resourceId\": \"" + ward
+        ok(api.putWithVersion("/external-ids", "{\"resourceType\": \"ORG_UNIT\", \"resourceId\": \"" + ward
                 + "\", \"source\": \"hr\", \"externalId\": \"W-2\"}"));
         assertEquals(ward, ok(api.get("/external-ids/lookup?resourceType=ORG_UNIT&source=hr&externalId=W-2"))
                 .get("resourceId").asText());
-        assertEquals(204, api.delete("/external-ids?resourceType=ORG_UNIT&resourceId=" + ward + "&source=hr")
+        assertEquals(204, api.deleteWithVersion("/external-ids?resourceType=ORG_UNIT&resourceId=" + ward + "&source=hr")
                 .statusCode());
         JsonNode kept = ok(api.get("/org-units/" + ward + "?asOf=2020-04-01"));
         assertEquals("hr", kept.get("source").asText());
@@ -95,9 +95,9 @@ class ExternalIdsIT {
                 + "\", \"validFrom\": \"2020-04-01\", \"validTo\": \"2021-04-01\"}");
         assertEquals(201, employment.statusCode(), employment.body());
         String person = Api.json(employment).get("personId").asText();
-        ok(api.put("/external-ids", "{\"resourceType\": \"PERSON\", \"resourceId\": \"" + person
+        ok(api.putWithVersion("/external-ids", "{\"resourceType\": \"PERSON\", \"resourceId\": \"" + person
                 + "\", \"source\": \"payroll\", \"externalId\": \"E-77\"}"));
-        assertEquals(200, api.post("/people/" + person + "/mask", "").statusCode());
+        assertEquals(200, api.postWithVersion("/people/" + person + "/mask", "").statusCode());
         assertEquals(List.of(), ok(api.get("/external-ids?resourceType=PERSON&resourceId=" + person))
                 .findValuesAsText("source"));
         assertEquals("external_id.unknown", errorOf(404, api.get(
@@ -119,7 +119,7 @@ class ExternalIdsIT {
         for (String[] resource : new String[][] {{"EMPLOYMENT", employmentId}, {"ASSIGNMENT", assignmentId},
                 {"QUALIFICATION", qualificationId}}) {
             for (String value : List.of("X-1", "X-2")) {
-                ok(api.put("/external-ids", "{\"resourceType\": \"" + resource[0] + "\", \"resourceId\": \""
+                ok(api.putWithVersion("/external-ids", "{\"resourceType\": \"" + resource[0] + "\", \"resourceId\": \""
                         + resource[1] + "\", \"source\": \"payroll\", \"externalId\": \"" + value + "\"}"));
             }
             assertEquals(List.of("X-2"), ok(api.get("/external-ids?resourceType=" + resource[0] + "&resourceId="
@@ -140,7 +140,7 @@ class ExternalIdsIT {
 
         String person = Api.json(api.post("/people", "{\"name\": \"Temp\", \"externalId\": \"P-1\", "
                 + "\"source\": \"hr\"}")).get("id").asText();
-        assertEquals(204, api.delete("/people/" + person).statusCode());
+        assertEquals(204, api.deleteWithVersion("/people/" + person).statusCode());
         assertEquals("external_id.unknown", errorOf(404, api.get(lookup + "PERSON&source=hr&externalId=P-1")));
         assertEquals(201, api.post("/people", "{\"name\": \"Next\", \"externalId\": \"P-1\", \"source\": \"hr\"}")
                 .statusCode());
@@ -149,7 +149,7 @@ class ExternalIdsIT {
         String license = Api.json(api.post("/qualifications", "{\"personId\": \"" + holder + "\", \"kind\": "
                 + "\"license\", \"validFrom\": \"2020-04-01\", \"externalId\": \"Q-1\", \"source\": \"hr\"}"))
                 .get("id").asText();
-        assertEquals(204, api.delete("/qualifications/" + license).statusCode());
+        assertEquals(204, api.deleteWithVersion("/qualifications/" + license).statusCode());
         assertEquals("external_id.unknown", errorOf(404, api.get(lookup + "QUALIFICATION&source=hr&externalId=Q-1")));
 
         String unit = Api.json(api.post("/org-units", "{\"name\": \"病棟\", \"validFrom\": \"2020-04-01\"}"))
@@ -160,11 +160,11 @@ class ExternalIdsIT {
                 + "\"orgUnitId\": \"" + unit + "\", \"validFrom\": \"2027-04-01\", \"externalId\": \"A-1\", "
                 + "\"source\": \"hr\"}")).get("id").asText();
         // The employment ends before the planned assignment starts, so the assignment goes away.
-        assertEquals(200, api.put("/employments/" + employment + "/end", "{\"validTo\": \"2026-04-01\"}")
+        assertEquals(200, api.putWithVersion("/employments/" + employment + "/end", "{\"validTo\": \"2026-04-01\"}")
                 .statusCode());
         assertEquals(404, api.get("/assignments/" + planned).statusCode());
         assertEquals("external_id.unknown", errorOf(404, api.get(lookup + "ASSIGNMENT&source=hr&externalId=A-1")));
-        assertEquals(204, api.delete("/employments/" + employment).statusCode());
+        assertEquals(204, api.deleteWithVersion("/employments/" + employment).statusCode());
         assertEquals("external_id.unknown", errorOf(404, api.get(lookup + "EMPLOYMENT&source=hr&externalId=E-1")));
     }
 }

@@ -47,7 +47,7 @@ class ChangeLogIT {
                 + "\"effectiveDate\": \"2026-04-01\", \"approverUserId\": \"" + director + "\"}"));
         String under = "?changeOrder=" + order;
         newUnit = id(api.post("/org-units" + under, "{\"name\": \"人事課\", \"validFrom\": \"2026-04-01\"}"));
-        assertEquals(200, api.put("/assignments/" + oldAssignment + "/end" + under, "{\"validTo\": \"2026-04-01\"}").statusCode());
+        assertEquals(200, api.putWithVersion("/assignments/" + oldAssignment + "/end" + under, "{\"validTo\": \"2026-04-01\"}").statusCode());
         newAssignment = id(api.post("/assignments" + under, "{\"employmentId\": \"" + employment + "\", \"orgUnitId\": \""
                 + newUnit + "\", \"validFrom\": \"2026-04-01\", \"primary\": true}"));
     }
@@ -152,7 +152,7 @@ class ChangeLogIT {
     @Test
     void aDeleteIsLoggedWithoutAState() throws Exception {
         String item = realm.refItem("UNIT_TYPE", "to-delete", "x");
-        assertEquals(204, api.delete("/ref-items/" + item).statusCode());
+        assertEquals(204, api.deleteWithVersion("/ref-items/" + item).statusCode());
 
         JsonNode entries = ok(api.get("/change-log?resourceType=FUHITO_REF_ITEM&resourceId=" + item));
 
@@ -169,7 +169,7 @@ class ChangeLogIT {
 
         String scratch = id(api.post("/change-orders", "{\"title\": \"失敗する\", \"effectiveDate\": \"2026-04-01\"}"));
         assertEquals(400, api.post("/org-units?changeOrder=" + scratch, "{\"name\": \" \", \"validFrom\": \"2026-04-01\"}").statusCode());
-        assertEquals(409, api.put("/org-units/" + unit + "/end?changeOrder=" + scratch, "{\"validTo\": \"2026-01-01\"}").statusCode());
+        assertEquals(409, api.putWithVersion("/org-units/" + unit + "/end?changeOrder=" + scratch, "{\"validTo\": \"2026-01-01\"}").statusCode());
         assertEquals(0, ok(api.get("/change-orders/" + scratch + "/changes")).size());
         assertEquals(0, api.count("/change-orders/" + scratch + "/changes/count"));
         // A read ignores the parameter.
@@ -178,7 +178,7 @@ class ChangeLogIT {
 
     @Test
     void aChangeOrderWithWritesCannotBeDeleted() throws Exception {
-        HttpResponse<String> response = api.delete("/change-orders/" + order);
+        HttpResponse<String> response = api.deleteWithVersion("/change-orders/" + order);
 
         assertEquals(409, response.statusCode(), response.body());
         assertEquals("change_order.in_use", Api.json(response).get("error").asText());

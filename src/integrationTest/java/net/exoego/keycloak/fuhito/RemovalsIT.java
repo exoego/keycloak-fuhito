@@ -32,23 +32,23 @@ class RemovalsIT {
         String assignment = id(api.post("/assignments", "{\"employmentId\": \"" + employment + "\", \"orgUnitId\": \""
                 + unit + "\", \"validFrom\": \"2026-04-01\"}"));
 
-        JsonNode used = errorOf(409, api.delete("/org-units/" + unit));
+        JsonNode used = errorOf(409, api.deleteWithVersion("/org-units/" + unit));
         assertEquals("org_unit.in_use", used.get("error").asText());
         assertEquals("assignments", used.get("params").get("uses").asText());
-        assertEquals("org_unit.in_use", errorOf(409, api.delete("/org-units/" + parent)).get("error").asText());
-        assertEquals("employment.in_use", errorOf(409, api.delete("/employments/" + employment)).get("error").asText());
+        assertEquals("org_unit.in_use", errorOf(409, api.deleteWithVersion("/org-units/" + parent)).get("error").asText());
+        assertEquals("employment.in_use", errorOf(409, api.deleteWithVersion("/employments/" + employment)).get("error").asText());
 
-        assertEquals(204, api.delete("/assignments/" + assignment).statusCode());
-        assertEquals(204, api.delete("/employments/" + employment).statusCode());
-        assertEquals(204, api.delete("/org-units/" + unit).statusCode());
+        assertEquals(204, api.deleteWithVersion("/assignments/" + assignment).statusCode());
+        assertEquals(204, api.deleteWithVersion("/employments/" + employment).statusCode());
+        assertEquals(204, api.deleteWithVersion("/org-units/" + unit).statusCode());
         assertEquals(404, api.get("/assignments/" + assignment).statusCode());
         assertEquals(404, api.get("/employments/" + employment).statusCode());
         assertEquals(404, api.get("/org-units/" + unit).statusCode());
         assertEquals(List.of(), Api.json(api.get("/org-units/" + parent + "/children?asOf=2026-05-01"))
                 .findValuesAsText("id"));
-        assertEquals("org_unit.not_found", errorOf(404, api.delete("/org-units/" + unit)).get("error").asText());
+        assertEquals("org_unit.not_found", errorOf(404, api.deleteWithVersion("/org-units/" + unit)).get("error").asText());
         // The parent can go now, and the change log keeps the create and the delete.
-        assertEquals(204, api.delete("/org-units/" + parent).statusCode());
+        assertEquals(204, api.deleteWithVersion("/org-units/" + parent).statusCode());
         assertEquals(List.of("CREATE", "DELETE"), Api.json(api.get("/change-log?resourceType=FUHITO_ORG_UNIT&resourceId="
                 + unit)).findValuesAsText("operation"));
     }

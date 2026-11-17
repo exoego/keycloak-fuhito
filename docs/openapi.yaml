@@ -178,9 +178,15 @@ components:
     AssignmentDetails:
       type: object
       required:
+      - version
       - validFrom
       description: The details of an assignment for a period.
       properties:
+        version:
+          type: integer
+          format: int64
+          description: The version of the assignment that the caller read.
+          writeOnly: true
         validFrom:
           type: string
           description: The first date of these details.
@@ -260,8 +266,8 @@ components:
           type: integer
           format: int64
           description: The version of the definition. A new definition has 1. Each
-            write counts it up by one.
-          readOnly: true
+            write counts it up by one. A write of a stored definition sends the version
+            that the caller read. A create needs none.
         target:
           type: string
           description: The kind of resource. Only a create request reads it.
@@ -363,8 +369,8 @@ components:
           type: integer
           format: int64
           description: The version of the order. A new order has 1. Each write counts
-            it up by one.
-          readOnly: true
+            it up by one. A write of a stored order sends the version that the caller
+            read. A create needs none.
         number:
           type: string
           maxLength: 64
@@ -581,9 +587,15 @@ components:
     EmploymentTerms:
       type: object
       required:
+      - version
       - validFrom
       description: The conditions of an employment for a period.
       properties:
+        version:
+          type: integer
+          format: int64
+          description: The version of the employment that the caller read.
+          writeOnly: true
         validFrom:
           type: string
           description: The first date of these conditions.
@@ -624,10 +636,15 @@ components:
           description: Free values that the realm defines.
     End:
       required:
+      - version
       - validTo
       description: A request to end something on a date.
       type: object
       properties:
+        version:
+          type: integer
+          format: int64
+          description: The version of the resource that the caller read.
         validTo:
           type: string
           description: The first date on which it no longer exists.
@@ -1116,7 +1133,8 @@ components:
           format: int64
           description: The version of this ID. A new one has 1. Each write counts
             it up by one. A write of an ID also counts up the version of its resource.
-          readOnly: true
+            A write of a stored ID sends the version that the caller read. A new ID
+            needs none.
     ExternalIdPair:
       type: object
       required:
@@ -1144,8 +1162,8 @@ components:
           type: integer
           format: int64
           description: The version of the hierarchy. A new hierarchy has 1. Each write
-            counts it up by one.
-          readOnly: true
+            counts it up by one. A write of a stored hierarchy sends the version that
+            the caller read. A create needs none.
         code:
           type: string
           maxLength: 64
@@ -2093,10 +2111,15 @@ components:
           description: The code of the error of a failed run.
     Leave:
       required:
+      - version
       - validFrom
       description: A request to put a person on leave.
       type: object
       properties:
+        version:
+          type: integer
+          format: int64
+          description: The version of the employment that the caller read.
         validFrom:
           type: string
           description: The first date of the leave.
@@ -2255,12 +2278,18 @@ components:
           description: The share of full-time work on the date in percent.
     Move:
       required:
+      - version
       - orgUnitId
       - validFrom
       description: "A request to move a person to another org unit on a date, and\
         \ its response."
       type: object
       properties:
+        version:
+          type: integer
+          format: int64
+          description: The version of the assignment that the caller read.
+          writeOnly: true
         orgUnitId:
           type: string
           description: The ID of the org unit where the person works from the date.
@@ -2340,8 +2369,8 @@ components:
           format: int64
           description: "The version of the unit. A new unit has 1. Each write counts\
             \ it up by one, also a change of a period, of a parent, or of an ID of\
-            \ another system."
-          readOnly: true
+            \ another system. A write of a stored unit sends the version that the\
+            \ caller read. A create needs none."
         code:
           type: string
           maxLength: 64
@@ -2530,6 +2559,8 @@ components:
             $ref: "#/components/schemas/OrgUnitSuccessionLink"
           description: The units that follow this unit. Several of them mean a split.
     OrganizationLink:
+      required:
+      - version
       description: The link of an org unit to a Keycloak organization.
       type: object
       properties:
@@ -2539,17 +2570,22 @@ components:
         version:
           type: integer
           format: int64
-          description: The version of the org unit after the write.
-          readOnly: true
+          description: The version of the org unit. A request sends the one that the
+            caller read. A response has the one after the write.
         organizationId:
           type: string
           description: The ID of the Keycloak organization. A request to link needs
             it. A response has none after the link was removed.
     ParentChange:
       required:
+      - version
       - validFrom
       type: object
       properties:
+        version:
+          type: integer
+          format: int64
+          description: The version of the org unit that the caller read.
         parentId:
           type: string
           description: The ID of the new parent. Leave it out to make the unit a root.
@@ -2601,8 +2637,9 @@ components:
           type: integer
           format: int64
           description: "The version of the person. A new person has 1. Each write\
-            \ counts it up by one, also a mask or a change of an ID of another system."
-          readOnly: true
+            \ counts it up by one, also a mask or a change of an ID of another system.\
+            \ A write of a stored person sends the version that the caller read. A\
+            \ create needs none."
         userId:
           type: string
           description: The ID of the linked Keycloak user. One user is linked to at
@@ -2709,11 +2746,17 @@ components:
             \ realm does not do it."
     Promotion:
       required:
+      - version
       - validFrom
       description: "A request to promote a person on a date, and its response. The\
         \ request names a grade, a job title, or a head flag, or several of them."
       type: object
       properties:
+        version:
+          type: integer
+          format: int64
+          description: The version of the employment that the caller read.
+          writeOnly: true
         validFrom:
           type: string
           description: The first date of the new values.
@@ -2763,8 +2806,8 @@ components:
           format: int64
           description: "The version of the qualification. A new qualification has\
             \ 1. Each write counts it up by one, also a change of an ID of another\
-            \ system."
-          readOnly: true
+            \ system. A write of a stored qualification sends the version that the\
+            \ caller read. A create needs none."
         personId:
           type: string
           description: The ID of the person. Only a request to add reads it.
@@ -2894,8 +2937,8 @@ components:
           type: integer
           format: int64
           description: The version of the item. A new item has 1. Each write counts
-            it up by one.
-          readOnly: true
+            it up by one. A write of a stored item sends the version that the caller
+            read. A create needs none.
         kind:
           type: string
           description: "A fixed kind such as `UNIT_TYPE`, or the code of a kind that\
@@ -2989,8 +3032,8 @@ components:
           type: integer
           format: int64
           description: The version of a kind that the realm added. A new kind has
-            1. Each write counts it up by one. A fixed kind has none.
-          readOnly: true
+            1. Each write counts it up by one. A fixed kind has none. A write of a
+            stored kind sends the version that the caller read. A create needs none.
     Reorganization:
       required:
       - effectiveDate
@@ -3065,6 +3108,12 @@ components:
         unitRef:
           type: string
           description: "The `ref` of an earlier create step, in place of `id`."
+        version:
+          type: integer
+          format: int64
+          description: "The version of the unit of `id` that the caller read. A change,\
+            \ move, end, or succeed step with `id` needs it. Two steps of one unit\
+            \ name the same version."
         parentId:
           type: string
           description: The ID of the parent for a create or a move.
@@ -3211,10 +3260,15 @@ components:
           format: date
     Return:
       required:
+      - version
       - validFrom
       description: A request to end the leave of a person.
       type: object
       properties:
+        version:
+          type: integer
+          format: int64
+          description: The version of the employment that the caller read.
         validFrom:
           type: string
           description: The first date back at work.
@@ -3475,6 +3529,8 @@ components:
           - unknown
           - ambiguous
     TimeSettings:
+      required:
+      - version
       description: "The time settings of an org unit. They also hold for the units\
         \ below it, unless one of them has its own."
       type: object
@@ -3485,8 +3541,8 @@ components:
         version:
           type: integer
           format: int64
-          description: The version of the org unit after the write.
-          readOnly: true
+          description: The version of the org unit. A request sends the one that the
+            caller read. A response has the one after the write.
         timeZone:
           type: string
           description: The time zone. Leave it out to use the one from above.
@@ -3500,12 +3556,19 @@ components:
           - 05:00
     Transfer:
       required:
+      - version
       - employerId
       - validFrom
       description: "A request to move a person to another employer on a date, and\
         \ its response."
       type: object
       properties:
+        version:
+          type: integer
+          format: int64
+          description: The version of the employment at the old employer that the
+            caller read.
+          writeOnly: true
         employerId:
           type: string
           description: "The ID of the org unit that employs the person from the date.\
@@ -3703,6 +3766,17 @@ components:
       properties:
         version:
           type: string
+    VersionCheck:
+      required:
+      - version
+      description: The version of the resource that the caller read. The write goes
+        on only when the resource still has it.
+      type: object
+      properties:
+        version:
+          type: integer
+          format: int64
+          description: The version of the resource that the caller read.
   parameters:
     changeOrder:
       description: |
@@ -3722,6 +3796,7 @@ components:
     Conflict:
       description: |
         The request conflicts with existing data.
+        A write with an old version gets it with `version.conflict`.
         A realm with no usable time zone also gets this status on every request.
       content:
         application/json:
@@ -3768,6 +3843,11 @@ info:
     `realm-management` of the realm.
 
     A write belongs to a change order when its request has the query parameter `changeOrder`.
+
+    A write of a stored resource names the `version` of the resource that the caller read.
+    It is in the body, or in the query of a `DELETE`. A write with no version fails with 400 and
+    `version.required`. When the resource changed since the read, the write fails with 409 and
+    `version.conflict`, and the values of the error have the current version.
 
     A failed request writes nothing.
   license:
@@ -3988,10 +4068,19 @@ paths:
         required: true
         schema:
           type: string
+      - description: The version of the assignment that the caller read.
+        required: true
+        schema:
+          format: int64
+          type: integer
+        name: version
+        in: query
       - $ref: "#/components/parameters/changeOrder"
       responses:
         "204":
           description: The resource is gone.
+        "400":
+          $ref: "#/components/responses/BadRequest"
         "404":
           $ref: "#/components/responses/NotFound"
         "401":
@@ -4080,6 +4169,13 @@ paths:
         required: true
         schema:
           type: string
+      - description: The version of the assignment that the caller read.
+        required: true
+        schema:
+          format: int64
+          type: integer
+        name: version
+        in: query
       - $ref: "#/components/parameters/changeOrder"
       responses:
         "200":
@@ -4267,7 +4363,9 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/AttributeDefinition"
+              allOf:
+              - $ref: "#/components/schemas/AttributeDefinition"
+              - $ref: "#/components/schemas/VersionCheck"
         required: true
       responses:
         "200":
@@ -4326,10 +4424,19 @@ paths:
         required: true
         schema:
           type: string
+      - description: The version of the definition that the caller read.
+        required: true
+        schema:
+          format: int64
+          type: integer
+        name: version
+        in: query
       - $ref: "#/components/parameters/changeOrder"
       responses:
         "204":
           description: The definition is gone.
+        "400":
+          $ref: "#/components/responses/BadRequest"
         "404":
           $ref: "#/components/responses/NotFound"
         "401":
@@ -4633,7 +4740,9 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/ChangeOrder"
+              allOf:
+              - $ref: "#/components/schemas/ChangeOrder"
+              - $ref: "#/components/schemas/VersionCheck"
         required: true
       responses:
         "200":
@@ -4692,6 +4801,13 @@ paths:
         required: true
         schema:
           type: string
+      - description: The version of the order that the caller read.
+        required: true
+        schema:
+          format: int64
+          type: integer
+        name: version
+        in: query
       - $ref: "#/components/parameters/changeOrder"
       responses:
         "204":
@@ -4723,6 +4839,12 @@ paths:
         schema:
           type: string
       - $ref: "#/components/parameters/changeOrder"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VersionCheck"
+        required: true
       responses:
         "200":
           description: The changed order.
@@ -5136,10 +5258,19 @@ paths:
         required: true
         schema:
           type: string
+      - description: The version of the employment that the caller read.
+        required: true
+        schema:
+          format: int64
+          type: integer
+        name: version
+        in: query
       - $ref: "#/components/parameters/changeOrder"
       responses:
         "204":
           description: The resource is gone.
+        "400":
+          $ref: "#/components/responses/BadRequest"
         "404":
           $ref: "#/components/responses/NotFound"
         "401":
@@ -5188,6 +5319,13 @@ paths:
         required: true
         schema:
           type: string
+      - description: The version of the employment that the caller read.
+        required: true
+        schema:
+          format: int64
+          type: integer
+        name: version
+        in: query
       - $ref: "#/components/parameters/changeOrder"
       responses:
         "200":
@@ -5522,7 +5660,8 @@ paths:
       summary: "Stores the ID of one system for a resource, or replaces it."
       description: A resource has at most one ID for each system. One ID of one system
         names one resource of a kind. The ID of the system that made the resource
-        can change here too.
+        can change here too. A request that replaces a stored ID needs the `version`
+        of that ID that the caller read.
       operationId: putExternalId
       tags:
       - general
@@ -5619,6 +5758,13 @@ paths:
           type: string
           maxLength: 64
         name: source
+        in: query
+      - description: The version of the ID that the caller read.
+        required: true
+        schema:
+          format: int64
+          type: integer
+        name: version
         in: query
       - $ref: "#/components/parameters/changeOrder"
       responses:
@@ -5787,7 +5933,9 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/Hierarchy"
+              allOf:
+              - $ref: "#/components/schemas/Hierarchy"
+              - $ref: "#/components/schemas/VersionCheck"
         required: true
       responses:
         "200":
@@ -5847,10 +5995,19 @@ paths:
         required: true
         schema:
           type: string
+      - description: The version of the hierarchy that the caller read.
+        required: true
+        schema:
+          format: int64
+          type: integer
+        name: version
+        in: query
       - $ref: "#/components/parameters/changeOrder"
       responses:
         "204":
           description: The hierarchy was deleted.
+        "400":
+          $ref: "#/components/responses/BadRequest"
         "404":
           $ref: "#/components/responses/NotFound"
         "401":
@@ -6258,10 +6415,19 @@ paths:
         required: true
         schema:
           type: string
+      - description: The version of the org unit that the caller read.
+        required: true
+        schema:
+          format: int64
+          type: integer
+        name: version
+        in: query
       - $ref: "#/components/parameters/changeOrder"
       responses:
         "204":
           description: The resource is gone.
+        "400":
+          $ref: "#/components/responses/BadRequest"
         "404":
           $ref: "#/components/responses/NotFound"
         "401":
@@ -6333,7 +6499,9 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/OrgUnit"
+              allOf:
+              - $ref: "#/components/schemas/OrgUnit"
+              - $ref: "#/components/schemas/VersionCheck"
         required: true
       responses:
         "200":
@@ -6483,6 +6651,13 @@ paths:
         required: true
         schema:
           type: string
+      - description: The version of the org unit that the caller read.
+        required: true
+        schema:
+          format: int64
+          type: integer
+        name: version
+        in: query
       - $ref: "#/components/parameters/changeOrder"
       responses:
         "200":
@@ -6491,6 +6666,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/OrgUnit"
+        "400":
+          $ref: "#/components/responses/BadRequest"
         "404":
           $ref: "#/components/responses/NotFound"
         "401":
@@ -6788,6 +6965,13 @@ paths:
         required: true
         schema:
           type: string
+      - description: The version of the org unit that the caller read.
+        required: true
+        schema:
+          format: int64
+          type: integer
+        name: version
+        in: query
       - $ref: "#/components/parameters/changeOrder"
       responses:
         "200":
@@ -7411,7 +7595,9 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/Person"
+              allOf:
+              - $ref: "#/components/schemas/Person"
+              - $ref: "#/components/schemas/VersionCheck"
         required: true
       responses:
         "200":
@@ -7469,6 +7655,13 @@ paths:
         required: true
         schema:
           type: string
+      - description: The version of the person that the caller read.
+        required: true
+        schema:
+          format: int64
+          type: integer
+        name: version
+        in: query
       - $ref: "#/components/parameters/changeOrder"
       responses:
         "204":
@@ -7546,6 +7739,13 @@ paths:
         required: true
         schema:
           type: string
+      - description: The version of the person that the caller read.
+        required: true
+        schema:
+          format: int64
+          type: integer
+        name: version
+        in: query
       - $ref: "#/components/parameters/changeOrder"
       responses:
         "204":
@@ -7660,6 +7860,12 @@ paths:
         name: clearKeycloakName
         in: query
       - $ref: "#/components/parameters/changeOrder"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VersionCheck"
+        required: true
       responses:
         "200":
           description: The person and the time of the masking.
@@ -8113,7 +8319,9 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/Qualification"
+              allOf:
+              - $ref: "#/components/schemas/Qualification"
+              - $ref: "#/components/schemas/VersionCheck"
         required: true
       responses:
         "200":
@@ -8171,6 +8379,13 @@ paths:
         required: true
         schema:
           type: string
+      - description: The version of the qualification that the caller read.
+        required: true
+        schema:
+          format: int64
+          type: integer
+        name: version
+        in: query
       - $ref: "#/components/parameters/changeOrder"
       responses:
         "204":
@@ -8322,7 +8537,9 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/RefItem"
+              allOf:
+              - $ref: "#/components/schemas/RefItem"
+              - $ref: "#/components/schemas/VersionCheck"
         required: true
       responses:
         "200":
@@ -8380,6 +8597,13 @@ paths:
         required: true
         schema:
           type: string
+      - description: The version of the item that the caller read.
+        required: true
+        schema:
+          format: int64
+          type: integer
+        name: version
+        in: query
       - $ref: "#/components/parameters/changeOrder"
       responses:
         "204":
@@ -8466,7 +8690,9 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/RefKindDefinition"
+              allOf:
+              - $ref: "#/components/schemas/RefKindDefinition"
+              - $ref: "#/components/schemas/VersionCheck"
         required: true
       responses:
         "200":
@@ -8497,10 +8723,19 @@ paths:
         required: true
         schema:
           type: string
+      - description: The version of the kind that the caller read.
+        required: true
+        schema:
+          format: int64
+          type: integer
+        name: version
+        in: query
       - $ref: "#/components/parameters/changeOrder"
       responses:
         "204":
           description: The kind is gone.
+        "400":
+          $ref: "#/components/responses/BadRequest"
         "404":
           $ref: "#/components/responses/NotFound"
         "401":
@@ -8512,7 +8747,9 @@ paths:
   /reorganizations:
     post:
       summary: "Changes many org units on one date, in one transaction."
-      description: A failed step writes nothing.
+      description: "A failed step writes nothing. A step that changes a stored unit\
+        \ names the `version` of the unit that the caller read. An old version fails\
+        \ with 409 and `version.conflict`, and `step` in the values of the error."
       operationId: applyReorganization
       tags:
       - org-units
@@ -8612,6 +8849,13 @@ paths:
         required: true
         schema:
           type: string
+      - description: The version of the line that the caller read.
+        required: true
+        schema:
+          format: int64
+          type: integer
+        name: version
+        in: query
       - $ref: "#/components/parameters/changeOrder"
       responses:
         "204":
@@ -8928,10 +9172,19 @@ paths:
         required: true
         schema:
           type: string
+      - description: The version of the role that the caller read.
+        required: true
+        schema:
+          format: int64
+          type: integer
+        name: version
+        in: query
       - $ref: "#/components/parameters/changeOrder"
       responses:
         "204":
           description: The role is gone.
+        "400":
+          $ref: "#/components/responses/BadRequest"
         "404":
           $ref: "#/components/responses/NotFound"
         "401":

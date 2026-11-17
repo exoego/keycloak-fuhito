@@ -79,6 +79,16 @@ class ChecksTest {
     }
 
     @Test
+    void requiresTheVersionThatTheResourceHas() {
+        Checks.version(3L, 3);
+        assertEquals("version.required", invalid(() -> Checks.version(null, 3)).code());
+        FuhitoException old = assertThrows(FuhitoException.class, () -> Checks.version(2L, 3));
+        assertEquals(FuhitoException.Reason.CONFLICT, old.reason());
+        assertEquals("version.conflict", old.code());
+        assertEquals(Map.of("version", "3"), old.params());
+    }
+
+    @Test
     void readsADate() {
         assertEquals(LocalDate.of(2026, 4, 1), Checks.date("validFrom", "2026-04-01"));
         assertEquals("invalid.required", invalid(() -> Checks.date("validFrom", null)).code());

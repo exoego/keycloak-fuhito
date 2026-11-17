@@ -233,7 +233,7 @@ class CsvImportIT {
         Api api = realm.api;
         String ward = Api.json(api.post("/org-units", "{\"name\": \"1病棟\", \"validFrom\": \"2020-04-01\"}"))
                 .get("id").asText();
-        assertEquals(200, api.put("/external-ids", "{\"resourceType\": \"ORG_UNIT\", \"resourceId\": \"" + ward
+        assertEquals(200, api.putWithVersion("/external-ids", "{\"resourceType\": \"ORG_UNIT\", \"resourceId\": \"" + ward
                 + "\", \"source\": \"payroll\", \"externalId\": \"P-1\"}").statusCode());
 
         for (String header : List.of("en", "ja")) {
@@ -302,9 +302,9 @@ class CsvImportIT {
         assertEquals("勤務地", site.get("name").asText());
         assertEquals("Site", site.get("names").get("en").asText());
         assertTrue(kinds.findValuesAsText("code").contains("cost-center"));
-        assertEquals(200, api.put("/ref-kinds/site", "{\"name\": \"拠点\"}").statusCode());
-        assertEquals(404, api.put("/ref-kinds/UNIT_TYPE", "{\"name\": \"組織種別\"}").statusCode());
-        assertEquals(204, api.delete("/ref-kinds/cost-center").statusCode());
+        assertEquals(200, api.putWithVersion("/ref-kinds/site", "{\"name\": \"拠点\"}").statusCode());
+        assertEquals(404, api.putWithVersion("/ref-kinds/UNIT_TYPE", "{\"name\": \"組織種別\"}").statusCode());
+        assertEquals(204, api.deleteWithVersion("/ref-kinds/cost-center").statusCode());
     }
 
     @Test
@@ -376,7 +376,7 @@ class CsvImportIT {
                 .get("id").asText();
         String second = Api.json(api.post("/org-units", "{\"name\": \"2病棟\", \"validFrom\": \"2020-04-01\"}"))
                 .get("id").asText();
-        assertEquals(200, api.put("/org-units/" + first + "/parent?hierarchy=project", "{\"parentId\": \""
+        assertEquals(200, api.putWithVersion("/org-units/" + first + "/parent?hierarchy=project", "{\"parentId\": \""
                 + hospital + "\", \"validFrom\": \"2021-04-01\"}").statusCode());
 
         for (String header : List.of("en", "ja")) {
@@ -412,7 +412,7 @@ class CsvImportIT {
         assertEquals(201, api.post("/ref-items", "{\"kind\": \"ASSIGNMENT_KIND\", \"code\": \"acting\", "
                 + "\"name\": \"代行\", \"actingHead\": true}").statusCode());
         String old = realm.refItem("JOB_TITLE", "old", "旧役職");
-        assertEquals(200, api.put("/ref-items/" + old, "{\"name\": \"旧役職\", \"active\": false}").statusCode());
+        assertEquals(200, api.putWithVersion("/ref-items/" + old, "{\"name\": \"旧役職\", \"active\": false}").statusCode());
 
         for (String header : List.of("en", "ja")) {
             HttpResponse<String> exported = api.get("/imports/csv/ref-items?header=" + header);
@@ -452,7 +452,7 @@ class CsvImportIT {
                 .get("id").asText();
         String ending = Api.json(api.post("/employments", "{\"personId\": \"" + taro + "\", \"externalId\": \"E-1\", "
                 + "\"source\": \"hr\", \"validFrom\": \"2021-04-01\"}")).get("id").asText();
-        assertEquals(200, api.put("/employments/" + ending + "/end", "{\"validTo\": \"2027-04-01\", "
+        assertEquals(200, api.putWithVersion("/employments/" + ending + "/end", "{\"validTo\": \"2027-04-01\", "
                 + "\"endReason\": \"resignation\"}").statusCode());
         // Neither holds on the date of the export.
         assertEquals(201, api.post("/employments", "{\"personId\": \"" + taro + "\", \"validFrom\": \"2015-04-01\", "
@@ -504,7 +504,7 @@ class CsvImportIT {
                 + ward + "\", \"validFrom\": \"2020-04-01\", \"primary\": true, \"occupation\": \"nurse\", "
                 + "\"allocationPercent\": 70, \"attributes\": {\"room\": \"3F, east\"}}")).get("id").asText();
         // A change after the date of the export ends a row, not the assignment.
-        assertEquals(200, api.put("/assignments/" + main + "/details", "{\"validFrom\": \"2026-07-01\", "
+        assertEquals(200, api.putWithVersion("/assignments/" + main + "/details", "{\"validFrom\": \"2026-07-01\", "
                 + "\"jobTitle\": \"chief\", \"primary\": true}").statusCode());
         assertEquals(201, api.post("/assignments", "{\"employmentId\": \"" + employment + "\", \"orgUnitId\": \""
                 + lab + "\", \"validFrom\": \"2020-04-01\", \"validTo\": \"2021-04-01\"}").statusCode());
@@ -512,7 +512,7 @@ class CsvImportIT {
                 + "\"orgUnitId\": \"" + lab + "\", \"validFrom\": \"2021-04-01\", \"kind\": \"concurrent\", "
                 + "\"workLocation\": \"home\", \"allocationPercent\": 30, \"externalId\": \"A-2\", "
                 + "\"source\": \"hr\"}")).get("id").asText();
-        assertEquals(200, api.put("/assignments/" + concurrent + "/end", "{\"validTo\": \"2027-04-01\"}")
+        assertEquals(200, api.putWithVersion("/assignments/" + concurrent + "/end", "{\"validTo\": \"2027-04-01\"}")
                 .statusCode());
 
         for (String header : List.of("en", "ja")) {

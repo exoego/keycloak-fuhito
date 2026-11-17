@@ -17,10 +17,9 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
 public record OrgUnitRepresentation(
         @Schema(readOnly = true)
         String id,
-        @Schema(
-                description = "The version of the unit. A new unit has 1. Each write counts it up by one, also a "
-                        + "change of a period, of a parent, or of an ID of another system.",
-                readOnly = true)
+        @Schema(description = "The version of the unit. A new unit has 1. Each write counts it up by one, also a "
+                + "change of a period, of a parent, or of an ID of another system. A write of a stored unit sends "
+                + "the version that the caller read. A create needs none.")
         Long version,
         @Schema(
                 description = "A code that no other org unit has on the same date. It is part of the details, so "
@@ -103,7 +102,7 @@ public record OrgUnitRepresentation(
         @Schema(description = "The time zone that the unit sets for itself and the units below it.", readOnly = true)
         String timeZone,
         @Schema(description = "The day start that the unit sets for itself and the units below it.", readOnly = true)
-        String dayStart) {
+        String dayStart) implements Versioned {
 
     static OrgUnitRepresentation of(OrgUnitState state, ExternalIdLists ids) {
         var unit = state.unit();

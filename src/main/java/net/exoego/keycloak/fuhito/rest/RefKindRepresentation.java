@@ -19,11 +19,10 @@ public record RefKindRepresentation(
         Map<String, String> names,
         @Schema(description = "True for a kind that every realm has.", readOnly = true)
         Boolean fixed,
-        @Schema(
-                description = "The version of a kind that the realm added. A new kind has 1. Each write counts it up "
-                        + "by one. A fixed kind has none.",
-                readOnly = true)
-        Long version) {
+        @Schema(description = "The version of a kind that the realm added. A new kind has 1. Each write counts it "
+                + "up by one. A fixed kind has none. A write of a stored kind sends the version that the caller "
+                + "read. A create needs none.")
+        Long version) implements Versioned {
 
     static RefKindRepresentation of(RealmKindService.View view) {
         return new RefKindRepresentation(view.code(), view.name(), view.names().isEmpty() ? null : view.names(),

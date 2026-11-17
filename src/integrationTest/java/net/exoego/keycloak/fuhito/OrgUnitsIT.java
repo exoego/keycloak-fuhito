@@ -162,7 +162,7 @@ class OrgUnitsIT {
 
         assertEquals("org_unit.line_below_lateral", errorOf(409, units.post("/org-units", "{\"name\": \"分科会\", "
                 + "\"parentId\": \"" + committee.get("id").asText() + "\", \"validFrom\": \"2026-04-01\"}")));
-        assertEquals("ref_item.lateral_in_use", errorOf(409, units.put("/ref-items/" + type.get("id").asText(),
+        assertEquals("ref_item.lateral_in_use", errorOf(409, units.putWithVersion("/ref-items/" + type.get("id").asText(),
                 "{\"name\": \"委員会\"}")));
     }
 
@@ -238,7 +238,7 @@ class OrgUnitsIT {
         String id = created(api.post("/org-units", "{\"name\": \"第一内科\", \"shortName\": \"一内\", \"validFrom\": \"2026-04-01\"}"))
                 .get("id").asText();
 
-        HttpResponse<String> response = api.put("/org-units/" + id, "{\"name\": \"総合内科\", \"validFrom\": \"2027-04-01\"}");
+        HttpResponse<String> response = api.putWithVersion("/org-units/" + id, "{\"name\": \"総合内科\", \"validFrom\": \"2027-04-01\"}");
 
         assertEquals(200, response.statusCode(), response.body());
         JsonNode renamed = Api.json(response);
@@ -259,11 +259,11 @@ class OrgUnitsIT {
     @Test
     void changesInsideAPastPeriodAndCorrectsAFirstDate() throws Exception {
         String id = created(api.post("/org-units", "{\"name\": \"A\", \"validFrom\": \"2026-04-01\"}")).get("id").asText();
-        assertEquals(200, api.put("/org-units/" + id, "{\"name\": \"C\", \"validFrom\": \"2027-04-01\"}").statusCode());
+        assertEquals(200, api.putWithVersion("/org-units/" + id, "{\"name\": \"C\", \"validFrom\": \"2027-04-01\"}").statusCode());
 
-        JsonNode middle = Api.json(api.put("/org-units/" + id, "{\"name\": \"B\", \"validFrom\": \"2026-10-01\"}"));
+        JsonNode middle = Api.json(api.putWithVersion("/org-units/" + id, "{\"name\": \"B\", \"validFrom\": \"2026-10-01\"}"));
         assertEquals("2027-04-01", middle.get("validTo").asText());
-        JsonNode corrected = Api.json(api.put("/org-units/" + id, "{\"name\": \"B2\", \"validFrom\": \"2026-10-01\"}"));
+        JsonNode corrected = Api.json(api.putWithVersion("/org-units/" + id, "{\"name\": \"B2\", \"validFrom\": \"2026-10-01\"}"));
         assertEquals("2027-04-01", corrected.get("validTo").asText());
 
         assertEquals("A", Api.json(api.get("/org-units/" + id + "?asOf=2026-09-30")).get("name").asText());
@@ -275,10 +275,10 @@ class OrgUnitsIT {
     void rejectsABadChange() throws Exception {
         String id = created(api.post("/org-units", "{\"name\": \"A\", \"validFrom\": \"2026-04-01\"}")).get("id").asText();
 
-        assertEquals("org_unit.not_valid_on", errorOf(404, api.put("/org-units/" + id, "{\"name\": \"x\", \"validFrom\": \"2026-03-31\"}")));
-        assertEquals("org_unit.not_found", errorOf(404, api.put("/org-units/nope", "{\"name\": \"x\", \"validFrom\": \"2026-04-01\"}")));
-        assertEquals("invalid.required", errorOf(400, api.put("/org-units/" + id, "{\"validFrom\": \"2026-10-01\"}")));
-        assertEquals("org_unit.not_found", errorOf(404, otherRealmApi.put("/org-units/" + id, "{\"name\": \"x\", \"validFrom\": \"2026-10-01\"}")));
+        assertEquals("org_unit.not_valid_on", errorOf(404, api.putWithVersion("/org-units/" + id, "{\"name\": \"x\", \"validFrom\": \"2026-03-31\"}")));
+        assertEquals("org_unit.not_found", errorOf(404, api.putWithVersion("/org-units/nope", "{\"name\": \"x\", \"validFrom\": \"2026-04-01\"}")));
+        assertEquals("invalid.required", errorOf(400, api.putWithVersion("/org-units/" + id, "{\"validFrom\": \"2026-10-01\"}")));
+        assertEquals("org_unit.not_found", errorOf(404, otherRealmApi.putWithVersion("/org-units/" + id, "{\"name\": \"x\", \"validFrom\": \"2026-10-01\"}")));
         assertEquals("A", Api.json(api.get("/org-units/" + id + "?asOf=2026-10-01")).get("name").asText());
     }
 
@@ -299,17 +299,17 @@ class OrgUnitsIT {
         String b = newUnit("B部", null);
         String unit = newUnit("経理課", a);
 
-        HttpResponse<String> response = api.put("/org-units/" + unit + "/parent", move(b, "2027-04-01"));
+        HttpResponse<String> response = api.putWithVersion("/org-units/" + unit + "/parent", move(b, "2027-04-01"));
 
         assertEquals(200, response.statusCode(), response.body());
         assertEquals(b, Api.json(response).get("parentId").asText());
         assertEquals(a, Api.json(api.get("/org-units/" + unit + "?asOf=2027-03-31")).get("parentId").asText());
         assertEquals(b, Api.json(api.get("/org-units/" + unit + "?asOf=2027-04-01")).get("parentId").asText());
 
-        assertFalse(Api.json(api.put("/org-units/" + unit + "/parent", move(null, "2028-04-01"))).has("parentId"));
+        assertFalse(Api.json(api.putWithVersion("/org-units/" + unit + "/parent", move(null, "2028-04-01"))).has("parentId"));
         assertEquals(b, Api.json(api.get("/org-units/" + unit + "?asOf=2028-03-31")).get("parentId").asText());
         // A move on the first date of the current parent corrects it.
-        assertEquals(a, Api.json(api.put("/org-units/" + unit + "/parent", move(a, "2027-04-01"))).get("parentId").asText());
+        assertEquals(a, Api.json(api.putWithVersion("/org-units/" + unit + "/parent", move(a, "2027-04-01"))).get("parentId").asText());
         assertEquals(a, Api.json(api.get("/org-units/" + unit + "?asOf=2028-03-31")).get("parentId").asText());
         assertFalse(Api.json(api.get("/org-units/" + unit + "?asOf=2028-04-01")).has("parentId"));
     }
@@ -320,12 +320,12 @@ class OrgUnitsIT {
         String b = newUnit("B", a);
         String c = newUnit("C", b);
 
-        assertEquals("org_unit.cycle", errorOf(409, api.put("/org-units/" + a + "/parent", move(c, "2026-10-01"))));
-        assertEquals("org_unit.cycle", errorOf(409, api.put("/org-units/" + a + "/parent", move(a, "2026-10-01"))));
-        assertEquals("org_unit.parent_unknown", errorOf(400, api.put("/org-units/" + c + "/parent", move("nope", "2026-10-01"))));
-        assertEquals("org_unit.not_valid_on", errorOf(404, api.put("/org-units/" + c + "/parent", move(a, "2026-03-31"))));
-        assertEquals("invalid.required", errorOf(400, api.put("/org-units/" + c + "/parent", "{\"parentId\": \"" + a + "\"}")));
-        assertEquals("org_unit.not_found", errorOf(404, otherRealmApi.put("/org-units/" + c + "/parent", move(null, "2026-10-01"))));
+        assertEquals("org_unit.cycle", errorOf(409, api.putWithVersion("/org-units/" + a + "/parent", move(c, "2026-10-01"))));
+        assertEquals("org_unit.cycle", errorOf(409, api.putWithVersion("/org-units/" + a + "/parent", move(a, "2026-10-01"))));
+        assertEquals("org_unit.parent_unknown", errorOf(400, api.putWithVersion("/org-units/" + c + "/parent", move("nope", "2026-10-01"))));
+        assertEquals("org_unit.not_valid_on", errorOf(404, api.putWithVersion("/org-units/" + c + "/parent", move(a, "2026-03-31"))));
+        assertEquals("invalid.required", errorOf(400, api.putWithVersion("/org-units/" + c + "/parent", "{\"parentId\": \"" + a + "\"}")));
+        assertEquals("org_unit.not_found", errorOf(404, otherRealmApi.putWithVersion("/org-units/" + c + "/parent", move(null, "2026-10-01"))));
         assertEquals(b, Api.json(api.get("/org-units/" + c + "?asOf=2030-01-01")).get("parentId").asText());
     }
 
@@ -334,7 +334,7 @@ class OrgUnitsIT {
         String parent = newUnit("親", null);
         String unit = newUnit("廃止予定", parent);
 
-        HttpResponse<String> response = api.put("/org-units/" + unit + "/end", "{\"validTo\": \"2027-04-01\"}");
+        HttpResponse<String> response = api.putWithVersion("/org-units/" + unit + "/end", "{\"validTo\": \"2027-04-01\"}");
 
         assertEquals(200, response.statusCode(), response.body());
         JsonNode last = Api.json(response);
@@ -343,15 +343,15 @@ class OrgUnitsIT {
         assertEquals(last, Api.json(api.get("/org-units/" + unit + "?asOf=2027-03-31")));
         assertEquals("org_unit.not_valid_on", errorOf(404, api.get("/org-units/" + unit + "?asOf=2027-04-01")));
         // The end moves, and can go away again.
-        assertEquals("2028-04-01", Api.json(api.put("/org-units/" + unit + "/end", "{\"validTo\": \"2028-04-01\"}"))
+        assertEquals("2028-04-01", Api.json(api.putWithVersion("/org-units/" + unit + "/end", "{\"validTo\": \"2028-04-01\"}"))
                 .get("validTo").asText());
-        HttpResponse<String> reopened = api.delete("/org-units/" + unit + "/end");
+        HttpResponse<String> reopened = api.deleteWithVersion("/org-units/" + unit + "/end");
         assertEquals(200, reopened.statusCode(), reopened.body());
         assertFalse(Api.json(reopened).has("validTo"));
-        assertEquals(200, api.put("/org-units/" + unit + "/end", "{\"validTo\": \"2027-04-01\"}").statusCode());
+        assertEquals(200, api.putWithVersion("/org-units/" + unit + "/end", "{\"validTo\": \"2027-04-01\"}").statusCode());
         // The parent can end once its last child is gone.
-        assertEquals("org_unit.has_children", errorOf(409, api.put("/org-units/" + parent + "/end", "{\"validTo\": \"2027-03-31\"}")));
-        assertEquals(200, api.put("/org-units/" + parent + "/end", "{\"validTo\": \"2027-04-01\"}").statusCode());
+        assertEquals("org_unit.has_children", errorOf(409, api.putWithVersion("/org-units/" + parent + "/end", "{\"validTo\": \"2027-03-31\"}")));
+        assertEquals(200, api.putWithVersion("/org-units/" + parent + "/end", "{\"validTo\": \"2027-04-01\"}").statusCode());
     }
 
     @Test
@@ -360,16 +360,16 @@ class OrgUnitsIT {
         newUnit("C1", parent);
         newUnit("C2", parent);
         String renamed = newUnit("R", null);
-        assertEquals(200, api.put("/org-units/" + renamed, "{\"name\": \"R2\", \"validFrom\": \"2027-04-01\"}").statusCode());
+        assertEquals(200, api.putWithVersion("/org-units/" + renamed, "{\"name\": \"R2\", \"validFrom\": \"2027-04-01\"}").statusCode());
 
-        HttpResponse<String> response = api.withAcceptLanguage("ja").put("/org-units/" + parent + "/end", "{\"validTo\": \"2027-04-01\"}");
+        HttpResponse<String> response = api.withAcceptLanguage("ja").putWithVersion("/org-units/" + parent + "/end", "{\"validTo\": \"2027-04-01\"}");
         assertEquals("org_unit.has_children", errorOf(409, response));
         assertEquals("2", Api.json(response).get("params").get("count").asText());
         assertTrue(Api.json(response).get("message").asText().contains("2 件の子の組織単位"));
-        assertEquals("org_unit.later_changes_exist", errorOf(409, api.put("/org-units/" + renamed + "/end", "{\"validTo\": \"2027-01-01\"}")));
-        assertEquals("org_unit.not_valid_on", errorOf(404, api.put("/org-units/" + renamed + "/end", "{\"validTo\": \"2026-04-01\"}")));
-        assertEquals("invalid.required", errorOf(400, api.put("/org-units/" + renamed + "/end", "{}")));
-        assertEquals("org_unit.not_found", errorOf(404, otherRealmApi.put("/org-units/" + renamed + "/end", "{\"validTo\": \"2028-04-01\"}")));
+        assertEquals("org_unit.later_changes_exist", errorOf(409, api.putWithVersion("/org-units/" + renamed + "/end", "{\"validTo\": \"2027-01-01\"}")));
+        assertEquals("org_unit.not_valid_on", errorOf(404, api.putWithVersion("/org-units/" + renamed + "/end", "{\"validTo\": \"2026-04-01\"}")));
+        assertEquals("invalid.required", errorOf(400, api.putWithVersion("/org-units/" + renamed + "/end", "{}")));
+        assertEquals("org_unit.not_found", errorOf(404, otherRealmApi.putWithVersion("/org-units/" + renamed + "/end", "{\"validTo\": \"2028-04-01\"}")));
     }
 
     @Test
@@ -378,8 +378,8 @@ class OrgUnitsIT {
                 "{\"kind\": \"UNIT_TYPE\", \"code\": \"in-use\", \"name\": \"In use\"}")).get("id").asText();
         created(api.post("/org-units", "{\"name\": \"x\", \"unitType\": \"in-use\", \"validFrom\": \"2026-04-01\"}"));
 
-        assertEquals("ref_item.in_use", errorOf(409, api.delete("/ref-items/" + typeId)));
-        assertEquals(200, api.put("/ref-items/" + typeId, "{\"name\": \"In use\", \"active\": false}").statusCode());
+        assertEquals("ref_item.in_use", errorOf(409, api.deleteWithVersion("/ref-items/" + typeId)));
+        assertEquals(200, api.putWithVersion("/ref-items/" + typeId, "{\"name\": \"In use\", \"active\": false}").statusCode());
         assertEquals("org_unit.unit_type_unknown", errorOf(400, api.post("/org-units",
                 "{\"name\": \"y\", \"unitType\": \"in-use\", \"validFrom\": \"2026-04-01\"}")));
     }
@@ -424,7 +424,7 @@ class OrgUnitsIT {
         assertEquals(1, Api.json(realm.api.get("/org-units/" + branch + "/history")).get("parents").size());
 
         // The link starts on this date, so it never held and is removed.
-        HttpResponse<String> moved = realm.api.put("/org-units/" + branch + "/parent", "{\"validFrom\": \"2026-04-01\"}");
+        HttpResponse<String> moved = realm.api.putWithVersion("/org-units/" + branch + "/parent", "{\"validFrom\": \"2026-04-01\"}");
 
         assertEquals(200, moved.statusCode(), moved.body());
         assertFalse(Api.json(moved).has("parentId"));
@@ -442,7 +442,7 @@ class OrgUnitsIT {
         String team = created(matrixApi.post("/org-units", "{\"name\": \"Team\", \"parentId\": \"" + line
                 + "\", \"validFrom\": \"2026-04-01\"}")).get("id").asText();
 
-        HttpResponse<String> moved = matrixApi.put("/org-units/" + team + "/parent?hierarchy=matrix",
+        HttpResponse<String> moved = matrixApi.putWithVersion("/org-units/" + team + "/parent?hierarchy=matrix",
                 "{\"parentId\": \"" + project + "\", \"validFrom\": \"2026-10-01\"}");
 
         assertEquals(200, moved.statusCode(), moved.body());
@@ -453,23 +453,23 @@ class OrgUnitsIT {
         assertEquals(List.of(line, project), parents.findValuesAsText("parentId"));
 
         // The project is the parent of the line in the matrix, though the team is below the line by default.
-        assertEquals(200, matrixApi.put("/org-units/" + line + "/parent?hierarchy=matrix",
+        assertEquals(200, matrixApi.putWithVersion("/org-units/" + line + "/parent?hierarchy=matrix",
                 "{\"parentId\": \"" + project + "\", \"validFrom\": \"2026-10-01\"}").statusCode());
-        HttpResponse<String> cycle = matrixApi.put("/org-units/" + project + "/parent?hierarchy=matrix",
+        HttpResponse<String> cycle = matrixApi.putWithVersion("/org-units/" + project + "/parent?hierarchy=matrix",
                 "{\"parentId\": \"" + team + "\", \"validFrom\": \"2026-10-01\"}");
         assertEquals(409, cycle.statusCode(), cycle.body());
         assertEquals("org_unit.cycle", Api.json(cycle).get("error").asText());
 
-        HttpResponse<String> unknown = matrixApi.put("/org-units/" + team + "/parent?hierarchy=nope",
+        HttpResponse<String> unknown = matrixApi.putWithVersion("/org-units/" + team + "/parent?hierarchy=nope",
                 "{\"validFrom\": \"2026-10-01\"}");
         assertEquals(400, unknown.statusCode(), unknown.body());
         assertEquals("hierarchy.unknown", Api.json(unknown).get("error").asText());
 
         // A hierarchy with links stays. A child in the matrix keeps the project from ending.
-        assertEquals(409, matrixApi.delete("/hierarchies/" + matrix).statusCode());
-        assertEquals("org_unit.has_children", Api.json(matrixApi.put("/org-units/" + project + "/end",
+        assertEquals(409, matrixApi.deleteWithVersion("/hierarchies/" + matrix).statusCode());
+        assertEquals("org_unit.has_children", Api.json(matrixApi.putWithVersion("/org-units/" + project + "/end",
                 "{\"validTo\": \"2027-04-01\"}")).get("error").asText());
-        assertEquals(200, matrixApi.put("/org-units/" + team + "/end", "{\"validTo\": \"2027-04-01\"}").statusCode());
+        assertEquals(200, matrixApi.putWithVersion("/org-units/" + team + "/end", "{\"validTo\": \"2027-04-01\"}").statusCode());
         assertEquals(List.of("2027-04-01", "2027-04-01"),
                 Api.json(matrixApi.get("/org-units/" + team + "/history")).get("parents").findValuesAsText("validTo"));
     }
@@ -495,7 +495,7 @@ class OrgUnitsIT {
                 + "\", \"validFrom\": \"2026-04-01\"}")).get("id").asText();
         created(matrixApi.post("/org-units", "{\"name\": \"Squad\", \"parentId\": \"" + team
                 + "\", \"validFrom\": \"2026-04-01\"}"));
-        assertEquals(200, matrixApi.put("/org-units/" + team + "/parent?hierarchy=matrix",
+        assertEquals(200, matrixApi.putWithVersion("/org-units/" + team + "/parent?hierarchy=matrix",
                 "{\"parentId\": \"" + project + "\", \"validFrom\": \"2026-04-01\"}").statusCode());
         String member = realm.user("member");
         created(matrixApi.post("/staff", "{\"userId\": \"" + member + "\", \"orgUnitId\": \"" + team
@@ -582,7 +582,7 @@ class OrgUnitsIT {
         assertEquals(List.of("Sales", "Untyped"), namesOf(entityApi.get("/org-units?legalEntity=false&asOf=2026-04-01")));
 
         // The sales department becomes a company of its own in 2027.
-        assertEquals(200, entityApi.put("/org-units/" + sales, "{\"name\": \"Sales Inc.\", \"unitType\": \"company\", "
+        assertEquals(200, entityApi.putWithVersion("/org-units/" + sales, "{\"name\": \"Sales Inc.\", \"unitType\": \"company\", "
                 + "\"validFrom\": \"2027-04-01\"}").statusCode());
         assertEquals(List.of("Subsidiary", "Holding"), namesOf(entityApi.get("/org-units?legalEntity=true&asOf=2027-03-31")));
         assertEquals(List.of("Sales Inc.", "Subsidiary", "Holding"),
@@ -590,7 +590,7 @@ class OrgUnitsIT {
 
         // A change that leaves the mark out takes it away.
         String companyId = company.get("id").asText();
-        assertFalse(Api.json(entityApi.put("/ref-items/" + companyId, "{\"name\": \"株式会社\"}")).has("legalEntity"));
+        assertFalse(Api.json(entityApi.putWithVersion("/ref-items/" + companyId, "{\"name\": \"株式会社\"}")).has("legalEntity"));
         assertEquals(List.of(), namesOf(entityApi.get("/org-units?legalEntity=true&asOf=2027-04-01")));
     }
 

@@ -13,10 +13,9 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
 public record AttributeDefinitionRepresentation(
         @Schema(readOnly = true)
         String id,
-        @Schema(
-                description = "The version of the definition. A new definition has 1. Each write counts it "
-                        + "up by one.",
-                readOnly = true)
+        @Schema(description = "The version of the definition. A new definition has 1. Each write counts it up by "
+                + "one. A write of a stored definition sends the version that the caller read. A create needs "
+                + "none.")
         Long version,
         @Schema(
                 description = "The kind of resource. Only a create request reads it.",
@@ -36,7 +35,7 @@ public record AttributeDefinitionRepresentation(
                 description = "True when every write of the resource must give a value. A list needs at least one "
                         + "element.",
                 defaultValue = "false")
-        Boolean required) {
+        Boolean required) implements Versioned {
 
     static AttributeDefinitionRepresentation of(AttributeDefinition definition) {
         return new AttributeDefinitionRepresentation(definition.id(), definition.version(),

@@ -146,6 +146,14 @@ class AttributeSyncIT {
             assertEquals(0, again.get(count).asInt(), count);
         }
 
+        // A new title changes the assignment of the boss. The sync names no version, and counts it up.
+        String bossAssignment = "/assignments/" + assignmentsOf(boss).get(0).get("assignmentId").asText();
+        long before = Api.json(api.get(bossAssignment)).get("version").asLong();
+        assertEquals(201, api.post("/ref-items", "{\"kind\": \"JOB_TITLE\", \"code\": \"head\", \"name\": \"院長\"}").statusCode());
+        setAttributes(boss, Map.of("department", "naika", "title", "院長", "employeeNumber", "E-001"));
+        assertEquals(1, run("").get("assignmentsChanged").asInt());
+        assertEquals(before + 1, Api.json(api.get(bossAssignment)).get("version").asLong());
+
         // The identity provider moves alice to surgery under the chief, and takes the department from the boss.
         setAttributes(alice, Map.of("department", "外科", "manager", chief));
         setAttributes(boss, Map.of("title", "部長"));
@@ -190,7 +198,7 @@ class AttributeSyncIT {
 
         // The person of bob loses the link to the user. The user then has no person and no employment.
         String oldPerson = historyOf(bob).get("personId").asText();
-        HttpResponse<String> unlinked = api.put("/people/" + oldPerson, "{\"name\": \"Bob\"}");
+        HttpResponse<String> unlinked = api.putWithVersion("/people/" + oldPerson, "{\"name\": \"Bob\"}");
         assertEquals(200, unlinked.statusCode(), unlinked.body());
 
         JsonNode back = run("");
@@ -287,7 +295,7 @@ class AttributeSyncIT {
         createRealm(Map.of("fuhito.sync.enabled", "true"));
         String clinic = unit("診療所", "clinic", null);
         String end = LocalDate.now(ZoneOffset.UTC).plusMonths(3).toString();
-        HttpResponse<String> ended = api.put("/org-units/" + clinic + "/end", "{\"validTo\": \"" + end + "\"}");
+        HttpResponse<String> ended = api.putWithVersion("/org-units/" + clinic + "/end", "{\"validTo\": \"" + end + "\"}");
         assertEquals(200, ended.statusCode(), ended.body());
         String alice = user("alice", Map.of("department", "clinic"));
 

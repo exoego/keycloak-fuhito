@@ -46,53 +46,53 @@ class VersionsIT {
         Api api = realm.api;
 
         assertEquals(1, version(api.post("/ref-kinds", "{\"code\": \"site\", \"name\": \"拠点\"}")));
-        assertEquals(2, version(api.put("/ref-kinds/site", "{\"name\": \"事業所\"}")));
+        assertEquals(2, version(api.putWithVersion("/ref-kinds/site", "{\"name\": \"事業所\"}")));
         assertEquals(2, entry(ok(api.get("/ref-kinds")), "code", "site").get("version").asLong());
         assertFalse(entry(ok(api.get("/ref-kinds")), "code", "UNIT_TYPE").has("version"));
 
         HttpResponse<String> item = api.post("/ref-items", "{\"kind\": \"site\", \"code\": \"tokyo\", \"name\": \"東京\"}");
         String itemId = id(item);
         assertEquals(1, version(item));
-        assertEquals(2, version(api.put("/ref-items/" + itemId, "{\"name\": \"東京本社\"}")));
+        assertEquals(2, version(api.putWithVersion("/ref-items/" + itemId, "{\"name\": \"東京本社\"}")));
         assertEquals(2, version(api.get("/ref-items/" + itemId)));
 
         HttpResponse<String> hierarchy = api.post("/hierarchies", "{\"code\": \"project\", \"name\": \"P\"}");
         String hierarchyId = id(hierarchy);
         assertEquals(1, version(hierarchy));
-        assertEquals(2, version(api.put("/hierarchies/" + hierarchyId, "{\"name\": \"プロジェクト\"}")));
+        assertEquals(2, version(api.putWithVersion("/hierarchies/" + hierarchyId, "{\"name\": \"プロジェクト\"}")));
         assertEquals(2, version(api.get("/hierarchies/" + hierarchyId)));
 
         HttpResponse<String> definition = api.post("/attribute-definitions",
                 "{\"target\": \"PERSON\", \"name\": \"beds\", \"type\": \"NUMBER\"}");
         String definitionId = id(definition);
         assertEquals(1, version(definition));
-        assertEquals(2, version(api.put("/attribute-definitions/" + definitionId, "{\"type\": \"STRING\"}")));
+        assertEquals(2, version(api.putWithVersion("/attribute-definitions/" + definitionId, "{\"type\": \"STRING\"}")));
         assertEquals(2, version(api.get("/attribute-definitions/" + definitionId)));
 
         HttpResponse<String> order = api.post("/change-orders", "{\"title\": \"異動\", \"effectiveDate\": \"2026-04-01\"}");
         String orderId = id(order);
         assertEquals(1, version(order));
-        assertEquals(2, version(api.put("/change-orders/" + orderId,
+        assertEquals(2, version(api.putWithVersion("/change-orders/" + orderId,
                 "{\"title\": \"人事異動\", \"effectiveDate\": \"2026-04-01\"}")));
-        assertEquals(3, version(api.post("/change-orders/" + orderId + "/announce", "")));
+        assertEquals(3, version(api.postWithVersion("/change-orders/" + orderId + "/announce", "")));
         assertEquals(3, version(api.get("/change-orders/" + orderId)));
 
         // A write of the person and of its ID of another system is one write of the person.
         HttpResponse<String> person = api.post("/people", "{\"name\": \"Ann\"}");
         String personId = id(person);
         assertEquals(1, version(person));
-        assertEquals(2, version(api.put("/people/" + personId, "{\"name\": \"Anne\"}")));
-        assertEquals(3, version(api.put("/people/" + personId,
+        assertEquals(2, version(api.putWithVersion("/people/" + personId, "{\"name\": \"Anne\"}")));
+        assertEquals(3, version(api.putWithVersion("/people/" + personId,
                 "{\"name\": \"Annie\", \"source\": \"hr\", \"externalId\": \"P-1\"}")));
         String payroll = "{\"resourceType\": \"PERSON\", \"resourceId\": \"" + personId
                 + "\", \"source\": \"payroll\", \"externalId\": \"%s\"}";
-        assertEquals(1, version(api.put("/external-ids", payroll.formatted("X-1"))));
+        assertEquals(1, version(api.putWithVersion("/external-ids", payroll.formatted("X-1"))));
         assertEquals(4, version(api.get("/people/" + personId)));
-        assertEquals(2, version(api.put("/external-ids", payroll.formatted("X-2"))));
+        assertEquals(2, version(api.putWithVersion("/external-ids", payroll.formatted("X-2"))));
         assertEquals(2, entry(ok(api.get("/external-ids?resourceType=PERSON&resourceId=" + personId)), "source",
                 "payroll").get("version").asLong());
         assertEquals(5, version(api.get("/people/" + personId)));
-        ok(api.delete("/external-ids?resourceType=PERSON&resourceId=" + personId + "&source=payroll"));
+        ok(api.deleteWithVersion("/external-ids?resourceType=PERSON&resourceId=" + personId + "&source=payroll"));
         assertEquals(6, version(api.get("/people/" + personId)));
 
         realm.refItem("QUALIFICATION", "license", "免許");
@@ -100,7 +100,7 @@ class VersionsIT {
                 + "\", \"kind\": \"license\", \"validFrom\": \"2020-04-01\"}");
         String qualificationId = id(qualification);
         assertEquals(1, version(qualification));
-        assertEquals(2, version(api.put("/qualifications/" + qualificationId,
+        assertEquals(2, version(api.putWithVersion("/qualifications/" + qualificationId,
                 "{\"kind\": \"license\", \"number\": \"9\", \"validFrom\": \"2020-04-01\"}")));
         assertEquals(2, version(api.get("/qualifications/" + qualificationId)));
         assertEquals(6, version(api.get("/people/" + personId)));
@@ -114,7 +114,7 @@ class VersionsIT {
                 + "\", \"role\": \"approver\", \"validFrom\": \"2020-04-01\"}");
         String roleId = id(role);
         assertEquals(1, version(role));
-        assertEquals(2, version(api.put("/unit-roles/" + roleId + "/end", "{\"validTo\": \"2030-04-01\"}")));
+        assertEquals(2, version(api.putWithVersion("/unit-roles/" + roleId + "/end", "{\"validTo\": \"2030-04-01\"}")));
         assertEquals(2, version(api.get("/unit-roles/" + roleId)));
 
         HttpResponse<String> line = api.post("/reporting-lines", "{\"assignmentId\": \""
@@ -122,7 +122,7 @@ class VersionsIT {
                 + "\", \"validFrom\": \"2021-04-01\"}");
         String lineId = id(line);
         assertEquals(1, version(line));
-        assertEquals(2, version(api.put("/reporting-lines/" + lineId + "/end", "{\"validTo\": \"2030-04-01\"}")));
+        assertEquals(2, version(api.putWithVersion("/reporting-lines/" + lineId + "/end", "{\"validTo\": \"2030-04-01\"}")));
         assertEquals(2, version(api.get("/reporting-lines/" + lineId)));
         // The line and the role are no part of the assignment and the employment.
         assertEquals(1, version(api.get("/assignments/" + nurse.get("assignment").get("id").asText())));
@@ -141,7 +141,7 @@ class VersionsIT {
         assertEquals(1, version(created));
 
         // The new name splits the period in two rows. It is one write.
-        assertEquals(2, version(api.put("/org-units/" + ward, "{\"name\": \"第1病棟\", \"validFrom\": \"2027-04-01\"}")));
+        assertEquals(2, version(api.putWithVersion("/org-units/" + ward, "{\"name\": \"第1病棟\", \"validFrom\": \"2027-04-01\"}")));
         assertEquals(2, version(api.get("/org-units/" + ward + "?asOf=2020-05-01")));
         assertEquals(2, version(api.get("/org-units/" + ward + "?asOf=2027-05-01")));
         JsonNode history = ok(api.get("/org-units/" + ward + "/history"));
@@ -149,16 +149,16 @@ class VersionsIT {
         history.get("versions").forEach(period -> assertEquals(2, period.get("version").asLong()));
 
         // The old parent link ends, and a new one starts.
-        assertEquals(3, version(api.put("/org-units/" + ward + "/parent", "{\"parentId\": \"" + other
+        assertEquals(3, version(api.putWithVersion("/org-units/" + ward + "/parent", "{\"parentId\": \"" + other
                 + "\", \"validFrom\": \"2025-04-01\"}")));
-        assertEquals(4, version(api.put("/org-units/" + ward + "/end", "{\"validTo\": \"2030-04-01\"}")));
-        assertEquals(5, version(api.delete("/org-units/" + ward + "/end")));
-        assertEquals(6, version(api.put("/org-units/" + ward + "/time-settings", "{\"timeZone\": \"Asia/Tokyo\"}")));
-        assertEquals(1, version(api.put("/external-ids", "{\"resourceType\": \"ORG_UNIT\", \"resourceId\": \""
+        assertEquals(4, version(api.putWithVersion("/org-units/" + ward + "/end", "{\"validTo\": \"2030-04-01\"}")));
+        assertEquals(5, version(api.deleteWithVersion("/org-units/" + ward + "/end")));
+        assertEquals(6, version(api.putWithVersion("/org-units/" + ward + "/time-settings", "{\"timeZone\": \"Asia/Tokyo\"}")));
+        assertEquals(1, version(api.putWithVersion("/external-ids", "{\"resourceType\": \"ORG_UNIT\", \"resourceId\": \""
                 + ward + "\", \"source\": \"payroll\", \"externalId\": \"P-1\"}")));
         assertEquals(7, version(api.get("/org-units/" + ward)));
         String organization = realm.organization("x-ward");
-        assertEquals(8, version(api.put("/org-units/" + ward + "/organization", "{\"organizationId\": \""
+        assertEquals(8, version(api.putWithVersion("/org-units/" + ward + "/organization", "{\"organizationId\": \""
                 + organization + "\"}")));
         assertEquals(8, version(api.get("/org-units/" + ward)));
         // A write of the child is no write of the parents.
@@ -170,7 +170,7 @@ class VersionsIT {
         JsonNode unlinked = ok(api.get("/org-units/" + ward));
         assertFalse(unlinked.has("keycloakOrganizationId"));
         assertEquals(9, unlinked.get("version").asLong());
-        assertEquals(10, version(api.delete("/org-units/" + ward + "/organization")));
+        assertEquals(10, version(api.deleteWithVersion("/org-units/" + ward + "/organization")));
     }
 
     @Test
@@ -189,28 +189,28 @@ class VersionsIT {
         assertEquals(1, staff.get("assignment").get("version").asLong());
 
         // A promotion is one write of the employment and one of the assignment.
-        JsonNode promoted = ok(api.post("/employments/" + employment + "/promotion",
+        JsonNode promoted = ok(api.postWithVersion("/employments/" + employment + "/promotion",
                 "{\"validFrom\": \"2026-10-01\", \"grade\": \"g2\", \"jobTitle\": \"chief\"}"));
         assertEquals(2, promoted.get("employment").get("version").asLong());
         assertEquals(2, promoted.get("assignment").get("version").asLong());
-        assertEquals(3, version(api.put("/employments/" + employment + "/terms",
+        assertEquals(3, version(api.putWithVersion("/employments/" + employment + "/terms",
                 "{\"validFrom\": \"2027-04-01\", \"workPercent\": 50}")));
-        assertEquals(4, version(api.post("/employments/" + employment + "/leave",
+        assertEquals(4, version(api.postWithVersion("/employments/" + employment + "/leave",
                 "{\"validFrom\": \"2028-04-01\", \"validTo\": \"2028-10-01\"}")));
         assertEquals(4, version(api.get("/employments/" + employment)));
         // The end of the employment ends the assignment too.
-        assertEquals(5, version(api.put("/employments/" + employment + "/end", "{\"validTo\": \"2031-04-01\"}")));
+        assertEquals(5, version(api.putWithVersion("/employments/" + employment + "/end", "{\"validTo\": \"2031-04-01\"}")));
         assertEquals(3, version(api.get("/assignments/" + assignment)));
-        assertEquals(6, version(api.delete("/employments/" + employment + "/end")));
+        assertEquals(6, version(api.deleteWithVersion("/employments/" + employment + "/end")));
 
         // Every period of an assignment has the version of the assignment.
-        JsonNode details = ok(api.put("/assignments/" + assignment + "/details",
+        JsonNode details = ok(api.putWithVersion("/assignments/" + assignment + "/details",
                 "{\"validFrom\": \"2029-04-01\", \"jobTitle\": \"chief\", \"displayOrder\": 2}"));
         assertEquals(4, details.get("version").asLong());
         assertEquals(3, details.get("periods").size());
-        assertEquals(5, version(api.put("/assignments/" + assignment + "/end", "{\"validTo\": \"2030-10-01\"}")));
-        assertEquals(6, version(api.delete("/assignments/" + assignment + "/end")));
-        JsonNode moved = ok(api.post("/assignments/" + assignment + "/move", "{\"orgUnitId\": \"" + other
+        assertEquals(5, version(api.putWithVersion("/assignments/" + assignment + "/end", "{\"validTo\": \"2030-10-01\"}")));
+        assertEquals(6, version(api.deleteWithVersion("/assignments/" + assignment + "/end")));
+        JsonNode moved = ok(api.postWithVersion("/assignments/" + assignment + "/move", "{\"orgUnitId\": \"" + other
                 + "\", \"validFrom\": \"2029-10-01\"}"));
         assertEquals(7, moved.get("ended").get("version").asLong());
         assertEquals(1, moved.get("started").get("version").asLong());
@@ -218,7 +218,7 @@ class VersionsIT {
 
         // A transfer ends the employment and starts new ones.
         String second = TestRealm.legalEntity(api, "第二法人");
-        JsonNode transfer = ok(api.post("/employments/" + employment + "/transfer", "{\"employerId\": \"" + second
+        JsonNode transfer = ok(api.postWithVersion("/employments/" + employment + "/transfer", "{\"employerId\": \"" + second
                 + "\", \"validFrom\": \"2027-10-01\"}"));
         assertEquals(7, transfer.get("ended").get("version").asLong());
         assertEquals(1, transfer.get("started").get("version").asLong());
@@ -240,8 +240,8 @@ class VersionsIT {
                 + "\", \"kind\": \"license\", \"number\": \"1\", \"validFrom\": \"2010-04-01\"}"));
         String person = staff.get("employment").get("personId").asText();
         String employment = staff.get("employment").get("id").asText();
-        assertEquals(2, version(api.put("/employments/" + employment + "/end", "{\"validTo\": \"2024-04-01\"}")));
-        assertEquals(2, version(api.post("/people/" + person + "/mask", "")));
+        assertEquals(2, version(api.putWithVersion("/employments/" + employment + "/end", "{\"validTo\": \"2024-04-01\"}")));
+        assertEquals(2, version(api.postWithVersion("/people/" + person + "/mask", "")));
         assertEquals(2, version(api.get("/people/" + person)));
         assertEquals(3, version(api.get("/employments/" + employment)));
         assertEquals(3, version(api.get("/assignments/" + staff.get("assignment").get("id").asText())));
@@ -289,21 +289,21 @@ class VersionsIT {
         String hospital = id(api.post("/org-units", "{\"name\": \"病院\", \"validFrom\": \"2020-04-01\"}"));
         String ward = id(api.post("/org-units", "{\"name\": \"病棟\", \"parentId\": \"" + hospital
                 + "\", \"validFrom\": \"2020-04-01\"}"));
-        ok(api.put("/org-units/" + ward, "{\"name\": \"第1病棟\", \"validFrom\": \"2020-04-01\"}"));
+        ok(api.putWithVersion("/org-units/" + ward, "{\"name\": \"第1病棟\", \"validFrom\": \"2020-04-01\"}"));
         String nurse = realm.user("nurse");
         JsonNode staff = ok(api.post("/staff", "{\"userId\": \"" + nurse + "\", \"orgUnitId\": \"" + ward
                 + "\", \"validFrom\": \"2020-04-01\"}"));
         String employment = staff.get("employment").get("id").asText();
         String assignment = staff.get("assignment").get("id").asText();
         String person = staff.get("employment").get("personId").asText();
-        ok(api.put("/employments/" + employment + "/terms", "{\"validFrom\": \"2021-04-01\", \"workPercent\": 80}"));
-        ok(api.put("/assignments/" + assignment + "/details", "{\"validFrom\": \"2021-04-01\", \"displayOrder\": 1}"));
-        ok(api.put("/assignments/" + assignment + "/details", "{\"validFrom\": \"2022-04-01\", \"displayOrder\": 2}"));
-        ok(api.put("/people/" + person, "{\"userId\": \"" + nurse + "\", \"name\": \"花子\"}"));
+        ok(api.putWithVersion("/employments/" + employment + "/terms", "{\"validFrom\": \"2021-04-01\", \"workPercent\": 80}"));
+        ok(api.putWithVersion("/assignments/" + assignment + "/details", "{\"validFrom\": \"2021-04-01\", \"displayOrder\": 1}"));
+        ok(api.putWithVersion("/assignments/" + assignment + "/details", "{\"validFrom\": \"2022-04-01\", \"displayOrder\": 2}"));
+        ok(api.putWithVersion("/people/" + person, "{\"userId\": \"" + nurse + "\", \"name\": \"花子\"}"));
         realm.refItem("UNIT_ROLE", "approver", "承認者");
         String role = id(api.post("/unit-roles", "{\"employmentId\": \"" + employment + "\", \"orgUnitId\": \""
                 + hospital + "\", \"role\": \"approver\", \"validFrom\": \"2020-04-01\"}"));
-        ok(api.put("/unit-roles/" + role + "/end", "{\"validTo\": \"2040-04-01\"}"));
+        ok(api.putWithVersion("/unit-roles/" + role + "/end", "{\"validTo\": \"2040-04-01\"}"));
 
         // Each list has the same version as the read of one resource.
         long unitVersion = version(api.get("/org-units/" + ward));
@@ -352,43 +352,43 @@ class VersionsIT {
         String nurseUser = source.user("nurse");
         String bossUser = source.user("boss");
         ok(api.post("/ref-kinds", "{\"code\": \"site\", \"name\": \"拠点\"}"));
-        ok(api.put("/ref-kinds/site", "{\"name\": \"事業所\"}"));
+        ok(api.putWithVersion("/ref-kinds/site", "{\"name\": \"事業所\"}"));
         String item = id(api.post("/ref-items", "{\"kind\": \"site\", \"code\": \"tokyo\", \"name\": \"東京\"}"));
-        ok(api.put("/ref-items/" + item, "{\"name\": \"東京本社\"}"));
+        ok(api.putWithVersion("/ref-items/" + item, "{\"name\": \"東京本社\"}"));
         String definition = id(api.post("/attribute-definitions",
                 "{\"target\": \"PERSON\", \"name\": \"beds\", \"type\": \"NUMBER\"}"));
-        ok(api.put("/attribute-definitions/" + definition, "{\"type\": \"STRING\"}"));
+        ok(api.putWithVersion("/attribute-definitions/" + definition, "{\"type\": \"STRING\"}"));
         String hierarchy = id(api.post("/hierarchies", "{\"code\": \"project\", \"name\": \"P\"}"));
-        ok(api.put("/hierarchies/" + hierarchy, "{\"name\": \"プロジェクト\"}"));
+        ok(api.putWithVersion("/hierarchies/" + hierarchy, "{\"name\": \"プロジェクト\"}"));
         String unit = id(api.post("/org-units", "{\"name\": \"病院\", \"validFrom\": \"2020-04-01\"}"));
-        ok(api.put("/org-units/" + unit, "{\"name\": \"本院\", \"validFrom\": \"2024-04-01\"}"));
+        ok(api.putWithVersion("/org-units/" + unit, "{\"name\": \"本院\", \"validFrom\": \"2024-04-01\"}"));
         JsonNode nurse = ok(api.post("/staff", "{\"userId\": \"" + nurseUser + "\", \"orgUnitId\": \"" + unit
                 + "\", \"validFrom\": \"2020-04-01\"}"));
         String employment = nurse.get("employment").get("id").asText();
         String assignment = nurse.get("assignment").get("id").asText();
-        ok(api.put("/employments/" + employment + "/terms", "{\"validFrom\": \"2021-04-01\", \"workPercent\": 80}"));
-        ok(api.put("/assignments/" + assignment + "/details", "{\"validFrom\": \"2021-04-01\", \"displayOrder\": 1}"));
-        ok(api.put("/assignments/" + assignment + "/details", "{\"validFrom\": \"2022-04-01\", \"displayOrder\": 2}"));
+        ok(api.putWithVersion("/employments/" + employment + "/terms", "{\"validFrom\": \"2021-04-01\", \"workPercent\": 80}"));
+        ok(api.putWithVersion("/assignments/" + assignment + "/details", "{\"validFrom\": \"2021-04-01\", \"displayOrder\": 1}"));
+        ok(api.putWithVersion("/assignments/" + assignment + "/details", "{\"validFrom\": \"2022-04-01\", \"displayOrder\": 2}"));
         String person = nurse.get("employment").get("personId").asText();
-        ok(api.put("/people/" + person, "{\"userId\": \"" + nurseUser + "\", \"name\": \"花子\"}"));
+        ok(api.putWithVersion("/people/" + person, "{\"userId\": \"" + nurseUser + "\", \"name\": \"花子\"}"));
         String line = id(api.post("/reporting-lines", "{\"assignmentId\": \"" + assignment
                 + "\", \"managerUserId\": \"" + bossUser + "\", \"validFrom\": \"2021-04-01\"}"));
-        ok(api.put("/reporting-lines/" + line + "/end", "{\"validTo\": \"2040-04-01\"}"));
+        ok(api.putWithVersion("/reporting-lines/" + line + "/end", "{\"validTo\": \"2040-04-01\"}"));
         source.refItem("UNIT_ROLE", "approver", "承認者");
         String role = id(api.post("/unit-roles", "{\"employmentId\": \"" + employment + "\", \"orgUnitId\": \""
                 + unit + "\", \"role\": \"approver\", \"validFrom\": \"2020-04-01\"}"));
-        ok(api.put("/unit-roles/" + role + "/end", "{\"validTo\": \"2040-04-01\"}"));
+        ok(api.putWithVersion("/unit-roles/" + role + "/end", "{\"validTo\": \"2040-04-01\"}"));
         source.refItem("QUALIFICATION", "license", "免許");
         String qualification = id(api.post("/qualifications", "{\"personId\": \"" + person
                 + "\", \"kind\": \"license\", \"validFrom\": \"2010-04-01\"}"));
-        ok(api.put("/qualifications/" + qualification,
+        ok(api.putWithVersion("/qualifications/" + qualification,
                 "{\"kind\": \"license\", \"number\": \"9\", \"validFrom\": \"2010-04-01\"}"));
         String payroll = "{\"resourceType\": \"ORG_UNIT\", \"resourceId\": \"" + unit
                 + "\", \"source\": \"payroll\", \"externalId\": \"%s\"}";
-        ok(api.put("/external-ids", payroll.formatted("P-1")));
-        ok(api.put("/external-ids", payroll.formatted("P-2")));
+        ok(api.putWithVersion("/external-ids", payroll.formatted("P-1")));
+        ok(api.putWithVersion("/external-ids", payroll.formatted("P-2")));
         String order = id(api.post("/change-orders", "{\"title\": \"異動\", \"effectiveDate\": \"2026-04-01\"}"));
-        ok(api.post("/change-orders/" + order + "/announce", ""));
+        ok(api.postWithVersion("/change-orders/" + order + "/announce", ""));
 
         ObjectNode before = RealmExportIT.export(api);
         // The two IDs of another system wrote the unit twice more.

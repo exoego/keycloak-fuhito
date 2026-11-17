@@ -135,13 +135,13 @@ class ReportingLinesIT {
 
         assertEquals("reporting_line.solid_exists", errorOf(409, api.post("/reporting-lines", "{\"assignmentId\": \""
                 + nurseAAssignment + "\", \"managerUserId\": \"" + projectLead + "\", \"validFrom\": \"2029-04-01\"}")));
-        assertEquals("2027-10-01", Api.json(api.put("/reporting-lines/" + dotted + "/end", "{\"validTo\": \"2027-10-01\"}"))
+        assertEquals("2027-10-01", Api.json(api.putWithVersion("/reporting-lines/" + dotted + "/end", "{\"validTo\": \"2027-10-01\"}"))
                 .get("validTo").asText());
-        assertEquals(204, api.delete("/reporting-lines/" + dotted).statusCode());
+        assertEquals(204, api.deleteWithVersion("/reporting-lines/" + dotted).statusCode());
         assertEquals("reporting_line.not_found", errorOf(404, api.get("/reporting-lines/" + dotted)));
 
         // Ending the assignment ends its line.
-        assertEquals(200, api.put("/assignments/" + nurseAAssignment + "/end", "{\"validTo\": \"2030-04-01\"}").statusCode());
+        assertEquals(200, api.putWithVersion("/assignments/" + nurseAAssignment + "/end", "{\"validTo\": \"2030-04-01\"}").statusCode());
         assertEquals("2030-04-01", Api.json(api.get("/reporting-lines/" + solid.get("id").asText())).get("validTo").asText());
     }
 
@@ -203,9 +203,9 @@ class ReportingLinesIT {
         Api other = TestRealm.withEmployer("reporting-other").api;
 
         assertEquals(404, other.get("/reporting-lines/" + line).statusCode());
-        assertEquals(404, other.delete("/reporting-lines/" + line).statusCode());
+        assertEquals(404, other.deleteWithVersion("/reporting-lines/" + line).statusCode());
         assertEquals(200, api.get("/reporting-lines/" + line).statusCode());
-        assertEquals(204, api.delete("/reporting-lines/" + line).statusCode());
+        assertEquals(204, api.deleteWithVersion("/reporting-lines/" + line).statusCode());
     }
 
     @Test

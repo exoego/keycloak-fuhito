@@ -1,14 +1,22 @@
 package net.exoego.keycloak.fuhito.rest;
 
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Arrays;
+import java.util.HexFormat;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Supplier;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.databind.json.JsonMapper;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
@@ -27,6 +35,11 @@ final class Idempotency {
     // A response leaves out every field that has no value, so the stored copy does too.
     private static final ObjectMapper JSON = new ObjectMapper()
             .setDefaultPropertyInclusion(JsonInclude.Include.NON_NULL);
+    // The same request gives the same text, whatever the order of the keys in a map.
+    private static final ObjectMapper SORTED = JsonMapper.builder()
+            .enable(MapperFeature.SORT_PROPERTIES_ALPHABETICALLY)
+            .enable(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS)
+            .build();
 
     private Idempotency() {
     }
@@ -38,7 +51,7 @@ final class Idempotency {
         }
         String path = context.requestPath();
         // The query, for example the change order, and the caller are part of the request, as the body is.
-        String hash = ETags.of(new Fingerprint(context.callerUserId(), context.requestQuery(), body));
+        String hash = hash(new Fingerprint(context.callerUserId(), context.requestQuery(), body));
         Instant now = Instant.now();
         Instant since = now.minus(LIFETIME);
         IdempotencyStore store = context.idempotency();
@@ -85,6 +98,17 @@ final class Idempotency {
     }
 
     private record Fingerprint(String caller, String query, Object body) {
+    }
+
+    private static String hash(Fingerprint fingerprint) {
+        byte[] text = Unchecked.io(() -> SORTED.writeValueAsString(fingerprint)).getBytes(StandardCharsets.UTF_8);
+        try {
+            byte[] hash = MessageDigest.getInstance("SHA-256").digest(text);
+            // The stored hashes of earlier requests have the quotes too.
+            return "\"" + HexFormat.of().formatHex(Arrays.copyOf(hash, 16)) + "\"";
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("Every Java has SHA-256.", e);
+        }
     }
 
     private static String json(Object entity) {

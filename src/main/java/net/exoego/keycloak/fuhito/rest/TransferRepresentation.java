@@ -8,8 +8,11 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
 @Schema(
         name = "Transfer",
         description = "A request to move a person to another employer on a date, and its response.",
-        requiredProperties = {"employerId", "validFrom"})
+        requiredProperties = {"version", "employerId", "validFrom"})
 public record TransferRepresentation(
+        @Schema(description = "The version of the employment at the old employer that the caller read.",
+                writeOnly = true)
+        Long version,
         @Schema(
                 description = "The ID of the org unit that employs the person from the date. It is a legal entity "
                         + "on that date, and not the employer of today.",
@@ -34,7 +37,7 @@ public record TransferRepresentation(
         @Schema(description = "The reporting lines that the new assignments got.", readOnly = true)
         List<ReportingLineRepresentation> reportingLines,
         @Schema(description = "The roles over org units that the new employment got.", readOnly = true)
-        List<UnitRoleRepresentation> unitRoles) {
+        List<UnitRoleRepresentation> unitRoles) implements Versioned {
 
     TransferRequest toRequest() {
         return new TransferRequest(employerId, validFrom, staffNumber, endReason);
@@ -43,7 +46,7 @@ public record TransferRepresentation(
     static TransferRepresentation of(EmploymentRepresentation ended, EmploymentRepresentation started,
             List<AssignmentRepresentation> assignments, List<ReportingLineRepresentation> reportingLines,
             List<UnitRoleRepresentation> unitRoles) {
-        return new TransferRepresentation(null, null, null, null, ended, started, assignments, reportingLines,
+        return new TransferRepresentation(null, null, null, null, null, ended, started, assignments, reportingLines,
                 unitRoles);
     }
 }

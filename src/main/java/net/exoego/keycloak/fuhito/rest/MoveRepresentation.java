@@ -6,8 +6,10 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
 @Schema(
         name = "Move",
         description = "A request to move a person to another org unit on a date, and its response.",
-        requiredProperties = {"orgUnitId", "validFrom"})
+        requiredProperties = {"version", "orgUnitId", "validFrom"})
 public record MoveRepresentation(
+        @Schema(description = "The version of the assignment that the caller read.", writeOnly = true)
+        Long version,
         @Schema(description = "The ID of the org unit where the person works from the date.", writeOnly = true)
         String orgUnitId,
         @Schema(description = "The first date in the new org unit.", format = "date", writeOnly = true)
@@ -40,13 +42,13 @@ public record MoveRepresentation(
         @Schema(description = "The assignment to the old org unit, with its end.", readOnly = true)
         AssignmentRepresentation ended,
         @Schema(description = "The assignment to the new org unit.", readOnly = true)
-        AssignmentRepresentation started) {
+        AssignmentRepresentation started) implements Versioned {
 
     MoveRequest toRequest() {
         return new MoveRequest(orgUnitId, validFrom, jobTitle, head, displayOrder, workLocation, costCenter);
     }
 
     static MoveRepresentation of(AssignmentRepresentation ended, AssignmentRepresentation started) {
-        return new MoveRepresentation(null, null, null, null, null, null, null, ended, started);
+        return new MoveRepresentation(null, null, null, null, null, null, null, null, ended, started);
     }
 }

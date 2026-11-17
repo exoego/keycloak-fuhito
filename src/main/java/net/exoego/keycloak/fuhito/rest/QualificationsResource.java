@@ -29,6 +29,7 @@ import org.eclipse.microprofile.openapi.annotations.headers.Header;
 import org.eclipse.microprofile.openapi.annotations.media.Content;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 import org.eclipse.microprofile.openapi.annotations.parameters.Parameter;
+import org.eclipse.microprofile.openapi.annotations.parameters.RequestBody;
 import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
 import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 
@@ -165,7 +166,7 @@ public class QualificationsResource {
             @Parameter(description = "The ID of the resource.")
             @PathParam("id") String id) {
         context.requireRead();
-        return Calls.tagged(context, () -> represent(service.get(id)));
+        return Calls.run(context, () -> represent(service.get(id)));
     }
 
     @PUT
@@ -181,10 +182,11 @@ public class QualificationsResource {
     public QualificationRepresentation replace(
             @Parameter(description = "The ID of the resource.")
             @PathParam("id") String id,
+            @RequestBody(required = true, content = @Content(mediaType = MediaType.APPLICATION_JSON,
+                    schema = @Schema(allOf = {QualificationRepresentation.class, VersionCheckRepresentation.class})))
             QualificationRepresentation body) {
         context.requireWrite();
-        return Calls.guarded(context, () -> state(id), () -> {
-            Checks.required("body", body);
+        return Calls.guarded(context, body, () -> version(id), () -> {
             var qualification = represent(service.replace(id, body.toValues(null)));
             context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, path(id), qualification);
             return qualification;
@@ -201,9 +203,14 @@ public class QualificationsResource {
     @ApiErrors
     public Response delete(
             @Parameter(description = "The ID of the resource.")
-            @PathParam("id") String id) {
+            @PathParam("id") String id,
+            @Parameter(
+                    description = "The version of the qualification that the caller read.",
+                    required = true,
+                    schema = @Schema(type = SchemaType.INTEGER, format = "int64"))
+            @QueryParam("version") String version) {
         context.requireWrite();
-        return Calls.guardedRemoval(context, () -> state(id), () -> {
+        return Calls.guarded(context, version, () -> version(id), () -> {
             service.delete(id);
             context.recordChange(Change.DELETE, RESOURCE_TYPE, id, path(id), null);
             return Response.noContent().build();
@@ -225,8 +232,7 @@ public class QualificationsResource {
         return represent(List.of(view), externalIds).getFirst();
     }
 
-    // The whole stored state of one resource, which its ETag covers.
-    private Object state(String id) {
-        return represent(service.get(id));
+    private long version(String id) {
+        return service.get(id).qualification().version();
     }
 }

@@ -24,7 +24,7 @@ class UserMaskIT {
                 + "\", \"validFrom\": \"2020-04-01\", \"validTo\": \"2024-04-01\", \"staffNumber\": \"" + staffNumber
                 + "\", \"employmentType\": \"full-time\", \"attributes\": {\"住所\": \"東京都\"}, "
                 + "\"externalId\": \"HR-" + staffNumber + "\", \"source\": \"hr\"}")).get("id").asText();
-        assertEquals(200, api.put("/employments/" + employment + "/terms", "{\"validFrom\": \"2022-04-01\", "
+        assertEquals(200, api.putWithVersion("/employments/" + employment + "/terms", "{\"validFrom\": \"2022-04-01\", "
                 + "\"employmentType\": \"full-time\", \"status\": \"ON_LEAVE\", \"leaveReason\": \"sick-leave\", \"attributes\": {\"理由\": \"育休\"}}").statusCode());
         String assignment = created(api.post("/assignments", "{\"employmentId\": \"" + employment
                 + "\", \"orgUnitId\": \"" + unit + "\", \"validFrom\": \"2020-04-01\", \"jobTitle\": \"chief\", "
@@ -152,7 +152,7 @@ class UserMaskIT {
         assertEquals("Hanako Yamada", Api.json(api.get("/people/" + keptPerson)).get("name").asText());
 
         // A later mask with the request clears the name, and the person then shows none.
-        JsonNode again = Api.json(api.post("/people/" + keptPerson + "/mask?clearKeycloakName=true", ""));
+        JsonNode again = Api.json(api.postWithVersion("/people/" + keptPerson + "/mask?clearKeycloakName=true", ""));
         assertTrue(again.get("keycloakNameCleared").asBoolean());
         assertEquals(plain.get("maskedAt"), again.get("maskedAt"));
         assertEquals(List.of("", ""), realm.nameOfUser(kept));
@@ -167,7 +167,7 @@ class UserMaskIT {
 
         // There is no name to clear for a person whose user is gone, or who never had one.
         for (String person : List.of(removedPerson, unlinked)) {
-            HttpResponse<String> response = api.post("/people/" + person + "/mask?clearKeycloakName=true", "");
+            HttpResponse<String> response = api.postWithVersion("/people/" + person + "/mask?clearKeycloakName=true", "");
             assertEquals(200, response.statusCode(), response.body());
             assertFalse(Api.json(response).get("keycloakNameCleared").asBoolean());
         }
@@ -212,7 +212,7 @@ class UserMaskIT {
         String deleted = created(api.post("/qualifications", "{\"userId\": \"" + user
                 + "\", \"kind\": \"license\", \"number\": \"L-2\", \"validFrom\": \"2021-04-01\"}")).get("id").asText();
         // The log entry of a delete has no state to mask.
-        assertEquals(204, api.delete("/qualifications/" + deleted).statusCode());
+        assertEquals(204, api.deleteWithVersion("/qualifications/" + deleted).statusCode());
 
         assertEquals(200, api.post("/users/" + user + "/mask", "").statusCode());
 

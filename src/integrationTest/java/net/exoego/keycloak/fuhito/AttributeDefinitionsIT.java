@@ -55,10 +55,10 @@ class AttributeDefinitionsIT {
                         .getBytes(StandardCharsets.UTF_8));
         assertEquals(1, Api.json(again).get("counts").get("orgUnits").get("unchanged").asInt(), again.body());
 
-        assertEquals(200, api.put("/attribute-definitions/" + beds.get("id").asText(),
+        assertEquals(200, api.putWithVersion("/attribute-definitions/" + beds.get("id").asText(),
                 "{\"type\": \"NUMBER\", \"required\": false}").statusCode());
         assertEquals(201, api.post("/org-units", "{\"name\": \"2病棟\", \"validFrom\": \"2026-04-01\"}").statusCode());
-        assertEquals(204, api.delete("/attribute-definitions/" + beds.get("id").asText()).statusCode());
+        assertEquals(204, api.deleteWithVersion("/attribute-definitions/" + beds.get("id").asText()).statusCode());
     }
 
     @Test
@@ -107,7 +107,7 @@ class AttributeDefinitionsIT {
         assertEquals(List.of("nurse", "clerk"), List.of(person.get("attributes").get("occupations").get(0).asText(),
                 person.get("attributes").get("occupations").get(1).asText()));
 
-        assertEquals(200, api.put("/attribute-definitions/" + occupations.get("id").asText(), "{\"type\": "
+        assertEquals(200, api.putWithVersion("/attribute-definitions/" + occupations.get("id").asText(), "{\"type\": "
                 + "\"REF_ITEM\", \"refKind\": \"OCCUPATION\"}").statusCode());
         assertEquals("attribute.bad_value", errorOf(400, api.post("/people", "{\"name\": \"山田 太郎\", "
                 + "\"attributes\": {\"occupations\": [\"nurse\"]}}")));
@@ -138,6 +138,6 @@ class AttributeDefinitionsIT {
         assertEquals(201, api.post("/people", "{\"name\": \"山田 花子\", \"attributes\": {\"workLocation\": "
                 + "\"tokyo\"}}").statusCode());
 
-        assertEquals("ref_kind.in_use", errorOf(409, api.delete("/ref-kinds/work-location")));
+        assertEquals("ref_kind.in_use", errorOf(409, api.deleteWithVersion("/ref-kinds/work-location")));
     }
 }

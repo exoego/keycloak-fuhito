@@ -126,10 +126,10 @@ class UnitRolesIT {
                 .get("id").asText();
         assertEquals(List.of(approver), Api.json(api.get("/org-units/" + ward
                 + "/role-holders?role=approver&asOf=2026-05-01")).findValuesAsText("id"));
-        HttpResponse<String> ended = api.put("/unit-roles/" + approver + "/end", "{\"validTo\": \"2026-06-01\"}");
+        HttpResponse<String> ended = api.putWithVersion("/unit-roles/" + approver + "/end", "{\"validTo\": \"2026-06-01\"}");
         assertEquals(200, ended.statusCode(), ended.body());
         assertEquals("2026-06-01", Api.json(ended).get("validTo").asText());
-        assertEquals(204, api.delete("/unit-roles/" + approver).statusCode());
+        assertEquals(204, api.deleteWithVersion("/unit-roles/" + approver).statusCode());
         String wardContact = created(api.post("/unit-roles", "{\"employmentId\": \"" + employment
                 + "\", \"orgUnitId\": \"" + ward + "\", \"role\": \"hr-contact\", \"validFrom\": \"2026-04-01\"}"))
                 .get("id").asText();
@@ -152,26 +152,26 @@ class UnitRolesIT {
         assertEquals(2, api.count("/people/" + person + "/unit-roles/count?asOf=2026-05-01"));
         assertEquals(2, api.count("/users/" + user + "/unit-roles/count?asOf=2026-05-01"));
         assertEquals(0, api.count("/users/" + user + "/unit-roles/count?asOf=2026-03-31"));
-        assertEquals(204, api.delete("/unit-roles/" + wardContact).statusCode());
+        assertEquals(204, api.deleteWithVersion("/unit-roles/" + wardContact).statusCode());
         assertEquals(List.of(id), Api.json(api.get("/people/" + person + "/unit-roles?asOf=2026-05-01"))
                 .findValuesAsText("id"));
         assertEquals(List.of("fuhito/unit-roles/" + id), Api.json(api.get(
                 "/change-log?resourceType=FUHITO_UNIT_ROLE&resourceId=" + id)).findValuesAsText("resourcePath"));
         assertTrue(Api.json(api.get("/effective-changes?from=2026-04-01")).findValuesAsText("resourceType")
                 .contains("FUHITO_UNIT_ROLE"));
-        HttpResponse<String> unitEnd = api.put("/org-units/" + ward + "/end", "{\"validTo\": \"2026-09-01\"}");
+        HttpResponse<String> unitEnd = api.putWithVersion("/org-units/" + ward + "/end", "{\"validTo\": \"2026-09-01\"}");
         assertEquals(200, unitEnd.statusCode(), unitEnd.body());
-        HttpResponse<String> divisionEnd = api.put("/org-units/" + division + "/end", "{\"validTo\": \"2026-10-01\"}");
+        HttpResponse<String> divisionEnd = api.putWithVersion("/org-units/" + division + "/end", "{\"validTo\": \"2026-10-01\"}");
         assertEquals("org_unit.has_unit_roles", Api.json(divisionEnd).get("error").asText());
 
         // The person leaves, and the role ends with the employment.
-        assertEquals(200, api.put("/employments/" + employment + "/end", "{\"validTo\": \"2026-10-01\"}").statusCode());
+        assertEquals(200, api.putWithVersion("/employments/" + employment + "/end", "{\"validTo\": \"2026-10-01\"}").statusCode());
         assertEquals("2026-10-01", Api.json(api.get("/unit-roles/" + id)).get("validTo").asText());
         assertEquals(List.of(), Api.json(api.get("/org-units/" + division + "/role-holders?asOf=2026-10-01"))
                 .findValuesAsText("id"));
 
         // An erase removes the role and its entries in the change log.
-        assertEquals(204, api.delete("/people/" + person + "/data").statusCode());
+        assertEquals(204, api.deleteWithVersion("/people/" + person + "/data").statusCode());
         assertEquals(404, api.get("/unit-roles/" + id).statusCode());
         // The user is still in Keycloak, but has no person and so no role.
         assertEquals(0, api.count("/users/" + user + "/unit-roles/count"));

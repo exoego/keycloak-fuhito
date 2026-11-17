@@ -7,9 +7,8 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
 public record HierarchyRepresentation(
         @Schema(readOnly = true)
         String id,
-        @Schema(
-                description = "The version of the hierarchy. A new hierarchy has 1. Each write counts it up by one.",
-                readOnly = true)
+        @Schema(description = "The version of the hierarchy. A new hierarchy has 1. Each write counts it up by one. "
+                + "A write of a stored hierarchy sends the version that the caller read. A create needs none.")
         Long version,
         @Schema(
                 description = "The code. It is unique in the realm and never changes. Every realm has the "
@@ -18,7 +17,7 @@ public record HierarchyRepresentation(
                 pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$")
         String code,
         @Schema(maxLength = 255)
-        String name) {
+        String name) implements Versioned {
 
     static HierarchyRepresentation of(Hierarchy hierarchy) {
         return new HierarchyRepresentation(hierarchy.id(), hierarchy.version(), hierarchy.code(), hierarchy.name());

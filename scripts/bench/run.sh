@@ -101,8 +101,10 @@ if [ "${BATCH}" = 1 ]; then
     -H 'Content-Type: application/json' \
     -d '{"name": "bench", "alias": "bench", "domains": [{"name": "bench.example.com"}]}' \
     "${BASE}/admin/realms/${REALM}/organizations" | tr -d '\r' | awk -F/ '/^[Ll]ocation:/ {print $NF}')"
+  # A write of a stored unit names the version that the caller read.
+  VERSION="$(curl -s -H "Authorization: Bearer $(token)" "${API}/org-units/u-0/history" | jq -r .version)"
   curl -s -o /dev/null -X PUT -H "Authorization: Bearer $(token)" -H 'Content-Type: application/json' \
-    -d "{\"organizationId\": \"${ORGANIZATION}\"}" "${API}/org-units/u-0/organization"
+    -d "{\"version\": ${VERSION}, \"organizationId\": \"${ORGANIZATION}\"}" "${API}/org-units/u-0/organization"
 
   # One run each. A token lasts a minute, so each call gets a new one.
   once() {

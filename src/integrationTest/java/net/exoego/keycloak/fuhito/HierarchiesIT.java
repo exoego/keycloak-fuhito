@@ -56,11 +56,11 @@ class HierarchiesIT {
         assertEquals(List.of("matrix"), Api.json(api.get("/hierarchies?first=1&max=1")).findValuesAsText("code"));
         assertEquals(2, api.count("/hierarchies/count"));
 
-        JsonNode renamed = Api.json(api.put("/hierarchies/" + id, "{\"name\": \"プロジェクト\"}"));
+        JsonNode renamed = Api.json(api.putWithVersion("/hierarchies/" + id, "{\"name\": \"プロジェクト\"}"));
         assertEquals("プロジェクト", renamed.get("name").asText());
         assertEquals("matrix", renamed.get("code").asText());
 
-        assertEquals(204, api.delete("/hierarchies/" + id).statusCode());
+        assertEquals(204, api.deleteWithVersion("/hierarchies/" + id).statusCode());
         assertEquals("hierarchy.not_found", errorOf(404, api.get("/hierarchies/" + id)));
         assertEquals(List.of("CREATE", "UPDATE", "DELETE"),
                 Api.json(api.get("/change-log?resourceType=FUHITO_HIERARCHY&resourceId=" + id)).findValuesAsText("operation"));
@@ -75,8 +75,8 @@ class HierarchiesIT {
         assertEquals(400, api.post("/hierarchies", "{\"code\": \"no name\"}").statusCode());
         assertEquals(400, api.post("/hierarchies", "{\"name\": \"no code\"}").statusCode());
         assertEquals(400, api.post("/hierarchies", "").statusCode());
-        assertEquals(404, api.put("/hierarchies/nope", "{\"name\": \"x\"}").statusCode());
-        assertEquals(404, api.delete("/hierarchies/nope").statusCode());
+        assertEquals(404, api.putWithVersion("/hierarchies/nope", "{\"name\": \"x\"}").statusCode());
+        assertEquals(404, api.deleteWithVersion("/hierarchies/nope").statusCode());
         assertEquals(401, new Api(realm.name, null).get("/hierarchies").statusCode());
     }
 
@@ -85,11 +85,11 @@ class HierarchiesIT {
         String defaultId = Api.json(api.get("/hierarchies")).get(0).get("id").asText();
         String mine = created(api.post("/hierarchies", "{\"code\": \"mine\", \"name\": \"x\"}")).get("id").asText();
 
-        assertEquals("hierarchy.default", errorOf(409, api.delete("/hierarchies/" + defaultId)));
-        assertEquals(200, api.put("/hierarchies/" + defaultId, "{\"name\": \"本務\"}").statusCode());
+        assertEquals("hierarchy.default", errorOf(409, api.deleteWithVersion("/hierarchies/" + defaultId)));
+        assertEquals(200, api.putWithVersion("/hierarchies/" + defaultId, "{\"name\": \"本務\"}").statusCode());
         assertEquals(404, otherRealm.api.get("/hierarchies/" + mine).statusCode());
-        assertEquals(404, otherRealm.api.put("/hierarchies/" + mine, "{\"name\": \"x\"}").statusCode());
-        assertEquals(404, otherRealm.api.delete("/hierarchies/" + mine).statusCode());
+        assertEquals(404, otherRealm.api.putWithVersion("/hierarchies/" + mine, "{\"name\": \"x\"}").statusCode());
+        assertEquals(404, otherRealm.api.deleteWithVersion("/hierarchies/" + mine).statusCode());
         assertFalse(Api.json(otherRealm.api.get("/hierarchies")).findValuesAsText("code").contains("mine"));
         // The same code is free in another realm.
         created(otherRealm.api.post("/hierarchies", "{\"code\": \"mine\", \"name\": \"x\"}"));

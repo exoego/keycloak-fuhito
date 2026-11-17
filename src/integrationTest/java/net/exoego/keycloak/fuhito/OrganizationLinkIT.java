@@ -61,11 +61,11 @@ class OrganizationLinkIT {
         String xHospital = unit(api, "X病院");
         String yHospital = unit(api, "Y病院");
 
-        HttpResponse<String> linked = api.put("/org-units/" + xHospital + "/organization", "{\"organizationId\": \"" + xOrganization + "\"}");
+        HttpResponse<String> linked = api.putWithVersion("/org-units/" + xHospital + "/organization", "{\"organizationId\": \"" + xOrganization + "\"}");
         assertEquals(200, linked.statusCode(), linked.body());
         assertEquals(xHospital, Api.json(linked).get("orgUnitId").asText());
         assertEquals(xOrganization, Api.json(linked).get("organizationId").asText());
-        assertEquals(200, api.put("/org-units/" + yHospital + "/organization", "{\"organizationId\": \"" + yOrganization + "\"}").statusCode());
+        assertEquals(200, api.putWithVersion("/org-units/" + yHospital + "/organization", "{\"organizationId\": \"" + yOrganization + "\"}").statusCode());
 
         JsonNode roots = Api.json(api.get("/org-units?roots=true&asOf=2026-04-01"));
         assertEquals(List.of(xOrganization, yOrganization).stream().sorted().toList(),
@@ -73,19 +73,19 @@ class OrganizationLinkIT {
         assertEquals(xOrganization, Api.json(api.get("/org-units/" + xHospital + "?asOf=2026-04-01")).get("keycloakOrganizationId").asText());
 
         // One organization has one org unit. An unknown organization is rejected.
-        assertEquals("organization.linked", errorOf(409, api.put("/org-units/" + yHospital + "/organization",
+        assertEquals("organization.linked", errorOf(409, api.putWithVersion("/org-units/" + yHospital + "/organization",
                 "{\"organizationId\": \"" + xOrganization + "\"}")));
-        assertEquals("organization.unknown", errorOf(400, api.put("/org-units/" + yHospital + "/organization",
+        assertEquals("organization.unknown", errorOf(400, api.putWithVersion("/org-units/" + yHospital + "/organization",
                 "{\"organizationId\": \"no-such-organization\"}")));
-        assertEquals("invalid.required", errorOf(400, api.put("/org-units/" + yHospital + "/organization", "{}")));
-        assertEquals("org_unit.not_found", errorOf(404, api.put("/org-units/nope/organization",
+        assertEquals("invalid.required", errorOf(400, api.putWithVersion("/org-units/" + yHospital + "/organization", "{}")));
+        assertEquals("org_unit.not_found", errorOf(404, api.putWithVersion("/org-units/nope/organization",
                 "{\"organizationId\": \"" + xOrganization + "\"}")));
 
-        HttpResponse<String> unlinked = api.delete("/org-units/" + xHospital + "/organization");
+        HttpResponse<String> unlinked = api.deleteWithVersion("/org-units/" + xHospital + "/organization");
         assertEquals(200, unlinked.statusCode(), unlinked.body());
         assertFalse(Api.json(unlinked).has("organizationId"));
         assertFalse(Api.json(api.get("/org-units/" + xHospital + "?asOf=2026-04-01")).has("keycloakOrganizationId"));
-        assertEquals(200, api.put("/org-units/" + yHospital + "/organization", "{\"organizationId\": \"" + xOrganization + "\"}").statusCode());
+        assertEquals(200, api.putWithVersion("/org-units/" + yHospital + "/organization", "{\"organizationId\": \"" + xOrganization + "\"}").statusCode());
     }
 
     @Test
@@ -95,7 +95,7 @@ class OrganizationLinkIT {
         Api api = new Api(realm, admin.tokenManager().getAccessTokenString());
         String organization = createOrganization(admin, realm, "short-lived");
         String hospital = unit(api, "X病院");
-        assertEquals(200, api.put("/org-units/" + hospital + "/organization", "{\"organizationId\": \"" + organization + "\"}").statusCode());
+        assertEquals(200, api.putWithVersion("/org-units/" + hospital + "/organization", "{\"organizationId\": \"" + organization + "\"}").statusCode());
 
         admin.realm(realm).organizations().get(organization).delete().close();
 
@@ -111,9 +111,9 @@ class OrganizationLinkIT {
         Api api = new Api(realm, admin.tokenManager().getAccessTokenString());
         String hospital = unit(api, "X病院");
 
-        assertEquals("organization.unknown", errorOf(400, api.put("/org-units/" + hospital + "/organization",
+        assertEquals("organization.unknown", errorOf(400, api.putWithVersion("/org-units/" + hospital + "/organization",
                 "{\"organizationId\": \"anything\"}")));
-        assertEquals(200, api.delete("/org-units/" + hospital + "/organization").statusCode());
-        assertEquals(401, new Api(realm, null).put("/org-units/" + hospital + "/organization", "{}").statusCode());
+        assertEquals(200, api.deleteWithVersion("/org-units/" + hospital + "/organization").statusCode());
+        assertEquals(401, new Api(realm, null).putWithVersion("/org-units/" + hospital + "/organization", "{}").statusCode());
     }
 }

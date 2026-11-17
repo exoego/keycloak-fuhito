@@ -33,12 +33,12 @@ class EffectiveChangesIT {
         hospital = id(api.post("/org-units", "{\"name\": \"病院\", \"validFrom\": \"2030-04-01\"}"));
         ward = id(api.post("/org-units", "{\"name\": \"1病棟\", \"parentId\": \"" + hospital
                 + "\", \"validFrom\": \"2030-04-01\"}"));
-        assertEquals(200, api.put("/org-units/" + ward, "{\"name\": \"東病棟\", \"validFrom\": \"2030-10-01\"}").statusCode());
+        assertEquals(200, api.putWithVersion("/org-units/" + ward, "{\"name\": \"東病棟\", \"validFrom\": \"2030-10-01\"}").statusCode());
         JsonNode added = Api.json(api.post("/staff", "{\"userId\": \"" + nurse + "\", \"orgUnitId\": \"" + ward
                 + "\", \"validFrom\": \"2030-04-01\"}"));
         employment = added.get("employment").get("id").asText();
         assignment = added.get("assignment").get("id").asText();
-        assertEquals(200, api.put("/assignments/" + assignment + "/end", "{\"validTo\": \"2031-04-01\"}").statusCode());
+        assertEquals(200, api.putWithVersion("/assignments/" + assignment + "/end", "{\"validTo\": \"2031-04-01\"}").statusCode());
         qualification = id(api.post("/qualifications", "{\"userId\": \"" + nurse
                 + "\", \"kind\": \"license\", \"validFrom\": \"2030-05-01\", \"validTo\": \"2035-05-01\"}"));
     }

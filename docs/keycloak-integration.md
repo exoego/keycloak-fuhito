@@ -93,8 +93,8 @@ The extension does not need Keycloak Organizations. A realm with Organizations t
 An org unit can be linked to a Keycloak organization.
 The link says that the unit, for example a hospital, stands for that organization.
 
-- `PUT /org-units/{id}/organization` with `{"organizationId": "..."}` sets the link.
-- `DELETE /org-units/{id}/organization` removes it.
+- `PUT /org-units/{id}/organization` with `{"version": 3, "organizationId": "..."}` sets the link.
+- `DELETE /org-units/{id}/organization?version=3` removes it.
 - One organization is linked to at most one org unit.
 - When the organization is removed in Keycloak, the link is removed too. The org unit stays.
 
@@ -253,8 +253,8 @@ The time zone matters only to decide which date it is now.
 A realm can have org units in more than one time zone, for example a branch in another country.
 Any org unit can set its own time zone, its own day start, or both.
 
-- `PUT /org-units/{id}/time-settings` with `{"timeZone": "America/New_York", "dayStart": "04:00"}` sets them.
-- A value that is left out is removed. An empty body removes both.
+- `PUT /org-units/{id}/time-settings` with `{"version": 3, "timeZone": "America/New_York", "dayStart": "04:00"}` sets them.
+- A value that is left out is removed. A body with only `version` removes both.
 - An unknown time zone gets 400 with `org_unit.time_zone_invalid`, and a bad day start gets `org_unit.day_start_invalid`.
 - `GET /org-units/{id}` shows the two values that the unit itself sets.
 
@@ -342,7 +342,6 @@ With this attribute, such a caller is limited in these ways.
 - The history of an org unit has every period, so a read of it gets 403 too.
 - The successions of an org unit leave out those after the limit.
 - An org unit shows no end of its details after the limit, because that is the date of a later change.
-- A read of one org unit sends no `ETag`. Such a caller cannot write, and an `ETag` of the whole history would tell that a later change was stored.
 - `GET /external-ids/lookup` finds no org unit that starts after the limit.
 
 A read with no `asOf` reads today. For an org unit with its own time zone, that can be the day after the date of the realm.
@@ -420,17 +419,42 @@ A write of a part of a resource counts up the version of the whole resource.
 The parts are the periods and the parents of an org unit, the terms of an employment, the periods of an assignment, and the IDs that other systems have for a resource.
 A write by another endpoint or by Keycloak counts it up too, such as an import, the attribute sync, a mask, and the removal of a user or of an organization in Keycloak.
 A restore keeps the versions of the export.
-Nothing checks the version yet. A later change will require it in the body of every write, in place of `If-Match`. See #496.
+The work location and the cost center that apply come from other org units, so they are no part of an org unit or of an assignment. A change of a unit above does not count up the version of the units and the assignments below it.
 
-A read of one resource has the header `ETag`. It is a hash of the whole stored state of the resource.
-For an org unit, it covers every period of the details and every parent, so a read of any date has the same ETag.
-The work location and the cost center that apply come from other org units, so the ETag of an org unit or of an assignment does not cover them. A change of a unit above does not change it.
+A write of a stored resource names the version that the caller read. The write goes on only when the resource still has that version.
+So a product cannot overwrite a change that another product made after its read.
 
-- A write to one resource can send that value in `If-Match`. When the resource changed since the read, the write fails with 412 and `etag.mismatch`, and nothing is written. The caller reads again and decides.
-- `If-Match: *` matches any state. A write with no `If-Match` goes on as before.
-- A write with `If-Match` locks the stored row of the resource until it ends. A second write with the same ETag at the same moment waits, sees the new state, and fails with 412. A write with no `If-Match` takes no lock.
-- A write to one resource answers with the ETag of the new state.
-- The writes are those of `PUT`, `POST`, and `DELETE` below the path of the resource, for example `PUT /employments/{id}/terms` and `POST /employments/{id}/leave`.
+- A `PUT` and a `POST` of an operation on a stored resource have `version` in the body, for example `PUT /employments/{id}/terms` and `POST /employments/{id}/leave`.
+- `POST /change-orders/{id}/announce` and `POST /people/{id}/mask` have only the version in the body, for example `{"version": 3}`.
+- A `DELETE` has it in the query, for example `DELETE /employments/{id}/end?version=3`.
+- A write with no version fails with 400 and `version.required`, and writes nothing.
+- A write with an old version fails with 409 and `version.conflict`, and writes nothing. The values of the error have the version of now in `version`. The caller reads again and decides.
+- An operation that changes several resources takes the version of the resource that its path names. For example, `POST /employments/{id}/transfer` takes the version of the employment, and also ends its assignments.
+- A step of `POST /reorganizations` that changes a stored unit has the version of that unit. Two steps of one unit name the same version, the one that the caller read. A step of a unit that an earlier step creates needs none.
+- `PUT /external-ids` of a stored ID has the version of that ID, and `DELETE /external-ids` has it in the query. A new ID needs none.
+- A create needs no version. The import, the attribute sync, the restore, and the rebuild of the projection need none either, because they load data from the system of record or from Keycloak.
+- `POST /employments/transfers` and the writes of `/users/{userId}` need no version. Their path names no resource with a version.
+- A write locks the stored row of the resource until it ends. A second write with the same version at the same moment waits, reads the new version, and fails with 409.
+- A write can also change rows of other resources, such as the reporting lines that a transfer ends. When another write changes such a row at the same moment, the later write fails with 409 and `version.conflict` too. Its error has no version, because the conflict was on another resource.
+
+For example, a product reads an employment, and changes its terms with the version that it read.
+
+```
+GET /employments/e-1
+200 {"id": "e-1", "version": 3, ...}
+
+PUT /employments/e-1/terms
+{"version": 3, "validFrom": "2026-10-01", "workPercent": 80}
+200 {"id": "e-1", "version": 4, ...}
+```
+
+A second product read the same employment before that write. Its own write with version 3 fails, and the employment keeps the terms of the first write.
+
+```
+PUT /employments/e-1/terms
+{"version": 3, "validFrom": "2026-10-01", "workPercent": 50}
+409 {"error": "version.conflict", "params": {"version": "4"}, "message": "The resource changed since it was read. ..."}
+```
 
 ### A request sent again
 

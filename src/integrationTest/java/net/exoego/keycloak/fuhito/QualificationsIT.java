@@ -55,13 +55,13 @@ class QualificationsIT {
         assertEquals(license, Api.json(api.get("/qualifications/" + id)));
 
         // The license is renewed for two more years.
-        HttpResponse<String> response = api.put("/qualifications/" + id,
+        HttpResponse<String> response = api.putWithVersion("/qualifications/" + id,
                 "{\"kind\": \"narcotics-license\", \"number\": \"第12345号\", \"validFrom\": \"2024-01-01\", \"validTo\": \"2028-01-01\"}");
         assertEquals(200, response.statusCode(), response.body());
         assertEquals("2028-01-01", Api.json(response).get("validTo").asText());
         assertEquals(0, Api.json(response).get("attributes").size());
 
-        assertEquals(204, api.delete("/qualifications/" + id).statusCode());
+        assertEquals(204, api.deleteWithVersion("/qualifications/" + id).statusCode());
         assertEquals("qualification.not_found", errorOf(404, api.get("/qualifications/" + id)));
         assertEquals(List.of("CREATE", "UPDATE", "DELETE"),
                 Api.json(api.get("/change-log?resourceType=FUHITO_QUALIFICATION&resourceId=" + id)).findValuesAsText("operation"));
@@ -81,7 +81,7 @@ class QualificationsIT {
         assertEquals(List.of("physician-license"),
                 Api.json(api.get("/users/" + physician + "/qualifications")).findValuesAsText("kind"));
         assertEquals(3, Api.json(api.get("/users/" + physician + "/qualifications?all=true")).size());
-        assertEquals("ref_item.in_use", errorOf(409, api.delete("/ref-items/" + licenseKindId)));
+        assertEquals("ref_item.in_use", errorOf(409, api.deleteWithVersion("/ref-items/" + licenseKindId)));
     }
 
     @Test
@@ -95,11 +95,11 @@ class QualificationsIT {
                 "{\"userId\": \"" + physician + "\", \"kind\": \"nope\", \"validFrom\": \"2010-05-01\"}")));
         assertEquals("invalid.required", errorOf(400, api.post("/qualifications",
                 "{\"userId\": \"" + physician + "\", \"kind\": \"physician-license\"}")));
-        assertEquals("invalid.period", errorOf(400, api.put("/qualifications/" + id,
+        assertEquals("invalid.period", errorOf(400, api.putWithVersion("/qualifications/" + id,
                 "{\"kind\": \"physician-license\", \"validFrom\": \"2010-05-01\", \"validTo\": \"2010-01-01\"}")));
         assertEquals("user.not_found", errorOf(404, api.get("/users/nobody/qualifications")));
         assertEquals("qualification.not_found", errorOf(404, otherRealm.api.get("/qualifications/" + id)));
-        assertEquals("qualification.not_found", errorOf(404, otherRealm.api.delete("/qualifications/" + id)));
+        assertEquals("qualification.not_found", errorOf(404, otherRealm.api.deleteWithVersion("/qualifications/" + id)));
         assertEquals("user.not_found", errorOf(404, otherRealm.api.get("/users/" + physician + "/qualifications")));
         assertEquals(401, new Api(realm.name, null).post("/qualifications", "{}").statusCode());
         assertEquals(401, new Api(realm.name, null).get("/users/" + physician + "/qualifications").statusCode());

@@ -24,35 +24,45 @@ class ReorganizationServiceTest {
     private final OrgUnitService orgUnits = new OrgUnitService(store, externalIds, new MemoryAssignmentStore(), refItems,
             Clock.systemUTC());
     private final ReorganizationService service = new ReorganizationService(orgUnits);
+    private final List<String> locked = new ArrayList<>();
 
     private String unit(String name, String parentId) {
         return orgUnits.create(new NewOrgUnit(null, name, null, null, null, null, null, parentId, "2026-04-01", null,
                 null, null, null)).unit().id();
     }
 
+    // A step of a stored unit names the version that the unit has now, as a caller that just read it does.
+    private Long version(String id) {
+        return id == null ? null : orgUnits.version(id);
+    }
+
     private static ReorganizationStep create(String ref, String name, String parentId, String parentRef) {
-        return new ReorganizationStep("create", ref, null, null, parentId, parentRef, null, name, null, null, null,
+        return new ReorganizationStep("create", ref, null, null, null, parentId, parentRef, null, name, null, null,
+                null, null, null, null, null, null, null, null, null);
+    }
+
+    private ReorganizationStep change(String id, String name) {
+        return new ReorganizationStep("change", null, id, null, version(id), null, null, null, name, null, null, null,
                 null, null, null, null, null, null, null, null);
     }
 
-    private static ReorganizationStep change(String id, String name) {
-        return new ReorganizationStep("change", null, id, null, null, null, null, name, null, null, null, null, null,
-                null, null, null, null, null, null);
+    private ReorganizationStep move(String id, String unitRef, String parentId, String parentRef) {
+        return new ReorganizationStep("move", null, id, unitRef, version(id), parentId, parentRef, null, null, null,
+                null, null, null, null, null, null, null, null, null, null);
     }
 
-    private static ReorganizationStep move(String id, String unitRef, String parentId, String parentRef) {
-        return new ReorganizationStep("move", null, id, unitRef, parentId, parentRef, null, null, null, null, null,
+    private ReorganizationStep end(String id) {
+        return new ReorganizationStep("end", null, id, null, version(id), null, null, null, null, null, null, null,
                 null, null, null, null, null, null, null, null);
     }
 
-    private static ReorganizationStep end(String id) {
-        return new ReorganizationStep("end", null, id, null, null, null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null);
+    private ReorganizationStep succeed(String id, List<String> successorIds, List<String> successorRefs) {
+        return new ReorganizationStep("succeed", null, id, null, version(id), null, null, null, null, null, null,
+                null, null, null, null, null, null, null, successorIds, successorRefs);
     }
 
-    private static ReorganizationStep succeed(String id, List<String> successorIds, List<String> successorRefs) {
-        return new ReorganizationStep("succeed", null, id, null, null, null, null, null, null, null, null, null, null,
-                null, null, null, null, successorIds, successorRefs);
+    private List<ReorganizationService.Result> apply(String date, List<ReorganizationStep> steps) {
+        return service.apply(date, steps, locked::add);
     }
 
     private List<String> predecessorsOf(String id) {
@@ -71,7 +81,7 @@ class ReorganizationServiceTest {
     }
 
     private FuhitoException failure(String date, List<ReorganizationStep> steps) {
-        return assertThrows(FuhitoException.class, () -> service.apply(date, steps));
+        return assertThrows(FuhitoException.class, () -> apply(date, steps));
     }
 
     @Test
@@ -81,7 +91,7 @@ class ReorganizationServiceTest {
         String surgery = unit("Surgery", hospital);
         String oldOffice = unit("Old Office", hospital);
 
-        List<ReorganizationService.Result> results = service.apply("2027-04-01", List.of(
+        List<ReorganizationService.Result> results = apply("2027-04-01", List.of(
                 change(hospital, "General Hospital"),
                 create("clinical", "Clinical Division", hospital, null),
                 move(medicine, null, null, "clinical"),
@@ -107,11 +117,11 @@ class ReorganizationServiceTest {
         refItems.insert(new RefItem("cc", RefKind.COST_CENTER, "cc", "CC", Map.of(), 0, Map.of(), true));
         String hospital = unit("Hospital", null);
 
-        List<ReorganizationService.Result> results = service.apply("2027-04-01", List.of(
-                new ReorganizationStep("change", null, hospital, null, null, null, null, "Hospital", null, null,
-                        null, null, null, "tokyo", null, null, null, null, null),
-                new ReorganizationStep("create", null, null, null, hospital, null, null, "Ward", null, null, null,
-                        null, null, null, "cc", null, null, null, null)));
+        List<ReorganizationService.Result> results = apply("2027-04-01", List.of(
+                new ReorganizationStep("change", null, hospital, null, version(hospital), null, null, null,
+                        "Hospital", null, null, null, null, null, "tokyo", null, null, null, null, null),
+                new ReorganizationStep("create", null, null, null, null, hospital, null, null, "Ward", null, null,
+                        null, null, null, null, "cc", null, null, null, null)));
 
         LocationAndCost ward = results.get(1).unit().places();
         assertEquals("tokyo", results.getFirst().unit().places().workLocation());
@@ -129,7 +139,7 @@ class ReorganizationServiceTest {
         String c = unit("Ward C", hospital);
         String office = unit("Old Office", hospital);
 
-        List<ReorganizationService.Result> results = service.apply("2027-04-01", List.of(
+        List<ReorganizationService.Result> results = apply("2027-04-01", List.of(
                 create("ab", "Ward AB", hospital, null),
                 succeed(a, null, List.of("ab")),
                 succeed(b, null, List.of("ab")),
@@ -184,11 +194,35 @@ class ReorganizationServiceTest {
     void aStepCanMoveAUnitThatAnEarlierStepCreated() {
         String a = unit("A", null);
 
-        service.apply("2027-04-01", List.of(create("b", "B", null, null), move(null, "b", a, null),
-                new ReorganizationStep("change", null, null, "b", null, null, null, "B2", null, null, null, null,
-                        null, null, null, null, null, null, null)));
+        apply("2027-04-01", List.of(create("b", "B", null, null), move(null, "b", a, null),
+                new ReorganizationStep("change", null, null, "b", null, null, null, null, "B2", null, null, null,
+                        null, null, null, null, null, null, null, null)));
 
         assertEquals(List.of("A", "B2 < A"), tree("2027-04-01"));
+    }
+
+    @Test
+    void aStepOfAStoredUnitNamesTheVersionThatTheCallerRead() {
+        String a = unit("A", null);
+        String b = unit("B", null);
+        long current = orgUnits.version(a);
+
+        // Every step of one unit names the version of before the request.
+        apply("2027-04-01", List.of(change(a, "A2"), move(a, null, b, null)));
+
+        assertEquals(List.of(a, a), locked);
+        assertEquals(List.of("B", "A2 < B"), tree("2027-04-01"));
+        FuhitoException none = failure("2028-04-01", List.of(change(b, "B2"), new ReorganizationStep("end", null, a,
+                null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null)));
+        assertEquals(FuhitoException.Reason.INVALID, none.reason());
+        assertEquals("version.required", none.code());
+        assertEquals(Map.of("step", "1"), none.params());
+        FuhitoException old = failure("2028-04-01", List.of(new ReorganizationStep("end", null, a, null, current - 1,
+                null, null, null, null, null, null, null, null, null, null, null, null, null, null, null)));
+        assertEquals(FuhitoException.Reason.CONFLICT, old.reason());
+        assertEquals(Map.of("version", Long.toString(current), "step", "0"), old.params());
+        // The check comes before every step, so the change of the first step was not written.
+        assertEquals(List.of("B", "A2 < B"), tree("2028-04-01"));
     }
 
     @Test
@@ -217,11 +251,11 @@ class ReorganizationServiceTest {
         assertNull(empty.params().get("step"));
 
         FuhitoException noOp = failure("2027-04-01", List.of(new ReorganizationStep(null, null, a, null, null, null,
-                null, null, null, null, null, null, null, null, null, null, null, null, null)));
+                null, null, null, null, null, null, null, null, null, null, null, null, null, null)));
         assertEquals("invalid.required", noOp.code());
         assertEquals(Map.of("field", "op", "step", "0"), noOp.params());
         FuhitoException badOp = failure("2027-04-01", List.of(new ReorganizationStep("merge", null, a, null, null,
-                null, null, null, null, null, null, null, null, null, null, null, null, null, null)));
+                null, null, null, null, null, null, null, null, null, null, null, null, null, null, null)));
         assertEquals("invalid.choice", badOp.code());
         assertEquals(Map.of("field", "op", "value", "merge", "step", "0"), badOp.params());
         List<ReorganizationStep> withNull = new ArrayList<>();
