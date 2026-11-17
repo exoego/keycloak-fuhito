@@ -129,6 +129,27 @@ Measured with 50,001 org units and 500,000 people.
 
 With the cursor, a late page of the members costs as much as the first page. It does not get cheaper than that, because every page still walks the tree below the org unit.
 
+## The filter by work location and cost center
+
+`GET /org-units/{id}/members` takes `workLocation` and `costCenter`. The value that applies to a member is the one of the assignment, else of its org unit, else of the nearest unit above in the default hierarchy.
+Three ways to find it in the database were measured on the realm of the first table, with the work locations and cost centers that `scripts/bench/seed.sql` gives it. The company has a work location that applies almost everywhere.
+Run on 2026-11-17 on top of commit `ec5cc41`, on the same machine. Each number is the best of seven requests, in ms.
+
+| Read | No filter | Down from the units with the value | Up from each unit of the read | Down the subtree with the values |
+|---|---|---|---|---|
+| Members of a team, by the work location of the company | 12 | 105 | 16 | 15 |
+| Members below a division, 1,000 people, by the work location of the company | 68 | 163 | 74 | 60 |
+| Members below the company, first page, by the work location of the company | 123 | 215 | 409 | 116 |
+| Members below the company, first page, by the work location of one division | 123 | 107 | 412 | 107 |
+
+- The first way starts at the units that have the value, and walks down into the children with no value of their own. It walks every unit where the value applies, also for a read of one team.
+- The second walks up from each unit of the read until a unit has a value. For the whole company that is about three steps for each of its 5,000 units.
+- The third gives each unit the values of its parent while it walks down the subtree. That is right only in the default hierarchy, because the values come down that one.
+
+The extension uses the third for a read below a unit in the default hierarchy. A read of one unit walks up from that unit.
+A read below a unit in another hierarchy uses the second, because the parents there are not the ones that give the values. A project with 100 teams below it took 63 ms with the filter and 66 ms without. A copy of the whole tree as another hierarchy took 434 ms for the first page, against 123 ms without the filter.
+No way looks up an org unit by its work location or its cost center, so these columns have no index.
+
 ## The projection into Keycloak
 
 `BATCH=1 SYNC=0 scripts/bench/run.sh` also makes one Keycloak user for each person, links the company to one Keycloak organization, and runs `POST /projection/rebuild` twice.

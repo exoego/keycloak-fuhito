@@ -113,6 +113,97 @@ class WorkLocationsIT {
                 + "\"workLocation\": \"cc-hq\", \"validFrom\": \"2024-04-01\"}")));
     }
 
+    private static String assign(String user, String orgUnitId, String more) throws Exception {
+        String employment = ok(api.post("/employments", "{\"userId\": \"" + realm.user(user)
+                + "\", \"validFrom\": \"2020-04-01\"}")).get("id").asText();
+        return ok(api.post("/assignments", "{\"employmentId\": \"" + employment + "\", \"orgUnitId\": \""
+                + orgUnitId + "\", \"validFrom\": \"2020-04-01\", \"primary\": true" + more + "}")).get("id")
+                .asText();
+    }
+
+    private static List<String> members(String orgUnitId, String query) throws Exception {
+        return get("/org-units/" + orgUnitId + "/members?" + query).findValuesAsText("assignmentId");
+    }
+
+    @Test
+    void theMembersAreKeptByTheValuesThatApplyOnTheDate() throws Exception {
+        // The head office moves from Tokyo to Osaka in 2021. The sales division has its own cost center.
+        String office = unit("本部", null, ", \"workLocation\": \"tokyo\", \"costCenter\": \"cc-hq\"");
+        String sales = unit("営業本部", office, ", \"costCenter\": \"cc-sales\"");
+        String branch = unit("名古屋営業所", sales, ", \"workLocation\": \"nagoya\", \"displayOrder\": 1");
+        String team = unit("営業課", sales, ", \"displayOrder\": 2");
+        ok(api.put("/org-units/" + office, "{\"name\": \"本部\", \"workLocation\": \"osaka\", "
+                + "\"costCenter\": \"cc-hq\", \"validFrom\": \"2021-04-01\"}"));
+        String atTop = assign("at-top", office, ", \"displayOrder\": 0");
+        String inTeam = assign("in-team", team, ", \"displayOrder\": 1");
+        String atHome = assign("at-home", team, ", \"displayOrder\": 2, \"workLocation\": \"home\"");
+        String ownTokyo = assign("own-tokyo", team, ", \"displayOrder\": 3, \"workLocation\": \"tokyo\"");
+        String ownCostCenter = assign("own-cost-center", branch, ", \"costCenter\": \"cc-hq\"");
+        String below = "includeDescendants=true&asOf=2020-04-01&";
+
+        // The value of the unit, of a unit above, or of the assignment itself.
+        assertEquals(List.of(atTop, inTeam, ownTokyo), members(office, below + "workLocation=tokyo"));
+        assertEquals(List.of(ownCostCenter), members(office, below + "workLocation=nagoya"));
+        assertEquals(List.of(atHome), members(office, below + "workLocation=home"));
+        // The cost center of the assignment wins over the one of the branch.
+        assertEquals(List.of(inTeam, atHome, ownTokyo), members(office, below + "costCenter=cc-sales"));
+        assertEquals(List.of(atTop, ownCostCenter), members(office, below + "costCenter=cc-hq"));
+        assertEquals(List.of(inTeam, ownTokyo), members(office, below + "workLocation=tokyo&costCenter=cc-sales"));
+        assertEquals(List.of(inTeam, ownTokyo), members(team, "asOf=2020-04-01&workLocation=tokyo"));
+        assertEquals(List.of(), members(sales, "asOf=2020-04-01&costCenter=cc-sales"));
+        // The units are outside the legal entity that employs these people, so all of them are seconded.
+        assertEquals(List.of(atTop, inTeam, ownTokyo), members(office, below + "workLocation=tokyo&seconded=true"));
+        assertEquals(List.of(), members(office, below + "workLocation=tokyo&seconded=false"));
+        assertEquals(List.of(inTeam, ownTokyo), members(team, "asOf=2020-04-01&workLocation=tokyo&seconded=true"));
+        // The values of the units are dated.
+        String later = "includeDescendants=true&asOf=2021-04-01&";
+        assertEquals(List.of(ownTokyo), members(office, later + "workLocation=tokyo"));
+        assertEquals(List.of(atTop, inTeam), members(office, later + "workLocation=osaka"));
+        assertEquals(List.of(atTop), members(office, "asOf=2021-04-01&workLocation=osaka"));
+
+        // Each member has the values of the assignment and the ones that apply.
+        assertEquals(List.of(atTop, ownCostCenter, inTeam, atHome, ownTokyo), members(office, below));
+        assertEquals(List.of("null null tokyo cc-hq", "null cc-hq nagoya cc-hq", "null null tokyo cc-sales",
+                "home null home cc-sales", "tokyo null tokyo cc-sales"),
+                each(get("/org-units/" + office + "/members?" + below)));
+        // The other reads in the shape of members have them too.
+        assertEquals(List.of("null cc-hq nagoya cc-hq"), each(get("/assignments?orgUnitId=" + branch
+                + "&asOf=2020-04-01")));
+        String userId = get("/assignments/" + atHome).get("userId").asText();
+        assertEquals(List.of("home null home cc-sales"),
+                each(get("/users/" + userId + "/assignments?asOf=2021-04-01")));
+
+        // The filter applies before the page and the count, also when the Link header leads to the next page.
+        HttpResponse<String> page = api.get("/org-units/" + office + "/members?" + below
+                + "costCenter=cc-sales&max=2&count=true");
+        assertEquals(List.of(inTeam, atHome), ok(page).findValuesAsText("assignmentId"));
+        assertEquals("3", page.headers().firstValue("X-Total-Count").orElseThrow());
+        String link = page.headers().firstValue("Link").orElseThrow();
+        String prefix = "/admin/realms/" + realm.name + "/fuhito";
+        HttpResponse<String> next = api.get(link.substring(link.indexOf(prefix) + prefix.length(), link.indexOf('>')));
+        assertEquals(List.of(ownTokyo), ok(next).findValuesAsText("assignmentId"));
+        assertEquals(List.of(ownTokyo), members(office, below + "costCenter=cc-sales&first=2&max=2"));
+        assertEquals("1", api.get("/org-units/" + office + "/members?" + below
+                + "workLocation=home&costCenter=cc-sales&count=true").headers().firstValue("X-Total-Count")
+                .orElseThrow());
+
+        // In another hierarchy, the team is below a project. Its values still come from the default hierarchy.
+        ok(api.post("/hierarchies", "{\"code\": \"project\", \"name\": \"プロジェクト\"}"));
+        String project = unit("新製品プロジェクト", null, ", \"workLocation\": \"osaka\"");
+        String inProject = assign("in-project", project, "");
+        ok(api.put("/org-units/" + team + "/parent?hierarchy=project", "{\"parentId\": \"" + project
+                + "\", \"validFrom\": \"2020-04-01\"}"));
+        String inProjectTree = "hierarchy=project&" + below;
+        assertEquals(List.of(inProject, inTeam, atHome, ownTokyo), members(project, inProjectTree));
+        assertEquals(List.of(inTeam, ownTokyo), members(project, inProjectTree + "workLocation=tokyo"));
+        assertEquals(List.of(inProject), members(project, inProjectTree + "workLocation=osaka"));
+        assertEquals(List.of(inTeam, atHome, ownTokyo), members(project, inProjectTree + "costCenter=cc-sales"));
+
+        assertEquals("ref_item.unknown", errorOf(api.get("/org-units/" + office + "/members?workLocation=nope")));
+        // A code of the other kind is unknown too.
+        assertEquals("ref_item.unknown", errorOf(api.get("/org-units/" + office + "/members?costCenter=tokyo")));
+    }
+
     @Test
     void anAssignmentTakesTheValuesOfItsUnitUnlessItHasItsOwn() throws Exception {
         String company = unit("本社", null, ", \"workLocation\": \"tokyo\", \"costCenter\": \"cc-hq\"");

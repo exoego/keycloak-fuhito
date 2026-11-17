@@ -123,11 +123,15 @@ public class MembershipService {
             throw FuhitoException.notFound("org_unit.not_valid_on",
                     Map.of("id", orgUnitId, "date", date.toString()));
         }
+        String workLocationId = filterId(RefKind.WORK_LOCATION, query.workLocation());
+        String costCenterId = filterId(RefKind.COST_CENTER, query.costCenter());
         return new MemberFilter(hierarchy, orgUnitId, query.includeDescendants(), date,
                 filterId(RefKind.OCCUPATION, query.occupation()), filterId(RefKind.JOB_TITLE, query.jobTitle()),
                 Checks.optionalEnum("status", EmploymentStatus.class, query.status(), null),
                 query.seconded() == null ? null
-                        : new MemberFilter.Seconded(query.seconded(), orgUnits.defaultHierarchyId()));
+                        : new MemberFilter.Seconded(query.seconded(), orgUnits.defaultHierarchyId()),
+                workLocationId == null && costCenterId == null ? null
+                        : new MemberFilter.Places(workLocationId, costCenterId, orgUnits.defaultHierarchyId()));
     }
 
     /**
@@ -245,17 +249,21 @@ public class MembershipService {
         // A person works outside the employer when the employer is not on the way up from the org unit.
         Map<String, Set<String>> above = orgUnits.ancestorsOn(orgUnits.defaultHierarchyId(),
                 rows.stream().map(Assignment::orgUnitId).distinct().toList(), date);
-        Map<String, String> codes = new HashMap<>();
+        Function<String, String> code = UnitPlaces.codes(refItems);
+        // The rows hold on the date, so this is one read of the units for all of them.
+        List<LocationAndCost> places = UnitPlaces.ofRows(rows, date, orgUnits, code);
         List<Member> members = new ArrayList<>();
-        for (Assignment row : rows) {
+        for (int i = 0; i < rows.size(); i++) {
+            Assignment row = rows.get(i);
             EmploymentTerms terms = termsByEmployment.get(row.employmentId());
             Employment employment = employmentsById.get(row.employmentId());
             boolean seconded = employment.employerId() != null
                     && !above.getOrDefault(row.orgUnitId(), Set.of()).contains(employment.employerId());
             members.add(new Member(row, employment, terms,
-                    codeOf(codes, row.jobTitleId()), codeOf(codes, row.occupationId()), codeOf(codes, row.kindId()),
-                    codeOf(codes, terms.employmentTypeId()), codeOf(codes, terms.gradeId()),
-                    unitOf.apply(row.orgUnitId()), pathOf == null ? null : pathOf.apply(row.orgUnitId()), seconded));
+                    code.apply(row.jobTitleId()), code.apply(row.occupationId()), code.apply(row.kindId()),
+                    code.apply(terms.employmentTypeId()), code.apply(terms.gradeId()),
+                    unitOf.apply(row.orgUnitId()), pathOf == null ? null : pathOf.apply(row.orgUnitId()), seconded,
+                    places.get(i)));
         }
         return members;
     }
@@ -273,14 +281,6 @@ public class MembershipService {
             throw FuhitoException.invalid("invalid.cursor",
                     Map.of("field", "after", "format", Cursor.MEMBERS.name())).causedBy(e);
         }
-    }
-
-    private String codeOf(Map<String, String> cache, String refItemId) {
-        if (refItemId == null) {
-            return null;
-        }
-        return cache.computeIfAbsent(refItemId, id -> refItems.find(id).map(RefItem::code).orElse(""))
-                .transform(code -> code.isEmpty() ? null : code);
     }
 
     // A filter may name an item that is no longer active, because old rows may still use it.

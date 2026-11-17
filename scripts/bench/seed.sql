@@ -34,6 +34,24 @@ INSERT INTO fuhito_org_unit_link (id, realm_id, hierarchy_id, child_id, parent_i
 SELECT 'l-' || n, :'realm', h.id, u.id, u.parent, DATE '2020-04-01', NULL
 FROM bench_unit u JOIN fuhito_hierarchy h ON h.realm_id = :'realm' AND h.code = 'default' WHERE u.parent IS NOT NULL;
 
+-- The company is at site 0 with cost center 0. Each division has a cost center, and one division in five a site of
+-- its own. One team in ten is at site 3.
+INSERT INTO fuhito_ref_item (id, realm_id, kind, code, name, names_i18n, display_order, attributes, active, legal_entity)
+SELECT 'bench-wl-' || n, :'realm', 'WORK_LOCATION', 'site-' || n, 'Site ' || n, '{}', 0, '{}', true, false
+FROM generate_series(0, 10) n;
+INSERT INTO fuhito_ref_item (id, realm_id, kind, code, name, names_i18n, display_order, attributes, active, legal_entity)
+VALUES ('bench-home', :'realm', 'WORK_LOCATION', 'home', 'Home', '{}', 0, '{}', true, false);
+INSERT INTO fuhito_ref_item (id, realm_id, kind, code, name, names_i18n, display_order, attributes, active, legal_entity)
+SELECT 'bench-cc-' || n, :'realm', 'COST_CENTER', 'cc-' || n, 'Cost center ' || n, '{}', 0, '{}', true, false
+FROM generate_series(0, 50) n;
+UPDATE fuhito_org_unit_version v SET work_location_id = 'bench-wl-0', cost_center_id = 'bench-cc-0' FROM bench_unit u
+WHERE v.realm_id = :'realm' AND v.org_unit_id = u.id AND u.n = 0;
+UPDATE fuhito_org_unit_version v SET cost_center_id = 'bench-cc-' || u.n,
+  work_location_id = CASE WHEN u.n % 5 = 0 THEN 'bench-wl-' || (u.n / 5) END
+FROM bench_unit u WHERE v.realm_id = :'realm' AND v.org_unit_id = u.id AND u.n BETWEEN 1 AND 50;
+UPDATE fuhito_org_unit_version v SET work_location_id = 'bench-wl-3' FROM bench_unit u
+WHERE v.realm_id = :'realm' AND v.org_unit_id = u.id AND u.n > 550 AND u.n % 10 = 3;
+
 INSERT INTO fuhito_person (id, realm_id, name, names_i18n, attributes)
 SELECT 'p-' || n, :'realm', 'Person ' || n, '{}', '{}' FROM generate_series(0, :people - 1) n;
 INSERT INTO fuhito_employment (id, realm_id, valid_from, staff_number, person_id, employer_id)
@@ -52,6 +70,8 @@ INSERT INTO fuhito_assignment (id, realm_id, assignment_id, employment_id, org_u
 SELECT 'b-' || n, :'realm', 'b-' || n, 'e-' || n, 'u-' || ((n * 7) % (:units + 1)), DATE '2020-04-01', DATE '2024-04-01',
        'bench-nurse', false, true, 0, '{}'
 FROM generate_series(0, :people - 1) n WHERE n % 10 < 3;
+-- One person in ten works from home.
+UPDATE fuhito_assignment SET work_location_id = 'bench-home' WHERE realm_id = :'realm' AND id LIKE 'a-%7';
 
 INSERT INTO fuhito_change_log (id, realm_id, recorded_at, resource_type, resource_id, operation, resource_path, representation, sequence_number)
 SELECT 'c-' || n, :'realm', TIMESTAMP '2020-04-01' + n * INTERVAL '10 minutes', 'FUHITO_ASSIGNMENT', 'a-' || (n % :people),

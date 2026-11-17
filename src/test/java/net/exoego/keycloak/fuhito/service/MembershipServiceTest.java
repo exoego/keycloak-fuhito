@@ -55,7 +55,9 @@ class MembershipServiceTest {
         assignmentStore.employments = employmentStore;
         for (String[] item : new String[][] {{"OCCUPATION", "physician"}, {"OCCUPATION", "nurse"},
                 {"JOB_TITLE", "director"}, {"EMPLOYMENT_TYPE", "part-time"}, {"GRADE", "g2"},
-                {"ASSIGNMENT_KIND", "regular"}}) {
+                {"ASSIGNMENT_KIND", "regular"}, {"WORK_LOCATION", "tokyo"}, {"WORK_LOCATION", "osaka"},
+                {"WORK_LOCATION", "nagoya"}, {"WORK_LOCATION", "home"}, {"COST_CENTER", "cc-hq"},
+                {"COST_CENTER", "cc-sales"}}) {
             refItems.insert(new RefItem(item[0] + "-" + item[1], RefKind.valueOf(item[0]), item[1], item[1], Map.of(),
                     0, Map.of(), true));
         }
@@ -116,7 +118,8 @@ class MembershipServiceTest {
     }
 
     private static MemberQuery seconded(boolean wanted, boolean includeDescendants) {
-        return new MemberQuery("2026-04-01", includeDescendants, null, null, null, null, null, null, null, wanted);
+        return new MemberQuery("2026-04-01", includeDescendants, null, null, null, null, null, null, null, wanted, null,
+                null);
     }
 
     @Test
@@ -135,22 +138,27 @@ class MembershipServiceTest {
                 second.period().from().toString(), second.assignmentId());
 
         assertEquals(List.of("clerk", "nurse"), userIds(service.members(hospital,
-                new MemberQuery("2026-04-01", true, null, null, null, null, null, null, afterFirst, null))));
+                new MemberQuery("2026-04-01", true, null, null, null, null, null, null, afterFirst, null, null,
+                        null))));
         assertEquals(List.of("nurse"), userIds(service.members(hospital,
-                new MemberQuery("2026-04-01", true, null, null, null, null, 5, null, afterSecond, null))));
+                new MemberQuery("2026-04-01", true, null, null, null, null, 5, null, afterSecond, null, null,
+                        null))));
         // In one org unit, the cursor uses the display order and what comes after it.
         assertEquals(List.of("nurse"), userIds(service.members(ward,
-                new MemberQuery("2026-04-01", false, null, null, null, null, null, null, afterSecond, null))));
+                new MemberQuery("2026-04-01", false, null, null, null, null, null, null, afterSecond, null, null,
+                        null))));
 
         assertEquals("invalid.cursor_with_first", assertThrows(FuhitoException.class, () -> service.members(hospital,
-                new MemberQuery("2026-04-01", true, null, null, null, 1, null, null, afterFirst, null))).code());
+                new MemberQuery("2026-04-01", true, null, null, null, 1, null, null, afterFirst, null, null, null)))
+                .code());
         for (String bad : List.of(Cursor.encode(Cursor.MEMBERS, "one"),
                 Cursor.encode(Cursor.MEMBERS, "u", "x", "2026-04-01", "a"),
                 Cursor.encode(Cursor.MEMBERS, "u", "1", "soon", "a"),
                 // A cursor of the list of people does not fit this list.
                 Cursor.encode(Cursor.PEOPLE, "p"))) {
             assertEquals("invalid.cursor", assertThrows(FuhitoException.class, () -> service.members(hospital,
-                    new MemberQuery("2026-04-01", true, null, null, null, null, null, null, bad, null))).code());
+                    new MemberQuery("2026-04-01", true, null, null, null, null, null, null, bad, null, null, null)))
+                    .code());
         }
     }
 
@@ -358,6 +366,110 @@ class MembershipServiceTest {
         assertEquals(List.of(), service.historyOf("idle", employments, assignments).employments());
         assertEquals("user.not_found", assertThrows(FuhitoException.class,
                 () -> service.historyOf("nope", employments, assignments)).code());
+    }
+
+    @Test
+    void keepsTheMembersByTheWorkLocationAndTheCostCenterThatApply() {
+        // The company moves from Tokyo to Osaka in October. The sales division has its own cost center.
+        String company = placedUnit("Company", null, "tokyo", "cc-hq");
+        String sales = placedUnit("Sales", company, null, "cc-sales");
+        String branch = placedUnit("Branch", sales, "nagoya", null);
+        String team = placedUnit("Team", sales, null, null);
+        orgUnits.changeDetails(company, new OrgUnitChange("2026-10-01", null, "Company", null, null, null, null, null,
+                "osaka", "cc-hq", null, null));
+        String idleEmployment = employ("idle", null, null, null);
+        String atTop = assignAt(doctorEmployment, company, null, null, false, 0);
+        String inTeam = assignAt(doctorEmployment, team, null, null, true, 1);
+        String atHome = assignAt(nurseEmployment, team, "home", null, true, 2);
+        String ownTokyo = assignAt(idleEmployment, team, "tokyo", null, true, 3);
+        String ownCostCenter = assignAt(clerkEmployment, branch, null, "cc-hq", true, 0);
+
+        // The value of the unit, of a unit above, or of the assignment itself.
+        assertEquals(List.of(atTop, inTeam, ownTokyo), placed(company, "2026-04-01", "tokyo", null));
+        assertEquals(List.of(ownCostCenter), placed(company, "2026-04-01", "nagoya", null));
+        assertEquals(List.of(atHome), placed(company, "2026-04-01", "home", null));
+        // The cost center of the assignment wins over the one of the branch.
+        assertEquals(List.of(inTeam, atHome, ownTokyo), placed(company, "2026-04-01", null, "cc-sales"));
+        assertEquals(List.of(atTop, ownCostCenter), placed(company, "2026-04-01", null, "cc-hq"));
+        assertEquals(List.of(inTeam, ownTokyo), placed(company, "2026-04-01", "tokyo", "cc-sales"));
+        // The values of the units are dated.
+        assertEquals(List.of(ownTokyo), placed(company, "2026-10-01", "tokyo", null));
+        assertEquals(List.of(atTop, inTeam), placed(company, "2026-10-01", "osaka", null));
+        assertEquals(List.of(inTeam, ownTokyo), assignmentIds(service.members(team,
+                places("2026-04-01", false, "tokyo", null, null, null))));
+
+        // The filter applies before the page and the count.
+        assertEquals(List.of(inTeam, atHome), assignmentIds(service.members(company,
+                places("2026-04-01", true, null, "cc-sales", null, 2))));
+        assertEquals(List.of(ownTokyo), assignmentIds(service.members(company,
+                places("2026-04-01", true, null, "cc-sales", 2, 2))));
+        assertEquals(3, service.countMembers(company, places("2026-04-01", true, null, "cc-sales", 2, 2)));
+        assertEquals(1, service.countMembers(company, places("2026-04-01", true, "home", "cc-sales", null, null)));
+
+        // In another hierarchy, the team is below a project. Its values still come from the default hierarchy.
+        orgUnitStore.hierarchyCodes.put("matrix-id", "matrix");
+        String project = placedUnit("Project", null, "osaka", null);
+        String inProject = assignAt(clerkEmployment, project, null, null, false, 0);
+        orgUnits.move(team, project, "2026-04-01", "matrix");
+        assertEquals(List.of(inTeam, ownTokyo), assignmentIds(service.members(project, new MemberQuery("2026-04-01",
+                true, null, null, null, null, null, "matrix", null, null, "tokyo", null))));
+        assertEquals(List.of(inProject), assignmentIds(service.members(project, new MemberQuery("2026-04-01", true,
+                null, null, null, null, null, "matrix", null, null, "osaka", null))));
+
+        FuhitoException unknown = assertThrows(FuhitoException.class, () -> service.members(company,
+                places("2026-04-01", true, "nope", null, null, null)));
+        assertEquals("ref_item.unknown", unknown.code());
+        assertEquals(Map.of("kind", "WORK_LOCATION", "code", "nope"), unknown.params());
+        // A code of another kind is unknown too.
+        assertEquals(Map.of("kind", "COST_CENTER", "code", "tokyo"), assertThrows(FuhitoException.class,
+                () -> service.countMembers(company, places("2026-04-01", true, null, "tokyo", null, null))).params());
+    }
+
+    @Test
+    void eachMemberHasItsOwnValuesAndTheOnesThatApply() {
+        String company = placedUnit("Company", null, "tokyo", "cc-hq");
+        String sales = placedUnit("Sales", company, null, "cc-sales");
+        assignAt(doctorEmployment, company, null, null, true, 0);
+        assignAt(nurseEmployment, sales, "home", null, true, 1);
+        assignAt(clerkEmployment, ward, null, null, true, 0);
+
+        int reads = orgUnitStore.defaultsReads;
+        List<Member> members = service.members(company, below("2026-04-01"));
+
+        // One read of the units for the whole page.
+        assertEquals(1, orgUnitStore.defaultsReads - reads);
+        assertEquals(List.of(new LocationAndCost(null, null, "tokyo", "cc-hq"),
+                new LocationAndCost("home", null, "home", "cc-sales")), members.stream().map(Member::places).toList());
+        assertEquals(new LocationAndCost("home", null, "home", "cc-sales"),
+                service.assignmentsOf("nurse", "2026-04-01", true).getFirst().places());
+        // A unit with no values above it gives none.
+        assertEquals(LocationAndCost.NONE, service.members(ward, on("2026-04-01")).getFirst().places());
+    }
+
+    private String placedUnit(String name, String parentId, String workLocation, String costCenter) {
+        return orgUnits.create(new NewOrgUnit(null, name, null, null, null, null, null, workLocation, costCenter,
+                parentId, "2026-04-01", null, null, null, null)).unit().id();
+    }
+
+    private String assignAt(String employmentId, String orgUnitId, String workLocation, String costCenter,
+            boolean primary, int displayOrder) {
+        return assignments.add(new AssignmentValues(employmentId, orgUnitId, "2026-04-01", null, null, null,
+                "regular", workLocation, costCenter, false, primary, null, null, displayOrder, null, null, null))
+                .assignmentId();
+    }
+
+    private static MemberQuery places(String asOf, boolean includeDescendants, String workLocation, String costCenter,
+            Integer first, Integer max) {
+        return new MemberQuery(asOf, includeDescendants, null, null, null, first, max, null, null, null, workLocation,
+                costCenter);
+    }
+
+    private List<String> placed(String orgUnitId, String asOf, String workLocation, String costCenter) {
+        return assignmentIds(service.members(orgUnitId, places(asOf, true, workLocation, costCenter, null, null)));
+    }
+
+    private static List<String> assignmentIds(List<Member> members) {
+        return members.stream().map(member -> member.assignment().assignmentId()).toList();
     }
 
     @Test

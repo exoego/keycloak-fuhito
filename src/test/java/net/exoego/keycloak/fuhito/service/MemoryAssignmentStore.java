@@ -11,6 +11,7 @@ import java.util.Optional;
 import net.exoego.keycloak.fuhito.domain.Assignment;
 import net.exoego.keycloak.fuhito.domain.MemberCursor;
 import net.exoego.keycloak.fuhito.domain.MemberFilter;
+import net.exoego.keycloak.fuhito.domain.UnitDefaults;
 import net.exoego.keycloak.fuhito.domain.ValidPeriod;
 import net.exoego.keycloak.fuhito.store.AssignmentStore;
 
@@ -46,6 +47,7 @@ final class MemoryAssignmentStore implements AssignmentStore {
                         || employments.termsOn(List.of(row.employmentId()), filter.date()).stream()
                                 .anyMatch(terms -> terms.status() == filter.status()))
                 .filter(row -> filter.seconded() == null || filter.seconded().wanted() == seconded(row, filter))
+                .filter(row -> filter.places() == null || placed(row, filter))
                 .sorted(order)
                 .filter(row -> after == null || order.compare(row, new Assignment(null, after.assignmentId(), null,
                         after.orgUnitId(), ValidPeriod.startingAt(after.validFrom()), null, null, null, null, null,
@@ -59,6 +61,16 @@ final class MemoryAssignmentStore implements AssignmentStore {
         String employerId = employments.findAll(List.of(row.employmentId())).getFirst().employerId();
         return employerId != null && !orgUnits.ancestorsOn(filter.seconded().hierarchyId(),
                 List.of(row.orgUnitId()), filter.date()).get(row.orgUnitId()).contains(employerId);
+    }
+
+    private boolean placed(Assignment row, MemberFilter filter) {
+        UnitDefaults unit = orgUnits.defaultsOn(List.of(row.orgUnitId()), filter.date())
+                .getOrDefault(row.orgUnitId(), UnitDefaults.NONE);
+        String workLocationId = row.workLocationId() == null ? unit.workLocationId() : row.workLocationId();
+        String costCenterId = row.costCenterId() == null ? unit.costCenterId() : row.costCenterId();
+        MemberFilter.Places wanted = filter.places();
+        return (wanted.workLocationId() == null || wanted.workLocationId().equals(workLocationId))
+                && (wanted.costCenterId() == null || wanted.costCenterId().equals(costCenterId));
     }
 
     @Override

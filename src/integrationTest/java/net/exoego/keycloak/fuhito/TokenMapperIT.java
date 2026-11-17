@@ -146,6 +146,8 @@ class TokenMapperIT {
         assertEquals("D-1", primary.get("staffNumber").asText());
         assertEquals("ACTIVE", primary.get("status").asText());
         assertFalse(primary.has("jobTitle"));
+        assertFalse(primary.has("effectiveWorkLocation"));
+        assertFalse(primary.has("effectiveCostCenter"));
         JsonNode chair = org.get(1);
         assertEquals(committee, chair.get("orgUnitId").asText());
         assertEquals("chair", chair.get("jobTitle").asText());
@@ -158,6 +160,36 @@ class TokenMapperIT {
         assertEquals(List.of(), plain.findValuesAsText("status"));
         assertEquals("physician", plain.get(0).get("occupation").asText());
         assertEquals(plain, claims(tokens.get("id_token").asText()).get("assignments"));
+    }
+
+    @Test
+    void eachEntryHasTheWorkLocationAndTheCostCenterThatApply() throws Exception {
+        String commuter = user("commuter");
+        for (String[] item : new String[][] {{"WORK_LOCATION", "main-site"}, {"COST_CENTER", "cc-admin"},
+                {"COST_CENTER", "cc-care"}}) {
+            post("/ref-items", "{\"kind\": \"" + item[0] + "\", \"code\": \"" + item[1] + "\", \"name\": \""
+                    + item[1] + "\"}");
+        }
+        String clinic = post("/org-units", "{\"name\": \"Zクリニック\", \"workLocation\": \"main-site\", "
+                + "\"costCenter\": \"cc-admin\", \"validFrom\": \"2020-04-01\"}");
+        String care = post("/org-units", "{\"name\": \"外来\", \"parentId\": \"" + clinic + "\", "
+                + "\"costCenter\": \"cc-care\", \"validFrom\": \"2020-04-01\"}");
+        String elsewhere = post("/org-units", "{\"name\": \"別の組織\", \"validFrom\": \"2020-04-01\"}");
+        String employment = post("/employments", "{\"userId\": \"" + commuter + "\", \"validFrom\": \"2020-04-01\"}");
+        String start = "{\"employmentId\": \"" + employment + "\", \"validFrom\": \"2020-04-01\", \"orgUnitId\": \"";
+        String primary = post("/assignments", start + care + "\", \"primary\": true}");
+        String other = post("/assignments", start + elsewhere + "\", \"costCenter\": \"cc-admin\"}");
+
+        JsonNode entries = claims(tokens("commuter").get("access_token").asText()).get("assignments");
+
+        // The work location comes from the clinic above, and the cost center from the unit itself.
+        assertEquals(List.of(primary, other), entries.findValuesAsText("assignmentId"));
+        assertEquals("main-site", entries.get(0).get("effectiveWorkLocation").asText());
+        assertEquals("cc-care", entries.get(0).get("effectiveCostCenter").asText());
+        // A value of the assignment applies, and a field with no value is left out.
+        assertEquals("cc-admin", entries.get(1).get("effectiveCostCenter").asText());
+        assertFalse(entries.get(1).has("effectiveWorkLocation"));
+        assertFalse(entries.get(1).has("workLocation"));
     }
 
     @Test
@@ -181,6 +213,8 @@ class TokenMapperIT {
         assertEquals("Org assignments", mapper.getName());
         assertEquals("Token mapper", mapper.getCategory());
         assertTrue(mapper.getHelpText().contains("org unit assignments"), mapper.getHelpText());
+        assertTrue(mapper.getHelpText().contains("the work location and the cost center that apply"),
+                mapper.getHelpText());
         assertFalse(mapper.getProperties().isEmpty());
     }
 }

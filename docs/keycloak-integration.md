@@ -72,6 +72,7 @@ Each entry has these fields. A field with no value is left out.
 | `orgUnitId`, `orgUnitName`, `orgUnitCode` | The org unit |
 | `orgUnitPath` | The units from the root down to the org unit, each with `id` and `name` |
 | `jobTitle`, `occupation`, `kind` | The codes of the reference items |
+| `effectiveWorkLocation`, `effectiveCostCenter` | The codes of the work location and the cost center that apply today. They are the ones of the assignment, else of its org unit, else of the nearest unit above in the default hierarchy |
 | `head`, `primary` | The flags of the assignment |
 | `staffNumber` | The staff number of the employment. Only with the setting "Add staff number" |
 | `status` | The employment status today. Only with the setting "Add employment status" |

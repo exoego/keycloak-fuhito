@@ -90,8 +90,8 @@ public class AssignmentsProtocolMapper extends AbstractOIDCProtocolMapper
 
     @Override
     public String getHelpText() {
-        return "Adds the org unit assignments of the user that hold today, with job title, occupation, and the"
-                + " path of each org unit.";
+        return "Adds the org unit assignments of the user that hold today, with job title, occupation, the work"
+                + " location and the cost center that apply, and the path of each org unit.";
     }
 
     @Override
@@ -135,6 +135,8 @@ public class AssignmentsProtocolMapper extends AbstractOIDCProtocolMapper
         putIfPresent(entry, "jobTitle", member.jobTitle());
         putIfPresent(entry, "occupation", member.occupation());
         putIfPresent(entry, "kind", member.kind());
+        putIfPresent(entry, "effectiveWorkLocation", member.places().effectiveWorkLocation());
+        putIfPresent(entry, "effectiveCostCenter", member.places().effectiveCostCenter());
         entry.put("head", row.head());
         entry.put("primary", row.primary());
         if (staffNumber) {

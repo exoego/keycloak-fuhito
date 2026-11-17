@@ -77,6 +77,9 @@ So a unit that moves to a new site is one change of its details. A person who wo
 - The work location and the cost center each follow this rule on their own. A unit can set only a cost center, and take the work location from above.
 - The reads of org units and of assignments return the value of the record in `workLocation` and `costCenter`, and the value that applies in `effectiveWorkLocation` and `effectiveCostCenter`.
 - A read of an org unit is on a date. A read of an assignment gives each period the values on its date nearest to today. The history of an org unit has the values of the records only.
+- The reads of members and of the assignments of a person return the four fields too, on the date of the read. So does the list of assignments across the realm. The token mapper adds the values that apply.
+- `GET /org-units/{id}/members` takes `workLocation` and `costCenter` with a code. It keeps the members whose value that applies on the date is that one. The database applies the filter, so the pages and the count stay right. An unknown code fails with `ref_item.unknown`.
+- The values that apply always come from the default hierarchy. A read of members below a unit in another hierarchy filters by them too.
 - A move to another org unit does not keep the values of the assignment, because they belong to the old unit. The move can give new ones. A transfer to another employer keeps them.
 
 Job title, occupation, grade, and employment type are four separate things.

@@ -13,9 +13,10 @@ import java.time.LocalDate;
  * @param jobTitleId the ID of a job title to keep, or null for all
  * @param status an employment status to keep, or null for all
  * @param seconded which side of a secondment to keep, or null for all
+ * @param places the work location and the cost center to keep, or null for all
  */
 public record MemberFilter(String hierarchyId, String orgUnitId, boolean includeDescendants, LocalDate date,
-        String occupationId, String jobTitleId, EmploymentStatus status, Seconded seconded) {
+        String occupationId, String jobTitleId, EmploymentStatus status, Seconded seconded, Places places) {
 
     /**
      * A filter on whether a person works outside the legal entity that employs them.
@@ -24,5 +25,16 @@ public record MemberFilter(String hierarchyId, String orgUnitId, boolean include
      * @param hierarchyId the ID of the hierarchy that says what is below a legal entity
      */
     public record Seconded(boolean wanted, String hierarchyId) {
+    }
+
+    /**
+     * A filter on the work location and the cost center that apply to an assignment on the date. Each is the one
+     * of the assignment, else the one of its org unit, else the one of the nearest unit above it.
+     *
+     * @param workLocationId the ID of a work location to keep, or null for all
+     * @param costCenterId the ID of a cost center to keep, or null for all
+     * @param hierarchyId the ID of the default hierarchy, which says which units are above
+     */
+    public record Places(String workLocationId, String costCenterId, String hierarchyId) {
     }
 }
