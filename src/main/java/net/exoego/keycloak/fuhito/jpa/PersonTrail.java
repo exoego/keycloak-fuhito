@@ -46,7 +46,7 @@ record PersonTrail(Set<String> employments, Set<String> assignments, Set<String>
 
     /**
      * Clears the body of every stored response of a repeated request that names the person or a record of the
-     * person. The status and the location stay, so a request sent again still writes nothing.
+     * person. The status stays, so a request sent again still writes nothing.
      *
      * @param em the entity manager
      * @param realmId the ID of the realm
