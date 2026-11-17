@@ -86,7 +86,8 @@ public record RealmExport(
     @Schema(name = "ExportOrgUnitVersion")
     public record Version(String id, String validFrom, String validTo, String code, String name,
             Map<String, String> names, String shortName, Map<String, String> shortNames, String phoneticName,
-            String unitTypeId, int displayOrder, Map<String, Object> attributes) {
+            String unitTypeId, String workLocationId, String costCenterId, int displayOrder,
+            Map<String, Object> attributes) {
     }
 
     @Schema(name = "ExportOrgUnitParent", description = "A parent link. It names its hierarchy by code.")
@@ -127,9 +128,9 @@ public record RealmExport(
 
     @Schema(name = "ExportAssignmentPeriod")
     public record Period(String rowId, String employmentId, String orgUnitId, String validFrom, String validTo,
-            String jobTitleId, String occupationId, String kindId, boolean head, boolean primary,
-            BigDecimal allocationPercent, int displayOrder, Map<String, Object> attributes, String externalId,
-            String source, String continuesAssignmentId) {
+            String jobTitleId, String occupationId, String kindId, String workLocationId, String costCenterId,
+            boolean head, boolean primary, BigDecimal allocationPercent, int displayOrder,
+            Map<String, Object> attributes, String externalId, String source, String continuesAssignmentId) {
     }
 
     @Schema(name = "ExportReportingLine")

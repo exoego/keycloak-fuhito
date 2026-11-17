@@ -303,7 +303,8 @@ class OrgUnitServiceTest {
     @Test
     void rejectsAParentThatEnds() {
         store.versions.add(new OrgUnitVersion("v1", "closing", new ValidPeriod(LocalDate.of(2026, 4, 1),
-                LocalDate.of(2027, 4, 1)), null, "Closing", Map.of(), null, Map.of(), null, null, 0, Map.of()));
+                LocalDate.of(2027, 4, 1)), null, "Closing", Map.of(), null, Map.of(), null, null, null, null, 0,
+                Map.of()));
 
         assertEquals("org_unit.parent_not_valid", failure(named("Ward", "closing", "2026-04-01")).code());
     }
@@ -555,7 +556,8 @@ class OrgUnitServiceTest {
         String a = root("A");
         store.insertUnit(new OrgUnit("ending", null, null, null));
         store.versions.add(new OrgUnitVersion("v1", "ending", new ValidPeriod(LocalDate.of(2026, 4, 1),
-                LocalDate.of(2027, 4, 1)), null, "Ending", Map.of(), null, Map.of(), null, null, 0, Map.of()));
+                LocalDate.of(2027, 4, 1)), null, "Ending", Map.of(), null, Map.of(), null, null, null, null, 0,
+                Map.of()));
 
         service.move("ending", a, "2026-10-01");
 
@@ -687,7 +689,7 @@ class OrgUnitServiceTest {
     private void assign(String assignmentId, String orgUnitId, String from, String to) {
         assignments.insert(new Assignment(assignmentId + "-" + from, assignmentId, "employment", orgUnitId,
                 new ValidPeriod(LocalDate.parse(from), to == null ? null : LocalDate.parse(to)), null, null, null,
-                false, false, null, 0, Map.of(), null, null, null));
+                null, null, false, false, null, 0, Map.of(), null, null, null));
     }
 
     @Test
@@ -1036,8 +1038,89 @@ class OrgUnitServiceTest {
     void readsAUnitWhoseUnitTypeWasRemoved() {
         store.insertUnit(new OrgUnit("u1", null, null, null));
         store.versions.add(new OrgUnitVersion("v1", "u1", ValidPeriod.startingAt(LocalDate.of(2026, 4, 1)), null, "U",
-                Map.of(), null, Map.of(), null, "gone", 0, Map.of()));
+                Map.of(), null, Map.of(), null, "gone", null, null, 0, Map.of()));
 
         assertNull(service.get("u1", "2026-04-01").unitType());
+    }
+
+    private void place(RefKind kind, String code, boolean active) {
+        refItems.insert(new RefItem(kind + "-" + code, kind, code, code, Map.of(), 0, Map.of(), active));
+    }
+
+    private String placed(String name, String parentId, String workLocation, String costCenter) {
+        return service.create(new NewOrgUnit(null, name, null, null, null, null, null, workLocation, costCenter,
+                parentId, "2026-04-01", null, null, null, null)).unit().id();
+    }
+
+    private static String places(OrgUnitState state) {
+        LocationAndCost places = state.places();
+        return places.workLocation() + " " + places.costCenter() + " " + places.effectiveWorkLocation() + " "
+                + places.effectiveCostCenter();
+    }
+
+    @Test
+    void aUnitTakesEachOfItsWorkLocationAndCostCenterFromTheNearestUnitAboveThatHasOne() {
+        place(RefKind.WORK_LOCATION, "tokyo", true);
+        place(RefKind.COST_CENTER, "cc-hq", true);
+        place(RefKind.COST_CENTER, "cc-sales", true);
+        String company = placed("Company", null, "tokyo", "cc-hq");
+        String sales = placed("Sales", company, null, "cc-sales");
+        String team = placed("Team", sales, null, null);
+        String other = placed("Other", null, null, null);
+        Page all = Page.of(null, null);
+
+        assertEquals("tokyo cc-hq tokyo cc-hq", places(service.get(company, null)));
+        assertEquals("null cc-sales tokyo cc-sales", places(service.get(sales, null)));
+        assertEquals("null null tokyo cc-sales", places(service.get(team, null)));
+        assertEquals("null null null null", places(service.get(other, null)));
+        assertEquals(List.of("tokyo cc-hq tokyo cc-hq", "null cc-sales tokyo cc-sales", "null null tokyo cc-sales"),
+                service.subtree(company, null, null, null, all).stream().map(OrgUnitServiceTest::places).toList());
+        assertEquals(List.of("tokyo cc-hq tokyo cc-hq", "null cc-sales tokyo cc-sales", "null null tokyo cc-sales"),
+                service.path(team, null, null).stream().map(OrgUnitServiceTest::places).toList());
+        assertEquals(List.of(), service.children(team, null, null, null, all));
+        assertEquals("WORK_LOCATION-tokyo", store.versions(company).getFirst().workLocationId());
+    }
+
+    @Test
+    void aChangeOfTheDetailsOfAUnitAboveChangesWhatAppliesFromItsDate() {
+        place(RefKind.WORK_LOCATION, "tokyo", true);
+        place(RefKind.WORK_LOCATION, "osaka", true);
+        String company = placed("Company", null, "tokyo", null);
+        String team = placed("Team", company, null, null);
+
+        service.changeDetails(company, new OrgUnitChange("2027-04-01", null, "Company", null, null, null, null,
+                null, "osaka", null, null, null));
+        String moved = placed("Moved", null, null, null);
+        service.move(team, moved, "2027-10-01");
+
+        assertEquals("null null tokyo null", places(service.get(team, "2027-03-31")));
+        assertEquals("null null osaka null", places(service.get(team, "2027-04-01")));
+        assertEquals("null null null null", places(service.get(team, "2027-10-01")));
+        // A history has the values of each version, and not the ones that apply.
+        assertEquals(List.of("tokyo null null null", "osaka null null null"),
+                service.history(company).versions().stream().map(OrgUnitServiceTest::places).toList());
+    }
+
+    @Test
+    void aUnitNamesOnlyActiveItemsOfTheRightKindButKeepsOneThatWasDeactivated() {
+        place(RefKind.WORK_LOCATION, "tokyo", true);
+        place(RefKind.WORK_LOCATION, "closed", true);
+        place(RefKind.COST_CENTER, "cc-old", false);
+        place(RefKind.JOB_TITLE, "chief", true);
+        String unit = placed("Unit", null, "closed", null);
+        refItems.insert(new RefItem("WORK_LOCATION-closed", RefKind.WORK_LOCATION, "closed", "closed", Map.of(), 0,
+                Map.of(), false));
+
+        FuhitoException wrongKind = failure(new NewOrgUnit(null, "A", null, null, null, null, null, "chief", null,
+                null, "2026-04-01", null, null, null, null));
+        assertEquals("ref_item.unknown", wrongKind.code());
+        assertEquals(Map.of("kind", "WORK_LOCATION", "code", "chief"), wrongKind.params());
+        assertEquals(Map.of("kind", "COST_CENTER", "code", "cc-old"), failure(new NewOrgUnit(null, "A", null, null,
+                null, null, null, null, "cc-old", null, "2026-04-01", null, null, null, null)).params());
+        assertEquals("closed null closed null", places(service.changeDetails(unit, new OrgUnitChange("2026-05-01",
+                null, "Unit", null, null, null, null, null, "closed", null, null, null))));
+        assertEquals("ref_item.unknown", assertThrows(FuhitoException.class, () -> service.changeDetails(placed(
+                "B", null, "tokyo", null), new OrgUnitChange("2026-05-01", null, "B", null, null, null, null, null,
+                "closed", null, null, null))).code());
     }
 }

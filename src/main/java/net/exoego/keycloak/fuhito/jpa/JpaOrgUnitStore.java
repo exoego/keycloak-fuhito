@@ -434,9 +434,6 @@ public class JpaOrgUnitStore implements OrgUnitStore {
     @Override
     public Map<String, UnitDefaults> defaultsOn(Collection<String> ids, LocalDate date) {
         Map<String, UnitDefaults> result = new HashMap<>();
-        if (ids.isEmpty()) {
-            return result;
-        }
         em.createQuery(DEFAULTS, Object[].class)
                 .setParameter("realmId", realmId)
                 .setParameter("hierarchyId", defaultHierarchyId())

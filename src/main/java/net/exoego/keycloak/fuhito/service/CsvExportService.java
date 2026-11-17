@@ -353,8 +353,8 @@ public class CsvExportService {
                 Assignment row = current.row();
                 List<String> cells = new ArrayList<>(List.of(view.assignmentId(), text(row.externalId()),
                         text(row.source()), row.employmentId(), row.orgUnitId(), text(current.jobTitle()),
-                        text(current.occupation()), text(current.kind()), text(current.workLocation()),
-                        text(current.costCenter()), Boolean.toString(row.head()),
+                        text(current.occupation()), text(current.kind()), text(current.places().workLocation()),
+                        text(current.places().costCenter()), Boolean.toString(row.head()),
                         Boolean.toString(row.primary()), number(row.allocationPercent()),
                         Integer.toString(row.displayOrder()), view.period().from().toString(),
                         text(view.period().to()), text(view.continuesAssignmentId())));

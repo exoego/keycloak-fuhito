@@ -146,4 +146,15 @@ class ValidPeriodTest {
         assertTrue(closed.endsAfter(LocalDate.of(2026, 3, 1)));
         assertTrue(ValidPeriod.startingAt(LocalDate.of(2026, 4, 1)).endsAfter(LocalDate.of(2099, 1, 1)));
     }
+
+    @Test
+    void findsItsDateNearestToADate() {
+        ValidPeriod closed = new ValidPeriod(LocalDate.of(2026, 4, 1), LocalDate.of(2026, 5, 1));
+
+        assertEquals(LocalDate.of(2026, 4, 1), closed.nearest(LocalDate.of(2026, 1, 1)));
+        assertEquals(LocalDate.of(2026, 4, 15), closed.nearest(LocalDate.of(2026, 4, 15)));
+        assertEquals(LocalDate.of(2026, 4, 30), closed.nearest(LocalDate.of(2026, 5, 1)));
+        assertEquals(LocalDate.of(2099, 1, 1),
+                ValidPeriod.startingAt(LocalDate.of(2026, 4, 1)).nearest(LocalDate.of(2099, 1, 1)));
+    }
 }

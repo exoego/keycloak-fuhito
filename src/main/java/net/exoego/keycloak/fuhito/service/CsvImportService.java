@@ -593,8 +593,8 @@ public class CsvImportService {
                 cells.text("validFrom", null), cells.text("validTo", null), cells.text("employmentId", null),
                 cells.text("orgUnitId", null), id, cells.text("continuesAssignmentExternalId", null),
                 cells.text("continuesAssignmentId", null),
-                cells.text("workLocation", current.map(AssignmentView.Row::workLocation).orElse(null)),
-                cells.text("costCenter", current.map(AssignmentView.Row::costCenter).orElse(null)));
+                cells.text("workLocation", current.map(r -> r.places().workLocation()).orElse(null)),
+                cells.text("costCenter", current.map(r -> r.places().costCenter()).orElse(null)));
     }
 
     private static <T> Optional<T> quietly(Supplier<T> read) {

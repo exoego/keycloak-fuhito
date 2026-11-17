@@ -304,8 +304,9 @@ public class AttributeSyncService {
             if (!Objects.equals(jobTitle, codeOf(current.jobTitleId()))) {
                 written(from.assignmentService().changeDetails(assignmentId, new AssignmentValues(null, null,
                         today.toString(), null, jobTitle, codeOf(current.occupationId()), codeOf(current.kindId()),
-                        current.head(), current.primary(), false, current.allocationPercent(),
-                        current.displayOrder(), current.attributes(), null, null)), false, "/details");
+                        codeOf(current.workLocationId()), codeOf(current.costCenterId()), current.head(),
+                        current.primary(), false, current.allocationPercent(), current.displayOrder(),
+                        current.attributes(), null, null)), false, "/details");
                 assignmentsChanged++;
             }
         }

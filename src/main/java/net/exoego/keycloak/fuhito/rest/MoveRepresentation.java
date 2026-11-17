@@ -27,16 +27,26 @@ public record MoveRepresentation(
                 defaultValue = "0",
                 writeOnly = true)
         Integer displayOrder,
+        @Schema(
+                description = "The code of the work location in the new org unit. Leave it out to take the one of "
+                        + "the new org unit. The one of the old assignment is not kept.",
+                writeOnly = true)
+        String workLocation,
+        @Schema(
+                description = "The code of the cost center in the new org unit. Leave it out to take the one of the "
+                        + "new org unit. The one of the old assignment is not kept.",
+                writeOnly = true)
+        String costCenter,
         @Schema(description = "The assignment to the old org unit, with its end.", readOnly = true)
         AssignmentRepresentation ended,
         @Schema(description = "The assignment to the new org unit.", readOnly = true)
         AssignmentRepresentation started) {
 
     MoveRequest toRequest() {
-        return new MoveRequest(orgUnitId, validFrom, jobTitle, head, displayOrder);
+        return new MoveRequest(orgUnitId, validFrom, jobTitle, head, displayOrder, workLocation, costCenter);
     }
 
     static MoveRepresentation of(AssignmentRepresentation ended, AssignmentRepresentation started) {
-        return new MoveRepresentation(null, null, null, null, null, ended, started);
+        return new MoveRepresentation(null, null, null, null, null, null, null, ended, started);
     }
 }

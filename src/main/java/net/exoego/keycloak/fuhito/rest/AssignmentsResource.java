@@ -154,7 +154,7 @@ public class AssignmentsResource {
             @Parameter(description = "The ID of the resource.")
             @PathParam("id") String id) {
         context.requireRead();
-        return Calls.tagged(context, () -> AssignmentRepresentation.of(service.get(id)));
+        return Calls.tagged(context, () -> state(id), () -> AssignmentRepresentation.of(service.get(id)));
     }
 
     @DELETE
@@ -234,9 +234,9 @@ public class AssignmentsResource {
             description = "The assignment ends on the date. A new assignment of the same employment to the new "
                     + "org unit starts on the same date, and names the old one in `continuesAssignmentId`. It "
                     + "keeps the occupation, the kind, the primary flag, the allocation, and the attributes. It "
-                    + "keeps the job title unless the request gives one. The head flag and the display order "
-                    + "belong to the old org unit and are not kept. The reporting lines of the old assignment "
-                    + "end with it. A failure writes nothing.")
+                    + "keeps the job title unless the request gives one. The head flag, the display order, the "
+                    + "work location, and the cost center belong to the old org unit and are not kept. The "
+                    + "reporting lines of the old assignment end with it. A failure writes nothing.")
     @Parameter(ref = "changeOrder")
     @APIResponse(
             responseCode = "201",
@@ -290,6 +290,6 @@ public class AssignmentsResource {
 
     // The whole stored state of one resource, which its ETag covers.
     private Object state(String id) {
-        return AssignmentRepresentation.of(service.get(id));
+        return AssignmentRepresentation.of(service.get(id)).stored();
     }
 }

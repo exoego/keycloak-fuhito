@@ -40,6 +40,14 @@ public record AssignmentRepresentation(
         String occupation,
         @Schema(description = "The code of the first assignment kind.", writeOnly = true)
         String kind,
+        @Schema(
+                description = "The code of the first work location. Leave it out to take the one of the org unit.",
+                writeOnly = true)
+        String workLocation,
+        @Schema(
+                description = "The code of the first cost center. Leave it out to take the one of the org unit.",
+                writeOnly = true)
+        String costCenter,
         @Schema(description = "Whether the person leads the org unit at first.", writeOnly = true)
         Boolean head,
         @Schema(description = "Whether this is the main assignment at first.", writeOnly = true)
@@ -81,6 +89,26 @@ public record AssignmentRepresentation(
             String occupation,
             @Schema(description = "The code of the assignment kind.")
             String kind,
+            @Schema(
+                    description = "The code of the work location of the assignment itself. Leave it out to take the "
+                            + "one of the org unit.")
+            String workLocation,
+            @Schema(
+                    description = "The code of the cost center of the assignment itself. Leave it out to take the "
+                            + "one of the org unit.")
+            String costCenter,
+            @Schema(
+                    description = "The code of the work location that applies. It is the one of the assignment, "
+                            + "else the one of the org unit, else the one of the nearest unit above it in the default "
+                            + "hierarchy. It is read on the date of the period nearest to today.",
+                    readOnly = true)
+            String effectiveWorkLocation,
+            @Schema(
+                    description = "The code of the cost center that applies. It is the one of the assignment, else "
+                            + "the one of the org unit, else the one of the nearest unit above it in the default "
+                            + "hierarchy. It is read on the date of the period nearest to today.",
+                    readOnly = true)
+            String effectiveCostCenter,
             @Schema(description = "True when the person leads the org unit.")
             Boolean head,
             @Schema(description = "True when this is the main assignment of the employment.")
@@ -102,8 +130,14 @@ public record AssignmentRepresentation(
             Map<String, Object> attributes) {
 
         AssignmentValues toValues() {
-            return new AssignmentValues(null, null, validFrom, null, jobTitle, occupation, kind, head, primary,
-                    switchPrimary, allocationPercent, displayOrder, attributes, null, null);
+            return new AssignmentValues(null, null, validFrom, null, jobTitle, occupation, kind, workLocation,
+                    costCenter, head, primary, switchPrimary, allocationPercent, displayOrder, attributes, null,
+                    null);
+        }
+
+        private Details stored() {
+            return new Details(validFrom, validTo, jobTitle, occupation, kind, workLocation, costCenter, null, null,
+                    head, primary, switchPrimary, allocationPercent, displayOrder, attributes);
         }
     }
 
@@ -112,17 +146,28 @@ public record AssignmentRepresentation(
         return new AssignmentRepresentation(view.assignmentId(), first.employmentId(), view.userId(),
                 first.orgUnitId(), view.period().from().toString(), text(view.period().to()), first.externalId(),
                 first.source(), view.continuesAssignmentId(), null, null, null, null, null, null, null, null, null,
-                view.rows().stream()
+                null, null, view.rows().stream()
                         .map(r -> new Details(r.row().period().from().toString(), text(r.row().period().to()),
-                                r.jobTitle(), r.occupation(), r.kind(), r.row().head(), r.row().primary(), null,
+                                r.jobTitle(), r.occupation(), r.kind(), r.places().workLocation(),
+                                r.places().costCenter(), r.places().effectiveWorkLocation(),
+                                r.places().effectiveCostCenter(), r.row().head(), r.row().primary(), null,
                                 Numbers.plain(r.row().allocationPercent()), r.row().displayOrder(),
                                 r.row().attributes()))
                         .toList());
     }
 
+    // The values that apply come from the org units, so a change of a unit does not change the ETag.
+    AssignmentRepresentation stored() {
+        return new AssignmentRepresentation(id, employmentId, userId, orgUnitId, validFrom, validTo, externalId,
+                source, continuesAssignmentId, jobTitle, occupation, kind, workLocation, costCenter, head, primary,
+                switchPrimary, allocationPercent, displayOrder, attributes,
+                periods.stream().map(Details::stored).toList());
+    }
+
     AssignmentValues toValues() {
-        return new AssignmentValues(employmentId, orgUnitId, validFrom, validTo, jobTitle, occupation, kind, head,
-                primary, switchPrimary, allocationPercent, displayOrder, attributes, externalId, source);
+        return new AssignmentValues(employmentId, orgUnitId, validFrom, validTo, jobTitle, occupation, kind,
+                workLocation, costCenter, head, primary, switchPrimary, allocationPercent, displayOrder, attributes,
+                externalId, source);
     }
 
     private static String text(Object value) {

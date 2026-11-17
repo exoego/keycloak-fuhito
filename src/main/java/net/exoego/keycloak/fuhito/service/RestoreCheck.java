@@ -80,7 +80,11 @@ final class RestoreCheck {
 
     private void check(RealmExport document) {
         for (RealmExport.Unit unit : all(document.orgUnits())) {
-            all(unit.versions()).forEach(v -> optional("org-units", "unitTypeId", v.unitTypeId(), refItems));
+            for (RealmExport.Version v : all(unit.versions())) {
+                optional("org-units", "unitTypeId", v.unitTypeId(), refItems);
+                optional("org-units", "workLocationId", v.workLocationId(), refItems);
+                optional("org-units", "costCenterId", v.costCenterId(), refItems);
+            }
             all(unit.parents()).forEach(p -> required("org-units", "parentId", p.parentId(), orgUnits));
             all(unit.successors()).forEach(s -> required("org-units", "successorId", s.successorId(), orgUnits));
         }
@@ -102,6 +106,8 @@ final class RestoreCheck {
                 optional("assignments", "jobTitleId", p.jobTitleId(), refItems);
                 optional("assignments", "occupationId", p.occupationId(), refItems);
                 optional("assignments", "kindId", p.kindId(), refItems);
+                optional("assignments", "workLocationId", p.workLocationId(), refItems);
+                optional("assignments", "costCenterId", p.costCenterId(), refItems);
                 optional("assignments", "continuesAssignmentId", p.continuesAssignmentId(), assignments);
             }
         }

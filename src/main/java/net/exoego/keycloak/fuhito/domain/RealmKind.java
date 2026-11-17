@@ -3,7 +3,7 @@ package net.exoego.keycloak.fuhito.domain;
 import java.util.Map;
 
 /**
- * A kind of reference data that a realm added, for example "work location" or "cost center".
+ * A kind of reference data that a realm added, for example "working time system" or "collective agreement".
  *
  * @param id the ID
  * @param code the code, which items of the kind name as their kind

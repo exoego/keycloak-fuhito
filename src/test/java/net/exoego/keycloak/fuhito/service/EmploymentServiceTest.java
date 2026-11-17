@@ -566,7 +566,8 @@ class EmploymentServiceTest {
         assignment("first-row", "first", old, "2020-04-01", "2027-07-01");
         // The move to the ward is planned for July, and the transfer comes in April.
         assignments.insert(new Assignment("moved-row", "moved", old, "ward", ValidPeriod.startingAt(
-                LocalDate.of(2027, 7, 1)), null, null, null, false, false, null, 0, Map.of(), "M-1", "hr", "first"));
+                LocalDate.of(2027, 7, 1)), null, null, null, "home", "cc", false, false, null, 0, Map.of(), "M-1", "hr",
+                "first"));
 
         EmploymentService.Transfer transfer = service.transfer(old, new TransferRequest("company-z", "2027-04-01",
                 null, null));
@@ -578,14 +579,17 @@ class EmploymentServiceTest {
         // The old assignment of July is gone, so its copy keeps its ID of the other system.
         assertEquals(List.of(), assignments.rows("moved"));
         assertEquals("M-1", moved.externalId());
+        // A transfer keeps the work location and the cost center.
+        assertEquals("home", moved.workLocationId());
+        assertEquals("cc", moved.costCenterId());
         assertEquals("hr", moved.source());
         assertNull(assignments.rows(first).getFirst().externalId());
     }
 
     private Assignment assignment(String rowId, String assignmentId, String employmentId, String from, String to) {
         Assignment row = new Assignment(rowId, assignmentId, employmentId, "unit", new ValidPeriod(
-                LocalDate.parse(from), to == null ? null : LocalDate.parse(to)), null, null, null, false, false, null,
-                0, Map.of(), null, null, null);
+                LocalDate.parse(from), to == null ? null : LocalDate.parse(to)), null, null, null, null, null, false,
+                false, null, 0, Map.of(), null, null, null);
         assignments.insert(row);
         return row;
     }

@@ -30,8 +30,8 @@ class FuhitoExceptionTest {
         assertEquals(FuhitoException.Reason.UNPROCESSABLE, FuhitoException.unprocessable("x", Map.of()).reason());
         assertEquals(FuhitoException.Reason.PRECONDITION, FuhitoException.precondition("x", Map.of()).reason());
         assertEquals(List.of("UNIT_TYPE", "JOB_TITLE", "OCCUPATION", "EMPLOYMENT_TYPE", "GRADE", "END_REASON",
-                "ASSIGNMENT_KIND", "QUALIFICATION", "LEAVE_REASON",
-                "UNIT_ROLE"), Arrays.stream(RefKind.values()).map(RefKind::name).toList());
+                "ASSIGNMENT_KIND", "QUALIFICATION", "LEAVE_REASON", "UNIT_ROLE", "WORK_LOCATION",
+                "COST_CENTER"), Arrays.stream(RefKind.values()).map(RefKind::name).toList());
     }
 
     @Test

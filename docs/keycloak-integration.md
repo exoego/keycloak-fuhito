@@ -397,6 +397,7 @@ The path of an org unit is read with a walk upward from the unit. The assignment
 
 A read of one resource has the header `ETag`. It is a hash of the whole stored state of the resource.
 For an org unit, it covers every period of the details and every parent, so a read of any date has the same ETag.
+The work location and the cost center that apply come from other org units, so the ETag of an org unit or of an assignment does not cover them. A change of a unit above does not change it.
 
 - A write to one resource can send that value in `If-Match`. When the resource changed since the read, the write fails with 412 and `etag.mismatch`, and nothing is written. The caller reads again and decides.
 - `If-Match: *` matches any state. A write with no `If-Match` goes on as before.

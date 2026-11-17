@@ -59,6 +59,14 @@ public record StaffRepresentation(
         String jobTitle,
         @Schema(description = "The code of the occupation.", writeOnly = true)
         String occupation,
+        @Schema(
+                description = "The code of the work location. Leave it out to take the one of the org unit.",
+                writeOnly = true)
+        String workLocation,
+        @Schema(
+                description = "The code of the cost center. Leave it out to take the one of the org unit.",
+                writeOnly = true)
+        String costCenter,
         @Schema(description = "True when the person leads the org unit.", defaultValue = "false", writeOnly = true)
         Boolean head,
         @Schema(description = "False when this is not the main assignment.", defaultValue = "true", writeOnly = true)
@@ -75,12 +83,12 @@ public record StaffRepresentation(
 
     // The first assignment of a new employment is its primary one unless the request says otherwise.
     AssignmentValues toAssignment(String employmentId) {
-        return new AssignmentValues(employmentId, orgUnitId, validFrom, validTo, jobTitle, occupation, null, head,
-                primary == null || primary, null, null, null, null, null, null);
+        return new AssignmentValues(employmentId, orgUnitId, validFrom, validTo, jobTitle, occupation, null,
+                workLocation, costCenter, head, primary == null || primary, null, null, null, null, null, null);
     }
 
     static StaffRepresentation of(EmploymentRepresentation employment, AssignmentRepresentation assignment) {
         return new StaffRepresentation(null, null, null, null, null, null, null, null, null, null, null, null, null,
-                null, null, employment, assignment);
+                null, null, null, null, employment, assignment);
     }
 }

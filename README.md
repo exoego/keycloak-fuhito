@@ -25,6 +25,7 @@ What works today:
 - People with or without a Keycloak user, with a name and a phonetic name.
 - Employments with terms that change over time, such as employment type, grade, leave, and work percentage.
 - Assignments of a person to any number of org units at once, with job title, occupation, and a primary flag.
+- A work location and a cost center on each org unit, which its members take unless their assignment has its own.
 - Reporting lines, and managers derived from the heads of org units.
 - Qualifications of users.
 - Reads of the state on any date, and of the full history.

@@ -200,7 +200,7 @@ An assignment never changes its org unit. A move is the end of one assignment an
 - The new assignment starts on the date that the old one ends on, so the person is in one place on every date.
 - It lasts as long as the old one would have, and names the old one in `continuesAssignmentId`.
 - It keeps the occupation, the kind, the primary flag, the allocation, and the attributes. It keeps the job title unless the request gives one.
-- The head flag and the display order belong to the old org unit, so they are not kept.
+- The head flag, the display order, the work location, and the cost center belong to the old org unit, so they are not kept. The request can give a new work location and cost center. Without them, the new assignment takes the ones of its org unit.
 - The reporting lines of the old assignment end with it. The new assignment gets its manager from the head of its org unit, until a line is stored.
 - A change of the old assignment that is stored for the date or later rejects the move.
 

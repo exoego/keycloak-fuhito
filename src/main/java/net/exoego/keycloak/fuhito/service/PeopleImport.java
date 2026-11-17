@@ -356,8 +356,8 @@ final class PeopleImport {
         String orgUnitId = orgUnitId(row, source, firstRow);
         AssignmentValues values = new AssignmentValues(employmentId, orgUnitId,
                 row.validFrom() == null ? effectiveDate : row.validFrom(), row.validTo(), row.jobTitle(),
-                row.occupation(), row.kind(), row.head(), row.primary(), false, row.allocationPercent(),
-                row.displayOrder(), row.attributes(), row.externalId(), source);
+                row.occupation(), row.kind(), row.workLocation(), row.costCenter(), row.head(), row.primary(), false,
+                row.allocationPercent(), row.displayOrder(), row.attributes(), row.externalId(), source);
 
         String continues = continuedAssignment(row, source);
         if (stored.isEmpty()) {
@@ -392,8 +392,8 @@ final class PeopleImport {
                 }
                 written(false, "/details", people.assignmentService().changeDetails(id,
                         new AssignmentValues(null, null, effectiveDate, null, row.jobTitle(), row.occupation(),
-                                row.kind(), row.head(), row.primary(), false, row.allocationPercent(),
-                                row.displayOrder(), row.attributes(), null, null)));
+                                row.kind(), row.workLocation(), row.costCenter(), row.head(), row.primary(), false,
+                                row.allocationPercent(), row.displayOrder(), row.attributes(), null, null)));
                 changed = true;
             }
         }
@@ -468,6 +468,8 @@ final class PeopleImport {
         return Objects.equals(row.jobTitle(), current.jobTitle())
                 && Objects.equals(row.occupation(), current.occupation())
                 && Objects.equals(row.kind(), current.kind())
+                && Objects.equals(row.workLocation(), current.places().workLocation())
+                && Objects.equals(row.costCenter(), current.places().costCenter())
                 && Boolean.TRUE.equals(row.head()) == stored.head()
                 && Boolean.TRUE.equals(row.primary()) == stored.primary()
                 && sameNumber(row.allocationPercent(), stored.allocationPercent())

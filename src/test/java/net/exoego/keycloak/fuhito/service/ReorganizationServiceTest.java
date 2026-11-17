@@ -8,6 +8,8 @@ import java.util.Map;
 
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.OrgUnitSuccession;
+import net.exoego.keycloak.fuhito.domain.RefItem;
+import net.exoego.keycloak.fuhito.domain.RefKind;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -17,8 +19,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 class ReorganizationServiceTest {
 
     private final MemoryOrgUnitStore store = new MemoryOrgUnitStore();
-    private final OrgUnitService orgUnits = new OrgUnitService(store, new MemoryAssignmentStore(),
-            new MemoryRefItemStore(), Clock.systemUTC());
+    private final MemoryRefItemStore refItems = new MemoryRefItemStore();
+    private final OrgUnitService orgUnits = new OrgUnitService(store, new MemoryAssignmentStore(), refItems,
+            Clock.systemUTC());
     private final ReorganizationService service = new ReorganizationService(orgUnits);
 
     private String unit(String name, String parentId) {
@@ -95,6 +98,26 @@ class ReorganizationServiceTest {
         assertEquals(List.of("General Hospital", "Clinical Division < General Hospital",
                 "Medicine < Clinical Division", "Outpatient < Clinical Division", "Surgery < Clinical Division"),
                 tree("2027-04-01"));
+    }
+
+    @Test
+    void aStepGivesAUnitItsWorkLocationAndItsCostCenter() {
+        refItems.insert(new RefItem("tokyo", RefKind.WORK_LOCATION, "tokyo", "Tokyo", Map.of(), 0, Map.of(), true));
+        refItems.insert(new RefItem("cc", RefKind.COST_CENTER, "cc", "CC", Map.of(), 0, Map.of(), true));
+        String hospital = unit("Hospital", null);
+
+        List<ReorganizationService.Result> results = service.apply("2027-04-01", List.of(
+                new ReorganizationStep("change", null, hospital, null, null, null, null, "Hospital", null, null,
+                        null, null, null, "tokyo", null, null, null, null, null),
+                new ReorganizationStep("create", null, null, null, hospital, null, null, "Ward", null, null, null,
+                        null, null, null, "cc", null, null, null, null)));
+
+        LocationAndCost ward = results.get(1).unit().places();
+        assertEquals("tokyo", results.getFirst().unit().places().workLocation());
+        assertNull(ward.workLocation());
+        assertEquals("cc", ward.costCenter());
+        assertEquals("tokyo", ward.effectiveWorkLocation());
+        assertNull(orgUnits.get(hospital, "2027-03-31").places().effectiveWorkLocation());
     }
 
     @Test

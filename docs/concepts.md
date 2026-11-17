@@ -52,6 +52,9 @@ Reads, the mask, and the erase work by person. Each has a shortcut by the ID of 
 | Job Title | 役職 | A managerial or functional title held in an assignment, for example "director" or "head nurse". |
 | Occupation | 職種 | The profession or kind of work in an assignment, for example "physician", "nurse", or "clerk". |
 | Assignment Kind | 所属区分 | How the assignment is held, for example regular, acting, or support. A kind with the mark `actingHead` makes its heads stand in for an absent head. |
+| Work Location | 勤務地 | The site where a person works, for example an office, a plant, a store, a hospital site, or home. It is a reference item of the kind `WORK_LOCATION`. An address, a country, or a time zone can be attributes of the item. |
+| Cost Center | コストセンター | The accounting unit that bears the cost of a person. It is a reference item of the kind `COST_CENTER`. The items are a flat list, not a tree. |
+| Establishment | 事業場 | The place that labor law counts by, for the worker register, the overtime agreement, and the work rules. It is an attribute of the work location item, not a field. A realm defines it for reference items with `POST /attribute-definitions`. |
 | Head | 長 | A flag on an assignment. It marks the person who leads the org unit. |
 | Acting Head | 代行、事務取扱 | A head whose assignment kind has the mark `actingHead`. It leads the unit while its assignment holds, in place of the other heads. |
 | Reporting Line | レポートライン | A link from an assignment to a manager. It has a kind, solid or dotted, and a period. |
@@ -62,6 +65,19 @@ A fixed-term contract always has an end date, and an indefinite one has none. So
 A renewal is new terms from the first day of the next contract, with a later date. The versions where the date changes give the history of the contracts.
 The end of the employment means that the person leaves. A contract end does not end the employment, so a renewal that is written late does not drop the person from the units.
 `GET /employments?contractEndFrom=&contractEndTo=` lists the employments whose contract ends in that range, by the terms of `asOf` or of today.
+
+### Work location and cost center
+
+The details of an org unit and of an assignment have `workLocation` and `costCenter`.
+The values of an org unit are the defaults for its members, and they are dated with the details of the unit.
+So a unit that moves to a new site is one change of its details. A person who works elsewhere, such as from home, sets the value on the assignment.
+
+- The value that applies to an assignment is its own value. Without one, it is the value of its org unit on the date. Without that, it is the value of the nearest unit above in the default hierarchy on the date.
+- The value that applies to an org unit is its own value, else the value of the nearest unit above.
+- The work location and the cost center each follow this rule on their own. A unit can set only a cost center, and take the work location from above.
+- The reads of org units and of assignments return the value of the record in `workLocation` and `costCenter`, and the value that applies in `effectiveWorkLocation` and `effectiveCostCenter`.
+- A read of an org unit is on a date. A read of an assignment gives each period the values on its date nearest to today. The history of an org unit has the values of the records only.
+- A move to another org unit does not keep the values of the assignment, because they belong to the old unit. The move can give new ones. A transfer to another employer keeps them.
 
 Job title, occupation, grade, and employment type are four separate things.
 One person can be a nurse (occupation), a head nurse (job title), grade 4 (grade), and full-time (employment type).
@@ -96,15 +112,14 @@ When a reader must know that something happened, the field is an `At` field that
 
 ## Reference data
 
-Unit types, job titles, occupations, employment types, grades, end reasons, assignment kinds, qualification kinds, leave reasons, and unit roles are reference data.
+Unit types, job titles, occupations, employment types, grades, end reasons, assignment kinds, qualification kinds, leave reasons, unit roles, work locations, and cost centers are reference data.
 Each realm defines its own items.
 An item has a code, a name, and optional names in other languages.
 
-These kinds are fixed, because fields of the resources point to them. A realm can add kinds of its own with `POST /ref-kinds`, for example a work location or a cost center. `PUT /ref-kinds/{code}` changes their names.
+These kinds are fixed, because fields of the resources point to them. A realm can add kinds of its own with `POST /ref-kinds`, for example a working time system or a collective agreement. `PUT /ref-kinds/{code}` changes their names.
 
 - The items of such a kind are reference items like the others. `/ref-items?kind=<code>` reads and writes them, and the import takes them.
 - A free attribute of the type `REF_ITEM` can point to such a kind, so that its value is the code of one of its items.
-- A work location is such an attribute of assignments for now. A field of its own can come when a product needs to filter by it.
 - A kind of the realm can be removed when it has no items.
 
 ## IDs in other systems

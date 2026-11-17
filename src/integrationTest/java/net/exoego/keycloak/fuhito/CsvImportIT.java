@@ -35,14 +35,16 @@ class CsvImportIT {
         TestRealm realm = TestRealm.withEmployer("csv-export");
         Api api = realm.api;
         realm.refItem("UNIT_TYPE", "ward", "病棟");
+        realm.refItem("WORK_LOCATION", "tokyo", "東京");
+        realm.refItem("COST_CENTER", "cc-1", "第1病棟");
         assertEquals(201, api.post("/attribute-definitions", "{\"target\": \"ORG_UNIT\", \"name\": \"beds\", "
                 + "\"type\": \"NUMBER\"}").statusCode());
         // One unit made through REST has no external ID, and one comes from another system.
-        String hospital = Api.json(api.post("/org-units", "{\"name\": \"X病院, 本院\", \"validFrom\": \"2020-04-01\"}"))
-                .get("id").asText();
+        String hospital = Api.json(api.post("/org-units", "{\"name\": \"X病院, 本院\", \"workLocation\": \"tokyo\", "
+                + "\"validFrom\": \"2020-04-01\"}")).get("id").asText();
         assertEquals(201, api.post("/org-units", "{\"name\": \"1病棟\", \"names\": {\"en\": \"Ward One\"}, "
-                + "\"shortName\": \"1W\", \"unitType\": \"ward\", \"parentId\": \"" + hospital + "\", "
-                + "\"attributes\": {\"beds\": 30}, \"externalId\": \"W1\", \"source\": \"hr\", "
+                + "\"shortName\": \"1W\", \"unitType\": \"ward\", \"costCenter\": \"cc-1\", \"parentId\": \""
+                + hospital + "\", \"attributes\": {\"beds\": 30}, \"externalId\": \"W1\", \"source\": \"hr\", "
                 + "\"validFrom\": \"2020-04-01\"}").statusCode());
 
         for (String header : List.of("en", "ja")) {
@@ -52,6 +54,11 @@ class CsvImportIT {
             assertTrue(exported.body().startsWith("\uFEFF" + (header.equals("en") ? "id,externalId,source,code,name,"
                     + "name:en,shortName" : "ID,外部ID,ソース,コード,名称,名称:en,略称")), exported.body());
             assertTrue(exported.body().contains("\"X病院, 本院\""), exported.body());
+            assertTrue(exported.body().contains(header.equals("en") ? ",unitType,workLocation,costCenter,parentId,"
+                    : ",組織種別,勤務地,コストセンター,親のID,"), exported.body());
+            // The ward takes the work location of the hospital, and the file has only its own values.
+            assertTrue(exported.body().contains(",,tokyo,,,0,"), exported.body());
+            assertTrue(exported.body().contains(",ward,,cc-1," + hospital + ",0,"), exported.body());
 
             JsonNode again = load(api, "org-units", "effectiveDate=2026-05-01", exported.body());
 
@@ -63,6 +70,12 @@ class CsvImportIT {
         assertEquals(1, load(api, "org-units", "effectiveDate=2026-06-01", changed).get("counts").get("orgUnits")
                 .get("changed").asInt());
         assertEquals("X病院", Api.json(api.get("/org-units/" + hospital + "?asOf=2026-06-01")).get("name").asText());
+        // A cell of a code that is no item fails.
+        HttpResponse<String> unknown = api.postBytes("/imports/csv/org-units?effectiveDate=2026-06-01",
+                "text/csv; charset=UTF-8", ("ID,名称,勤務地\r\n" + hospital + ",X病院,osaka\r\n")
+                        .getBytes(StandardCharsets.UTF_8));
+        assertEquals(400, unknown.statusCode(), unknown.body());
+        assertEquals("ref_item.unknown", Api.json(unknown).get("errors").get(0).get("error").asText());
         assertEquals(400, api.get("/imports/csv/nope").statusCode());
     }
 
@@ -473,12 +486,15 @@ class CsvImportIT {
         realm.refItem("JOB_TITLE", "chief", "主任");
         realm.refItem("OCCUPATION", "nurse", "看護師");
         realm.refItem("ASSIGNMENT_KIND", "concurrent", "兼務");
+        realm.refItem("WORK_LOCATION", "home", "在宅");
+        realm.refItem("WORK_LOCATION", "tokyo", "東京");
+        realm.refItem("COST_CENTER", "cc-lab", "検査室");
         assertEquals(201, api.post("/attribute-definitions", "{\"target\": \"ASSIGNMENT\", \"name\": \"room\", "
                 + "\"type\": \"STRING\"}").statusCode());
         String ward = Api.json(api.post("/org-units", "{\"name\": \"1病棟\", \"validFrom\": \"2020-04-01\"}"))
                 .get("id").asText();
-        String lab = Api.json(api.post("/org-units", "{\"name\": \"検査室\", \"validFrom\": \"2020-04-01\"}"))
-                .get("id").asText();
+        String lab = Api.json(api.post("/org-units", "{\"name\": \"検査室\", \"workLocation\": \"tokyo\", "
+                + "\"costCenter\": \"cc-lab\", \"validFrom\": \"2020-04-01\"}")).get("id").asText();
         String hanako = Api.json(api.post("/people", "{\"name\": \"山田 花子\"}")).get("id").asText();
         String employment = Api.json(api.post("/employments", "{\"personId\": \"" + hanako + "\", "
                 + "\"validFrom\": \"2020-04-01\"}")).get("id").asText();
@@ -492,7 +508,8 @@ class CsvImportIT {
                 + lab + "\", \"validFrom\": \"2020-04-01\", \"validTo\": \"2021-04-01\"}").statusCode());
         String concurrent = Api.json(api.post("/assignments", "{\"employmentId\": \"" + employment + "\", "
                 + "\"orgUnitId\": \"" + lab + "\", \"validFrom\": \"2021-04-01\", \"kind\": \"concurrent\", "
-                + "\"allocationPercent\": 30, \"externalId\": \"A-2\", \"source\": \"hr\"}")).get("id").asText();
+                + "\"workLocation\": \"home\", \"allocationPercent\": 30, \"externalId\": \"A-2\", "
+                + "\"source\": \"hr\"}")).get("id").asText();
         assertEquals(200, api.put("/assignments/" + concurrent + "/end", "{\"validTo\": \"2027-04-01\"}")
                 .statusCode());
 
@@ -502,20 +519,30 @@ class CsvImportIT {
             assertTrue(exported.body().startsWith("﻿" + (header.equals("en") ? "id,externalId,source,"
                     + "employmentId,orgUnitId" : "ID,外部ID,ソース,雇用のID,組織のID")), exported.body());
             assertEquals(3, exported.body().split("\r\n").length, exported.body());
-            assertTrue(exported.body().contains(",nurse,,false,true,70,0,2020-04-01,,,\"3F, east\""), exported.body());
+            assertTrue(exported.body().contains(header.equals("en") ? ",assignmentKind,workLocation,costCenter,head,"
+                    : ",所属区分,勤務地,コストセンター,長,"), exported.body());
+            assertTrue(exported.body().contains(",nurse,,,,false,true,70,0,2020-04-01,,,\"3F, east\""),
+                    exported.body());
             assertTrue(exported.body().contains(",A-2,hr,"), exported.body());
-            assertTrue(exported.body().contains(",concurrent,false,false,30,0,2021-04-01,2027-04-01,"),
+            // The file has the work location of the assignment, and not the cost center of the lab.
+            assertTrue(exported.body().contains(",concurrent,home,,false,false,30,0,2021-04-01,2027-04-01,"),
                     exported.body());
 
             JsonNode counts = load(api, "assignments", "effectiveDate=2026-05-01", exported.body()).get("counts")
                     .get("assignments");
             assertEquals(0, counts.get("created").asInt() + counts.get("changed").asInt(), counts.toString());
         }
-        String more = api.get("/imports/csv/assignments?asOf=2026-05-01").body().replace(",30,", ",40,");
+        String more = api.get("/imports/csv/assignments?asOf=2026-05-01&header=ja").body().replace(",30,", ",40,")
+                .replace(",home,", ",#CLEAR,");
         assertEquals(1, load(api, "assignments", "effectiveDate=2026-06-01", more).get("counts")
                 .get("assignments").get("changed").asInt());
         JsonNode periods = Api.json(api.get("/assignments/" + concurrent)).get("periods");
-        assertEquals(40, periods.get(periods.size() - 1).get("allocationPercent").asInt());
+        JsonNode last = periods.get(periods.size() - 1);
+        assertEquals(40, last.get("allocationPercent").asInt());
+        // With no work location of its own, the assignment takes the one of the lab.
+        assertTrue(last.path("workLocation").isMissingNode(), last.toString());
+        assertEquals("tokyo", last.get("effectiveWorkLocation").asText());
+        assertEquals("home", periods.get(0).get("workLocation").asText());
     }
 
     @Test

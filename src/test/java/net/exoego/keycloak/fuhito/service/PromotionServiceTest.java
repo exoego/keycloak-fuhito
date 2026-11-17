@@ -49,7 +49,8 @@ class PromotionServiceTest {
         assignmentStore.orgUnits = orgUnitStore;
         assignmentStore.employments = employmentStore;
         for (String[] item : new String[][] {{"OCCUPATION", "nurse"}, {"JOB_TITLE", "staff"}, {"JOB_TITLE", "chief"},
-                {"EMPLOYMENT_TYPE", "part-time"}, {"GRADE", "g1"}, {"GRADE", "g2"}, {"ASSIGNMENT_KIND", "regular"}}) {
+                {"EMPLOYMENT_TYPE", "part-time"}, {"GRADE", "g1"}, {"GRADE", "g2"}, {"ASSIGNMENT_KIND", "regular"},
+                {"WORK_LOCATION", "home"}, {"COST_CENTER", "cc-1"}}) {
             refItems.insert(new RefItem(item[0] + "-" + item[1], RefKind.valueOf(item[0]), item[1], item[1], Map.of(),
                     0, Map.of(), true));
         }
@@ -61,8 +62,8 @@ class PromotionServiceTest {
                 "ON_LEAVE", null, new BigDecimal("50"), "2027-03-31", Map.of("shift", "night"), null, null, null))
                 .employment().id();
         this.ward = assignments.add(new AssignmentValues(employment, ward, "2026-04-01", null, "staff", "nurse",
-                "regular", false, true, null, new BigDecimal("80"), 3, Map.of("desk", "A"), null, null))
-                .assignmentId();
+                "regular", "home", "cc-1", false, true, null, new BigDecimal("80"), 3, Map.of("desk", "A"), null,
+                null)).assignmentId();
         this.committee = assignments.add(new AssignmentValues(employment, committee, "2026-04-01", null, null, null,
                 null, false, false, null, null, null, null, null, null)).assignmentId();
     }
@@ -99,6 +100,8 @@ class PromotionServiceTest {
         assertTrue(after.primary());
         assertEquals("nurse", rows.get(1).occupation());
         assertEquals("regular", rows.get(1).kind());
+        assertEquals("home", rows.get(1).places().workLocation());
+        assertEquals("cc-1", rows.get(1).places().costCenter());
         assertEquals(new BigDecimal("80"), after.allocationPercent());
         assertEquals(3, after.displayOrder());
         assertEquals(Map.of("desk", "A"), after.attributes());

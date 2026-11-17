@@ -85,7 +85,8 @@ public class PromotionService {
             Assignment row = details.row();
             assignment = assignments.changeDetails(assignmentId, new AssignmentValues(null, null,
                     request.validFrom(), null, request.jobTitle() == null ? details.jobTitle() : request.jobTitle(),
-                    details.occupation(), details.kind(), request.head() == null ? row.head() : request.head(),
+                    details.occupation(), details.kind(), details.places().workLocation(),
+                    details.places().costCenter(), request.head() == null ? row.head() : request.head(),
                     row.primary(), false, row.allocationPercent(), row.displayOrder(), row.attributes(), null,
                     null));
         }
