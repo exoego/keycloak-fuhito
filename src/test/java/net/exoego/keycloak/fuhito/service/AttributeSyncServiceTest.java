@@ -691,6 +691,24 @@ class AttributeSyncServiceTest {
     }
 
     @Test
+    void aMoveToAUnitThatClosesBeforeTheEmploymentStartsMatchesNothing() {
+        putSurgeryOnTheNextDate();
+        OrgUnitService orgUnits = new OrgUnitService(orgUnitStore, externalIds, assignmentStore, refItems, clock);
+        String clinic = orgUnits.create(unit("clinic", "Clinic", null)).unit().id();
+        orgUnits.end(clinic, "2026-06-15");
+        set("alice", "Surgery", null, null, null);
+        run();
+
+        // The clinic is on June 14, its last day. Alice's employment starts on June 15.
+        set("alice", "clinic", null, null, null);
+        SyncReport moved = run();
+
+        assertEquals(List.of(), moved.failed());
+        assertEquals(List.of(new Unmatched("alice", "department", "clinic", "unknown")), moved.unmatched());
+        assertEquals(List.of("Surgery 2026-06-15 null - primary"), assignmentsOf("alice"));
+    }
+
+    @Test
     void aTitleWithANameThatTwoJobTitlesShareMatchesTheFirst() {
         refItems.insert(new RefItem("t3", RefKind.JOB_TITLE, "staff-2", "Staff", Map.of(), 0, Map.of(), true));
         set("alice", "med", "Staff", null, null);

@@ -337,6 +337,11 @@ public class AttributeSyncService {
         // An employment that started on the date of another org unit can start after the date of this one.
         // Nothing can be assigned before the employment starts.
         LocalDate today = later(unitDate, employment.period().from());
+        // The unit may have closed by then.
+        if (today.isAfter(unitDate) && !lifeOf(orgUnitId).contains(today)) {
+            unknownDepartment(user);
+            return;
+        }
         String assignmentId;
         if (current == null) {
             assignmentId = add(employment, orgUnitId, titleCode(user, title, null), today);
@@ -371,6 +376,10 @@ public class AttributeSyncService {
             tally.unmatched.add(new Unmatched(user.userId(), "title", user.title(), "unknown"));
         }
         return null;
+    }
+
+    private void unknownDepartment(Values user) {
+        tally.unmatched.add(new Unmatched(user.userId(), "department", user.department(), "unknown"));
     }
 
     private static LocalDate later(LocalDate a, LocalDate b) {
@@ -552,7 +561,7 @@ public class AttributeSyncService {
             if (date.equals(matchedOn) || lifeOf(id).contains(date)) {
                 return Optional.of(id);
             }
-            tally.unmatched.add(new Unmatched(user.userId(), "department", user.department(), "unknown"));
+            unknownDepartment(user);
             return Optional.empty();
         }
 
