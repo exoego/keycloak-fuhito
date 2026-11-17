@@ -161,6 +161,12 @@ class MembershipServiceTest {
                     new MemberQuery("2026-04-01", true, null, null, null, null, null, null, bad, null, null, null)))
                     .code());
         }
+        // A unit outside the tree has no place to go on from.
+        String outside = Cursor.encode(Cursor.MEMBERS, otherHospital, "1", "2026-04-01", "a");
+        FuhitoException gone = assertThrows(FuhitoException.class, () -> service.members(hospital,
+                new MemberQuery("2026-04-01", true, null, null, null, null, null, null, outside, null, null, null)));
+        assertEquals("invalid.cursor_unit", gone.code());
+        assertEquals(Map.of("field", "after", "id", otherHospital, "date", "2026-04-01"), gone.params());
     }
 
     private static MemberQuery on(String asOf) {
