@@ -92,11 +92,12 @@ class UserMaskIT {
 
         // What identifies the person is gone.
         assertFalse(employment.has("staffNumber"));
-        assertFalse(employment.has("externalId"));
+        assertEquals(List.of(), Api.externalIds(employment));
         assertEquals("hr", employment.get("source").asText());
         employment.get("terms").forEach(terms -> assertEquals(0, terms.get("attributes").size()));
         employment.get("terms").forEach(terms -> assertFalse(terms.has("leaveReason")));
-        assertFalse(assignment.has("externalId"));
+        assertEquals(List.of(), Api.externalIds(assignment));
+        assertEquals("hr", assignment.get("source").asText());
         assertEquals(0, assignment.get("periods").get(0).get("attributes").size());
         assertFalse(qualification.has("number"));
         assertEquals(0, qualification.get("attributes").size());

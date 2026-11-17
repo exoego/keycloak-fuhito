@@ -10,8 +10,8 @@ import java.util.Map;
  * @param names the names in other languages, or null
  * @param phoneticName the reading of the name for sorting, or null
  * @param attributes free values, or null
- * @param externalId the ID in the system it came from, or null. Only a new person uses it.
- * @param source the name of that system, or null. Only a new person uses it.
+ * @param externalId the ID in the system that the source names, or null to keep the IDs as they are
+ * @param source the name of the system. A new person keeps it as the system that made it.
  */
 public record PersonValues(String userId, String name, Map<String, String> names, String phoneticName,
         Map<String, Object> attributes, String externalId, String source) {

@@ -6,7 +6,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
 /**
- * The ID that one more system has for a resource.
+ * The ID that one system has for a resource.
  */
 @Entity
 @Table(name = "FUHITO_EXTERNAL_ID")

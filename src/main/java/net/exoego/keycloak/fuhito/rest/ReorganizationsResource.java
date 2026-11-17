@@ -9,7 +9,10 @@ import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
 import net.exoego.keycloak.fuhito.domain.Checks;
+import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.rest.RequestContext.Change;
+import net.exoego.keycloak.fuhito.service.ExternalIdLists;
+import net.exoego.keycloak.fuhito.service.ExternalIdService;
 import net.exoego.keycloak.fuhito.service.ReorganizationService;
 import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.parameters.Parameter;
@@ -26,16 +29,20 @@ public class ReorganizationsResource {
 
     private final RequestContext context;
     private final ReorganizationService service;
+    private final ExternalIdService externalIds;
 
     /**
      * Creates the resource for one request.
      *
      * @param context the request and its caller
      * @param service the operations on the realm of the request
+     * @param externalIds the IDs that systems have for the resources of the realm
      */
-    public ReorganizationsResource(RequestContext context, ReorganizationService service) {
+    public ReorganizationsResource(RequestContext context, ReorganizationService service,
+            ExternalIdService externalIds) {
         this.context = context;
         this.service = service;
+        this.externalIds = externalIds;
     }
 
     @POST
@@ -53,8 +60,11 @@ public class ReorganizationsResource {
         return Calls.once(context, body, ReorganizationRepresentation.class, () -> Calls.run(context, () -> {
             Checks.required("body", body);
             List<ReorganizationRepresentation.Result> results = new ArrayList<>();
-            for (ReorganizationService.Result result : service.apply(body.effectiveDate(), body.steps())) {
-                var unit = OrgUnitRepresentation.of(result.unit());
+            List<ReorganizationService.Result> applied = service.apply(body.effectiveDate(), body.steps());
+            ExternalIdLists ids = externalIds.lists(ExternalId.Kind.ORG_UNIT,
+                    applied.stream().map(result -> result.unit().unit().id()).distinct().toList());
+            for (ReorganizationService.Result result : applied) {
+                var unit = OrgUnitRepresentation.of(result.unit(), ids);
                 String path = "fuhito/org-units/" + unit.id();
                 List<String> successorIds = null;
                 switch (result.op()) {

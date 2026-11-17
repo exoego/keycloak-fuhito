@@ -90,19 +90,6 @@ public class JpaQualificationStore implements QualificationStore {
     }
 
     @Override
-    public Optional<Qualification> findByExternalId(String source, String externalId) {
-        return em.createQuery("""
-                        select q from QualificationEntity q where q.realmId = :realmId
-                        and q.source = :source and q.externalId = :externalId""", QualificationEntity.class)
-                .setParameter("realmId", realmId)
-                .setParameter("source", source)
-                .setParameter("externalId", externalId)
-                .getResultStream()
-                .findFirst()
-                .map(JpaQualificationStore::toDomain);
-    }
-
-    @Override
     public List<Qualification> findByPerson(String personId) {
         return em.createQuery("""
                         select q from QualificationEntity q where q.realmId = :realmId
@@ -122,7 +109,6 @@ public class JpaQualificationStore implements QualificationStore {
         entity.personId = qualification.personId();
         // The same session reads the row back, and it then needs the person.
         entity.person = em.getReference(PersonEntity.class, qualification.personId());
-        entity.externalId = qualification.externalId();
         entity.source = qualification.source();
         copy(qualification, entity);
         em.persist(entity);
@@ -135,7 +121,10 @@ public class JpaQualificationStore implements QualificationStore {
 
     @Override
     public void delete(String id) {
-        findEntity(id).ifPresent(em::remove);
+        findEntity(id).ifPresent(entity -> {
+            ExternalIds.deleteOf(em, realmId, "QUALIFICATION", id);
+            em.remove(entity);
+        });
     }
 
     // The realm filter keeps one realm from reaching the rows of another by ID.
@@ -154,6 +143,6 @@ public class JpaQualificationStore implements QualificationStore {
 
     static Qualification toDomain(QualificationEntity e) {
         return new Qualification(e.id, e.personId, e.person.userId, e.kindId, e.number, new ValidPeriod(e.validFrom, e.validTo),
-                e.attributes, e.externalId, e.source);
+                e.attributes, e.source);
     }
 }

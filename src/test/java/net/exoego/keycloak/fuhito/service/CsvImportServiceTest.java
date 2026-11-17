@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.RefItem;
 import net.exoego.keycloak.fuhito.domain.RefKind;
@@ -23,6 +24,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class CsvImportServiceTest {
 
+    private final MemoryExternalIdStore externalIds = new MemoryExternalIdStore();
+    private final MemoryExternalIdStore externalIdStore = externalIds;
     private final MemoryRefItemStore refItems = new MemoryRefItemStore();
     private final MemoryOrgUnitStore orgUnitStore = new MemoryOrgUnitStore();
     private final MemoryAssignmentStore assignmentStore = new MemoryAssignmentStore();
@@ -38,18 +41,18 @@ class CsvImportServiceTest {
             return username.equals("nobody") ? Optional.empty() : Optional.of("user-" + username);
         }
     };
-    private final OrgUnitService orgUnits = new OrgUnitService(orgUnitStore, assignmentStore, refItems,
+    private final OrgUnitService orgUnits = new OrgUnitService(orgUnitStore, externalIdStore, assignmentStore, refItems,
             Clock.systemUTC());
     private final MemoryPersonStore personStore = new MemoryPersonStore();
     private final EmploymentService employments =
-            new EmploymentService(employmentStore, assignmentStore, refItems, personStore,
+            new EmploymentService(employmentStore, externalIdStore, assignmentStore, refItems, personStore,
             new MemoryReportingLineStore(), new MemoryUnitRoleStore(), new AnyEmployer());
     private final AssignmentService assignments =
-            new AssignmentService(assignmentStore, employmentStore, orgUnitStore, refItems,
+            new AssignmentService(assignmentStore, externalIdStore, employmentStore, orgUnitStore, refItems,
             new MemoryReportingLineStore());
     private final ImportService.People people =
             new ImportService.People(employments, employmentStore, assignments, assignmentStore, users,
-                    new PersonService(personStore, users, id -> false));
+                    new PersonService(personStore, externalIdStore, users, id -> false));
     private final MemoryAttributeDefinitionStore definitions = new MemoryAttributeDefinitionStore();
     private final CsvImportService service = new CsvImportService(
             new ImportService(new RefItemService(refItems), refItems, orgUnits, orgUnitStore, people,
@@ -57,8 +60,14 @@ class CsvImportServiceTest {
                             new AttributeDefinitionService(definitions, refItems),
                             new HierarchyService(new MemoryHierarchyStore())),
                     new ImportService.Organizations(new OrganizationLinkService(orgUnitStore, id -> false),
-                            id -> false, id -> { }), new ImportService.Records(null, null, null, null, null)), refItems,
-            orgUnitStore, orgUnits, people, definitions::list);
+                            id -> false, id -> { }), new ImportService.Records(null, null, null,
+                            new ExternalIdService(externalIdStore), null)), refItems, orgUnits, people,
+            definitions::list);
+
+    // The record that an ID of a system names, as an import finds it.
+    private String stored(ExternalId.Kind kind, String source, String externalId) {
+        return externalIdStore.idOf(kind, source, externalId).orElseThrow();
+    }
 
     private CsvImportService.Result load(String list, String effectiveDate, String csv) {
         return service.apply(list, csv, effectiveDate, false, null);
@@ -70,7 +79,7 @@ class CsvImportServiceTest {
     }
 
     private OrgUnitState unit(String externalId, String asOf) {
-        return orgUnits.get(orgUnitStore.findUnitByExternalId("import", externalId).orElseThrow().id(), asOf);
+        return orgUnits.get(stored(ExternalId.Kind.ORG_UNIT, "import", externalId), asOf);
     }
 
     private void item(RefKind kind, String code) {
@@ -152,7 +161,7 @@ class CsvImportServiceTest {
 
         assertEquals(List.of(), errors(leave));
         assertEquals(List.of(), errors(moved));
-        var employment = employments.get(employmentStore.findByExternalId("import", "E1").orElseThrow().id());
+        var employment = employments.get(stored(ExternalId.Kind.EMPLOYMENT, "import", "E1"));
         assertEquals("user-nurse", employment.employment().userId());
         assertEquals("N-001", employment.employment().staffNumber());
         var terms = employment.terms().get(1);
@@ -160,7 +169,7 @@ class CsvImportServiceTest {
         assertEquals("part-time", terms.employmentType());
         assertEquals(0, new BigDecimal("50").compareTo(terms.terms().workPercent()));
         assertEquals("2028-03-31", terms.terms().contractEndDate().toString());
-        var old = assignments.get(assignmentStore.findAssignmentIdByExternalId("import", "A1").orElseThrow());
+        var old = assignments.get(stored(ExternalId.Kind.ASSIGNMENT, "import", "A1"));
         assertEquals("2027-04-01", old.period().to().toString());
         assertTrue(old.rows().getFirst().row().head());
         assertEquals("nurse", old.rows().getFirst().occupation());
@@ -178,8 +187,8 @@ class CsvImportServiceTest {
         orgUnits.create(new NewOrgUnit(null, "Not the parent", null, null, null, null, null, null, "2026-04-01",
                 null, null, "X", "sheet"));
         load("orgUnits", "2026-04-01", "外部ID,名称,ソース\nW1,1病棟,sheet\nW2,2病棟,sheet\n");
-        String first = orgUnitStore.findUnitByExternalId("sheet", "W1").orElseThrow().id();
-        String second = orgUnitStore.findUnitByExternalId("sheet", "W2").orElseThrow().id();
+        String first = stored(ExternalId.Kind.ORG_UNIT, "sheet", "W1");
+        String second = stored(ExternalId.Kind.ORG_UNIT, "sheet", "W2");
         orgUnits.move(first, hospital, "2026-04-01");
         orgUnits.move(second, clinic, "2026-04-01");
 
@@ -221,7 +230,7 @@ class CsvImportServiceTest {
                 .counts().get("employments"));
         assertEquals(List.of(), errors(load("employments", "2028-04-01", "外部ID,状態\nE1,ACTIVE\n")));
 
-        var terms = employments.get(employmentStore.findByExternalId("import", "E1").orElseThrow().id()).terms();
+        var terms = employments.get(stored(ExternalId.Kind.EMPLOYMENT, "import", "E1")).terms();
         assertEquals(Arrays.asList(null, "parental", null), terms.stream().map(t -> t.leaveReason()).toList());
     }
 
@@ -310,13 +319,30 @@ class CsvImportServiceTest {
         // A blank cell keeps the stored name.
         assertEquals(List.of(), errors(load("people", "2026-04-01", "外部ID,よみがな\nP1,やまだ\n")));
 
-        var person = personStore.findByExternalId("import", "P1").orElseThrow();
+        var person = personStore.find(stored(ExternalId.Kind.PERSON, "import", "P1")).orElseThrow();
         assertEquals("山田 花子", person.name());
         assertEquals("やまだ", person.phoneticName());
         assertEquals(Map.of("en", "Hanako Yamada"), person.names());
-        assertEquals(person.id(), employmentStore.findByExternalId("import", "E1").orElseThrow().personId());
+        assertEquals(person.id(), employmentStore.find(stored(ExternalId.Kind.EMPLOYMENT, "import", "E1")).orElseThrow().personId());
         assertEquals(new Counts(0, 0, 1), load("employments", "2026-04-01", "外部ID,終了日\nE1,2000-04-01\n")
                 .report().counts().get("employments"));
+    }
+
+    @Test
+    void aFileOfAnotherSystemFindsAPersonByTheIdThatSystemHasForIt() {
+        assertEquals(List.of(), errors(load("people", "2026-04-01", "外部ID,名称,よみがな\nP1,山田 花子,やまだ\n")));
+        String person = stored(ExternalId.Kind.PERSON, "import", "P1");
+        externalIdStore.insert(new ExternalId("row-pay", ExternalId.Kind.PERSON, person, "payroll", "PAY-1"));
+
+        CsvImportService.Result result = service.apply("people", "externalId,name\nPAY-1,山田 華子\n", "2026-04-01",
+                false, "payroll");
+
+        assertEquals(new Counts(0, 1, 0), result.report().counts().get("people"));
+        var renamed = personStore.find(person).orElseThrow();
+        assertEquals("山田 華子", renamed.name());
+        // A blank cell keeps what is stored, also for a row of another system.
+        assertEquals("やまだ", renamed.phoneticName());
+        assertEquals("import", renamed.source());
     }
 
     @Test
@@ -374,9 +400,9 @@ class CsvImportServiceTest {
                 "2026-04-01", false, "sheet");
 
         assertEquals(List.of(), errors(result));
-        assertEquals("X", orgUnits.get(orgUnitStore.findUnitByExternalId("sheet", "H").orElseThrow().id(),
+        assertEquals("X", orgUnits.get(stored(ExternalId.Kind.ORG_UNIT, "sheet", "H"),
                 "2026-04-01").version().name());
-        assertTrue(orgUnitStore.findUnitByExternalId("other", "K").isPresent());
+        assertTrue(externalIdStore.idOf(ExternalId.Kind.ORG_UNIT, "other", "K").isPresent());
     }
 
     @Test
@@ -426,7 +452,7 @@ class CsvImportServiceTest {
                 .report().counts().get("employments"));
         assertEquals(new Counts(0, 0, 1), load("assignments", "2026-04-01", "source,externalId\nhr-2,A1\n")
                 .report().counts().get("assignments"));
-        assertTrue(employmentStore.findByExternalId("import", "E1").isEmpty());
+        assertTrue(externalIdStore.idOf(ExternalId.Kind.EMPLOYMENT, "import", "E1").isEmpty());
     }
 
     @Test

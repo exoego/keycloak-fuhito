@@ -459,7 +459,7 @@ The database applies the filters, the order, and the page.
 | `/attribute-definitions` | The names and types of the free attributes of each kind of resource |
 | `/ref-kinds` | The kinds of reference data, the fixed ones and the ones that the realm added |
 | `/export`, `/restore` | Every stored row of the realm in pages, and the load of such an export into an empty realm |
-| `/external-ids` | The IDs that other systems have for a resource, and the read that finds a resource by one |
+| `/external-ids` | The IDs that systems have for a resource, and the read that finds a resource by one |
 | `/people/{id}/managers` | The managers of a person on a date |
 | `/people/{id}/reports` | The direct reports of a person on a date |
 | `/people/{id}/qualifications` | The qualifications of a person on a date, or all of them |

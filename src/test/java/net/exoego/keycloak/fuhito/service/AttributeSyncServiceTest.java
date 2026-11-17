@@ -11,12 +11,14 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 import net.exoego.keycloak.fuhito.domain.Assignment;
 import net.exoego.keycloak.fuhito.domain.Employment;
 import net.exoego.keycloak.fuhito.domain.BusinessDay;
+import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.RefItem;
 import net.exoego.keycloak.fuhito.domain.RefKind;
@@ -33,6 +35,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AttributeSyncServiceTest {
 
+    private final MemoryExternalIdStore externalIds = new MemoryExternalIdStore();
     private static final ZoneId TOKYO = ZoneId.of("Asia/Tokyo");
 
     private Clock clock = Clock.fixed(Instant.parse("2026-06-15T03:00:00Z"), TOKYO);
@@ -69,7 +72,7 @@ class AttributeSyncServiceTest {
 
     @BeforeEach
     void createUnitsAndTitles() {
-        OrgUnitService orgUnits = new OrgUnitService(orgUnitStore, assignmentStore, refItems, clock);
+        OrgUnitService orgUnits = new OrgUnitService(orgUnitStore, externalIds, assignmentStore, refItems, clock);
         String hospital = orgUnits.create(unit("hospital", "Hospital", null)).unit().id();
         medicine = orgUnits.create(unit("med", "Internal Medicine", hospital)).unit().id();
         surgery = orgUnits.create(unit(null, "Surgery", hospital)).unit().id();
@@ -91,11 +94,11 @@ class AttributeSyncServiceTest {
     private final MemoryPersonStore people = MemoryPersonStore.anyUser();
 
     private EmploymentService employments() {
-        return new EmploymentService(employmentStore, assignmentStore, refItems, people, lineStore, new MemoryUnitRoleStore(), new AnyEmployer());
+        return new EmploymentService(employmentStore, externalIds, assignmentStore, refItems, people, lineStore, new MemoryUnitRoleStore(), new AnyEmployer());
     }
 
     private AssignmentService assignments() {
-        return new AssignmentService(assignmentStore, employmentStore, orgUnitStore, refItems, lineStore);
+        return new AssignmentService(assignmentStore, externalIds, employmentStore, orgUnitStore, refItems, lineStore);
     }
 
     private BusinessDay.Rule rule;
@@ -117,7 +120,7 @@ class AttributeSyncServiceTest {
                 assignmentStore, employmentStore, orgUnitStore, refItems, this::known, people), clock);
         return new AttributeSyncService.Sources(source, this::known,
                 orgUnitStore, refItems, employmentStore, employments(), assignmentStore, assignments(), lineStore,
-                lineService, new PersonService(people, this::known, id -> false));
+                lineService, new PersonService(people, externalIds, this::known, id -> false));
     }
 
     @Test
@@ -198,7 +201,7 @@ class AttributeSyncServiceTest {
         var employment = employmentStore.findByUser("alice").getFirst();
         assertEquals("E-002", employment.staffNumber());
         assertEquals("scim", employment.source());
-        assertEquals("alice", employment.externalId());
+        assertEquals(Optional.of(employment.id()), externalIds.idOf(ExternalId.Kind.EMPLOYMENT, "scim", "alice"));
         assertEquals(List.of("FUHITO_PERSON", "FUHITO_EMPLOYMENT", "FUHITO_ASSIGNMENT", "FUHITO_PERSON",
                         "FUHITO_EMPLOYMENT", "FUHITO_ASSIGNMENT", "FUHITO_REPORTING_LINE"),
                 report.writes().stream().map(ImportReport.Write::resourceType).toList());
@@ -213,7 +216,9 @@ class AttributeSyncServiceTest {
         // The person of alice lost the link to the Keycloak user.
         employmentStore.employments.put(employment.id(), new Employment(employment.id(), employment.personId(), null,
                 employment.employerId(), employment.period(), employment.staffNumber(), employment.endReasonId(),
-                employment.externalId(), employment.source(), employment.continuesEmploymentId()));
+                employment.source(), employment.continuesEmploymentId()));
+        // The new employment of alice takes the ID of the user. One ID names one employment.
+        externalIds.rows.removeIf(row -> row.resourceId().equals(employment.id()));
 
         SyncReport again = run();
 
@@ -415,7 +420,7 @@ class AttributeSyncServiceTest {
     // 23:00 on June 14 in New York, where the realm is. Surgery is in Tokyo, where it is already June 15.
     private void putSurgeryOnTheNextDate() {
         rule = BusinessDay.rule("America/New_York", null);
-        new OrgUnitService(orgUnitStore, assignmentStore, refItems, clock).setTime(surgery, "Asia/Tokyo", null);
+        new OrgUnitService(orgUnitStore, externalIds, assignmentStore, refItems, clock).setTime(surgery, "Asia/Tokyo", null);
     }
 
     @Test

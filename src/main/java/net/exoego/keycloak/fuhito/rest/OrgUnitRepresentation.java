@@ -1,8 +1,10 @@
 package net.exoego.keycloak.fuhito.rest;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import net.exoego.keycloak.fuhito.service.ExternalIdLists;
 import net.exoego.keycloak.fuhito.service.NewOrgUnit;
 import net.exoego.keycloak.fuhito.service.OrgUnitChange;
 import net.exoego.keycloak.fuhito.service.OrgUnitState;
@@ -73,10 +75,24 @@ public record OrgUnitRepresentation(
         Integer displayOrder,
         @Schema(description = "Free values that the realm defines.")
         Map<String, Object> attributes,
-        @Schema(description = "The ID of the unit in the system it came from.")
+        @Schema(
+                description = "The ID of the unit in the system that `source` names. A write stores it as the "
+                        + "ID of that system, in place of the one that the system had. A read gives every ID in "
+                        + "`externalIds`.",
+                maxLength = 255,
+                writeOnly = true)
         String externalId,
-        @Schema(description = "The name of that system.")
+        @Schema(
+                description = "The name of the system that made the unit. A create sets it, and it never "
+                        + "changes. With `externalId`, it names the system of that ID.",
+                maxLength = 64,
+                pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$")
         String source,
+        @Schema(
+                description = "Every ID that a system has for the unit. The one of `source` comes first, then "
+                        + "the others by system.",
+                readOnly = true)
+        List<ExternalIdPairRepresentation> externalIds,
         @Schema(description = "The ID of the linked Keycloak organization.", readOnly = true)
         String keycloakOrganizationId,
         @Schema(description = "The time zone that the unit sets for itself and the units below it.", readOnly = true)
@@ -84,7 +100,7 @@ public record OrgUnitRepresentation(
         @Schema(description = "The day start that the unit sets for itself and the units below it.", readOnly = true)
         String dayStart) {
 
-    static OrgUnitRepresentation of(OrgUnitState state) {
+    static OrgUnitRepresentation of(OrgUnitState state, ExternalIdLists ids) {
         var unit = state.unit();
         var version = state.version();
         var period = version.period();
@@ -94,8 +110,9 @@ public record OrgUnitRepresentation(
                 places.workLocation(), places.costCenter(), places.effectiveWorkLocation(),
                 places.effectiveCostCenter(), state.legalEntity() ? Boolean.TRUE : null,
                 state.lateral() ? Boolean.TRUE : null, state.parentId(), period.from().toString(),
-                Objects.toString(period.to(), null), version.displayOrder(), version.attributes(), unit.externalId(),
-                unit.source(), unit.keycloakOrganizationId(), unit.timeZone(), unit.dayStart());
+                Objects.toString(period.to(), null), version.displayOrder(), version.attributes(), null,
+                unit.source(), ExternalIdPairRepresentation.of(ids.of(unit.id(), unit.source())),
+                unit.keycloakOrganizationId(), unit.timeZone(), unit.dayStart());
     }
 
     OrgUnitChange toChange() {

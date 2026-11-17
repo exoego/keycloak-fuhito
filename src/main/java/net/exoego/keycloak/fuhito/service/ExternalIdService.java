@@ -1,10 +1,10 @@
 package net.exoego.keycloak.fuhito.service;
 
-import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
-import java.util.UUID;
 
 import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.ExternalId;
@@ -12,7 +12,7 @@ import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.store.ExternalIdStore;
 
 /**
- * Operations on the IDs that other systems have for the resources of one realm.
+ * Operations on the IDs that systems have for the resources of one realm.
  */
 public class ExternalIdService {
 
@@ -25,8 +25,8 @@ public class ExternalIdService {
      * @param resourceId the ID of the resource
      * @param source the name of the system
      * @param externalId the ID in that system
-     * @param own true for the pair that the resource itself has
-     * @param rowId the ID of the stored row, or null for the own pair
+     * @param own true when the system made the resource
+     * @param rowId the ID of the stored row
      */
     public record View(ExternalId.Kind kind, String resourceId, String source, String externalId, boolean own,
             String rowId) {
@@ -51,39 +51,15 @@ public class ExternalIdService {
      * @param source the name of the system
      * @param externalId the ID in that system
      * @return the stored ID
-     * @throws FuhitoException when a value is bad, the resource does not exist, the system is the one of the own
-     *         pair, or the ID names another resource
+     * @throws FuhitoException when a value is bad, the resource does not exist, or the ID names another resource
      */
     public View put(String kind, String resourceId, String source, String externalId) {
         ExternalId.Kind of = kind(kind);
-        ExternalId.Pair own = pairOf(of, Checks.required("resourceId", resourceId));
-        String system = Checks.code("source", source);
-        String value = value(Checks.required("externalId", externalId));
-        if (system.equals(own.source())) {
-            throw FuhitoException.conflict("external_id.own_source", Map.of("source", system));
-        }
-        if (store.withPair(of, system, value).stream().anyMatch(other -> !other.equals(resourceId))) {
-            throw FuhitoException.conflict("external_id.taken", Map.of("source", system, "externalId", value));
-        }
-        Optional<ExternalId> taken = store.find(of, system, value);
-        if (taken.isPresent() && !taken.get().resourceId().equals(resourceId)) {
-            // A row of a resource that is gone names nothing.
-            if (store.pairOf(of, taken.get().resourceId()).isPresent()) {
-                throw FuhitoException.conflict("external_id.taken", Map.of("source", system, "externalId", value));
-            }
-            store.delete(taken.get().id());
-        }
-        Optional<ExternalId> current = store.ofResource(of, resourceId).stream()
-                .filter(row -> row.source().equals(system))
-                .findFirst();
-        ExternalId row = new ExternalId(current.map(ExternalId::id).orElse(UUID.randomUUID().toString()), of,
-                resourceId, system, value);
-        if (current.isPresent()) {
-            store.update(row);
-        } else {
-            store.insert(row);
-        }
-        return view(row);
+        ExternalId.Origin origin = originOf(of, Checks.required("resourceId", resourceId));
+        ExternalIdWrites writes = new ExternalIdWrites(store, of);
+        ExternalId.Pair pair = writes.check(resourceId, Checks.code("source", source),
+                Checks.required("externalId", externalId));
+        return view(writes.store(resourceId, pair), origin);
     }
 
     /**
@@ -101,13 +77,13 @@ public class ExternalIdService {
     }
 
     /**
-     * Removes the ID of one system from a resource. The own pair stays.
+     * Removes the ID of one system from a resource. The resource keeps the name of the system that made it.
      *
      * @param kind the kind of resource as text
      * @param resourceId the ID of the resource
      * @param source the name of the system
      * @return the removed ID
-     * @throws FuhitoException when the resource has no ID of that system in the table
+     * @throws FuhitoException when the resource has no ID of that system
      */
     public View remove(String kind, String resourceId, String source) {
         ExternalId.Kind of = kind(kind);
@@ -117,11 +93,11 @@ public class ExternalIdService {
                 .orElseThrow(() -> FuhitoException.notFound("external_id.not_found",
                         Map.of("source", String.valueOf(source), "resourceId", resourceId)));
         store.delete(row.id());
-        return view(row);
+        return new View(of, resourceId, row.source(), row.externalId(), false, row.id());
     }
 
     /**
-     * Lists every ID of a resource, the own pair first and then the others by system.
+     * Lists every ID of a resource. The ID of the system that made it comes first, then the others by system.
      *
      * @param kind the kind of resource as text
      * @param resourceId the ID of the resource
@@ -130,17 +106,14 @@ public class ExternalIdService {
      */
     public List<View> list(String kind, String resourceId) {
         ExternalId.Kind of = kind(kind);
-        ExternalId.Pair own = pairOf(of, Checks.required("resourceId", resourceId));
-        List<View> result = new ArrayList<>();
-        if (own.source() != null && own.externalId() != null) {
-            result.add(new View(of, resourceId, own.source(), own.externalId(), true, null));
-        }
-        store.ofResource(of, resourceId).forEach(row -> result.add(view(row)));
-        return result;
+        ExternalId.Origin origin = originOf(of, Checks.required("resourceId", resourceId));
+        return ExternalId.ordered(store.ofResource(of, resourceId), origin.source()).stream()
+                .map(row -> view(row, origin))
+                .toList();
     }
 
     /**
-     * Finds the resource that an ID of a system names. The own pairs come before the table.
+     * Finds the resource that an ID of a system names.
      *
      * @param kind the kind of resource as text
      * @param source the name of the system
@@ -152,25 +125,60 @@ public class ExternalIdService {
         ExternalId.Kind of = kind(kind);
         String system = Checks.required("source", source);
         String value = Checks.required("externalId", externalId);
-        Optional<View> byPair = store.withPair(of, system, value).stream()
-                .findFirst()
-                .map(resourceId -> new View(of, resourceId, system, value, true, null));
-        return byPair.or(() -> store.find(of, system, value)
-                        .filter(row -> store.pairOf(of, row.resourceId()).isPresent())
-                        .map(ExternalIdService::view))
-                .orElseThrow(() -> FuhitoException.notFound("external_id.unknown",
-                        Map.of("source", system, "externalId", value)));
+        ExternalId row = store.find(of, system, value).orElseThrow(() -> FuhitoException.notFound(
+                "external_id.unknown", Map.of("source", system, "externalId", value)));
+        return view(row, store.originOf(of, row.resourceId()).orElseThrow());
     }
 
     /**
-     * Lists a page of the stored IDs of every resource, ordered by the ID of the row. The own pairs are not there.
+     * Finds the resource that an ID of a system names.
+     *
+     * @param kind the kind of resource
+     * @param source the name of the system
+     * @param externalId the ID in that system
+     * @return the ID of the resource, or empty when none has the ID
+     */
+    public Optional<String> resourceOf(ExternalId.Kind kind, String source, String externalId) {
+        return store.find(kind, source, externalId).map(ExternalId::resourceId);
+    }
+
+    /**
+     * Returns the ID that one system has for a resource.
+     *
+     * @param kind the kind of resource
+     * @param resourceId the ID of the resource
+     * @param source the name of the system
+     * @return the ID, or empty when the system has none for it
+     */
+    public Optional<String> externalIdOf(ExternalId.Kind kind, String resourceId, String source) {
+        return store.ofResource(kind, resourceId).stream()
+                .filter(row -> row.source().equals(source))
+                .map(ExternalId::externalId)
+                .findFirst();
+    }
+
+    /**
+     * Reads the IDs of many resources of one kind at once.
+     *
+     * @param kind the kind of resource
+     * @param resourceIds the IDs of the resources
+     * @return the IDs of each resource
+     */
+    public ExternalIdLists lists(ExternalId.Kind kind, Collection<String> resourceIds) {
+        return new ExternalIdLists(store.ofResources(kind, resourceIds));
+    }
+
+    /**
+     * Lists a page of the IDs of every resource, ordered by the ID of the row.
      *
      * @param afterId the ID of the row after which the page starts, or null for the start
      * @param max the largest number of rows
      * @return the IDs
      */
     public List<View> list(String afterId, int max) {
-        return store.list(afterId, max).stream().map(ExternalIdService::view).toList();
+        return store.list(afterId, max).stream()
+                .map(row -> new View(row.kind(), row.resourceId(), row.source(), row.externalId(), false, row.id()))
+                .toList();
     }
 
     /**
@@ -184,8 +192,8 @@ public class ExternalIdService {
         return kind(kind) == ExternalId.Kind.ORG_UNIT;
     }
 
-    private ExternalId.Pair pairOf(ExternalId.Kind kind, String resourceId) {
-        return store.pairOf(kind, resourceId).orElseThrow(() -> FuhitoException.notFound(
+    private ExternalId.Origin originOf(ExternalId.Kind kind, String resourceId) {
+        return store.originOf(kind, resourceId).orElseThrow(() -> FuhitoException.notFound(
                 "external_id.resource_unknown", Map.of("resourceType", kind.name(), "resourceId", resourceId)));
     }
 
@@ -194,7 +202,8 @@ public class ExternalIdService {
                 null);
     }
 
-    private static View view(ExternalId row) {
-        return new View(row.kind(), row.resourceId(), row.source(), row.externalId(), false, row.id());
+    private static View view(ExternalId row, ExternalId.Origin origin) {
+        return new View(row.kind(), row.resourceId(), row.source(), row.externalId(),
+                Objects.equals(row.source(), origin.source()), row.id());
     }
 }

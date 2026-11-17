@@ -14,12 +14,17 @@ import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import net.exoego.keycloak.fuhito.domain.Checks;
+import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.rest.RequestContext.Change;
 import net.exoego.keycloak.fuhito.service.AssignmentService;
 import net.exoego.keycloak.fuhito.service.Cursor;
 import net.exoego.keycloak.fuhito.service.EmploymentService;
+import net.exoego.keycloak.fuhito.service.EmploymentView;
+import net.exoego.keycloak.fuhito.service.ExternalIdLists;
+import net.exoego.keycloak.fuhito.service.ExternalIdService;
 import net.exoego.keycloak.fuhito.service.LeaveService;
 import net.exoego.keycloak.fuhito.service.OrgUnitService;
+import net.exoego.keycloak.fuhito.service.OrgUnitState;
 import net.exoego.keycloak.fuhito.service.Page;
 import net.exoego.keycloak.fuhito.service.PersonService;
 import net.exoego.keycloak.fuhito.service.PromotionService;
@@ -51,6 +56,7 @@ public class EmploymentsResource {
 
     private final RequestContext context;
     private final EmploymentService service;
+    private final ExternalIdService externalIds;
     private final PersonService people;
     private final AssignmentService assignments;
     private final OrgUnitService orgUnits;
@@ -64,6 +70,7 @@ public class EmploymentsResource {
      *
      * @param context the request and its caller
      * @param service the operations on the realm of the request
+     * @param externalIds the IDs that systems have for the resources of the realm
      * @param people the operations on people of the realm
      * @param assignments the reads of assignments of the realm
      * @param orgUnits the operations on org units of the realm
@@ -72,9 +79,10 @@ public class EmploymentsResource {
      * @param removals the removal of resources that were made by mistake
      * @param today the date of the realm
      */
-    public EmploymentsResource(RequestContext context, EmploymentService service, PersonService people,
-            AssignmentService assignments, OrgUnitService orgUnits, PromotionService promotions,
+    public EmploymentsResource(RequestContext context, EmploymentService service, ExternalIdService externalIds,
+            PersonService people, AssignmentService assignments, OrgUnitService orgUnits, PromotionService promotions,
             LeaveService leaves, RemovalService removals, Today today) {
+        this.externalIds = externalIds;
         this.today = today;
         this.removals = removals;
         this.leaves = leaves;
@@ -145,8 +153,8 @@ public class EmploymentsResource {
             Cursor.requireAlone(after, first);
             EmploymentService.Search search = new EmploymentService.Search(staffNumber, employerId, asOf,
                     contractEndFrom, contractEndTo, today.ofRealm());
-            return Pages.of(context, service.list(search, Page.of(first, max), after).stream()
-                            .map(EmploymentRepresentation::of).toList(), Page.of(first, max).max(),
+            return Pages.of(context, represent(service.list(search, Page.of(first, max), after)),
+                    Page.of(first, max).max(),
                     employment -> Cursor.encode(Cursor.EMPLOYMENTS, employment.id()),
                     count ? service.count(search) : null);
         });
@@ -167,7 +175,7 @@ public class EmploymentsResource {
         context.requireWrite();
         return Calls.once(context, body, Response.class, () -> Calls.run(context, () -> {
             Checks.required("body", body);
-            var employment = EmploymentRepresentation.of(service.start(
+            var employment = represent(service.start(
                     body.toNewEmployment(Writes.personId(context, people, "personId", body.personId(), body.userId()))));
             context.recordChange(Change.CREATE, RESOURCE_TYPE, employment.id(), "fuhito/employments/" + employment.id(),
                     employment);
@@ -215,7 +223,7 @@ public class EmploymentsResource {
         context.requireWrite();
         return Calls.guarded(context, () -> state(id), () -> {
             Checks.required("body", body);
-            var employment = EmploymentRepresentation.of(service.changeTerms(id, new TermsChange(body.validFrom(),
+            var employment = represent(service.changeTerms(id, new TermsChange(body.validFrom(),
                     body.employmentType(), body.grade(), body.status(), body.leaveReason(), body.workPercent(),
                     body.contractEndDate(), body.attributes())));
             context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, "fuhito/employments/" + id + "/terms", employment);
@@ -242,7 +250,7 @@ public class EmploymentsResource {
         context.requireWrite();
         return Calls.guarded(context, () -> state(id), () -> {
             Checks.required("body", body);
-            var employment = EmploymentRepresentation.of(service.end(id, body.validTo(), body.endReason()));
+            var employment = represent(service.end(id, body.validTo(), body.endReason()));
             context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, "fuhito/employments/" + id + "/end", employment);
             return employment;
         });
@@ -274,12 +282,12 @@ public class EmploymentsResource {
                 () -> Calls.guarded(context, () -> state(id), () -> {
             Checks.required("body", body);
             PromotionService.Promotion promotion = promotions.promote(id, body.toRequest());
-            var employment = EmploymentRepresentation.of(promotion.employment());
+            var employment = represent(promotion.employment());
             context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, "fuhito/employments/" + id + "/promotion",
                     employment);
             AssignmentRepresentation assignment = null;
             if (promotion.assignment() != null) {
-                assignment = AssignmentRepresentation.of(promotion.assignment());
+                assignment = AssignmentsResource.represent(List.of(promotion.assignment()), externalIds).getFirst();
                 context.recordChange(Change.UPDATE, AssignmentsResource.RESOURCE_TYPE, assignment.id(),
                         "fuhito/assignments/" + assignment.id() + "/details", assignment);
             }
@@ -308,7 +316,7 @@ public class EmploymentsResource {
         return Calls.once(context, body, EmploymentRepresentation.class,
                 () -> Calls.guarded(context, () -> state(id), () -> {
             Checks.required("body", body);
-            var employment = EmploymentRepresentation.of(leaves.start(id, body.validFrom(), body.validTo(),
+            var employment = represent(leaves.start(id, body.validFrom(), body.validTo(),
                     body.reason()));
             context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, "fuhito/employments/" + id + "/leave", employment);
             return employment;
@@ -335,7 +343,7 @@ public class EmploymentsResource {
         return Calls.once(context, body, EmploymentRepresentation.class,
                 () -> Calls.guarded(context, () -> state(id), () -> {
             Checks.required("body", body);
-            var employment = EmploymentRepresentation.of(leaves.end(id, body.validFrom()));
+            var employment = represent(leaves.end(id, body.validFrom()));
             context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, "fuhito/employments/" + id + "/return", employment);
             return employment;
         }));
@@ -401,7 +409,9 @@ public class EmploymentsResource {
             OrgUnitRepresentation endedEmployer = null;
             if (Boolean.TRUE.equals(body.endEmployer())) {
                 String employerId = body.fromEmployerId();
-                endedEmployer = OrgUnitRepresentation.of(orgUnits.end(employerId, body.validFrom()));
+                OrgUnitState ended = orgUnits.end(employerId, body.validFrom());
+                endedEmployer = OrgUnitRepresentation.of(ended,
+                        externalIds.lists(ExternalId.Kind.ORG_UNIT, List.of(ended.unit().id())));
                 context.recordChange(Change.UPDATE, OrgUnitsResource.RESOURCE_TYPE, employerId,
                         "fuhito/org-units/" + employerId + "/end", endedEmployer);
             }
@@ -413,15 +423,16 @@ public class EmploymentsResource {
 
     // Every part of a transfer gets its own entry in the admin events and in the change log.
     private TransferRepresentation record(EmploymentService.Transfer transfer) {
-        var ended = EmploymentRepresentation.of(transfer.ended());
-        var started = EmploymentRepresentation.of(transfer.started());
+        List<EmploymentRepresentation> both = represent(List.of(transfer.ended(), transfer.started()));
+        var ended = both.getFirst();
+        var started = both.getLast();
         context.recordChange(Change.UPDATE, RESOURCE_TYPE, ended.id(), "fuhito/employments/" + ended.id() + "/transfer",
                 ended);
         context.recordChange(Change.CREATE, RESOURCE_TYPE, started.id(), "fuhito/employments/" + started.id(),
                 started);
-        var newAssignments = transfer.assignmentIds().stream()
-                .map(assignmentId -> AssignmentRepresentation.of(assignments.get(assignmentId)))
-                .toList();
+        var newAssignments = AssignmentsResource.represent(transfer.assignmentIds().stream()
+                .map(assignments::get)
+                .toList(), externalIds);
         newAssignments.forEach(assignment -> context.recordChange(Change.CREATE,
                 AssignmentsResource.RESOURCE_TYPE, assignment.id(), "fuhito/assignments/" + assignment.id(),
                 assignment));
@@ -449,7 +460,7 @@ public class EmploymentsResource {
             @PathParam("id") String id) {
         context.requireWrite();
         return Calls.guarded(context, () -> state(id), () -> {
-            var employment = EmploymentRepresentation.of(service.removeEnd(id));
+            var employment = represent(service.removeEnd(id));
             context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, "fuhito/employments/" + id + "/end", employment);
             return employment;
         });
@@ -465,11 +476,22 @@ public class EmploymentsResource {
             @Parameter(description = "The ID of the resource.")
             @PathParam("id") String id) {
         context.requireRead();
-        return Calls.tagged(context, () -> EmploymentRepresentation.of(service.get(id)));
+        return Calls.tagged(context, () -> represent(service.get(id)));
+    }
+
+    // The IDs of every employment of a list are read with one query.
+    private List<EmploymentRepresentation> represent(List<EmploymentView> views) {
+        ExternalIdLists ids = externalIds.lists(ExternalId.Kind.EMPLOYMENT,
+                views.stream().map(view -> view.employment().id()).toList());
+        return views.stream().map(view -> EmploymentRepresentation.of(view, ids)).toList();
+    }
+
+    private EmploymentRepresentation represent(EmploymentView view) {
+        return represent(List.of(view)).getFirst();
     }
 
     // The whole stored state of one resource, which its ETag covers.
     private Object state(String id) {
-        return EmploymentRepresentation.of(service.get(id));
+        return represent(service.get(id));
     }
 }

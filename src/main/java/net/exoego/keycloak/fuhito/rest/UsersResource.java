@@ -15,6 +15,7 @@ import jakarta.ws.rs.core.Response;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.service.AssignmentService;
 import net.exoego.keycloak.fuhito.service.EmploymentService;
+import net.exoego.keycloak.fuhito.service.ExternalIdService;
 import net.exoego.keycloak.fuhito.service.ImportReport.Write;
 import net.exoego.keycloak.fuhito.service.MembershipService;
 import net.exoego.keycloak.fuhito.service.Page;
@@ -44,6 +45,7 @@ public class UsersResource {
     private final QualificationService qualifications;
     private final UnitRoleService unitRoles;
     private final ReportingLineService reportingLines;
+    private final ExternalIdService externalIds;
     private final UserDirectory users;
     private final PersonService people;
     private final PersonData data;
@@ -56,9 +58,12 @@ public class UsersResource {
      * @param assignments the operations on assignments of the realm
      * @param qualifications the operations on qualifications of the realm
      * @param reportingLines the reads of managers and reports on the realm
+     * @param unitRoles the reads of roles over org units on the realm
+     * @param externalIds the IDs that systems have for the resources of the realm
      */
     public record Reads(MembershipService membership, EmploymentService employments, AssignmentService assignments,
-            QualificationService qualifications, ReportingLineService reportingLines, UnitRoleService unitRoles) {
+            QualificationService qualifications, ReportingLineService reportingLines, UnitRoleService unitRoles,
+            ExternalIdService externalIds) {
     }
 
     UsersResource(RequestContext context, Reads reads, UserDirectory users, PersonService people, PersonData data) {
@@ -69,6 +74,7 @@ public class UsersResource {
         this.qualifications = reads.qualifications();
         this.reportingLines = reads.reportingLines();
         this.unitRoles = reads.unitRoles();
+        this.externalIds = reads.externalIds();
         this.users = users;
         this.people = people;
         this.data = data;
@@ -110,7 +116,7 @@ public class UsersResource {
             // A user with nothing stored gets a person, so that the masking is remembered.
             PersonService.Resolved resolved = people.forUser(userId);
             if (resolved.created() != null) {
-                Writes.record(context, new Write.OfPerson(resolved.created()));
+                Writes.record(context, externalIds, new Write.OfPerson(resolved.created()));
             }
             return data.mask(resolved.person(), clearKeycloakName);
         });
@@ -228,9 +234,8 @@ public class UsersResource {
                     schema = @Schema(defaultValue = "false"))
             @QueryParam("all") boolean all) {
         context.requireRead();
-        return Calls.run(context, () -> qualifications.ofUser(userId, asOf, all).stream()
-                .map(QualificationRepresentation::of)
-                .toList());
+        return Calls.run(context, () -> QualificationsResource.represent(qualifications.ofUser(userId, asOf, all),
+                externalIds));
     }
 
     @GET
@@ -274,7 +279,7 @@ public class UsersResource {
         context.requireRead();
         return Calls.run(context,
                 () -> UserHistoryRepresentation.of(membership.historyOf(userId, employments, assignments),
-                        people.ofUser(userId).flatMap(person -> data.maskedAt(person.id()))));
+                        people.ofUser(userId).flatMap(person -> data.maskedAt(person.id())), externalIds));
     }
 
     @GET

@@ -22,7 +22,7 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
  * @param reportingLines the reporting lines
  * @param unitRoles the roles over org units
  * @param qualifications the qualifications
- * @param externalIds the IDs that other systems have for the resources
+ * @param externalIds every ID that a system has for a resource, also the one of the system that made it
  * @param changeOrders the change orders
  * @param erasures the people whose data was erased
  */
@@ -77,7 +77,7 @@ public record RealmExport(
 
     @Schema(name = "ExportOrgUnit", description = "An org unit. It names its Keycloak organization by alias, "
             + "because the IDs of organizations differ between servers.")
-    public record Unit(String id, String externalId, String source, String timeZone, String dayStart,
+    public record Unit(String id, String source, String timeZone, String dayStart,
             List<Version> versions, List<Parent> parents, List<Succession> successors,
             @Schema(description = "The alias of the Keycloak organization that the unit is linked to.")
             String organizationAlias) {
@@ -105,14 +105,14 @@ public record RealmExport(
 
     @Schema(name = "ExportPerson", description = "A person. It names its Keycloak user by username.")
     public record PersonRow(String id, String username, String name, Map<String, String> names,
-            String phoneticName, Map<String, Object> attributes, String externalId, String source,
+            String phoneticName, Map<String, Object> attributes, String source,
             @Schema(description = "The time of the mask, for a person who was masked.")
             String maskedAt) {
     }
 
     @Schema(name = "ExportEmployment")
     public record EmploymentRow(String id, String personId, String employerId, String validFrom, String validTo,
-            String staffNumber, String endReasonId, String externalId, String source, String continuesEmploymentId,
+            String staffNumber, String endReasonId, String source, String continuesEmploymentId,
             List<Terms> terms) {
     }
 
@@ -130,7 +130,7 @@ public record RealmExport(
     public record Period(String rowId, String employmentId, String orgUnitId, String validFrom, String validTo,
             String jobTitleId, String occupationId, String kindId, String workLocationId, String costCenterId,
             boolean head, boolean primary, BigDecimal allocationPercent, int displayOrder,
-            Map<String, Object> attributes, String externalId, String source, String continuesAssignmentId) {
+            Map<String, Object> attributes, String source, String continuesAssignmentId) {
     }
 
     @Schema(name = "ExportReportingLine")
@@ -145,10 +145,11 @@ public record RealmExport(
 
     @Schema(name = "ExportQualification")
     public record QualificationRow(String id, String personId, String kindId, String number, String validFrom,
-            String validTo, Map<String, Object> attributes, String externalId, String source) {
+            String validTo, Map<String, Object> attributes, String source) {
     }
 
-    @Schema(name = "ExportExternalId")
+    @Schema(name = "ExportExternalId", description = "The ID that one system has for a resource. A resource names "
+            + "only the system that made it in `source`. Its IDs are all here.")
     public record ExternalIdRow(String id, String resourceType, String resourceId, String source,
             String externalId) {
     }

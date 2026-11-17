@@ -9,8 +9,8 @@ import java.util.Set;
 import java.util.stream.Stream;
 
 import net.exoego.keycloak.fuhito.domain.Checks;
+import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
-import net.exoego.keycloak.fuhito.domain.Person;
 import net.exoego.keycloak.fuhito.domain.Qualification;
 import net.exoego.keycloak.fuhito.service.ImportDocument.QualificationRow;
 import net.exoego.keycloak.fuhito.service.ImportReport.Outcome;
@@ -26,15 +26,17 @@ final class QualificationImport {
 
     private final QualificationService qualifications;
     private final ImportService.People people;
+    private final ExternalIdService externalIds;
     private final String effectiveDate;
     private final String defaultSource;
     private final ImportReport report;
     private final Set<String> seen = new HashSet<>();
 
-    QualificationImport(QualificationService qualifications, ImportService.People people, String effectiveDate,
-            String defaultSource, ImportReport report) {
+    QualificationImport(QualificationService qualifications, ImportService.People people,
+            ExternalIdService externalIds, String effectiveDate, String defaultSource, ImportReport report) {
         this.qualifications = qualifications;
         this.people = people;
+        this.externalIds = externalIds;
         this.effectiveDate = Checks.date("effectiveDate", effectiveDate).toString();
         this.defaultSource = defaultSource;
         this.report = report;
@@ -85,16 +87,16 @@ final class QualificationImport {
         return Outcome.CHANGED;
     }
 
-    // A row with an ID changes that qualification. An external ID beside it must be the one of it.
+    // A row with an ID changes that qualification. An external ID beside it must be one of it.
     private Optional<QualificationView> stored(QualificationRow row, String source) {
         if (row.id() == null) {
-            return qualifications.ofExternalId(source, row.externalId());
+            return externalIds.resourceOf(ExternalId.Kind.QUALIFICATION, source, row.externalId())
+                    .flatMap(qualifications::find);
         }
         QualificationView view = qualifications.find(row.id())
                 .orElseThrow(() -> FuhitoException.invalid("import.id_unknown", Map.of("id", row.id())));
-        Qualification stored = view.qualification();
-        if (row.externalId() != null
-                && !(row.externalId().equals(stored.externalId()) && source.equals(stored.source()))) {
+        if (row.externalId() != null && !externalIds.resourceOf(ExternalId.Kind.QUALIFICATION, source,
+                row.externalId()).equals(Optional.of(row.id()))) {
             throw FuhitoException.invalid("import.id_mismatch", Map.of("id", row.id(), "externalId", row.externalId()));
         }
         return Optional.of(view);
@@ -112,7 +114,7 @@ final class QualificationImport {
             return row.personId();
         }
         if (row.personExternalId() != null) {
-            return people.personService().ofExternalId(source, row.personExternalId()).map(Person::id)
+            return externalIds.resourceOf(ExternalId.Kind.PERSON, source, row.personExternalId())
                     .orElseThrow(() -> FuhitoException.invalid("import.person_unknown",
                             Map.of("personExternalId", row.personExternalId())));
         }

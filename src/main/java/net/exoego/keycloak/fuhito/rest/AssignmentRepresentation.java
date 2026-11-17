@@ -7,6 +7,7 @@ import java.util.Objects;
 
 import net.exoego.keycloak.fuhito.service.AssignmentValues;
 import net.exoego.keycloak.fuhito.service.AssignmentView;
+import net.exoego.keycloak.fuhito.service.ExternalIdLists;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 
 @Schema(
@@ -25,10 +26,24 @@ public record AssignmentRepresentation(
         String validFrom,
         @Schema(description = "The first date after the assignment. It is missing for no end.", format = "date")
         String validTo,
-        @Schema(description = "The ID of the assignment in the system it came from.")
+        @Schema(
+                description = "The ID of the assignment in the system that `source` names. A write stores it as the "
+                        + "ID of that system, in place of the one that the system had. A read gives every ID in "
+                        + "`externalIds`.",
+                maxLength = 255,
+                writeOnly = true)
         String externalId,
-        @Schema(description = "The name of that system.")
+        @Schema(
+                description = "The name of the system that made the assignment. A create sets it, and it never "
+                        + "changes. With `externalId`, it names the system of that ID.",
+                maxLength = 64,
+                pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$")
         String source,
+        @Schema(
+                description = "Every ID that a system has for the assignment. The one of `source` comes first, then "
+                        + "the others by system.",
+                readOnly = true)
+        List<ExternalIdPairRepresentation> externalIds,
         @Schema(
                 description = "The ID of the assignment that this one continues, after a move to another org unit "
                         + "or a transfer to another employer.",
@@ -141,11 +156,12 @@ public record AssignmentRepresentation(
         }
     }
 
-    static AssignmentRepresentation of(AssignmentView view) {
+    static AssignmentRepresentation of(AssignmentView view, ExternalIdLists ids) {
         var first = view.rows().getFirst().row();
         return new AssignmentRepresentation(view.assignmentId(), first.employmentId(), view.userId(),
-                first.orgUnitId(), view.period().from().toString(), text(view.period().to()), first.externalId(),
-                first.source(), view.continuesAssignmentId(), null, null, null, null, null, null, null, null, null,
+                first.orgUnitId(), view.period().from().toString(), text(view.period().to()), null,
+                first.source(), ExternalIdPairRepresentation.of(ids.of(view.assignmentId(), first.source())),
+                view.continuesAssignmentId(), null, null, null, null, null, null, null, null, null,
                 null, null, view.rows().stream()
                         .map(r -> new Details(r.row().period().from().toString(), text(r.row().period().to()),
                                 r.jobTitle(), r.occupation(), r.kind(), r.places().workLocation(),
@@ -159,8 +175,8 @@ public record AssignmentRepresentation(
     // The values that apply come from the org units, so a change of a unit does not change the ETag.
     AssignmentRepresentation stored() {
         return new AssignmentRepresentation(id, employmentId, userId, orgUnitId, validFrom, validTo, externalId,
-                source, continuesAssignmentId, jobTitle, occupation, kind, workLocation, costCenter, head, primary,
-                switchPrimary, allocationPercent, displayOrder, attributes,
+                source, externalIds, continuesAssignmentId, jobTitle, occupation, kind, workLocation, costCenter,
+                head, primary, switchPrimary, allocationPercent, displayOrder, attributes,
                 periods.stream().map(Details::stored).toList());
     }
 

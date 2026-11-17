@@ -24,6 +24,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class MembershipServiceTest {
 
+    private final MemoryExternalIdStore externalIds = new MemoryExternalIdStore();
     private static final Clock CLOCK = Clock.fixed(Instant.parse("2026-06-15T03:00:00Z"), ZoneId.of("Asia/Tokyo"));
 
     private final MemoryAssignmentStore assignmentStore = new MemoryAssignmentStore();
@@ -32,12 +33,12 @@ class MembershipServiceTest {
     private final MemoryRefItemStore refItems = new MemoryRefItemStore();
     private final Set<String> knownUsers = Set.of("doctor", "nurse", "clerk", "idle");
     private final EmploymentService employments =
-            new EmploymentService(employmentStore, assignmentStore, refItems, MemoryPersonStore.linked(knownUsers),
+            new EmploymentService(employmentStore, externalIds, assignmentStore, refItems, MemoryPersonStore.linked(knownUsers),
             new MemoryReportingLineStore(), new MemoryUnitRoleStore(), new AnyEmployer());
     private final AssignmentService assignments =
-            new AssignmentService(assignmentStore, employmentStore, orgUnitStore, refItems,
+            new AssignmentService(assignmentStore, externalIds, employmentStore, orgUnitStore, refItems,
             new MemoryReportingLineStore());
-    private final OrgUnitService orgUnits = new OrgUnitService(orgUnitStore, assignmentStore, refItems, CLOCK);
+    private final OrgUnitService orgUnits = new OrgUnitService(orgUnitStore, externalIds, assignmentStore, refItems, CLOCK);
     private final MembershipService service = new MembershipService(assignmentStore, employmentStore, orgUnitStore,
             refItems, knownUsers::contains, CLOCK);
 
@@ -353,7 +354,7 @@ class MembershipServiceTest {
         assertEquals("clerk", history.userId());
         assertEquals("clerk", history.personId());
         // The same history is read by person.
-        Person clerk = new Person("clerk", "clerk", null, Map.of(), null, Map.of(), null, null);
+        Person clerk = new Person("clerk", "clerk", null, Map.of(), null, Map.of(), null);
         assertEquals(history, service.historyOfPerson(clerk, employments, assignments));
         assertEquals(service.assignmentsOf("clerk", "2026-06-01", true),
                 service.assignmentsOfPerson("clerk", "2026-06-01", true));

@@ -9,12 +9,14 @@ import java.util.UUID;
 
 import net.exoego.keycloak.fuhito.domain.AttributeDefinition;
 import net.exoego.keycloak.fuhito.domain.Checks;
+import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.Person;
 import net.exoego.keycloak.fuhito.domain.Qualification;
 import net.exoego.keycloak.fuhito.domain.RefItem;
 import net.exoego.keycloak.fuhito.domain.RefKind;
 import net.exoego.keycloak.fuhito.domain.ValidPeriod;
+import net.exoego.keycloak.fuhito.store.ExternalIdStore;
 import net.exoego.keycloak.fuhito.store.PersonStore;
 import net.exoego.keycloak.fuhito.store.QualificationStore;
 import net.exoego.keycloak.fuhito.store.RefItemStore;
@@ -26,6 +28,7 @@ import net.exoego.keycloak.fuhito.store.UserDirectory;
 public class QualificationService {
 
     private final QualificationStore store;
+    private final ExternalIdWrites externalIds;
     private final RefItemStore refItems;
     private final PersonStore people;
     private final UserDirectory users;
@@ -36,31 +39,34 @@ public class QualificationService {
      * Creates the service.
      *
      * @param store the storage of qualifications of the realm
+     * @param externalIds the storage of the IDs that systems have for the resources of the realm
      * @param refItems the storage of reference items of the realm
      * @param people the storage of people of the realm
      * @param users the users of the realm
      * @param clock the clock that decides what "today" is
      */
-    public QualificationService(QualificationStore store, RefItemStore refItems, PersonStore people,
-            UserDirectory users, Clock clock) {
-        this(store, refItems, people, users, clock, AttributeRules.NONE);
+    public QualificationService(QualificationStore store, ExternalIdStore externalIds, RefItemStore refItems,
+            PersonStore people, UserDirectory users, Clock clock) {
+        this(store, externalIds, refItems, people, users, clock, AttributeRules.NONE);
     }
 
     /**
      * Creates the service with a check of free attributes.
      *
      * @param store the storage of qualifications of the realm
+     * @param externalIds the storage of the IDs that systems have for the resources of the realm
      * @param refItems the storage of reference items of the realm
      * @param people the storage of people of the realm
      * @param users the users of the realm
      * @param clock the clock that decides what "today" is
      * @param attributeRules the check of free attributes against the definitions of the realm
      */
-    public QualificationService(QualificationStore store, RefItemStore refItems, PersonStore people,
-            UserDirectory users, Clock clock, AttributeRules attributeRules) {
+    public QualificationService(QualificationStore store, ExternalIdStore externalIds, RefItemStore refItems,
+            PersonStore people, UserDirectory users, Clock clock, AttributeRules attributeRules) {
         this.attributeRules = attributeRules;
         this.people = people;
         this.store = store;
+        this.externalIds = new ExternalIdWrites(externalIds, ExternalId.Kind.QUALIFICATION);
         this.refItems = refItems;
         this.users = users;
         this.clock = clock;
@@ -69,36 +75,44 @@ public class QualificationService {
     /**
      * Adds a qualification of a person. A person can hold many, and the same kind more than once.
      *
-     * @param request the values of the request
+     * @param request the values of the request. The qualification keeps the source as the system that made it.
      * @return the new qualification
-     * @throws FuhitoException when a value is bad or the person does not exist
+     * @throws FuhitoException when a value is bad, the person does not exist, or the external ID belongs to another
+     *         qualification
      */
     public QualificationView add(QualificationValues request) {
         Checks.required("body", request);
         String personId = Checks.required("personId", request.personId());
         Person person = people.find(personId).orElseThrow(
                 () -> FuhitoException.invalid("qualification.person_unknown", Map.of("personId", personId)));
+        ExternalId.Pair externalId = externalIds.check(null, request.source(), request.externalId());
         Qualification qualification = checked(UUID.randomUUID().toString(), person, request, null,
-                request.externalId(), request.source());
+                Checks.optionalCode("source", request.source()));
         store.insert(qualification);
+        externalIds.store(qualification.id(), externalId);
         return view(qualification);
     }
 
     /**
-     * Replaces the kind, the number, the dates, and the attributes of a qualification.
+     * Replaces the kind, the number, the dates, and the attributes of a qualification. An external ID of the
+     * request is stored as the ID that the system of its source has for the qualification. The qualification keeps
+     * the system that made it.
      *
      * @param id the ID
      * @param request the new values
      * @return the changed qualification
-     * @throws FuhitoException when the qualification does not exist or a value is bad
+     * @throws FuhitoException when the qualification does not exist, a value is bad, or the external ID belongs to
+     *         another qualification
      */
     public QualificationView replace(String id, QualificationValues request) {
         Checks.required("body", request);
         Qualification current = get(id).qualification();
+        ExternalId.Pair externalId = externalIds.check(id, request.source(), request.externalId());
         Qualification changed = checked(id,
-                new Person(current.personId(), current.userId(), null, Map.of(), null, Map.of(), null, null),
-                request, current.kindId(), current.externalId(), current.source());
+                new Person(current.personId(), current.userId(), null, Map.of(), null, Map.of(), null),
+                request, current.kindId(), current.source());
         store.update(changed);
+        externalIds.store(id, externalId);
         return view(changed);
     }
 
@@ -122,17 +136,6 @@ public class QualificationService {
      */
     public Optional<QualificationView> find(String id) {
         return store.find(id).map(this::view);
-    }
-
-    /**
-     * Finds a qualification by the pair of source and external ID that it has.
-     *
-     * @param source the name of the system
-     * @param externalId the ID in that system
-     * @return the qualification, or empty when none has the pair
-     */
-    public Optional<QualificationView> ofExternalId(String source, String externalId) {
-        return store.findByExternalId(source, externalId).map(this::view);
     }
 
     /**
@@ -184,7 +187,7 @@ public class QualificationService {
     }
 
     private Qualification checked(String id, Person person, QualificationValues request, String currentKindId,
-            String externalId, String source) {
+            String source) {
         String kind = Checks.required("kind", request.kind());
         // A qualification may keep a kind that was deactivated after it got it.
         String kindId = refItems.findByCode(RefKind.QUALIFICATION, kind)
@@ -195,8 +198,7 @@ public class QualificationService {
         ValidPeriod period = Checks.period(Checks.date("validFrom", request.validFrom()),
                 Checks.optionalDate("validTo", request.validTo()));
         return new Qualification(id, person.id(), person.userId(), kindId, Checks.optionalName("number", request.number()), period,
-                attributeRules.check(AttributeDefinition.Target.QUALIFICATION, request.attributes()), externalId,
-                source);
+                attributeRules.check(AttributeDefinition.Target.QUALIFICATION, request.attributes()), source);
     }
 
     /**

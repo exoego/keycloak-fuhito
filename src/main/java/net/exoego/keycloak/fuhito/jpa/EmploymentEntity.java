@@ -50,9 +50,6 @@ public class EmploymentEntity {
     @Column(name = "CONTINUES_EMPLOYMENT_ID", length = 36, updatable = false)
     String continuesEmploymentId;
 
-    @Column(name = "EXTERNAL_ID", length = 255)
-    String externalId;
-
     @Column(name = "SOURCE", length = 64)
     String source;
 

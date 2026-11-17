@@ -15,6 +15,7 @@ import net.exoego.keycloak.fuhito.domain.Assignment;
 import net.exoego.keycloak.fuhito.domain.AttributeDefinition;
 import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.Employment;
+import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.domain.EmploymentStatus;
 import net.exoego.keycloak.fuhito.domain.EmploymentTerms;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
@@ -26,6 +27,7 @@ import net.exoego.keycloak.fuhito.domain.UnitRole;
 import net.exoego.keycloak.fuhito.domain.ValidPeriod;
 import net.exoego.keycloak.fuhito.store.AssignmentStore;
 import net.exoego.keycloak.fuhito.store.EmploymentStore;
+import net.exoego.keycloak.fuhito.store.ExternalIdStore;
 import net.exoego.keycloak.fuhito.store.PersonStore;
 import net.exoego.keycloak.fuhito.store.RefItemStore;
 import net.exoego.keycloak.fuhito.store.ReportingLineStore;
@@ -38,6 +40,7 @@ public class EmploymentService {
 
     private final AttributeRules attributeRules;
     private final EmploymentStore store;
+    private final ExternalIdStore externalIds;
     private final AssignmentStore assignments;
     private final RefItemStore refItems;
     private final PersonStore people;
@@ -49,6 +52,7 @@ public class EmploymentService {
      * Creates the service.
      *
      * @param store the storage of employments of the realm
+     * @param externalIds the storage of the IDs that systems have for the resources of the realm
      * @param assignments the storage of assignments of the realm
      * @param refItems the storage of reference items of the realm
      * @param people the storage of people of the realm
@@ -56,15 +60,18 @@ public class EmploymentService {
      * @param unitRoles the storage of roles over org units of the realm
      * @param employers the rule that decides who employs a person
      */
-    public EmploymentService(EmploymentStore store, AssignmentStore assignments, RefItemStore refItems,
-            PersonStore people, ReportingLineStore reportingLines, UnitRoleStore unitRoles, Employers employers) {
-        this(store, assignments, refItems, people, reportingLines, unitRoles, employers, AttributeRules.NONE);
+    public EmploymentService(EmploymentStore store, ExternalIdStore externalIds, AssignmentStore assignments,
+            RefItemStore refItems, PersonStore people, ReportingLineStore reportingLines, UnitRoleStore unitRoles,
+            Employers employers) {
+        this(store, externalIds, assignments, refItems, people, reportingLines, unitRoles, employers,
+                AttributeRules.NONE);
     }
 
     /**
      * Creates the service with a check of free attributes.
      *
      * @param store the storage of employments of the realm
+     * @param externalIds the storage of the IDs that systems have for the resources of the realm
      * @param assignments the storage of assignments of the realm
      * @param refItems the storage of reference items of the realm
      * @param people the storage of people of the realm
@@ -73,14 +80,15 @@ public class EmploymentService {
      * @param employers the rule that decides who employs a person
      * @param attributeRules the check of free attributes against the definitions of the realm
      */
-    public EmploymentService(EmploymentStore store, AssignmentStore assignments, RefItemStore refItems,
-            PersonStore people, ReportingLineStore reportingLines, UnitRoleStore unitRoles, Employers employers,
-            AttributeRules attributeRules) {
+    public EmploymentService(EmploymentStore store, ExternalIdStore externalIds, AssignmentStore assignments,
+            RefItemStore refItems, PersonStore people, ReportingLineStore reportingLines, UnitRoleStore unitRoles,
+            Employers employers, AttributeRules attributeRules) {
         this.attributeRules = attributeRules;
         this.employers = employers;
         this.reportingLines = reportingLines;
         this.unitRoles = unitRoles;
         this.store = store;
+        this.externalIds = externalIds;
         this.assignments = assignments;
         this.refItems = refItems;
         this.people = people;
@@ -111,10 +119,13 @@ public class EmploymentService {
         String employerId = employers.of(request.employerId(), from);
         employers.requireCovers(employerId, period);
         requireFreeStaffNumber(staffNumber, employerId, personId);
+        ExternalIdWrites writes = new ExternalIdWrites(externalIds, ExternalId.Kind.EMPLOYMENT);
+        ExternalId.Pair externalId = writes.check(null, request.source(), request.externalId());
 
         Employment employment = new Employment(newId(), personId, person.userId(), employerId, period, staffNumber,
-                null, request.externalId(), request.source(), null);
+                null, Checks.optionalCode("source", request.source()), null);
         store.insert(employment);
+        writes.store(employment.id(), externalId);
         store.insertTerms(terms.copy(terms.id(), employment.id(), terms.period()));
         return get(employment.id());
     }
@@ -258,26 +269,33 @@ public class EmploymentService {
                         .filter(line -> line.period().endsAfter(date))
                         .toList()));
 
-        EmploymentView ended = end(id, request.validFrom(), request.endReason());
-
-        Employment started = new Employment(newId(), old.personId(), old.userId(), employerId,
-                from(date, old.period()), staffNumber, null, null, null, id);
-        store.insert(started);
-        terms.forEach(t -> store.insertTerms(t.copy(newId(), started.id(), from(date, t.period()))));
         // Each old assignment becomes one new assignment, with every period from the date on.
         Map<String, String> newAssignmentIds = new LinkedHashMap<>();
         rows.forEach(row -> newAssignmentIds.computeIfAbsent(row.assignmentId(), oldId -> newId()));
+        // The end removes an assignment that starts on the date or later. Its copy takes its external IDs, so
+        // that an import still finds it.
+        newAssignmentIds.forEach((oldId, copyId) -> {
+            if (!kept.contains(oldId)) {
+                moveExternalIds(oldId, copyId);
+            }
+        });
+
+        EmploymentView ended = end(id, request.validFrom(), request.endReason());
+
+        Employment started = new Employment(newId(), old.personId(), old.userId(), employerId,
+                from(date, old.period()), staffNumber, null, null, id);
+        store.insert(started);
+        terms.forEach(t -> store.insertTerms(t.copy(newId(), started.id(), from(date, t.period()))));
         for (Assignment row : rows) {
             boolean stays = kept.contains(row.assignmentId());
             // A copy continues the old assignment that stays. A copy of one that the end removed continues the
-            // copy of what the old one continued, and takes its external ID, so that an import still finds it.
+            // copy of what the old one continued, and takes the system that made it.
             String continues = stays ? row.assignmentId()
                     : newAssignmentIds.getOrDefault(row.continuesAssignmentId(), row.continuesAssignmentId());
             assignments.insert(new Assignment(newId(), newAssignmentIds.get(row.assignmentId()), started.id(),
                     row.orgUnitId(), from(date, row.period()), row.jobTitleId(), row.occupationId(), row.kindId(),
                     row.workLocationId(), row.costCenterId(), row.head(), row.primary(), row.allocationPercent(),
-                    row.displayOrder(), row.attributes(), stays ? null : row.externalId(),
-                    stays ? null : row.source(), continues));
+                    row.displayOrder(), row.attributes(), stays ? null : row.source(), continues));
         }
         List<ReportingLine> newLines = new ArrayList<>();
         lines.forEach((oldAssignmentId, ofAssignment) -> ofAssignment.forEach(line -> {
@@ -362,8 +380,8 @@ public class EmploymentService {
             throw FuhitoException.invalid("employment.continues_other", Map.of("id", previousId));
         }
         store.update(new Employment(id, employment.personId(), employment.userId(), employment.employerId(),
-                employment.period(), employment.staffNumber(), employment.endReasonId(), employment.externalId(),
-                employment.source(), previousId));
+                employment.period(), employment.staffNumber(), employment.endReasonId(), employment.source(),
+                previousId));
         return get(id);
     }
 
@@ -385,7 +403,7 @@ public class EmploymentService {
         String id = employment.id();
         store.update(new Employment(id, employment.personId(), employment.userId(), employment.employerId(),
                 employment.period().endingAt(to),
-                employment.staffNumber(), endReasonId, employment.externalId(), employment.source(),
+                employment.staffNumber(), endReasonId, employment.source(),
                 employment.continuesEmploymentId()));
 
         List<EmploymentTerms> terms = store.terms(id);
@@ -531,6 +549,13 @@ public class EmploymentService {
 
     private static String idOf(RefItem item) {
         return item == null ? null : item.id();
+    }
+
+    private void moveExternalIds(String fromAssignmentId, String toAssignmentId) {
+        externalIds.ofResource(ExternalId.Kind.ASSIGNMENT, fromAssignmentId).forEach(row -> {
+            externalIds.delete(row.id());
+            externalIds.insert(new ExternalId(row.id(), row.kind(), toAssignmentId, row.source(), row.externalId()));
+        });
     }
 
     private static String newId() {

@@ -12,11 +12,11 @@ package net.exoego.keycloak.fuhito.domain;
  * @param period the dates of the employment
  * @param staffNumber the number that the legal entity gives to the person, or null
  * @param endReasonId the ID of the end reason, or null
- * @param externalId the ID of the employment in the system it came from, or null
- * @param source the name of that system, or null
+ * @param source the name of the system that made the employment, or null. Its IDs in each system are stored
+ *        apart.
  * @param continuesEmploymentId the ID of the employment that this one continues after a transfer to another
  *        employer, or null
  */
 public record Employment(String id, String personId, String userId, String employerId, ValidPeriod period,
-        String staffNumber, String endReasonId, String externalId, String source, String continuesEmploymentId) {
+        String staffNumber, String endReasonId, String source, String continuesEmploymentId) {
 }

@@ -4,7 +4,6 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.Optional;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.TypedQuery;
@@ -322,18 +321,6 @@ public class JpaAssignmentStore implements AssignmentStore {
     }
 
     @Override
-    public Optional<String> findAssignmentIdByExternalId(String source, String externalId) {
-        return em.createQuery("""
-                        select distinct a.assignmentId from AssignmentEntity a where a.realmId = :realmId
-                        and a.source = :source and a.externalId = :externalId""", String.class)
-                .setParameter("realmId", realmId)
-                .setParameter("source", source)
-                .setParameter("externalId", externalId)
-                .getResultStream()
-                .findFirst();
-    }
-
-    @Override
     public List<Assignment> rowsBySourceOn(String source, LocalDate date) {
         return em.createQuery("""
                         select a from AssignmentEntity a where a.realmId = :realmId and a.source = :source
@@ -355,7 +342,6 @@ public class JpaAssignmentStore implements AssignmentStore {
         entity.assignmentId = row.assignmentId();
         entity.employmentId = row.employmentId();
         entity.orgUnitId = row.orgUnitId();
-        entity.externalId = row.externalId();
         entity.source = row.source();
         entity.continuesAssignmentId = row.continuesAssignmentId();
         copy(row, entity);
@@ -372,8 +358,10 @@ public class JpaAssignmentStore implements AssignmentStore {
 
     @Override
     public void delete(String rowId) {
-        em.remove(Rows.require(em, AssignmentEntity.class, rowId, realmId, found -> found.realmId));
+        AssignmentEntity entity = Rows.require(em, AssignmentEntity.class, rowId, realmId, found -> found.realmId);
+        em.remove(entity);
         em.flush();
+        ExternalIds.deleteOfGoneAssignment(em, realmId, entity.assignmentId);
     }
 
     private static void copy(Assignment row, AssignmentEntity entity) {
@@ -394,7 +382,7 @@ public class JpaAssignmentStore implements AssignmentStore {
     static Assignment toDomain(AssignmentEntity e) {
         return new Assignment(e.id, e.assignmentId, e.employmentId, e.orgUnitId,
                 new ValidPeriod(e.validFrom, e.validTo), e.jobTitleId, e.occupationId, e.kindId, e.workLocationId,
-                e.costCenterId, e.head, e.primary, e.allocationPercent, e.displayOrder, e.attributes, e.externalId,
-                e.source, e.continuesAssignmentId);
+                e.costCenterId, e.head, e.primary, e.allocationPercent, e.displayOrder, e.attributes, e.source,
+                e.continuesAssignmentId);
     }
 }

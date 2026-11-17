@@ -14,10 +14,13 @@ import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import net.exoego.keycloak.fuhito.domain.Checks;
+import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.rest.RequestContext.Change;
 import net.exoego.keycloak.fuhito.service.Cursor;
+import net.exoego.keycloak.fuhito.service.ExternalIdLists;
 import net.exoego.keycloak.fuhito.service.Page;
 import net.exoego.keycloak.fuhito.service.PersonService;
+import net.exoego.keycloak.fuhito.service.PersonView;
 import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.enums.SchemaType;
 import org.eclipse.microprofile.openapi.annotations.headers.Header;
@@ -93,8 +96,7 @@ public class PeopleResource {
             @QueryParam("after") String after) {
         context.requireRead();
         return Calls.run(context, () -> Pages.of(context,
-                service.list(userId, q, staffNumber, first, max, after).stream().map(PersonRepresentation::of)
-                        .toList(),
+                represent(service.list(userId, q, staffNumber, first, max, after)),
                 Page.of(first, max).max(), person -> Cursor.encode(Cursor.PEOPLE, person.id())));
     }
 
@@ -115,7 +117,7 @@ public class PeopleResource {
         context.requireWrite();
         return Calls.once(context, body, Response.class, () -> Calls.run(context, () -> {
             Checks.required("body", body);
-            var person = PersonRepresentation.of(service.create(body.toValues()));
+            var person = represent(service.create(body.toValues()));
             context.recordChange(Change.CREATE, RESOURCE_TYPE, person.id(), path(person.id()), person);
             return Response.status(Response.Status.CREATED).entity(person).build();
         }));
@@ -131,7 +133,7 @@ public class PeopleResource {
             @Parameter(description = "The ID of the resource.")
             @PathParam("id") String id) {
         context.requireRead();
-        return Calls.tagged(context, () -> PersonRepresentation.of(service.get(id)));
+        return Calls.tagged(context, () -> represent(service.get(id)));
     }
 
     @PUT
@@ -139,7 +141,8 @@ public class PeopleResource {
     @Operation(
             operationId = "replacePerson",
             summary = "Replaces the names, the attributes, and the link to a Keycloak user.",
-            description = "A body with no `userId` removes the link. The external ID and its source do not change.")
+            description = "A body with no `userId` removes the link. The person keeps `source`. With `source` and "
+                    + "`externalId`, the person gets that ID of that system.")
     @Parameter(ref = "changeOrder")
     @APIResponse(responseCode = "200", description = "The changed person.")
     @BadRequest
@@ -152,7 +155,7 @@ public class PeopleResource {
         context.requireWrite();
         return Calls.guarded(context, () -> state(id), () -> {
             Checks.required("body", body);
-            var person = PersonRepresentation.of(service.replace(id, body.toValues()));
+            var person = represent(service.replace(id, body.toValues()));
             context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, path(id), person);
             return person;
         });
@@ -220,7 +223,7 @@ public class PeopleResource {
         return Calls.run(context, () -> UserHistoryRepresentation.of(
                 reads.membership().historyOfPerson(service.get(id).person(), reads.employments(),
                         reads.assignments()),
-                data.maskedAt(id)));
+                data.maskedAt(id), reads.externalIds()));
     }
 
     @GET
@@ -327,10 +330,8 @@ public class PeopleResource {
                     schema = @Schema(defaultValue = "false"))
             @QueryParam("all") boolean all) {
         context.requireRead();
-        return Calls.run(context, () -> reads.qualifications()
-                .ofPerson(service.get(id).person().id(), asOf, all).stream()
-                .map(QualificationRepresentation::of)
-                .toList());
+        return Calls.run(context, () -> QualificationsResource.represent(reads.qualifications()
+                .ofPerson(service.get(id).person().id(), asOf, all), reads.externalIds()));
     }
 
     @POST
@@ -391,8 +392,19 @@ public class PeopleResource {
         return "fuhito/people/" + id;
     }
 
+    // The IDs of every person of a page are read with one query.
+    private List<PersonRepresentation> represent(List<PersonView> views) {
+        ExternalIdLists ids = reads.externalIds().lists(ExternalId.Kind.PERSON,
+                views.stream().map(view -> view.person().id()).toList());
+        return views.stream().map(view -> PersonRepresentation.of(view, ids)).toList();
+    }
+
+    private PersonRepresentation represent(PersonView view) {
+        return represent(List.of(view)).getFirst();
+    }
+
     // The whole stored state of one resource, which its ETag covers.
     private Object state(String id) {
-        return PersonRepresentation.of(service.get(id));
+        return represent(service.get(id));
     }
 }

@@ -23,6 +23,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class UnitRoleServiceTest {
 
+    private final MemoryExternalIdStore externalIds = new MemoryExternalIdStore();
     private static final Clock CLOCK = Clock.fixed(Instant.parse("2026-06-15T03:00:00Z"), ZoneId.of("Asia/Tokyo"));
 
     private final MemoryUnitRoleStore store = new MemoryUnitRoleStore();
@@ -30,10 +31,10 @@ class UnitRoleServiceTest {
     private final MemoryOrgUnitStore orgUnitStore = new MemoryOrgUnitStore();
     private final MemoryRefItemStore refItems = new MemoryRefItemStore();
     private final MemoryAssignmentStore assignmentStore = new MemoryAssignmentStore();
-    private final EmploymentService employments = new EmploymentService(employmentStore, assignmentStore, refItems,
+    private final EmploymentService employments = new EmploymentService(employmentStore, externalIds, assignmentStore, refItems,
             MemoryPersonStore.linked(Set.of("alice", "bob")), new MemoryReportingLineStore(), store,
             new AnyEmployer());
-    private final OrgUnitService orgUnits = new OrgUnitService(orgUnitStore, assignmentStore, refItems, CLOCK);
+    private final OrgUnitService orgUnits = new OrgUnitService(orgUnitStore, externalIds, assignmentStore, refItems, CLOCK);
     private final UnitRoleService service = new UnitRoleService(store,
             new UnitRoleService.Sources(employmentStore, orgUnitStore, refItems), Today.of(CLOCK));
 

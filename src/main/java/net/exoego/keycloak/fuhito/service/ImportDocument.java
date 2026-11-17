@@ -17,7 +17,9 @@ public record ImportDocument(
         @Schema(description = "True to do all checks and write nothing.", defaultValue = "false")
         boolean dryRun,
         @Schema(
-                description = "The name of the system that the rows come from. Rows can override it.",
+                description = "The name of the system that the rows come from. Rows can override it. A row matches "
+                        + "a stored record that has the ID of the row in that system, whichever system made the "
+                        + "record. A new record keeps it as the system that made it.",
                 maxLength = 64,
                 pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$",
                 defaultValue = "import")
@@ -118,9 +120,9 @@ public record ImportDocument(
 
     @Schema(
             name = "ImportExternalIdRow",
-            description = "The ID that another system has for a resource. It is matched by type of resource, "
-                    + "resource, and source. Another external ID replaces the stored one, and an empty text removes "
-                    + "it.",
+            description = "The ID that a system has for a resource. It is matched by type of resource, resource, "
+                    + "and source. Another external ID replaces the stored one, and an empty text removes it. The "
+                    + "resource keeps the name of the system that made it.",
             requiredProperties = {"resourceType", "resourceId", "externalId"})
     public record ExternalIdRow(
             @Schema(enumeration = {"ORG_UNIT", "PERSON", "EMPLOYMENT", "ASSIGNMENT", "QUALIFICATION"})
@@ -128,8 +130,7 @@ public record ImportDocument(
             @Schema(description = "The ID of the resource.")
             String resourceId,
             @Schema(
-                    description = "The name of the other system. The default is the source of the document. It "
-                            + "cannot be the source of the pair that the resource itself has.",
+                    description = "The name of the system. The default is the source of the document.",
                     maxLength = 64,
                     pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$")
             String source,
@@ -139,9 +140,9 @@ public record ImportDocument(
 
     @Schema(
             name = "ImportQualificationRow",
-            description = "A qualification of a person, such as a license. It is matched by source and external ID, "
-                    + "or by `id`. A row needs one of them. A row of a stored one replaces its kind, number, dates, "
-                    + "and attributes, as `PUT` does.",
+            description = "A qualification of a person, such as a license. It is matched by its ID in the system of "
+                    + "`source`, whichever system made it, or by `id`. A row needs one of them. A row of a stored "
+                    + "one replaces its kind, number, dates, and attributes, as `PUT` does.",
             requiredProperties = {"kind"})
     public record QualificationRow(
             @Schema(description = "The ID of a stored qualification. A CSV export has it in every row.")
@@ -346,8 +347,8 @@ public record ImportDocument(
 
     @Schema(
             name = "ImportPersonRow",
-            description = "A person, also one with no Keycloak user. It is matched by source and external ID, or by "
-                    + "`id`. A row needs one of them.")
+            description = "A person, also one with no Keycloak user. It is matched by its ID in the system of "
+                    + "`source`, whichever system made it, or by `id`. A row needs one of them.")
     public record PersonRow(
             @Schema(
                     description = "The name of the system that the row comes from. The default is the source of the "
@@ -377,8 +378,8 @@ public record ImportDocument(
 
     @Schema(
             name = "ImportEmploymentRow",
-            description = "An employment. It is matched by source and external ID, or by `id`. A row needs one of "
-                    + "them.")
+            description = "An employment. It is matched by its ID in the system of `source`, whichever system made "
+                    + "it, or by `id`. A row needs one of them.")
     public record EmploymentRow(
             @Schema(
                     description = "The name of the system that the row comes from. The default is the source of the "
@@ -500,8 +501,9 @@ public record ImportDocument(
 
     @Schema(
             name = "ImportAssignmentRow",
-            description = "An assignment. It is matched by source and external ID, or by `id`. A row needs one of "
-                    + "them. A new assignment names its employment and its org unit.")
+            description = "An assignment. It is matched by its ID in the system of `source`, whichever system made "
+                    + "it, or by `id`. A row needs one of them. A new assignment names its employment and its org "
+                    + "unit.")
     public record AssignmentRow(
             @Schema(
                     description = "The name of the system that the row comes from. The default is the source of the "
@@ -653,7 +655,8 @@ public record ImportDocument(
 
     @Schema(
             name = "ImportOrgUnitRow",
-            description = "An org unit. It is matched by source and external ID, or by `id`. A row needs one of them.",
+            description = "An org unit. It is matched by its ID in the system of `source`, whichever system made "
+                    + "it, or by `id`. A row needs one of them.",
             requiredProperties = {"name"})
     public record OrgUnitRow(
             @Schema(

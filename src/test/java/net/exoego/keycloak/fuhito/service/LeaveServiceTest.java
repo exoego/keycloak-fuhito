@@ -20,9 +20,10 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class LeaveServiceTest {
 
+    private final MemoryExternalIdStore externalIds = new MemoryExternalIdStore();
     private final MemoryEmploymentStore employmentStore = new MemoryEmploymentStore();
     private final MemoryRefItemStore refItems = new MemoryRefItemStore();
-    private final EmploymentService employments = new EmploymentService(employmentStore, new MemoryAssignmentStore(),
+    private final EmploymentService employments = new EmploymentService(employmentStore, externalIds, new MemoryAssignmentStore(),
             refItems, MemoryPersonStore.linked(Set.of("nurse")), new MemoryReportingLineStore(), new MemoryUnitRoleStore(), new AnyEmployer());
     private final LeaveService service = new LeaveService(employments);
 

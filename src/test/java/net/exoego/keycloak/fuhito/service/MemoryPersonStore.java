@@ -4,7 +4,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.TreeMap;
 import java.util.stream.Stream;
@@ -31,7 +30,7 @@ final class MemoryPersonStore implements PersonStore {
     }
 
     private static Person of(String id) {
-        return new Person(id, id, null, Map.of(), null, Map.of(), null, null);
+        return new Person(id, id, null, Map.of(), null, Map.of(), null);
     }
 
     @Override
@@ -45,13 +44,6 @@ final class MemoryPersonStore implements PersonStore {
     @Override
     public Optional<Person> findByUser(String userId) {
         return people.values().stream().filter(p -> userId.equals(p.userId())).findFirst();
-    }
-
-    @Override
-    public Optional<Person> findByExternalId(String source, String externalId) {
-        return people.values().stream()
-                .filter(p -> Objects.equals(source, p.source()) && Objects.equals(externalId, p.externalId()))
-                .findFirst();
     }
 
     @Override

@@ -18,8 +18,8 @@ import java.util.Map;
  * @param validFrom the first date of the unit, as {@code YYYY-MM-DD}
  * @param displayOrder the position among siblings, or null for 0
  * @param attributes free values, or null
- * @param externalId the ID of the unit in the system it came from, or null
- * @param source the name of that system, or null
+ * @param externalId the ID of the unit in the system that the source names, or null
+ * @param source the name of the system that makes the unit, or null
  */
 public record NewOrgUnit(String code, String name, Map<String, String> names, String shortName,
         Map<String, String> shortNames, String phoneticName, String unitType, String workLocation, String costCenter,
@@ -40,8 +40,8 @@ public record NewOrgUnit(String code, String name, Map<String, String> names, St
      * @param validFrom the first date of the unit, as {@code YYYY-MM-DD}
      * @param displayOrder the position among siblings, or null for 0
      * @param attributes free values, or null
-     * @param externalId the ID of the unit in the system it came from, or null
-     * @param source the name of that system, or null
+     * @param externalId the ID of the unit in the system that the source names, or null
+     * @param source the name of the system that makes the unit, or null
      */
     public NewOrgUnit(String code, String name, Map<String, String> names, String shortName,
             Map<String, String> shortNames, String phoneticName, String unitType, String parentId, String validFrom,

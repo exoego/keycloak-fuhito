@@ -50,9 +50,6 @@ public class QualificationEntity {
     @Convert(converter = JsonConverters.ValueMap.class)
     Map<String, Object> attributes;
 
-    @Column(name = "EXTERNAL_ID", length = 255)
-    String externalId;
-
     @Column(name = "SOURCE", length = 64)
     String source;
 

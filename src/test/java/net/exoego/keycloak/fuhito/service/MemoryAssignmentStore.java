@@ -51,7 +51,7 @@ final class MemoryAssignmentStore implements AssignmentStore {
                 .sorted(order)
                 .filter(row -> after == null || order.compare(row, new Assignment(null, after.assignmentId(), null,
                         after.orgUnitId(), ValidPeriod.startingAt(after.validFrom()), null, null, null, null, null,
-                        false, false, null, after.displayOrder(), Map.of(), null, null, null)) > 0)
+                        false, false, null, after.displayOrder(), Map.of(), null, null)) > 0)
                 .skip(first)
                 .limit(max)
                 .toList();
@@ -109,14 +109,6 @@ final class MemoryAssignmentStore implements AssignmentStore {
     @Override
     public List<Assignment> rowsOn(Collection<String> orgUnitIds, LocalDate date) {
         return rows.stream().filter(r -> orgUnitIds.contains(r.orgUnitId()) && r.period().contains(date)).toList();
-    }
-
-    @Override
-    public Optional<String> findAssignmentIdByExternalId(String source, String externalId) {
-        return rows.stream()
-                .filter(r -> source.equals(r.source()) && externalId.equals(r.externalId()))
-                .map(Assignment::assignmentId)
-                .findFirst();
     }
 
     @Override

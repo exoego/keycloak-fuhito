@@ -1,7 +1,9 @@
 package net.exoego.keycloak.fuhito.rest;
 
+import java.util.List;
 import java.util.Map;
 
+import net.exoego.keycloak.fuhito.service.ExternalIdLists;
 import net.exoego.keycloak.fuhito.service.PersonValues;
 import net.exoego.keycloak.fuhito.service.PersonView;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
@@ -32,19 +34,30 @@ public record PersonRepresentation(
         String phoneticName,
         @Schema(description = "Free values that the realm defines.")
         Map<String, Object> attributes,
-        @Schema(description = "The ID of the person in the system it came from. Only a create request reads it.")
+        @Schema(
+                description = "The ID of the person in the system that `source` names. A write stores it as the "
+                        + "ID of that system, in place of the one that the system had. A read gives every ID in "
+                        + "`externalIds`.",
+                maxLength = 255,
+                writeOnly = true)
         String externalId,
         @Schema(
-                description = "The name of that system. Only a create request reads it.",
+                description = "The name of the system that made the person. A create sets it, and it never "
+                        + "changes. With `externalId`, it names the system of that ID.",
                 maxLength = 64,
                 pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$")
-        String source) {
+        String source,
+        @Schema(
+                description = "Every ID that a system has for the person. The one of `source` comes first, then "
+                        + "the others by system.",
+                readOnly = true)
+        List<ExternalIdPairRepresentation> externalIds) {
 
-    static PersonRepresentation of(PersonView view) {
+    static PersonRepresentation of(PersonView view, ExternalIdLists ids) {
         var p = view.person();
         return new PersonRepresentation(p.id(), p.userId(), view.name(),
                 view.nameSource() == null ? null : view.nameSource().name(), p.names(), p.phoneticName(),
-                p.attributes(), p.externalId(), p.source());
+                p.attributes(), null, p.source(), ExternalIdPairRepresentation.of(ids.of(p.id(), p.source())));
     }
 
     PersonValues toValues() {

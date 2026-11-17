@@ -19,6 +19,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class UserMaskingServiceTest {
 
+    private final MemoryExternalIdStore externalIds = new MemoryExternalIdStore();
     // Today is 2026-06-15 in Tokyo.
     private Clock clock = Clock.fixed(Instant.parse("2026-06-15T03:00:00.123456Z"), ZoneId.of("Asia/Tokyo"));
     private final Map<String, Instant> marks = new HashMap<>();
@@ -36,7 +37,7 @@ class UserMaskingServiceTest {
         }
     };
     private final MemoryEmploymentStore employmentStore = new MemoryEmploymentStore();
-    private final EmploymentService employments = new EmploymentService(employmentStore, new MemoryAssignmentStore(),
+    private final EmploymentService employments = new EmploymentService(employmentStore, externalIds, new MemoryAssignmentStore(),
             new MemoryRefItemStore(), MemoryPersonStore.anyUser(), new MemoryReportingLineStore(), new MemoryUnitRoleStore(), new AnyEmployer());
     private UserMaskingService service() {
         return new UserMaskingService(masker, employmentStore, clock, clock);

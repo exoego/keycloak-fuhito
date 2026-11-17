@@ -15,10 +15,14 @@ import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import net.exoego.keycloak.fuhito.domain.Checks;
+import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.rest.RequestContext.Change;
 import net.exoego.keycloak.fuhito.service.Cursor;
+import net.exoego.keycloak.fuhito.service.ExternalIdLists;
+import net.exoego.keycloak.fuhito.service.ExternalIdService;
 import net.exoego.keycloak.fuhito.service.MemberQuery;
 import net.exoego.keycloak.fuhito.service.MembershipService;
+import net.exoego.keycloak.fuhito.service.OrgUnitHistory;
 import net.exoego.keycloak.fuhito.service.OrgUnitService;
 import net.exoego.keycloak.fuhito.service.OrgUnitState;
 import net.exoego.keycloak.fuhito.service.OrganizationLinkService;
@@ -50,6 +54,7 @@ public class OrgUnitsResource {
 
     private final RequestContext context;
     private final OrgUnitService service;
+    private final ExternalIdService externalIds;
     private final MembershipService membership;
     private final OrganizationLinkService organizationLinks;
     private final UnitRoleService unitRoles;
@@ -61,15 +66,17 @@ public class OrgUnitsResource {
      *
      * @param context the request and its caller
      * @param service the operations on the realm of the request
+     * @param externalIds the IDs that systems have for the resources of the realm
      * @param membership the reads of members on the realm of the request
      * @param organizationLinks the links to Keycloak organizations of the realm
      * @param unitRoles the roles over org units of the realm
      * @param removals the removal of resources that were made by mistake
      * @param limit how far ahead a caller who may read only the structure may read it
      */
-    OrgUnitsResource(RequestContext context, OrgUnitService service, MembershipService membership,
-            OrganizationLinkService organizationLinks, UnitRoleService unitRoles, RemovalService removals,
-            StructureLimit limit) {
+    OrgUnitsResource(RequestContext context, OrgUnitService service, ExternalIdService externalIds,
+            MembershipService membership, OrganizationLinkService organizationLinks, UnitRoleService unitRoles,
+            RemovalService removals, StructureLimit limit) {
+        this.externalIds = externalIds;
         this.limit = limit;
         this.removals = removals;
         this.unitRoles = unitRoles;
@@ -94,7 +101,7 @@ public class OrgUnitsResource {
         context.requireWrite();
         return Calls.once(context, body, Response.class, () -> Calls.run(context, () -> {
             Checks.required("body", body);
-            var unit = OrgUnitRepresentation.of(service.create(body.toNewOrgUnit()));
+            var unit = represent(service.create(body.toNewOrgUnit()));
             context.recordChange(Change.CREATE, RESOURCE_TYPE, unit.id(), path(unit.id()), unit);
             return Response.status(Response.Status.CREATED).entity(unit).build();
         }));
@@ -106,8 +113,8 @@ public class OrgUnitsResource {
             operationId = "changeOrgUnitDetails",
             summary = "Replaces the details of an org unit from the `validFrom` date of the body.",
             description = "The details are the code, the names, the unit type, the display order, and the "
-                    + "attributes. The parent and the external ID do not change here. No other org unit may have the "
-                    + "same code on a date of the change.")
+                    + "attributes. The parent does not change here. With `source` and `externalId`, the unit gets "
+                    + "that ID of that system. No other org unit may have the same code on a date of the change.")
     @Parameter(ref = "changeOrder")
     @APIResponse(responseCode = "200", description = "The unit as it is on that date.")
     @BadRequest
@@ -120,7 +127,7 @@ public class OrgUnitsResource {
         context.requireWrite();
         return Calls.guarded(context, () -> state(id), () -> {
             Checks.required("body", body);
-            return updated(path(id), service.changeDetails(id, body.toChange()));
+            return updated(path(id), service.changeDetails(id, body.toChange(), body.source(), body.externalId()));
         });
     }
 
@@ -588,7 +595,7 @@ public class OrgUnitsResource {
         context.requireReadStructure();
         return Calls.run(context, () -> {
             limit.requireEveryDate();
-            return OrgUnitHistoryRepresentation.of(service.history(id));
+            return history(service.history(id));
         });
     }
 
@@ -655,7 +662,7 @@ public class OrgUnitsResource {
     }
 
     private OrgUnitRepresentation updated(String path, OrgUnitState state) {
-        var unit = OrgUnitRepresentation.of(state);
+        var unit = represent(state);
         context.recordChange(Change.UPDATE, RESOURCE_TYPE, unit.id(), path, unit);
         return unit;
     }
@@ -664,8 +671,21 @@ public class OrgUnitsResource {
         return "fuhito/org-units/" + id;
     }
 
+    // The IDs of every unit of a list are read with one query.
     private List<OrgUnitRepresentation> represent(List<OrgUnitState> states) {
-        return states.stream().map(limit::readable).map(OrgUnitRepresentation::of).toList();
+        ExternalIdLists ids = externalIds.lists(ExternalId.Kind.ORG_UNIT,
+                states.stream().map(state -> state.unit().id()).toList());
+        return states.stream().map(limit::readable).map(state -> OrgUnitRepresentation.of(state, ids)).toList();
+    }
+
+    private OrgUnitRepresentation represent(OrgUnitState state) {
+        return OrgUnitRepresentation.of(state,
+                externalIds.lists(ExternalId.Kind.ORG_UNIT, List.of(state.unit().id())));
+    }
+
+    private OrgUnitHistoryRepresentation history(OrgUnitHistory history) {
+        return OrgUnitHistoryRepresentation.of(history,
+                externalIds.lists(ExternalId.Kind.ORG_UNIT, List.of(history.unit().id())));
     }
 
     @GET
@@ -685,13 +705,13 @@ public class OrgUnitsResource {
             @Parameter(description = "The code of the hierarchy. The default is the hierarchy `default`.")
             @QueryParam("hierarchy") String hierarchy) {
         context.requireReadStructure();
-        Supplier<OrgUnitRepresentation> read = () -> OrgUnitRepresentation.of(
+        Supplier<OrgUnitRepresentation> read = () -> represent(
                 limit.readable(service.get(id, limit.checked(asOf), hierarchy)));
         return limit.active() ? Calls.run(context, read) : Calls.tagged(context, () -> state(id), read);
     }
 
     // The whole stored state of one resource, which its ETag covers.
     private Object state(String id) {
-        return OrgUnitHistoryRepresentation.of(service.history(id));
+        return history(service.history(id));
     }
 }

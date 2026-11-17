@@ -26,9 +26,9 @@ import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.Csv;
 import net.exoego.keycloak.fuhito.domain.Employment;
 import net.exoego.keycloak.fuhito.domain.EmploymentStatus;
+import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.Hierarchy;
-import net.exoego.keycloak.fuhito.domain.OrgUnit;
 import net.exoego.keycloak.fuhito.domain.OrgUnitSuccession;
 import net.exoego.keycloak.fuhito.domain.Person;
 import net.exoego.keycloak.fuhito.domain.Qualification;
@@ -48,7 +48,6 @@ import net.exoego.keycloak.fuhito.service.ImportDocument.RefItemRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.ReportingLineRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.UnitRoleRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.RefKindRow;
-import net.exoego.keycloak.fuhito.store.OrgUnitStore;
 import net.exoego.keycloak.fuhito.store.RefItemStore;
 
 /**
@@ -198,7 +197,6 @@ public class CsvImportService {
     private final Function<AttributeDefinition.Target, List<AttributeDefinition>> definitions;
     private final ImportService importService;
     private final RefItemStore refItems;
-    private final OrgUnitStore orgUnits;
     private final OrgUnitService orgUnitService;
     private final ImportService.People people;
 
@@ -207,18 +205,16 @@ public class CsvImportService {
      *
      * @param importService the import that writes the rows
      * @param refItems the reference items of the realm
-     * @param orgUnits the storage of org units of the realm
      * @param orgUnitService the operations on org units of the realm
      * @param people the stores and services of people of the realm
      * @param definitions the definitions of attributes, by kind of resource
      */
-    public CsvImportService(ImportService importService, RefItemStore refItems, OrgUnitStore orgUnits,
-            OrgUnitService orgUnitService, ImportService.People people,
+    public CsvImportService(ImportService importService, RefItemStore refItems, OrgUnitService orgUnitService,
+            ImportService.People people,
             Function<AttributeDefinition.Target, List<AttributeDefinition>> definitions) {
         this.definitions = definitions;
         this.importService = importService;
         this.refItems = refItems;
-        this.orgUnits = orgUnits;
         this.orgUnitService = orgUnitService;
         this.people = people;
     }
@@ -367,7 +363,7 @@ public class CsvImportService {
             String system = source == null ? defaultSource : source;
             value = quietly(() -> importService.records().externalIds().list(kind, resourceId)).stream()
                     .flatMap(List::stream)
-                    .filter(view -> !view.own() && view.source().equals(system))
+                    .filter(view -> view.source().equals(system))
                     .map(ExternalIdService.View::externalId)
                     .findFirst()
                     .orElse(null);
@@ -383,7 +379,7 @@ public class CsvImportService {
         QualificationService service = importService.records().qualifications();
         Optional<QualificationView> stored = id != null ? service.find(id)
                 : externalId == null ? Optional.empty()
-                : service.ofExternalId(source == null ? defaultSource : source, externalId);
+                : resourceOf(ExternalId.Kind.QUALIFICATION, source, externalId, defaultSource).flatMap(service::find);
         Optional<Qualification> q = stored.map(QualificationView::qualification);
         return new QualificationRow(id, source, externalId, cells.text("personExternalId", null),
                 cells.text("personId", null), cells.text("username", null),
@@ -424,8 +420,7 @@ public class CsvImportService {
         String parentId = cells.text("parentId", null);
         if (cells.blank("parentExternalId") && cells.blank("parentId") && hierarchy != null) {
             Optional<String> unit = id != null ? Optional.of(id) : externalId == null ? Optional.empty()
-                    : orgUnits.findUnitByExternalId(source == null ? defaultSource : source, externalId)
-                            .map(OrgUnit::id);
+                    : resourceOf(ExternalId.Kind.ORG_UNIT, source, externalId, defaultSource);
             parentId = unit.flatMap(u -> quietly(() -> orgUnitService.get(u, date.toString(), hierarchy)))
                     .map(OrgUnitState::parentId)
                     .orElse(null);
@@ -477,17 +472,16 @@ public class CsvImportService {
         if (id != null) {
             stored = quietly(() -> orgUnitService.get(id, date.toString()));
         } else if (externalId != null) {
-            stored = orgUnits.findUnitByExternalId(source == null ? defaultSource : source, externalId)
-                    .flatMap(unit -> quietly(() -> orgUnitService.get(unit.id(), date.toString())));
+            stored = resourceOf(ExternalId.Kind.ORG_UNIT, source, externalId, defaultSource)
+                    .flatMap(unit -> quietly(() -> orgUnitService.get(unit, date.toString())));
         }
         var version = stored.map(OrgUnitState::version);
         String rowSource = source == null ? defaultSource : source;
-        Optional<OrgUnit> parent = stored.map(OrgUnitState::parentId).flatMap(orgUnits::findUnit);
+        Optional<String> parent = stored.map(OrgUnitState::parentId);
         // A blank cell keeps the stored parent. One with no external ID of the source is kept by its ID.
-        String storedParent = parent.filter(unit -> Objects.equals(rowSource, unit.source())).map(OrgUnit::externalId)
-                .orElse(null);
-        String keptParentId = storedParent == null && cells.blank("parentExternalId")
-                ? parent.map(OrgUnit::id).orElse(null) : null;
+        String storedParent = parent.flatMap(unit -> importService.records().externalIds()
+                .externalIdOf(ExternalId.Kind.ORG_UNIT, unit, rowSource)).orElse(null);
+        String keptParentId = storedParent == null && cells.blank("parentExternalId") ? parent.orElse(null) : null;
         // A cell of the parent ID names the parent, and the cell #CLEAR makes a root. A CSV export has it.
         String parentExternalId = cells.text("parentExternalId", storedParent);
         if (!cells.blank("parentId")) {
@@ -527,7 +521,8 @@ public class CsvImportService {
         String id = cells.text("id", null);
         Optional<Person> stored = id != null ? people.personService().find(id)
                 : externalId == null ? Optional.empty()
-                : people.personService().ofExternalId(source == null ? defaultSource : source, externalId);
+                : resourceOf(ExternalId.Kind.PERSON, source, externalId, defaultSource)
+                        .flatMap(people.personService()::find);
         return new PersonRow(source, externalId, cells.text("username", null), cells.text("userId", null),
                 cells.text("name", stored.map(Person::name).orElse(null)),
                 cells.localized("name", stored.map(Person::names).orElse(Map.of())),
@@ -541,7 +536,8 @@ public class CsvImportService {
         String id = cells.text("id", null);
         Optional<Employment> employment = id != null ? people.employments().find(id)
                 : externalId == null ? Optional.empty()
-                : people.employments().findByExternalId(source == null ? defaultSource : source, externalId);
+                : resourceOf(ExternalId.Kind.EMPLOYMENT, source, externalId, defaultSource)
+                        .flatMap(people.employments()::find);
         Optional<EmploymentView.TermsView> terms = employment
                 .map(e -> people.employmentService().get(e.id()))
                 .flatMap(view -> view.terms().stream().filter(t -> t.terms().period().contains(date)).findFirst());
@@ -574,8 +570,7 @@ public class CsvImportService {
         String id = cells.text("id", null);
         Optional<String> stored = id != null ? Optional.of(id).filter(i -> !people.assignments().rows(i).isEmpty())
                 : externalId == null ? Optional.empty()
-                : people.assignments().findAssignmentIdByExternalId(source == null ? defaultSource : source,
-                        externalId);
+                : resourceOf(ExternalId.Kind.ASSIGNMENT, source, externalId, defaultSource);
         Optional<AssignmentView.Row> current = stored.map(people.assignmentService()::get)
                 .flatMap(v -> v.rows().stream().filter(r -> r.row().period().contains(date)).findFirst());
         Optional<Assignment> row = current.map(AssignmentView.Row::row);
@@ -595,6 +590,13 @@ public class CsvImportService {
                 cells.text("continuesAssignmentId", null),
                 cells.text("workLocation", current.map(r -> r.places().workLocation()).orElse(null)),
                 cells.text("costCenter", current.map(r -> r.places().costCenter()).orElse(null)));
+    }
+
+    // A row matches a stored record by the ID of any system, so the row of a second system finds it too.
+    private Optional<String> resourceOf(ExternalId.Kind kind, String source, String externalId,
+            String defaultSource) {
+        return importService.records().externalIds().resourceOf(kind, source == null ? defaultSource : source,
+                externalId);
     }
 
     private static <T> Optional<T> quietly(Supplier<T> read) {

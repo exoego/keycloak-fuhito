@@ -81,7 +81,8 @@ class AssignmentsIT {
         assertEquals(xMedicine, first.get("orgUnitId").asText());
         assertEquals("2026-04-01", first.get("validFrom").asText());
         assertFalse(first.has("validTo"));
-        assertEquals("A-1", first.get("externalId").asText());
+        assertEquals(List.of("hr=A-1"), Api.externalIds(first));
+        assertFalse(first.has("externalId"));
         JsonNode details = first.get("periods").get(0);
         assertEquals("staff", details.get("jobTitle").asText());
         assertEquals("physician", details.get("occupation").asText());

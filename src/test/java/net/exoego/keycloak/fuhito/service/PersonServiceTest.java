@@ -6,6 +6,7 @@ import java.util.Map;
 import java.util.Optional;
 
 import net.exoego.keycloak.fuhito.domain.Employment;
+import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.Person;
 import net.exoego.keycloak.fuhito.domain.ValidPeriod;
@@ -20,6 +21,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class PersonServiceTest {
 
+    private final MemoryExternalIdStore externalIds = new MemoryExternalIdStore();
     // The names that Keycloak has. A user with an empty name exists and has no name.
     private static final Map<String, String> KEYCLOAK_NAMES = Map.of("taro", "Taro Yamada", "hanako",
             "Hanako Sato", "nameless", "");
@@ -38,7 +40,7 @@ class PersonServiceTest {
 
     private final MemoryPersonStore store = new MemoryPersonStore();
     private final MemoryEmploymentStore employments = new MemoryEmploymentStore();
-    private final PersonService service = new PersonService(store, USERS,
+    private final PersonService service = new PersonService(store, externalIds, USERS,
             id -> !employments.findByPerson(id).isEmpty());
 
     private static PersonValues named(String name) {
@@ -65,7 +67,7 @@ class PersonServiceTest {
         assertEquals(Map.of("en", "Taro Yamada"), person.names());
         assertEquals("やまだ たろう", person.phoneticName());
         assertEquals(Map.of("派遣元", "A社"), person.attributes());
-        assertEquals("P-1", person.externalId());
+        assertEquals(Optional.of(person.id()), externalIds.idOf(ExternalId.Kind.PERSON, "hr", "P-1"));
         assertEquals("hr", person.source());
         assertEquals("山田 太郎", view.name());
         assertEquals(NameSource.RECORD, view.nameSource());
@@ -100,13 +102,13 @@ class PersonServiceTest {
     }
 
     @Test
-    void replacesTheNamesAndTheLinkAndKeepsTheExternalId() {
+    void replacesTheNamesAndTheLinkAndAddsTheIdOfAnotherSystem() {
         String id = service.create(new PersonValues(null, "山田 太郎", null, null, Map.of("a", 1), "P-1", "hr"))
                 .person().id();
 
         // The person gets an account later.
         PersonView changed = service.replace(id, new PersonValues("taro", null, Map.of("en", "Taro"), "やまだ",
-                null, "ignored", "ignored"));
+                null, "E-9", "payroll"));
 
         assertEquals("taro", changed.person().userId());
         assertEquals("Taro Yamada", changed.name());
@@ -114,7 +116,8 @@ class PersonServiceTest {
         assertEquals(Map.of("en", "Taro"), changed.person().names());
         assertEquals("やまだ", changed.person().phoneticName());
         assertEquals(Map.of(), changed.person().attributes());
-        assertEquals("P-1", changed.person().externalId());
+        assertEquals(Optional.of(id), externalIds.idOf(ExternalId.Kind.PERSON, "hr", "P-1"));
+        assertEquals(Optional.of(id), externalIds.idOf(ExternalId.Kind.PERSON, "payroll", "E-9"));
         assertEquals("hr", changed.person().source());
 
         // Keeping the same link is no conflict. Leaving it out removes it.
@@ -176,7 +179,7 @@ class PersonServiceTest {
     void aPersonWithAnEmploymentCannotBeDeleted() {
         String id = service.forUser("taro").person().id();
         employments.insert(new Employment("e1", id, "taro", "employer", ValidPeriod.startingAt(LocalDate.parse("2020-04-01")),
-                null, null, null, null, null));
+                null, null, null, null));
 
         assertEquals("person.in_use", failure(() -> service.delete(id)).code());
     }
@@ -196,7 +199,7 @@ class PersonServiceTest {
         assertEquals("person.user_taken", taken.code());
         assertEquals("taro", taken.params().get("userId"));
         assertEquals("person.user_taken", failure(() -> service.replace(other, linked("taro", "X"))).code());
-        assertEquals("person.external_id_taken", failure(
+        assertEquals("external_id.taken", failure(
                 () -> service.create(new PersonValues(null, "X", null, null, null, "P-1", "hr"))).code());
         assertEquals("invalid.code", failure(
                 () -> service.create(new PersonValues(null, "X", null, null, null, "P-2", "bad source"))).code());
@@ -207,12 +210,14 @@ class PersonServiceTest {
     }
 
     @Test
-    void theSameExternalIdIsFineForAnotherSourceOrWithNoSource() {
+    void theSameExternalIdIsFineForAnotherSourceAndNeedsASource() {
         service.create(new PersonValues(null, "A", null, null, null, "P-1", "hr"));
 
         assertEquals("payroll", service.create(new PersonValues(null, "B", null, null, null, "P-1", "payroll"))
                 .person().source());
-        assertNull(service.create(new PersonValues(null, "C", null, null, null, "P-1", null)).person().source());
-        assertNull(service.create(new PersonValues(null, "D", null, null, null, null, "hr")).person().externalId());
+        assertEquals("invalid.required", failure(
+                () -> service.create(new PersonValues(null, "C", null, null, null, "P-1", null))).code());
+        String withSourceOnly = service.create(new PersonValues(null, "D", null, null, null, null, "hr")).person().id();
+        assertEquals(List.of(), externalIds.ofResource(ExternalId.Kind.PERSON, withSourceOnly));
     }
 }

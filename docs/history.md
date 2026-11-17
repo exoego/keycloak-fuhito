@@ -28,7 +28,7 @@ The change log entry has the time of 2027-02-10.
 Each resource keeps its ID through all changes.
 The code of an org unit is part of its details, so a reorganization can give a unit a new code on a date.
 No two org units have the same code on the same date. A code that one unit gives up on a date is free for another unit from that date.
-The ID and the external ID are the keys that never change.
+The ID is the key that never changes. So is `source`, the name of the system that made the resource. The IDs that systems have for a resource have no history. A write replaces them.
 
 ### Reference items have no history
 

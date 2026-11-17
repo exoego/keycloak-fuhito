@@ -25,7 +25,7 @@ import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
 import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 
 /**
- * The IDs that other systems have for the resources of one realm.
+ * The IDs that systems have for the resources of one realm.
  */
 @Produces(MediaType.APPLICATION_JSON)
 @Consumes(MediaType.APPLICATION_JSON)
@@ -63,9 +63,10 @@ public class ExternalIdsResource {
     @GET
     @Operation(
             operationId = "listExternalIds",
-            summary = "Lists every ID of one resource in other systems.",
-            description = "The pair that the resource itself has comes first. The IDs of an org unit need the "
-                    + "permission to read the org structure. The others need the full read.")
+            summary = "Lists every ID that systems have for one resource.",
+            description = "The ID of the system that made the resource comes first, then the others by system. "
+                    + "The IDs of an org unit need the permission to read the org structure. The others need the "
+                    + "full read.")
     @APIResponse(responseCode = "200", description = "The IDs.")
     @BadRequest
     @NotFound
@@ -86,7 +87,7 @@ public class ExternalIdsResource {
     @Operation(
             operationId = "lookUpExternalId",
             summary = "Finds the resource that an ID of a system names.",
-            description = "It looks at the pair that each resource has, and at the IDs that were added.")
+            description = "Every ID of every system counts, also the one of the system that made the resource.")
     @APIResponse(responseCode = "200", description = "The ID with its resource.")
     @BadRequest
     @NotFound
@@ -115,8 +116,8 @@ public class ExternalIdsResource {
     @Operation(
             operationId = "putExternalId",
             summary = "Stores the ID of one system for a resource, or replaces it.",
-            description = "A resource has at most one ID for each system, counting its own pair. One ID of one "
-                    + "system names one resource of a kind.")
+            description = "A resource has at most one ID for each system. One ID of one system names one resource "
+                    + "of a kind. The ID of the system that made the resource can change here too.")
     @Parameter(ref = "changeOrder")
     @APIResponse(responseCode = "200", description = "The stored ID.")
     @BadRequest
@@ -135,7 +136,11 @@ public class ExternalIdsResource {
     }
 
     @DELETE
-    @Operation(operationId = "deleteExternalId", summary = "Removes the ID of one system from a resource.")
+    @Operation(
+            operationId = "deleteExternalId",
+            summary = "Removes the ID of one system from a resource.",
+            description = "The resource keeps the name of the system that made it in `source`, also when this ID "
+                    + "is the one of that system.")
     @Parameter(ref = "changeOrder")
     @APIResponse(responseCode = "204", description = "The ID is gone.")
     @BadRequest

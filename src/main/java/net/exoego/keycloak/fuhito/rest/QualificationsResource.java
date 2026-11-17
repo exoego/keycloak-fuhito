@@ -1,5 +1,7 @@
 package net.exoego.keycloak.fuhito.rest;
 
+import java.util.List;
+
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.DELETE;
 import jakarta.ws.rs.GET;
@@ -12,11 +14,15 @@ import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import net.exoego.keycloak.fuhito.domain.Checks;
+import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.rest.RequestContext.Change;
 import net.exoego.keycloak.fuhito.service.Cursor;
+import net.exoego.keycloak.fuhito.service.ExternalIdLists;
+import net.exoego.keycloak.fuhito.service.ExternalIdService;
 import net.exoego.keycloak.fuhito.service.Page;
 import net.exoego.keycloak.fuhito.service.PersonService;
 import net.exoego.keycloak.fuhito.service.QualificationService;
+import net.exoego.keycloak.fuhito.service.QualificationView;
 import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.enums.SchemaType;
 import org.eclipse.microprofile.openapi.annotations.headers.Header;
@@ -42,6 +48,7 @@ public class QualificationsResource {
     private final RequestContext context;
     private final QualificationService service;
     private final PersonService people;
+    private final ExternalIdService externalIds;
 
     /**
      * Creates the resource for one request.
@@ -49,11 +56,14 @@ public class QualificationsResource {
      * @param context the request and its caller
      * @param service the operations on the realm of the request
      * @param people the operations on people of the realm
+     * @param externalIds the IDs that systems have for the resources of the realm
      */
-    public QualificationsResource(RequestContext context, QualificationService service, PersonService people) {
+    public QualificationsResource(RequestContext context, QualificationService service, PersonService people,
+            ExternalIdService externalIds) {
         this.context = context;
         this.service = service;
         this.people = people;
+        this.externalIds = externalIds;
     }
 
     @GET
@@ -102,8 +112,8 @@ public class QualificationsResource {
         context.requireRead();
         return Calls.run(context, () -> {
             Cursor.requireAlone(after, first);
-            return Pages.of(context, service.list(kind, asOf, Page.of(first, max), after).stream()
-                            .map(QualificationRepresentation::of).toList(), Page.of(first, max).max(),
+            return Pages.of(context, represent(service.list(kind, asOf, Page.of(first, max), after), externalIds),
+                    Page.of(first, max).max(),
                     qualification -> Cursor.encode(Cursor.QUALIFICATIONS, qualification.id()),
                     count ? service.count(kind, asOf) : null);
         });
@@ -127,7 +137,7 @@ public class QualificationsResource {
         context.requireWrite();
         return Calls.once(context, body, Response.class, () -> Calls.run(context, () -> {
             Checks.required("body", body);
-            var qualification = QualificationRepresentation.of(service.add(
+            var qualification = represent(service.add(
                     body.toValues(Writes.personId(context, people, "personId", body.personId(), body.userId()))));
             context.recordChange(Change.CREATE, RESOURCE_TYPE, qualification.id(), path(qualification.id()),
                     qualification);
@@ -145,7 +155,7 @@ public class QualificationsResource {
             @Parameter(description = "The ID of the resource.")
             @PathParam("id") String id) {
         context.requireRead();
-        return Calls.tagged(context, () -> QualificationRepresentation.of(service.get(id)));
+        return Calls.tagged(context, () -> represent(service.get(id)));
     }
 
     @PUT
@@ -165,7 +175,7 @@ public class QualificationsResource {
         context.requireWrite();
         return Calls.guarded(context, () -> state(id), () -> {
             Checks.required("body", body);
-            var qualification = QualificationRepresentation.of(service.replace(id, body.toValues(null)));
+            var qualification = represent(service.replace(id, body.toValues(null)));
             context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, path(id), qualification);
             return qualification;
         });
@@ -194,8 +204,19 @@ public class QualificationsResource {
         return "fuhito/qualifications/" + id;
     }
 
+    // The IDs of every qualification of a list are read with one query.
+    static List<QualificationRepresentation> represent(List<QualificationView> views, ExternalIdService externalIds) {
+        ExternalIdLists ids = externalIds.lists(ExternalId.Kind.QUALIFICATION,
+                views.stream().map(view -> view.qualification().id()).toList());
+        return views.stream().map(view -> QualificationRepresentation.of(view, ids)).toList();
+    }
+
+    private QualificationRepresentation represent(QualificationView view) {
+        return represent(List.of(view), externalIds).getFirst();
+    }
+
     // The whole stored state of one resource, which its ETag covers.
     private Object state(String id) {
-        return QualificationRepresentation.of(service.get(id));
+        return represent(service.get(id));
     }
 }

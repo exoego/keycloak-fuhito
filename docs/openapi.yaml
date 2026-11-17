@@ -87,10 +87,25 @@ components:
           format: date
         externalId:
           type: string
-          description: The ID of the assignment in the system it came from.
+          maxLength: 255
+          description: "The ID of the assignment in the system that `source` names.\
+            \ A write stores it as the ID of that system, in place of the one that\
+            \ the system had. A read gives every ID in `externalIds`."
+          writeOnly: true
         source:
           type: string
-          description: The name of that system.
+          maxLength: 64
+          pattern: "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
+          description: "The name of the system that made the assignment. A create\
+            \ sets it, and it never changes. With `externalId`, it names the system\
+            \ of that ID."
+        externalIds:
+          type: array
+          items:
+            $ref: "#/components/schemas/ExternalIdPair"
+          description: "Every ID that a system has for the assignment. The one of\
+            \ `source` comes first, then the others by system."
+          readOnly: true
         continuesAssignmentId:
           type: string
           description: "The ID of the assignment that this one continues, after a\
@@ -454,10 +469,25 @@ components:
           readOnly: true
         externalId:
           type: string
-          description: The ID of the employment in the system it came from.
+          maxLength: 255
+          description: "The ID of the employment in the system that `source` names.\
+            \ A write stores it as the ID of that system, in place of the one that\
+            \ the system had. A read gives every ID in `externalIds`."
+          writeOnly: true
         source:
           type: string
-          description: The name of that system.
+          maxLength: 64
+          pattern: "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
+          description: "The name of the system that made the employment. A create\
+            \ sets it, and it never changes. With `externalId`, it names the system\
+            \ of that ID."
+        externalIds:
+          type: array
+          items:
+            $ref: "#/components/schemas/ExternalIdPair"
+          description: "Every ID that a system has for the employment. The one of\
+            \ `source` comes first, then the others by system."
+          readOnly: true
         continuesEmploymentId:
           type: string
           description: The ID of the employment that this one continues after a transfer
@@ -631,8 +661,6 @@ components:
         attributes:
           type: object
           additionalProperties: {}
-        externalId:
-          type: string
         source:
           type: string
         continuesAssignmentId:
@@ -701,8 +729,6 @@ components:
           type: string
         endReasonId:
           type: string
-        externalId:
-          type: string
         source:
           type: string
         continuesEmploymentId:
@@ -746,6 +772,8 @@ components:
           type: string
     ExportExternalId:
       type: object
+      description: The ID that one system has for a resource. A resource names only
+        the system that made it in `source`. Its IDs are all here.
       properties:
         id:
           type: string
@@ -772,8 +800,6 @@ components:
         \ the IDs of organizations differ between servers."
       properties:
         id:
-          type: string
-        externalId:
           type: string
         source:
           type: string
@@ -876,8 +902,6 @@ components:
         attributes:
           type: object
           additionalProperties: {}
-        externalId:
-          type: string
         source:
           type: string
         maskedAt:
@@ -901,8 +925,6 @@ components:
         attributes:
           type: object
           additionalProperties: {}
-        externalId:
-          type: string
         source:
           type: string
     ExportRefItem:
@@ -1009,9 +1031,22 @@ components:
           description: The ID in that system.
         own:
           type: boolean
-          description: True for the pair of `source` and `externalId` that the resource
-            itself has.
+          description: "True when the system made the resource, as the `source` of\
+            \ the resource says."
           readOnly: true
+    ExternalIdPair:
+      type: object
+      required:
+      - source
+      - externalId
+      description: The ID that one system has for a record.
+      properties:
+        source:
+          type: string
+          description: The name of the system.
+        externalId:
+          type: string
+          description: The ID in that system.
     Hierarchy:
       required:
       - code
@@ -1033,9 +1068,9 @@ components:
           maxLength: 255
     ImportAssignmentRow:
       type: object
-      description: "An assignment. It is matched by source and external ID, or by\
-        \ `id`. A row needs one of them. A new assignment names its employment and\
-        \ its org unit."
+      description: "An assignment. It is matched by its ID in the system of `source`,\
+        \ whichever system made it, or by `id`. A row needs one of them. A new assignment\
+        \ names its employment and its org unit."
       properties:
         source:
           type: string
@@ -1257,8 +1292,10 @@ components:
           type: string
           maxLength: 64
           pattern: "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
-          description: The name of the system that the rows come from. Rows can override
-            it.
+          description: "The name of the system that the rows come from. Rows can override\
+            \ it. A row matches a stored record that has the ID of the row in that\
+            \ system, whichever system made the record. A new record keeps it as the\
+            \ system that made it."
           default: import
         refItems:
           type: array
@@ -1332,8 +1369,8 @@ components:
           description: The change orders. They come first.
     ImportEmploymentRow:
       type: object
-      description: "An employment. It is matched by source and external ID, or by\
-        \ `id`. A row needs one of them."
+      description: "An employment. It is matched by its ID in the system of `source`,\
+        \ whichever system made it, or by `id`. A row needs one of them."
       properties:
         source:
           type: string
@@ -1434,9 +1471,10 @@ components:
       - resourceType
       - resourceId
       - externalId
-      description: "The ID that another system has for a resource. It is matched by\
-        \ type of resource, resource, and source. Another external ID replaces the\
-        \ stored one, and an empty text removes it."
+      description: "The ID that a system has for a resource. It is matched by type\
+        \ of resource, resource, and source. Another external ID replaces the stored\
+        \ one, and an empty text removes it. The resource keeps the name of the system\
+        \ that made it."
       properties:
         resourceType:
           type: string
@@ -1453,9 +1491,7 @@ components:
           type: string
           maxLength: 64
           pattern: "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
-          description: The name of the other system. The default is the source of
-            the document. It cannot be the source of the pair that the resource itself
-            has.
+          description: The name of the system. The default is the source of the document.
         externalId:
           type: string
           description: "The ID in that system, or an empty text to remove the stored\
@@ -1509,8 +1545,8 @@ components:
       type: object
       required:
       - name
-      description: "An org unit. It is matched by source and external ID, or by `id`.\
-        \ A row needs one of them."
+      description: "An org unit. It is matched by its ID in the system of `source`,\
+        \ whichever system made it, or by `id`. A row needs one of them."
       properties:
         source:
           type: string
@@ -1615,8 +1651,9 @@ components:
           description: The code of the cost center that the unit gives its members.
     ImportPersonRow:
       type: object
-      description: "A person, also one with no Keycloak user. It is matched by source\
-        \ and external ID, or by `id`. A row needs one of them."
+      description: "A person, also one with no Keycloak user. It is matched by its\
+        \ ID in the system of `source`, whichever system made it, or by `id`. A row\
+        \ needs one of them."
       properties:
         source:
           type: string
@@ -1660,9 +1697,9 @@ components:
       required:
       - kind
       description: "A qualification of a person, such as a license. It is matched\
-        \ by source and external ID, or by `id`. A row needs one of them. A row of\
-        \ a stored one replaces its kind, number, dates, and attributes, as `PUT`\
-        \ does."
+        \ by its ID in the system of `source`, whichever system made it, or by `id`.\
+        \ A row needs one of them. A row of a stored one replaces its kind, number,\
+        \ dates, and attributes, as `PUT` does."
       properties:
         id:
           type: string
@@ -2284,10 +2321,25 @@ components:
           description: Free values that the realm defines.
         externalId:
           type: string
-          description: The ID of the unit in the system it came from.
+          maxLength: 255
+          description: "The ID of the unit in the system that `source` names. A write\
+            \ stores it as the ID of that system, in place of the one that the system\
+            \ had. A read gives every ID in `externalIds`."
+          writeOnly: true
         source:
           type: string
-          description: The name of that system.
+          maxLength: 64
+          pattern: "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
+          description: "The name of the system that made the unit. A create sets it,\
+            \ and it never changes. With `externalId`, it names the system of that\
+            \ ID."
+        externalIds:
+          type: array
+          items:
+            $ref: "#/components/schemas/ExternalIdPair"
+          description: "Every ID that a system has for the unit. The one of `source`\
+            \ comes first, then the others by system."
+          readOnly: true
         keycloakOrganizationId:
           type: string
           description: The ID of the linked Keycloak organization.
@@ -2305,6 +2357,7 @@ components:
     OrgUnitHistory:
       required:
       - id
+      - externalIds
       - versions
       - parents
       description: Everything that is stored about an org unit over time.
@@ -2312,12 +2365,15 @@ components:
       properties:
         id:
           type: string
-        externalId:
-          type: string
-          description: The ID of the unit in the system it came from.
         source:
           type: string
-          description: The name of that system.
+          description: The name of the system that made the unit.
+        externalIds:
+          type: array
+          items:
+            $ref: "#/components/schemas/ExternalIdPair"
+          description: "Every ID that a system has for the unit. The one of `source`\
+            \ comes first, then the others by system."
         versions:
           type: array
           items:
@@ -2457,13 +2513,25 @@ components:
           description: Free values that the realm defines.
         externalId:
           type: string
-          description: The ID of the person in the system it came from. Only a create
-            request reads it.
+          maxLength: 255
+          description: "The ID of the person in the system that `source` names. A\
+            \ write stores it as the ID of that system, in place of the one that the\
+            \ system had. A read gives every ID in `externalIds`."
+          writeOnly: true
         source:
           type: string
           maxLength: 64
           pattern: "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
-          description: The name of that system. Only a create request reads it.
+          description: "The name of the system that made the person. A create sets\
+            \ it, and it never changes. With `externalId`, it names the system of\
+            \ that ID."
+        externalIds:
+          type: array
+          items:
+            $ref: "#/components/schemas/ExternalIdPair"
+          description: "Every ID that a system has for the person. The one of `source`\
+            \ comes first, then the others by system."
+          readOnly: true
     ProjectionReport:
       required:
       - organizations
@@ -2596,10 +2664,25 @@ components:
           description: Free values that the realm defines.
         externalId:
           type: string
-          description: The ID of the qualification in the system it came from.
+          maxLength: 255
+          description: "The ID of the qualification in the system that `source` names.\
+            \ A write stores it as the ID of that system, in place of the one that\
+            \ the system had. A read gives every ID in `externalIds`."
+          writeOnly: true
         source:
           type: string
-          description: The name of that system.
+          maxLength: 64
+          pattern: "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
+          description: "The name of the system that made the qualification. A create\
+            \ sets it, and it never changes. With `externalId`, it names the system\
+            \ of that ID."
+        externalIds:
+          type: array
+          items:
+            $ref: "#/components/schemas/ExternalIdPair"
+          description: "Every ID that a system has for the qualification. The one\
+            \ of `source` comes first, then the others by system."
+          readOnly: true
     RealmExport:
       description: "Every stored row of a realm, with every period. `POST /restore`\
         \ loads it into a realm that has no data of the extension, or in place of\
@@ -4977,8 +5060,9 @@ paths:
   /external-ids:
     put:
       summary: "Stores the ID of one system for a resource, or replaces it."
-      description: "A resource has at most one ID for each system, counting its own\
-        \ pair. One ID of one system names one resource of a kind."
+      description: A resource has at most one ID for each system. One ID of one system
+        names one resource of a kind. The ID of the system that made the resource
+        can change here too.
       operationId: putExternalId
       tags:
       - general
@@ -5008,10 +5092,10 @@ paths:
         "409":
           $ref: "#/components/responses/Conflict"
     get:
-      summary: Lists every ID of one resource in other systems.
-      description: The pair that the resource itself has comes first. The IDs of an
-        org unit need the permission to read the org structure. The others need the
-        full read.
+      summary: Lists every ID that systems have for one resource.
+      description: "The ID of the system that made the resource comes first, then\
+        \ the others by system. The IDs of an org unit need the permission to read\
+        \ the org structure. The others need the full read."
       operationId: listExternalIds
       tags:
       - general
@@ -5050,6 +5134,8 @@ paths:
           $ref: "#/components/responses/Conflict"
     delete:
       summary: Removes the ID of one system from a resource.
+      description: "The resource keeps the name of the system that made it in `source`,\
+        \ also when this ID is the one of that system."
       operationId: deleteExternalId
       tags:
       - general
@@ -5091,8 +5177,8 @@ paths:
   /external-ids/lookup:
     get:
       summary: Finds the resource that an ID of a system names.
-      description: "It looks at the pair that each resource has, and at the IDs that\
-        \ were added."
+      description: "Every ID of every system counts, also the one of the system that\
+        \ made the resource."
       operationId: lookUpExternalId
       tags:
       - general
@@ -5334,8 +5420,10 @@ paths:
       summary: Returns a list on a date as a CSV that the import loads again.
       description: "The lists are the same as for the import. A row of a thing that\
         \ has an ID has the column `id`, so that a row of a thing with no external\
-        \ ID comes back too. The kinds, the definitions of attributes, the reference\
-        \ items, the hierarchies, and the people have no date."
+        \ ID comes back too. The columns `source` and `externalId` hold the system\
+        \ that made the thing and the ID that it has there. The kinds, the definitions\
+        \ of attributes, the reference items, the hierarchies, and the people have\
+        \ no date."
       operationId: exportCsv
       tags:
       - bulk
@@ -5720,8 +5808,9 @@ paths:
       summary: Replaces the details of an org unit from the `validFrom` date of the
         body.
       description: "The details are the code, the names, the unit type, the display\
-        \ order, and the attributes. The parent and the external ID do not change\
-        \ here. No other org unit may have the same code on a date of the change."
+        \ order, and the attributes. The parent does not change here. With `source`\
+        \ and `externalId`, the unit gets that ID of that system. No other org unit\
+        \ may have the same code on a date of the change."
       operationId: changeOrgUnitDetails
       tags:
       - org-units
@@ -6534,8 +6623,8 @@ paths:
   /people/{id}:
     put:
       summary: "Replaces the names, the attributes, and the link to a Keycloak user."
-      description: A body with no `userId` removes the link. The external ID and its
-        source do not change.
+      description: "A body with no `userId` removes the link. The person keeps `source`.\
+        \ With `source` and `externalId`, the person gets that ID of that system."
       operationId: replacePerson
       tags:
       - people

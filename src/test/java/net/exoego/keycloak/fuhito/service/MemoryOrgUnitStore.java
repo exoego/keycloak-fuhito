@@ -58,13 +58,6 @@ final class MemoryOrgUnitStore implements OrgUnitStore {
     }
 
     @Override
-    public Optional<OrgUnit> findUnitByExternalId(String source, String externalId) {
-        return units.values().stream()
-                .filter(u -> source.equals(u.source()) && externalId.equals(u.externalId()))
-                .findFirst();
-    }
-
-    @Override
     public Optional<OrgUnit> findUnitByOrganizationId(String organizationId) {
         return units.values().stream().filter(u -> organizationId.equals(u.keycloakOrganizationId())).findFirst();
     }

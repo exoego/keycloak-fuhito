@@ -150,7 +150,7 @@ public final class RealmData {
                 (select a.assignmentId from AssignmentEntity a where a.realmId = :realmId
                 and a.employmentId in
                 (select e.id from EmploymentEntity e where e.realmId = :realmId and e.personId = :personId)))""",
-                // The IDs that other systems have for the person and for the records of the person.
+                // The IDs that systems have for the person and for the records of the person.
                 """
                 delete from ExternalIdEntity x where x.realmId = :realmId
                 and ((x.kind = 'PERSON' and x.resourceId = :personId)

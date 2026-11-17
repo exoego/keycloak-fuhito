@@ -54,6 +54,8 @@ class CsvImportIT {
             assertTrue(exported.body().startsWith("\uFEFF" + (header.equals("en") ? "id,externalId,source,code,name,"
                     + "name:en,shortName" : "ID,外部ID,ソース,コード,名称,名称:en,略称")), exported.body());
             assertTrue(exported.body().contains("\"X病院, 本院\""), exported.body());
+            // The columns of the source and the external ID hold the system that made the unit and its ID there.
+            assertTrue(exported.body().contains(",W1,hr,,1病棟,"), exported.body());
             assertTrue(exported.body().contains(header.equals("en") ? ",unitType,workLocation,costCenter,parentId,"
                     : ",組織種別,勤務地,コストセンター,親のID,"), exported.body());
             // The ward takes the work location of the hospital, and the file has only its own values.

@@ -32,6 +32,7 @@ import static org.junit.jupiter.api.Assertions.fail;
  */
 class ProjectionServiceTest {
 
+    private final MemoryExternalIdStore externalIds = new MemoryExternalIdStore();
     private static final class MemoryGroups implements OrganizationGroups {
         private boolean enabled = true;
         private final Map<String, Group> groups = new LinkedHashMap<>();
@@ -217,11 +218,11 @@ class ProjectionServiceTest {
     private final MemoryEmploymentStore employmentStore = new MemoryEmploymentStore();
     private final MemoryRefItemStore refItems = new MemoryRefItemStore();
     private final MemoryReportingLineStore lines = new MemoryReportingLineStore();
-    private final OrgUnitService orgUnits = new OrgUnitService(orgUnitStore, assignmentStore, refItems, CLOCK);
+    private final OrgUnitService orgUnits = new OrgUnitService(orgUnitStore, externalIds, assignmentStore, refItems, CLOCK);
     private final EmploymentService employments =
-            new EmploymentService(employmentStore, assignmentStore, refItems, MemoryPersonStore.anyUser(), lines, new MemoryUnitRoleStore(), new AnyEmployer());
+            new EmploymentService(employmentStore, externalIds, assignmentStore, refItems, MemoryPersonStore.anyUser(), lines, new MemoryUnitRoleStore(), new AnyEmployer());
     private final AssignmentService assignments =
-            new AssignmentService(assignmentStore, employmentStore, orgUnitStore, refItems, lines);
+            new AssignmentService(assignmentStore, externalIds, employmentStore, orgUnitStore, refItems, lines);
     private final OrganizationLinkService links = new OrganizationLinkService(orgUnitStore, id -> true);
 
     private String hospital;
@@ -439,7 +440,7 @@ class ProjectionServiceTest {
 
     @Test
     void aLinkedUnitThatDoesNotExistTodayIsSkipped() {
-        orgUnitStore.insertUnit(new OrgUnit("ghost", null, null, "org-ghost"));
+        orgUnitStore.insertUnit(new OrgUnit("ghost", null, "org-ghost"));
 
         assertEquals(1, rebuild().organizations());
     }

@@ -30,7 +30,6 @@ erDiagram
         numeric ALLOCATION_PERCENT
         integer DISPLAY_ORDER
         text ATTRIBUTES
-        varchar(255) EXTERNAL_ID
         varchar(64) SOURCE
         varchar(36) CONTINUES_ASSIGNMENT_ID
     }
@@ -70,7 +69,6 @@ erDiagram
         date VALID_TO
         varchar(64) STAFF_NUMBER
         varchar(36) END_REASON_ID FK
-        varchar(255) EXTERNAL_ID
         varchar(64) SOURCE
         varchar(36) PERSON_ID FK
         varchar(36) EMPLOYER_ID FK
@@ -99,7 +97,6 @@ erDiagram
     FUHITO_ORG_UNIT {
         varchar(36) ID PK
         varchar(36) REALM_ID
-        varchar(255) EXTERNAL_ID
         varchar(64) SOURCE
         varchar(36) KC_ORG_ID
         varchar(64) TIME_ZONE
@@ -148,7 +145,6 @@ erDiagram
         text NAMES_I18N
         varchar(255) PHONETIC_NAME
         text ATTRIBUTES
-        varchar(255) EXTERNAL_ID
         varchar(64) SOURCE
         text SEARCH_NAMES
     }
@@ -160,7 +156,6 @@ erDiagram
         date VALID_FROM
         date VALID_TO
         text ATTRIBUTES
-        varchar(255) EXTERNAL_ID
         varchar(64) SOURCE
         varchar(36) PERSON_ID FK
     }

@@ -197,32 +197,6 @@ public class JpaOrgUnitStore implements OrgUnitStore {
     }
 
     @Override
-    public boolean externalIdTaken(String source, String externalId, String exceptId) {
-        return OrgUnitStore.super.externalIdTaken(source, externalId, exceptId) || em.createQuery("""
-                        select count(x) from ExternalIdEntity x, OrgUnitEntity u where x.realmId = :realmId
-                        and u.realmId = :realmId and x.kind = 'ORG_UNIT' and u.id = x.resourceId
-                        and x.source = :source and x.externalId = :externalId and u.id <> :exceptId""", Long.class)
-                .setParameter("realmId", realmId)
-                .setParameter("source", source)
-                .setParameter("externalId", externalId)
-                .setParameter("exceptId", exceptId == null ? "" : exceptId)
-                .getSingleResult() > 0;
-    }
-
-    @Override
-    public Optional<OrgUnit> findUnitByExternalId(String source, String externalId) {
-        return em.createQuery("""
-                        select u from OrgUnitEntity u where u.realmId = :realmId and u.source = :source
-                        and u.externalId = :externalId""", OrgUnitEntity.class)
-                .setParameter("realmId", realmId)
-                .setParameter("source", source)
-                .setParameter("externalId", externalId)
-                .getResultStream()
-                .findFirst()
-                .map(JpaOrgUnitStore::toDomain);
-    }
-
-    @Override
     public Optional<OrgUnit> findUnitByOrganizationId(String organizationId) {
         return em.createQuery("""
                         select u from OrgUnitEntity u where u.realmId = :realmId
@@ -237,8 +211,6 @@ public class JpaOrgUnitStore implements OrgUnitStore {
     @Override
     public void updateUnit(OrgUnit unit) {
         OrgUnitEntity entity = Rows.require(em, OrgUnitEntity.class, unit.id(), realmId, found -> found.realmId);
-        entity.externalId = unit.externalId();
-        entity.source = unit.source();
         entity.keycloakOrganizationId = unit.keycloakOrganizationId();
         entity.timeZone = unit.timeZone();
         entity.dayStart = unit.dayStart();
@@ -518,7 +490,6 @@ public class JpaOrgUnitStore implements OrgUnitStore {
         OrgUnitEntity entity = new OrgUnitEntity();
         entity.id = unit.id();
         entity.realmId = realmId;
-        entity.externalId = unit.externalId();
         entity.source = unit.source();
         entity.keycloakOrganizationId = unit.keycloakOrganizationId();
         entity.timeZone = unit.timeZone();
@@ -695,8 +666,7 @@ public class JpaOrgUnitStore implements OrgUnitStore {
     }
 
     static OrgUnit toDomain(OrgUnitEntity e) {
-        return new OrgUnit(e.id, e.externalId, e.source, e.keycloakOrganizationId, e.timeZone,
-                e.dayStart);
+        return new OrgUnit(e.id, e.source, e.keycloakOrganizationId, e.timeZone, e.dayStart);
     }
 
     static OrgUnitVersion toDomain(OrgUnitVersionEntity e) {

@@ -56,7 +56,7 @@ class ImportIT {
         assertEquals(List.of("X病院", "診療部", "看護部", "1病棟"), names(api, "2026-04-01"));
         assertEquals(List.of("X病院"), names(api, "1998-04-01"));
         JsonNode root = Api.json(api.get("/org-units?asOf=2026-04-01")).get(0);
-        assertEquals("H", root.get("externalId").asText());
+        assertEquals(List.of("sheet=H"), Api.externalIds(root));
         assertEquals("sheet", root.get("source").asText());
         assertEquals("hospital", root.get("unitType").asText());
         assertEquals("x-hospital", root.get("code").asText());

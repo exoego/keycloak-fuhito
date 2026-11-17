@@ -11,8 +11,8 @@ import java.util.Map;
  * @param validFrom the first date on which the qualification is valid, as {@code YYYY-MM-DD}
  * @param validTo the first date on which it is no longer valid, or null for no end
  * @param attributes free values, or null
- * @param externalId the ID in the system it came from, or null. Only a new qualification uses it.
- * @param source the name of that system, or null. Only a new qualification uses it.
+ * @param externalId the ID in the system that the source names, or null to keep the IDs as they are
+ * @param source the name of the system. A new qualification keeps it as the system that made it.
  */
 public record QualificationValues(String personId, String kind, String number, String validFrom, String validTo,
         Map<String, Object> attributes, String externalId, String source) {

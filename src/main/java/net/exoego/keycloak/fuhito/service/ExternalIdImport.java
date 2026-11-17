@@ -13,8 +13,8 @@ import net.exoego.keycloak.fuhito.service.ImportReport.Outcome;
 import net.exoego.keycloak.fuhito.service.ImportReport.Write;
 
 /**
- * The IDs of other systems of one document. A row is matched by type of resource, resource, and source. Another
- * external ID replaces the stored one, and an empty text removes it.
+ * The IDs that systems have for resources, of one document. A row is matched by type of resource, resource, and
+ * source. Another external ID replaces the stored one, and an empty text removes it.
  */
 final class ExternalIdImport {
 
@@ -51,7 +51,7 @@ final class ExternalIdImport {
             throw FuhitoException.invalid("import.duplicate_row", Map.of("externalId", value));
         }
         Optional<ExternalIdService.View> stored = externalIds.list(kind, resourceId).stream()
-                .filter(view -> !view.own() && view.source().equals(source))
+                .filter(view -> view.source().equals(source))
                 .findFirst();
         if (value.isEmpty()) {
             if (stored.isEmpty()) {

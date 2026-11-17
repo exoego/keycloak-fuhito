@@ -18,6 +18,7 @@ import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.service.CsvExportService;
 import net.exoego.keycloak.fuhito.service.CsvImportService;
+import net.exoego.keycloak.fuhito.service.ExternalIdService;
 import net.exoego.keycloak.fuhito.service.ImportDocument;
 import net.exoego.keycloak.fuhito.service.ImportReport;
 import net.exoego.keycloak.fuhito.service.ImportService;
@@ -48,6 +49,7 @@ public class ImportsResource {
     private final ImportService service;
     private final CsvImportService csvService;
     private final CsvExportService csvExport;
+    private final ExternalIdService externalIds;
 
     /**
      * Creates the resource for one request.
@@ -56,9 +58,11 @@ public class ImportsResource {
      * @param service the operations on the realm of the request
      * @param csvService the import of CSV files into the realm of the request
      * @param csvExport the CSV files of the lists of the realm of the request
+     * @param externalIds the IDs that systems have for the resources of the realm
      */
     public ImportsResource(RequestContext context, ImportService service, CsvImportService csvService,
-            CsvExportService csvExport) {
+            CsvExportService csvExport, ExternalIdService externalIds) {
+        this.externalIds = externalIds;
         this.context = context;
         this.service = service;
         this.csvService = csvService;
@@ -72,9 +76,10 @@ public class ImportsResource {
             operationId = "exportCsv",
             summary = "Returns a list on a date as a CSV that the import loads again.",
             description = "The lists are the same as for the import. A row of a thing that has an ID has the "
-                    + "column `id`, so that a row of a thing with no external ID comes back too. The kinds, the "
-                    + "definitions of attributes, the reference items, the hierarchies, and the people have no "
-                    + "date.")
+                    + "column `id`, so that a row of a thing with no external ID comes back too. The columns "
+                    + "`source` and `externalId` hold the system that made the thing and the ID that it has there. "
+                    + "The kinds, the definitions of attributes, the reference items, the hierarchies, and the "
+                    + "people have no date.")
     @APIResponse(responseCode = "200", description = "The CSV, in UTF-8 with a byte order mark.")
     @BadRequest
     @ApiErrors
@@ -193,7 +198,7 @@ public class ImportsResource {
             // The failure rolls back everything that the checks wrote. The response is still a success.
             throw context.failure(json(Response.Status.OK, representation));
         }
-        report.writes().forEach(write -> Writes.record(context, write));
+        Writes.recordAll(context, externalIds, report.writes());
         return representation;
     }
 

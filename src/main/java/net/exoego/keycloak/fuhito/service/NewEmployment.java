@@ -18,8 +18,8 @@ import java.util.Map;
  * @param contractEndDate the last day of the first fixed-term contract, as {@code YYYY-MM-DD}, or null for an
  *        indefinite contract
  * @param attributes free values, or null
- * @param externalId the ID of the employment in the system it came from, or null
- * @param source the name of that system, or null
+ * @param externalId the ID of the employment in the system that the source names, or null
+ * @param source the name of the system that makes the employment, or null
  * @param employerId the ID of the org unit that employs the person, or null when the realm has one legal entity
  */
 public record NewEmployment(String personId, String validFrom, String validTo, String staffNumber,
@@ -40,8 +40,8 @@ public record NewEmployment(String personId, String validFrom, String validTo, S
      * @param leaveReason the code of the leave reason, or null
      * @param workPercent the share of full-time work in percent, or null
      * @param attributes free values, or null
-     * @param externalId the ID of the employment in the system it came from, or null
-     * @param source the name of that system, or null
+     * @param externalId the ID of the employment in the system that the source names, or null
+     * @param source the name of the system that makes the employment, or null
      * @param employerId the ID of the org unit that employs the person, or null when the realm has one legal entity
      */
     public NewEmployment(String personId, String validFrom, String validTo, String staffNumber,
@@ -63,8 +63,8 @@ public record NewEmployment(String personId, String validFrom, String validTo, S
      * @param status the status, or null for {@code ACTIVE}
      * @param workPercent the share of full-time work in percent, or null
      * @param attributes free values, or null
-     * @param externalId the ID of the employment in the system it came from, or null
-     * @param source the name of that system, or null
+     * @param externalId the ID of the employment in the system that the source names, or null
+     * @param source the name of the system that makes the employment, or null
      */
     public NewEmployment(String personId, String validFrom, String validTo, String staffNumber,
             String employmentType, String grade, String status, BigDecimal workPercent,

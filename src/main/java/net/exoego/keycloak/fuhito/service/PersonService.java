@@ -8,9 +8,11 @@ import java.util.function.Predicate;
 
 import net.exoego.keycloak.fuhito.domain.AttributeDefinition;
 import net.exoego.keycloak.fuhito.domain.Checks;
+import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.Person;
 import net.exoego.keycloak.fuhito.service.PersonView.NameSource;
+import net.exoego.keycloak.fuhito.store.ExternalIdStore;
 import net.exoego.keycloak.fuhito.store.PersonStore;
 import net.exoego.keycloak.fuhito.store.UserDirectory;
 
@@ -30,6 +32,7 @@ public class PersonService {
     }
 
     private final PersonStore store;
+    private final ExternalIdWrites externalIds;
     private final UserDirectory users;
     private final Predicate<String> inUse;
     private final AttributeRules attributeRules;
@@ -38,25 +41,29 @@ public class PersonService {
      * Creates the service.
      *
      * @param store the storage of people of the realm
+     * @param externalIds the storage of the IDs that systems have for the resources of the realm
      * @param users the users of the realm
      * @param inUse tells whether an employment, a qualification, or a reporting line names the person with an ID
      */
-    public PersonService(PersonStore store, UserDirectory users, Predicate<String> inUse) {
-        this(store, users, inUse, AttributeRules.NONE);
+    public PersonService(PersonStore store, ExternalIdStore externalIds, UserDirectory users,
+            Predicate<String> inUse) {
+        this(store, externalIds, users, inUse, AttributeRules.NONE);
     }
 
     /**
      * Creates the service with a check of free attributes.
      *
      * @param store the storage of people of the realm
+     * @param externalIds the storage of the IDs that systems have for the resources of the realm
      * @param users the users of the realm
      * @param inUse tells whether an employment, a qualification, or a reporting line names the person with an ID
      * @param attributeRules the check of free attributes against the definitions of the realm
      */
-    public PersonService(PersonStore store, UserDirectory users, Predicate<String> inUse,
-            AttributeRules attributeRules) {
+    public PersonService(PersonStore store, ExternalIdStore externalIds, UserDirectory users,
+            Predicate<String> inUse, AttributeRules attributeRules) {
         this.attributeRules = attributeRules;
         this.store = store;
+        this.externalIds = new ExternalIdWrites(externalIds, ExternalId.Kind.PERSON);
         this.users = users;
         this.inUse = inUse;
     }
@@ -100,72 +107,39 @@ public class PersonService {
     }
 
     /**
-     * Finds the person that has an ID of the system it came from.
-     *
-     * @param source the name of the system
-     * @param externalId the ID in that system
-     * @return the person, or empty when no person has the ID
-     */
-    public Optional<Person> ofExternalId(String source, String externalId) {
-        return store.findByExternalId(source, externalId);
-    }
-
-    /**
-     * Gives a person with no external ID the ID of the system it came from, and replaces its values.
-     *
-     * @param id the ID of the person
-     * @param request the new values, with the source and the external ID
-     * @return the changed person
-     * @throws FuhitoException when the person does not exist, a value is bad, or another person has the ID
-     */
-    public PersonView adopt(String id, PersonValues request) {
-        Checks.required("body", request);
-        get(id);
-        String source = Checks.code("source", request.source());
-        String externalId = ExternalIdService.value(Checks.required("externalId", request.externalId()));
-        if (store.externalIdTaken(source, externalId, id)) {
-            throw FuhitoException.conflict("person.external_id_taken",
-                    Map.of("source", source, "externalId", externalId));
-        }
-        Person changed = checked(id, request, externalId, source);
-        store.update(changed);
-        return view(changed);
-    }
-
-    /**
      * Creates a person.
      *
-     * @param request the values of the request
+     * @param request the values of the request. The person keeps the source as the system that made it.
      * @return the new person
      * @throws FuhitoException when a value is bad, or the user or the external ID belongs to another person
      */
     public PersonView create(PersonValues request) {
         Checks.required("body", request);
-        String source = Checks.optionalCode("source", request.source());
-        Person person = checked(UUID.randomUUID().toString(), request, ExternalIdService.value(request.externalId()),
-                source);
-        if (source != null && person.externalId() != null
-                && store.externalIdTaken(source, person.externalId(), null)) {
-            throw FuhitoException.conflict("person.external_id_taken",
-                    Map.of("source", source, "externalId", person.externalId()));
-        }
+        ExternalId.Pair externalId = externalIds.check(null, request.source(), request.externalId());
+        Person person = checked(UUID.randomUUID().toString(), request,
+                Checks.optionalCode("source", request.source()));
         store.insert(person);
+        externalIds.store(person.id(), externalId);
         return view(person);
     }
 
     /**
-     * Replaces the names, the attributes, and the link to a Keycloak user.
+     * Replaces the names, the attributes, and the link to a Keycloak user. An external ID of the request is stored
+     * as the ID that the system of its source has for the person. The person keeps the system that made it.
      *
      * @param id the ID
      * @param request the new values
      * @return the changed person
-     * @throws FuhitoException when the person does not exist or a value is bad
+     * @throws FuhitoException when the person does not exist, a value is bad, or the external ID belongs to another
+     *         person
      */
     public PersonView replace(String id, PersonValues request) {
         Checks.required("body", request);
         Person current = get(id).person();
-        Person changed = checked(id, request, current.externalId(), current.source());
+        ExternalId.Pair externalId = externalIds.check(id, request.source(), request.externalId());
+        Person changed = checked(id, request, current.source());
         store.update(changed);
+        externalIds.store(id, externalId);
         return view(changed);
     }
 
@@ -249,7 +223,7 @@ public class PersonService {
         return people.stream().map(this::view).toList();
     }
 
-    private Person checked(String id, PersonValues request, String externalId, String source) {
+    private Person checked(String id, PersonValues request, String source) {
         String name = Checks.optionalName("name", request.name());
         String userId = request.userId();
         if (userId == null && name == null) {
@@ -267,7 +241,7 @@ public class PersonService {
         }
         return new Person(id, userId, name, Checks.localizedNames("names", request.names()),
                 Checks.optionalName("phoneticName", request.phoneticName()),
-                attributeRules.check(AttributeDefinition.Target.PERSON, request.attributes()), externalId, source);
+                attributeRules.check(AttributeDefinition.Target.PERSON, request.attributes()), source);
     }
 
     private PersonView view(Person person) {

@@ -4,12 +4,14 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 import net.exoego.keycloak.fuhito.domain.Assignment;
 import net.exoego.keycloak.fuhito.domain.EmploymentStatus;
 import net.exoego.keycloak.fuhito.domain.EmploymentTerms;
 import net.exoego.keycloak.fuhito.domain.Employment;
+import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.RefItem;
 import net.exoego.keycloak.fuhito.domain.RefKind;
@@ -28,8 +30,9 @@ class EmploymentServiceTest {
     private final MemoryAssignmentStore assignments = new MemoryAssignmentStore();
     private final MemoryRefItemStore refItems = new MemoryRefItemStore();
     private final MemoryReportingLineStore lines = new MemoryReportingLineStore();
+    private final MemoryExternalIdStore externalIds = new MemoryExternalIdStore();
     private final EmploymentService service =
-            new EmploymentService(store, assignments, refItems,
+            new EmploymentService(store, externalIds, assignments, refItems,
             MemoryPersonStore.linked(Set.of("alice", "bob")),
             lines, new MemoryUnitRoleStore(), new AnyEmployer());
 
@@ -81,7 +84,8 @@ class EmploymentServiceTest {
 
         assertEquals(new ValidPeriod(LocalDate.of(2026, 4, 1), LocalDate.of(2027, 4, 1)), view.employment().period());
         assertEquals("000123", view.employment().staffNumber());
-        assertEquals("E-1", view.employment().externalId());
+        assertEquals(Optional.of(view.employment().id()),
+                externalIds.idOf(ExternalId.Kind.EMPLOYMENT, "hr", "E-1"));
         assertEquals("hr", view.employment().source());
         EmploymentView.TermsView terms = view.terms().getFirst();
         assertEquals(temporary.id(), terms.terms().employmentTypeId());
@@ -438,7 +442,8 @@ class EmploymentServiceTest {
         assertEquals("company-x", started.employerId());
         assertEquals("X-2040", started.staffNumber());
         assertEquals(old, started.continuesEmploymentId());
-        assertNull(started.externalId());
+        assertNull(started.source());
+        assertEquals(List.of(), externalIds.ofResource(ExternalId.Kind.EMPLOYMENT, started.id()));
         // The new employment lasts as long as the old one would have. It keeps the leave that was stored for 2029.
         assertEquals(new ValidPeriod(LocalDate.of(2027, 4, 1), LocalDate.of(2030, 4, 1)), started.period());
         assertEquals(List.of("2027-04-01 2029-04-01 ACTIVE", "2029-04-01 2030-04-01 ON_LEAVE"),
@@ -566,8 +571,9 @@ class EmploymentServiceTest {
         assignment("first-row", "first", old, "2020-04-01", "2027-07-01");
         // The move to the ward is planned for July, and the transfer comes in April.
         assignments.insert(new Assignment("moved-row", "moved", old, "ward", ValidPeriod.startingAt(
-                LocalDate.of(2027, 7, 1)), null, null, null, "home", "cc", false, false, null, 0, Map.of(), "M-1", "hr",
+                LocalDate.of(2027, 7, 1)), null, null, null, "home", "cc", false, false, null, 0, Map.of(), "hr",
                 "first"));
+        externalIds.insert(new ExternalId("x-moved", ExternalId.Kind.ASSIGNMENT, "moved", "hr", "M-1"));
 
         EmploymentService.Transfer transfer = service.transfer(old, new TransferRequest("company-z", "2027-04-01",
                 null, null));
@@ -576,20 +582,21 @@ class EmploymentServiceTest {
         Assignment moved = assignments.rows(transfer.assignmentIds().get(1)).getFirst();
         assertEquals("first", assignments.rows(first).getFirst().continuesAssignmentId());
         assertEquals(first, moved.continuesAssignmentId());
-        // The old assignment of July is gone, so its copy keeps its ID of the other system.
+        // The old assignment of July is gone, so its copy takes its IDs of other systems.
         assertEquals(List.of(), assignments.rows("moved"));
-        assertEquals("M-1", moved.externalId());
+        assertEquals(Optional.of(moved.assignmentId()), externalIds.idOf(ExternalId.Kind.ASSIGNMENT, "hr", "M-1"));
+        assertEquals(List.of(), externalIds.ofResource(ExternalId.Kind.ASSIGNMENT, "moved"));
         // A transfer keeps the work location and the cost center.
         assertEquals("home", moved.workLocationId());
         assertEquals("cc", moved.costCenterId());
         assertEquals("hr", moved.source());
-        assertNull(assignments.rows(first).getFirst().externalId());
+        assertEquals(List.of(), externalIds.ofResource(ExternalId.Kind.ASSIGNMENT, first));
     }
 
     private Assignment assignment(String rowId, String assignmentId, String employmentId, String from, String to) {
         Assignment row = new Assignment(rowId, assignmentId, employmentId, "unit", new ValidPeriod(
                 LocalDate.parse(from), to == null ? null : LocalDate.parse(to)), null, null, null, null, null, false,
-                false, null, 0, Map.of(), null, null, null);
+                false, null, 0, Map.of(), null, null);
         assignments.insert(row);
         return row;
     }
