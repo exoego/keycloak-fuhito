@@ -61,6 +61,7 @@ When the attributes change:
 It is the date of the realm unless the unit, or one above it, sets its own time zone.
 When a user moves to another unit, the date of the new unit is used.
 The department is matched on the date of the realm. For some hours of a day, a unit with its own time zone is on another date, where it may not exist yet or any more. Then the department matches nothing until that changes.
+A change never takes effect before the employment of the user starts. When the unit no longer exists on that date, the department matches nothing too.
 See "What today is" in [keycloak-integration.md](keycloak-integration.md).
 
 The sync never touches an assignment that it does not own.
