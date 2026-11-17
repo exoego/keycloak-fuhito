@@ -19,6 +19,7 @@ import org.keycloak.representations.userprofile.config.UPConfig;
 import static net.exoego.keycloak.fuhito.KeycloakEnvironment.KEYCLOAK;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -158,6 +159,52 @@ class AttributeSyncIT {
         assertEquals(1, assignmentsOf(alice).size());
         assertEquals(List.of(chief), Api.json(api.get("/users/" + alice + "/managers")).findValuesAsText("userId"));
         assertEquals(0, assignmentsOf(boss).size());
+    }
+
+    private JsonNode historyOf(String userId) throws Exception {
+        return Api.json(api.get("/users/" + userId + "/history"));
+    }
+
+    @Test
+    void aUserWhoLeftGetsANewEmploymentWhenTheyComeBack() throws Exception {
+        createRealm(Map.of("fuhito.sync.enabled", "true"));
+        unit("内科", "naika", null);
+        String alice = user("alice", Map.of("department", "naika"));
+        String bob = user("bob", Map.of("department", "naika"));
+        // Alice left in 2025. Her employment has the ID that the sync gave its employments before.
+        HttpResponse<String> earlier = api.post("/employments", "{\"userId\": \"" + alice + "\", \"validFrom\": "
+                + "\"2020-04-01\", \"validTo\": \"2025-04-01\", \"source\": \"scim\", \"externalId\": \"" + alice + "\"}");
+        assertEquals(201, earlier.statusCode(), earlier.body());
+        String today = LocalDate.now(ZoneOffset.UTC).toString();
+
+        assertEquals(2, run("").get("employmentsStarted").asInt());
+
+        JsonNode ofAlice = historyOf(alice).get("employments");
+        assertEquals(2, ofAlice.size());
+        assertEquals("2025-04-01", ofAlice.get(0).get("validTo").asText());
+        assertEquals(List.of("scim=" + alice), Api.externalIds(ofAlice.get(0)));
+        assertEquals(today, ofAlice.get(1).get("validFrom").asText());
+        assertEquals("scim", ofAlice.get(1).get("source").asText());
+        assertEquals(List.of(), Api.externalIds(ofAlice.get(1)));
+        assertEquals(1, assignmentsOf(alice).size());
+
+        // The person of bob loses the link to the user. The user then has no person and no employment.
+        String oldPerson = historyOf(bob).get("personId").asText();
+        HttpResponse<String> unlinked = api.put("/people/" + oldPerson, "{\"name\": \"Bob\"}");
+        assertEquals(200, unlinked.statusCode(), unlinked.body());
+
+        JsonNode back = run("");
+
+        assertEquals(1, back.get("employmentsStarted").asInt());
+        assertEquals(1, back.get("assignmentsAdded").asInt());
+        JsonNode ofBob = historyOf(bob);
+        assertNotEquals(oldPerson, ofBob.get("personId").asText());
+        assertEquals(1, ofBob.get("employments").size());
+        assertEquals(1, assignmentsOf(bob).size());
+        // The old person keeps the employment and the assignment, and the sync leaves them alone.
+        JsonNode ofOldPerson = Api.json(api.get("/people/" + oldPerson + "/history"));
+        assertEquals(1, ofOldPerson.get("employments").size());
+        assertFalse(ofOldPerson.get("assignments").get(0).has("validTo"), ofOldPerson.toString());
     }
 
     @Test

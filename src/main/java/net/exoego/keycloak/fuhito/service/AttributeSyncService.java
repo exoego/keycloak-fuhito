@@ -332,10 +332,10 @@ public class AttributeSyncService {
         String personId = personOf(user.userId());
         EmploymentView started;
         try {
-            started = start(user, personId, user.employeeNumber(), today);
+            started = start(personId, user.employeeNumber(), today);
         } catch (FuhitoException e) {
             // A staff number with a bad form, or one that another user has, must not stop the user.
-            started = start(user, personId, null, today);
+            started = start(personId, null, today);
         }
         employmentsStarted++;
         record.accept(new Write.OfEmployment(true, "", started));
@@ -351,9 +351,11 @@ public class AttributeSyncService {
         return person.person().id();
     }
 
-    private EmploymentView start(Values user, String personId, String staffNumber, LocalDate today) {
+    // The sync finds an employment by its user, so it needs no external ID. An ID would block a user who comes back,
+    // because the old employment keeps it.
+    private EmploymentView start(String personId, String staffNumber, LocalDate today) {
         return from.employmentService().start(new NewEmployment(personId, today.toString(), null, staffNumber,
-                null, null, null, null, null, null, user.userId(), SOURCE, employerId));
+                null, null, null, null, null, null, null, SOURCE, employerId));
     }
 
     // The assignment of the sync is the primary one, unless the user has a primary assignment from elsewhere.

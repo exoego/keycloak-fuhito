@@ -11,7 +11,6 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -20,6 +19,7 @@ import net.exoego.keycloak.fuhito.domain.Employment;
 import net.exoego.keycloak.fuhito.domain.BusinessDay;
 import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
+import net.exoego.keycloak.fuhito.domain.Person;
 import net.exoego.keycloak.fuhito.domain.RefItem;
 import net.exoego.keycloak.fuhito.domain.RefKind;
 import net.exoego.keycloak.fuhito.domain.ValidPeriod;
@@ -30,6 +30,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -201,7 +203,7 @@ class AttributeSyncServiceTest {
         var employment = employmentStore.findByUser("alice").getFirst();
         assertEquals("E-002", employment.staffNumber());
         assertEquals("scim", employment.source());
-        assertEquals(Optional.of(employment.id()), externalIds.idOf(ExternalId.Kind.EMPLOYMENT, "scim", "alice"));
+        assertEquals(List.of(), externalIds.ofResource(ExternalId.Kind.EMPLOYMENT, employment.id()));
         assertEquals(List.of("FUHITO_PERSON", "FUHITO_EMPLOYMENT", "FUHITO_ASSIGNMENT", "FUHITO_PERSON",
                         "FUHITO_EMPLOYMENT", "FUHITO_ASSIGNMENT", "FUHITO_REPORTING_LINE"),
                 report.writes().stream().map(ImportReport.Write::resourceType).toList());
@@ -217,13 +219,61 @@ class AttributeSyncServiceTest {
         employmentStore.employments.put(employment.id(), new Employment(employment.id(), employment.personId(), null,
                 employment.employerId(), employment.period(), employment.staffNumber(), employment.endReasonId(),
                 employment.source(), employment.continuesEmploymentId()));
-        // The new employment of alice takes the ID of the user. One ID names one employment.
-        externalIds.rows.removeIf(row -> row.resourceId().equals(employment.id()));
 
         SyncReport again = run();
 
         assertEquals(2, again.users());
         assertEquals(1, assignmentStore.rowsOfEmployment(employment.id()).size());
+    }
+
+    @Test
+    void aUserWhoseEmploymentEndedGetsANewOneWhenTheyComeBack() {
+        set("alice", "med", null, null, "E-002");
+        run();
+        Employment first = employmentStore.findByUser("alice").getFirst();
+        // Alice leaves on June 16 and comes back on June 17.
+        nextDay();
+        employments().end(first.id(), "2026-06-16", null);
+        nextDay();
+
+        SyncReport back = run();
+
+        assertEquals(1, back.employmentsStarted());
+        assertEquals(1, back.assignmentsAdded());
+        List<Employment> both = employmentStore.findByUser("alice");
+        assertEquals(List.of(new ValidPeriod(LocalDate.of(2026, 6, 15), LocalDate.of(2026, 6, 16)),
+                ValidPeriod.startingAt(LocalDate.of(2026, 6, 17))), both.stream().map(Employment::period).toList());
+        Employment second = both.getLast();
+        assertEquals("E-002", second.staffNumber());
+        assertEquals("scim", second.source());
+        assertNull(second.continuesEmploymentId());
+        assertEquals(List.of("Internal Medicine 2026-06-15 2026-06-16 - primary",
+                "Internal Medicine 2026-06-17 null - primary"), assignmentsOf("alice"));
+    }
+
+    @Test
+    void aUserWhosePersonLostTheLinkGetsANewPersonWhenTheyComeBack() {
+        set("alice", "med", null, null, null);
+        run();
+        Employment first = employmentStore.findByUser("alice").getFirst();
+        // The person of alice loses the link to the Keycloak user.
+        Person person = people.find(first.personId()).orElseThrow();
+        people.update(new Person(person.id(), null, person.name(), person.names(), person.phoneticName(),
+                person.attributes(), person.source()));
+        employmentStore.employments.put(first.id(), new Employment(first.id(), first.personId(), null,
+                first.employerId(), first.period(), first.staffNumber(), first.endReasonId(), first.source(),
+                first.continuesEmploymentId()));
+        nextDay();
+
+        SyncReport back = run();
+
+        assertEquals(1, back.employmentsStarted());
+        Employment second = employmentStore.findByUser("alice").getFirst();
+        assertNotEquals(first.personId(), second.personId());
+        assertEquals(List.of("Internal Medicine 2026-06-16 null - primary"), assignmentsOf("alice"));
+        // The old person keeps what the sync gave them.
+        assertEquals(List.of(new ValidPeriod(LocalDate.of(2026, 6, 15), null)),
+                assignmentStore.rowsOfEmployment(first.id()).stream().map(Assignment::period).toList());
     }
 
     @Test
