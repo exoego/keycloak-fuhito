@@ -1,5 +1,7 @@
 package net.exoego.keycloak.fuhito.rest;
 
+import java.util.List;
+
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.DELETE;
 import jakarta.ws.rs.GET;
@@ -12,9 +14,13 @@ import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import net.exoego.keycloak.fuhito.domain.Checks;
+import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.rest.RequestContext.Change;
 import net.exoego.keycloak.fuhito.service.AssignmentService;
+import net.exoego.keycloak.fuhito.service.AssignmentView;
 import net.exoego.keycloak.fuhito.service.Cursor;
+import net.exoego.keycloak.fuhito.service.ExternalIdLists;
+import net.exoego.keycloak.fuhito.service.ExternalIdService;
 import net.exoego.keycloak.fuhito.service.MembershipService;
 import net.exoego.keycloak.fuhito.service.Page;
 import net.exoego.keycloak.fuhito.service.RemovalService;
@@ -43,6 +49,7 @@ public class AssignmentsResource {
 
     private final RequestContext context;
     private final AssignmentService service;
+    private final ExternalIdService externalIds;
     private final MembershipService members;
     private final RemovalService removals;
 
@@ -51,11 +58,13 @@ public class AssignmentsResource {
      *
      * @param context the request and its caller
      * @param service the operations on the realm of the request
+     * @param externalIds the IDs that systems have for the resources of the realm
      * @param members the reads of assignments in the shape of members
      * @param removals the removal of resources that were made by mistake
      */
-    public AssignmentsResource(RequestContext context, AssignmentService service, MembershipService members,
-            RemovalService removals) {
+    public AssignmentsResource(RequestContext context, AssignmentService service, ExternalIdService externalIds,
+            MembershipService members, RemovalService removals) {
+        this.externalIds = externalIds;
         this.removals = removals;
         this.members = members;
         this.context = context;
@@ -138,7 +147,7 @@ public class AssignmentsResource {
         context.requireWrite();
         return Calls.once(context, body, Response.class, () -> Calls.run(context, () -> {
             Checks.required("body", body);
-            var assignment = AssignmentRepresentation.of(service.add(body.toValues()));
+            var assignment = represent(service.add(body.toValues()));
             context.recordChange(Change.CREATE, RESOURCE_TYPE, assignment.id(), path(assignment.id()), assignment);
             return Response.status(Response.Status.CREATED).entity(assignment).build();
         }));
@@ -154,7 +163,7 @@ public class AssignmentsResource {
             @Parameter(description = "The ID of the resource.")
             @PathParam("id") String id) {
         context.requireRead();
-        return Calls.tagged(context, () -> state(id), () -> AssignmentRepresentation.of(service.get(id)));
+        return Calls.tagged(context, () -> state(id), () -> represent(service.get(id)));
     }
 
     @DELETE
@@ -196,7 +205,7 @@ public class AssignmentsResource {
         context.requireWrite();
         return Calls.guarded(context, () -> state(id), () -> {
             Checks.required("body", body);
-            var assignment = AssignmentRepresentation.of(service.changeDetails(id, body.toValues()));
+            var assignment = represent(service.changeDetails(id, body.toValues()));
             context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, path(id) + "/details", assignment);
             return assignment;
         });
@@ -220,7 +229,7 @@ public class AssignmentsResource {
         context.requireWrite();
         return Calls.guarded(context, () -> state(id), () -> {
             Checks.required("body", body);
-            var assignment = AssignmentRepresentation.of(service.end(id, body.validTo()));
+            var assignment = represent(service.end(id, body.validTo()));
             context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, path(id) + "/end", assignment);
             return assignment;
         });
@@ -254,8 +263,8 @@ public class AssignmentsResource {
         return Calls.once(context, body, Response.class, () -> Calls.guarded(context, () -> state(id), () -> {
             Checks.required("body", body);
             AssignmentService.Move move = service.move(id, body.toRequest());
-            var ended = AssignmentRepresentation.of(move.ended());
-            var started = AssignmentRepresentation.of(move.started());
+            var ended = represent(move.ended());
+            var started = represent(move.started());
             context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, path(id) + "/move", ended);
             context.recordChange(Change.CREATE, RESOURCE_TYPE, started.id(), path(started.id()), started);
             return Response.status(Response.Status.CREATED).entity(MoveRepresentation.of(ended, started)).build();
@@ -278,7 +287,7 @@ public class AssignmentsResource {
             @PathParam("id") String id) {
         context.requireWrite();
         return Calls.guarded(context, () -> state(id), () -> {
-            var assignment = AssignmentRepresentation.of(service.removeEnd(id));
+            var assignment = represent(service.removeEnd(id));
             context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, path(id) + "/end", assignment);
             return assignment;
         });
@@ -288,8 +297,19 @@ public class AssignmentsResource {
         return "fuhito/assignments/" + id;
     }
 
+    // The IDs of every assignment of a list are read with one query.
+    static List<AssignmentRepresentation> represent(List<AssignmentView> views, ExternalIdService externalIds) {
+        ExternalIdLists ids = externalIds.lists(ExternalId.Kind.ASSIGNMENT,
+                views.stream().map(AssignmentView::assignmentId).toList());
+        return views.stream().map(view -> AssignmentRepresentation.of(view, ids)).toList();
+    }
+
+    private AssignmentRepresentation represent(AssignmentView view) {
+        return represent(List.of(view), externalIds).getFirst();
+    }
+
     // The whole stored state of one resource, which its ETag covers.
     private Object state(String id) {
-        return AssignmentRepresentation.of(service.get(id)).stored();
+        return represent(service.get(id)).stored();
     }
 }

@@ -16,6 +16,7 @@ import net.exoego.keycloak.fuhito.domain.Assignment;
 import net.exoego.keycloak.fuhito.domain.AttributeDefinition;
 import net.exoego.keycloak.fuhito.domain.BusinessDay;
 import net.exoego.keycloak.fuhito.domain.Checks;
+import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.OrgUnit;
 import net.exoego.keycloak.fuhito.domain.OrgUnitLink;
@@ -26,6 +27,7 @@ import net.exoego.keycloak.fuhito.domain.RefItem;
 import net.exoego.keycloak.fuhito.domain.RefKind;
 import net.exoego.keycloak.fuhito.domain.ValidPeriod;
 import net.exoego.keycloak.fuhito.store.AssignmentStore;
+import net.exoego.keycloak.fuhito.store.ExternalIdStore;
 import net.exoego.keycloak.fuhito.store.OrgUnitStore;
 import net.exoego.keycloak.fuhito.store.RefItemStore;
 
@@ -36,6 +38,7 @@ public class OrgUnitService {
 
     private final AttributeRules attributeRules;
     private final OrgUnitStore store;
+    private final ExternalIdWrites externalIds;
     private final AssignmentStore assignments;
     private final RefItemStore refItems;
     private final Today today;
@@ -44,39 +47,45 @@ public class OrgUnitService {
      * Creates the service.
      *
      * @param store the storage of org units of the realm
+     * @param externalIds the storage of the IDs that systems have for the resources of the realm
      * @param assignments the storage of assignments of the realm
      * @param refItems the storage of reference items of the realm
      * @param clock the clock that decides what "today" is
      */
-    public OrgUnitService(OrgUnitStore store, AssignmentStore assignments, RefItemStore refItems, Clock clock) {
-        this(store, assignments, refItems, Today.of(clock));
+    public OrgUnitService(OrgUnitStore store, ExternalIdStore externalIds, AssignmentStore assignments,
+            RefItemStore refItems, Clock clock) {
+        this(store, externalIds, assignments, refItems, Today.of(clock));
     }
 
     /**
      * Creates the service for a realm where an org unit can have its own time settings.
      *
      * @param store the storage of org units of the realm
+     * @param externalIds the storage of the IDs that systems have for the resources of the realm
      * @param assignments the storage of assignments of the realm
      * @param refItems the storage of reference items of the realm
      * @param today what today is for the realm and for each org unit
      */
-    public OrgUnitService(OrgUnitStore store, AssignmentStore assignments, RefItemStore refItems, Today today) {
-        this(store, assignments, refItems, today, AttributeRules.NONE);
+    public OrgUnitService(OrgUnitStore store, ExternalIdStore externalIds, AssignmentStore assignments,
+            RefItemStore refItems, Today today) {
+        this(store, externalIds, assignments, refItems, today, AttributeRules.NONE);
     }
 
     /**
      * Creates the service with a check of free attributes.
      *
      * @param store the storage of the realm
+     * @param externalIds the storage of the IDs that systems have for the resources of the realm
      * @param assignments the storage of assignments of the realm
      * @param refItems the storage of reference items of the realm
      * @param today the rule that decides what "today" is for each org unit
      * @param attributeRules the check of free attributes against the definitions of the realm
      */
-    public OrgUnitService(OrgUnitStore store, AssignmentStore assignments, RefItemStore refItems, Today today,
-            AttributeRules attributeRules) {
+    public OrgUnitService(OrgUnitStore store, ExternalIdStore externalIds, AssignmentStore assignments,
+            RefItemStore refItems, Today today, AttributeRules attributeRules) {
         this.attributeRules = attributeRules;
         this.store = store;
+        this.externalIds = new ExternalIdWrites(externalIds, ExternalId.Kind.ORG_UNIT);
         this.assignments = assignments;
         this.refItems = refItems;
         this.today = today;
@@ -85,22 +94,18 @@ public class OrgUnitService {
     /**
      * Creates an org unit that starts on a date and has no end.
      *
-     * @param request the values of the request
+     * @param request the values of the request. The unit keeps the source as the system that made it.
      * @return the unit as it is on its first date
-     * @throws FuhitoException when a value is bad, the code is taken, or the parent is not valid
+     * @throws FuhitoException when a value is bad, the code or the external ID is taken, or the parent is not
+     *         valid
      */
     public OrgUnitState create(NewOrgUnit request) {
         Checks.required("body", request);
         LocalDate validFrom = Checks.date("validFrom", request.validFrom());
         ValidPeriod period = ValidPeriod.startingAt(validFrom);
         RefItem unitType = request.unitType() == null ? null : activeUnitType(request.unitType());
-        String source = Checks.optionalCode("source", request.source());
-        String externalId = ExternalIdService.value(request.externalId());
-        if (source != null && externalId != null && store.externalIdTaken(source, externalId, null)) {
-            throw FuhitoException.conflict("org_unit.external_id_taken",
-                    Map.of("source", source, "externalId", externalId));
-        }
-        OrgUnit unit = new OrgUnit(newId(), externalId, source, null);
+        ExternalId.Pair externalId = externalIds.check(null, request.source(), request.externalId());
+        OrgUnit unit = new OrgUnit(newId(), Checks.optionalCode("source", request.source()), null);
         requireFreeCode(Checks.optionalCode("code", request.code()), unit.id(), period);
         if (request.parentId() != null) {
             requireParentCovers(request.parentId(), period);
@@ -113,6 +118,7 @@ public class OrgUnitService {
                 request.phoneticName(), request.unitType(), request.workLocation(), request.costCenter(),
                 request.displayOrder(), request.attributes()), unitType, null);
         store.insertUnit(unit);
+        externalIds.store(unit.id(), externalId);
         store.insertVersion(version);
         if (request.parentId() != null) {
             store.insertLink(new OrgUnitLink(newId(), store.defaultHierarchyId(), unit.id(), request.parentId(),
@@ -120,6 +126,24 @@ public class OrgUnitService {
         }
         return UnitPlaces.on(List.of(OrgUnitState.of(unit, version, unitType, request.parentId())), store,
                 refItems, validFrom).getFirst();
+    }
+
+    /**
+     * Replaces the details of an org unit from a date, and stores the ID that a system has for the unit.
+     *
+     * @param id the ID
+     * @param request the new details and their first date
+     * @param source the name of the system, or null
+     * @param externalId the ID in that system, or null to keep the IDs as they are
+     * @return the unit as it is on that date
+     * @throws FuhitoException when the unit does not exist on the date, a value is bad, or the ID names another
+     *         unit
+     */
+    public OrgUnitState changeDetails(String id, OrgUnitChange request, String source, String externalId) {
+        ExternalId.Pair pair = externalIds.check(id, source, externalId);
+        OrgUnitState state = changeDetails(id, request);
+        externalIds.store(id, pair);
+        return state;
     }
 
     /**
@@ -447,8 +471,7 @@ public class OrgUnitService {
         } catch (FuhitoException e) {
             throw FuhitoException.invalid(e.code(), e.params()).causedBy(e);
         }
-        OrgUnit changed = new OrgUnit(unit.id(), unit.externalId(), unit.source(),
-                unit.keycloakOrganizationId(), zone, start);
+        OrgUnit changed = new OrgUnit(unit.id(), unit.source(), unit.keycloakOrganizationId(), zone, start);
         store.updateUnit(changed);
         return changed;
     }

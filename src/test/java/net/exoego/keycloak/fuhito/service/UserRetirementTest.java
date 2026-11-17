@@ -33,9 +33,9 @@ class UserRetirementTest {
     private final MemoryUnitRoleStore unitRoles = new MemoryUnitRoleStore();
     private final MemoryExternalIdStore externalIds = new MemoryExternalIdStore();
     private final EmploymentService employments =
-            new EmploymentService(employmentStore, assignmentStore, refItems, people, lines, unitRoles, new AnyEmployer());
+            new EmploymentService(employmentStore, externalIds, assignmentStore, refItems, people, lines, unitRoles, new AnyEmployer());
     private final AssignmentService assignments =
-            new AssignmentService(assignmentStore, employmentStore, orgUnitStore, refItems, lines);
+            new AssignmentService(assignmentStore, externalIds, employmentStore, orgUnitStore, refItems, lines);
     private final ReportingLineService lineService = new ReportingLineService(lines,
             new ReportingLineService.Sources(assignmentStore, employmentStore, orgUnitStore, refItems, id -> true,
                     people),
@@ -48,7 +48,7 @@ class UserRetirementTest {
 
     @BeforeEach
     void createAUnit() {
-        unit = new OrgUnitService(orgUnitStore, assignmentStore, refItems, CLOCK).create(new NewOrgUnit(null, "Unit",
+        unit = new OrgUnitService(orgUnitStore, externalIds, assignmentStore, refItems, CLOCK).create(new NewOrgUnit(null, "Unit",
                 null, null, null, null, null, null, "2010-04-01", null, null, null, null)).unit().id();
     }
 

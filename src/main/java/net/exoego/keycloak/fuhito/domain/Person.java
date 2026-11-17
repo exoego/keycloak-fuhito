@@ -11,9 +11,8 @@ import java.util.Map;
  * @param names the names in other languages, by language tag
  * @param phoneticName the reading of the name for sorting, or null
  * @param attributes free values that the realm defines
- * @param externalId the ID of the person in the system it came from, or null
- * @param source the name of that system, or null
+ * @param source the name of the system that made the person, or null. Its IDs in each system are stored apart.
  */
 public record Person(String id, String userId, String name, Map<String, String> names, String phoneticName,
-        Map<String, Object> attributes, String externalId, String source) {
+        Map<String, Object> attributes, String source) {
 }

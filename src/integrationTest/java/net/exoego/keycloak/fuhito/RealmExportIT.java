@@ -12,6 +12,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class RealmExportIT {
@@ -92,7 +93,7 @@ class RealmExportIT {
         line = defaultHierarchy(api).get("id").asText();
         ok(api.put("/hierarchies/" + line, "{\"name\": \"組織図\"}"));
         String hospital = id(api.post("/org-units", "{\"name\": \"病院\", \"workLocation\": \"tokyo\", "
-                + "\"validFrom\": \"2020-04-01\"}"));
+                + "\"validFrom\": \"2020-04-01\", \"externalId\": \"H-1\", \"source\": \"hr\"}"));
         ok(api.put("/org-units/" + hospital + "/organization", "{\"organizationId\": \""
                 + source.organization("x-hospital") + "\"}"));
         String ward = id(api.post("/org-units", "{\"name\": \"1病棟\", \"parentId\": \"" + hospital
@@ -161,12 +162,27 @@ class RealmExportIT {
         assertEquals(404, target.api.get("/export/nothing").statusCode());
     }
 
+    // A unit names only the system that made it. Every ID is in the list of IDs.
+    private static void assertIdsAreApart(JsonNode export, String unit) {
+        JsonNode exported = null;
+        for (JsonNode row : export.get("orgUnits")) {
+            exported = row.get("id").asText().equals(unit) ? row : exported;
+        }
+        assertEquals("hr", exported.get("source").asText());
+        assertFalse(exported.has("externalId"));
+        assertEquals(List.of("H-1", "P-1"), export.get("externalIds").findValuesAsText("externalId").stream()
+                .sorted().toList());
+    }
+
     @Test
     void aRestoreWithReplaceBringsBackTheDataOfTheExport() throws Exception {
         TestRealm realm = TestRealm.withEmployer("export-replace");
         Api api = realm.api;
         String nurse = realm.user("nurse");
-        String hospital = id(api.post("/org-units", "{\"name\": \"病院\", \"validFrom\": \"2020-04-01\"}"));
+        String hospital = id(api.post("/org-units", "{\"name\": \"病院\", \"validFrom\": \"2020-04-01\", "
+                + "\"externalId\": \"H-1\", \"source\": \"hr\"}"));
+        ok(api.put("/external-ids", "{\"resourceType\": \"ORG_UNIT\", \"resourceId\": \"" + hospital
+                + "\", \"source\": \"payroll\", \"externalId\": \"P-1\"}"));
         String organization = realm.organization("x-hospital");
         ok(api.put("/org-units/" + hospital + "/organization", "{\"organizationId\": \"" + organization + "\"}"));
         ok(api.post("/staff", "{\"userId\": \"" + nurse + "\", \"orgUnitId\": \"" + hospital
@@ -175,12 +191,14 @@ class RealmExportIT {
         String license = id(api.post("/qualifications", "{\"userId\": \"" + nurse + "\", \"kind\": \"license\", "
                 + "\"number\": \"1\", \"validFrom\": \"2010-04-01\"}"));
         ObjectNode before = export(api);
+        assertIdsAreApart(before, hospital);
 
         // Changes by mistake after the export.
         ok(api.post("/org-units", "{\"name\": \"新病棟\", \"validFrom\": \"2020-04-01\"}"));
         ok(api.put("/org-units/" + hospital, "{\"name\": \"誤った名前\", \"validFrom\": \"2025-04-01\"}"));
         ok(api.delete("/qualifications/" + license));
         ok(api.delete("/org-units/" + hospital + "/organization"));
+        ok(api.delete("/external-ids?resourceType=ORG_UNIT&resourceId=" + hospital + "&source=hr"));
 
         assertEquals("restore.realm_not_empty", error(api.post("/restore", JSON.writeValueAsString(before))));
         HttpResponse<String> restored = api.post("/restore?replace=true", JSON.writeValueAsString(before));
@@ -258,6 +276,26 @@ class RealmExportIT {
         HttpResponse<String> location = target.api.post("/restore", JSON.writeValueAsString(located));
         assertEquals("restore.reference_unknown", error(location));
         assertEquals("workLocationId", Api.json(location).get("params").get("field").asText());
+
+        // The list of IDs keeps the rules of the table. One ID names one unit, and a unit has one ID of a system.
+        for (String[] twice : new String[][] {{"u-3", "W-1", "u-4", "W-1", "restore.external_id_taken"},
+                {"u-3", "W-1", "u-3", "W-2", "restore.external_id_twice"}}) {
+            ObjectNode ids = JSON.createObjectNode().put("format", "fuhito.export.v1");
+            ArrayNode units = ids.putArray("orgUnits");
+            for (String unitId : List.of("u-3", "u-4")) {
+                ObjectNode row = units.addObject().put("id", unitId).put("source", "hr");
+                row.putArray("versions").addObject().put("id", "v-" + unitId).put("validFrom", "2020-04-01")
+                        .put("name", "X");
+                row.putArray("parents");
+                row.putArray("successors");
+            }
+            ArrayNode rows = ids.putArray("externalIds");
+            rows.addObject().put("id", "x-1").put("resourceType", "ORG_UNIT").put("resourceId", twice[0])
+                    .put("source", "hr").put("externalId", twice[1]);
+            rows.addObject().put("id", "x-2").put("resourceType", "ORG_UNIT").put("resourceId", twice[2])
+                    .put("source", "hr").put("externalId", twice[3]);
+            assertEquals(twice[4], error(target.api.post("/restore", JSON.writeValueAsString(ids))));
+        }
 
         // A date that cannot be read, and a unit with no list of versions.
         ObjectNode badDate = JSON.createObjectNode().put("format", "fuhito.export.v1");

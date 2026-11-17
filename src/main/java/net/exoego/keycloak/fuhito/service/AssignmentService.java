@@ -14,6 +14,7 @@ import net.exoego.keycloak.fuhito.domain.Assignment;
 import net.exoego.keycloak.fuhito.domain.AttributeDefinition;
 import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.Employment;
+import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.OrgUnitVersion;
 import net.exoego.keycloak.fuhito.domain.RefItem;
@@ -21,6 +22,7 @@ import net.exoego.keycloak.fuhito.domain.RefKind;
 import net.exoego.keycloak.fuhito.domain.ValidPeriod;
 import net.exoego.keycloak.fuhito.store.AssignmentStore;
 import net.exoego.keycloak.fuhito.store.EmploymentStore;
+import net.exoego.keycloak.fuhito.store.ExternalIdStore;
 import net.exoego.keycloak.fuhito.store.OrgUnitStore;
 import net.exoego.keycloak.fuhito.store.RefItemStore;
 import net.exoego.keycloak.fuhito.store.ReportingLineStore;
@@ -31,6 +33,7 @@ import net.exoego.keycloak.fuhito.store.ReportingLineStore;
 public class AssignmentService {
 
     private final AssignmentStore store;
+    private final ExternalIdWrites externalIds;
     private final EmploymentStore employments;
     private final OrgUnitStore orgUnits;
     private final RefItemStore refItems;
@@ -42,14 +45,15 @@ public class AssignmentService {
      * Creates the service where today is the date in UTC.
      *
      * @param store the storage of assignments of the realm
+     * @param externalIds the storage of the IDs that systems have for the resources of the realm
      * @param employments the storage of employments of the realm
      * @param orgUnits the storage of org units of the realm
      * @param refItems the storage of reference items of the realm
      * @param reportingLines the storage of reporting lines of the realm
      */
-    public AssignmentService(AssignmentStore store, EmploymentStore employments, OrgUnitStore orgUnits,
-            RefItemStore refItems, ReportingLineStore reportingLines) {
-        this(store, employments, orgUnits, refItems, reportingLines, Today.of(Clock.systemUTC()),
+    public AssignmentService(AssignmentStore store, ExternalIdStore externalIds, EmploymentStore employments,
+            OrgUnitStore orgUnits, RefItemStore refItems, ReportingLineStore reportingLines) {
+        this(store, externalIds, employments, orgUnits, refItems, reportingLines, Today.of(Clock.systemUTC()),
                 AttributeRules.NONE);
     }
 
@@ -57,6 +61,7 @@ public class AssignmentService {
      * Creates the service with a check of free attributes.
      *
      * @param store the storage of assignments of the realm
+     * @param externalIds the storage of the IDs that systems have for the resources of the realm
      * @param employments the storage of employments of the realm
      * @param orgUnits the storage of org units of the realm
      * @param refItems the storage of reference items of the realm
@@ -64,12 +69,14 @@ public class AssignmentService {
      * @param today what today is for each org unit. The values that apply to an assignment are read on it.
      * @param attributeRules the check of free attributes against the definitions of the realm
      */
-    public AssignmentService(AssignmentStore store, EmploymentStore employments, OrgUnitStore orgUnits,
-            RefItemStore refItems, ReportingLineStore reportingLines, Today today, AttributeRules attributeRules) {
+    public AssignmentService(AssignmentStore store, ExternalIdStore externalIds, EmploymentStore employments,
+            OrgUnitStore orgUnits, RefItemStore refItems, ReportingLineStore reportingLines, Today today,
+            AttributeRules attributeRules) {
         this.today = today;
         this.attributeRules = attributeRules;
         this.reportingLines = reportingLines;
         this.store = store;
+        this.externalIds = new ExternalIdWrites(externalIds, ExternalId.Kind.ASSIGNMENT);
         this.employments = employments;
         this.orgUnits = orgUnits;
         this.refItems = refItems;
@@ -80,9 +87,10 @@ public class AssignmentService {
      * One employment can have any number of assignments at the same time, in units under different roots too.
      * With no end date, the assignment lasts as long as the employment.
      *
-     * @param request the values of the request
+     * @param request the values of the request. The assignment keeps the source as the system that made it.
      * @return the new assignment
-     * @throws FuhitoException when a value is bad, or the employment or the org unit does not cover the period
+     * @throws FuhitoException when a value is bad, the employment or the org unit does not cover the period, or
+     *         the external ID belongs to another assignment
      */
     public AssignmentView add(AssignmentValues request) {
         Checks.required("body", request);
@@ -98,12 +106,14 @@ public class AssignmentService {
                     "validFrom", period.from().toString()));
         }
         requireOrgUnitCovers(orgUnitId, period);
+        ExternalId.Pair externalId = externalIds.check(null, request.source(), request.externalId());
 
         String assignmentId = newId();
         Assignment row = row(newId(), assignmentId, employmentId, orgUnitId, period, request, null,
-                request.externalId(), request.source());
+                Checks.optionalCode("source", request.source()));
         claimPrimary(row, request);
         store.insert(row);
+        externalIds.store(assignmentId, externalId);
         return get(assignmentId);
     }
 
@@ -132,8 +142,7 @@ public class AssignmentService {
         rows.forEach(row -> store.update(new Assignment(row.rowId(), id, row.employmentId(), row.orgUnitId(),
                 row.period(), row.jobTitleId(), row.occupationId(), row.kindId(), row.workLocationId(),
                 row.costCenterId(), row.head(), row.primary(),
-                row.allocationPercent(), row.displayOrder(), row.attributes(), row.externalId(), row.source(),
-                previousId)));
+                row.allocationPercent(), row.displayOrder(), row.attributes(), row.source(), previousId)));
         return get(id);
     }
 
@@ -159,14 +168,14 @@ public class AssignmentService {
 
         if (current.period().from().equals(from)) {
             Assignment corrected = row(current.rowId(), id, current.employmentId(), current.orgUnitId(),
-                    current.period(), request, current, current.externalId(), current.source());
+                    current.period(), request, current, current.source());
             claimPrimary(corrected, request);
             store.update(corrected);
         } else {
             List<ValidPeriod> parts = current.period().splitAt(from);
             // Build the new row first, so that a bad value fails before anything is written.
             Assignment next = row(newId(), id, current.employmentId(), current.orgUnitId(), parts.get(1), request,
-                    current, current.externalId(), current.source());
+                    current, current.source());
             claimPrimary(next, request);
             store.update(current.withPeriod(parts.getFirst()));
             store.insert(next);
@@ -242,7 +251,7 @@ public class AssignmentService {
                 last.occupationId(), last.kindId(), idOf(RefKind.WORK_LOCATION, request.workLocation(), null),
                 idOf(RefKind.COST_CENTER, request.costCenter(), null), Boolean.TRUE.equals(request.head()),
                 last.primary(), last.allocationPercent(), request.displayOrder() == null ? 0 : request.displayOrder(),
-                last.attributes(), null, null, id);
+                last.attributes(), null, id);
         // The end rejects a change that is stored for the date or later, and ends the reporting lines.
         AssignmentView ended = end(id, request.validFrom());
         store.insert(next);
@@ -402,7 +411,7 @@ public class AssignmentService {
 
     // A row may keep a reference item that was deactivated after the row got it.
     private Assignment row(String rowId, String assignmentId, String employmentId, String orgUnitId,
-            ValidPeriod period, AssignmentValues values, Assignment current, String externalId, String source) {
+            ValidPeriod period, AssignmentValues values, Assignment current, String source) {
         return new Assignment(rowId, assignmentId, employmentId, orgUnitId, period,
                 idOf(RefKind.JOB_TITLE, values.jobTitle(), current == null ? null : current.jobTitleId()),
                 idOf(RefKind.OCCUPATION, values.occupation(), current == null ? null : current.occupationId()),
@@ -414,7 +423,7 @@ public class AssignmentService {
                 Checks.optionalPercent("allocationPercent", values.allocationPercent()),
                 values.displayOrder() == null ? 0 : values.displayOrder(),
                 attributeRules.check(AttributeDefinition.Target.ASSIGNMENT, values.attributes()),
-                externalId, source, current == null ? null : current.continuesAssignmentId());
+                source, current == null ? null : current.continuesAssignmentId());
     }
 
     private String idOf(RefKind kind, String code, String currentId) {

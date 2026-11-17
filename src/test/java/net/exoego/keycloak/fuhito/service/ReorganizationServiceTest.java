@@ -18,9 +18,10 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class ReorganizationServiceTest {
 
+    private final MemoryExternalIdStore externalIds = new MemoryExternalIdStore();
     private final MemoryOrgUnitStore store = new MemoryOrgUnitStore();
     private final MemoryRefItemStore refItems = new MemoryRefItemStore();
-    private final OrgUnitService orgUnits = new OrgUnitService(store, new MemoryAssignmentStore(), refItems,
+    private final OrgUnitService orgUnits = new OrgUnitService(store, externalIds, new MemoryAssignmentStore(), refItems,
             Clock.systemUTC());
     private final ReorganizationService service = new ReorganizationService(orgUnits);
 

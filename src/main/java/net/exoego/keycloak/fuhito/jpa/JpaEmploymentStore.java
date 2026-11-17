@@ -40,19 +40,6 @@ public class JpaEmploymentStore implements EmploymentStore {
     }
 
     @Override
-    public Optional<Employment> findByExternalId(String source, String externalId) {
-        return em.createQuery("""
-                        select e from EmploymentEntity e where e.realmId = :realmId and e.source = :source
-                        and e.externalId = :externalId""", EmploymentEntity.class)
-                .setParameter("realmId", realmId)
-                .setParameter("source", source)
-                .setParameter("externalId", externalId)
-                .getResultStream()
-                .findFirst()
-                .map(JpaEmploymentStore::toDomain);
-    }
-
-    @Override
     public List<Employment> findByStaffNumber(String staffNumber) {
         return em.createQuery("""
                         select e from EmploymentEntity e where e.realmId = :realmId
@@ -253,7 +240,6 @@ public class JpaEmploymentStore implements EmploymentStore {
         entity.validTo = employment.period().to();
         entity.staffNumber = employment.staffNumber();
         entity.endReasonId = employment.endReasonId();
-        entity.externalId = employment.externalId();
         entity.source = employment.source();
         em.persist(entity);
         // Other rows refer to this one. Hibernate groups inserts by entity type, so this row goes to the
@@ -272,7 +258,9 @@ public class JpaEmploymentStore implements EmploymentStore {
 
     @Override
     public void delete(String id) {
-        em.remove(Rows.require(em, EmploymentEntity.class, id, realmId, found -> found.realmId));
+        EmploymentEntity entity = Rows.require(em, EmploymentEntity.class, id, realmId, found -> found.realmId);
+        ExternalIds.deleteOf(em, realmId, "EMPLOYMENT", id);
+        em.remove(entity);
         em.flush();
     }
 
@@ -326,7 +314,7 @@ public class JpaEmploymentStore implements EmploymentStore {
 
     static Employment toDomain(EmploymentEntity e) {
         return new Employment(e.id, e.personId, e.person.userId, e.employerId, new ValidPeriod(e.validFrom, e.validTo),
-                e.staffNumber, e.endReasonId, e.externalId, e.source, e.continuesEmploymentId);
+                e.staffNumber, e.endReasonId, e.source, e.continuesEmploymentId);
     }
 
     static EmploymentTerms toDomain(EmploymentTermsEntity e) {

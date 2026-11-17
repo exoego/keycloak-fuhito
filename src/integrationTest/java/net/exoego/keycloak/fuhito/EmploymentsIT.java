@@ -69,7 +69,8 @@ class EmploymentsIT {
 
         assertEquals("2027-04-01", employment.get("validTo").asText());
         assertEquals("000777", employment.get("staffNumber").asText());
-        assertEquals("E-777", employment.get("externalId").asText());
+        assertEquals(List.of("hr=E-777"), Api.externalIds(employment));
+        assertEquals("hr", employment.get("source").asText());
         JsonNode terms = employment.get("terms").get(0);
         assertEquals("temporary", terms.get("employmentType").asText());
         assertEquals("g3", terms.get("grade").asText());

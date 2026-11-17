@@ -127,13 +127,20 @@ These kinds are fixed, because fields of the resources point to them. A realm ca
 
 ## IDs in other systems
 
-An org unit, a person, an employment, an assignment, and a qualification have one pair of `source` and `externalId`. It is the ID in the system that made the resource, and the import matches rows by it.
-Other systems can add their own IDs with `PUT /external-ids`.
+An org unit, a person, an employment, an assignment, and a qualification can have an ID in each system that knows it, such as an HR system, a payroll system, and a time keeping system.
+Every ID of every system is one row of one table, also the ID of the system that made the resource.
+The resource itself keeps only `source`, the name of the system that made it.
 
-- A resource has at most one ID for each system, counting its own pair.
+- A write with `source` and `externalId` stores the ID of that system for the resource. It replaces the ID that the system had. A write without them leaves the IDs as they are.
+- A create also sets `source` of the resource. It never changes, also when the ID of that system is removed.
+- A read of a resource gives `source` and `externalIds`, the list of every ID. The ID of the system of `source` comes first, then the others by system. A read of many resources reads the IDs of all of them at once.
+- `PUT /external-ids` stores the ID of one system for one resource, and `DELETE /external-ids` removes it.
+- A resource has at most one ID for each system.
 - One ID of one system names one resource of a kind.
-- `GET /external-ids/lookup?resourceType=&source=&externalId=` finds the resource. It looks at the own pairs and at the added IDs.
-- `GET /external-ids?resourceType=&resourceId=` lists every ID of one resource, the own pair first.
+- `GET /external-ids/lookup?resourceType=&source=&externalId=` finds the resource.
+- `GET /external-ids?resourceType=&resourceId=` lists every ID of one resource, the ID of the system that made it first. That one has `own`.
+- The import matches a row by the ID of any system. A file of the payroll system finds a person that the HR system made, when the person has an ID of the payroll system.
+- A resource that goes away takes its IDs with it. A mask and an erase remove the IDs of the person and of the records of the person.
 - The IDs of an org unit need the permission to read the org structure. The others need the full read.
 
 ## Free attributes

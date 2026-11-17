@@ -48,32 +48,6 @@ public class JpaPersonStore implements PersonStore {
     }
 
     @Override
-    public boolean externalIdTaken(String source, String externalId, String exceptId) {
-        return PersonStore.super.externalIdTaken(source, externalId, exceptId) || em.createQuery("""
-                        select count(x) from ExternalIdEntity x, PersonEntity p where x.realmId = :realmId
-                        and p.realmId = :realmId and x.kind = 'PERSON' and p.id = x.resourceId
-                        and x.source = :source and x.externalId = :externalId and p.id <> :exceptId""", Long.class)
-                .setParameter("realmId", realmId)
-                .setParameter("source", source)
-                .setParameter("externalId", externalId)
-                .setParameter("exceptId", exceptId == null ? "" : exceptId)
-                .getSingleResult() > 0;
-    }
-
-    @Override
-    public Optional<Person> findByExternalId(String source, String externalId) {
-        return em.createQuery("""
-                        select p from PersonEntity p where p.realmId = :realmId
-                        and p.source = :source and p.externalId = :externalId""", PersonEntity.class)
-                .setParameter("realmId", realmId)
-                .setParameter("source", source)
-                .setParameter("externalId", externalId)
-                .getResultStream()
-                .findFirst()
-                .map(JpaPersonStore::toDomain);
-    }
-
-    @Override
     public List<Person> search(String text, String staffNumber, String afterId, int first, int max) {
         StringBuilder query = new StringBuilder("select p from PersonEntity p where p.realmId = :realmId");
         if (afterId != null) {
@@ -133,7 +107,6 @@ public class JpaPersonStore implements PersonStore {
         PersonEntity entity = new PersonEntity();
         entity.id = person.id();
         entity.realmId = realmId;
-        entity.externalId = person.externalId();
         entity.source = person.source();
         copy(person, entity);
         em.persist(entity);
@@ -146,7 +119,10 @@ public class JpaPersonStore implements PersonStore {
 
     @Override
     public void delete(String id) {
-        findEntity(id).ifPresent(em::remove);
+        findEntity(id).ifPresent(entity -> {
+            ExternalIds.deleteOf(em, realmId, "PERSON", id);
+            em.remove(entity);
+        });
     }
 
     // The realm filter keeps one realm from reaching the rows of another by ID.
@@ -169,6 +145,6 @@ public class JpaPersonStore implements PersonStore {
     }
 
     static Person toDomain(PersonEntity e) {
-        return new Person(e.id, e.userId, e.name, e.names, e.phoneticName, e.attributes, e.externalId, e.source);
+        return new Person(e.id, e.userId, e.name, e.names, e.phoneticName, e.attributes, e.source);
     }
 }

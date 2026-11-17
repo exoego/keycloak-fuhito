@@ -26,6 +26,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class ReportingLineServiceTest {
 
+    private final MemoryExternalIdStore externalIds = new MemoryExternalIdStore();
     private static final Clock CLOCK = Clock.fixed(Instant.parse("2026-06-15T03:00:00Z"), ZoneId.of("Asia/Tokyo"));
 
     private final MemoryReportingLineStore store = new MemoryReportingLineStore();
@@ -36,10 +37,10 @@ class ReportingLineServiceTest {
     private final Set<String> users = Set.of("director", "head-nurse", "nurse-a", "nurse-b", "project-lead", "idle");
     private final MemoryPersonStore people = MemoryPersonStore.linked(users);
     private final EmploymentService employments =
-            new EmploymentService(employmentStore, assignmentStore, refItems, people, store, new MemoryUnitRoleStore(), new AnyEmployer());
+            new EmploymentService(employmentStore, externalIds, assignmentStore, refItems, people, store, new MemoryUnitRoleStore(), new AnyEmployer());
     private final AssignmentService assignments =
-            new AssignmentService(assignmentStore, employmentStore, orgUnitStore, refItems, store);
-    private final OrgUnitService orgUnits = new OrgUnitService(orgUnitStore, assignmentStore, refItems, CLOCK);
+            new AssignmentService(assignmentStore, externalIds, employmentStore, orgUnitStore, refItems, store);
+    private final OrgUnitService orgUnits = new OrgUnitService(orgUnitStore, externalIds, assignmentStore, refItems, CLOCK);
     private final ReportingLineService service = new ReportingLineService(store, new ReportingLineService.Sources(
             assignmentStore, employmentStore, orgUnitStore, refItems, users::contains, people), CLOCK);
 

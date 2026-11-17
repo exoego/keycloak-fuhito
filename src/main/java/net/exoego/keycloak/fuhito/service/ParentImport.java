@@ -8,7 +8,7 @@ import java.util.Set;
 
 import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
-import net.exoego.keycloak.fuhito.domain.OrgUnit;
+import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.service.ImportDocument.OrgUnitParentRow;
 import net.exoego.keycloak.fuhito.service.ImportReport.Outcome;
 import net.exoego.keycloak.fuhito.service.ImportReport.Write;
@@ -23,15 +23,17 @@ final class ParentImport {
 
     private final OrgUnitService orgUnitService;
     private final OrgUnitStore orgUnits;
+    private final ExternalIdService externalIds;
     private final String effectiveDate;
     private final String defaultSource;
     private final ImportReport report;
     private final Set<String> seen = new HashSet<>();
 
-    ParentImport(OrgUnitService orgUnitService, OrgUnitStore orgUnits, String effectiveDate, String defaultSource,
-            ImportReport report) {
+    ParentImport(OrgUnitService orgUnitService, OrgUnitStore orgUnits, ExternalIdService externalIds,
+            String effectiveDate, String defaultSource, ImportReport report) {
         this.orgUnitService = orgUnitService;
         this.orgUnits = orgUnits;
+        this.externalIds = externalIds;
         this.effectiveDate = effectiveDate;
         this.defaultSource = defaultSource;
         this.report = report;
@@ -59,7 +61,7 @@ final class ParentImport {
             throw FuhitoException.invalid("invalid.required", Map.of("field", "orgUnitExternalId"));
         }
         String unitId = row.orgUnitId() != null ? known(row.orgUnitId(), "import.id_unknown", "id")
-                : orgUnits.findUnitByExternalId(source, row.orgUnitExternalId()).map(OrgUnit::id)
+                : externalIds.resourceOf(ExternalId.Kind.ORG_UNIT, source, row.orgUnitExternalId())
                         .orElseThrow(() -> FuhitoException.invalid("import.org_unit_unknown",
                                 Map.of("orgUnitExternalId", row.orgUnitExternalId())));
         if (!seen.add(hierarchy + "\u0000" + unitId)) {
@@ -88,7 +90,7 @@ final class ParentImport {
         if (row.parentExternalId() == null) {
             return null;
         }
-        return orgUnits.findUnitByExternalId(source, row.parentExternalId()).map(OrgUnit::id)
+        return externalIds.resourceOf(ExternalId.Kind.ORG_UNIT, source, row.parentExternalId())
                 .orElseThrow(() -> FuhitoException.invalid("import.parent_unknown",
                         Map.of("parentExternalId", row.parentExternalId())));
     }

@@ -11,8 +11,8 @@ import java.util.Set;
 import java.util.stream.Stream;
 
 import net.exoego.keycloak.fuhito.domain.Checks;
+import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
-import net.exoego.keycloak.fuhito.domain.Person;
 import net.exoego.keycloak.fuhito.domain.ReportingLine;
 import net.exoego.keycloak.fuhito.domain.ReportingLine.Kind;
 import net.exoego.keycloak.fuhito.service.ImportDocument.ReportingLineRow;
@@ -29,15 +29,17 @@ final class ReportingLineImport {
 
     private final ReportingLineService lines;
     private final ImportService.People people;
+    private final ExternalIdService externalIds;
     private final LocalDate date;
     private final String defaultSource;
     private final ImportReport report;
     private final Set<String> seen = new HashSet<>();
 
-    ReportingLineImport(ReportingLineService lines, ImportService.People people, String effectiveDate,
-            String defaultSource, ImportReport report) {
+    ReportingLineImport(ReportingLineService lines, ImportService.People people, ExternalIdService externalIds,
+            String effectiveDate, String defaultSource, ImportReport report) {
         this.lines = lines;
         this.people = people;
+        this.externalIds = externalIds;
         this.date = Checks.date("effectiveDate", effectiveDate);
         this.defaultSource = defaultSource;
         this.report = report;
@@ -108,7 +110,7 @@ final class ReportingLineImport {
             return byId.map(ReportingLine::assignmentId).orElseThrow(() -> FuhitoException.invalid(
                     "invalid.required", Map.of("field", "assignmentExternalId")));
         }
-        return people.assignments().findAssignmentIdByExternalId(source, row.assignmentExternalId())
+        return externalIds.resourceOf(ExternalId.Kind.ASSIGNMENT, source, row.assignmentExternalId())
                 .orElseThrow(() -> FuhitoException.invalid("import.assignment_unknown",
                         Map.of("assignmentExternalId", row.assignmentExternalId())));
     }
@@ -124,7 +126,7 @@ final class ReportingLineImport {
             return row.managerPersonId();
         }
         if (row.managerPersonExternalId() != null) {
-            return people.personService().ofExternalId(source, row.managerPersonExternalId()).map(Person::id)
+            return externalIds.resourceOf(ExternalId.Kind.PERSON, source, row.managerPersonExternalId())
                     .orElseThrow(() -> FuhitoException.invalid("import.person_unknown",
                             Map.of("personExternalId", row.managerPersonExternalId())));
         }

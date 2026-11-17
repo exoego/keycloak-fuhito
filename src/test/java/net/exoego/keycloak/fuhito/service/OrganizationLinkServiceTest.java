@@ -20,8 +20,8 @@ class OrganizationLinkServiceTest {
 
     @BeforeEach
     void createUnits() {
-        store.insertUnit(new OrgUnit("x", "H-1", "hr", null));
-        store.insertUnit(new OrgUnit("y", null, null, null));
+        store.insertUnit(new OrgUnit("x", "hr", null));
+        store.insertUnit(new OrgUnit("y", null, null));
     }
 
     @Test
@@ -29,7 +29,6 @@ class OrganizationLinkServiceTest {
         OrgUnit linked = service.link("x", "org-x");
 
         assertEquals("org-x", linked.keycloakOrganizationId());
-        assertEquals("H-1", linked.externalId());
         assertEquals("hr", linked.source());
         assertEquals(linked, store.findUnit("x").orElseThrow());
         // The same link again is fine, and a unit can change its organization.

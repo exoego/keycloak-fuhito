@@ -124,6 +124,8 @@ final class RestoreCheck {
             required("qualifications", "personId", q.personId(), people);
             required("qualifications", "kindId", q.kindId(), refItems);
         }
+        Set<List<String>> values = new HashSet<>();
+        Set<List<String>> systems = new HashSet<>();
         for (RealmExport.ExternalIdRow x : all(document.externalIds())) {
             Set<String> named = switch (Optional.ofNullable(x.resourceType()).orElse("")) {
                 case "ORG_UNIT" -> orgUnits;
@@ -134,6 +136,20 @@ final class RestoreCheck {
                 default -> Set.of();
             };
             required("external-ids", "resourceId", x.resourceId(), named);
+            unique(x, values, systems);
+        }
+    }
+
+    // The table of IDs has the same two rules. They are checked here to fail with a clear error.
+    private static void unique(RealmExport.ExternalIdRow x, Set<List<String>> values, Set<List<String>> systems) {
+        String source = String.valueOf(x.source());
+        if (!values.add(List.of(x.resourceType(), source, String.valueOf(x.externalId())))) {
+            throw FuhitoException.invalid("restore.external_id_taken", Map.of("resourceType", x.resourceType(),
+                    "source", source, "externalId", String.valueOf(x.externalId())));
+        }
+        if (!systems.add(List.of(x.resourceType(), x.resourceId(), source))) {
+            throw FuhitoException.invalid("restore.external_id_twice",
+                    Map.of("resourceId", x.resourceId(), "source", source));
         }
     }
 

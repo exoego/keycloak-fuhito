@@ -23,8 +23,8 @@ import java.util.Map;
  * @param allocationPercent the share of the person's work in percent, or null
  * @param displayOrder the position among the members of the org unit, or null for 0
  * @param attributes free values, or null
- * @param externalId the ID in the system it came from, or null. Only a new assignment uses it.
- * @param source the name of that system, or null. Only a new assignment uses it.
+ * @param externalId the ID in the system that the source names, or null. Only a new assignment uses it.
+ * @param source the name of the system, or null. A new assignment keeps it as the system that made it.
  */
 public record AssignmentValues(String employmentId, String orgUnitId, String validFrom, String validTo,
         String jobTitle, String occupation, String kind, String workLocation, String costCenter, Boolean head,
@@ -48,8 +48,8 @@ public record AssignmentValues(String employmentId, String orgUnitId, String val
      * @param allocationPercent the share of the person's work in percent, or null
      * @param displayOrder the position among the members of the org unit, or null for 0
      * @param attributes free values, or null
-     * @param externalId the ID in the system it came from, or null. Only a new assignment uses it.
-     * @param source the name of that system, or null. Only a new assignment uses it.
+     * @param externalId the ID in the system that the source names, or null. Only a new assignment uses it.
+     * @param source the name of the system, or null. A new assignment keeps it as the system that made it.
      */
     public AssignmentValues(String employmentId, String orgUnitId, String validFrom, String validTo,
             String jobTitle, String occupation, String kind, Boolean head, Boolean primary, Boolean switchPrimary,

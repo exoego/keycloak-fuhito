@@ -14,8 +14,8 @@ import java.util.Set;
 import net.exoego.keycloak.fuhito.domain.Assignment;
 import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.Employment;
+import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
-import net.exoego.keycloak.fuhito.domain.OrgUnit;
 import net.exoego.keycloak.fuhito.service.ImportDocument.AssignmentRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.EmploymentRow;
 import net.exoego.keycloak.fuhito.service.ImportReport.Outcome;
@@ -34,14 +34,16 @@ final class PeopleImport {
     private static final String ASSIGNMENTS = "assignments";
 
     private final ImportService.People people;
+    private final ExternalIdService externalIds;
     private final OrgUnitStore orgUnits;
     private final String effectiveDate;
     private final String defaultSource;
     private final ImportReport report;
 
-    PeopleImport(ImportService.People people, OrgUnitStore orgUnits, String effectiveDate, String defaultSource,
-            ImportReport report) {
+    PeopleImport(ImportService.People people, ExternalIdService externalIds, OrgUnitStore orgUnits,
+            String effectiveDate, String defaultSource, ImportReport report) {
         this.people = people;
+        this.externalIds = externalIds;
         this.orgUnits = orgUnits;
         this.effectiveDate = effectiveDate;
         this.defaultSource = defaultSource;
@@ -62,21 +64,23 @@ final class PeopleImport {
         }
     }
 
-    // A person whom the import made for a user before, with no external ID, takes the ID of the row.
+    // A person whom the import made for a user before takes the ID of the row, unless the system of the row has
+    // another ID for the person.
     private Outcome importPerson(PersonRow row) {
         String source = Checks.code("source", row.source() == null ? defaultSource : row.source());
         PersonService service = people.personService();
         String userId = row.userId() != null || row.username() != null
                 ? userId(row.userId(), row.username()) : null;
-        Optional<Person> stored = row.id() == null ? service.ofExternalId(source, row.externalId())
+        Optional<Person> stored = row.id() == null
+                ? externalIds.resourceOf(ExternalId.Kind.PERSON, source, row.externalId()).flatMap(service::find)
                 : Optional.of(byId(row, source));
         if (stored.isEmpty() && userId != null) {
             Optional<Person> ofUser = service.ofUser(userId);
             if (ofUser.isPresent()) {
-                if (ofUser.get().externalId() != null) {
+                if (externalIds.externalIdOf(ExternalId.Kind.PERSON, ofUser.get().id(), source).isPresent()) {
                     throw FuhitoException.conflict("import.user_mismatch", Map.of("externalId", row.externalId()));
                 }
-                report.write(new Write.OfPerson(false, service.adopt(ofUser.get().id(), values(row, userId,
+                report.write(new Write.OfPerson(false, service.replace(ofUser.get().id(), values(row, userId,
                         source))));
                 return Outcome.CHANGED;
             }
@@ -100,15 +104,18 @@ final class PeopleImport {
         return Outcome.CHANGED;
     }
 
-    // A row with an ID changes that person. An external ID beside it must be the one of that person.
+    // A row with an ID changes that person. An external ID beside it must be one of that person.
     private Person byId(PersonRow row, String source) {
         Person person = people.personService().find(row.id())
                 .orElseThrow(() -> FuhitoException.invalid("import.id_unknown", Map.of("id", row.id())));
-        if (row.externalId() != null
-                && !(row.externalId().equals(person.externalId()) && source.equals(person.source()))) {
-            throw FuhitoException.invalid("import.id_mismatch", Map.of("id", row.id(), "externalId", row.externalId()));
-        }
+        requireNames(ExternalId.Kind.PERSON, row.id(), source, row.externalId());
         return person;
+    }
+
+    private void requireNames(ExternalId.Kind kind, String id, String source, String externalId) {
+        if (externalId != null && !externalIds.resourceOf(kind, source, externalId).equals(Optional.of(id))) {
+            throw FuhitoException.invalid("import.id_mismatch", Map.of("id", id, "externalId", externalId));
+        }
     }
 
     private static PersonValues values(PersonRow row, String userId, String source) {
@@ -156,8 +163,7 @@ final class PeopleImport {
         if (row.continuesEmploymentExternalId() == null) {
             return row.continuesEmploymentId();
         }
-        return people.employments().findByExternalId(source, row.continuesEmploymentExternalId())
-                .map(Employment::id)
+        return externalIds.resourceOf(ExternalId.Kind.EMPLOYMENT, source, row.continuesEmploymentExternalId())
                 .orElseThrow(() -> FuhitoException.invalid("import.employment_unknown",
                         Map.of("employmentExternalId", row.continuesEmploymentExternalId())));
     }
@@ -169,7 +175,7 @@ final class PeopleImport {
         if (row.continuesAssignmentExternalId() == null) {
             return row.continuesAssignmentId();
         }
-        return people.assignments().findAssignmentIdByExternalId(source, row.continuesAssignmentExternalId())
+        return externalIds.resourceOf(ExternalId.Kind.ASSIGNMENT, source, row.continuesAssignmentExternalId())
                 .orElseThrow(() -> FuhitoException.invalid("import.assignment_unknown",
                         Map.of("assignmentExternalId", row.continuesAssignmentExternalId())));
     }
@@ -192,8 +198,10 @@ final class PeopleImport {
         requireFirst(seen, row.source(), row.externalId(), row.id());
         String source = Checks.code("source", row.source() == null ? defaultSource : row.source());
         String name = row.externalId() == null ? row.id() : row.externalId();
-        Optional<Employment> stored = row.id() == null ? people.employments().findByExternalId(source,
-                row.externalId()) : Optional.of(employmentById(row, source));
+        Optional<Employment> stored = row.id() == null
+                ? externalIds.resourceOf(ExternalId.Kind.EMPLOYMENT, source, row.externalId())
+                        .flatMap(people.employments()::find)
+                : Optional.of(employmentById(row, source));
         String personId = personId(row, name, source, stored);
         String employerId = employerId(row, source);
         String continues = continuedEmployment(row, source);
@@ -256,14 +264,11 @@ final class PeopleImport {
         return changed ? Outcome.CHANGED : Outcome.UNCHANGED;
     }
 
-    // A row with an ID changes that employment. An external ID beside it must be the one of that employment.
+    // A row with an ID changes that employment. An external ID beside it must be one of that employment.
     private Employment employmentById(EmploymentRow row, String source) {
         Employment employment = people.employments().find(row.id())
                 .orElseThrow(() -> FuhitoException.invalid("import.id_unknown", Map.of("id", row.id())));
-        if (row.externalId() != null
-                && !(row.externalId().equals(employment.externalId()) && source.equals(employment.source()))) {
-            throw FuhitoException.invalid("import.id_mismatch", Map.of("id", row.id(), "externalId", row.externalId()));
-        }
+        requireNames(ExternalId.Kind.EMPLOYMENT, row.id(), source, row.externalId());
         return employment;
     }
 
@@ -279,8 +284,7 @@ final class PeopleImport {
             return row.employerId();
         }
         return row.employerExternalId() == null ? null
-                : orgUnits.findUnitByExternalId(source, row.employerExternalId())
-                        .map(OrgUnit::id)
+                : externalIds.resourceOf(ExternalId.Kind.ORG_UNIT, source, row.employerExternalId())
                         .orElseThrow(() -> FuhitoException.invalid("import.org_unit_unknown",
                                 Map.of("orgUnitExternalId", row.employerExternalId())));
     }
@@ -294,17 +298,18 @@ final class PeopleImport {
                     Map.of("personExternalId", row.personExternalId(), "personId", row.personId()));
         }
         if (row.personExternalId() != null || row.personId() != null) {
-            Person person = row.personId() != null
-                    ? people.personService().find(row.personId())
+            String id = row.personId() != null
+                    ? people.personService().find(row.personId()).map(Person::id)
                             .orElseThrow(() -> FuhitoException.invalid("import.id_unknown",
                                     Map.of("id", row.personId())))
-                    : people.personService().ofExternalId(source, row.personExternalId())
+                    : externalIds.resourceOf(ExternalId.Kind.PERSON, source, row.personExternalId())
                             .orElseThrow(() -> FuhitoException.invalid("import.person_unknown",
                                     Map.of("personExternalId", row.personExternalId())));
-            if (namesUser && !userId(row.userId(), row.username()).equals(person.userId())) {
+            if (namesUser && !userId(row.userId(), row.username())
+                    .equals(people.personService().find(id).map(Person::userId).orElse(null))) {
                 throw FuhitoException.conflict("import.user_mismatch", Map.of("externalId", name));
             }
-            return person.id();
+            return id;
         }
         if (!namesUser && stored.isPresent()) {
             return stored.get().personId();
@@ -349,7 +354,7 @@ final class PeopleImport {
         String source = Checks.code("source", row.source() == null ? defaultSource : row.source());
         String name = row.externalId() == null ? row.id() : row.externalId();
         Optional<String> stored = row.id() == null
-                ? people.assignments().findAssignmentIdByExternalId(source, row.externalId())
+                ? externalIds.resourceOf(ExternalId.Kind.ASSIGNMENT, source, row.externalId())
                 : Optional.of(assignmentById(row, source));
         Optional<Assignment> firstRow = stored.map(id -> people.assignments().rows(id).getFirst());
         String employmentId = employmentId(row, source, firstRow);
@@ -405,17 +410,12 @@ final class PeopleImport {
         return changed ? Outcome.CHANGED : Outcome.UNCHANGED;
     }
 
-    // A row with an ID changes that assignment. An external ID beside it must be the one of that assignment.
+    // A row with an ID changes that assignment. An external ID beside it must be one of that assignment.
     private String assignmentById(AssignmentRow row, String source) {
-        List<Assignment> rows = people.assignments().rows(row.id());
-        if (rows.isEmpty()) {
+        if (people.assignments().rows(row.id()).isEmpty()) {
             throw FuhitoException.invalid("import.id_unknown", Map.of("id", row.id()));
         }
-        Assignment first = rows.getFirst();
-        if (row.externalId() != null && !(row.externalId().equals(first.externalId())
-                && source.equals(first.source()))) {
-            throw FuhitoException.invalid("import.id_mismatch", Map.of("id", row.id(), "externalId", row.externalId()));
-        }
+        requireNames(ExternalId.Kind.ASSIGNMENT, row.id(), source, row.externalId());
         return row.id();
     }
 
@@ -435,8 +435,7 @@ final class PeopleImport {
             return stored.get().employmentId();
         }
         String externalId = Checks.required("employmentExternalId", row.employmentExternalId());
-        return people.employments().findByExternalId(source, externalId)
-                .map(Employment::id)
+        return externalIds.resourceOf(ExternalId.Kind.EMPLOYMENT, source, externalId)
                 .orElseThrow(() -> FuhitoException.invalid("import.employment_unknown",
                         Map.of("employmentExternalId", externalId)));
     }
@@ -457,8 +456,7 @@ final class PeopleImport {
             return stored.get().orgUnitId();
         }
         String externalId = Checks.required("orgUnitExternalId", row.orgUnitExternalId());
-        return orgUnits.findUnitByExternalId(source, externalId)
-                .map(OrgUnit::id)
+        return externalIds.resourceOf(ExternalId.Kind.ORG_UNIT, source, externalId)
                 .orElseThrow(() -> FuhitoException.invalid("import.org_unit_unknown",
                         Map.of("orgUnitExternalId", externalId)));
     }

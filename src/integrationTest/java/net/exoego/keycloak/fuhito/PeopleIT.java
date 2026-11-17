@@ -55,7 +55,8 @@ class PeopleIT {
         assertEquals("Taro Yamada", person.get("names").get("en").asText());
         assertEquals("やまだ たろう", person.get("phoneticName").asText());
         assertEquals("A社", person.get("attributes").get("派遣元").asText());
-        assertEquals("P-1", person.get("externalId").asText());
+        assertEquals(List.of("hr=P-1"), Api.externalIds(person));
+        assertFalse(person.has("externalId"));
         assertEquals("hr", person.get("source").asText());
         assertEquals(person, ok(api.get("/people/" + id)));
 
@@ -63,11 +64,16 @@ class PeopleIT {
         assertEquals("山田 花子", changed.get("name").asText());
         assertEquals(0, changed.get("names").size());
         assertFalse(changed.has("phoneticName"));
-        assertEquals("P-1", changed.get("externalId").asText());
+        assertEquals(List.of("hr=P-1"), Api.externalIds(changed));
+        // A replace with the ID of another system adds it. The person keeps the system that made it.
+        JsonNode payroll = ok(api.put("/people/" + id, "{\"name\": \"山田 花子\", \"source\": \"payroll\", "
+                + "\"externalId\": \"E-5\"}"));
+        assertEquals(List.of("hr=P-1", "payroll=E-5"), Api.externalIds(payroll));
+        assertEquals("hr", payroll.get("source").asText());
 
         assertEquals(204, api.delete("/people/" + id).statusCode());
         assertEquals("person.not_found", errorOf(404, api.get("/people/" + id)));
-        assertEquals(List.of("CREATE", "UPDATE", "DELETE"),
+        assertEquals(List.of("CREATE", "UPDATE", "UPDATE", "DELETE"),
                 Api.json(api.get("/change-log?resourceType=FUHITO_PERSON&resourceId=" + id))
                         .findValuesAsText("operation"));
     }
@@ -185,8 +191,9 @@ class PeopleIT {
         assertEquals("person.user_taken", errorOf(409, api.post("/people", "{\"userId\": \"" + user + "\"}")));
         assertEquals("person.user_taken", errorOf(409, api.put("/people/" + other,
                 "{\"name\": \"Other\", \"userId\": \"" + user + "\"}")));
-        assertEquals("person.external_id_taken", errorOf(409, api.post("/people",
+        assertEquals("external_id.taken", errorOf(409, api.post("/people",
                 "{\"name\": \"X\", \"externalId\": \"P-9\", \"source\": \"hr\"}")));
+        assertEquals("invalid.required", errorOf(400, api.post("/people", "{\"name\": \"X\", \"externalId\": \"P-8\"}")));
         assertEquals("person.not_found", errorOf(404, otherRealm.api.get("/people/" + id)));
         assertEquals("person.not_found", errorOf(404, otherRealm.api.put("/people/" + id, "{\"name\": \"X\"}")));
         assertEquals("person.not_found", errorOf(404, otherRealm.api.delete("/people/" + id)));
@@ -245,6 +252,7 @@ class PeopleIT {
         for (String field : List.of("name", "phoneticName", "externalId")) {
             assertFalse(masked.has(field), field);
         }
+        assertEquals(List.of(), Api.externalIds(masked));
         assertEquals(0, masked.get("names").size());
         assertEquals(0, masked.get("attributes").size());
         HttpResponse<String> maskedLog = scratchApi.get(log + id);
@@ -414,7 +422,7 @@ class PeopleIT {
         assertFalse(mask.has("userId"));
         JsonNode masked = ok(scratchApi.get(people));
         assertFalse(masked.has("name"));
-        assertFalse(masked.has("externalId"));
+        assertEquals(List.of(), Api.externalIds(masked));
         JsonNode maskedHistory = ok(scratchApi.get(people + "/history"));
         assertEquals(mask.get("maskedAt").asText(), maskedHistory.get("maskedAt").asText());
         assertFalse(maskedHistory.get("employments").get(0).has("staffNumber"));

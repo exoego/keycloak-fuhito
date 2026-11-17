@@ -19,11 +19,12 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class LegalEntityEmployersTest {
 
+    private final MemoryExternalIdStore externalIds = new MemoryExternalIdStore();
     private static final LocalDate DAY = LocalDate.of(2026, 4, 1);
 
     private final MemoryOrgUnitStore store = new MemoryOrgUnitStore();
     private final MemoryRefItemStore refItems = new MemoryRefItemStore();
-    private final OrgUnitService orgUnits = new OrgUnitService(store, new MemoryAssignmentStore(), refItems,
+    private final OrgUnitService orgUnits = new OrgUnitService(store, externalIds, new MemoryAssignmentStore(), refItems,
             Clock.fixed(Instant.parse("2026-06-15T00:00:00Z"), ZoneOffset.UTC));
     private final LegalEntityEmployers employers = new LegalEntityEmployers(store, refItems);
 

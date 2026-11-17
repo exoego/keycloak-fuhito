@@ -1,8 +1,10 @@
 package net.exoego.keycloak.fuhito.rest;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import net.exoego.keycloak.fuhito.service.ExternalIdLists;
 import net.exoego.keycloak.fuhito.service.QualificationValues;
 import net.exoego.keycloak.fuhito.service.QualificationView;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
@@ -33,16 +35,30 @@ public record QualificationRepresentation(
         String validTo,
         @Schema(description = "Free values that the realm defines.")
         Map<String, Object> attributes,
-        @Schema(description = "The ID of the qualification in the system it came from.")
+        @Schema(
+                description = "The ID of the qualification in the system that `source` names. A write stores it as the "
+                        + "ID of that system, in place of the one that the system had. A read gives every ID in "
+                        + "`externalIds`.",
+                maxLength = 255,
+                writeOnly = true)
         String externalId,
-        @Schema(description = "The name of that system.")
-        String source) {
+        @Schema(
+                description = "The name of the system that made the qualification. A create sets it, and it never "
+                        + "changes. With `externalId`, it names the system of that ID.",
+                maxLength = 64,
+                pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$")
+        String source,
+        @Schema(
+                description = "Every ID that a system has for the qualification. The one of `source` comes first, then "
+                        + "the others by system.",
+                readOnly = true)
+        List<ExternalIdPairRepresentation> externalIds) {
 
-    static QualificationRepresentation of(QualificationView view) {
+    static QualificationRepresentation of(QualificationView view, ExternalIdLists ids) {
         var q = view.qualification();
         return new QualificationRepresentation(q.id(), q.personId(), q.userId(), view.kind(), q.number(),
                 q.period().from().toString(), Objects.toString(q.period().to(), null),
-                q.attributes(), q.externalId(), q.source());
+                q.attributes(), null, q.source(), ExternalIdPairRepresentation.of(ids.of(q.id(), q.source())));
     }
 
     QualificationValues toValues(String person) {

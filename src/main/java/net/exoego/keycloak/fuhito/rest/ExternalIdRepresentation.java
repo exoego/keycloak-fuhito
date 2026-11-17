@@ -19,7 +19,7 @@ public record ExternalIdRepresentation(
         @Schema(description = "The ID in that system.", maxLength = 255)
         String externalId,
         @Schema(
-                description = "True for the pair of `source` and `externalId` that the resource itself has.",
+                description = "True when the system made the resource, as the `source` of the resource says.",
                 readOnly = true)
         Boolean own) {
 

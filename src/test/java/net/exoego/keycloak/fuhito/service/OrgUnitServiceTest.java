@@ -7,9 +7,11 @@ import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import net.exoego.keycloak.fuhito.domain.Assignment;
 import net.exoego.keycloak.fuhito.domain.Employment;
+import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.OrgUnit;
 import net.exoego.keycloak.fuhito.domain.OrgUnitLink;
@@ -27,6 +29,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class OrgUnitServiceTest {
 
+    private final MemoryExternalIdStore externalIds = new MemoryExternalIdStore();
     // 2026-06-15 in Tokyo. It is still 2026-06-14 in UTC.
     private static final Clock CLOCK =
             Clock.fixed(Instant.parse("2026-06-14T16:00:00Z"), ZoneId.of("Asia/Tokyo"));
@@ -34,7 +37,7 @@ class OrgUnitServiceTest {
     private final MemoryOrgUnitStore store = new MemoryOrgUnitStore();
     private final MemoryAssignmentStore assignments = new MemoryAssignmentStore();
     private final MemoryRefItemStore refItems = new MemoryRefItemStore();
-    private final OrgUnitService service = new OrgUnitService(store, assignments, refItems, CLOCK);
+    private final OrgUnitService service = new OrgUnitService(store, externalIds, assignments, refItems, CLOCK);
 
     private static NewOrgUnit named(String name, String parentId, String validFrom) {
         return new NewOrgUnit(null, name, null, null, null, null, null, parentId, validFrom, null, null, null, null);
@@ -165,7 +168,7 @@ class OrgUnitServiceTest {
                 "hr-system"));
 
         assertEquals("naika", state.version().code());
-        assertEquals("D-001", state.unit().externalId());
+        assertEquals(Optional.of(state.unit().id()), externalIds.idOf(ExternalId.Kind.ORG_UNIT, "hr-system", "D-001"));
         assertEquals("hr-system", state.unit().source());
         assertEquals("department", state.unitType());
         assertEquals(parentId, state.parentId());
@@ -242,7 +245,7 @@ class OrgUnitServiceTest {
         service.create(new NewOrgUnit(null, "Ward", null, null, null, null, null, null, "2026-04-01", null, null,
                 "H-1", "hr"));
 
-        assertEquals("org_unit.external_id_taken", failure(new NewOrgUnit(null, "Other", null, null, null, null, null,
+        assertEquals("external_id.taken", failure(new NewOrgUnit(null, "Other", null, null, null, null, null,
                 null, "2026-04-01", null, null, "H-1", "hr")).code());
         assertEquals("invalid.code", failure(new NewOrgUnit(null, "Other", null, null, null, null, null, null,
                 "2026-04-01", null, null, "H-2", "bad source")).code());
@@ -378,7 +381,8 @@ class OrgUnitServiceTest {
         assertEquals("c1", v.code());
         assertEquals("w1", service.get(id, "2026-09-30").version().code());
         // Not details, so they stay.
-        assertEquals("X-1", changed.unit().externalId());
+        assertEquals(Optional.of(id), externalIds.idOf(ExternalId.Kind.ORG_UNIT, "hr", "X-1"));
+        assertEquals("hr", changed.unit().source());
         assertEquals(parentId, changed.parentId());
 
         OrgUnitState cleared = service.changeDetails(id, rename("2027-04-01", "Bare"));
@@ -554,7 +558,7 @@ class OrgUnitServiceTest {
     @Test
     void aNewParentLastsAsLongAsTheUnit() {
         String a = root("A");
-        store.insertUnit(new OrgUnit("ending", null, null, null));
+        store.insertUnit(new OrgUnit("ending", null, null));
         store.versions.add(new OrgUnitVersion("v1", "ending", new ValidPeriod(LocalDate.of(2026, 4, 1),
                 LocalDate.of(2027, 4, 1)), null, "Ending", Map.of(), null, Map.of(), null, null, null, null, 0,
                 Map.of()));
@@ -689,7 +693,7 @@ class OrgUnitServiceTest {
     private void assign(String assignmentId, String orgUnitId, String from, String to) {
         assignments.insert(new Assignment(assignmentId + "-" + from, assignmentId, "employment", orgUnitId,
                 new ValidPeriod(LocalDate.parse(from), to == null ? null : LocalDate.parse(to)), null, null, null,
-                null, null, false, false, null, 0, Map.of(), null, null, null));
+                null, null, false, false, null, 0, Map.of(), null, null));
     }
 
     @Test
@@ -947,7 +951,7 @@ class OrgUnitServiceTest {
         String company = service.create(new NewOrgUnit(null, "Company", null, null, null, null, "company", null,
                 "2020-04-01", null, null, null, null)).unit().id();
         employments.insert(new Employment("e1", "alice", null, company,
-                new ValidPeriod(LocalDate.of(2026, 4, 1), LocalDate.of(2028, 4, 1)), null, null, null, null, null));
+                new ValidPeriod(LocalDate.of(2026, 4, 1), LocalDate.of(2028, 4, 1)), null, null, null, null));
         OrgUnitChange toDepartment = new OrgUnitChange("2026-01-01", null, "Company", null, null, null, null, "department",
                 null, null);
 
@@ -1036,7 +1040,7 @@ class OrgUnitServiceTest {
 
     @Test
     void readsAUnitWhoseUnitTypeWasRemoved() {
-        store.insertUnit(new OrgUnit("u1", null, null, null));
+        store.insertUnit(new OrgUnit("u1", null, null));
         store.versions.add(new OrgUnitVersion("v1", "u1", ValidPeriod.startingAt(LocalDate.of(2026, 4, 1)), null, "U",
                 Map.of(), null, Map.of(), null, "gone", null, null, 0, Map.of()));
 

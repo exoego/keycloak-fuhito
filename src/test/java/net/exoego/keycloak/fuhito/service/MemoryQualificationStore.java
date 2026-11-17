@@ -31,13 +31,6 @@ final class MemoryQualificationStore implements QualificationStore {
     }
 
     @Override
-    public Optional<Qualification> findByExternalId(String source, String externalId) {
-        return rows.stream()
-                .filter(q -> source.equals(q.source()) && externalId.equals(q.externalId()))
-                .findFirst();
-    }
-
-    @Override
     public void insert(Qualification qualification) {
         rows.add(qualification);
     }

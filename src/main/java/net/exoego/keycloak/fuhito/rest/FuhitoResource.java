@@ -195,7 +195,8 @@ public class FuhitoResource {
      */
     @Path("assignments")
     public AssignmentsResource assignments() {
-        return new AssignmentsResource(context, assignmentService(), membershipService(), removals());
+        return new AssignmentsResource(context, assignmentService(), externalIdService(), membershipService(),
+                removals());
     }
 
     /**
@@ -246,7 +247,8 @@ public class FuhitoResource {
      */
     @Path("employments")
     public EmploymentsResource employments() {
-        return new EmploymentsResource(context, employmentService(), personService(), assignmentService(),
+        return new EmploymentsResource(context, employmentService(), externalIdService(), personService(),
+                assignmentService(),
                 orgUnitService(), new PromotionService(employmentService(), assignmentService(),
                         new JpaAssignmentStore(entityManager, realmId)), new LeaveService(employmentService()),
                 removals(), today());
@@ -259,7 +261,8 @@ public class FuhitoResource {
      */
     @Path("staff")
     public StaffResource staff() {
-        return new StaffResource(context, employmentService(), assignmentService(), personService());
+        return new StaffResource(context, employmentService(), assignmentService(), personService(),
+                externalIdService());
     }
 
     /**
@@ -309,8 +312,12 @@ public class FuhitoResource {
      */
     @Path("external-ids")
     public ExternalIdsResource externalIds() {
-        return new ExternalIdsResource(context, new ExternalIdService(new JpaExternalIdStore(entityManager,
-                realmId)), orgUnitService(), new StructureLimit(context, today()));
+        return new ExternalIdsResource(context, externalIdService(), orgUnitService(),
+                new StructureLimit(context, today()));
+    }
+
+    private ExternalIdService externalIdService() {
+        return new ExternalIdService(new JpaExternalIdStore(entityManager, realmId));
     }
 
     /**
@@ -356,14 +363,14 @@ public class FuhitoResource {
 
     private AssignmentService assignmentService() {
         return new AssignmentService(new JpaAssignmentStore(entityManager, realmId),
-                new JpaEmploymentStore(entityManager, realmId), new JpaOrgUnitStore(entityManager, realmId),
+                new JpaExternalIdStore(entityManager, realmId), new JpaEmploymentStore(entityManager, realmId), new JpaOrgUnitStore(entityManager, realmId),
                 new JpaRefItemStore(entityManager, realmId), new JpaReportingLineStore(entityManager, realmId),
                 today(), attributeRules());
     }
 
     private EmploymentService employmentService() {
         return new EmploymentService(new JpaEmploymentStore(entityManager, realmId),
-                new JpaAssignmentStore(entityManager, realmId), new JpaRefItemStore(entityManager, realmId),
+                new JpaExternalIdStore(entityManager, realmId), new JpaAssignmentStore(entityManager, realmId), new JpaRefItemStore(entityManager, realmId),
                 new JpaPersonStore(entityManager, realmId), new JpaReportingLineStore(entityManager, realmId),
                 new JpaUnitRoleStore(entityManager, realmId),
                 new LegalEntityEmployers(new JpaOrgUnitStore(entityManager, realmId),
@@ -412,7 +419,7 @@ public class FuhitoResource {
      */
     @Path("org-units")
     public OrgUnitsResource orgUnits() {
-        return new OrgUnitsResource(context, orgUnitService(), membershipService(),
+        return new OrgUnitsResource(context, orgUnitService(), externalIdService(), membershipService(),
                 new OrganizationLinkService(new JpaOrgUnitStore(entityManager, realmId), organizations),
                 unitRoleService(), removals(), new StructureLimit(context, today()));
     }
@@ -424,7 +431,8 @@ public class FuhitoResource {
      */
     @Path("reorganizations")
     public ReorganizationsResource reorganizations() {
-        return new ReorganizationsResource(context, new ReorganizationService(orgUnitService()));
+        return new ReorganizationsResource(context, new ReorganizationService(orgUnitService()),
+                externalIdService());
     }
 
     /**
@@ -459,12 +467,13 @@ public class FuhitoResource {
     }
 
     private AttributeSyncService.Parts syncParts() {
+        ExternalIdService externalIds = externalIdService();
         return new AttributeSyncService.Parts(new AttributeSyncService.Sources(
                 userAttributes, users, new JpaOrgUnitStore(entityManager, realmId),
                 new JpaRefItemStore(entityManager, realmId), new JpaEmploymentStore(entityManager, realmId),
                 employmentService(), new JpaAssignmentStore(entityManager, realmId), assignmentService(),
                 new JpaReportingLineStore(entityManager, realmId), reportingLineService(), personService()),
-                today(), write -> Writes.record(context, write));
+                today(), write -> Writes.record(context, externalIds, write));
     }
 
     /**
@@ -484,22 +493,21 @@ public class FuhitoResource {
                 new ImportService.Organizations(new OrganizationLinkService(orgUnitStore, organizations),
                         organizations, context::requireManageOrganization),
                 new ImportService.Records(reportingLineService(), unitRoleService(), qualificationService(),
-                        new ExternalIdService(new JpaExternalIdStore(entityManager, realmId)), changeOrderService()));
+                        externalIdService(), changeOrderService()));
         var definitions = new JpaAttributeDefinitionStore(entityManager, realmId);
         return new ImportsResource(context, importService, new CsvImportService(importService, refItemStore,
-                orgUnitStore, orgUnitService(), people, definitions::list),
+                orgUnitService(), people, definitions::list),
                 new CsvExportService(refItemService(), () -> realmKinds().list(), orgUnitService(), personService(),
                         employmentService(), assignmentService(), today(),
                         new HierarchyService(new JpaHierarchyStore(entityManager, realmId)), organizations,
-                        reportingLineService(), unitRoleService(), qualificationService(),
-                        new ExternalIdService(new JpaExternalIdStore(entityManager, realmId)), changeOrderService(),
-                        definitions::list));
+                        reportingLineService(), unitRoleService(), qualificationService(), externalIdService(),
+                        changeOrderService(), definitions::list), externalIdService());
     }
 
     private OrgUnitService orgUnitService() {
         return new OrgUnitService(new JpaOrgUnitStore(entityManager, realmId),
-                new JpaAssignmentStore(entityManager, realmId), new JpaRefItemStore(entityManager, realmId),
-                today(), attributeRules());
+                new JpaExternalIdStore(entityManager, realmId), new JpaAssignmentStore(entityManager, realmId),
+                new JpaRefItemStore(entityManager, realmId), today(), attributeRules());
     }
 
     // A new one for each service, so that none of them sees the tree as another one loaded it.
@@ -519,7 +527,7 @@ public class FuhitoResource {
 
     private UsersResource.Reads reads() {
         return new UsersResource.Reads(membershipService(), employmentService(), assignmentService(),
-                qualificationService(), reportingLineService(), unitRoleService());
+                qualificationService(), reportingLineService(), unitRoleService(), externalIdService());
     }
 
     private PersonData personData() {
@@ -538,7 +546,8 @@ public class FuhitoResource {
     }
 
     private PersonService personService() {
-        return new PersonService(new JpaPersonStore(entityManager, realmId), users,
+        return new PersonService(new JpaPersonStore(entityManager, realmId),
+                new JpaExternalIdStore(entityManager, realmId), users,
                 personId -> !new JpaEmploymentStore(entityManager, realmId).findByPerson(personId).isEmpty()
                         || !new JpaQualificationStore(entityManager, realmId).findByPerson(personId).isEmpty()
                         || !new JpaReportingLineStore(entityManager, realmId).findByManager(personId).isEmpty(),
@@ -552,12 +561,12 @@ public class FuhitoResource {
      */
     @Path("qualifications")
     public QualificationsResource qualifications() {
-        return new QualificationsResource(context, qualificationService(), personService());
+        return new QualificationsResource(context, qualificationService(), personService(), externalIdService());
     }
 
     private QualificationService qualificationService() {
         return new QualificationService(new JpaQualificationStore(entityManager, realmId),
-                new JpaRefItemStore(entityManager, realmId), new JpaPersonStore(entityManager, realmId), users,
+                new JpaExternalIdStore(entityManager, realmId), new JpaRefItemStore(entityManager, realmId), new JpaPersonStore(entityManager, realmId), users,
                 clock, attributeRules());
     }
 

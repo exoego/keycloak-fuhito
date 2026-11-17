@@ -7,8 +7,10 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import net.exoego.keycloak.fuhito.domain.Assignment;
+import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.RefItem;
 import net.exoego.keycloak.fuhito.domain.RefKind;
@@ -25,16 +27,17 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AssignmentServiceTest {
 
+    private final MemoryExternalIdStore externalIds = new MemoryExternalIdStore();
     private final MemoryAssignmentStore store = new MemoryAssignmentStore();
     private final MemoryEmploymentStore employments = new MemoryEmploymentStore();
     private final MemoryOrgUnitStore orgUnits = new MemoryOrgUnitStore();
     private final MemoryRefItemStore refItems = new MemoryRefItemStore();
     private final MemoryReportingLineStore lines = new MemoryReportingLineStore();
-    private final AssignmentService service = new AssignmentService(store, employments, orgUnits, refItems, lines);
-    private final EmploymentService employmentService = new EmploymentService(employments, store, refItems,
+    private final AssignmentService service = new AssignmentService(store, externalIds, employments, orgUnits, refItems, lines);
+    private final EmploymentService employmentService = new EmploymentService(employments, externalIds, store, refItems,
             MemoryPersonStore.anyUser(),
             new MemoryReportingLineStore(), new MemoryUnitRoleStore(), new AnyEmployer());
-    private final OrgUnitService orgUnitService = new OrgUnitService(orgUnits, store, refItems, Clock.systemUTC());
+    private final OrgUnitService orgUnitService = new OrgUnitService(orgUnits, externalIds, store, refItems, Clock.systemUTC());
 
     private String employment;
     private String xHospital;
@@ -136,7 +139,8 @@ class AssignmentServiceTest {
         assertEquals(Map.of("shift", "night"), row.attributes());
         assertFalse(row.head());
         assertEquals(0, row.displayOrder());
-        assertNull(row.externalId());
+        assertNull(row.source());
+        assertEquals(List.of(), externalIds.ofResource(ExternalId.Kind.ASSIGNMENT, started.assignmentId()));
         // The line to the old manager ends with the old assignment.
         assertEquals(LocalDate.of(2027, 4, 1), lines.find("line").orElseThrow().period().to());
         assertEquals(List.of(), lines.findByAssignment(started.assignmentId()));
@@ -204,7 +208,7 @@ class AssignmentServiceTest {
         assertEquals(new BigDecimal("60"), row.row().allocationPercent());
         assertEquals(3, row.row().displayOrder());
         assertEquals(Map.of("shift", "night"), row.row().attributes());
-        assertEquals("A-1", row.row().externalId());
+        assertEquals(Optional.of(view.assignmentId()), externalIds.idOf(ExternalId.Kind.ASSIGNMENT, "hr", "A-1"));
         assertEquals("hr", row.row().source());
     }
 
@@ -305,8 +309,7 @@ class AssignmentServiceTest {
                 periods(view));
         assertEquals(List.of(false, false, true), view.rows().stream().map(r -> r.row().head()).toList());
         assertTrue(view.rows().stream().allMatch(r -> r.row().orgUnitId().equals(ward)
-                && r.row().employmentId().equals(employment) && "A-1".equals(r.row().externalId())
-                && "hr".equals(r.row().source())));
+                && r.row().employmentId().equals(employment) && "hr".equals(r.row().source())));
         assertEquals(3, view.rows().stream().map(r -> r.row().rowId()).distinct().count());
     }
 
@@ -601,7 +604,7 @@ class AssignmentServiceTest {
     @Test
     void eachPeriodOfAnAssignmentTakesTheValuesOnItsDateNearestToToday() {
         placeItems();
-        AssignmentService inJune = new AssignmentService(store, employments, orgUnits, refItems, lines,
+        AssignmentService inJune = new AssignmentService(store, externalIds, employments, orgUnits, refItems, lines,
                 Today.of(JUNE_2027), AttributeRules.NONE);
         giveUnit(xHospital, "X Hospital", "2026-04-01", "tokyo", null);
         giveUnit(xHospital, "X Hospital", "2027-04-01", "osaka", null);

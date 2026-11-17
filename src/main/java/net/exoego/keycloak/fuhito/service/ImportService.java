@@ -163,21 +163,22 @@ public class ImportService {
         }
         String defaultSource = source == null ? DEFAULT_SOURCE : source;
         if (document.orgUnits() != null) {
-            new OrgUnitImport(orgUnitService, orgUnits, organizations, document.effectiveDate(), defaultSource,
-                    document.orgUnits(), report).run();
+            new OrgUnitImport(orgUnitService, orgUnits, records.externalIds(), organizations,
+                    document.effectiveDate(), defaultSource, document.orgUnits(), report).run();
         }
         if (document.orgUnitParents() != null) {
-            new ParentImport(orgUnitService, orgUnits, document.effectiveDate(), defaultSource, report)
-                    .run(document.orgUnitParents());
+            new ParentImport(orgUnitService, orgUnits, records.externalIds(), document.effectiveDate(),
+                    defaultSource, report).run(document.orgUnitParents());
         }
         PeopleImport peopleImport =
-                new PeopleImport(people, orgUnits, document.effectiveDate(), defaultSource, report);
+                new PeopleImport(people, records.externalIds(), orgUnits, document.effectiveDate(), defaultSource,
+                        report);
         if (document.people() != null) {
             peopleImport.people(document.people());
         }
         if (document.qualifications() != null) {
-            new QualificationImport(records.qualifications(), people, document.effectiveDate(), defaultSource,
-                    report).run(document.qualifications());
+            new QualificationImport(records.qualifications(), people, records.externalIds(),
+                    document.effectiveDate(), defaultSource, report).run(document.qualifications());
         }
         if (document.employments() != null) {
             peopleImport.employments(document.employments());
@@ -186,12 +187,12 @@ public class ImportService {
             peopleImport.assignments(document.assignments());
         }
         if (document.unitRoles() != null) {
-            new UnitRoleImport(records.unitRoles(), people, orgUnits, document.effectiveDate(), defaultSource,
+            new UnitRoleImport(records.unitRoles(), records.externalIds(), document.effectiveDate(), defaultSource,
                     report).run(document.unitRoles());
         }
         if (document.reportingLines() != null) {
-            new ReportingLineImport(records.reportingLines(), people, document.effectiveDate(), defaultSource,
-                    report).run(document.reportingLines());
+            new ReportingLineImport(records.reportingLines(), people, records.externalIds(),
+                    document.effectiveDate(), defaultSource, report).run(document.reportingLines());
         }
         if (document.externalIds() != null) {
             new ExternalIdImport(records.externalIds(), defaultSource, report).run(document.externalIds());

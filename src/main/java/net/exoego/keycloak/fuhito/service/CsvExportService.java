@@ -20,6 +20,7 @@ import net.exoego.keycloak.fuhito.domain.AttributeDefinition;
 import net.exoego.keycloak.fuhito.domain.ChangeOrder;
 import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.Employment;
+import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.Hierarchy;
 import net.exoego.keycloak.fuhito.domain.OrgUnitLink;
@@ -253,7 +254,7 @@ public class CsvExportService {
     // to a Keycloak user is left out: a blank cell keeps it, and the ID of a removed user would not load again.
     private String people(boolean japanese) {
         SortedSet<String> languages = new TreeSet<>();
-        eachPerson(person -> languages.addAll(person.names().keySet()));
+        eachPage(page -> page.forEach(person -> languages.addAll(person.names().keySet())));
         List<String> attributes = definitions.apply(AttributeDefinition.Target.PERSON).stream()
                 .map(AttributeDefinition::name)
                 .toList();
@@ -266,14 +267,18 @@ public class CsvExportService {
         attributes.forEach(attribute -> header.add(CsvImportService.ATTRIBUTE_COLUMN + attribute));
         StringBuilder csv = new StringBuilder(BYTE_ORDER_MARK);
         line(csv, header);
-        eachPerson(person -> {
-            List<String> cells = new ArrayList<>(List.of(person.id(), text(person.externalId()),
-                    text(person.source()), text(person.name())));
-            languages.forEach(language -> cells.add(text(person.names().get(language))));
-            cells.add(text(person.phoneticName()));
-            attributes.forEach(attribute -> cells.add(text(Optional.ofNullable(person.attributes())
-                    .map(values -> values.get(attribute)).orElse(null))));
-            line(csv, cells);
+        eachPage(page -> {
+            ExternalIdLists ids = externalIds.lists(ExternalId.Kind.PERSON, page.stream().map(Person::id).toList());
+            for (Person person : page) {
+                List<String> cells = new ArrayList<>(List.of(person.id(),
+                        text(ids.externalIdOf(person.id(), person.source())), text(person.source()),
+                        text(person.name())));
+                languages.forEach(language -> cells.add(text(person.names().get(language))));
+                cells.add(text(person.phoneticName()));
+                attributes.forEach(attribute -> cells.add(text(Optional.ofNullable(person.attributes())
+                        .map(values -> values.get(attribute)).orElse(null))));
+                line(csv, cells);
+            }
         });
         return csv.toString();
     }
@@ -298,13 +303,15 @@ public class CsvExportService {
         while (true) {
             List<EmploymentView> page = employments.list(new EmploymentService.Search(null, null, date.toString()),
                     Page.of(0, ROWS_AT_A_TIME), after);
+            ExternalIdLists ids = externalIds.lists(ExternalId.Kind.EMPLOYMENT,
+                    page.stream().map(view -> view.employment().id()).toList());
             for (EmploymentView view : page) {
                 Employment employment = view.employment();
                 Optional<EmploymentView.TermsView> terms = view.terms().stream()
                         .filter(t -> t.terms().period().contains(date))
                         .findFirst();
-                List<String> cells = new ArrayList<>(List.of(employment.id(), text(employment.externalId()),
-                        text(employment.source()), employment.personId(), text(employment.staffNumber()),
+                List<String> cells = new ArrayList<>(List.of(employment.id(),
+                        text(ids.externalIdOf(employment.id(), employment.source())), text(employment.source()), employment.personId(), text(employment.staffNumber()),
                         text(employment.employerId())));
                 cells.add(text(terms.map(EmploymentView.TermsView::employmentType).orElse(null)));
                 cells.add(text(terms.map(EmploymentView.TermsView::grade).orElse(null)));
@@ -345,14 +352,16 @@ public class CsvExportService {
         String after = null;
         while (true) {
             List<AssignmentView> page = assignments.listOn(date, after, ROWS_AT_A_TIME);
+            ExternalIdLists ids = externalIds.lists(ExternalId.Kind.ASSIGNMENT,
+                    page.stream().map(AssignmentView::assignmentId).toList());
             for (AssignmentView view : page) {
                 AssignmentView.Row current = view.rows().stream()
                         .filter(r -> r.row().period().contains(date))
                         .findFirst()
                         .orElseThrow();
                 Assignment row = current.row();
-                List<String> cells = new ArrayList<>(List.of(view.assignmentId(), text(row.externalId()),
-                        text(row.source()), row.employmentId(), row.orgUnitId(), text(current.jobTitle()),
+                List<String> cells = new ArrayList<>(List.of(view.assignmentId(),
+                        text(ids.externalIdOf(view.assignmentId(), row.source())), text(row.source()), row.employmentId(), row.orgUnitId(), text(current.jobTitle()),
                         text(current.occupation()), text(current.kind()), text(current.places().workLocation()),
                         text(current.places().costCenter()), Boolean.toString(row.head()),
                         Boolean.toString(row.primary()), number(row.allocationPercent()),
@@ -409,7 +418,7 @@ public class CsvExportService {
         }
     }
 
-    // Only the IDs that /external-ids added. The own pair of a resource is in the list of the resource.
+    // Every ID of every system. The list of a resource has the ID of the system that made it again.
     private String externalIds(boolean japanese) {
         List<String> header = new ArrayList<>();
         for (String field : List.of("resourceType", "resourceId", "source", "externalId")) {
@@ -445,9 +454,12 @@ public class CsvExportService {
         String after = null;
         while (true) {
             List<QualificationView> page = qualifications.list(null, asOf, Page.of(0, ROWS_AT_A_TIME), after);
+            ExternalIdLists ids = externalIds.lists(ExternalId.Kind.QUALIFICATION,
+                    page.stream().map(view -> view.qualification().id()).toList());
             for (QualificationView view : page) {
                 Qualification q = view.qualification();
-                List<String> cells = new ArrayList<>(List.of(q.id(), text(q.externalId()), text(q.source()),
+                List<String> cells = new ArrayList<>(List.of(q.id(), text(ids.externalIdOf(q.id(), q.source())),
+                        text(q.source()),
                         q.personId(), text(view.kind()), text(q.number()), q.period().from().toString(),
                         text(q.period().to())));
                 attributes.forEach(attribute -> cells.add(text(Optional.ofNullable(q.attributes())
@@ -486,11 +498,11 @@ public class CsvExportService {
         }
     }
 
-    private void eachPerson(Consumer<Person> each) {
+    private void eachPage(Consumer<List<Person>> each) {
         String after = null;
         while (true) {
             List<PersonView> page = people.list(null, null, ROWS_AT_A_TIME, after);
-            page.forEach(view -> each.accept(view.person()));
+            each.accept(page.stream().map(PersonView::person).toList());
             if (page.size() < ROWS_AT_A_TIME) {
                 return;
             }
@@ -533,10 +545,13 @@ public class CsvExportService {
 
         StringBuilder csv = new StringBuilder(BYTE_ORDER_MARK);
         line(csv, header);
+        ExternalIdLists ids = externalIds.lists(ExternalId.Kind.ORG_UNIT,
+                units.stream().map(unit -> unit.unit().id()).toList());
         for (OrgUnitState unit : units) {
             OrgUnitVersion version = unit.version();
-            List<String> cells = new ArrayList<>(List.of(unit.unit().id(), text(unit.unit().externalId()),
-                    text(unit.unit().source()), text(version.code()), version.name()));
+            List<String> cells = new ArrayList<>(List.of(unit.unit().id(),
+                    text(ids.externalIdOf(unit.unit().id(), unit.unit().source())), text(unit.unit().source()),
+                    text(version.code()), version.name()));
             names.forEach(language -> cells.add(text(version.names().get(language))));
             cells.add(text(version.shortName()));
             shortNames.forEach(language -> cells.add(text(version.shortNames().get(language))));

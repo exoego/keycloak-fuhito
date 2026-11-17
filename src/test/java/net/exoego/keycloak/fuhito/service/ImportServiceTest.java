@@ -35,6 +35,7 @@ import net.exoego.keycloak.fuhito.service.ImportDocument.UnitRoleRow;
 import net.exoego.keycloak.fuhito.service.ImportReport.Counts;
 import net.exoego.keycloak.fuhito.store.OrganizationDirectory;
 import net.exoego.keycloak.fuhito.store.UserDirectory;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -45,10 +46,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ImportServiceTest {
 
+    private final MemoryExternalIdStore externalIdStore = new MemoryExternalIdStore();
     private final MemoryRefItemStore refItems = new MemoryRefItemStore();
     private final MemoryOrgUnitStore orgUnitStore = new MemoryOrgUnitStore();
     private final MemoryAssignmentStore assignmentStore = new MemoryAssignmentStore();
-    private final OrgUnitService orgUnits = new OrgUnitService(orgUnitStore, assignmentStore, refItems,
+    private final OrgUnitService orgUnits = new OrgUnitService(orgUnitStore, externalIdStore, assignmentStore, refItems,
             Clock.systemUTC());
     private final MemoryEmploymentStore employmentStore = new MemoryEmploymentStore();
     private final Map<String, String> usernames = Map.of("nurse", "user-nurse", "doctor", "user-doctor");
@@ -67,19 +69,18 @@ class ImportServiceTest {
     private final MemoryReportingLineStore lineStore = new MemoryReportingLineStore();
     private final MemoryUnitRoleStore roleStore = new MemoryUnitRoleStore();
     private final MemoryQualificationStore qualificationStore = new MemoryQualificationStore();
-    private final MemoryExternalIdStore externalIdStore = new MemoryExternalIdStore();
     private final MemoryChangeOrderStore orderStore = new MemoryChangeOrderStore();
-    private final QualificationService qualifications = new QualificationService(qualificationStore, refItems,
+    private final QualificationService qualifications = new QualificationService(qualificationStore, externalIdStore, refItems,
             personStore, users, Clock.systemUTC());
     private final UnitRoleService roles = new UnitRoleService(roleStore,
             new UnitRoleService.Sources(employmentStore, orgUnitStore, refItems), Today.of(Clock.systemUTC()));
     private final ReportingLineService lines = new ReportingLineService(lineStore, new ReportingLineService.Sources(
             assignmentStore, employmentStore, orgUnitStore, refItems, users, personStore), Clock.systemUTC());
     private final EmploymentService employments =
-            new EmploymentService(employmentStore, assignmentStore, refItems, personStore,
+            new EmploymentService(employmentStore, externalIdStore, assignmentStore, refItems, personStore,
             new MemoryReportingLineStore(), new MemoryUnitRoleStore(), new AnyEmployer());
     private final AssignmentService assignments =
-            new AssignmentService(assignmentStore, employmentStore, orgUnitStore, refItems,
+            new AssignmentService(assignmentStore, externalIdStore, employmentStore, orgUnitStore, refItems,
             new MemoryReportingLineStore());
     private final RealmKindService kinds = new RealmKindService(new MemoryRealmKindStore(), refItems);
     private final HierarchyService hierarchies = new HierarchyService(new MemoryHierarchyStore());
@@ -99,12 +100,27 @@ class ImportServiceTest {
             new AttributeDefinitionService(new MemoryAttributeDefinitionStore(), refItems, kinds::isKnown);
     private final ImportService service = new ImportService(new RefItemService(refItems), refItems, orgUnits,
             orgUnitStore, new ImportService.People(employments, employmentStore, assignments, assignmentStore, users,
-                    new PersonService(personStore, users, id -> false)),
+                    new PersonService(personStore, externalIdStore, users, id -> false)),
             new ImportService.Setup(kinds, definitions, hierarchies),
             new ImportService.Organizations(new OrganizationLinkService(orgUnitStore, organizations), organizations,
                     managed::add),
             new ImportService.Records(lines, roles, qualifications, new ExternalIdService(externalIdStore),
                     new ChangeOrderService(orderStore, null, users, Clock.systemUTC())));
+
+    @BeforeEach
+    void shareTheRecords() {
+        externalIdStore.records(ExternalId.Kind.ORG_UNIT,
+                id -> orgUnitStore.findUnit(id).map(unit -> new ExternalId.Origin(unit.source())));
+        externalIdStore.records(ExternalId.Kind.PERSON,
+                id -> personStore.find(id).map(person -> new ExternalId.Origin(person.source())));
+        externalIdStore.records(ExternalId.Kind.EMPLOYMENT,
+                id -> employmentStore.find(id).map(employment -> new ExternalId.Origin(employment.source())));
+    }
+
+    // The record that an ID of a system names, as an import finds it.
+    private String stored(ExternalId.Kind kind, String source, String externalId) {
+        return externalIdStore.idOf(kind, source, externalId).orElseThrow();
+    }
 
     private static ImportDocument doc(String effectiveDate, boolean dryRun, String source, List<RefItemRow> refItems,
             List<OrgUnitRow> orgUnits) {
@@ -239,8 +255,8 @@ class ImportServiceTest {
         assertEquals(List.of(), errors(first));
         assertEquals(Map.of("orgUnits", new Counts(2, 0, 0)), first.counts());
         assertEquals(Map.of("orgUnits", new Counts(0, 0, 2)), again.counts());
-        String old = orgUnitStore.findUnitByExternalId("import", "OLD").orElseThrow().id();
-        String successor = orgUnitStore.findUnitByExternalId("import", "NEW").orElseThrow().id();
+        String old = stored(ExternalId.Kind.ORG_UNIT, "import", "OLD");
+        String successor = stored(ExternalId.Kind.ORG_UNIT, "import", "NEW");
         assertEquals(successor, orgUnits.successions(old).successors().getFirst().successorId());
         assertEquals("fuhito/org-units/" + old + "/succession", first.writes().getLast().path());
 
@@ -270,7 +286,7 @@ class ImportServiceTest {
         ImportReport again = importUnits("2026-04-01", timed("H", null, null));
         ImportReport cleared = importUnits("2026-04-01", timed("H", null, ""));
 
-        String h = orgUnitStore.findUnitByExternalId("import", "H").orElseThrow().id();
+        String h = stored(ExternalId.Kind.ORG_UNIT, "import", "H");
         assertEquals(List.of(), errors(first));
         assertEquals("fuhito/org-units/" + h + "/time-settings", first.writes().getLast().path());
         assertEquals(Map.of("orgUnits", new Counts(0, 0, 1)), again.counts());
@@ -287,8 +303,8 @@ class ImportServiceTest {
         ImportReport moved = importUnits("2026-04-01", linked("H", ""), linked("K", "x-hospital"),
                 linked("N", "nope"));
 
-        String h = orgUnitStore.findUnitByExternalId("import", "H").orElseThrow().id();
-        String k = orgUnitStore.findUnitByExternalId("import", "K").orElseThrow().id();
+        String h = stored(ExternalId.Kind.ORG_UNIT, "import", "H");
+        String k = stored(ExternalId.Kind.ORG_UNIT, "import", "K");
         assertEquals(List.of(), errors(first));
         assertEquals(Map.of("orgUnits", new Counts(0, 0, 2)), again.counts());
         assertEquals("fuhito/org-units/" + h + "/organization", first.writes().get(1).path());
@@ -303,8 +319,8 @@ class ImportServiceTest {
     void movesAUnitInAHierarchyAndReportsEveryBadRowOfParents() {
         importUnits("2026-04-01", unit("P", "P", null), unit("C", "C", null), unit("D", "D", null),
                 unit("E", "E", null), unit("F", "F", null));
-        String p = orgUnitStore.findUnitByExternalId("import", "P").orElseThrow().id();
-        String c = orgUnitStore.findUnitByExternalId("import", "C").orElseThrow().id();
+        String p = stored(ExternalId.Kind.ORG_UNIT, "import", "P");
+        String c = stored(ExternalId.Kind.ORG_UNIT, "import", "C");
         List<OrgUnitParentRow> rows = List.of(
                 new OrgUnitParentRow("default", null, "C", null, "P", null),
                 new OrgUnitParentRow("default", null, null, p, null, null),
@@ -379,7 +395,7 @@ class ImportServiceTest {
         assertEquals(List.of("Hospital", "Nursing < Hospital", "Ward < Nursing"), tree("2026-04-01"));
         assertEquals(List.of("Hospital", "Nursing", "Ward"), report.writes().stream()
                 .map(w -> ((ImportReport.Write.OfOrgUnit) w).state().version().name()).toList());
-        assertEquals("import", orgUnitStore.findUnitByExternalId("import", "H").orElseThrow().source());
+        assertEquals("import", orgUnitStore.findUnit(stored(ExternalId.Kind.ORG_UNIT, "import", "H")).orElseThrow().source());
     }
 
     @Test
@@ -396,7 +412,7 @@ class ImportServiceTest {
         assertEquals(Map.of("orgUnits", new Counts(0, 0, 2)), again.counts());
         assertEquals(Map.of("orgUnits", new Counts(0, 0, 2)), later.counts());
         assertEquals(List.of(), later.writes());
-        assertEquals(1, orgUnitStore.versions(orgUnitStore.findUnitByExternalId("hr", "H").orElseThrow().id()).size());
+        assertEquals(1, orgUnitStore.versions(stored(ExternalId.Kind.ORG_UNIT, "hr", "H")).size());
     }
 
     @Test
@@ -432,7 +448,7 @@ class ImportServiceTest {
                         "2027-04-01", null));
 
         assertEquals(List.of(), errors(report));
-        var versions = orgUnitStore.versions(orgUnitStore.findUnitByExternalId("import", "OLD").orElseThrow().id());
+        var versions = orgUnitStore.versions(stored(ExternalId.Kind.ORG_UNIT, "import", "OLD"));
         assertEquals(LocalDate.of(2001, 4, 1), versions.getFirst().period().from());
         assertEquals(LocalDate.of(2027, 4, 1), versions.getFirst().period().to());
         assertEquals(2, report.writes().size());
@@ -449,7 +465,7 @@ class ImportServiceTest {
 
         assertEquals(List.of(), errors(report));
         assertEquals(List.of("From A", "From B", "Child of B < From B"), tree("2026-04-01"));
-        assertEquals("hr-a", orgUnitStore.findUnitByExternalId("hr-a", "1").orElseThrow().source());
+        assertEquals("hr-a", orgUnitStore.findUnit(stored(ExternalId.Kind.ORG_UNIT, "hr-a", "1")).orElseThrow().source());
     }
 
     @Test
@@ -503,7 +519,7 @@ class ImportServiceTest {
     @Test
     void aRowCanNameAStoredUnitByItsId() {
         importUnits("2026-04-01", unit("H", "Hospital", null));
-        String id = orgUnitStore.findUnitByExternalId("import", "H").orElseThrow().id();
+        String id = stored(ExternalId.Kind.ORG_UNIT, "import", "H");
 
         ImportReport renamed = importUnits("2026-05-01", new OrgUnitRow(null, null, null, "Main hospital", null, null,
                 null, null, null, null, null, null, null, null, null, id));
@@ -585,11 +601,11 @@ class ImportServiceTest {
         ImportReport first = service.apply(new ImportDocument("2026-04-01", false, null, null, null, null, null, rows));
 
         assertEquals(new Counts(1, 1, 0), first.counts().get("people"));
-        Person retired = personStore.findByExternalId("import", "P1").orElseThrow();
+        Person retired = personStore.find(stored(ExternalId.Kind.PERSON, "import", "P1")).orElseThrow();
         assertEquals(null, retired.userId());
         assertEquals("やまだ はなこ", retired.phoneticName());
         assertEquals(personStore.findByUser(users.findIdByUsername("nurse").orElseThrow()).orElseThrow().id(),
-                personStore.findByExternalId("import", "P2").orElseThrow().id());
+                stored(ExternalId.Kind.PERSON, "import", "P2"));
         assertEquals(new Counts(0, 0, 2), service.apply(new ImportDocument("2026-04-01", false, null, null, null,
                 null, null, rows)).counts().get("people"));
 
@@ -598,7 +614,7 @@ class ImportServiceTest {
                 "1990-04-01", "2000-04-01", null, null, "P1", null, null, null);
         assertEquals(List.of(), service.apply(new ImportDocument("2026-04-01", false, null, null, null, List.of(old),
                 null)).errors());
-        assertEquals(retired.id(), employmentStore.findByExternalId("import", "E9").orElseThrow().personId());
+        assertEquals(retired.id(), employmentStore.find(stored(ExternalId.Kind.EMPLOYMENT, "import", "E9")).orElseThrow().personId());
         // A row for that stored employment may name nobody.
         EmploymentRow again = new EmploymentRow(null, "E9", null, null, null, null, null, null, null, null, null,
                 null, "2000-04-01", null, null, null, null, null, null);
@@ -632,12 +648,12 @@ class ImportServiceTest {
     void aRowNamesAStoredEmploymentItsPersonAndItsEmployerByTheirIds() {
         importTwoUnits();
         refItems.insert(new RefItem("g", RefKind.GRADE, "g2", "x", Map.of(), 0, Map.of(), true));
-        String hospital = orgUnitStore.findUnitByExternalId("import", "H").orElseThrow().id();
-        PersonService personService = new PersonService(personStore, users, id -> false);
+        String hospital = stored(ExternalId.Kind.ORG_UNIT, "import", "H");
+        PersonService personService = new PersonService(personStore, externalIdStore, users, id -> false);
         String taro = personService.create(new PersonValues(null, "Taro", null, null, null, null, null)).person().id();
 
         assertEquals(List.of(), errors(importEmployments(byIds("E1", taro, hospital, null, null))));
-        Employment stored = employmentStore.findByExternalId("import", "E1").orElseThrow();
+        Employment stored = employmentStore.find(stored(ExternalId.Kind.EMPLOYMENT, "import", "E1")).orElseThrow();
         assertEquals(taro, stored.personId());
         assertEquals(hospital, stored.employerId());
 
@@ -680,15 +696,15 @@ class ImportServiceTest {
     @Test
     void aRowNamesAStoredAssignmentItsEmploymentAndItsOrgUnitByTheirIds() {
         importTwoUnits();
-        String hospital = orgUnitStore.findUnitByExternalId("import", "H").orElseThrow().id();
-        String ward = orgUnitStore.findUnitByExternalId("import", "W").orElseThrow().id();
-        String taro = new PersonService(personStore, users, id -> false)
+        String hospital = stored(ExternalId.Kind.ORG_UNIT, "import", "H");
+        String ward = stored(ExternalId.Kind.ORG_UNIT, "import", "W");
+        String taro = new PersonService(personStore, externalIdStore, users, id -> false)
                 .create(new PersonValues(null, "Taro", null, null, null, null, null)).person().id();
         importEmployments(byIds("E1", taro, null, null, null));
-        String employment = employmentStore.findByExternalId("import", "E1").orElseThrow().id();
+        String employment = stored(ExternalId.Kind.EMPLOYMENT, "import", "E1");
 
         assertEquals(List.of(), errors(importAssignments(placement("A1", null, employment, null, ward, null, null))));
-        String assignment = assignmentStore.findAssignmentIdByExternalId("import", "A1").orElseThrow();
+        String assignment = stored(ExternalId.Kind.ASSIGNMENT, "import", "A1");
         assertEquals(ward, assignmentStore.rows(assignment).getFirst().orgUnitId());
 
         // A row with the ID alone keeps the employment and the org unit.
@@ -744,7 +760,7 @@ class ImportServiceTest {
                 .sorted(java.util.Comparator.comparing(l -> l.period().from()))
                 .toList();
         assertEquals("2026-05-01", stored.getFirst().period().to().toString());
-        assertEquals(personStore.findByExternalId("import", "P3").orElseThrow().id(),
+        assertEquals(stored(ExternalId.Kind.PERSON, "import", "P3"),
                 stored.getLast().managerPersonId());
         assertEquals("fuhito/reporting-lines/" + stored.getFirst().id() + "/end", next.writes().getFirst().path());
 
@@ -757,8 +773,8 @@ class ImportServiceTest {
                         line(null, "A1", "P3", "doctor", null), line(null, "A1", null, "nobody", null),
                         line("nope", null, null, null, null), line(null, "A1", "NOPE", null, null),
                         line(null, "A1", null, null, null))));
-        String a1 = assignmentStore.findAssignmentIdByExternalId("import", "A1").orElseThrow();
-        String chief = personStore.findByExternalId("import", "P3").orElseThrow().id();
+        String a1 = stored(ExternalId.Kind.ASSIGNMENT, "import", "A1");
+        String chief = stored(ExternalId.Kind.PERSON, "import", "P3");
         assertEquals(List.of("reportingLines[0] import.assignment_twice", "reportingLines[1] import.id_mismatch",
                 "reportingLines[3] import.duplicate_row"),
                 errors(importLines("2026-05-01",
@@ -811,8 +827,8 @@ class ImportServiceTest {
                         role(null, "E1", "W", null, null, null),
                         role(stored.getLast().id(), null, "W", null, true, null),
                         role(null, "E1", "H", "approver", true, null), role(null, "E1", "H", "approver", true, null))));
-        String e1 = employmentStore.findByExternalId("import", "E1").orElseThrow().id();
-        String h = orgUnitStore.findUnitByExternalId("import", "H").orElseThrow().id();
+        String e1 = stored(ExternalId.Kind.EMPLOYMENT, "import", "E1");
+        String h = stored(ExternalId.Kind.ORG_UNIT, "import", "H");
         assertEquals(List.of("unitRoles[0] import.employment_twice", "unitRoles[1] import.org_unit_twice"),
                 errors(importRoles("2026-05-01",
                         new UnitRoleRow(null, null, "E1", e1, null, h, "approver", true, null, null),
@@ -847,12 +863,12 @@ class ImportServiceTest {
         assertEquals(Map.of("qualifications", new Counts(2, 0, 0)), first.counts());
         assertEquals(Map.of("qualifications", new Counts(0, 0, 1)), again.counts());
         assertEquals(Map.of("qualifications", new Counts(0, 1, 0)), changed.counts());
-        Qualification q1 = qualificationStore.findByExternalId("import", "Q1").orElseThrow();
+        Qualification q1 = qualificationStore.find(stored(ExternalId.Kind.QUALIFICATION, "import", "Q1")).orElseThrow();
         assertEquals("456", q1.number());
         assertEquals("2030-04-01", q1.period().to().toString());
         assertEquals("fuhito/qualifications/" + q1.id(), changed.writes().getFirst().path());
         assertEquals(personStore.findByUser("user-nurse").orElseThrow().id(),
-                qualificationStore.findByExternalId("import", "Q2").orElseThrow().personId());
+                qualificationStore.find(stored(ExternalId.Kind.QUALIFICATION, "import", "Q2")).orElseThrow().personId());
 
         assertEquals(List.of("qualifications[0] invalid.required", "qualifications[1] import.id_unknown",
                 "qualifications[2] import.person_unknown", "qualifications[3] import.person_ways",
@@ -877,7 +893,8 @@ class ImportServiceTest {
 
     @Test
     void importsTheIdsOfOtherSystemsAndRemovesOneWithAnEmptyText() {
-        externalIdStore.resource(ExternalId.Kind.ORG_UNIT, "u-1", "hr", "H");
+        externalIdStore.resource(ExternalId.Kind.ORG_UNIT, "u-1", "hr");
+        externalIdStore.insert(new ExternalId("row-h", ExternalId.Kind.ORG_UNIT, "u-1", "hr", "H"));
 
         ImportReport first = importExternalIds(new ExternalIdRow("ORG_UNIT", "u-1", "payroll", "P-1"));
         ImportReport again = importExternalIds(new ExternalIdRow("ORG_UNIT", "u-1", "payroll", "P-1"));
@@ -891,9 +908,10 @@ class ImportServiceTest {
         assertEquals(Map.of("externalIds", new Counts(0, 1, 0)), changed.counts());
         assertEquals(Map.of("externalIds", new Counts(0, 1, 1)), removed.counts());
         assertTrue(removed.writes().getFirst().deleted());
-        assertEquals(List.of(), externalIdStore.rows);
-        assertEquals(List.of("externalIds[1] import.duplicate_row", "externalIds[2] external_id.own_source",
-                "externalIds[3] external_id.resource_unknown", "externalIds[4] invalid.required"),
+        assertEquals(List.of("H"), externalIdStore.rows.stream().map(ExternalId::externalId).toList());
+        // A row of the system that made the resource replaces its ID too.
+        assertEquals(List.of("externalIds[1] import.duplicate_row", "externalIds[3] external_id.resource_unknown",
+                "externalIds[4] invalid.required"),
                 errors(importExternalIds(new ExternalIdRow("ORG_UNIT", "u-1", "payroll", "P-3"),
                         new ExternalIdRow("ORG_UNIT", "u-1", "payroll", "P-4"),
                         new ExternalIdRow("ORG_UNIT", "u-1", "hr", "X"),
@@ -959,11 +977,11 @@ class ImportServiceTest {
                 List.of(continuingAssignment("A2", "E2", "A1")));
 
         assertEquals(List.of(), errors(first));
-        Employment e1 = employmentStore.findByExternalId("import", "E1").orElseThrow();
-        assertEquals(e1.id(), employmentStore.findByExternalId("import", "E2").orElseThrow()
+        Employment e1 = employmentStore.find(stored(ExternalId.Kind.EMPLOYMENT, "import", "E1")).orElseThrow();
+        assertEquals(e1.id(), employmentStore.find(stored(ExternalId.Kind.EMPLOYMENT, "import", "E2")).orElseThrow()
                 .continuesEmploymentId());
-        String a1 = assignmentStore.findAssignmentIdByExternalId("import", "A1").orElseThrow();
-        String a2 = assignmentStore.findAssignmentIdByExternalId("import", "A2").orElseThrow();
+        String a1 = stored(ExternalId.Kind.ASSIGNMENT, "import", "A1");
+        String a2 = stored(ExternalId.Kind.ASSIGNMENT, "import", "A2");
         assertEquals(a1, assignmentStore.rows(a2).getFirst().continuesAssignmentId());
         assertEquals(new Counts(0, 0, 1), again.counts().get("employments"));
         assertEquals(new Counts(0, 0, 1), again.counts().get("assignments"));
@@ -977,7 +995,7 @@ class ImportServiceTest {
 
         // Another person cannot be continued.
         importPeople("2020-04-01", List.of(employment("D1", "doctor", null, null, null)), null);
-        String doctor = employmentStore.findByExternalId("import", "D1").orElseThrow().id();
+        String doctor = stored(ExternalId.Kind.EMPLOYMENT, "import", "D1");
         AssignmentRow unknown = new AssignmentRow(null, "A4", "E2", "W", null, null, null, null, false, null, null,
                 null, "2026-04-01", null, null, null, null, null, "nope", null, null);
         assertEquals(List.of("employments[0] employment.continues_other", "assignments[0] assignment.continues_unknown"),
@@ -989,9 +1007,10 @@ class ImportServiceTest {
     }
 
     private List<String> assignmentsOf(String employmentExternalId) {
-        String id = employmentStore.findByExternalId("import", employmentExternalId).orElseThrow().id();
+        String id = stored(ExternalId.Kind.EMPLOYMENT, "import", employmentExternalId);
         return assignmentStore.rowsOfEmployment(id).stream()
-                .map(r -> r.externalId() + " " + r.period().from() + " " + r.period().to() + " " + r.primary())
+                .map(r -> externalIdStore.ofResource(ExternalId.Kind.ASSIGNMENT, r.assignmentId()).getFirst()
+                        .externalId() + " " + r.period().from() + " " + r.period().to() + " " + r.primary())
                 .sorted()
                 .toList();
     }
@@ -1021,7 +1040,7 @@ class ImportServiceTest {
         assertEquals(new Counts(0, 0, 2), second.counts().get("employments"));
         assertEquals(new Counts(0, 0, 2), second.counts().get("assignments"));
         assertEquals(List.of(), second.writes());
-        var nurse = employmentStore.findByExternalId("hr", "E1").orElseThrow();
+        var nurse = employmentStore.find(stored(ExternalId.Kind.EMPLOYMENT, "hr", "E1")).orElseThrow();
         assertEquals("user-nurse", nurse.userId());
         assertEquals("N-1", nurse.staffNumber());
         assertEquals(LocalDate.of(2020, 4, 1), nurse.period().from());
@@ -1054,9 +1073,9 @@ class ImportServiceTest {
         assertEquals(new Counts(1, 1, 0), report.counts().get("assignments"));
         assertEquals(List.of("A1 2026-04-01 2027-04-01 true", "A3 2027-04-01 null true"), assignmentsOf("E1"));
         assertEquals(List.of("A2 2026-04-01 2027-04-01 true"), assignmentsOf("E2"));
-        var doctor = employments.get(employmentStore.findByExternalId("import", "E2").orElseThrow().id());
+        var doctor = employments.get(stored(ExternalId.Kind.EMPLOYMENT, "import", "E2"));
         assertEquals("resignation", doctor.endReason());
-        var nurse = employments.get(employmentStore.findByExternalId("import", "E1").orElseThrow().id());
+        var nurse = employments.get(stored(ExternalId.Kind.EMPLOYMENT, "import", "E1"));
         assertEquals(List.of("ACTIVE", "ON_LEAVE"),
                 nurse.terms().stream().map(t -> t.terms().status().name()).toList());
         assertEquals(List.of("/terms", "/end", "/end", ""), report.writes().stream()
@@ -1083,7 +1102,7 @@ class ImportServiceTest {
                         null, null)));
 
         assertEquals(new Counts(0, 1, 0), report.counts().get("assignments"));
-        String id = assignmentStore.findAssignmentIdByExternalId("import", "A1").orElseThrow();
+        String id = stored(ExternalId.Kind.ASSIGNMENT, "import", "A1");
         assertEquals(List.of("null", "chief"),
                 assignments.get(id).rows().stream().map(r -> String.valueOf(r.jobTitle())).toList());
     }
@@ -1175,7 +1194,7 @@ class ImportServiceTest {
         assertEquals(new Counts(1, 0, 0), report.counts().get("employments"));
         assertEquals(List.of("FUHITO_PERSON", "FUHITO_EMPLOYMENT", "FUHITO_EMPLOYMENT/end"), report.writes().stream()
                 .map(w -> w.resourceType() + (w.path().endsWith("/end") ? "/end" : "")).toList());
-        var stored = employmentStore.findByExternalId("hr", "E9").orElseThrow();
+        var stored = employmentStore.find(stored(ExternalId.Kind.EMPLOYMENT, "hr", "E9")).orElseThrow();
         assertEquals(LocalDate.of(2026, 4, 1), stored.period().to());
         assertEquals("r", stored.endReasonId());
         assertEquals(new Counts(0, 0, 1), service.apply(document).counts().get("employments"));
@@ -1316,9 +1335,56 @@ class ImportServiceTest {
 
         // The second employment row repeats the first one of the same source.
         assertEquals(List.of("employments[1] import.duplicate_row"), errors(report));
-        assertTrue(employmentStore.findByExternalId("hr-2", "E").isPresent());
-        assertTrue(assignmentStore.findAssignmentIdByExternalId("hr-2", "A").isPresent());
-        assertTrue(employmentStore.findByExternalId("import", "E").isEmpty());
+        assertTrue(externalIdStore.idOf(ExternalId.Kind.EMPLOYMENT, "hr-2", "E").isPresent());
+        assertTrue(externalIdStore.idOf(ExternalId.Kind.ASSIGNMENT, "hr-2", "A").isPresent());
+        assertTrue(externalIdStore.idOf(ExternalId.Kind.EMPLOYMENT, "import", "E").isEmpty());
+    }
+
+    @Test
+    void aRowOfAnotherSystemFindsTheRecordByTheIdThatSystemHasForIt() {
+        // The HR system makes the unit, the person, and the employment.
+        ImportReport fromHr = service.apply(new ImportDocument("2026-04-01", false, "hr", null,
+                List.of(unit("H", "Hospital", null)),
+                List.of(new EmploymentRow(null, "E1", null, null, null, null, null, null, null, null, null,
+                        "2020-04-01", null, null, null, "P1", null, null, null)),
+                null, List.of(new PersonRow(null, "P1", null, null, "Hanako", null, null, null, null))));
+        assertEquals(List.of(), errors(fromHr));
+        String unit = stored(ExternalId.Kind.ORG_UNIT, "hr", "H");
+        String person = stored(ExternalId.Kind.PERSON, "hr", "P1");
+        String employment = stored(ExternalId.Kind.EMPLOYMENT, "hr", "E1");
+        // The payroll system has its own IDs for them.
+        assertEquals(List.of(), errors(service.apply(ImportDocument.of("2026-04-01", false, "payroll", "externalIds",
+                List.of(new ExternalIdRow("ORG_UNIT", unit, null, "PAY-H"),
+                        new ExternalIdRow("PERSON", person, null, "PAY-1"),
+                        new ExternalIdRow("EMPLOYMENT", employment, null, "PAY-E1"))))));
+
+        ImportReport fromPayroll = service.apply(new ImportDocument("2026-04-01", false, "payroll", null, null,
+                List.of(new EmploymentRow(null, "PAY-E1", null, null, null, null, null, null, null, null, null,
+                        "2020-04-01", null, null, null, "PAY-1", null, null, null)),
+                List.of(new AssignmentRow(null, "PAY-A1", "PAY-E1", "PAY-H", null, null, null, null, true, null,
+                        null, null, null, null)),
+                List.of(new PersonRow(null, "PAY-1", null, null, "Hanako", null, null, null, null),
+                        new PersonRow(null, "PAY-2", null, null, "Taro", null, null, null, null))));
+
+        assertEquals(List.of(), errors(fromPayroll));
+        assertEquals(new Counts(1, 0, 1), fromPayroll.counts().get("people"));
+        assertEquals(new Counts(0, 0, 1), fromPayroll.counts().get("employments"));
+        assertEquals(new Counts(1, 0, 0), fromPayroll.counts().get("assignments"));
+        // The records of HR keep their source. A new record has the system of its row as its source.
+        assertEquals("hr", personStore.find(person).orElseThrow().source());
+        assertEquals("payroll", personStore.find(stored(ExternalId.Kind.PERSON, "payroll", "PAY-2")).orElseThrow()
+                .source());
+        String assignment = stored(ExternalId.Kind.ASSIGNMENT, "payroll", "PAY-A1");
+        assertEquals(employment, assignmentStore.rows(assignment).getFirst().employmentId());
+        assertEquals(unit, assignmentStore.rows(assignment).getFirst().orgUnitId());
+        assertEquals("payroll", assignmentStore.rows(assignment).getFirst().source());
+        // A row with the ID of the record and an ID of a system names the record only when the system has that ID.
+        assertEquals(List.of("people[0] import.id_mismatch"), errors(service.apply(new ImportDocument("2026-04-01",
+                false, "payroll", null, null, null, null,
+                List.of(new PersonRow(null, "PAY-9", null, null, "Hanako", null, null, null, person))))));
+        assertEquals(new Counts(0, 0, 1), service.apply(new ImportDocument("2026-04-01", false, "payroll", null,
+                null, null, null, List.of(new PersonRow(null, "PAY-1", null, null, "Hanako", null, null, null,
+                        person)))).counts().get("people"));
     }
 
     @Test

@@ -27,17 +27,18 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class PromotionServiceTest {
 
+    private final MemoryExternalIdStore externalIds = new MemoryExternalIdStore();
     private static final Clock CLOCK = Clock.fixed(Instant.parse("2026-06-15T03:00:00Z"), ZoneId.of("Asia/Tokyo"));
 
     private final MemoryAssignmentStore assignmentStore = new MemoryAssignmentStore();
     private final MemoryEmploymentStore employmentStore = new MemoryEmploymentStore();
     private final MemoryOrgUnitStore orgUnitStore = new MemoryOrgUnitStore();
     private final MemoryRefItemStore refItems = new MemoryRefItemStore();
-    private final EmploymentService employments = new EmploymentService(employmentStore, assignmentStore, refItems,
+    private final EmploymentService employments = new EmploymentService(employmentStore, externalIds, assignmentStore, refItems,
             MemoryPersonStore.linked(Set.of("nurse")), new MemoryReportingLineStore(), new MemoryUnitRoleStore(), new AnyEmployer());
-    private final AssignmentService assignments = new AssignmentService(assignmentStore, employmentStore,
+    private final AssignmentService assignments = new AssignmentService(assignmentStore, externalIds, employmentStore,
             orgUnitStore, refItems, new MemoryReportingLineStore());
-    private final OrgUnitService orgUnits = new OrgUnitService(orgUnitStore, assignmentStore, refItems, CLOCK);
+    private final OrgUnitService orgUnits = new OrgUnitService(orgUnitStore, externalIds, assignmentStore, refItems, CLOCK);
     private final PromotionService service = new PromotionService(employments, assignments, assignmentStore);
 
     private String employment;

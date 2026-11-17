@@ -10,14 +10,12 @@ import java.util.Optional;
 import java.util.Set;
 
 import net.exoego.keycloak.fuhito.domain.Checks;
-import net.exoego.keycloak.fuhito.domain.Employment;
+import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
-import net.exoego.keycloak.fuhito.domain.OrgUnit;
 import net.exoego.keycloak.fuhito.domain.UnitRole;
 import net.exoego.keycloak.fuhito.service.ImportDocument.UnitRoleRow;
 import net.exoego.keycloak.fuhito.service.ImportReport.Outcome;
 import net.exoego.keycloak.fuhito.service.ImportReport.Write;
-import net.exoego.keycloak.fuhito.store.OrgUnitStore;
 
 /**
  * The roles over org units of one document. A row is matched by employment, org unit, and role, or by ID.
@@ -28,18 +26,16 @@ final class UnitRoleImport {
     static final String UNIT_ROLES = "unitRoles";
 
     private final UnitRoleService roles;
-    private final ImportService.People people;
-    private final OrgUnitStore orgUnits;
+    private final ExternalIdService externalIds;
     private final LocalDate date;
     private final String defaultSource;
     private final ImportReport report;
     private final Set<String> seen = new HashSet<>();
 
-    UnitRoleImport(UnitRoleService roles, ImportService.People people, OrgUnitStore orgUnits, String effectiveDate,
-            String defaultSource, ImportReport report) {
+    UnitRoleImport(UnitRoleService roles, ExternalIdService externalIds, String effectiveDate, String defaultSource,
+            ImportReport report) {
         this.roles = roles;
-        this.people = people;
-        this.orgUnits = orgUnits;
+        this.externalIds = externalIds;
         this.date = Checks.date("effectiveDate", effectiveDate);
         this.defaultSource = defaultSource;
         this.report = report;
@@ -109,7 +105,7 @@ final class UnitRoleImport {
             return byId.map(view -> view.role().employmentId()).orElseThrow(() -> FuhitoException.invalid(
                     "invalid.required", Map.of("field", "employmentExternalId")));
         }
-        return people.employments().findByExternalId(source, row.employmentExternalId()).map(Employment::id)
+        return externalIds.resourceOf(ExternalId.Kind.EMPLOYMENT, source, row.employmentExternalId())
                 .orElseThrow(() -> FuhitoException.invalid("import.employment_unknown",
                         Map.of("employmentExternalId", row.employmentExternalId())));
     }
@@ -126,7 +122,7 @@ final class UnitRoleImport {
             return byId.map(view -> view.role().orgUnitId()).orElseThrow(() -> FuhitoException.invalid(
                     "invalid.required", Map.of("field", "orgUnitExternalId")));
         }
-        return orgUnits.findUnitByExternalId(source, row.orgUnitExternalId()).map(OrgUnit::id)
+        return externalIds.resourceOf(ExternalId.Kind.ORG_UNIT, source, row.orgUnitExternalId())
                 .orElseThrow(() -> FuhitoException.invalid("import.org_unit_unknown",
                         Map.of("orgUnitExternalId", row.orgUnitExternalId())));
     }

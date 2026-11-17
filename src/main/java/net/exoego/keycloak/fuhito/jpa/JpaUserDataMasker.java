@@ -22,8 +22,8 @@ import net.exoego.keycloak.fuhito.store.UserDataMasker;
 public class JpaUserDataMasker implements UserDataMasker {
 
     // The fields of a stored representation that can identify a person. A leave reason can tell of an illness.
-    private static final Set<String> IDENTIFYING = Set.of("staffNumber", "number", "externalId", "attributes",
-            "name", "names", "phoneticName", "leaveReason");
+    private static final Set<String> IDENTIFYING = Set.of("staffNumber", "number", "externalId", "externalIds",
+            "attributes", "name", "names", "phoneticName", "leaveReason");
     private static final ObjectMapper JSON = new ObjectMapper();
 
     private final EntityManager em;
@@ -63,7 +63,6 @@ public class JpaUserDataMasker implements UserDataMasker {
         for (EmploymentEntity employment : employments) {
             employmentIds.add(employment.id);
             employment.staffNumber = null;
-            employment.externalId = null;
         }
         List<String> assignmentIds = new ArrayList<>();
         if (!employmentIds.isEmpty()) {
@@ -82,7 +81,6 @@ public class JpaUserDataMasker implements UserDataMasker {
                     .setParameter("realmId", realmId).setParameter("ids", ManyIds.of(employmentIds)).getResultList()) {
                 assignmentIds.add(row.assignmentId);
                 row.attributes = new LinkedHashMap<>();
-                row.externalId = null;
             }
         }
         List<String> qualificationIds = new ArrayList<>();
@@ -93,7 +91,6 @@ public class JpaUserDataMasker implements UserDataMasker {
             qualificationIds.add(qualification.id);
             qualification.number = null;
             qualification.attributes = new LinkedHashMap<>();
-            qualification.externalId = null;
         }
         PersonEntity person = Rows.require(em, PersonEntity.class, personId, realmId, found -> found.realmId);
         trail.clearStoredResponses(em, realmId, personId, person.userId);
@@ -102,7 +99,6 @@ public class JpaUserDataMasker implements UserDataMasker {
         person.phoneticName = null;
         person.searchNames = null;
         person.attributes = new LinkedHashMap<>();
-        person.externalId = null;
         List<String> externalIds = new ArrayList<>(removeExternalIds("PERSON", List.of(personId)));
         externalIds.addAll(removeExternalIds("EMPLOYMENT", employmentIds));
         externalIds.addAll(removeExternalIds("ASSIGNMENT", assignmentIds));
@@ -126,7 +122,7 @@ public class JpaUserDataMasker implements UserDataMasker {
         em.flush();
     }
 
-    // The IDs that other systems have for the resources of the person can identify the person too.
+    // The IDs that systems have for the records of the person can identify the person too.
     private List<String> removeExternalIds(String kind, List<String> resourceIds) {
         if (resourceIds.isEmpty()) {
             return List.of();

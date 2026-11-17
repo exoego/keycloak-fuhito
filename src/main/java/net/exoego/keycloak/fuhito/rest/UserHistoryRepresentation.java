@@ -4,6 +4,10 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
+import net.exoego.keycloak.fuhito.domain.ExternalId;
+import net.exoego.keycloak.fuhito.service.AssignmentView;
+import net.exoego.keycloak.fuhito.service.ExternalIdLists;
+import net.exoego.keycloak.fuhito.service.ExternalIdService;
 import net.exoego.keycloak.fuhito.service.UserHistory;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 
@@ -26,9 +30,18 @@ public record UserHistoryRepresentation(
         @Schema(description = "The assignments with their details, oldest first.")
         List<AssignmentRepresentation> assignments) {
 
-    static UserHistoryRepresentation of(UserHistory history, Optional<Instant> maskedAt) {
-        return new UserHistoryRepresentation(history.personId(), history.userId(), maskedAt.map(Instant::toString).orElse(null),
-                history.employments().stream().map(EmploymentRepresentation::of).toList(),
-                history.assignments().stream().map(AssignmentRepresentation::of).toList());
+    // The IDs of every employment and of every assignment are read with one query for each.
+    static UserHistoryRepresentation of(UserHistory history, Optional<Instant> maskedAt,
+            ExternalIdService externalIds) {
+        ExternalIdLists employmentIds = externalIds.lists(ExternalId.Kind.EMPLOYMENT,
+                history.employments().stream().map(view -> view.employment().id()).toList());
+        ExternalIdLists assignmentIds = externalIds.lists(ExternalId.Kind.ASSIGNMENT,
+                history.assignments().stream().map(AssignmentView::assignmentId).toList());
+        return new UserHistoryRepresentation(history.personId(), history.userId(),
+                maskedAt.map(Instant::toString).orElse(null),
+                history.employments().stream().map(view -> EmploymentRepresentation.of(view, employmentIds))
+                        .toList(),
+                history.assignments().stream().map(view -> AssignmentRepresentation.of(view, assignmentIds))
+                        .toList());
     }
 }

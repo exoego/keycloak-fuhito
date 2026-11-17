@@ -13,7 +13,7 @@ Which way a law requires depends on the law, the country, and the reason for kee
 | The name, the names in other languages, and the phonetic name | The person record |
 | The staff number | Employments |
 | The number of a license or certificate | Qualifications |
-| The ID in another system | The external ID of people, employments, assignments, and qualifications, and the IDs that `/external-ids` adds to them |
+| The ID in another system | The IDs that systems have for people, employments, assignments, and qualifications |
 | Why the person was on leave | Employment terms |
 | Free values that the realm defines | The attributes of people, employment terms, assignments, and qualifications |
 | Where and when the person worked, with job title and occupation | Employments, assignments, reporting lines, and roles over org units |
@@ -31,7 +31,7 @@ A person with no Keycloak user has the name only in the person record.
 | Records and their IDs | Stay | Stay | Gone |
 | Org units, job titles, occupations, dates | Stay | Stay | Gone |
 | The names in the person record | Stay | Cleared | Gone, with the person record |
-| Staff number, license numbers, external IDs and the IDs of other systems, leave reasons, free attributes | Stay | Cleared | Gone |
+| Staff number, license numbers, the IDs in other systems, leave reasons, free attributes | Stay | Cleared | Gone |
 | The same fields in the change log | Stay | Cleared | The entries are gone |
 | Can be undone | Yes | No | No |
 | Applications that refer to a record by ID | Find it | Find it | Find nothing |

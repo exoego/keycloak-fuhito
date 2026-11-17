@@ -164,7 +164,7 @@ class OrgUnitsIT {
         assertEquals("X Hospital", hospital.get("names").get("en").asText());
         assertEquals("えっくすびょういん", hospital.get("phoneticName").asText());
         assertEquals(120, hospital.get("attributes").get("beds").asInt());
-        assertEquals("H-1", hospital.get("externalId").asText());
+        assertEquals(List.of("hr=H-1"), Api.externalIds(hospital));
         assertEquals(hospitalId, department.get("parentId").asText());
 
         assertEquals(hospital, Api.json(api.get("/org-units/" + hospitalId + "?asOf=2026-04-01")));

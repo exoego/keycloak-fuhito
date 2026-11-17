@@ -6,6 +6,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import net.exoego.keycloak.fuhito.service.EmploymentView;
+import net.exoego.keycloak.fuhito.service.ExternalIdLists;
 import net.exoego.keycloak.fuhito.service.NewEmployment;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 
@@ -41,10 +42,24 @@ public record EmploymentRepresentation(
         String staffNumber,
         @Schema(description = "The code of the end reason.", readOnly = true)
         String endReason,
-        @Schema(description = "The ID of the employment in the system it came from.")
+        @Schema(
+                description = "The ID of the employment in the system that `source` names. A write stores it as the "
+                        + "ID of that system, in place of the one that the system had. A read gives every ID in "
+                        + "`externalIds`.",
+                maxLength = 255,
+                writeOnly = true)
         String externalId,
-        @Schema(description = "The name of that system.")
+        @Schema(
+                description = "The name of the system that made the employment. A create sets it, and it never "
+                        + "changes. With `externalId`, it names the system of that ID.",
+                maxLength = 64,
+                pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$")
         String source,
+        @Schema(
+                description = "Every ID that a system has for the employment. The one of `source` comes first, then "
+                        + "the others by system.",
+                readOnly = true)
+        List<ExternalIdPairRepresentation> externalIds,
         @Schema(
                 description = "The ID of the employment that this one continues after a transfer to another "
                         + "employer.",
@@ -120,13 +135,15 @@ public record EmploymentRepresentation(
      * Builds the representation of an employment.
      *
      * @param view the employment with its terms
+     * @param ids the IDs that systems have for the employment
      * @return the representation
      */
-    public static EmploymentRepresentation of(EmploymentView view) {
+    public static EmploymentRepresentation of(EmploymentView view, ExternalIdLists ids) {
         var e = view.employment();
         return new EmploymentRepresentation(e.id(), e.personId(), e.userId(), e.employerId(),
                 e.period().from().toString(), text(e.period().to()),
-                e.staffNumber(), view.endReason(), e.externalId(), e.source(), e.continuesEmploymentId(), null, null,
+                e.staffNumber(), view.endReason(), null, e.source(),
+                ExternalIdPairRepresentation.of(ids.of(e.id(), e.source())), e.continuesEmploymentId(), null, null,
                 null, null, null, null, null,
                 view.terms().stream()
                         .map(t -> new Terms(t.terms().period().from().toString(), text(t.terms().period().to()),

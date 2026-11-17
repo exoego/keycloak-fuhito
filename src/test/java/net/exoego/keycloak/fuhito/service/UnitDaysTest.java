@@ -22,6 +22,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  */
 class UnitDaysTest {
 
+    private final MemoryExternalIdStore externalIds = new MemoryExternalIdStore();
     private static final Clock BASE = Clock.fixed(Instant.parse("2026-03-31T16:00:00Z"), ZoneOffset.UTC);
     private static final BusinessDay.Rule TOKYO = BusinessDay.rule("Asia/Tokyo", null);
     private static final LocalDate APRIL_1 = LocalDate.of(2026, 4, 1);
@@ -29,7 +30,7 @@ class UnitDaysTest {
     private static final LocalDate MARCH_30 = LocalDate.of(2026, 3, 30);
 
     private final MemoryOrgUnitStore store = new MemoryOrgUnitStore();
-    private final OrgUnitService orgUnits = new OrgUnitService(store, new MemoryAssignmentStore(),
+    private final OrgUnitService orgUnits = new OrgUnitService(store, externalIds, new MemoryAssignmentStore(),
             new MemoryRefItemStore(), Today.of(BASE));
 
     private String unit(String name, String parentId) {
@@ -146,7 +147,7 @@ class UnitDaysTest {
         orgUnits.setTime(america, "America/New_York", null);
         String opensInApril = orgUnits.create(new NewOrgUnit(null, "New Office", null, null, null, null, null,
                 america, "2026-04-01", null, null, null, null)).unit().id();
-        OrgUnitService reads = new OrgUnitService(store, new MemoryAssignmentStore(), new MemoryRefItemStore(),
+        OrgUnitService reads = new OrgUnitService(store, externalIds, new MemoryAssignmentStore(), new MemoryRefItemStore(),
                 days());
 
         // The new office opens on April 1. America is still on March 31, and the realm is on April 1.

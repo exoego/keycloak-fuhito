@@ -1,5 +1,6 @@
 package net.exoego.keycloak.fuhito.jpa;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -8,7 +9,7 @@ import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.store.ExternalIdStore;
 
 /**
- * Stores the IDs that other systems have for the resources of one realm in the database of Keycloak.
+ * Stores the IDs that systems have for the resources of one realm in the database of Keycloak.
  */
 public class JpaExternalIdStore implements ExternalIdStore {
 
@@ -26,63 +27,29 @@ public class JpaExternalIdStore implements ExternalIdStore {
         this.realmId = realmId;
     }
 
-    // Each kind has its own table. An assignment keeps its pair on its rows, so the first row with one counts.
-    private static String pairQuery(ExternalId.Kind kind) {
+    // Each kind has its own table. The rows of one assignment share its source.
+    private static String originQuery(ExternalId.Kind kind) {
         return switch (kind) {
-            case ORG_UNIT -> """
-                    select x.source, x.externalId from OrgUnitEntity x where x.realmId = :realmId and x.id = :id""";
-            case PERSON -> """
-                    select x.source, x.externalId from PersonEntity x where x.realmId = :realmId and x.id = :id""";
-            case EMPLOYMENT -> """
-                    select x.source, x.externalId from EmploymentEntity x where x.realmId = :realmId and x.id = :id""";
+            case ORG_UNIT -> "select x.source from OrgUnitEntity x where x.realmId = :realmId and x.id = :id";
+            case PERSON -> "select x.source from PersonEntity x where x.realmId = :realmId and x.id = :id";
+            case EMPLOYMENT -> "select x.source from EmploymentEntity x where x.realmId = :realmId and x.id = :id";
             case QUALIFICATION -> """
-                    select x.source, x.externalId from QualificationEntity x
-                    where x.realmId = :realmId and x.id = :id""";
+                    select x.source from QualificationEntity x where x.realmId = :realmId and x.id = :id""";
             case ASSIGNMENT -> """
-                    select x.source, x.externalId from AssignmentEntity x
-                    where x.realmId = :realmId and x.assignmentId = :id
-                    order by case when x.externalId is null then 1 else 0 end, x.validFrom""";
-        };
-    }
-
-    private static String withPairQuery(ExternalId.Kind kind) {
-        return switch (kind) {
-            case ORG_UNIT -> """
-                    select x.id from OrgUnitEntity x where x.realmId = :realmId
-                    and x.source = :source and x.externalId = :externalId""";
-            case PERSON -> """
-                    select x.id from PersonEntity x where x.realmId = :realmId
-                    and x.source = :source and x.externalId = :externalId""";
-            case EMPLOYMENT -> """
-                    select x.id from EmploymentEntity x where x.realmId = :realmId
-                    and x.source = :source and x.externalId = :externalId""";
-            case QUALIFICATION -> """
-                    select x.id from QualificationEntity x where x.realmId = :realmId
-                    and x.source = :source and x.externalId = :externalId""";
-            case ASSIGNMENT -> """
-                    select distinct x.assignmentId from AssignmentEntity x where x.realmId = :realmId
-                    and x.source = :source and x.externalId = :externalId""";
+                    select x.source from AssignmentEntity x where x.realmId = :realmId and x.assignmentId = :id
+                    order by x.validFrom""";
         };
     }
 
     @Override
-    public Optional<ExternalId.Pair> pairOf(ExternalId.Kind kind, String resourceId) {
-        return em.createQuery(pairQuery(kind), Object[].class)
+    public Optional<ExternalId.Origin> originOf(ExternalId.Kind kind, String resourceId) {
+        // The source can be null, which a stream of the results cannot hold.
+        List<String> sources = em.createQuery(originQuery(kind), String.class)
                 .setParameter("realmId", realmId)
                 .setParameter("id", resourceId)
                 .setMaxResults(1)
-                .getResultStream()
-                .findFirst()
-                .map(row -> new ExternalId.Pair((String) row[0], (String) row[1]));
-    }
-
-    @Override
-    public List<String> withPair(ExternalId.Kind kind, String source, String externalId) {
-        return em.createQuery(withPairQuery(kind), String.class)
-                .setParameter("realmId", realmId)
-                .setParameter("source", source)
-                .setParameter("externalId", externalId)
                 .getResultList();
+        return sources.isEmpty() ? Optional.empty() : Optional.of(new ExternalId.Origin(sources.getFirst()));
     }
 
     @Override
@@ -93,6 +60,22 @@ public class JpaExternalIdStore implements ExternalIdStore {
                 .setParameter("realmId", realmId)
                 .setParameter("kind", kind.name())
                 .setParameter("resourceId", resourceId)
+                .getResultStream()
+                .map(JpaExternalIdStore::toDomain)
+                .toList();
+    }
+
+    @Override
+    public List<ExternalId> ofResources(ExternalId.Kind kind, Collection<String> resourceIds) {
+        if (resourceIds.isEmpty()) {
+            return List.of();
+        }
+        return em.createQuery("""
+                        select x from ExternalIdEntity x where x.realmId = :realmId and x.kind = :kind
+                        and %s""".formatted(ManyIds.has("x.resourceId", "ids")), ExternalIdEntity.class)
+                .setParameter("realmId", realmId)
+                .setParameter("kind", kind.name())
+                .setParameter("ids", ManyIds.of(resourceIds))
                 .getResultStream()
                 .map(JpaExternalIdStore::toDomain)
                 .toList();

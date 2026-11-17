@@ -6,6 +6,8 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpRequest.BodyPublishers;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -100,6 +102,13 @@ final class Api {
 
     static JsonNode json(HttpResponse<String> response) throws Exception {
         return MAPPER.readTree(response.body());
+    }
+
+    // The IDs that systems have for a record, as "source=externalId", in the order of the response.
+    static List<String> externalIds(JsonNode record) {
+        List<String> ids = new ArrayList<>();
+        record.get("externalIds").forEach(id -> ids.add(id.get("source").asText() + "=" + id.get("externalId").asText()));
+        return ids;
     }
 
     private HttpResponse<String> send(String method, String path, String json) throws Exception {

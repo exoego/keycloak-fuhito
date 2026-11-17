@@ -11,6 +11,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
+import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.Qualification;
 import net.exoego.keycloak.fuhito.domain.RefItem;
@@ -27,9 +28,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class QualificationServiceTest {
 
+    private final MemoryExternalIdStore externalIds = new MemoryExternalIdStore();
     private final MemoryQualificationStore store = new MemoryQualificationStore();
     private final MemoryRefItemStore refItems = new MemoryRefItemStore();
-    private final QualificationService service = new QualificationService(store, refItems,
+    private final QualificationService service = new QualificationService(store, externalIds, refItems,
             MemoryPersonStore.linked(Set.of("doctor", "nurse")), Set.of("doctor", "nurse")::contains,
             Clock.fixed(Instant.parse("2026-06-15T03:00:00Z"), ZoneId.of("Asia/Tokyo")));
 
@@ -81,7 +83,7 @@ class QualificationServiceTest {
         assertEquals("第12345号", q.number());
         assertEquals(new ValidPeriod(LocalDate.of(2024, 4, 1), LocalDate.of(2027, 1, 1)), q.period());
         assertEquals(Map.of("issuer", "Tokyo"), q.attributes());
-        assertEquals("Q-1", q.externalId());
+        assertEquals(Optional.of(q.id()), externalIds.idOf(ExternalId.Kind.QUALIFICATION, "hr", "Q-1"));
         assertEquals("hr", q.source());
         assertEquals(view, service.get(q.id()));
     }
@@ -113,12 +115,12 @@ class QualificationServiceTest {
     }
 
     @Test
-    void replacesEverythingButTheUserAndTheExternalId() {
+    void replacesEverythingButTheUserAndTheSourceAndAddsTheIdOfAnotherSystem() {
         String id = service.add(new QualificationValues("doctor", "specialist", "A-1", "2018-04-01", "2023-04-01",
                 Map.of("k", "v"), "Q-1", "hr")).qualification().id();
 
         QualificationView changed = service.replace(id, new QualificationValues("nurse", "narcotics-license", null,
-                "2019-04-01", null, null, "other", "other"));
+                "2019-04-01", null, null, "P-7", "payroll"));
 
         Qualification q = changed.qualification();
         assertEquals("doctor", q.userId());
@@ -126,9 +128,16 @@ class QualificationServiceTest {
         assertNull(q.number());
         assertEquals(ValidPeriod.startingAt(LocalDate.of(2019, 4, 1)), q.period());
         assertEquals(Map.of(), q.attributes());
-        assertEquals("Q-1", q.externalId());
         assertEquals("hr", q.source());
+        assertEquals(List.of("hr Q-1", "payroll P-7"), externalIds.ofResource(ExternalId.Kind.QUALIFICATION, id)
+                .stream().map(row -> row.source() + " " + row.externalId()).toList());
         assertEquals(changed, service.get(id));
+        // Another qualification cannot take an ID that names this one.
+        String other = service.add(new QualificationValues("doctor", "specialist", null, "2018-04-01", null, null,
+                null, null)).qualification().id();
+        assertEquals("external_id.taken", assertThrows(FuhitoException.class, () -> service.replace(other,
+                new QualificationValues(null, "specialist", null, "2018-04-01", null, null, "P-7", "payroll")))
+                .code());
     }
 
     @Test
