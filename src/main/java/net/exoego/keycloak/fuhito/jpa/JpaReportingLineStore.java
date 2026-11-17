@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Optional;
 
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.TypedQuery;
 import net.exoego.keycloak.fuhito.domain.DirectReport;
 import net.exoego.keycloak.fuhito.domain.ReportingLine;
 import net.exoego.keycloak.fuhito.domain.ValidPeriod;
@@ -57,48 +58,55 @@ public class JpaReportingLineStore implements ReportingLineStore {
     // The database goes down from the line units that the manager leads. It does not go below an org unit that
     // has a head of its own, nor into a lateral unit. So a read of one page does not load the tree or the people of
     // the whole realm.
-    private static final String REPORTS = """
-            with Down as (
-                select a.orgUnitId as id, 0 as depth, 1 as open
-                from AssignmentEntity a join EmploymentEntity e on e.id = a.employmentId
-                where a.realmId = :realmId and e.personId = :managerId and a.%1$s and %6$s
-                and not exists (select 1 from OrgUnitVersionEntity gv, RefItemEntity g where gv.realmId = :realmId
-                    and gv.orgUnitId = a.orgUnitId and gv.%9$s and g.id = gv.unitTypeId and g.lateralUnit = true)
+    private static String reports(String beforeRows, String afterRows) {
+        return """
+                with Down as (
+                    select a.orgUnitId as id, 0 as depth, 1 as open
+                    from AssignmentEntity a join EmploymentEntity e on e.id = a.employmentId
+                    where a.realmId = :realmId and e.personId = :managerId and a.%1$s and %6$s
+                    and not exists (select 1 from OrgUnitVersionEntity gv, RefItemEntity g where gv.realmId = :realmId
+                        and gv.orgUnitId = a.orgUnitId and gv.%9$s and g.id = gv.unitTypeId and g.lateralUnit = true)
+                    union all
+                    select l.childId as id, d.depth + 1 as depth,
+                        case when exists (select 1 from AssignmentEntity h join EmploymentEntity he
+                                on he.id = h.employmentId
+                            where h.realmId = :realmId and h.orgUnitId = l.childId and he.personId <> :managerId
+                            and h.%2$s and %7$s) then 0 else 1 end as open
+                    from Down d
+                    join OrgUnitLinkEntity l on l.parentId = d.id and l.realmId = :realmId
+                        and l.hierarchyId = :hierarchyId and l.%3$s
+                    join OrgUnitVersionEntity v on v.orgUnitId = l.childId and v.realmId = :realmId and v.%4$s
+                    where d.open = 1 and not exists (select 1 from RefItemEntity g where g.id = v.unitTypeId
+                        and g.lateralUnit = true)
+                ),
+                Units as (select d.id as id, min(d.depth) as depth, max(d.open) as open from Down d group by d.id)%10$s
+                select 0 as derived, 0 as depth, a.orgUnitId as orgUnitId, a.assignmentId as assignmentId,
+                    l.id as lineId, l.kind as kind, e.personId as personId, p.userId as userId
+                from ReportingLineEntity l
+                join AssignmentEntity a on a.assignmentId = l.assignmentId and a.realmId = :realmId and a.%1$s
+                join EmploymentEntity e on e.id = a.employmentId
+                join PersonEntity p on p.id = e.personId
+                where l.realmId = :realmId and l.managerPersonId = :managerId and l.%3$s
                 union all
-                select l.childId as id, d.depth + 1 as depth,
-                    case when exists (select 1 from AssignmentEntity h join EmploymentEntity he
-                            on he.id = h.employmentId
-                        where h.realmId = :realmId and h.orgUnitId = l.childId and he.personId <> :managerId
-                        and h.%2$s and %7$s) then 0 else 1 end as open
-                from Down d
-                join OrgUnitLinkEntity l on l.parentId = d.id and l.realmId = :realmId
-                    and l.hierarchyId = :hierarchyId and l.%3$s
-                join OrgUnitVersionEntity v on v.orgUnitId = l.childId and v.realmId = :realmId and v.%4$s
-                where d.open = 1 and not exists (select 1 from RefItemEntity g where g.id = v.unitTypeId
-                    and g.lateralUnit = true)
-            ),
-            Units as (select d.id as id, min(d.depth) as depth, max(d.open) as open from Down d group by d.id)
-            select 0 as derived, 0 as depth, a.orgUnitId as orgUnitId, a.assignmentId as assignmentId,
-                l.id as lineId, l.kind as kind, e.personId as personId, p.userId as userId
-            from ReportingLineEntity l
-            join AssignmentEntity a on a.assignmentId = l.assignmentId and a.realmId = :realmId and a.%1$s
-            join EmploymentEntity e on e.id = a.employmentId
-            join PersonEntity p on p.id = e.personId
-            where l.realmId = :realmId and l.managerPersonId = :managerId and l.%3$s
-            union all
-            select 1 as derived, d.depth as depth, a.orgUnitId as orgUnitId, a.assignmentId as assignmentId,
-                cast(null as String) as lineId, 'SOLID' as kind, e.personId as personId, p.userId as userId
-            from Units d
-            join AssignmentEntity a on a.orgUnitId = d.id and a.realmId = :realmId and a.%1$s
-            join EmploymentEntity e on e.id = a.employmentId
-            join PersonEntity p on p.id = e.personId
-            where e.personId <> :managerId
-            and ((d.depth = 0 and not %8$s) or (d.depth > 0 and d.open = 1) or (d.depth > 0 and d.open = 0
-                and %8$s))
-            and not exists (select 1 from ReportingLineEntity s where s.realmId = :realmId
-                and s.assignmentId = a.assignmentId and s.kind = 'SOLID' and s.%5$s)
-            order by derived, depth, orgUnitId, assignmentId, lineId""".formatted(onDate("a"), onDate("h"), onDate("l"),
-            onDate("v"), onDate("s"), leads("a"), leads("h"), looksAbove("a"), onDate("gv"));
+                select 1 as derived, d.depth as depth, a.orgUnitId as orgUnitId, a.assignmentId as assignmentId,
+                    cast(null as String) as lineId, 'SOLID' as kind, e.personId as personId, p.userId as userId
+                from Units d
+                join AssignmentEntity a on a.orgUnitId = d.id and a.realmId = :realmId and a.%1$s
+                join EmploymentEntity e on e.id = a.employmentId
+                join PersonEntity p on p.id = e.personId
+                where e.personId <> :managerId
+                and ((d.depth = 0 and not %8$s) or (d.depth > 0 and d.open = 1) or (d.depth > 0 and d.open = 0
+                    and %8$s))
+                and not exists (select 1 from ReportingLineEntity s where s.realmId = :realmId
+                    and s.assignmentId = a.assignmentId and s.kind = 'SOLID' and s.%5$s)%11$s"""
+                .formatted(onDate("a"), onDate("h"), onDate("l"), onDate("v"), onDate("s"), leads("a"), leads("h"),
+                        looksAbove("a"), onDate("gv"), beforeRows, afterRows);
+    }
+
+    private static final String REPORTS = reports("\n", "\norder by derived, depth, orgUnitId, assignmentId, lineId");
+
+    // The count needs the rows of both parts of the union, so they go into one more table of the with clause.
+    private static final String COUNT_REPORTS = reports(",\nReports as (\n", "\n)\nselect count(*) from Reports r");
 
     private final EntityManager em;
     private final String realmId;
@@ -220,11 +228,7 @@ public class JpaReportingLineStore implements ReportingLineStore {
     @Override
     public List<DirectReport> reportsOn(String hierarchyId, String managerPersonId, LocalDate date, int first,
             int max) {
-        return em.createQuery(REPORTS, Object[].class)
-                .setParameter("realmId", realmId)
-                .setParameter("hierarchyId", hierarchyId)
-                .setParameter("managerId", managerPersonId)
-                .setParameter("date", date)
+        return reportsQuery(REPORTS, hierarchyId, managerPersonId, date, Object[].class)
                 .setFirstResult(first)
                 .setMaxResults(max)
                 .getResultStream()
@@ -232,5 +236,19 @@ public class JpaReportingLineStore implements ReportingLineStore {
                         ReportingLine.Kind.valueOf((String) row[5]), ((Number) row[0]).intValue() == 1,
                         (String) row[4], (String) row[3], (String) row[2]))
                 .toList();
+    }
+
+    @Override
+    public long countReportsOn(String hierarchyId, String managerPersonId, LocalDate date) {
+        return reportsQuery(COUNT_REPORTS, hierarchyId, managerPersonId, date, Long.class).getSingleResult();
+    }
+
+    private <T> TypedQuery<T> reportsQuery(String text, String hierarchyId, String managerPersonId, LocalDate date,
+            Class<T> type) {
+        return em.createQuery(text, type)
+                .setParameter("realmId", realmId)
+                .setParameter("hierarchyId", hierarchyId)
+                .setParameter("managerId", managerPersonId)
+                .setParameter("date", date);
     }
 }

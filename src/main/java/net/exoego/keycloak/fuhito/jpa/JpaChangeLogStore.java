@@ -16,6 +16,14 @@ import net.exoego.keycloak.fuhito.store.ChangeLogStore;
  */
 public class JpaChangeLogStore implements ChangeLogStore {
 
+    private static final String OF_CHANGE_ORDER = """
+             from ChangeLogEntity l where l.realmId = :realmId
+            and l.changeOrderId = :changeOrderId""";
+
+    private static final String LIST_OF_CHANGE_ORDER = "select l" + OF_CHANGE_ORDER + " order by l.sequence";
+
+    private static final String COUNT_OF_CHANGE_ORDER = "select count(l)" + OF_CHANGE_ORDER;
+
     private final EntityManager em;
     private final String realmId;
 
@@ -77,16 +85,7 @@ public class JpaChangeLogStore implements ChangeLogStore {
         CriteriaBuilder builder = em.getCriteriaBuilder();
         CriteriaQuery<ChangeLogEntity> query = builder.createQuery(ChangeLogEntity.class);
         Root<ChangeLogEntity> entry = query.from(ChangeLogEntity.class);
-        List<Predicate> where = new ArrayList<>();
-        where.add(builder.equal(entry.get("realmId"), realmId));
-        where.add(builder.gt(entry.get("sequence"), after));
-        if (resourceType != null) {
-            where.add(builder.equal(entry.get("resourceType"), resourceType));
-        }
-        if (resourceId != null) {
-            where.add(builder.equal(entry.get("resourceId"), resourceId));
-        }
-        return em.createQuery(query.select(entry).where(where.toArray(Predicate[]::new))
+        return em.createQuery(query.select(entry).where(where(builder, entry, after, resourceType, resourceId))
                         .orderBy(builder.asc(entry.get("sequence"))))
                 .setFirstResult(first)
                 .setMaxResults(max)
@@ -96,10 +95,32 @@ public class JpaChangeLogStore implements ChangeLogStore {
     }
 
     @Override
+    public long count(String resourceType, String resourceId) {
+        CriteriaBuilder builder = em.getCriteriaBuilder();
+        CriteriaQuery<Long> query = builder.createQuery(Long.class);
+        Root<ChangeLogEntity> entry = query.from(ChangeLogEntity.class);
+        return em.createQuery(query.select(builder.count(entry))
+                        .where(where(builder, entry, 0, resourceType, resourceId)))
+                .getSingleResult();
+    }
+
+    private Predicate[] where(CriteriaBuilder builder, Root<ChangeLogEntity> entry, long after, String resourceType,
+            String resourceId) {
+        List<Predicate> where = new ArrayList<>();
+        where.add(builder.equal(entry.get("realmId"), realmId));
+        where.add(builder.gt(entry.get("sequence"), after));
+        if (resourceType != null) {
+            where.add(builder.equal(entry.get("resourceType"), resourceType));
+        }
+        if (resourceId != null) {
+            where.add(builder.equal(entry.get("resourceId"), resourceId));
+        }
+        return where.toArray(Predicate[]::new);
+    }
+
+    @Override
     public List<ChangeLogEntry> listByChangeOrder(String changeOrderId, int first, int max) {
-        return em.createQuery("""
-                        select l from ChangeLogEntity l where l.realmId = :realmId
-                        and l.changeOrderId = :changeOrderId order by l.sequence""", ChangeLogEntity.class)
+        return em.createQuery(LIST_OF_CHANGE_ORDER, ChangeLogEntity.class)
                 .setParameter("realmId", realmId)
                 .setParameter("changeOrderId", changeOrderId)
                 .setFirstResult(first)
@@ -110,13 +131,16 @@ public class JpaChangeLogStore implements ChangeLogStore {
     }
 
     @Override
-    public boolean existsForChangeOrder(String changeOrderId) {
-        return em.createQuery("""
-                        select count(l) from ChangeLogEntity l where l.realmId = :realmId
-                        and l.changeOrderId = :changeOrderId""", Long.class)
+    public long countByChangeOrder(String changeOrderId) {
+        return em.createQuery(COUNT_OF_CHANGE_ORDER, Long.class)
                 .setParameter("realmId", realmId)
                 .setParameter("changeOrderId", changeOrderId)
-                .getSingleResult() > 0;
+                .getSingleResult();
+    }
+
+    @Override
+    public boolean existsForChangeOrder(String changeOrderId) {
+        return countByChangeOrder(changeOrderId) > 0;
     }
 
     private static ChangeLogEntry toDomain(ChangeLogEntity e) {

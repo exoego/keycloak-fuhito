@@ -79,6 +79,7 @@ class ChangeLogIT {
         assertEquals("fuhito/assignments/" + oldAssignment + "/end", changes.get(1).get("resourcePath").asText());
         assertEquals("2026-04-01", changes.get(1).get("representation").get("validTo").asText());
         assertEquals(1, ok(api.get("/change-orders/" + order + "/changes?first=1&max=1")).size());
+        assertEquals(3, api.count("/change-orders/" + order + "/changes/count"));
     }
 
     @Test
@@ -124,6 +125,10 @@ class ChangeLogIT {
         assertEquals(List.of("UPDATE"),
                 ok(api.get("/change-log?after=" + ofAssignment.get(0).get("sequence").asLong() + "&resourceId=" + oldAssignment))
                         .findValuesAsText("operation"));
+        assertEquals(2, api.count("/change-log/count?resourceId=" + oldAssignment));
+        assertEquals(2, api.count("/change-log/count?resourceType=FUHITO_ASSIGNMENT&resourceId=" + oldAssignment));
+        assertEquals(0, api.count("/change-log/count?resourceType=FUHITO_ORG_UNIT&resourceId=" + oldAssignment));
+        assertEquals(orders.size(), api.count("/change-log/count?resourceType=FUHITO_CHANGE_ORDER"));
     }
 
     @Test
@@ -166,6 +171,7 @@ class ChangeLogIT {
         assertEquals(400, api.post("/org-units?changeOrder=" + scratch, "{\"name\": \" \", \"validFrom\": \"2026-04-01\"}").statusCode());
         assertEquals(409, api.put("/org-units/" + unit + "/end?changeOrder=" + scratch, "{\"validTo\": \"2026-01-01\"}").statusCode());
         assertEquals(0, ok(api.get("/change-orders/" + scratch + "/changes")).size());
+        assertEquals(0, api.count("/change-orders/" + scratch + "/changes/count"));
         // A read ignores the parameter.
         assertEquals(200, api.get("/org-units?changeOrder=no-such-order&asOf=2026-04-01").statusCode());
     }
@@ -182,8 +188,10 @@ class ChangeLogIT {
     @Test
     void rejectsBadReads() throws Exception {
         assertEquals(404, api.get("/change-orders/nope/changes").statusCode());
+        assertEquals(404, api.get("/change-orders/nope/changes/count").statusCode());
         assertEquals(404, otherRealm.api.get("/change-orders/" + order + "/changes").statusCode());
         assertEquals(0, ok(otherRealm.api.get("/change-log?resourceType=FUHITO_ORG_UNIT&resourceId=" + newUnit)).size());
+        assertEquals(0, otherRealm.api.count("/change-log/count?resourceType=FUHITO_ORG_UNIT&resourceId=" + newUnit));
         assertEquals(401, new Api(realm.name, null).get("/change-log?resourceType=x&resourceId=y").statusCode());
     }
 }

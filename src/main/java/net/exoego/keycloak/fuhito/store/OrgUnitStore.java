@@ -112,6 +112,17 @@ public interface OrgUnitStore {
     List<PlacedOrgUnit> treeOn(String hierarchyId, String rootId, Boolean lateral, LocalDate date, int first, int max);
 
     /**
+     * Counts the units that {@link #treeOn} lists on all pages together.
+     *
+     * @param hierarchyId the ID of the hierarchy
+     * @param rootId the ID of the unit to start from
+     * @param lateral true for lateral units only, false for line units only, or null for both
+     * @param date the date
+     * @return the number of units
+     */
+    long countTreeOn(String hierarchyId, String rootId, Boolean lateral, LocalDate date);
+
+    /**
      * Lists a page of the direct children of a unit on a date, in the order of siblings.
      *
      * @param hierarchyId the ID of the hierarchy
@@ -124,6 +135,17 @@ public interface OrgUnitStore {
      */
     List<PlacedOrgUnit> childrenOn(String hierarchyId, String parentId, Boolean lateral, LocalDate date, int first,
             int max);
+
+    /**
+     * Counts the units that {@link #childrenOn} lists on all pages together.
+     *
+     * @param hierarchyId the ID of the hierarchy
+     * @param parentId the ID of the parent
+     * @param lateral true for lateral units only, false for line units only, or null for both
+     * @param date the date
+     * @return the number of children
+     */
+    long countChildrenOn(String hierarchyId, String parentId, Boolean lateral, LocalDate date);
 
     /**
      * The roots that a search of org units keeps.

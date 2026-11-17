@@ -80,6 +80,21 @@ public class ChangeOrdersResource {
     }
 
     @GET
+    @Path("{id}/changes/count")
+    @Operation(
+            operationId = "countChangeOrderChanges",
+            summary = "Counts the writes that `GET /change-orders/{id}/changes` lists.")
+    @APIResponse(responseCode = "200", description = "The number of entries.")
+    @NotFound
+    @ApiErrors
+    public CountRepresentation countChanges(
+            @Parameter(description = "The ID of the resource.")
+            @PathParam("id") String id) {
+        context.requireRead();
+        return Calls.run(context, () -> new CountRepresentation(changeLog.countOfChangeOrder(id)));
+    }
+
+    @GET
     @Operation(
             operationId = "listChangeOrders",
             summary = "Lists the change orders with an effective date in a range, newest effective date first.")
@@ -102,6 +117,23 @@ public class ChangeOrdersResource {
         context.requireRead();
         return Calls.run(context,
                 () -> service.list(from, to, first, max).stream().map(ChangeOrderRepresentation::of).toList());
+    }
+
+    @GET
+    @Path("count")
+    @Operation(
+            operationId = "countChangeOrders",
+            summary = "Counts the change orders that `GET /change-orders` lists with the same filters.")
+    @APIResponse(responseCode = "200", description = "The number of orders on all pages.")
+    @BadRequest
+    @ApiErrors
+    public CountRepresentation count(
+            @Parameter(description = "The first effective date to count.", schema = @Schema(format = "date"))
+            @QueryParam("from") String from,
+            @Parameter(description = "The first effective date not to count.", schema = @Schema(format = "date"))
+            @QueryParam("to") String to) {
+        context.requireRead();
+        return Calls.run(context, () -> new CountRepresentation(service.count(from, to)));
     }
 
     @GET

@@ -157,6 +157,7 @@ class ReportingLinesIT {
         assertEquals("invalid.choice", errorOf(400, api.post("/reporting-lines", line + director + "\", \"kind\": \"THICK\"}")));
         assertEquals("user.not_found", errorOf(404, api.get("/users/nobody/managers")));
         assertEquals("user.not_found", errorOf(404, otherRealm.api.get("/users/" + nurseB + "/reports")));
+        assertEquals("user.not_found", errorOf(404, otherRealm.api.get("/users/" + nurseB + "/reports/count")));
         // The other realm knows neither the manager nor the assignment. The manager is looked up first.
         assertEquals("person.user_unknown", errorOf(400, otherRealm.api.post("/reporting-lines", line + director + "\"}")));
         assertEquals(401, new Api(realm.name, null).post("/reporting-lines", "{}").statusCode());
@@ -317,5 +318,10 @@ class ReportingLinesIT {
                 page.findValuesAsText("assignmentId"));
         String person = Api.json(scratchApi.get("/people?userId=" + users.get("director"))).get(0).get("id").asText();
         assertEquals(1, Api.json(scratchApi.get("/people/" + person + "/reports?max=1&" + on)).size());
+        // The count reads both the stored lines and the derived ones.
+        assertEquals(6, scratchApi.count("/users/" + users.get("director") + "/reports/count?" + on));
+        assertEquals(6, scratchApi.count("/people/" + person + "/reports/count?" + on));
+        assertEquals(2, scratchApi.count("/users/" + users.get("head-nurse") + "/reports/count?" + on));
+        assertEquals(0, scratchApi.count("/users/" + users.get("aide") + "/reports/count?" + on));
     }
 }

@@ -79,11 +79,7 @@ public class QualificationsResource {
                         name = "Link",
                         description = "The URL of the next page, with `rel=\"next\"`. It is there when the page "
                                 + "is full. A full page can be the last one, and the next page is then empty.",
-                        schema = @Schema(type = SchemaType.STRING)),
-                @Header(
-                        name = "X-Total-Count",
-                        description = "The number of entries on all pages. It is there with `count=true`.",
-                        schema = @Schema(type = SchemaType.INTEGER))},
+                        schema = @Schema(type = SchemaType.STRING))},
             content = @Content(mediaType = "application/json",
                     schema = @Schema(type = SchemaType.ARRAY, implementation = QualificationRepresentation.class)))
     @BadRequest
@@ -104,19 +100,33 @@ public class QualificationsResource {
                     schema = @Schema(minimum = "0", maximum = "1000", defaultValue = "100"))
             @QueryParam("max") Integer max,
             @Parameter(description = "The cursor from the `Link` header of the page before.")
-            @QueryParam("after") String after,
-            @Parameter(
-                    description = "True to get the number of entries on all pages in the header `X-Total-Count`.",
-                    schema = @Schema(defaultValue = "false"))
-            @QueryParam("count") boolean count) {
+            @QueryParam("after") String after) {
         context.requireRead();
         return Calls.run(context, () -> {
             Cursor.requireAlone(after, first);
             return Pages.of(context, represent(service.list(kind, asOf, Page.of(first, max), after), externalIds),
                     Page.of(first, max).max(),
-                    qualification -> Cursor.encode(Cursor.QUALIFICATIONS, qualification.id()),
-                    count ? service.count(kind, asOf) : null);
+                    qualification -> Cursor.encode(Cursor.QUALIFICATIONS, qualification.id()));
         });
+    }
+
+    @GET
+    @Path("count")
+    @Operation(
+            operationId = "countQualifications",
+            summary = "Counts the qualifications that `GET /qualifications` lists with the same filters.")
+    @APIResponse(responseCode = "200", description = "The number of qualifications on all pages.")
+    @BadRequest
+    @ApiErrors
+    public CountRepresentation count(
+            @Parameter(description = "The code of a kind of qualification to keep.")
+            @QueryParam("kind") String kind,
+            @Parameter(
+                    description = "A date to keep the qualifications that hold on it. Leave it out for every date.",
+                    schema = @Schema(format = "date"))
+            @QueryParam("asOf") String asOf) {
+        context.requireRead();
+        return Calls.run(context, () -> new CountRepresentation(service.count(kind, asOf)));
     }
 
     @POST

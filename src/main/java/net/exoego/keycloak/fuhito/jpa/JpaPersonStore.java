@@ -8,6 +8,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.TypedQuery;
 import net.exoego.keycloak.fuhito.domain.Person;
 import net.exoego.keycloak.fuhito.store.PersonStore;
 
@@ -49,7 +50,23 @@ public class JpaPersonStore implements PersonStore {
 
     @Override
     public List<Person> search(String text, String staffNumber, String afterId, int first, int max) {
-        StringBuilder query = new StringBuilder("select p from PersonEntity p where p.realmId = :realmId");
+        return searchQuery(text, staffNumber, afterId, false, PersonEntity.class)
+                .setFirstResult(first)
+                .setMaxResults(max)
+                .getResultStream()
+                .map(JpaPersonStore::toDomain)
+                .toList();
+    }
+
+    @Override
+    public long count(String text, String staffNumber) {
+        return searchQuery(text, staffNumber, null, true, Long.class).getSingleResult();
+    }
+
+    private <T> TypedQuery<T> searchQuery(String text, String staffNumber, String afterId, boolean count,
+            Class<T> type) {
+        StringBuilder query = new StringBuilder(count ? "select count(p)" : "select p")
+                .append(" from PersonEntity p where p.realmId = :realmId");
         if (afterId != null) {
             query.append(" and p.id > :afterId");
         }
@@ -66,7 +83,10 @@ public class JpaPersonStore implements PersonStore {
                      and exists (select 1 from EmploymentEntity e where e.realmId = :realmId
                     and e.personId = p.id and e.staffNumber = :staffNumber)""");
         }
-        var typed = em.createQuery(query.append(" order by p.id").toString(), PersonEntity.class)
+        if (!count) {
+            query.append(" order by p.id");
+        }
+        TypedQuery<T> typed = em.createQuery(query.toString(), type)
                 .setParameter("realmId", realmId);
         if (afterId != null) {
             typed.setParameter("afterId", afterId);
@@ -78,11 +98,7 @@ public class JpaPersonStore implements PersonStore {
         if (staffNumber != null) {
             typed.setParameter("staffNumber", staffNumber);
         }
-        return typed.setFirstResult(first)
-                .setMaxResults(max)
-                .getResultStream()
-                .map(JpaPersonStore::toDomain)
-                .toList();
+        return typed;
     }
 
     @Override

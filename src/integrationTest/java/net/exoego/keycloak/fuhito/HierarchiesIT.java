@@ -42,6 +42,7 @@ class HierarchiesIT {
         assertEquals(realmId, KeycloakEnvironment.sql("select id from fuhito_hierarchy where realm_id = '" + realmId
                 + "' and code = 'default'"));
         assertEquals(realmId, Api.json(fresh.api.get("/hierarchies")).get(0).get("id").asText());
+        assertEquals(1, fresh.api.count("/hierarchies/count"));
     }
 
     @Test
@@ -53,6 +54,7 @@ class HierarchiesIT {
         assertEquals(matrix, Api.json(api.get("/hierarchies/" + id)));
         assertEquals(List.of("default", "matrix"), Api.json(api.get("/hierarchies")).findValuesAsText("code"));
         assertEquals(List.of("matrix"), Api.json(api.get("/hierarchies?first=1&max=1")).findValuesAsText("code"));
+        assertEquals(2, api.count("/hierarchies/count"));
 
         JsonNode renamed = Api.json(api.put("/hierarchies/" + id, "{\"name\": \"プロジェクト\"}"));
         assertEquals("プロジェクト", renamed.get("name").asText());

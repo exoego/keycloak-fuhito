@@ -44,6 +44,18 @@ public interface UnitRoleStore {
             int first, int max);
 
     /**
+     * Counts the roles that {@link #holdersOn} lists on all pages together.
+     *
+     * @param hierarchyId the ID of the default hierarchy
+     * @param orgUnitId the ID of the org unit
+     * @param roleId the ID of the role to keep, or null for every role
+     * @param nearest true to keep, for each role, only the holders of the nearest unit
+     * @param date the date
+     * @return the number of roles
+     */
+    long countHoldersOn(String hierarchyId, String orgUnitId, String roleId, boolean nearest, LocalDate date);
+
+    /**
      * Lists a page of the roles of a person on a date, in the order of the start, then the ID.
      *
      * @param personId the ID of the person
@@ -53,6 +65,15 @@ public interface UnitRoleStore {
      * @return the roles of the page
      */
     List<UnitRole> ofPersonOn(String personId, LocalDate date, int first, int max);
+
+    /**
+     * Counts the roles that {@link #ofPersonOn} lists on all pages together.
+     *
+     * @param personId the ID of the person
+     * @param date the date
+     * @return the number of roles
+     */
+    long countOfPersonOn(String personId, LocalDate date);
 
     /**
      * Stores a new role.

@@ -175,17 +175,16 @@ class WorkLocationsIT {
 
         // The filter applies before the page and the count, also when the Link header leads to the next page.
         HttpResponse<String> page = api.get("/org-units/" + office + "/members?" + below
-                + "costCenter=cc-sales&max=2&count=true");
+                + "costCenter=cc-sales&max=2");
         assertEquals(List.of(inTeam, atHome), ok(page).findValuesAsText("assignmentId"));
-        assertEquals("3", page.headers().firstValue("X-Total-Count").orElseThrow());
+        assertEquals(3, api.count("/org-units/" + office + "/members/count?" + below + "costCenter=cc-sales"));
         String link = page.headers().firstValue("Link").orElseThrow();
         String prefix = "/admin/realms/" + realm.name + "/fuhito";
         HttpResponse<String> next = api.get(link.substring(link.indexOf(prefix) + prefix.length(), link.indexOf('>')));
         assertEquals(List.of(ownTokyo), ok(next).findValuesAsText("assignmentId"));
         assertEquals(List.of(ownTokyo), members(office, below + "costCenter=cc-sales&first=2&max=2"));
-        assertEquals("1", api.get("/org-units/" + office + "/members?" + below
-                + "workLocation=home&costCenter=cc-sales&count=true").headers().firstValue("X-Total-Count")
-                .orElseThrow());
+        assertEquals(1, api.count("/org-units/" + office + "/members/count?" + below
+                + "workLocation=home&costCenter=cc-sales"));
 
         // In another hierarchy, the team is below a project. Its values still come from the default hierarchy.
         ok(api.post("/hierarchies", "{\"code\": \"project\", \"name\": \"プロジェクト\"}"));

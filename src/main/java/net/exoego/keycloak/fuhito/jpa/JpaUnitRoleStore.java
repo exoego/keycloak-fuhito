@@ -15,11 +15,13 @@ import net.exoego.keycloak.fuhito.store.UnitRoleStore;
  */
 public class JpaUnitRoleStore implements UnitRoleStore {
 
-    private static final String WITH_PERSON = """
-            select r, e.personId, p.userId from UnitRoleEntity r
+    private static final String FROM_PERSON = """
+             from UnitRoleEntity r
             join EmploymentEntity e on e.id = r.employmentId
             join PersonEntity p on p.id = e.personId
             where r.realmId = :realmId and %s""";
+
+    private static final String WITH_PERSON = "select r, e.personId, p.userId" + FROM_PERSON;
 
     // The database goes up from the unit, so a read does not load the tree.
     private static final String HOLDERS = """
@@ -33,13 +35,13 @@ public class JpaUnitRoleStore implements UnitRoleStore {
                 join OrgUnitLinkEntity l on l.childId = a.id and l.realmId = :realmId
                     and l.hierarchyId = :hierarchyId and l.%1$s
             )
-            select r, e.personId, p.userId from Above a
+            select %%s from Above a
             join UnitRoleEntity r on r.orgUnitId = a.id and r.realmId = :realmId and r.%2$s
             join EmploymentEntity e on e.id = r.employmentId
             join PersonEntity p on p.id = e.personId
             join RefItemEntity k on k.id = r.roleId
-            where (a.depth = 0 or r.includesDescendants = true)%%s%%s
-            order by a.depth, k.code, r.id""".formatted(TreeQuery.onDate("l"), TreeQuery.onDate("r"));
+            where (a.depth = 0 or r.includesDescendants = true)%%s%%s""".formatted(TreeQuery.onDate("l"),
+            TreeQuery.onDate("r"));
 
     // A role is left out when a nearer unit has a holder of the same role over the unit.
     private static final String NEAREST = """
@@ -77,25 +79,52 @@ public class JpaUnitRoleStore implements UnitRoleStore {
     @Override
     public List<UnitRole> holdersOn(String hierarchyId, String orgUnitId, String roleId, boolean nearest,
             LocalDate date, int first, int max) {
-        TypedQuery<Object[]> query = em.createQuery(HOLDERS.formatted(roleId == null ? "" : " and r.roleId = :roleId",
-                        nearest ? NEAREST : ""), Object[].class)
+        return list(holdersQuery(hierarchyId, orgUnitId, roleId, nearest, date, false, Object[].class)
+                .setFirstResult(first).setMaxResults(max));
+    }
+
+    @Override
+    public long countHoldersOn(String hierarchyId, String orgUnitId, String roleId, boolean nearest,
+            LocalDate date) {
+        return holdersQuery(hierarchyId, orgUnitId, roleId, nearest, date, true, Long.class)
+                .setParameter("realmId", realmId)
+                .getSingleResult();
+    }
+
+    private <T> TypedQuery<T> holdersQuery(String hierarchyId, String orgUnitId, String roleId, boolean nearest,
+            LocalDate date, boolean count, Class<T> type) {
+        TypedQuery<T> query = em.createQuery(HOLDERS.formatted(count ? "count(r)" : "r, e.personId, p.userId",
+                        roleId == null ? "" : " and r.roleId = :roleId", nearest ? NEAREST : "")
+                        + (count ? "" : " order by a.depth, k.code, r.id"), type)
                 .setParameter("hierarchyId", hierarchyId)
                 .setParameter("orgUnitId", orgUnitId)
                 .setParameter("date", date);
         if (roleId != null) {
             query.setParameter("roleId", roleId);
         }
-        return list(query.setFirstResult(first).setMaxResults(max));
+        return query;
     }
 
     @Override
     public List<UnitRole> ofPersonOn(String personId, LocalDate date, int first, int max) {
-        return list(em.createQuery(WITH_PERSON.formatted("e.personId = :personId and r.%s order by r.validFrom, r.id"
-                        .formatted(TreeQuery.onDate("r"))), Object[].class)
-                .setParameter("personId", personId)
-                .setParameter("date", date)
+        return list(ofPersonQuery(WITH_PERSON, " order by r.validFrom, r.id", personId, date, Object[].class)
                 .setFirstResult(first)
                 .setMaxResults(max));
+    }
+
+    @Override
+    public long countOfPersonOn(String personId, LocalDate date) {
+        return ofPersonQuery("select count(r)" + FROM_PERSON, "", personId, date, Long.class)
+                .setParameter("realmId", realmId)
+                .getSingleResult();
+    }
+
+    private <T> TypedQuery<T> ofPersonQuery(String select, String order, String personId, LocalDate date,
+            Class<T> type) {
+        return em.createQuery(select.formatted("e.personId = :personId and r." + TreeQuery.onDate("r") + order),
+                        type)
+                .setParameter("personId", personId)
+                .setParameter("date", date);
     }
 
     private List<UnitRole> list(TypedQuery<Object[]> query) {

@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Optional;
 
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.TypedQuery;
 import net.exoego.keycloak.fuhito.domain.RefItem;
 import net.exoego.keycloak.fuhito.store.RefItemStore;
 
@@ -50,18 +51,27 @@ public class JpaRefItemStore implements RefItemStore {
 
     @Override
     public List<RefItem> list(String kind, boolean includeInactive, int first, int max) {
-        return em.createQuery("""
-                        select r from RefItemEntity r where r.realmId = :realmId and r.kind = :kind
-                        and (r.active = true or :includeInactive = true) order by r.displayOrder, r.code""",
-                        RefItemEntity.class)
-                .setParameter("realmId", realmId)
-                .setParameter("kind", kind)
-                .setParameter("includeInactive", includeInactive)
+        return ofKind("select r", " order by r.displayOrder, r.code", kind, includeInactive, RefItemEntity.class)
                 .setFirstResult(first)
                 .setMaxResults(max)
                 .getResultStream()
                 .map(JpaRefItemStore::toDomain)
                 .toList();
+    }
+
+    @Override
+    public long count(String kind, boolean includeInactive) {
+        return ofKind("select count(r)", "", kind, includeInactive, Long.class).getSingleResult();
+    }
+
+    private <T> TypedQuery<T> ofKind(String select, String order, String kind, boolean includeInactive,
+            Class<T> type) {
+        return em.createQuery(select + """
+                         from RefItemEntity r where r.realmId = :realmId and r.kind = :kind
+                        and (r.active = true or :includeInactive = true)""" + order, type)
+                .setParameter("realmId", realmId)
+                .setParameter("kind", kind)
+                .setParameter("includeInactive", includeInactive);
     }
 
     @Override

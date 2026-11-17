@@ -77,6 +77,9 @@ class EffectiveChangesIT {
                 "2031-04-01 FUHITO_ASSIGNMENT " + assignment, "2035-05-01 FUHITO_QUALIFICATION " + qualification),
                 entries(api.get("/effective-changes?from=2030-04-02&to=2040-01-01")));
         assertEquals(List.of(), entries(api.get("/effective-changes?from=2030-04-02&to=2030-05-01")));
+        // The end of one version and the start of the next count once, as in the list.
+        assertEquals(1, api.count("/effective-changes/count?from=2030-10-01&to=2030-10-02"));
+        assertEquals(4, api.count("/effective-changes/count?from=2030-04-02&to=2040-01-01"));
     }
 
     @Test
@@ -84,6 +87,8 @@ class EffectiveChangesIT {
         List<String> all = entries(api.get("/effective-changes?from=2030-01-01&to=2040-01-01"));
 
         assertEquals(8, all.size());
+        assertEquals(8, api.count("/effective-changes/count?from=2030-01-01&to=2040-01-01"));
+        assertEquals(4, api.count("/effective-changes/count?from=2030-04-01"));
         assertEquals(all.subList(3, 5), entries(api.get("/effective-changes?from=2030-01-01&to=2040-01-01&first=3&max=2")));
     }
 
@@ -93,6 +98,8 @@ class EffectiveChangesIT {
         assertEquals(List.of(), entries(TestRealm.withEmployer("effective").api.get("/effective-changes?from=2030-04-01")));
         assertEquals(400, api.get("/effective-changes?from=nope").statusCode());
         assertEquals(400, api.get("/effective-changes?from=2030-04-02&to=2030-04-02").statusCode());
+        assertEquals(400, api.get("/effective-changes/count?from=2030-04-02&to=2030-04-02").statusCode());
+        assertEquals(0, api.count("/effective-changes/count"));
         assertEquals(401, new Api(realm.name, null).get("/effective-changes").statusCode());
     }
 }

@@ -94,6 +94,16 @@ public interface ReportingLineStore {
     List<DirectReport> reportsOn(String hierarchyId, String managerPersonId, LocalDate date, int first, int max);
 
     /**
+     * Counts the entries that {@link #reportsOn} lists on all pages together.
+     *
+     * @param hierarchyId the ID of the hierarchy that says what is below an org unit
+     * @param managerPersonId the ID of the manager
+     * @param date the date
+     * @return the number of entries
+     */
+    long countReportsOn(String hierarchyId, String managerPersonId, LocalDate date);
+
+    /**
      * Ends the reporting lines of an assignment that hold on or after a date.
      * A line that would start on or after the date is removed.
      *

@@ -37,6 +37,15 @@ public interface ChangeOrderStore {
     List<ChangeOrder> list(LocalDate from, LocalDate to, int first, int max);
 
     /**
+     * Counts the change orders that {@link #list} lists on all pages together.
+     *
+     * @param from the first effective date to count, or null for no lower bound
+     * @param to the first effective date not to count, or null for no upper bound
+     * @return the number of orders
+     */
+    long count(LocalDate from, LocalDate to);
+
+    /**
      * Stores a new change order.
      *
      * @param order the order

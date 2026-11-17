@@ -365,7 +365,14 @@ A period includes its `validFrom` date and does not include its `validTo` date.
 Read endpoints take an `asOf` date.
 The default is today, as the realm defines it. See "What today is" below.
 
-A list that grows with the realm is read in pages.
+A list that grows with the realm is read in pages. These lists take `first` and `max`.
+
+- `GET /org-units`, and the children, the subtree, the members, and the role holders of an org unit.
+- `GET /people`, and the reports and the unit roles of a person. The same reads by the ID of a Keycloak user under `/users/{userId}` are paged too.
+- `GET /employments`, `GET /assignments`, `GET /qualifications`, and `GET /unit-roles`.
+- `GET /hierarchies` and `GET /ref-items`.
+- `GET /change-orders`, the writes of a change order, `GET /change-log`, and `GET /effective-changes`.
+
 `first` is the number of entries to skip. `max` is the largest number of entries to return.
 `max` is 100 by default and 1000 at most. A larger value counts as 1000.
 A read with fewer entries than `max` has reached the end.
@@ -381,11 +388,18 @@ A list that has a cursor is better read with it. These are the lists of org unit
 - When the order of a list changes, its format gets a new version. A cursor of the old version gets 400, and the caller starts again from the first page.
 - A request gives `after` or `first`, not both.
 - The cursor of the org units has only the ID of the last unit, for example `org-units.v1__<org unit ID>`. The other values of the order come from that unit on the date of the request. A unit that does not exist on that date gets 400 with `invalid.cursor_unit`.
-These are the lists of org units, children, subtrees, members, people, employments, assignments, qualifications, unit roles, reference items, change orders, the change log, and the effective changes.
 
-The list of org units, the members of an org unit, and the lists of employments, assignments, qualifications, and unit roles take `count=true`. The response then has the header `X-Total-Count` with the number of entries on all pages. It costs one more query, so a caller that only follows the pages leaves it out.
+Each paged list has a count, a read of its own at the path of the list plus `/count`. For example, `GET /org-units/{id}/members/count` counts the members of an org unit.
 
-The lists of one person and the history of one resource are returned whole. The reports of a person are the exception. They are read in pages, because the head of a large org unit has many.
+- It takes the filters of the list, without `first`, `max`, and `after`. It returns the number of entries on all pages, for example `{"count": 123}`.
+- The database counts with the same conditions as the list. A filter with a bad value fails the same way as on the list.
+- It needs the same permission as the list.
+- A caller that only follows the pages does not pay for the count.
+- The count of the change log counts from the first entry. It does not take the sequence number `after`.
+
+The export of a realm, `GET /export/{list}`, is read in pages with `max` and `after`. It has no count, because a backup reads every page to the end.
+
+The history of one resource is returned whole. So are the other lists of one person, such as the assignments, the managers, and the qualifications. The reports of a person are read in pages, because the head of a large org unit has many. So are the unit roles of a person.
 
 `GET /org-units` lists every org unit of a date at any depth, or the ones that match its filters. The filters apply together. The list is not in tree order.
 `GET /org-units?roots=true` lists the org units with no parent, the roots.

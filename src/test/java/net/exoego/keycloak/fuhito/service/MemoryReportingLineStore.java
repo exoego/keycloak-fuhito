@@ -77,6 +77,11 @@ final class MemoryReportingLineStore implements ReportingLineStore {
     }
 
     @Override
+    public long countReportsOn(String hierarchyId, String managerPersonId, LocalDate date) {
+        return reportsOn(hierarchyId, managerPersonId, date, 0, Integer.MAX_VALUE).size();
+    }
+
+    @Override
     public List<DirectReport> reportsOn(String hierarchyId, String managerPersonId, LocalDate date, int first,
             int max) {
         if (assignments == null) {

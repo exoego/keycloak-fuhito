@@ -235,11 +235,7 @@ public class OrgUnitsResource {
                         name = "Link",
                         description = "The URL of the next page, with `rel=\"next\"`. It is there when the page "
                                 + "is full. A full page can be the last one, and the next page is then empty.",
-                        schema = @Schema(type = SchemaType.STRING)),
-                @Header(
-                        name = "X-Total-Count",
-                        description = "The number of units on all pages. It is there with `count=true`.",
-                        schema = @Schema(type = SchemaType.INTEGER))},
+                        schema = @Schema(type = SchemaType.STRING))},
             content = @Content(mediaType = "application/json",
                     schema = @Schema(type = SchemaType.ARRAY, implementation = OrgUnitRepresentation.class)))
     @BadRequest
@@ -283,11 +279,7 @@ public class OrgUnitsResource {
                     schema = @Schema(minimum = "0", maximum = "1000", defaultValue = "100"))
             @QueryParam("max") Integer max,
             @Parameter(description = "The cursor from the `Link` header of the page before.")
-            @QueryParam("after") String after,
-            @Parameter(
-                    description = "True to get the number of units on all pages in the header `X-Total-Count`.",
-                    schema = @Schema(defaultValue = "false"))
-            @QueryParam("count") boolean count) {
+            @QueryParam("after") String after) {
         context.requireReadStructure();
         return Calls.run(context, () -> {
             Cursor.requireAlone(after, first);
@@ -295,9 +287,50 @@ public class OrgUnitsResource {
                     hierarchy, limit.checked(asOf));
             return Pages.of(context, represent(service.list(search, Page.of(first, max), after)),
                     Page.of(first, max).max(),
-                    unit -> Cursor.encode(Cursor.ORG_UNITS, unit.id()),
-                    count ? service.count(search) : null);
+                    unit -> Cursor.encode(Cursor.ORG_UNITS, unit.id()));
         });
+    }
+
+    @GET
+    @Path("count")
+    @Operation(
+            operationId = "countOrgUnits",
+            summary = "Counts the org units that `GET /org-units` lists with the same filters.")
+    @APIResponse(responseCode = "200", description = "The number of units on all pages.")
+    @BadRequest
+    @ApiErrors
+    public CountRepresentation count(
+            @Parameter(
+                    description = "A part of the name, of the short name, or of the phonetic name, in any language, "
+                            + "with no regard to case.")
+            @QueryParam("q") String q,
+            @Parameter(description = "The code of the unit on the date.")
+            @QueryParam("code") String code,
+            @Parameter(description = "The code of the unit type.")
+            @QueryParam("unitType") String unitType,
+            @Parameter(
+                    description = "True for lateral units only, such as committees. False for line units only. "
+                            + "Leave it out for both.")
+            @QueryParam("lateral") Boolean lateral,
+            @Parameter(
+                    description = "True for the units that are legal entities only, such as companies. False for "
+                            + "the other units only. Leave it out for both. A unit is one when its unit type says so.")
+            @QueryParam("legalEntity") Boolean legalEntity,
+            @Parameter(
+                    description = "True for the units with no parent in `hierarchy` only, the roots. In a hierarchy "
+                            + "other than the default one, a root also has a child in it.",
+                    schema = @Schema(defaultValue = "false"))
+            @QueryParam("roots") boolean roots,
+            @Parameter(
+                    description = "The code of the hierarchy of `roots`. The default is the hierarchy `default`.")
+            @QueryParam("hierarchy") String hierarchy,
+            @Parameter(
+                    description = "The date to read. The default is today in the time zone of the realm.",
+                    schema = @Schema(format = "date"))
+            @QueryParam("asOf") String asOf) {
+        context.requireReadStructure();
+        return Calls.run(context, () -> new CountRepresentation(service.count(new OrgUnitService.Search(q, code,
+                unitType, lateral, legalEntity, roots, hierarchy, limit.checked(asOf)))));
     }
 
     @GET
@@ -335,6 +368,34 @@ public class OrgUnitsResource {
     }
 
     @GET
+    @Path("{id}/children/count")
+    @Operation(
+            operationId = "countOrgUnitChildren",
+            summary = "Counts the children that `GET /org-units/{id}/children` lists with the same filters.")
+    @APIResponse(responseCode = "200", description = "The number of children on all pages.")
+    @BadRequest
+    @NotFound
+    @ApiErrors
+    public CountRepresentation countChildren(
+            @Parameter(description = "The ID of the resource.")
+            @PathParam("id") String id,
+            @Parameter(
+                    description = "The date to read. The default is today for the org unit. It is the date of the "
+                            + "realm unless a unit sets its own time zone.",
+                    schema = @Schema(format = "date"))
+            @QueryParam("asOf") String asOf,
+            @Parameter(description = "The code of the hierarchy. The default is the hierarchy `default`.")
+            @QueryParam("hierarchy") String hierarchy,
+            @Parameter(
+                    description = "True for lateral units only, such as committees. False for line units only. "
+                            + "Leave it out for both.")
+            @QueryParam("lateral") Boolean lateral) {
+        context.requireReadStructure();
+        return Calls.run(context, () -> new CountRepresentation(service.countChildren(id, limit.checked(asOf),
+                hierarchy, lateral)));
+    }
+
+    @GET
     @Path("{id}/subtree")
     @Operation(
             operationId = "listOrgUnitSubtree",
@@ -369,6 +430,35 @@ public class OrgUnitsResource {
         context.requireReadStructure();
         return Calls.run(context, () -> represent(service.subtree(id, limit.checked(asOf), hierarchy, lateral,
                 Page.of(first, max))));
+    }
+
+    @GET
+    @Path("{id}/subtree/count")
+    @Operation(
+            operationId = "countOrgUnitSubtree",
+            summary = "Counts the units that `GET /org-units/{id}/subtree` lists with the same filters.",
+            description = "The org unit itself counts too, unless `lateral` leaves it out.")
+    @APIResponse(responseCode = "200", description = "The number of units on all pages.")
+    @BadRequest
+    @NotFound
+    @ApiErrors
+    public CountRepresentation countSubtree(
+            @Parameter(description = "The ID of the resource.")
+            @PathParam("id") String id,
+            @Parameter(
+                    description = "The date to read. The default is today for the org unit. It is the date of the "
+                            + "realm unless a unit sets its own time zone.",
+                    schema = @Schema(format = "date"))
+            @QueryParam("asOf") String asOf,
+            @Parameter(description = "The code of the hierarchy. The default is the hierarchy `default`.")
+            @QueryParam("hierarchy") String hierarchy,
+            @Parameter(
+                    description = "True for lateral units only, such as committees. False for line units only. "
+                            + "Leave it out for both.")
+            @QueryParam("lateral") Boolean lateral) {
+        context.requireReadStructure();
+        return Calls.run(context, () -> new CountRepresentation(service.countSubtree(id, limit.checked(asOf),
+                hierarchy, lateral)));
     }
 
     @GET
@@ -487,11 +577,7 @@ public class OrgUnitsResource {
                         name = "Link",
                         description = "The URL of the next page, with `rel=\"next\"`. It is there when the page "
                                 + "is full. A full page can be the last one, and the next page is then empty.",
-                        schema = @Schema(type = SchemaType.STRING)),
-                @Header(
-                        name = "X-Total-Count",
-                        description = "The number of members on all pages. It is there with `count=true`.",
-                        schema = @Schema(type = SchemaType.INTEGER))},
+                        schema = @Schema(type = SchemaType.STRING))},
             content = @Content(mediaType = "application/json",
                     schema = @Schema(type = SchemaType.ARRAY, implementation = MemberRepresentation.class)))
     @BadRequest
@@ -542,12 +628,7 @@ public class OrgUnitsResource {
             @QueryParam("max") Integer max,
             @Parameter(description = "The cursor from the `Link` header of the page before. It is the name of its format "
                     + "and the values of the last row of that page. It cannot be used with `first`.")
-            @QueryParam("after") String after,
-            @Parameter(
-                    description = "True to get the number of members on all pages in the header `X-Total-Count`. "
-                            + "It costs one more query.",
-                    schema = @Schema(defaultValue = "false"))
-            @QueryParam("count") boolean count) {
+            @QueryParam("after") String after) {
         context.requireRead();
         return Calls.run(context, () -> {
             MemberQuery query = new MemberQuery(asOf, includeDescendants, occupation, jobTitle, status, first, max,
@@ -556,9 +637,58 @@ public class OrgUnitsResource {
                     Page.of(first, max).max(),
                     // The values that the order of the list uses, as MembershipService reads them back.
                     member -> Cursor.encode(Cursor.MEMBERS, member.orgUnitId(),
-                            Integer.toString(member.displayOrder()), member.validFrom(), member.assignmentId()),
-                    count ? membership.countMembers(id, query) : null);
+                            Integer.toString(member.displayOrder()), member.validFrom(), member.assignmentId()));
         });
+    }
+
+    @GET
+    @Path("{id}/members/count")
+    @Operation(
+            operationId = "countOrgUnitMembers",
+            summary = "Counts the members that `GET /org-units/{id}/members` lists with the same filters.")
+    @APIResponse(responseCode = "200", description = "The number of members on all pages.")
+    @BadRequest
+    @NotFound
+    @ApiErrors
+    public CountRepresentation countMembers(
+            @Parameter(description = "The ID of the resource.")
+            @PathParam("id") String id,
+            @Parameter(
+                    description = "The date to read. The default is today for the org unit. It is the date of the "
+                            + "realm unless a unit sets its own time zone.",
+                    schema = @Schema(format = "date"))
+            @QueryParam("asOf") String asOf,
+            @Parameter(description = "The code of the hierarchy. The default is the hierarchy `default`.")
+            @QueryParam("hierarchy") String hierarchy,
+            @Parameter(
+                    description = "True to also count the members of every unit below.",
+                    schema = @Schema(defaultValue = "false"))
+            @QueryParam("includeDescendants") boolean includeDescendants,
+            @Parameter(description = "The code of an occupation to keep.")
+            @QueryParam("occupation") String occupation,
+            @Parameter(description = "The code of a job title to keep.")
+            @QueryParam("jobTitle") String jobTitle,
+            @Parameter(
+                    description = "An employment status to keep.",
+                    schema = @Schema(ref = "EmploymentStatus"))
+            @QueryParam("status") String status,
+            @Parameter(description = "True to keep only the people who work outside the legal entity that employs "
+                    + "them. False to keep everyone else. The default is everyone.")
+            @QueryParam("seconded") Boolean seconded,
+            @Parameter(
+                    description = "The code of a work location to keep. It keeps the members whose work location "
+                            + "that applies on the date is this one. That is the one of the assignment, else the one "
+                            + "of its org unit, else the one of the nearest unit above it in the default hierarchy.")
+            @QueryParam("workLocation") String workLocation,
+            @Parameter(
+                    description = "The code of a cost center to keep. It keeps the members whose cost center that "
+                            + "applies on the date is this one. That is the one of the assignment, else the one of "
+                            + "its org unit, else the one of the nearest unit above it in the default hierarchy.")
+            @QueryParam("costCenter") String costCenter) {
+        context.requireRead();
+        return Calls.run(context, () -> new CountRepresentation(membership.countMembers(id, new MemberQuery(asOf,
+                includeDescendants, occupation, jobTitle, status, null, null, hierarchy, null, seconded,
+                workLocation, costCenter))));
     }
 
     @GET
@@ -621,6 +751,35 @@ public class OrgUnitsResource {
         return Calls.run(context, () -> unitRoles.holders(id, role, nearest, asOf, Page.of(first, max)).stream()
                 .map(UnitRoleRepresentation::of)
                 .toList());
+    }
+
+    @GET
+    @Path("{id}/role-holders/count")
+    @Operation(
+            operationId = "countOrgUnitRoleHolders",
+            summary = "Counts the roles that `GET /org-units/{id}/role-holders` lists with the same filters.",
+            description = "They name people, so the read needs the full read permission.")
+    @APIResponse(responseCode = "200", description = "The number of roles on all pages.")
+    @BadRequest
+    @NotFound
+    @ApiErrors
+    public CountRepresentation countRoleHolders(
+            @Parameter(description = "The ID of the resource.")
+            @PathParam("id") String id,
+            @Parameter(description = "The code of a role to keep.")
+            @QueryParam("role") String role,
+            @Parameter(
+                    description = "True to keep, for each role, only the holders of the nearest unit. A holder of "
+                            + "a unit above is then left out when a nearer unit has a holder of the same role.",
+                    schema = @Schema(defaultValue = "false"))
+            @QueryParam("nearest") boolean nearest,
+            @Parameter(
+                    description = "The date to read. The default is today for the org unit. It is the date of the "
+                            + "realm unless a unit sets its own time zone.",
+                    schema = @Schema(format = "date"))
+            @QueryParam("asOf") String asOf) {
+        context.requireRead();
+        return Calls.run(context, () -> new CountRepresentation(unitRoles.countHolders(id, role, nearest, asOf)));
     }
 
     @GET

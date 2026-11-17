@@ -13,6 +13,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import static net.exoego.keycloak.fuhito.KeycloakEnvironment.KEYCLOAK;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
  * Calls the admin REST API of the extension for one realm with one token.
@@ -53,6 +54,13 @@ final class Api {
 
     HttpResponse<String> post(String path, String json) throws Exception {
         return send("POST", path, json);
+    }
+
+    /** Reads the number of a count read, for example {@code /people/count?q=sato}. */
+    long count(String path) throws Exception {
+        HttpResponse<String> response = get(path);
+        assertEquals(200, response.statusCode(), path + " " + response.body());
+        return json(response).get("count").asLong();
     }
 
     HttpResponse<String> put(String path, String json) throws Exception {

@@ -12,6 +12,12 @@ import net.exoego.keycloak.fuhito.store.HierarchyStore;
  */
 public class JpaHierarchyStore implements HierarchyStore {
 
+    private static final String ALL = " from HierarchyEntity h where h.realmId = :realmId";
+
+    private static final String LIST = "select h" + ALL + " order by h.code";
+
+    private static final String COUNT = "select count(h)" + ALL;
+
     private final EntityManager em;
     private final String realmId;
 
@@ -38,14 +44,20 @@ public class JpaHierarchyStore implements HierarchyStore {
 
     @Override
     public List<Hierarchy> list(int first, int max) {
-        return em.createQuery("select h from HierarchyEntity h where h.realmId = :realmId order by h.code",
-                        HierarchyEntity.class)
+        return em.createQuery(LIST, HierarchyEntity.class)
                 .setParameter("realmId", realmId)
                 .setFirstResult(first)
                 .setMaxResults(max)
                 .getResultStream()
                 .map(JpaHierarchyStore::toDomain)
                 .toList();
+    }
+
+    @Override
+    public long count() {
+        return em.createQuery(COUNT, Long.class)
+                .setParameter("realmId", realmId)
+                .getSingleResult();
     }
 
     @Override

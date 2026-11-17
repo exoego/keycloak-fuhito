@@ -39,9 +39,26 @@ public class EffectiveChangeService {
      * @throws FuhitoException when a date is bad or the range is empty
      */
     public List<EffectiveChange> list(String from, String to, Page page) {
+        ValidPeriod range = range(from, to);
+        return store.list(range.from(), range.to(), page.first(), page.max());
+    }
+
+    /**
+     * Counts the entries that {@link #list} lists on all pages together.
+     *
+     * @param from the first date of the range as {@code YYYY-MM-DD}, or null for today
+     * @param to the first date after the range as {@code YYYY-MM-DD}, or null for the day after {@code from}
+     * @return the number of entries
+     * @throws FuhitoException when a date is bad or the range is empty
+     */
+    public long count(String from, String to) {
+        ValidPeriod range = range(from, to);
+        return store.count(range.from(), range.to());
+    }
+
+    private ValidPeriod range(String from, String to) {
         LocalDate first = from == null ? LocalDate.now(clock) : Checks.date("from", from);
         LocalDate after = to == null ? first.plusDays(1) : Checks.date("to", to);
-        ValidPeriod range = Checks.period(first, after);
-        return store.list(range.from(), range.to(), page.first(), page.max());
+        return Checks.period(first, after);
     }
 }

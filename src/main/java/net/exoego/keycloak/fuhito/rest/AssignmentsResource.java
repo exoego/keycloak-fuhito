@@ -84,11 +84,7 @@ public class AssignmentsResource {
                         name = "Link",
                         description = "The URL of the next page, with `rel=\"next\"`. It is there when the page "
                                 + "is full. A full page can be the last one, and the next page is then empty.",
-                        schema = @Schema(type = SchemaType.STRING)),
-                @Header(
-                        name = "X-Total-Count",
-                        description = "The number of entries on all pages. It is there with `count=true`.",
-                        schema = @Schema(type = SchemaType.INTEGER))},
+                        schema = @Schema(type = SchemaType.STRING))},
             content = @Content(mediaType = "application/json",
                     schema = @Schema(type = SchemaType.ARRAY, implementation = MemberRepresentation.class)))
     @BadRequest
@@ -115,11 +111,7 @@ public class AssignmentsResource {
                     schema = @Schema(minimum = "0", maximum = "1000", defaultValue = "100"))
             @QueryParam("max") Integer max,
             @Parameter(description = "The cursor from the `Link` header of the page before.")
-            @QueryParam("after") String after,
-            @Parameter(
-                    description = "True to get the number of entries on all pages in the header `X-Total-Count`.",
-                    schema = @Schema(defaultValue = "false"))
-            @QueryParam("count") boolean count) {
+            @QueryParam("after") String after) {
         context.requireRead();
         return Calls.run(context, () -> {
             Cursor.requireAlone(after, first);
@@ -127,9 +119,34 @@ public class AssignmentsResource {
                     asOf);
             return Pages.of(context, members.search(search, Page.of(first, max), after).stream()
                             .map(MemberRepresentation::of).toList(), Page.of(first, max).max(),
-                    member -> Cursor.encode(Cursor.ASSIGNMENTS, member.assignmentId()),
-                    count ? members.count(search) : null);
+                    member -> Cursor.encode(Cursor.ASSIGNMENTS, member.assignmentId()));
         });
+    }
+
+    @GET
+    @Path("count")
+    @Operation(
+            operationId = "countAssignments",
+            summary = "Counts the assignments that `GET /assignments` lists with the same filters.")
+    @APIResponse(responseCode = "200", description = "The number of assignments on all pages.")
+    @BadRequest
+    @ApiErrors
+    public CountRepresentation count(
+            @Parameter(description = "The ID of an org unit to keep. The units below do not count.")
+            @QueryParam("orgUnitId") String orgUnitId,
+            @Parameter(description = "The code of a job title to keep.")
+            @QueryParam("jobTitle") String jobTitle,
+            @Parameter(description = "The code of an occupation to keep.")
+            @QueryParam("occupation") String occupation,
+            @Parameter(description = "The code of an assignment kind to keep.")
+            @QueryParam("kind") String kind,
+            @Parameter(
+                    description = "The date to read. The default is today in the time zone of the realm.",
+                    schema = @Schema(format = "date"))
+            @QueryParam("asOf") String asOf) {
+        context.requireRead();
+        return Calls.run(context, () -> new CountRepresentation(members.count(
+                new MembershipService.Search(orgUnitId, jobTitle, occupation, kind, asOf))));
     }
 
     @POST

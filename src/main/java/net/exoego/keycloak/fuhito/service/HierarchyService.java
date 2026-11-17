@@ -38,6 +38,16 @@ public class HierarchyService {
     }
 
     /**
+     * Counts the hierarchies that {@link #list} lists on all pages together.
+     *
+     * @return the number of hierarchies
+     */
+    public long count() {
+        store.defaultId();
+        return store.count();
+    }
+
+    /**
      * Returns a hierarchy.
      *
      * @param id the ID

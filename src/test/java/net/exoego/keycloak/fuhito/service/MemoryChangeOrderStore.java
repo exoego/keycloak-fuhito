@@ -36,6 +36,11 @@ final class MemoryChangeOrderStore implements ChangeOrderStore {
     }
 
     @Override
+    public long count(LocalDate from, LocalDate to) {
+        return list(from, to, 0, Integer.MAX_VALUE).size();
+    }
+
+    @Override
     public void insert(ChangeOrder order) {
         orders.put(order.id(), order);
     }

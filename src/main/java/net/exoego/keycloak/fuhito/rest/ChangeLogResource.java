@@ -3,6 +3,7 @@ package net.exoego.keycloak.fuhito.rest;
 import java.util.List;
 
 import jakarta.ws.rs.GET;
+import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
@@ -68,5 +69,23 @@ public class ChangeLogResource {
         return Calls.run(context, () -> service.list(after, resourceType, resourceId, first, max).stream()
                 .map(ChangeLogRepresentation::of)
                 .toList());
+    }
+
+    @GET
+    @Path("count")
+    @Operation(
+            operationId = "countChangeLog",
+            summary = "Counts the writes that `GET /change-log` lists with the same filters, from the start.")
+    @APIResponse(responseCode = "200", description = "The number of entries.")
+    @ApiErrors
+    public CountRepresentation count(
+            @Parameter(
+                    description = "The type of the resource. Without it, the writes to every type are counted.",
+                    schema = @Schema(examples = {"FUHITO_ORG_UNIT"}))
+            @QueryParam("resourceType") String resourceType,
+            @Parameter(description = "The ID of the resource. Without it, the writes to every resource are counted.")
+            @QueryParam("resourceId") String resourceId) {
+        context.requireRead();
+        return Calls.run(context, () -> new CountRepresentation(service.count(resourceType, resourceId)));
     }
 }

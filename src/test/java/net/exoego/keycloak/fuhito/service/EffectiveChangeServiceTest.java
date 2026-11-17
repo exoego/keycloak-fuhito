@@ -10,6 +10,7 @@ import java.util.List;
 import net.exoego.keycloak.fuhito.domain.EffectiveChange;
 import net.exoego.keycloak.fuhito.domain.EffectiveChange.Kind;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
+import net.exoego.keycloak.fuhito.store.EffectiveChangeStore;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -22,9 +23,18 @@ class EffectiveChangeServiceTest {
 
     private final List<String> asked = new ArrayList<>();
     private final EffectiveChange found = new EffectiveChange(LocalDate.of(2026, 4, 1), Kind.ASSIGNMENT, "a1");
-    private final EffectiveChangeService service = new EffectiveChangeService((from, to, first, max) -> {
-        asked.add(from + " " + to + " " + first + " " + max);
-        return List.of(found);
+    private final EffectiveChangeService service = new EffectiveChangeService(new EffectiveChangeStore() {
+        @Override
+        public List<EffectiveChange> list(LocalDate from, LocalDate to, int first, int max) {
+            asked.add(from + " " + to + " " + first + " " + max);
+            return List.of(found);
+        }
+
+        @Override
+        public long count(LocalDate from, LocalDate to) {
+            asked.add(from + " " + to);
+            return 1;
+        }
     }, CLOCK);
 
     @Test
@@ -40,6 +50,16 @@ class EffectiveChangeServiceTest {
         service.list("2026-06-30", null, Page.of(null, null));
 
         assertEquals(List.of("2026-04-01 2026-05-01 20 10", "2026-06-30 2026-07-01 0 100"), asked);
+    }
+
+    @Test
+    void countsTheSameRangeAsTheList() {
+        assertEquals(1, service.count(null, null));
+        assertEquals(1, service.count("2026-04-01", "2026-05-01"));
+
+        assertEquals(List.of("2026-04-01 2026-04-02", "2026-04-01 2026-05-01"), asked);
+        assertEquals("invalid.period",
+                assertThrows(FuhitoException.class, () -> service.count("2026-04-01", "2026-04-01")).code());
     }
 
     @Test

@@ -215,12 +215,32 @@ public class PersonService {
         Cursor.requireAlone(after, first);
         Page page = Page.of(first, max);
         String afterId = after == null ? null : Cursor.decode(Cursor.PEOPLE, after).getFirst();
-        String search = text == null || text.isBlank() ? null : text.strip();
-        String number = staffNumber == null || staffNumber.isBlank() ? null : staffNumber.strip();
+        String search = stripped(text);
+        String number = stripped(staffNumber);
         List<Person> people = search == null && number == null
                 ? store.list(afterId, page.first(), page.max())
                 : store.search(search, number, afterId, page.first(), page.max());
         return people.stream().map(this::view).toList();
+    }
+
+    /**
+     * Counts the people that {@link #list(String, String, String, Integer, Integer, String)} finds on all pages
+     * together.
+     *
+     * @param userId the ID of a Keycloak user, to count only the person linked to it, or null for everyone
+     * @param text a text that a name of the person or of its Keycloak user has, in any case, or null for any
+     * @param staffNumber a staff number that an employment of the person has, or null for any
+     * @return the number of people
+     */
+    public long count(String userId, String text, String staffNumber) {
+        if (userId != null) {
+            return store.findByUser(userId).isPresent() ? 1 : 0;
+        }
+        return store.count(stripped(text), stripped(staffNumber));
+    }
+
+    private static String stripped(String value) {
+        return value == null || value.isBlank() ? null : value.strip();
     }
 
     private Person checked(String id, PersonValues request, String source) {

@@ -122,6 +122,8 @@ class RefItemsIT {
                 "{\"kind\": \"UNIT_TYPE\", \"code\": \"bad-tag\", \"name\": \"x\", \"names\": {\"ja_JP\": \"x\"}}")));
         assertEquals("invalid.required", errorOf(400, api.get("/ref-items")));
         assertEquals("invalid.kind", errorOf(400, api.get("/ref-items?kind=NOPE")));
+        assertEquals("invalid.required", errorOf(400, api.get("/ref-items/count")));
+        assertEquals("invalid.kind", errorOf(400, api.get("/ref-items/count?kind=NOPE")));
     }
 
     @Test
@@ -172,6 +174,11 @@ class RefItemsIT {
 
         assertFalse(codes(api.get("/ref-items?kind=UNIT_TYPE")).contains("to-update"));
         assertTrue(codes(api.get("/ref-items?kind=UNIT_TYPE&includeInactive=true")).contains("to-update"));
+        long active = api.count("/ref-items/count?kind=UNIT_TYPE");
+        assertEquals(codes(api.get("/ref-items?kind=UNIT_TYPE")).size(), active);
+        assertEquals(codes(api.get("/ref-items?kind=UNIT_TYPE&includeInactive=true")).size(),
+                api.count("/ref-items/count?kind=UNIT_TYPE&includeInactive=true"));
+        assertTrue(api.count("/ref-items/count?kind=UNIT_TYPE&includeInactive=true") > active);
     }
 
     @Test
