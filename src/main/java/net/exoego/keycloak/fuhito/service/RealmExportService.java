@@ -233,12 +233,20 @@ public class RealmExportService {
     private RealmExport.Order order(ChangeOrder o) {
         return new RealmExport.Order(o.id(), o.number(), o.kind(), o.title(), o.note(), text(o.orderDate()),
                 text(o.effectiveDate()), username(o.approverUserId()), username(o.requesterUserId()),
-                o.externalReference(), text(o.createdAt()), text(o.announcedAt()), username(o.announcedByUserId()));
+                o.externalReference(), text(o.createdAt()), text(o.announcedAt()), usernameInRealm(o.announcedByUserId()));
     }
 
     // A user that Keycloak no longer has gives no username. The restored record then has no link.
     private String username(String userId) {
         return userId == null ? null : stores.users().username(userId).orElse(null);
+    }
+
+    // An admin of another realm, such as master, can act in this realm. Some Keycloak versions still find that
+    // admin by ID, but a restore could not find the username here.
+    private String usernameInRealm(String userId) {
+        String username = username(userId);
+        return username != null && stores.users().findIdByUsername(username).filter(userId::equals).isPresent()
+                ? username : null;
     }
 
     private static String from(ValidPeriod period) {
