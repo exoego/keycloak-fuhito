@@ -117,6 +117,12 @@ final class MemoryEmploymentStore implements EmploymentStore {
                 .filter(e -> search.staffNumber() == null || search.staffNumber().equals(e.staffNumber()))
                 .filter(e -> search.employerId() == null || search.employerId().equals(e.employerId()))
                 .filter(e -> search.date() == null || e.period().contains(search.date()))
+                .filter(e -> !search.byContractEnd() || terms.stream()
+                        .filter(t -> t.employmentId().equals(e.id()) && t.period().contains(search.termsDate()))
+                        .map(EmploymentTerms::contractEndDate)
+                        .anyMatch(end -> end != null
+                                && (search.contractEndFrom() == null || !end.isBefore(search.contractEndFrom()))
+                                && (search.contractEndTo() == null || end.isBefore(search.contractEndTo()))))
                 .filter(e -> afterId == null || e.id().compareTo(afterId) > 0)
                 .sorted(Comparator.comparing(Employment::id))
                 .skip(first).limit(max).toList();

@@ -192,6 +192,38 @@ class EmploymentsIT {
     }
 
     @Test
+    void aFixedTermContractHasAnEndThatTheListFiltersBy() throws Exception {
+        TestRealm contracts = TestRealm.withEmployer("employments-contracts");
+        String first = created(contracts.api.post("/employments", "{\"userId\": \"" + contracts.user("aide")
+                + "\", \"validFrom\": \"2025-04-01\", \"contractEndDate\": \"2026-03-31\"}")).get("id").asText();
+        String second = created(contracts.api.post("/employments", "{\"userId\": \"" + contracts.user("clerk")
+                + "\", \"validFrom\": \"2025-04-01\", \"contractEndDate\": \"2026-04-30\"}")).get("id").asText();
+        created(contracts.api.post("/employments", "{\"userId\": \"" + contracts.user("doctor")
+                + "\", \"validFrom\": \"2025-04-01\"}"));
+
+        JsonNode renewed = Api.json(contracts.api.put("/employments/" + first + "/terms",
+                "{\"validFrom\": \"2026-04-01\", \"contractEndDate\": \"2027-03-31\"}"));
+
+        assertFalse(renewed.has("validTo"));
+        assertEquals(List.of("2026-03-31", "2027-03-31"), renewed.get("terms").findValuesAsText("contractEndDate"));
+        assertEquals(List.of(first), Api.json(contracts.api.get("/employments?asOf=2026-03-01"
+                + "&contractEndFrom=2026-03-01&contractEndTo=2026-04-01")).findValuesAsText("id"));
+        assertEquals(List.of(second), Api.json(contracts.api.get("/employments?asOf=2026-03-01"
+                + "&contractEndFrom=2026-04-01")).findValuesAsText("id"));
+        // With no asOf, the terms of today decide. The renewal of the first one holds from 2026.
+        assertEquals(List.of(first), Api.json(contracts.api.get("/employments?contractEndFrom=2027-01-01"
+                + "&contractEndTo=2027-04-01")).findValuesAsText("id"));
+        HttpResponse<String> counted = contracts.api.get("/employments?asOf=2026-03-01&contractEndTo=2027-01-01"
+                + "&max=1&count=true");
+        assertEquals(200, counted.statusCode(), counted.body());
+        assertEquals("2", counted.headers().firstValue("X-Total-Count").orElseThrow());
+        assertEquals("employment.contract_end_before_terms", errorOf(400, contracts.api.put("/employments/"
+                + second + "/terms", "{\"validFrom\": \"2026-06-01\", \"contractEndDate\": \"2026-05-31\"}")));
+        assertEquals("invalid.period", errorOf(400, contracts.api.get("/employments?contractEndFrom=2026-04-01"
+                + "&contractEndTo=2026-04-01")));
+    }
+
+    @Test
     void rejectsBadRequests() throws Exception {
         String user = "\"userId\": \"" + nurse + "\"";
         assertEquals("person.user_unknown", errorOf(400, api.post("/employments",

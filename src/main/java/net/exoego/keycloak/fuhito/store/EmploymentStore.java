@@ -144,8 +144,32 @@ public interface EmploymentStore {
      * @param staffNumber the staff number
      * @param employerId the ID of the org unit that employs
      * @param date a date on which the employment holds
+     * @param termsDate the date of the terms whose contract end is compared
+     * @param contractEndFrom the earliest contract end
+     * @param contractEndTo the first date after the latest contract end
      */
-    record Search(String staffNumber, String employerId, LocalDate date) {
+    record Search(String staffNumber, String employerId, LocalDate date, LocalDate termsDate,
+            LocalDate contractEndFrom, LocalDate contractEndTo) {
+
+        /**
+         * Makes a search that does not look at contracts.
+         *
+         * @param staffNumber the staff number
+         * @param employerId the ID of the org unit that employs
+         * @param date a date on which the employment holds
+         */
+        public Search(String staffNumber, String employerId, LocalDate date) {
+            this(staffNumber, employerId, date, null, null, null);
+        }
+
+        /**
+         * Tells whether the search looks at contracts.
+         *
+         * @return true when it has a bound of the contract end
+         */
+        public boolean byContractEnd() {
+            return contractEndFrom != null || contractEndTo != null;
+        }
     }
 
     /**

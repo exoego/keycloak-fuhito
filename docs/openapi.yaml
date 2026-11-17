@@ -454,6 +454,12 @@ components:
           exclusiveMinimum: 0
           description: The first share of full-time work in percent.
           writeOnly: true
+        contractEndDate:
+          type: string
+          description: The last day of the first fixed-term contract. Leave it out
+            for an indefinite contract.
+          format: date
+          writeOnly: true
         attributes:
           type: object
           additionalProperties: {}
@@ -506,6 +512,12 @@ components:
           maximum: 100
           exclusiveMinimum: 0
           description: The share of full-time work in percent.
+        contractEndDate:
+          type: string
+          description: The last day of the fixed-term contract in force. It is missing
+            for an indefinite contract. A renewal is new terms with a later date.
+            It does not end the employment.
+          format: date
         attributes:
           type: object
           additionalProperties: {}
@@ -682,6 +694,8 @@ components:
           type: string
         workPercent:
           type: number
+        contractEndDate:
+          type: string
         attributes:
           type: object
           additionalProperties: {}
@@ -1313,6 +1327,11 @@ components:
           maximum: 100
           exclusiveMinimum: 0
           description: The share of full-time work in percent.
+        contractEndDate:
+          type: string
+          description: The last day of the fixed-term contract. Leave it out for an
+            indefinite contract.
+          format: date
         attributes:
           type: object
           additionalProperties: {}
@@ -2912,6 +2931,12 @@ components:
           exclusiveMinimum: 0
           description: The share of full-time work in percent.
           writeOnly: true
+        contractEndDate:
+          type: string
+          description: The last day of the fixed-term contract. Leave it out for an
+            indefinite contract.
+          format: date
+          writeOnly: true
         jobTitle:
           type: string
           description: The code of the job title.
@@ -4320,6 +4345,20 @@ paths:
           format: date
         name: asOf
         in: query
+      - description: "The earliest contract end to keep. It is the `contractEndDate`\
+          \ of the terms on `asOf`, or on today in the time zone of the realm when\
+          \ `asOf` is left out."
+        schema:
+          type: string
+          format: date
+        name: contractEndFrom
+        in: query
+      - description: The first date after the latest contract end to keep.
+        schema:
+          type: string
+          format: date
+        name: contractEndTo
+        in: query
       - description: True to get the number of entries on all pages in the header
           `X-Total-Count`.
         schema:
@@ -4669,7 +4708,8 @@ paths:
       summary: Replaces the terms of an employment from the `validFrom` date of the
         body.
       description: "The terms are the employment type, the grade, the status with\
-        \ its leave reason, the work percentage, and the attributes."
+        \ its leave reason, the work percentage, the end of a fixed-term contract,\
+        \ and the attributes."
       operationId: changeEmploymentTerms
       tags:
       - employments

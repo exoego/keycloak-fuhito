@@ -145,6 +145,17 @@ public class JpaEmploymentStore implements EmploymentStore {
         if (search.date() != null) {
             text.append(" and e.validFrom <= :date and (e.validTo is null or e.validTo > :date)");
         }
+        if (search.byContractEnd()) {
+            text.append(" and exists (select t.id from EmploymentTermsEntity t where t.employmentId = e.id")
+                    .append(" and t.validFrom <= :termsDate and (t.validTo is null or t.validTo > :termsDate)");
+            if (search.contractEndFrom() != null) {
+                text.append(" and t.contractEndDate >= :contractEndFrom");
+            }
+            if (search.contractEndTo() != null) {
+                text.append(" and t.contractEndDate < :contractEndTo");
+            }
+            text.append(")");
+        }
         if (afterId != null) {
             text.append(" and e.id > :afterId");
         }
@@ -163,6 +174,15 @@ public class JpaEmploymentStore implements EmploymentStore {
         }
         if (search.date() != null) {
             query.setParameter("date", search.date());
+        }
+        if (search.byContractEnd()) {
+            query.setParameter("termsDate", search.termsDate());
+        }
+        if (search.contractEndFrom() != null) {
+            query.setParameter("contractEndFrom", search.contractEndFrom());
+        }
+        if (search.contractEndTo() != null) {
+            query.setParameter("contractEndTo", search.contractEndTo());
         }
         if (afterId != null) {
             query.setParameter("afterId", afterId);
@@ -300,6 +320,7 @@ public class JpaEmploymentStore implements EmploymentStore {
         entity.status = terms.status().name();
         entity.leaveReasonId = terms.leaveReasonId();
         entity.workPercent = terms.workPercent();
+        entity.contractEndDate = terms.contractEndDate();
         entity.attributes = terms.attributes();
     }
 
@@ -310,6 +331,7 @@ public class JpaEmploymentStore implements EmploymentStore {
 
     static EmploymentTerms toDomain(EmploymentTermsEntity e) {
         return new EmploymentTerms(e.id, e.employmentId, new ValidPeriod(e.validFrom, e.validTo), e.employmentTypeId,
-                e.gradeId, EmploymentStatus.valueOf(e.status), e.leaveReasonId, e.workPercent, e.attributes);
+                e.gradeId, EmploymentStatus.valueOf(e.status), e.leaveReasonId, e.workPercent,
+                e.contractEndDate, e.attributes);
     }
 }

@@ -1,6 +1,7 @@
 package net.exoego.keycloak.fuhito.service;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
@@ -57,7 +58,8 @@ class PromotionServiceTest {
         String committee = orgUnits.create(new NewOrgUnit(null, "Committee", null, null, null, null, null, null,
                 "2026-04-01", null, null, null, null)).unit().id();
         employment = employments.start(new NewEmployment("nurse", "2026-04-01", null, "N-1", "part-time", "g1",
-                "ON_LEAVE", new BigDecimal("50"), Map.of("shift", "night"), null, null)).employment().id();
+                "ON_LEAVE", null, new BigDecimal("50"), "2027-03-31", Map.of("shift", "night"), null, null, null))
+                .employment().id();
         this.ward = assignments.add(new AssignmentValues(employment, ward, "2026-04-01", null, "staff", "nurse",
                 "regular", false, true, null, new BigDecimal("80"), 3, Map.of("desk", "A"), null, null))
                 .assignmentId();
@@ -84,6 +86,7 @@ class PromotionServiceTest {
         assertEquals("part-time", terms.get(1).employmentType());
         assertEquals(EmploymentStatus.ON_LEAVE, terms.get(1).terms().status());
         assertEquals(new BigDecimal("50"), terms.get(1).terms().workPercent());
+        assertEquals(LocalDate.of(2027, 3, 31), terms.get(1).terms().contractEndDate());
         assertEquals(Map.of("shift", "night"), terms.get(1).terms().attributes());
 
         // With no assignment in the request, the primary one gets the job title.

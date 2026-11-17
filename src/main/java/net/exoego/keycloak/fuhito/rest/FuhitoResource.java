@@ -249,7 +249,7 @@ public class FuhitoResource {
         return new EmploymentsResource(context, employmentService(), personService(), assignmentService(),
                 orgUnitService(), new PromotionService(employmentService(), assignmentService(),
                         new JpaAssignmentStore(entityManager, realmId)), new LeaveService(employmentService()),
-                removals());
+                removals(), today());
     }
 
     /**

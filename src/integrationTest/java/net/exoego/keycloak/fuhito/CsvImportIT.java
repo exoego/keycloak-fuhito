@@ -432,7 +432,8 @@ class CsvImportIT {
         String taro = Api.json(api.post("/people", "{\"name\": \"Taro\"}")).get("id").asText();
         String employment = Api.json(api.post("/employments", "{\"personId\": \"" + hanako + "\", \"staffNumber\": "
                 + "\"N-1\", \"grade\": \"g1\", \"status\": \"ON_LEAVE\", \"leaveReason\": \"parental\", "
-                + "\"workPercent\": 80.5, \"attributes\": {\"shift\": \"day, night\"}, \"validFrom\": \"2020-04-01\"}"))
+                + "\"workPercent\": 80.5, \"contractEndDate\": \"2027-03-31\", "
+                + "\"attributes\": {\"shift\": \"day, night\"}, \"validFrom\": \"2020-04-01\"}"))
                 .get("id").asText();
         String ending = Api.json(api.post("/employments", "{\"personId\": \"" + taro + "\", \"externalId\": \"E-1\", "
                 + "\"source\": \"hr\", \"validFrom\": \"2021-04-01\"}")).get("id").asText();
@@ -450,9 +451,9 @@ class CsvImportIT {
             assertTrue(exported.body().startsWith("﻿" + (header.equals("en") ? "id,externalId,source,personId,"
                     + "staffNumber,employerId" : "ID,外部ID,ソース,人のID,職員番号,雇用主のID")), exported.body());
             assertEquals(3, exported.body().split("\r\n").length, exported.body());
-            assertTrue(exported.body().contains(",g1,ON_LEAVE,parental,80.5,2020-04-01,,,,\"day, night\""),
-                    exported.body());
-            assertTrue(exported.body().contains(",ACTIVE,,,2021-04-01,2027-04-01,resignation,"), exported.body());
+            assertTrue(exported.body().contains(",g1,ON_LEAVE,parental,80.5,2027-03-31,2020-04-01,,,,"
+                    + "\"day, night\""), exported.body());
+            assertTrue(exported.body().contains(",ACTIVE,,,,2021-04-01,2027-04-01,resignation,"), exported.body());
 
             JsonNode counts = load(api, "employments", "effectiveDate=2026-05-01", exported.body()).get("counts")
                     .get("employments");

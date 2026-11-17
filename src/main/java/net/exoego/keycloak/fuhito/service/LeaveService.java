@@ -3,6 +3,7 @@ package net.exoego.keycloak.fuhito.service;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.EmploymentStatus;
@@ -99,6 +100,6 @@ public class LeaveService {
             String reason) {
         EmploymentTerms terms = current.terms();
         return new TermsChange(validFrom, current.employmentType(), current.grade(), status.name(), reason,
-                terms.workPercent(), terms.attributes());
+                terms.workPercent(), Objects.toString(terms.contractEndDate(), null), terms.attributes());
     }
 }

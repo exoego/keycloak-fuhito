@@ -261,6 +261,7 @@ Employments.
 | `status` | `状態` |
 | `leaveReason` | `休職理由` |
 | `workPercent` | `勤務割合` |
+| `contractEndDate` | `契約期間満了日` |
 | `validFrom` | `開始日` |
 | `validTo` | `終了日` |
 | `endReason` | `終了理由` |

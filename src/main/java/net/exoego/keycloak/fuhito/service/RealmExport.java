@@ -117,7 +117,8 @@ public record RealmExport(
 
     @Schema(name = "ExportEmploymentTerms")
     public record Terms(String id, String validFrom, String validTo, String employmentTypeId, String gradeId,
-            String status, String leaveReasonId, BigDecimal workPercent, Map<String, Object> attributes) {
+            String status, String leaveReasonId, BigDecimal workPercent, String contractEndDate,
+            Map<String, Object> attributes) {
     }
 
     @Schema(name = "ExportAssignment", description = "An assignment with the rows of every period.")

@@ -133,8 +133,8 @@ class CsvImportServiceTest {
         item(RefKind.EMPLOYMENT_TYPE, "part-time");
         load("orgUnits", "2026-04-01", "外部ID,名称\nH,X病院\nW,1病棟\n");
         load("employments", "2026-04-01", """
-                外部ID,ユーザー名,職員番号,雇用形態,勤務割合,開始日
-                E1,nurse,N-001,part-time,50,2020-04-01
+                外部ID,ユーザー名,職員番号,雇用形態,勤務割合,契約期間満了日,開始日
+                E1,nurse,N-001,part-time,50,2028-03-31,2020-04-01
                 """);
         CsvImportService.Result first = load("assignments", "2026-04-01", """
                 外部ID,雇用の外部ID,組織の外部ID,職種,長,主務,配分割合,表示順
@@ -159,6 +159,7 @@ class CsvImportServiceTest {
         assertEquals("ON_LEAVE", terms.terms().status().name());
         assertEquals("part-time", terms.employmentType());
         assertEquals(0, new BigDecimal("50").compareTo(terms.terms().workPercent()));
+        assertEquals("2028-03-31", terms.terms().contractEndDate().toString());
         var old = assignments.get(assignmentStore.findAssignmentIdByExternalId("import", "A1").orElseThrow());
         assertEquals("2027-04-01", old.period().to().toString());
         assertTrue(old.rows().getFirst().row().head());

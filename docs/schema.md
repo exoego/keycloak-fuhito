@@ -86,6 +86,7 @@ erDiagram
         numeric WORK_PERCENT
         text ATTRIBUTES
         varchar(36) LEAVE_REASON_ID FK
+        date CONTRACT_END_DATE
     }
     FUHITO_HIERARCHY {
         varchar(36) ID PK

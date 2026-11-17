@@ -214,7 +214,7 @@ public class RealmExportService {
                 e.continuesEmploymentId(), terms.getOrDefault(e.id(), List.of()).stream()
                         .map(t -> new RealmExport.Terms(t.id(), from(t.period()), to(t.period()),
                                 t.employmentTypeId(), t.gradeId(), t.status().name(), t.leaveReasonId(),
-                                t.workPercent(), t.attributes()))
+                                t.workPercent(), Objects.toString(t.contractEndDate(), null), t.attributes()))
                         .toList()));
     }
 
@@ -400,7 +400,8 @@ public class RealmExportService {
                     e.continuesEmploymentId()));
             e.terms().forEach(t -> stores.employments().insertTerms(new EmploymentTerms(t.id(), e.id(),
                     period(t.validFrom(), t.validTo()), t.employmentTypeId(), t.gradeId(),
-                    EmploymentStatus.valueOf(t.status()), t.leaveReasonId(), t.workPercent(), t.attributes())));
+                    EmploymentStatus.valueOf(t.status()), t.leaveReasonId(), t.workPercent(),
+                    date(t.contractEndDate()), t.attributes())));
         }
         counts.put("employments", rows.size());
     }

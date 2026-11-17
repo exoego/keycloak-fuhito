@@ -69,6 +69,12 @@ public record EmploymentRepresentation(
                 maximum = "100",
                 writeOnly = true)
         BigDecimal workPercent,
+        @Schema(
+                description = "The last day of the first fixed-term contract. Leave it out for an indefinite "
+                        + "contract.",
+                format = "date",
+                writeOnly = true)
+        String contractEndDate,
         @Schema(description = "The first free values.", writeOnly = true)
         Map<String, Object> attributes,
         @Schema(description = "The terms of each period, oldest first.", readOnly = true)
@@ -100,6 +106,12 @@ public record EmploymentRepresentation(
                     exclusiveMinimum = true,
                     maximum = "100")
             BigDecimal workPercent,
+            @Schema(
+                    description = "The last day of the fixed-term contract in force. It is missing for an "
+                            + "indefinite contract. A renewal is new terms with a later date. It does not end the "
+                            + "employment.",
+                    format = "date")
+            String contractEndDate,
             @Schema(description = "Free values that the realm defines.")
             Map<String, Object> attributes) {
     }
@@ -115,17 +127,18 @@ public record EmploymentRepresentation(
         return new EmploymentRepresentation(e.id(), e.personId(), e.userId(), e.employerId(),
                 e.period().from().toString(), text(e.period().to()),
                 e.staffNumber(), view.endReason(), e.externalId(), e.source(), e.continuesEmploymentId(), null, null,
-                null, null, null, null,
+                null, null, null, null, null,
                 view.terms().stream()
                         .map(t -> new Terms(t.terms().period().from().toString(), text(t.terms().period().to()),
                                 t.employmentType(), t.grade(), t.terms().status().name(), t.leaveReason(),
-                                Numbers.plain(t.terms().workPercent()), t.terms().attributes()))
+                                Numbers.plain(t.terms().workPercent()), text(t.terms().contractEndDate()),
+                                t.terms().attributes()))
                         .toList());
     }
 
     NewEmployment toNewEmployment(String person) {
         return new NewEmployment(person, validFrom, validTo, staffNumber, employmentType, grade, status, leaveReason,
-                workPercent, attributes, externalId, source, employerId);
+                workPercent, contractEndDate, attributes, externalId, source, employerId);
     }
 
     private static String text(Object value) {

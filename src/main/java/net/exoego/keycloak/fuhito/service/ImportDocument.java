@@ -413,6 +413,11 @@ public record ImportDocument(
                     exclusiveMinimum = true,
                     maximum = "100")
             BigDecimal workPercent,
+            @Schema(
+                    description = "The last day of the fixed-term contract. Leave it out for an indefinite "
+                            + "contract.",
+                    format = "date")
+            String contractEndDate,
             @Schema(description = "Free values of the terms.")
             Map<String, Object> attributes,
             @Schema(
@@ -451,10 +456,20 @@ public record ImportDocument(
         public EmploymentRow(String source, String externalId, String username, String userId, String staffNumber,
                 String employmentType, String grade, String status, String leaveReason, BigDecimal workPercent,
                 Map<String, Object> attributes, String validFrom, String validTo, String endReason,
+                String employerExternalId, String personExternalId, String personId, String employerId, String id,
+                String continuesEmploymentExternalId, String continuesEmploymentId) {
+            this(source, externalId, username, userId, staffNumber, employmentType, grade, status, leaveReason,
+                    workPercent, null, attributes, validFrom, validTo, endReason, employerExternalId,
+                    personExternalId, personId, employerId, id, continuesEmploymentExternalId, continuesEmploymentId);
+        }
+
+        public EmploymentRow(String source, String externalId, String username, String userId, String staffNumber,
+                String employmentType, String grade, String status, String leaveReason, BigDecimal workPercent,
+                Map<String, Object> attributes, String validFrom, String validTo, String endReason,
                 String employerExternalId, String personExternalId, String personId, String employerId, String id) {
             this(source, externalId, username, userId, staffNumber, employmentType, grade, status, leaveReason,
-                    workPercent, attributes, validFrom, validTo, endReason, employerExternalId, personExternalId,
-                    personId, employerId, id, null, null);
+                    workPercent, null, attributes, validFrom, validTo, endReason, employerExternalId,
+                    personExternalId, personId, employerId, id, null, null);
         }
 
         /**
@@ -478,7 +493,8 @@ public record ImportDocument(
                 String employmentType, String grade, String status, BigDecimal workPercent,
                 Map<String, Object> attributes, String validFrom, String validTo, String endReason) {
             this(source, externalId, username, userId, staffNumber, employmentType, grade, status, null,
-                    workPercent, attributes, validFrom, validTo, endReason, null, null, null, null, null, null, null);
+                    workPercent, null, attributes, validFrom, validTo, endReason, null, null, null, null, null, null,
+                    null);
         }
     }
 

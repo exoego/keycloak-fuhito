@@ -101,7 +101,8 @@ class RealmExportIT {
         ok(api.post("/reorganizations", "{\"effectiveDate\": \"2023-04-01\", \"steps\": [{\"op\": \"succeed\", "
                 + "\"id\": \"" + old + "\", \"successorIds\": [\"" + ward + "\"]}]}"));
         JsonNode nurse = Api.json(api.post("/staff", "{\"userId\": \"" + ids.get("nurse") + "\", \"orgUnitId\": \""
-                + ward + "\", \"validFrom\": \"2020-04-01\", \"jobTitle\": \"chief\"}"));
+                + ward + "\", \"validFrom\": \"2020-04-01\", \"jobTitle\": \"chief\", \"contractEndDate\": "
+                + "\"2030-03-31\"}"));
         String nurseEmployment = nurse.get("employment").get("id").asText();
         ok(api.post("/employments/" + nurseEmployment + "/leave", "{\"validFrom\": \"2022-04-01\", "
                 + "\"validTo\": \"2023-04-01\", \"reason\": \"parental\"}"));
@@ -124,6 +125,9 @@ class RealmExportIT {
 
         ObjectNode first = export(api);
         assertTrue(first.get("attributeDefinitions").get(0).get("multiple").asBoolean(), first.toString());
+        // The leave keeps the end of the contract, so all three terms of the nurse have it.
+        assertEquals(3, first.get("employments").findValuesAsText("contractEndDate").stream()
+                .filter("2030-03-31"::equals).count(), first.toString());
         assertEquals(2, first.get("orgUnits").get(0).get("versions").size() + first.get("orgUnits").get(1)
                 .get("versions").size() + first.get("orgUnits").get(2).get("versions").size()
                 + first.get("orgUnits").get(3).get("versions").size() - 3);

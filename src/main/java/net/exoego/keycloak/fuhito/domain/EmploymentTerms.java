@@ -1,6 +1,7 @@
 package net.exoego.keycloak.fuhito.domain;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.Map;
 
 /**
@@ -14,11 +15,12 @@ import java.util.Map;
  * @param status whether the person works
  * @param leaveReasonId the ID of the leave reason, or null. Only terms with the status {@code ON_LEAVE} have one.
  * @param workPercent the share of full-time work in percent, or null. 100 is full time.
+ * @param contractEndDate the last day of the fixed-term contract in force, or null for an indefinite contract
  * @param attributes free values that the realm defines
  */
 public record EmploymentTerms(String id, String employmentId, ValidPeriod period, String employmentTypeId,
         String gradeId, EmploymentStatus status, String leaveReasonId, BigDecimal workPercent,
-        Map<String, Object> attributes) {
+        LocalDate contractEndDate, Map<String, Object> attributes) {
 
     /**
      * Returns the same conditions for another period.
@@ -40,6 +42,6 @@ public record EmploymentTerms(String id, String employmentId, ValidPeriod period
      */
     public EmploymentTerms copy(String newId, String newEmploymentId, ValidPeriod newPeriod) {
         return new EmploymentTerms(newId, newEmploymentId, newPeriod, employmentTypeId, gradeId, status, leaveReasonId,
-                workPercent, attributes);
+                workPercent, contractEndDate, attributes);
     }
 }
