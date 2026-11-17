@@ -50,9 +50,10 @@ public class AttributeSyncResource {
     @Operation(
             operationId = "runAttributeSync",
             summary = "Makes the assignments and reporting lines of the sync match the user attributes of now.",
-            description = "Running it again with no change in between changes nothing. The run works in "
-                    + "pieces of users. When it fails in the middle, the pieces before the failure stay, and the "
-                    + "next run does the rest.")
+            description = "Running it again with no change in between changes nothing. A user that the sync "
+                    + "cannot handle is listed in `failed`, and the run goes on with the other users. The run works "
+                    + "in pieces of users. When it stops in the middle, the pieces before stay, and the next run "
+                    + "does the rest.")
     @Parameter(ref = "changeOrder")
     @APIResponse(responseCode = "200", description = "What the run did.")
     @BadRequest

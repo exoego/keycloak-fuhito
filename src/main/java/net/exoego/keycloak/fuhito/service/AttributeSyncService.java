@@ -4,7 +4,6 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -26,6 +25,7 @@ import net.exoego.keycloak.fuhito.domain.RefKind;
 import net.exoego.keycloak.fuhito.domain.ReportingLine;
 import net.exoego.keycloak.fuhito.domain.ValidPeriod;
 import net.exoego.keycloak.fuhito.service.ImportReport.Write;
+import net.exoego.keycloak.fuhito.service.SyncReport.Failed;
 import net.exoego.keycloak.fuhito.service.SyncReport.Unmatched;
 import net.exoego.keycloak.fuhito.store.AssignmentStore;
 import net.exoego.keycloak.fuhito.store.EmploymentStore;
@@ -36,6 +36,7 @@ import net.exoego.keycloak.fuhito.store.UserAttributeSource;
 import net.exoego.keycloak.fuhito.store.UserAttributeSource.Settings;
 import net.exoego.keycloak.fuhito.store.UserAttributeSource.Values;
 import net.exoego.keycloak.fuhito.store.UserDirectory;
+import org.jboss.logging.Logger;
 
 /**
  * Builds one assignment and one solid reporting line for each user from user attributes.
@@ -111,6 +112,28 @@ public class AttributeSyncService {
     private record Plan(Matcher matcher, Map<String, Assignment> owned, List<Values> users) {
     }
 
+    private static final class Tally {
+        private int employmentsStarted;
+        private int assignmentsAdded;
+        private int assignmentsMoved;
+        private int assignmentsChanged;
+        private int assignmentsEnded;
+        private int reportingLinesChanged;
+        private final List<Unmatched> unmatched = new ArrayList<>();
+
+        void add(Tally piece) {
+            employmentsStarted += piece.employmentsStarted;
+            assignmentsAdded += piece.assignmentsAdded;
+            assignmentsMoved += piece.assignmentsMoved;
+            assignmentsChanged += piece.assignmentsChanged;
+            assignmentsEnded += piece.assignmentsEnded;
+            reportingLinesChanged += piece.reportingLinesChanged;
+            unmatched.addAll(piece.unmatched);
+        }
+    }
+
+    private static final Logger LOG = Logger.getLogger(AttributeSyncService.class);
+
     private static final int USERS_AT_A_TIME = 100;
 
     private final Work work;
@@ -118,20 +141,16 @@ public class AttributeSyncService {
     private Sources from;
     private Today today;
     private Consumer<Write> record;
+    private Tally tally;
     // What the users of the piece that runs now need, read for all of them at once.
     private Map<String, List<Employment>> employmentsOfUsers = Map.of();
     private Map<String, List<ReportingLine>> linesOfAssignments = Map.of();
     private Set<String> usersFound = Set.of();
 
-    private final List<Unmatched> unmatched = new ArrayList<>();
+    private final Tally total = new Tally();
+    private final List<Failed> failed = new ArrayList<>();
     private final List<Write> writes = new ArrayList<>();
     private String employerId;
-    private int employmentsStarted;
-    private int assignmentsAdded;
-    private int assignmentsMoved;
-    private int assignmentsChanged;
-    private int assignmentsEnded;
-    private int reportingLinesChanged;
 
     /**
      * Creates the service for one run that works in pieces.
@@ -144,7 +163,7 @@ public class AttributeSyncService {
 
     /**
      * Creates the service for one run in the transaction of the caller.
-     * The report of the run then has the writes.
+     * The report of the run then has the writes. Nothing undoes the writes of a user that fails.
      *
      * @param from what the sync reads and writes
      * @param today what today is for the realm and for each org unit
@@ -171,7 +190,7 @@ public class AttributeSyncService {
     /**
      * Makes the assignments and reporting lines of the sync match the user attributes of now.
      * Every change takes effect today. Running it again with no change in between changes nothing.
-     * The work is done in pieces. When one fails, the pieces before it stay, and the next run goes on.
+     * The work is done in pieces. A user that fails is reported, and the run goes on with the other users.
      *
      * @return what the run did
      * @throws FuhitoException when the realm did not turn the sync on, or another run is going on
@@ -182,39 +201,64 @@ public class AttributeSyncService {
 
     private SyncReport runAlone() {
         Plan plan = piece(this::plan);
-        Set<String> withDepartment = new HashSet<>();
-        for (List<Values> some : inPieces(plan.users())) {
-            piece(() -> {
-                readAhead(some, plan.owned());
-                for (Values user : some) {
-                    withDepartment.add(user.userId());
-                    Optional<String> orgUnitId = plan.matcher().orgUnit(user);
-                    if (orgUnitId.isPresent()) {
-                        // Every change for this user takes effect on the date of the matched org unit.
-                        sync(user, orgUnitId.get(), plan.matcher().jobTitle(user), plan.owned().get(user.userId()),
-                                today.ofUnit(orgUnitId.get()));
+        eachUser(plan.users(), Values::userId, some -> {
+            readAhead(some, plan.owned());
+            for (Values user : some) {
+                Optional<String> orgUnitId = plan.matcher().orgUnit(user);
+                if (orgUnitId.isPresent()) {
+                    // Every change for this user takes effect on the date of the matched org unit.
+                    sync(user, orgUnitId.get(), plan.matcher().jobTitle(user), plan.owned().get(user.userId()),
+                            today.ofUnit(orgUnitId.get()));
+                }
+            }
+        });
+        // A user whose department was removed keeps no assignment from the sync.
+        Set<String> withDepartment = plan.users().stream().map(Values::userId).collect(Collectors.toSet());
+        List<Map.Entry<String, Assignment>> left = plan.owned().entrySet().stream()
+                .filter(entry -> !withDepartment.contains(entry.getKey()))
+                .toList();
+        eachUser(left, Map.Entry::getKey, some -> some.forEach(entry -> {
+            retire(entry.getValue(), today.ofUnit(entry.getValue().orgUnitId()));
+            tally.assignmentsEnded++;
+        }));
+        return new SyncReport(plan.users().size(), total.employmentsStarted, total.assignmentsAdded,
+                total.assignmentsMoved, total.assignmentsChanged, total.assignmentsEnded, total.reportingLinesChanged,
+                List.copyOf(total.unmatched), List.copyOf(failed), List.copyOf(writes));
+    }
+
+    // An error of the database can spoil the transaction of the whole piece. So after a failure, each user of the
+    // piece runs again in a transaction of its own, and only the users that fail there are left out.
+    private <E> void eachUser(List<E> all, Function<E, String> userOf, Consumer<List<E>> body) {
+        for (List<E> some : inPieces(all)) {
+            try {
+                total.add(tallied(some, body));
+            } catch (RuntimeException pieceFailed) {
+                for (E one : some) {
+                    try {
+                        total.add(tallied(List.of(one), body));
+                    } catch (RuntimeException e) {
+                        failed.add(failure(userOf.apply(one), e));
                     }
                 }
-                return null;
-            });
+            }
         }
-        // A user whose department was removed keeps no assignment from the sync.
-        List<Assignment> left = plan.owned().entrySet().stream()
-                .filter(entry -> !withDepartment.contains(entry.getKey()))
-                .map(Map.Entry::getValue)
-                .toList();
-        for (List<Assignment> some : inPieces(left)) {
-            piece(() -> {
-                for (Assignment row : some) {
-                    retire(row, today.ofUnit(row.orgUnitId()));
-                    assignmentsEnded++;
-                }
-                return null;
-            });
+    }
+
+    // The tally of a piece comes back only when its transaction succeeded.
+    private <E> Tally tallied(List<E> some, Consumer<List<E>> body) {
+        return piece(() -> {
+            tally = new Tally();
+            body.accept(some);
+            return tally;
+        });
+    }
+
+    private static Failed failure(String userId, RuntimeException e) {
+        if (e instanceof FuhitoException known) {
+            return new Failed(userId, known.code());
         }
-        return new SyncReport(plan.users().size(), employmentsStarted, assignmentsAdded, assignmentsMoved,
-                assignmentsChanged, assignmentsEnded, reportingLinesChanged, List.copyOf(unmatched),
-                List.copyOf(writes));
+        LOG.errorf(e, "The sync from user attributes failed for the user with the ID %s.", userId);
+        return new Failed(userId, "internal");
     }
 
     private Plan plan() {
@@ -293,11 +337,11 @@ public class AttributeSyncService {
         String assignmentId;
         if (current == null) {
             assignmentId = add(employmentId, orgUnitId, jobTitle, today);
-            assignmentsAdded++;
+            tally.assignmentsAdded++;
         } else if (!current.orgUnitId().equals(orgUnitId) || !current.employmentId().equals(employmentId)) {
             retire(current, today);
             assignmentId = add(employmentId, orgUnitId, jobTitle, today);
-            assignmentsMoved++;
+            tally.assignmentsMoved++;
         } else {
             assignmentId = current.assignmentId();
             today = later(today, current.period().from());
@@ -307,7 +351,7 @@ public class AttributeSyncService {
                         codeOf(current.workLocationId()), codeOf(current.costCenterId()), current.head(),
                         current.primary(), false, current.allocationPercent(), current.displayOrder(),
                         current.attributes(), null, null)), false, "/details");
-                assignmentsChanged++;
+                tally.assignmentsChanged++;
             }
         }
         syncManager(user, assignmentId, today);
@@ -337,7 +381,7 @@ public class AttributeSyncService {
             // A staff number with a bad form, or one that another user has, must not stop the user.
             started = start(personId, null, today);
         }
-        employmentsStarted++;
+        tally.employmentsStarted++;
         record.accept(new Write.OfEmployment(true, "", started));
         return started.employment();
     }
@@ -387,7 +431,7 @@ public class AttributeSyncService {
     private void syncManager(Values user, String assignmentId, LocalDate today) {
         String wanted = user.managerUserId();
         if (wanted != null && (wanted.equals(user.userId()) || !exists(wanted))) {
-            unmatched.add(new Unmatched(user.userId(), "manager", wanted, "unknown"));
+            tally.unmatched.add(new Unmatched(user.userId(), "manager", wanted, "unknown"));
             wanted = null;
         }
         // A new assignment has no lines, and the read ahead has none for it.
@@ -411,7 +455,7 @@ public class AttributeSyncService {
             record.accept(new Write.OfReportingLine(true, "",
                     from.lineService().add(assignmentId, managerPersonId, "SOLID", today.toString(), null)));
         }
-        reportingLinesChanged++;
+        tally.reportingLinesChanged++;
     }
 
     // A user of a user storage provider is not in the tables of Keycloak, so the API looks for one that is missing.
@@ -460,7 +504,7 @@ public class AttributeSyncService {
             if (byName.size() == 1) {
                 return Optional.of(byName.getFirst());
             }
-            unmatched.add(new Unmatched(user.userId(), "department", department,
+            tally.unmatched.add(new Unmatched(user.userId(), "department", department,
                     byName.isEmpty() ? "unknown" : "ambiguous"));
             return Optional.empty();
         }
@@ -471,7 +515,7 @@ public class AttributeSyncService {
             }
             String code = Optional.ofNullable(titleByCode.get(user.title())).orElse(titleByName.get(user.title()));
             if (code == null) {
-                unmatched.add(new Unmatched(user.userId(), "title", user.title(), "unknown"));
+                tally.unmatched.add(new Unmatched(user.userId(), "title", user.title(), "unknown"));
             }
             return code;
         }

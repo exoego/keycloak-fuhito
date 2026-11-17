@@ -12,6 +12,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import net.exoego.keycloak.fuhito.domain.Assignment;
@@ -24,6 +26,7 @@ import net.exoego.keycloak.fuhito.domain.RefItem;
 import net.exoego.keycloak.fuhito.domain.RefKind;
 import net.exoego.keycloak.fuhito.domain.ValidPeriod;
 import net.exoego.keycloak.fuhito.domain.ReportingLine;
+import net.exoego.keycloak.fuhito.service.SyncReport.Failed;
 import net.exoego.keycloak.fuhito.service.SyncReport.Unmatched;
 import net.exoego.keycloak.fuhito.store.UserAttributeSource;
 import org.junit.jupiter.api.BeforeEach;
@@ -133,7 +136,7 @@ class AttributeSyncServiceTest {
         List<Integer> writesOfPieces = new ArrayList<>();
         AttributeSyncService.Work work = new AttributeSyncService.Work() {
             @Override
-            public <T> T inNewTransaction(java.util.function.Function<AttributeSyncService.Parts, T> piece) {
+            public <T> T inNewTransaction(Function<AttributeSyncService.Parts, T> piece) {
                 List<ImportReport.Write> writes = new ArrayList<>();
                 T result = piece.apply(new AttributeSyncService.Parts(sources(), today(), writes::add));
                 writesOfPieces.add(writes.size());
@@ -158,6 +161,94 @@ class AttributeSyncServiceTest {
 
     private void nextDay() {
         clock = Clock.offset(clock, Duration.ofDays(1));
+    }
+
+    // Runs each piece as a database would run a transaction. A piece that fails leaves no write behind.
+    private final class Transactions implements AttributeSyncService.Work {
+
+        private int count;
+        private Predicate<ImportReport.Write> rejected = write -> false;
+
+        @Override
+        public <T> T inNewTransaction(Function<AttributeSyncService.Parts, T> piece) {
+            count++;
+            Map<String, Employment> employments = new LinkedHashMap<>(employmentStore.employments);
+            List<Assignment> rows = List.copyOf(assignmentStore.rows);
+            List<ReportingLine> lines = List.copyOf(lineStore.lines);
+            try {
+                return piece.apply(new AttributeSyncService.Parts(sources(), today(), write -> {
+                    if (rejected.test(write)) {
+                        throw new IllegalStateException("The database rejected the write.");
+                    }
+                }));
+            } catch (RuntimeException e) {
+                employmentStore.employments.clear();
+                employmentStore.employments.putAll(employments);
+                assignmentStore.rows.clear();
+                assignmentStore.rows.addAll(rows);
+                lineStore.lines.clear();
+                lineStore.lines.addAll(lines);
+                throw e;
+            }
+        }
+    }
+
+    @Test
+    void aUserThatFailsStopsNoOtherUserOfThePiece() {
+        set("alice", "med", null, null, null);
+        set("bob", "med", null, null, null);
+        set("carol", "med", null, null, null);
+        run();
+        String ofBob = assignmentStore.rowsOfEmployment(employmentStore.findByUser("bob").getFirst().id())
+                .getFirst().assignmentId();
+        // Someone plans a new title for bob from July. The sync cannot end the assignment before that change.
+        assignments().changeDetails(ofBob, new AssignmentValues(null, null, "2026-07-01", null, "director", null,
+                null, null, true, false, null, null, null, null, null));
+        List<String> bobBefore = assignmentsOf("bob");
+        nextDay();
+        set("alice", "Surgery", null, null, null);
+        set("bob", "Surgery", null, null, null);
+        set("carol", "Surgery", null, null, null);
+        Transactions work = new Transactions();
+
+        SyncReport report = new AttributeSyncService(work).run();
+
+        assertEquals(List.of(new Failed("bob", "assignment.later_changes_exist")), report.failed());
+        assertEquals(2, report.assignmentsMoved());
+        for (String user : List.of("alice", "carol")) {
+            assertEquals(List.of("Internal Medicine 2026-06-15 2026-06-16 - primary",
+                    "Surgery 2026-06-16 null - primary"), assignmentsOf(user));
+        }
+        assertEquals(bobBefore, assignmentsOf("bob"));
+        // The plan, the piece that failed, and then each user of that piece alone.
+        assertEquals(5, work.count);
+    }
+
+    @Test
+    void anErrorOfTheDatabaseUndoesTheUserAndTheNextRunTriesThemAgain() {
+        set("alice", "med", null, null, null);
+        set("bob", "med", null, null, null);
+        set("carol", "med", null, null, null);
+        run();
+        nextDay();
+        attributes.clear();
+        Transactions work = new Transactions();
+        work.rejected = write -> write instanceof ImportReport.Write.OfAssignment ended
+                && "bob".equals(ended.state().userId());
+
+        SyncReport report = new AttributeSyncService(work).run();
+
+        assertEquals(List.of(new Failed("bob", "internal")), report.failed());
+        assertEquals(2, report.assignmentsEnded());
+        assertEquals(List.of("Internal Medicine 2026-06-15 2026-06-16 - primary"), assignmentsOf("alice"));
+        assertEquals(List.of("Internal Medicine 2026-06-15 null - primary"), assignmentsOf("bob"));
+
+        work.rejected = write -> false;
+        SyncReport again = new AttributeSyncService(work).run();
+
+        assertEquals(List.of(), again.failed());
+        assertEquals(1, again.assignmentsEnded());
+        assertEquals(List.of("Internal Medicine 2026-06-15 2026-06-16 - primary"), assignmentsOf("bob"));
     }
 
     private List<String> assignmentsOf(String userId) {
@@ -284,7 +375,7 @@ class AttributeSyncServiceTest {
 
         SyncReport again = run();
 
-        assertEquals(new SyncReport(2, 0, 0, 0, 0, 0, 0, List.of(), List.of()), again);
+        assertEquals(new SyncReport(2, 0, 0, 0, 0, 0, 0, List.of(), List.of(), List.of()), again);
     }
 
     @Test
@@ -486,7 +577,7 @@ class AttributeSyncServiceTest {
         assertEquals(List.of("Surgery 2026-06-15 null staff primary"), assignmentsOf("alice"));
         assertEquals(List.of("boss 2026-06-15 null"), managersOf("alice"));
         assertEquals(LocalDate.of(2026, 6, 15), employmentStore.findByUser("alice").getFirst().period().from());
-        assertEquals(new SyncReport(2, 0, 0, 0, 0, 0, 0, List.of(), List.of()), run());
+        assertEquals(new SyncReport(2, 0, 0, 0, 0, 0, 0, List.of(), List.of(), List.of()), run());
     }
 
     @Test
@@ -507,7 +598,7 @@ class AttributeSyncServiceTest {
         assertEquals(List.of("Internal Medicine 2026-06-15 null staff primary"), assignmentsOf("alice"));
         assertEquals(List.of("Internal Medicine 2026-06-14 2026-06-15 - primary", "Surgery 2026-06-15 null - primary"),
                 assignmentsOf("bob"));
-        assertEquals(new SyncReport(2, 0, 0, 0, 0, 0, 0, List.of(), List.of()), run());
+        assertEquals(new SyncReport(2, 0, 0, 0, 0, 0, 0, List.of(), List.of(), List.of()), run());
 
         set("alice", "med", "director", null, null);
         assertEquals(1, run().assignmentsChanged());
@@ -543,7 +634,7 @@ class AttributeSyncServiceTest {
         attributes.remove("alice");
         assertEquals(1, run().assignmentsEnded());
         assertEquals(List.of("Surgery 2026-06-13 2026-06-15 staff primary"), assignmentsOf("alice"));
-        assertEquals(new SyncReport(0, 0, 0, 0, 0, 0, 0, List.of(), List.of()), run());
+        assertEquals(new SyncReport(0, 0, 0, 0, 0, 0, 0, List.of(), List.of(), List.of()), run());
     }
 
     @Test
@@ -560,7 +651,7 @@ class AttributeSyncServiceTest {
         assertEquals(1, run().assignmentsChanged());
         assertEquals(List.of("Surgery 2026-06-13 2026-06-15 staff primary",
                 "Surgery 2026-06-15 null director primary"), assignmentsOf("alice"));
-        assertEquals(new SyncReport(1, 0, 0, 0, 0, 0, 0, List.of(), List.of()), run());
+        assertEquals(new SyncReport(1, 0, 0, 0, 0, 0, 0, List.of(), List.of(), List.of()), run());
     }
 
     @Test
@@ -574,7 +665,7 @@ class AttributeSyncServiceTest {
         assignments().changeDetails(assignment, new AssignmentValues(null, null, "2026-06-15", null, "director",
                 null, null, null, true, false, null, null, null, null, null));
 
-        assertEquals(new SyncReport(1, 0, 0, 0, 0, 0, 0, List.of(), List.of()), run());
+        assertEquals(new SyncReport(1, 0, 0, 0, 0, 0, 0, List.of(), List.of(), List.of()), run());
     }
 
     @Test
