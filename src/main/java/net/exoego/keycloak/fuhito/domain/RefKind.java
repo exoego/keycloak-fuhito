@@ -53,5 +53,15 @@ public enum RefKind {
     /**
      * A role over an org unit that is not membership, for example "HR contact" or "expense approver".
      */
-    UNIT_ROLE
+    UNIT_ROLE,
+
+    /**
+     * The site where a person works, for example an office, a plant, a store, or home.
+     */
+    WORK_LOCATION,
+
+    /**
+     * The accounting unit that bears the cost of a person.
+     */
+    COST_CENTER
 }

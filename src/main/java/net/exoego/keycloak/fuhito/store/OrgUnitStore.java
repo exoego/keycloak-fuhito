@@ -12,6 +12,7 @@ import net.exoego.keycloak.fuhito.domain.OrgUnitLink;
 import net.exoego.keycloak.fuhito.domain.OrgUnitSuccession;
 import net.exoego.keycloak.fuhito.domain.OrgUnitVersion;
 import net.exoego.keycloak.fuhito.domain.PlacedOrgUnit;
+import net.exoego.keycloak.fuhito.domain.UnitDefaults;
 
 /**
  * Storage of the org units of one realm.
@@ -260,6 +261,17 @@ public interface OrgUnitStore {
      * @return the IDs, with the unit itself first. It is empty when the realm has no such unit.
      */
     List<String> lineOn(String hierarchyId, String id, LocalDate date);
+
+    /**
+     * Finds the work location and the cost center that apply to units on a date. Each comes from the unit, or
+     * else from the nearest unit above it in the default hierarchy. The database walks upward, so the whole tree
+     * is not loaded.
+     *
+     * @param ids the IDs of the units
+     * @param date the date
+     * @return the values, by the ID of the unit. A unit with neither has no entry.
+     */
+    Map<String, UnitDefaults> defaultsOn(Collection<String> ids, LocalDate date);
 
     /**
      * Returns some units as they are on a date. A unit that does not exist on the date is left out.

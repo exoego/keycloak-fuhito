@@ -14,6 +14,8 @@ import java.util.Map;
  * @param jobTitle the code of the job title, or null
  * @param occupation the code of the occupation, or null
  * @param kind the code of the assignment kind, or null
+ * @param workLocation the code of the work location, or null to take the one of the org unit
+ * @param costCenter the code of the cost center, or null to take the one of the org unit
  * @param head true when the person leads the org unit, or null for false
  * @param primary true when this is the main assignment of the employment, or null for false
  * @param switchPrimary true to take the primary flag away from other assignments of the employment for the
@@ -25,7 +27,35 @@ import java.util.Map;
  * @param source the name of that system, or null. Only a new assignment uses it.
  */
 public record AssignmentValues(String employmentId, String orgUnitId, String validFrom, String validTo,
-        String jobTitle, String occupation, String kind, Boolean head, Boolean primary, Boolean switchPrimary,
-        BigDecimal allocationPercent, Integer displayOrder, Map<String, Object> attributes, String externalId,
-        String source) {
+        String jobTitle, String occupation, String kind, String workLocation, String costCenter, Boolean head,
+        Boolean primary, Boolean switchPrimary, BigDecimal allocationPercent, Integer displayOrder,
+        Map<String, Object> attributes, String externalId, String source) {
+
+    /**
+     * Creates the values with no work location and no cost center of the assignment itself.
+     *
+     * @param employmentId the ID of the employment. Only a new assignment uses it.
+     * @param orgUnitId the ID of the org unit. Only a new assignment uses it.
+     * @param validFrom the first date of the assignment or of the new details, as {@code YYYY-MM-DD}
+     * @param validTo the first date after the assignment, or null. Only a new assignment uses it.
+     * @param jobTitle the code of the job title, or null
+     * @param occupation the code of the occupation, or null
+     * @param kind the code of the assignment kind, or null
+     * @param head true when the person leads the org unit, or null for false
+     * @param primary true when this is the main assignment of the employment, or null for false
+     * @param switchPrimary true to take the primary flag away from other assignments of the employment for the
+     *        same dates, or null for false
+     * @param allocationPercent the share of the person's work in percent, or null
+     * @param displayOrder the position among the members of the org unit, or null for 0
+     * @param attributes free values, or null
+     * @param externalId the ID in the system it came from, or null. Only a new assignment uses it.
+     * @param source the name of that system, or null. Only a new assignment uses it.
+     */
+    public AssignmentValues(String employmentId, String orgUnitId, String validFrom, String validTo,
+            String jobTitle, String occupation, String kind, Boolean head, Boolean primary, Boolean switchPrimary,
+            BigDecimal allocationPercent, Integer displayOrder, Map<String, Object> attributes, String externalId,
+            String source) {
+        this(employmentId, orgUnitId, validFrom, validTo, jobTitle, occupation, kind, null, null, head, primary,
+                switchPrimary, allocationPercent, displayOrder, attributes, externalId, source);
+    }
 }

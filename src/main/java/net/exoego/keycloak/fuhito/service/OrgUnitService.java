@@ -109,15 +109,17 @@ public class OrgUnitService {
         }
 
         OrgUnitVersion version = version(newId(), unit.id(), period, new OrgUnitChange(request.validFrom(),
-                request.code(), request.name(), request.names(), request.shortName(), request.shortNames(), request.phoneticName(),
-                request.unitType(), request.displayOrder(), request.attributes()), unitType);
+                request.code(), request.name(), request.names(), request.shortName(), request.shortNames(),
+                request.phoneticName(), request.unitType(), request.workLocation(), request.costCenter(),
+                request.displayOrder(), request.attributes()), unitType, null);
         store.insertUnit(unit);
         store.insertVersion(version);
         if (request.parentId() != null) {
             store.insertLink(new OrgUnitLink(newId(), store.defaultHierarchyId(), unit.id(), request.parentId(),
                     period));
         }
-        return OrgUnitState.of(unit, version, unitType, request.parentId());
+        return UnitPlaces.on(List.of(OrgUnitState.of(unit, version, unitType, request.parentId())), store,
+                refItems, validFrom).getFirst();
     }
 
     /**
@@ -158,11 +160,11 @@ public class OrgUnitService {
         }
 
         if (current.period().from().equals(from)) {
-            store.updateVersion(version(current.id(), id, current.period(), request, unitType));
+            store.updateVersion(version(current.id(), id, current.period(), request, unitType, current));
         } else {
             List<ValidPeriod> parts = current.period().splitAt(from);
             // Build the new version first, so that a bad value fails before anything is written.
-            OrgUnitVersion next = version(newId(), id, parts.get(1), request, unitType);
+            OrgUnitVersion next = version(newId(), id, parts.get(1), request, unitType, current);
             store.updateVersion(withPeriod(current, parts.getFirst()));
             store.insertVersion(next);
         }
@@ -485,7 +487,8 @@ public class OrgUnitService {
                 .map(OrgUnitLink::parentId)
                 .findFirst()
                 .orElse(null);
-        return OrgUnitState.of(unit, version, unitType, parentId);
+        return UnitPlaces.on(List.of(OrgUnitState.of(unit, version, unitType, parentId)), store, refItems, date)
+                .getFirst();
     }
 
     /**
@@ -504,7 +507,7 @@ public class OrgUnitService {
         LocalDate date = dateOrToday(asOf, null);
         String hierarchyId = hierarchyId(hierarchy);
         boolean linkedOnly = !hierarchyId.equals(store.defaultHierarchyId());
-        return states(store.childrenOn(hierarchyId, null, linkedOnly, lateral, date, page.first(), page.max()));
+        return states(store.childrenOn(hierarchyId, null, linkedOnly, lateral, date, page.first(), page.max()), date);
     }
 
     /**
@@ -521,7 +524,7 @@ public class OrgUnitService {
     public List<OrgUnitState> children(String id, String asOf, String hierarchy, Boolean lateral, Page page) {
         LocalDate date = dateOfUnit(id, asOf);
         return states(store.childrenOn(hierarchyId(hierarchy), id, false, lateral, date, page.first(),
-                page.max()));
+                page.max()), date);
     }
 
     /**
@@ -537,7 +540,7 @@ public class OrgUnitService {
      */
     public List<OrgUnitState> subtree(String id, String asOf, String hierarchy, Boolean lateral, Page page) {
         LocalDate date = dateOfUnit(id, asOf);
-        return states(store.treeOn(hierarchyId(hierarchy), id, lateral, date, page.first(), page.max()));
+        return states(store.treeOn(hierarchyId(hierarchy), id, lateral, date, page.first(), page.max()), date);
     }
 
     /**
@@ -562,8 +565,9 @@ public class OrgUnitService {
      * @throws FuhitoException when a value is bad or the unit type is unknown
      */
     public List<OrgUnitState> search(Search search, Page page) {
-        return states(store.searchOn(store.defaultHierarchyId(), storeSearch(search), dateOrToday(search.asOf(), null),
-                page.first(), page.max()));
+        LocalDate date = dateOrToday(search.asOf(), null);
+        return states(store.searchOn(store.defaultHierarchyId(), storeSearch(search), date, page.first(),
+                page.max()), date);
     }
 
     /**
@@ -596,8 +600,8 @@ public class OrgUnitService {
      * @return the legal entities of the page on the date, each with its parent in the default hierarchy
      */
     public List<OrgUnitState> legalEntities(String asOf, Page page) {
-        return states(store.legalEntitiesOn(store.defaultHierarchyId(), dateOrToday(asOf, null), page.first(),
-                page.max()));
+        LocalDate date = dateOrToday(asOf, null);
+        return states(store.legalEntitiesOn(store.defaultHierarchyId(), date, page.first(), page.max()), date);
     }
 
     private LocalDate dateOfUnit(String id, String asOf) {
@@ -607,8 +611,8 @@ public class OrgUnitService {
         return date;
     }
 
-    private List<OrgUnitState> states(List<PlacedOrgUnit> placed) {
-        return OrgUnitPaths.states(placed, refItems);
+    private List<OrgUnitState> states(List<PlacedOrgUnit> placed, LocalDate date) {
+        return UnitPlaces.on(OrgUnitPaths.states(placed, refItems), store, refItems, date);
     }
 
     /**
@@ -634,7 +638,9 @@ public class OrgUnitService {
      */
     public List<OrgUnitState> path(String id, String asOf, String hierarchy) {
         requireUnit(id);
-        return OrgUnitPaths.on(store, refItems, hierarchyId(hierarchy), id, dateOrToday(asOf, id));
+        LocalDate date = dateOrToday(asOf, id);
+        return UnitPlaces.on(OrgUnitPaths.on(store, refItems, hierarchyId(hierarchy), id, date), store, refItems,
+                date);
     }
 
     /**
@@ -648,9 +654,9 @@ public class OrgUnitService {
         OrgUnit unit = requireUnit(id);
         Map<String, RefItem> unitTypes = new HashMap<>();
         refItems.list(RefKind.UNIT_TYPE, true).forEach(item -> unitTypes.put(item.id(), item));
-        List<OrgUnitState> versions = store.versions(id).stream()
+        List<OrgUnitState> versions = UnitPlaces.own(store.versions(id).stream()
                 .map(version -> OrgUnitState.of(unit, version, unitTypes.get(version.unitTypeId()), null))
-                .toList();
+                .toList(), refItems);
         store.defaultHierarchyId();
         return new OrgUnitHistory(unit, versions, store.parentLinks(id), store.hierarchyCodes());
     }
@@ -704,8 +710,9 @@ public class OrgUnitService {
                         Map.of("id", id, "date", date.toString())));
     }
 
+    // A version may keep a work location or a cost center that was deactivated after the unit got it.
     private OrgUnitVersion version(String versionId, String unitId, ValidPeriod period, OrgUnitChange details,
-            RefItem unitType) {
+            RefItem unitType, OrgUnitVersion current) {
         return new OrgUnitVersion(versionId, unitId, period,
                 Checks.optionalCode("code", details.code()),
                 Checks.name("name", details.name()),
@@ -714,13 +721,27 @@ public class OrgUnitService {
                 Checks.localizedNames("shortNames", details.shortNames()),
                 Checks.optionalName("phoneticName", details.phoneticName()),
                 unitType == null ? null : unitType.id(),
+                idOf(RefKind.WORK_LOCATION, details.workLocation(), current == null ? null : current.workLocationId()),
+                idOf(RefKind.COST_CENTER, details.costCenter(), current == null ? null : current.costCenterId()),
                 details.displayOrder() == null ? 0 : details.displayOrder(),
                 attributeRules.check(AttributeDefinition.Target.ORG_UNIT, details.attributes()));
     }
 
     private static OrgUnitVersion withPeriod(OrgUnitVersion v, ValidPeriod period) {
         return new OrgUnitVersion(v.id(), v.orgUnitId(), period, v.code(), v.name(), v.names(), v.shortName(),
-                v.shortNames(), v.phoneticName(), v.unitTypeId(), v.displayOrder(), v.attributes());
+                v.shortNames(), v.phoneticName(), v.unitTypeId(), v.workLocationId(), v.costCenterId(),
+                v.displayOrder(), v.attributes());
+    }
+
+    private String idOf(RefKind kind, String code, String currentId) {
+        if (code == null) {
+            return null;
+        }
+        return refItems.findByCode(kind, code)
+                .filter(item -> item.active() || item.id().equals(currentId))
+                .map(RefItem::id)
+                .orElseThrow(() -> FuhitoException.invalid("ref_item.unknown",
+                        Map.of("kind", kind.name(), "code", code)));
     }
 
     // A unit may keep a unit type that was deactivated after the unit got it.

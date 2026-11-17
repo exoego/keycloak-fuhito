@@ -24,7 +24,10 @@ public record AssignmentView(String assignmentId, String userId, ValidPeriod per
      * @param jobTitle the code of the job title, or null
      * @param occupation the code of the occupation, or null
      * @param kind the code of the assignment kind, or null
+     * @param workLocation the code of the work location of the assignment itself, or null
+     * @param costCenter the code of the cost center of the assignment itself, or null
      */
-    public record Row(Assignment row, String jobTitle, String occupation, String kind) {
+    public record Row(Assignment row, String jobTitle, String occupation, String kind, String workLocation,
+            String costCenter) {
     }
 }

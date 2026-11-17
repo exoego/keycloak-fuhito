@@ -103,7 +103,8 @@ public class CsvImportService {
             Map.entry("id", "ID"), Map.entry("parentId", "親のID"), Map.entry("personId", "人のID"),
             Map.entry("employerId", "雇用主のID"), Map.entry("employmentId", "雇用のID"),
             Map.entry("orgUnitId", "組織のID"), Map.entry("target", "対象"), Map.entry("type", "型"),
-            Map.entry("refKind", "参照の種類"), Map.entry("multiple", "複数"), Map.entry("required", "必須"), Map.entry("hierarchy", "階層"),
+            Map.entry("refKind", "参照の種類"), Map.entry("multiple", "複数"), Map.entry("required", "必須"),
+            Map.entry("hierarchy", "階層"), Map.entry("workLocation", "勤務地"), Map.entry("costCenter", "コストセンター"),
             Map.entry("successorExternalIds", "後継の外部ID"), Map.entry("successorIds", "後継のID"),
             Map.entry("organizationAlias", "Organizationの別名"), Map.entry("assignmentExternalId", "所属の外部ID"),
             Map.entry("assignmentId", "所属のID"), Map.entry("managerPersonExternalId", "上司の人の外部ID"),
@@ -175,8 +176,9 @@ public class CsvImportService {
             Map.entry(Kind.REF_ITEMS, Set.of("kind", "code", "name", "displayOrder", "active", "legalEntity",
                     "actingHead", "lateral")),
             Map.entry(Kind.ORG_UNITS, Set.of("id", "externalId", "source", "code", "name", "shortName",
-                    "phoneticName", "unitType", "parentExternalId", "parentId", "displayOrder", "validFrom",
-                    "validTo", "successorExternalIds", "successorIds", "organizationAlias", "timeZone", "dayStart")),
+                    "phoneticName", "unitType", "workLocation", "costCenter", "parentExternalId", "parentId",
+                    "displayOrder", "validFrom", "validTo", "successorExternalIds", "successorIds",
+                    "organizationAlias", "timeZone", "dayStart")),
             Map.entry(Kind.EMPLOYMENTS, Set.of("id", "externalId", "source", "username", "userId", "staffNumber",
                     "employmentType", "grade", "status", "leaveReason", "workPercent", "contractEndDate", "validFrom",
                     "validTo", "endReason", "employerExternalId", "employerId", "personExternalId", "personId",
@@ -184,9 +186,9 @@ public class CsvImportService {
             Map.entry(Kind.PEOPLE, Set.of("id", "externalId", "source", "username", "userId", "name",
                     "phoneticName")),
             Map.entry(Kind.ASSIGNMENTS, Set.of("id", "externalId", "source", "employmentExternalId", "employmentId",
-                    "orgUnitExternalId", "orgUnitId", "jobTitle", "occupation", "assignmentKind", "head", "primary",
-                    "allocationPercent", "displayOrder", "validFrom", "validTo", "continuesAssignmentExternalId",
-                    "continuesAssignmentId")));
+                    "orgUnitExternalId", "orgUnitId", "jobTitle", "occupation", "assignmentKind", "workLocation",
+                    "costCenter", "head", "primary", "allocationPercent", "displayOrder", "validFrom", "validTo",
+                    "continuesAssignmentExternalId", "continuesAssignmentId")));
 
     private static final Set<String> LOCALIZED = Set.of("name", "shortName");
     static final String ATTRIBUTE_COLUMN = "attributes.";
@@ -504,7 +506,9 @@ public class CsvImportService {
                 cells.attributes(version.map(v -> v.attributes()).orElse(null)),
                 cells.text("validFrom", null), cells.text("validTo", null), id,
                 cells.list("successorExternalIds"), successorIds(cells, stored), cells.clearable("organizationAlias"),
-                cells.clearable("timeZone"), cells.clearable("dayStart"));
+                cells.clearable("timeZone"), cells.clearable("dayStart"),
+                cells.text("workLocation", stored.map(state -> state.places().workLocation()).orElse(null)),
+                cells.text("costCenter", stored.map(state -> state.places().costCenter()).orElse(null)));
     }
 
     // Blank cells of the successors keep the stored ones of a row with an end.
@@ -588,7 +592,9 @@ public class CsvImportService {
                 cells.attributes(row.map(Assignment::attributes).orElse(null)),
                 cells.text("validFrom", null), cells.text("validTo", null), cells.text("employmentId", null),
                 cells.text("orgUnitId", null), id, cells.text("continuesAssignmentExternalId", null),
-                cells.text("continuesAssignmentId", null));
+                cells.text("continuesAssignmentId", null),
+                cells.text("workLocation", current.map(AssignmentView.Row::workLocation).orElse(null)),
+                cells.text("costCenter", current.map(AssignmentView.Row::costCenter).orElse(null)));
     }
 
     private static <T> Optional<T> quietly(Supplier<T> read) {

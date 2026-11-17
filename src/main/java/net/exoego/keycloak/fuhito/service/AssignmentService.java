@@ -125,7 +125,8 @@ public class AssignmentService {
             throw FuhitoException.invalid("assignment.continues_other", Map.of("id", previousId));
         }
         rows.forEach(row -> store.update(new Assignment(row.rowId(), id, row.employmentId(), row.orgUnitId(),
-                row.period(), row.jobTitleId(), row.occupationId(), row.kindId(), row.head(), row.primary(),
+                row.period(), row.jobTitleId(), row.occupationId(), row.kindId(), row.workLocationId(),
+                row.costCenterId(), row.head(), row.primary(),
                 row.allocationPercent(), row.displayOrder(), row.attributes(), row.externalId(), row.source(),
                 previousId)));
         return get(id);
@@ -205,8 +206,8 @@ public class AssignmentService {
      * The assignment ends on the date, and a new assignment of the same employment to the new org unit starts on
      * the same date. The new one lasts as long as the old one would have, and names the old one as the one that
      * it continues. It keeps the occupation, the kind, the primary flag, the allocation, and the attributes.
-     * It keeps the job title unless the request gives one. It does not keep the head flag or the display order,
-     * because those belong to the old org unit.
+     * It keeps the job title unless the request gives one. It does not keep the head flag, the display order, the
+     * work location, or the cost center, because those belong to the old org unit.
      * The reporting lines of the old assignment end with it. The new assignment has none.
      *
      * @param id the ID of the assignment to end
@@ -233,7 +234,7 @@ public class AssignmentService {
         String jobTitleId = request.jobTitle() == null ? last.jobTitleId()
                 : idOf(RefKind.JOB_TITLE, request.jobTitle(), last.jobTitleId());
         Assignment next = new Assignment(newId(), newId(), last.employmentId(), orgUnitId, period, jobTitleId,
-                last.occupationId(), last.kindId(), Boolean.TRUE.equals(request.head()), last.primary(),
+                last.occupationId(), last.kindId(), null, null, Boolean.TRUE.equals(request.head()), last.primary(),
                 last.allocationPercent(), request.displayOrder() == null ? 0 : request.displayOrder(),
                 last.attributes(), null, null, id);
         // The end rejects a change that is stored for the date or later, and ends the reporting lines.
@@ -292,7 +293,7 @@ public class AssignmentService {
         ValidPeriod period = new ValidPeriod(rows.getFirst().period().from(), rows.getLast().period().to());
         return new AssignmentView(id, userId, period, rows.getFirst().continuesAssignmentId(), rows.stream()
                 .map(r -> new AssignmentView.Row(r, codeOf(r.jobTitleId()), codeOf(r.occupationId()),
-                        codeOf(r.kindId())))
+                        codeOf(r.kindId()), codeOf(r.workLocationId()), codeOf(r.costCenterId())))
                 .toList());
     }
 
@@ -323,7 +324,8 @@ public class AssignmentService {
                     new ValidPeriod(rows.getFirst().period().from(), rows.getLast().period().to()),
                     rows.getFirst().continuesAssignmentId(), rows.stream()
                             .map(r -> new AssignmentView.Row(r, code.apply(r.jobTitleId()),
-                                    code.apply(r.occupationId()), code.apply(r.kindId())))
+                                    code.apply(r.occupationId()), code.apply(r.kindId()),
+                                    code.apply(r.workLocationId()), code.apply(r.costCenterId())))
                             .toList());
         }).toList();
     }
@@ -394,6 +396,8 @@ public class AssignmentService {
                 idOf(RefKind.JOB_TITLE, values.jobTitle(), current == null ? null : current.jobTitleId()),
                 idOf(RefKind.OCCUPATION, values.occupation(), current == null ? null : current.occupationId()),
                 idOf(RefKind.ASSIGNMENT_KIND, values.kind(), current == null ? null : current.kindId()),
+                idOf(RefKind.WORK_LOCATION, values.workLocation(), current == null ? null : current.workLocationId()),
+                idOf(RefKind.COST_CENTER, values.costCenter(), current == null ? null : current.costCenterId()),
                 Boolean.TRUE.equals(values.head()),
                 Boolean.TRUE.equals(values.primary()),
                 Checks.optionalPercent("allocationPercent", values.allocationPercent()),

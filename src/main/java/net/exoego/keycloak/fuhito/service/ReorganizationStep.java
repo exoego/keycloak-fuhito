@@ -39,6 +39,10 @@ public record ReorganizationStep(
         String phoneticName,
         @Schema(description = "The code of the unit type.")
         String unitType,
+        @Schema(description = "The code of the work location that the unit gives its members.")
+        String workLocation,
+        @Schema(description = "The code of the cost center that the unit gives its members.")
+        String costCenter,
         @Schema(description = "The position among siblings.", defaultValue = "0")
         Integer displayOrder,
         @Schema(description = "Free values that the realm defines.")

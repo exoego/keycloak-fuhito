@@ -155,6 +155,8 @@
             </column>
             <column name="PHONETIC_NAME" type="VARCHAR(255)"/>
             <column name="UNIT_TYPE_ID" type="VARCHAR(36)"/>
+            <column name="WORK_LOCATION_ID" type="VARCHAR(36)"/>
+            <column name="COST_CENTER_ID" type="VARCHAR(36)"/>
             <column name="DISPLAY_ORDER" type="INT" defaultValueNumeric="0">
                 <constraints nullable="false"/>
             </column>
@@ -172,6 +174,12 @@
         <addForeignKeyConstraint baseTableName="FUHITO_ORG_UNIT_VERSION" baseColumnNames="UNIT_TYPE_ID"
                                  referencedTableName="FUHITO_REF_ITEM" referencedColumnNames="ID"
                                  constraintName="FK_FUHITO_ORG_UNIT_VERSION_TYPE"/>
+        <addForeignKeyConstraint baseTableName="FUHITO_ORG_UNIT_VERSION" baseColumnNames="WORK_LOCATION_ID"
+                                 referencedTableName="FUHITO_REF_ITEM" referencedColumnNames="ID"
+                                 constraintName="FK_FUHITO_ORG_UNIT_VERSION_LOCATION"/>
+        <addForeignKeyConstraint baseTableName="FUHITO_ORG_UNIT_VERSION" baseColumnNames="COST_CENTER_ID"
+                                 referencedTableName="FUHITO_REF_ITEM" referencedColumnNames="ID"
+                                 constraintName="FK_FUHITO_ORG_UNIT_VERSION_COST"/>
         <createIndex tableName="FUHITO_ORG_UNIT_VERSION" indexName="IDX_FUHITO_ORG_UNIT_VERSION_REALM">
             <column name="REALM_ID"/>
             <column name="VALID_FROM"/>
@@ -405,6 +413,8 @@
             <column name="JOB_TITLE_ID" type="VARCHAR(36)"/>
             <column name="OCCUPATION_ID" type="VARCHAR(36)"/>
             <column name="KIND_ID" type="VARCHAR(36)"/>
+            <column name="WORK_LOCATION_ID" type="VARCHAR(36)"/>
+            <column name="COST_CENTER_ID" type="VARCHAR(36)"/>
             <column name="IS_HEAD" type="BOOLEAN" defaultValueBoolean="false">
                 <constraints nullable="false"/>
             </column>
@@ -439,6 +449,12 @@
         <addForeignKeyConstraint baseTableName="FUHITO_ASSIGNMENT" baseColumnNames="KIND_ID"
                                  referencedTableName="FUHITO_REF_ITEM" referencedColumnNames="ID"
                                  constraintName="FK_FUHITO_ASSIGNMENT_KIND"/>
+        <addForeignKeyConstraint baseTableName="FUHITO_ASSIGNMENT" baseColumnNames="WORK_LOCATION_ID"
+                                 referencedTableName="FUHITO_REF_ITEM" referencedColumnNames="ID"
+                                 constraintName="FK_FUHITO_ASSIGNMENT_LOCATION"/>
+        <addForeignKeyConstraint baseTableName="FUHITO_ASSIGNMENT" baseColumnNames="COST_CENTER_ID"
+                                 referencedTableName="FUHITO_REF_ITEM" referencedColumnNames="ID"
+                                 constraintName="FK_FUHITO_ASSIGNMENT_COST"/>
         <createIndex tableName="FUHITO_ASSIGNMENT" indexName="IDX_FUHITO_ASSIGNMENT_EMPLOYMENT">
             <column name="EMPLOYMENT_ID"/>
         </createIndex>

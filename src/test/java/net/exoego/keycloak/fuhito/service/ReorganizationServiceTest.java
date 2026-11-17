@@ -28,27 +28,27 @@ class ReorganizationServiceTest {
 
     private static ReorganizationStep create(String ref, String name, String parentId, String parentRef) {
         return new ReorganizationStep("create", ref, null, null, parentId, parentRef, null, name, null, null, null,
-                null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null);
     }
 
     private static ReorganizationStep change(String id, String name) {
         return new ReorganizationStep("change", null, id, null, null, null, null, name, null, null, null, null, null,
-                null, null, null, null);
+                null, null, null, null, null, null);
     }
 
     private static ReorganizationStep move(String id, String unitRef, String parentId, String parentRef) {
         return new ReorganizationStep("move", null, id, unitRef, parentId, parentRef, null, null, null, null, null,
-                null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null);
     }
 
     private static ReorganizationStep end(String id) {
         return new ReorganizationStep("end", null, id, null, null, null, null, null, null, null, null, null, null,
-                null, null, null, null);
+                null, null, null, null, null, null);
     }
 
     private static ReorganizationStep succeed(String id, List<String> successorIds, List<String> successorRefs) {
         return new ReorganizationStep("succeed", null, id, null, null, null, null, null, null, null, null, null, null,
-                null, null, successorIds, successorRefs);
+                null, null, null, null, successorIds, successorRefs);
     }
 
     private List<String> predecessorsOf(String id) {
@@ -162,7 +162,7 @@ class ReorganizationServiceTest {
 
         service.apply("2027-04-01", List.of(create("b", "B", null, null), move(null, "b", a, null),
                 new ReorganizationStep("change", null, null, "b", null, null, null, "B2", null, null, null, null,
-                        null, null, null, null, null)));
+                        null, null, null, null, null, null, null)));
 
         assertEquals(List.of("A", "B2 < A"), tree("2027-04-01"));
     }
@@ -193,11 +193,11 @@ class ReorganizationServiceTest {
         assertNull(empty.params().get("step"));
 
         FuhitoException noOp = failure("2027-04-01", List.of(new ReorganizationStep(null, null, a, null, null, null,
-                null, null, null, null, null, null, null, null, null, null, null)));
+                null, null, null, null, null, null, null, null, null, null, null, null, null)));
         assertEquals("invalid.required", noOp.code());
         assertEquals(Map.of("field", "op", "step", "0"), noOp.params());
         FuhitoException badOp = failure("2027-04-01", List.of(new ReorganizationStep("merge", null, a, null, null,
-                null, null, null, null, null, null, null, null, null, null, null, null)));
+                null, null, null, null, null, null, null, null, null, null, null, null, null, null)));
         assertEquals("invalid.choice", badOp.code());
         assertEquals(Map.of("field", "op", "value", "merge", "step", "0"), badOp.params());
         List<ReorganizationStep> withNull = new ArrayList<>();
