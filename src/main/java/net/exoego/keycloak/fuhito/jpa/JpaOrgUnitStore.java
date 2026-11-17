@@ -124,9 +124,8 @@ public class JpaOrgUnitStore implements OrgUnitStore {
         if (lateral == null) {
             return "";
         }
-        return """
-                 and %s exists (select 1 from RefItemEntity g where g.id = v.unitTypeId and g.lateralUnit = true)"""
-                .formatted(lateral ? "" : "not");
+        return (lateral ? " and" : " and not")
+                + " exists (select 1 from RefItemEntity g where g.id = v.unitTypeId and g.lateralUnit = true)";
     }
 
     private static final String SIBLINGS = """

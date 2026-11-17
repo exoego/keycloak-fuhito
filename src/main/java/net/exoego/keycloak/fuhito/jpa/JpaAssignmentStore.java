@@ -196,8 +196,7 @@ public class JpaAssignmentStore implements AssignmentStore {
         }
         if (filter.seconded() != null) {
             // An employment with no employer is never a secondment.
-            text.append("""
-                     and exists (select 1 from EmploymentEntity m where m.id = a.employmentId and\s""")
+            text.append(" and exists (select 1 from EmploymentEntity m where m.id = a.employmentId and ")
                     .append(filter.seconded().wanted() ? "m.employerId is not null and not " : "(m.employerId is null or ")
                     .append("""
                     exists (select 1 from Owned o where o.employerId = m.employerId

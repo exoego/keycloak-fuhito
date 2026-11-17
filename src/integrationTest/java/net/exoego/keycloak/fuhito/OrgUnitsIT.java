@@ -122,6 +122,10 @@ class OrgUnitsIT {
                 + "/subtree?lateral=true&" + on)).findValuesAsText("name"));
         assertEquals(List.of("病院", "内科"), Api.json(units.get("/org-units/" + hospital
                 + "/subtree?lateral=false&" + on)).findValuesAsText("name"));
+        assertEquals(List.of("内科"), Api.json(units.get("/org-units/search?unitType=department&lateral=false&" + on))
+                .findValuesAsText("name"));
+        assertEquals(List.of(), Api.json(units.get("/org-units/search?unitType=department&lateral=true&" + on))
+                .findValuesAsText("name"));
 
         assertEquals("org_unit.line_below_lateral", errorOf(409, units.post("/org-units", "{\"name\": \"分科会\", "
                 + "\"parentId\": \"" + committee.get("id").asText() + "\", \"validFrom\": \"2026-04-01\"}")));
