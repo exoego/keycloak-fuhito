@@ -8,7 +8,7 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
 @Schema(
         name = "SyncReport",
         description = "What a sync from user attributes did, or would do.",
-        requiredProperties = {"dryRun", "users", "employmentsStarted", "assignmentsAdded", "assignmentsMoved", "assignmentsChanged", "assignmentsEnded", "reportingLinesChanged", "unmatched"})
+        requiredProperties = {"dryRun", "users", "employmentsStarted", "assignmentsAdded", "assignmentsMoved", "assignmentsChanged", "assignmentsEnded", "reportingLinesChanged", "unmatched", "failed"})
 public record SyncReportRepresentation(
         @Schema(description = "True when the request asked for a dry run.")
         boolean dryRun,
@@ -27,11 +27,13 @@ public record SyncReportRepresentation(
         @Schema(description = "The number of users whose reporting line changed.")
         int reportingLinesChanged,
         @Schema(description = "The values of user attributes that matched nothing.")
-        List<SyncReport.Unmatched> unmatched) {
+        List<SyncReport.Unmatched> unmatched,
+        @Schema(description = "The users that the sync could not handle. The run went on with the other users.")
+        List<SyncReport.Failed> failed) {
 
     static SyncReportRepresentation of(SyncReport report, boolean dryRun) {
         return new SyncReportRepresentation(dryRun, report.users(), report.employmentsStarted(),
                 report.assignmentsAdded(), report.assignmentsMoved(), report.assignmentsChanged(),
-                report.assignmentsEnded(), report.reportingLinesChanged(), report.unmatched());
+                report.assignmentsEnded(), report.reportingLinesChanged(), report.unmatched(), report.failed());
     }
 }

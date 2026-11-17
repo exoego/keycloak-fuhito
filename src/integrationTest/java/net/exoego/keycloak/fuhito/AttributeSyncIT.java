@@ -282,16 +282,40 @@ class AttributeSyncIT {
         assertEquals(employer, Api.json(api.get("/users/" + alice + "/history")).get("employments").get(0).get("employerId").asText());
     }
 
+    private List<String> changeLog(String resourceType) throws Exception {
+        return Api.json(api.get("/change-log?resourceType=" + resourceType)).findValuesAsText("resourceId");
+    }
+
     @Test
-    void theSyncStopsWhenItCannotTellTheEmployer() throws Exception {
+    void aUserThatTheSyncCannotHandleStopsNoOtherUser() throws Exception {
         createRealm(Map.of("fuhito.sync.enabled", "true"));
-        TestRealm.legalEntity(api, "株式会社Yサービス");
+        String employer = TestRealm.legalEntity(api, "株式会社Yサービス");
         unit("内科", "naika", null);
-        user("alice", Map.of("department", "naika"));
+        String alice = user("alice", Map.of("department", "naika"));
+        String bob = user("bob", Map.of("department", "naika"));
+        String carol = user("carol", Map.of("department", "naika"));
+        // Bob has no employment, and the realm has two legal entities. So the sync cannot tell his employer.
+        for (String userId : List.of(alice, carol)) {
+            HttpResponse<String> employment = api.post("/employments", "{\"userId\": \"" + userId
+                    + "\", \"validFrom\": \"2020-04-01\", \"employerId\": \"" + employer + "\"}");
+            assertEquals(201, employment.statusCode(), employment.body());
+        }
+        List<String> people = changeLog("FUHITO_PERSON");
 
-        HttpResponse<String> response = api.post("/attribute-sync/run", "");
+        JsonNode report = run("");
 
-        assertEquals(400, response.statusCode(), response.body());
-        assertEquals("employment.employer_required", Api.json(response).get("error").asText());
+        JsonNode failed = report.get("failed");
+        assertEquals(1, failed.size(), report.toString());
+        assertEquals(bob, failed.get(0).get("userId").asText());
+        assertEquals("employment.employer_required", failed.get(0).get("error").asText());
+        assertEquals(0, report.get("employmentsStarted").asInt());
+        assertEquals(2, report.get("assignmentsAdded").asInt());
+        assertEquals(1, assignmentsOf(alice).size());
+        assertEquals(1, assignmentsOf(carol).size());
+        assertEquals(0, assignmentsOf(bob).size());
+        // The person that the sync made for bob went away with his transaction.
+        assertEquals(people, changeLog("FUHITO_PERSON"));
+        assertEquals(2, changeLog("FUHITO_ASSIGNMENT").size());
+        assertEquals(1, Api.json(api.get("/attribute-sync/last-run")).get("report").get("failed").asInt());
     }
 }

@@ -15,11 +15,12 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
  * @param assignmentsEnded the number of assignments that ended because the department was removed
  * @param reportingLinesChanged the number of users whose reporting line was added, replaced, or ended
  * @param unmatched the values that matched nothing
+ * @param failed the users that the sync could not handle
  * @param writes the writes that the sync did, when it ran in the transaction of the caller
  */
 public record SyncReport(int users, int employmentsStarted, int assignmentsAdded, int assignmentsMoved,
         int assignmentsChanged, int assignmentsEnded, int reportingLinesChanged, List<Unmatched> unmatched,
-        List<ImportReport.Write> writes) {
+        List<Failed> failed, List<ImportReport.Write> writes) {
 
     @Schema(
             name = "SyncUnmatched",
@@ -35,5 +36,23 @@ public record SyncReport(int users, int employmentsStarted, int assignmentsAdded
                             + "has the name.",
                     enumeration = {"unknown", "ambiguous"})
             String reason) {
+    }
+
+    /**
+     * A user that the sync could not handle. Nothing of the user was written.
+     *
+     * @param userId the ID of the user
+     * @param error the error code
+     */
+    @Schema(
+            name = "SyncFailed",
+            description = "A user that the sync could not handle. Nothing of the user was written, and the run went "
+                    + "on with the other users. The next run tries the user again.",
+            requiredProperties = {"userId", "error"})
+    public record Failed(
+            String userId,
+            @Schema(description = "The error code, as an error response has it. `internal` when the error has no "
+                    + "code. The log of the server then has the cause.")
+            String error) {
     }
 }

@@ -3166,6 +3166,21 @@ components:
           readOnly: true
           type: object
           $ref: "#/components/schemas/Assignment"
+    SyncFailed:
+      type: object
+      required:
+      - userId
+      - error
+      description: "A user that the sync could not handle. Nothing of the user was\
+        \ written, and the run went on with the other users. The next run tries the\
+        \ user again."
+      properties:
+        userId:
+          type: string
+        error:
+          type: string
+          description: "The error code, as an error response has it. `internal` when\
+            \ the error has no code. The log of the server then has the cause."
     SyncReport:
       required:
       - dryRun
@@ -3177,6 +3192,7 @@ components:
       - assignmentsEnded
       - reportingLinesChanged
       - unmatched
+      - failed
       description: "What a sync from user attributes did, or would do."
       type: object
       properties:
@@ -3217,6 +3233,12 @@ components:
           items:
             $ref: "#/components/schemas/SyncUnmatched"
           description: The values of user attributes that matched nothing.
+        failed:
+          type: array
+          items:
+            $ref: "#/components/schemas/SyncFailed"
+          description: The users that the sync could not handle. The run went on with
+            the other users.
     SyncUnmatched:
       type: object
       required:
@@ -4084,9 +4106,10 @@ paths:
     post:
       summary: Makes the assignments and reporting lines of the sync match the user
         attributes of now.
-      description: "Running it again with no change in between changes nothing. The\
-        \ run works in pieces of users. When it fails in the middle, the pieces before\
-        \ the failure stay, and the next run does the rest."
+      description: "Running it again with no change in between changes nothing. A\
+        \ user that the sync cannot handle is listed in `failed`, and the run goes\
+        \ on with the other users. The run works in pieces of users. When it stops\
+        \ in the middle, the pieces before stay, and the next run does the rest."
       operationId: runAttributeSync
       tags:
       - keycloak
