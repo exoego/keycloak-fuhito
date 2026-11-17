@@ -36,9 +36,6 @@ public class IdempotencyKeyEntity {
     @Column(name = "BODY")
     String body;
 
-    @Column(name = "LOCATION", length = 1024)
-    String location;
-
     @Column(name = "CREATED_AT", nullable = false)
     Instant createdAt;
 

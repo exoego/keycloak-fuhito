@@ -17,9 +17,8 @@ public interface IdempotencyStore {
      * @param requestHash the hash of the body of the first request
      * @param status the status of the response, or 0 while the first request is still running
      * @param body the body of the response as JSON, or null
-     * @param location the header {@code Location} of the response, or null
      */
-    record Stored(String id, String requestHash, int status, String body, String location) {
+    record Stored(String id, String requestHash, int status, String body) {
     }
 
     /**
@@ -51,7 +50,6 @@ public interface IdempotencyStore {
      * @param id the ID of the row
      * @param status the status of the response
      * @param body the body of the response as JSON, or null
-     * @param location the header {@code Location} of the response, or null
      */
-    void complete(String id, int status, String body, String location);
+    void complete(String id, int status, String body);
 }

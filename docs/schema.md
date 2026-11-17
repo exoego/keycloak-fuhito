@@ -280,7 +280,6 @@ erDiagram
         varchar(64) REQUEST_HASH
         integer STATUS
         text BODY
-        varchar(1024) LOCATION
         timestamp CREATED_AT
     }
     FUHITO_JOB_RUN {

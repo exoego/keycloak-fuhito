@@ -756,7 +756,6 @@
                 <constraints nullable="false"/>
             </column>
             <column name="BODY" type="CLOB"/>
-            <column name="LOCATION" type="VARCHAR(1024)"/>
             <column name="CREATED_AT" type="TIMESTAMP">
                 <constraints nullable="false"/>
             </column>

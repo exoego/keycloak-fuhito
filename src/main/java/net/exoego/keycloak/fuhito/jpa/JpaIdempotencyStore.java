@@ -40,7 +40,7 @@ public class JpaIdempotencyStore implements IdempotencyStore {
                 .setParameter("since", since)
                 .getResultStream()
                 .findFirst()
-                .map(k -> new Stored(k.id, k.requestHash, k.status, k.body, k.location));
+                .map(k -> new Stored(k.id, k.requestHash, k.status, k.body));
     }
 
     @Override
@@ -67,11 +67,10 @@ public class JpaIdempotencyStore implements IdempotencyStore {
     }
 
     @Override
-    public void complete(String id, int status, String body, String location) {
+    public void complete(String id, int status, String body) {
         IdempotencyKeyEntity entity = Rows.require(em, IdempotencyKeyEntity.class, id, realmId, found -> found.realmId);
         entity.status = status;
         entity.body = body;
-        entity.location = location;
         em.flush();
     }
 }
