@@ -3069,6 +3069,57 @@ components:
           type: string
           description: The first date back at work.
           format: date
+    RoleHolder:
+      required:
+      - id
+      - employmentId
+      - personId
+      - orgUnitId
+      - orgUnitName
+      - role
+      - roleName
+      - includesDescendants
+      - validFrom
+      description: "A role that an employment holds over an org unit on one date,\
+        \ with the names to show it."
+      type: object
+      properties:
+        id:
+          type: string
+          description: The ID of the role.
+        employmentId:
+          type: string
+          description: The ID of the employment that holds the role.
+        personId:
+          type: string
+          description: The ID of the person of the employment.
+        userId:
+          type: string
+          description: The ID of the Keycloak user of the person.
+        orgUnitId:
+          type: string
+          description: The ID of the org unit.
+        orgUnitName:
+          type: string
+          description: The name of the org unit on the date.
+        role:
+          type: string
+          description: The code of a reference item of the kind `UNIT_ROLE`.
+        roleName:
+          type: string
+          description: The name of the reference item of the role.
+        includesDescendants:
+          type: boolean
+          description: True when the role also covers every unit below in the default
+            hierarchy.
+        validFrom:
+          type: string
+          description: The first date of the role.
+          format: date
+        validTo:
+          type: string
+          description: The first date after the role. It is missing for no end.
+          format: date
     Staff:
       required:
       - orgUnitId
@@ -7826,6 +7877,91 @@ paths:
         "409":
           $ref: "#/components/responses/Conflict"
   /unit-roles:
+    get:
+      summary: "Lists the roles over org units of a date across the realm, ordered\
+        \ by ID."
+      description: "To read every role, follow the `Link` header of each response.\
+        \ `orgUnitId` keeps the roles over that unit only. The roles over a unit above\
+        \ that cover it are in `GET /org-units/{id}/role-holders`. They name people,\
+        \ so the read needs the full read permission."
+      operationId: listUnitRoles
+      tags:
+      - unit-roles
+      parameters:
+      - description: The cursor from the `Link` header of the page before.
+        name: after
+        in: query
+        schema:
+          type: string
+      - description: The date to read. The default is today in the time zone of the
+          realm.
+        schema:
+          type: string
+          format: date
+        name: asOf
+        in: query
+      - description: True to get the number of entries on all pages in the header
+          `X-Total-Count`.
+        schema:
+          type: boolean
+          default: false
+        name: count
+        in: query
+      - description: The number of entries to skip. It cannot be used with `after`.
+        schema:
+          type: integer
+          format: int32
+          minimum: 0
+          default: 0
+        name: first
+        in: query
+      - description: The largest number of entries to return.
+        schema:
+          type: integer
+          format: int32
+          maximum: 1000
+          minimum: 0
+          default: 100
+        name: max
+        in: query
+      - description: The ID of an org unit to keep. The units above do not count.
+        name: orgUnitId
+        in: query
+        schema:
+          type: string
+      - description: The code of a role to keep.
+        name: role
+        in: query
+        schema:
+          type: string
+      responses:
+        "200":
+          description: The roles of the date.
+          headers:
+            Link:
+              description: "The URL of the next page, with `rel=\"next\"`. It is there\
+                \ when the page is full. A full page can be the last one, and the\
+                \ next page is then empty."
+              schema:
+                type: string
+            X-Total-Count:
+              description: The number of entries on all pages. It is there with `count=true`.
+              schema:
+                type: integer
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RoleHolder"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
     post:
       summary: Gives an employment a role over an org unit.
       description: "The role is not membership. The end of the employment ends the\

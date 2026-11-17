@@ -8,12 +8,17 @@ import jakarta.ws.rs.PUT;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.rest.RequestContext.Change;
+import net.exoego.keycloak.fuhito.service.Cursor;
+import net.exoego.keycloak.fuhito.service.Page;
 import net.exoego.keycloak.fuhito.service.UnitRoleService;
 import org.eclipse.microprofile.openapi.annotations.Operation;
+import org.eclipse.microprofile.openapi.annotations.enums.SchemaType;
+import org.eclipse.microprofile.openapi.annotations.headers.Header;
 import org.eclipse.microprofile.openapi.annotations.media.Content;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 import org.eclipse.microprofile.openapi.annotations.parameters.Parameter;
@@ -45,6 +50,65 @@ public class UnitRolesResource {
     public UnitRolesResource(RequestContext context, UnitRoleService service) {
         this.context = context;
         this.service = service;
+    }
+
+    @GET
+    @Operation(
+            operationId = "listUnitRoles",
+            summary = "Lists the roles over org units of a date across the realm, ordered by ID.",
+            description = "To read every role, follow the `Link` header of each response. `orgUnitId` keeps the "
+                    + "roles over that unit only. The roles over a unit above that cover it are in "
+                    + "`GET /org-units/{id}/role-holders`. They name people, so the read needs the full read "
+                    + "permission.")
+    @APIResponse(
+            responseCode = "200",
+            description = "The roles of the date.",
+            headers = {
+                @Header(
+                        name = "Link",
+                        description = "The URL of the next page, with `rel=\"next\"`. It is there when the page "
+                                + "is full. A full page can be the last one, and the next page is then empty.",
+                        schema = @Schema(type = SchemaType.STRING)),
+                @Header(
+                        name = "X-Total-Count",
+                        description = "The number of entries on all pages. It is there with `count=true`.",
+                        schema = @Schema(type = SchemaType.INTEGER))},
+            content = @Content(mediaType = "application/json",
+                    schema = @Schema(type = SchemaType.ARRAY, implementation = RoleHolderRepresentation.class)))
+    @BadRequest
+    @ApiErrors
+    public Response list(
+            @Parameter(description = "The code of a role to keep.")
+            @QueryParam("role") String role,
+            @Parameter(description = "The ID of an org unit to keep. The units above do not count.")
+            @QueryParam("orgUnitId") String orgUnitId,
+            @Parameter(
+                    description = "The date to read. The default is today in the time zone of the realm.",
+                    schema = @Schema(format = "date"))
+            @QueryParam("asOf") String asOf,
+            @Parameter(
+                    description = "The number of entries to skip. It cannot be used with `after`.",
+                    schema = @Schema(minimum = "0", defaultValue = "0"))
+            @QueryParam("first") Integer first,
+            @Parameter(
+                    description = "The largest number of entries to return.",
+                    schema = @Schema(minimum = "0", maximum = "1000", defaultValue = "100"))
+            @QueryParam("max") Integer max,
+            @Parameter(description = "The cursor from the `Link` header of the page before.")
+            @QueryParam("after") String after,
+            @Parameter(
+                    description = "True to get the number of entries on all pages in the header `X-Total-Count`.",
+                    schema = @Schema(defaultValue = "false"))
+            @QueryParam("count") boolean count) {
+        context.requireRead();
+        return Calls.run(context, () -> {
+            Cursor.requireAlone(after, first);
+            UnitRoleService.Search search = new UnitRoleService.Search(role, orgUnitId, asOf);
+            return Pages.of(context, service.list(search, Page.of(first, max), after).stream()
+                            .map(RoleHolderRepresentation::of).toList(), Page.of(first, max).max(),
+                    holder -> Cursor.encode(Cursor.UNIT_ROLES, holder.id()),
+                    count ? service.count(search) : null);
+        });
     }
 
     @POST

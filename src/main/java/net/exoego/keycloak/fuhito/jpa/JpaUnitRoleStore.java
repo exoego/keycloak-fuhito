@@ -109,14 +109,45 @@ public class JpaUnitRoleStore implements UnitRoleStore {
                 .toList();
     }
 
+    // Each piece is a fixed text. The values of the search go in as parameters.
+    private <T> TypedQuery<T> searchQuery(String select, UnitRoleStore.Search search, String afterId,
+            Class<T> type) {
+        StringBuilder where = new StringBuilder("r.").append(TreeQuery.onDate("r"));
+        if (search.roleId() != null) {
+            where.append(" and r.roleId = :roleId");
+        }
+        if (search.orgUnitId() != null) {
+            where.append(" and r.orgUnitId = :orgUnitId");
+        }
+        if (afterId != null) {
+            where.append(" and r.id > :afterId");
+        }
+        TypedQuery<T> query = em.createQuery(select.formatted(where), type)
+                .setParameter("realmId", realmId)
+                .setParameter("date", search.date());
+        if (search.roleId() != null) {
+            query.setParameter("roleId", search.roleId());
+        }
+        if (search.orgUnitId() != null) {
+            query.setParameter("orgUnitId", search.orgUnitId());
+        }
+        if (afterId != null) {
+            query.setParameter("afterId", afterId);
+        }
+        return query;
+    }
+
     @Override
-    public List<UnitRole> listOn(LocalDate date, String afterId, int max) {
-        return list(em.createQuery(WITH_PERSON.formatted("""
-                        r.validFrom <= :date and (r.validTo is null or r.validTo > :date) and r.id > :after
-                        order by r.id"""), Object[].class)
-                .setParameter("date", date)
-                .setParameter("after", afterId == null ? "" : afterId)
+    public List<UnitRole> searchOn(UnitRoleStore.Search search, String afterId, int first, int max) {
+        return list(searchQuery(WITH_PERSON + " order by r.id", search, afterId, Object[].class)
+                .setFirstResult(first)
                 .setMaxResults(max));
+    }
+
+    @Override
+    public long countSearchOn(UnitRoleStore.Search search) {
+        return searchQuery("select count(r) from UnitRoleEntity r where r.realmId = :realmId and %s", search, null,
+                Long.class).getSingleResult();
     }
 
     @Override

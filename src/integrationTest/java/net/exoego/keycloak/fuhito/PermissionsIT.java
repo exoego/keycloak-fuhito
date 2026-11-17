@@ -107,8 +107,8 @@ class PermissionsIT {
     }
 
     private static List<String> peopleReads() {
-        return List.of("/org-units/" + unit + "/members", "/people", "/change-log", "/change-orders",
-                "/effective-changes");
+        return List.of("/org-units/" + unit + "/members", "/org-units/" + unit + "/role-holders", "/unit-roles",
+                "/people", "/change-log", "/change-orders", "/effective-changes");
     }
 
     @Test

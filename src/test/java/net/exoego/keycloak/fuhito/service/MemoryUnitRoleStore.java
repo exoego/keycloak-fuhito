@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import net.exoego.keycloak.fuhito.domain.UnitRole;
 import net.exoego.keycloak.fuhito.store.UnitRoleStore;
@@ -60,12 +61,24 @@ final class MemoryUnitRoleStore implements UnitRoleStore {
     }
 
     @Override
-    public List<UnitRole> listOn(LocalDate date, String afterId, int max) {
-        return roles.stream()
-                .filter(r -> r.period().contains(date) && (afterId == null || r.id().compareTo(afterId) > 0))
-                .sorted(java.util.Comparator.comparing(UnitRole::id))
+    public List<UnitRole> searchOn(Search search, String afterId, int first, int max) {
+        return found(search)
+                .filter(r -> afterId == null || r.id().compareTo(afterId) > 0)
+                .sorted(Comparator.comparing(UnitRole::id))
+                .skip(first)
                 .limit(max)
                 .toList();
+    }
+
+    @Override
+    public long countSearchOn(Search search) {
+        return found(search).count();
+    }
+
+    private Stream<UnitRole> found(Search search) {
+        return roles.stream().filter(r -> r.period().contains(search.date())
+                && (search.roleId() == null || search.roleId().equals(r.roleId()))
+                && (search.orgUnitId() == null || search.orgUnitId().equals(r.orgUnitId())));
     }
 
     @Override
