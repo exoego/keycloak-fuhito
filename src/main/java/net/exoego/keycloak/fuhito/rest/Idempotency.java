@@ -1,6 +1,5 @@
 package net.exoego.keycloak.fuhito.rest;
 
-import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -69,11 +68,9 @@ final class Idempotency {
         String id = store.claim(key, path, hash, now, since);
         T result = operation.get();
         if (result instanceof Response response) {
-            URI location = response.getLocation();
-            store.complete(id, response.getStatus(), json(response.getEntity()),
-                    location == null ? null : location.toString());
+            store.complete(id, response.getStatus(), json(response.getEntity()));
         } else {
-            store.complete(id, Response.Status.OK.getStatusCode(), json(result), null);
+            store.complete(id, Response.Status.OK.getStatusCode(), json(result));
         }
         return result;
     }
@@ -84,9 +81,6 @@ final class Idempotency {
             Response.ResponseBuilder response = Response.status(first.status());
             if (first.body() != null) {
                 response.entity(first.body()).type(MediaType.APPLICATION_JSON_TYPE);
-            }
-            if (first.location() != null) {
-                response.location(URI.create(first.location()));
             }
             return (T) response.build();
         }
