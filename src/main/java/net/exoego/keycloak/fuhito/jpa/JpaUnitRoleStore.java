@@ -44,11 +44,9 @@ public class JpaUnitRoleStore implements UnitRoleStore {
             TreeQuery.onDate("r"));
 
     // A role is left out when a nearer unit has a holder of the same role over the unit.
-    private static final String NEAREST = """
-             and not exists (select 1 from Above b
-                join UnitRoleEntity o on o.orgUnitId = b.id and o.realmId = :realmId and o.%s
-                where o.roleId = r.roleId and b.depth < a.depth and (b.depth = 0 or o.includesDescendants = true))"""
-            .formatted(TreeQuery.onDate("o"));
+    private static final String NEAREST = " and not exists (select 1 from Above b"
+            + " join UnitRoleEntity o on o.orgUnitId = b.id and o.realmId = :realmId and o." + TreeQuery.onDate("o")
+            + " where o.roleId = r.roleId and b.depth < a.depth and (b.depth = 0 or o.includesDescendants = true))";
 
     private final EntityManager em;
     private final String realmId;
