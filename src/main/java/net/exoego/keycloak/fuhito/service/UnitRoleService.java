@@ -216,8 +216,11 @@ public class UnitRoleService {
     }
 
     private UnitRoleStore.Search filter(Search search) {
-        LocalDate date = search.asOf() == null ? today.ofRealm() : Checks.optionalDate("asOf", search.asOf());
-        return new UnitRoleStore.Search(roleId(search.role()), search.orgUnitId(), date);
+        return new UnitRoleStore.Search(roleId(search.role()), search.orgUnitId(), dateOfRealm(search.asOf()));
+    }
+
+    private LocalDate dateOfRealm(String asOf) {
+        return asOf == null ? today.ofRealm() : Checks.optionalDate("asOf", asOf);
     }
 
     // A filter may name a role that is no longer active, because old rows may still use it.
@@ -272,13 +275,36 @@ public class UnitRoleService {
      * @throws FuhitoException when the org unit does not exist, the role is unknown, or the date is bad
      */
     public List<View> holders(String orgUnitId, String role, boolean nearest, String asOf, Page page) {
+        OverUnit read = overUnit(orgUnitId, role, asOf);
+        return views(store.holdersOn(sources.orgUnits().defaultHierarchyId(), orgUnitId, read.roleId(), nearest,
+                read.date(), page.first(), page.max()));
+    }
+
+    /**
+     * Counts the roles that {@link #holders} lists on all pages together.
+     *
+     * @param orgUnitId the ID of the org unit
+     * @param role the code of the role to keep, or null for every role
+     * @param nearest true to keep, for each role, only the holders of the nearest unit
+     * @param asOf the date as {@code YYYY-MM-DD}, or null for today of the org unit
+     * @return the number of roles
+     * @throws FuhitoException when the org unit does not exist, the role is unknown, or the date is bad
+     */
+    public long countHolders(String orgUnitId, String role, boolean nearest, String asOf) {
+        OverUnit read = overUnit(orgUnitId, role, asOf);
+        return store.countHoldersOn(sources.orgUnits().defaultHierarchyId(), orgUnitId, read.roleId(), nearest,
+                read.date());
+    }
+
+    private record OverUnit(String roleId, LocalDate date) {
+    }
+
+    private OverUnit overUnit(String orgUnitId, String role, String asOf) {
         if (sources.orgUnits().findUnit(orgUnitId).isEmpty()) {
             throw FuhitoException.notFound("org_unit.not_found", Map.of("id", orgUnitId));
         }
         String roleId = roleId(role);
-        LocalDate date = asOf == null ? today.ofUnit(orgUnitId) : Checks.optionalDate("asOf", asOf);
-        return views(store.holdersOn(sources.orgUnits().defaultHierarchyId(), orgUnitId, roleId, nearest, date,
-                page.first(), page.max()));
+        return new OverUnit(roleId, asOf == null ? today.ofUnit(orgUnitId) : Checks.optionalDate("asOf", asOf));
     }
 
     /**
@@ -291,8 +317,19 @@ public class UnitRoleService {
      * @throws FuhitoException when the date is bad
      */
     public List<View> ofPerson(String personId, String asOf, Page page) {
-        LocalDate date = asOf == null ? today.ofRealm() : Checks.optionalDate("asOf", asOf);
-        return views(store.ofPersonOn(personId, date, page.first(), page.max()));
+        return views(store.ofPersonOn(personId, dateOfRealm(asOf), page.first(), page.max()));
+    }
+
+    /**
+     * Counts the roles that {@link #ofPerson} lists on all pages together.
+     *
+     * @param personId the ID of the person
+     * @param asOf the date as {@code YYYY-MM-DD}, or null for today of the realm
+     * @return the number of roles
+     * @throws FuhitoException when the date is bad
+     */
+    public long countOfPerson(String personId, String asOf) {
+        return store.countOfPersonOn(personId, dateOfRealm(asOf));
     }
 
     private List<View> views(List<UnitRole> roles) {

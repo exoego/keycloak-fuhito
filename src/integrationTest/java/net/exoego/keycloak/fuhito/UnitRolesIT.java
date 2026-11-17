@@ -69,8 +69,9 @@ class UnitRolesIT {
                 Api.json(api.get("/unit-roles?orgUnitId=" + ward + "&" + on)).findValuesAsText("id"));
         assertEquals(List.of(ids.get(2)),
                 Api.json(api.get("/unit-roles?role=approver&orgUnitId=" + ward + "&" + on)).findValuesAsText("id"));
-        assertEquals("2", api.get("/unit-roles?role=safety-officer&count=true&" + on).headers()
-                .firstValue("X-Total-Count").orElseThrow());
+        assertEquals(2, api.count("/unit-roles/count?role=safety-officer&" + on));
+        assertEquals(1, api.count("/unit-roles/count?role=approver&orgUnitId=" + ward + "&" + on));
+        assertEquals(2, api.count("/unit-roles/count?asOf=2026-04-30"));
 
         List<String> followed = new ArrayList<>();
         List<String> skipped = new ArrayList<>();
@@ -88,6 +89,7 @@ class UnitRolesIT {
         assertEquals(followed, skipped);
 
         assertEquals("ref_item.unknown", error(400, api.get("/unit-roles?role=nurse")));
+        assertEquals("ref_item.unknown", error(400, api.get("/unit-roles/count?role=nurse")));
         assertEquals("invalid.cursor_with_first", error(400, api.get("/unit-roles?first=1&after=unit-roles.v1__"
                 + ids.getFirst())));
         assertEquals("invalid.cursor", error(400, api.get("/unit-roles?after=people.v1__" + ids.getFirst())));
@@ -136,6 +138,16 @@ class UnitRolesIT {
         // The HR contact of the ward hides the one of the division when only the nearest are asked for.
         assertEquals(List.of(wardContact), Api.json(api.get("/org-units/" + ward
                 + "/role-holders?nearest=true&asOf=2026-05-01")).findValuesAsText("id"));
+        assertEquals(2, api.count("/org-units/" + ward + "/role-holders/count?asOf=2026-05-01"));
+        assertEquals(1, api.count("/org-units/" + ward + "/role-holders/count?nearest=true&asOf=2026-05-01"));
+        assertEquals(1, api.count("/org-units/" + division + "/role-holders/count?role=hr-contact&asOf=2026-05-01"));
+        assertEquals(0, api.count("/org-units/" + ward + "/role-holders/count?role=approver&asOf=2026-05-01"));
+        assertEquals("ref_item.unknown", Api.json(api.get("/org-units/" + ward
+                + "/role-holders/count?role=nurse")).get("error").asText());
+        assertEquals(404, api.get("/org-units/none/role-holders/count").statusCode());
+        assertEquals(2, api.count("/people/" + person + "/unit-roles/count?asOf=2026-05-01"));
+        assertEquals(2, api.count("/users/" + user + "/unit-roles/count?asOf=2026-05-01"));
+        assertEquals(0, api.count("/users/" + user + "/unit-roles/count?asOf=2026-03-31"));
         assertEquals(204, api.delete("/unit-roles/" + wardContact).statusCode());
         assertEquals(List.of(id), Api.json(api.get("/people/" + person + "/unit-roles?asOf=2026-05-01"))
                 .findValuesAsText("id"));
@@ -157,6 +169,10 @@ class UnitRolesIT {
         // An erase removes the role and its entries in the change log.
         assertEquals(204, api.delete("/people/" + person + "/data").statusCode());
         assertEquals(404, api.get("/unit-roles/" + id).statusCode());
+        // The user is still in Keycloak, but has no person and so no role.
+        assertEquals(0, api.count("/users/" + user + "/unit-roles/count"));
+        assertEquals(404, api.get("/users/nobody/unit-roles/count").statusCode());
+        assertEquals(404, api.get("/people/" + person + "/unit-roles/count").statusCode());
         assertEquals(0, Api.json(api.get("/change-log?resourceType=FUHITO_UNIT_ROLE&resourceId=" + id)).size());
     }
 }

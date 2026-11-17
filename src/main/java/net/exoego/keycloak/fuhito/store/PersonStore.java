@@ -50,6 +50,16 @@ public interface PersonStore {
     List<Person> search(String text, String staffNumber, String afterId, int first, int max);
 
     /**
+     * Counts the people that {@link #search} finds on all pages together.
+     *
+     * @param text a text that the name, the phonetic name, a name in another language, or the name, the username,
+     *        or the email of the Keycloak user has, in any case, or null for any
+     * @param staffNumber a staff number that an employment of the person has, or null for any
+     * @return the number of people
+     */
+    long count(String text, String staffNumber);
+
+    /**
      * Stores a new person.
      *
      * @param person the person

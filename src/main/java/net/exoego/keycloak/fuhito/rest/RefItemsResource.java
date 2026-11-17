@@ -78,6 +78,23 @@ public class RefItemsResource {
     }
 
     @GET
+    @Path("count")
+    @Operation(
+            operationId = "countRefItems",
+            summary = "Counts the items that `GET /ref-items` lists with the same filters.")
+    @APIResponse(responseCode = "200", description = "The number of items on all pages.")
+    @BadRequest
+    @ApiErrors
+    public CountRepresentation count(
+            @Parameter(required = true, description = "A fixed kind such as `UNIT_TYPE`, or the code of a kind that the realm added.")
+            @QueryParam("kind") String kind,
+            @Parameter(description = "True to also count inactive items.", schema = @Schema(defaultValue = "false"))
+            @QueryParam("includeInactive") boolean includeInactive) {
+        context.requireReadStructure();
+        return Calls.run(context, () -> new CountRepresentation(service.count(kind, includeInactive)));
+    }
+
+    @GET
     @Path("{id}")
     @Operation(operationId = "getRefItem", summary = "Returns one item.")
     @APIResponse(responseCode = "200", description = "The item.")

@@ -107,11 +107,7 @@ public class EmploymentsResource {
                         name = "Link",
                         description = "The URL of the next page, with `rel=\"next\"`. It is there when the page "
                                 + "is full. A full page can be the last one, and the next page is then empty.",
-                        schema = @Schema(type = SchemaType.STRING)),
-                @Header(
-                        name = "X-Total-Count",
-                        description = "The number of entries on all pages. It is there with `count=true`.",
-                        schema = @Schema(type = SchemaType.INTEGER))},
+                        schema = @Schema(type = SchemaType.STRING))},
             content = @Content(mediaType = "application/json",
                     schema = @Schema(type = SchemaType.ARRAY, implementation = EmploymentRepresentation.class)))
     @BadRequest
@@ -143,11 +139,7 @@ public class EmploymentsResource {
                     schema = @Schema(minimum = "0", maximum = "1000", defaultValue = "100"))
             @QueryParam("max") Integer max,
             @Parameter(description = "The cursor from the `Link` header of the page before.")
-            @QueryParam("after") String after,
-            @Parameter(
-                    description = "True to get the number of entries on all pages in the header `X-Total-Count`.",
-                    schema = @Schema(defaultValue = "false"))
-            @QueryParam("count") boolean count) {
+            @QueryParam("after") String after) {
         context.requireRead();
         return Calls.run(context, () -> {
             Cursor.requireAlone(after, first);
@@ -155,9 +147,39 @@ public class EmploymentsResource {
                     contractEndFrom, contractEndTo, today.ofRealm());
             return Pages.of(context, represent(service.list(search, Page.of(first, max), after)),
                     Page.of(first, max).max(),
-                    employment -> Cursor.encode(Cursor.EMPLOYMENTS, employment.id()),
-                    count ? service.count(search) : null);
+                    employment -> Cursor.encode(Cursor.EMPLOYMENTS, employment.id()));
         });
+    }
+
+    @GET
+    @Path("count")
+    @Operation(
+            operationId = "countEmployments",
+            summary = "Counts the employments that `GET /employments` lists with the same filters.")
+    @APIResponse(responseCode = "200", description = "The number of employments on all pages.")
+    @BadRequest
+    @ApiErrors
+    public CountRepresentation count(
+            @Parameter(description = "A staff number to keep.")
+            @QueryParam("staffNumber") String staffNumber,
+            @Parameter(description = "The ID of the org unit that employs, to keep.")
+            @QueryParam("employerId") String employerId,
+            @Parameter(
+                    description = "A date to keep the employments that hold on it. Leave it out for every date.",
+                    schema = @Schema(format = "date"))
+            @QueryParam("asOf") String asOf,
+            @Parameter(
+                    description = "The earliest contract end to keep. It is the `contractEndDate` of the terms on "
+                            + "`asOf`, or on today in the time zone of the realm when `asOf` is left out.",
+                    schema = @Schema(format = "date"))
+            @QueryParam("contractEndFrom") String contractEndFrom,
+            @Parameter(
+                    description = "The first date after the latest contract end to keep.",
+                    schema = @Schema(format = "date"))
+            @QueryParam("contractEndTo") String contractEndTo) {
+        context.requireRead();
+        return Calls.run(context, () -> new CountRepresentation(service.count(new EmploymentService.Search(
+                staffNumber, employerId, asOf, contractEndFrom, contractEndTo, today.ofRealm()))));
     }
 
     @POST

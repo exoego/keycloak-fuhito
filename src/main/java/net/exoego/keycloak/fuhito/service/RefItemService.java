@@ -79,6 +79,18 @@ public class RefItemService {
         return store.list(knownKind(kind), includeInactive, page.first(), page.max());
     }
 
+    /**
+     * Counts the items that {@link #list(String, boolean, Page)} lists on all pages together.
+     *
+     * @param kind the code of the kind
+     * @param includeInactive true to also count inactive items
+     * @return the number of items
+     * @throws FuhitoException when the kind is unknown
+     */
+    public long count(String kind, boolean includeInactive) {
+        return store.count(knownKind(kind), includeInactive);
+    }
+
     private String knownKind(String kind) {
         Checks.required("kind", kind);
         if (!knownKinds.test(kind)) {

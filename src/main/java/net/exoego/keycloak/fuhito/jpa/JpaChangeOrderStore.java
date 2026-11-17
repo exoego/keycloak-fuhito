@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Optional;
 
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.TypedQuery;
 import net.exoego.keycloak.fuhito.domain.ChangeOrder;
 import net.exoego.keycloak.fuhito.store.ChangeOrderStore;
 
@@ -48,18 +49,27 @@ public class JpaChangeOrderStore implements ChangeOrderStore {
 
     @Override
     public List<ChangeOrder> list(LocalDate from, LocalDate to, int first, int max) {
-        return em.createQuery("""
-                        select o from ChangeOrderEntity o where o.realmId = :realmId
-                        and o.effectiveDate >= :from and o.effectiveDate < :to
-                        order by o.effectiveDate desc, o.createdAt desc, o.id""", ChangeOrderEntity.class)
-                .setParameter("realmId", realmId)
-                .setParameter("from", from == null ? FIRST_DATE : from)
-                .setParameter("to", to == null ? LAST_DATE : to)
+        return inRange("select o", " order by o.effectiveDate desc, o.createdAt desc, o.id", from, to,
+                        ChangeOrderEntity.class)
                 .setFirstResult(first)
                 .setMaxResults(max)
                 .getResultStream()
                 .map(JpaChangeOrderStore::toDomain)
                 .toList();
+    }
+
+    @Override
+    public long count(LocalDate from, LocalDate to) {
+        return inRange("select count(o)", "", from, to, Long.class).getSingleResult();
+    }
+
+    private <T> TypedQuery<T> inRange(String select, String order, LocalDate from, LocalDate to, Class<T> type) {
+        return em.createQuery(select + """
+                         from ChangeOrderEntity o where o.realmId = :realmId
+                        and o.effectiveDate >= :from and o.effectiveDate < :to""" + order, type)
+                .setParameter("realmId", realmId)
+                .setParameter("from", from == null ? FIRST_DATE : from)
+                .setParameter("to", to == null ? LAST_DATE : to);
     }
 
     @Override

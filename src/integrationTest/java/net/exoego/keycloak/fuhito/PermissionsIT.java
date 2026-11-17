@@ -103,12 +103,17 @@ class PermissionsIT {
     private static List<String> structureReads() {
         return List.of("", "/org-units", "/org-units?legalEntity=true", "/org-units/" + unit, "/org-units/" + unit + "/children",
                 "/org-units/" + unit + "/subtree", "/org-units/" + unit + "/path", "/org-units/" + unit + "/history",
-                "/hierarchies", "/ref-items?kind=UNIT_TYPE");
+                "/hierarchies", "/ref-items?kind=UNIT_TYPE", "/org-units/count", "/org-units/" + unit + "/children/count",
+                "/org-units/" + unit + "/subtree/count", "/hierarchies/count", "/ref-items/count?kind=UNIT_TYPE");
     }
 
+    // A count needs the same permission as its list.
     private static List<String> peopleReads() {
         return List.of("/org-units/" + unit + "/members", "/org-units/" + unit + "/role-holders", "/unit-roles",
-                "/people", "/change-log", "/change-orders", "/effective-changes");
+                "/people", "/change-log", "/change-orders", "/effective-changes", "/org-units/" + unit + "/members/count",
+                "/org-units/" + unit + "/role-holders/count", "/unit-roles/count", "/people/count", "/change-log/count",
+                "/change-orders/count", "/effective-changes/count", "/employments/count", "/assignments/count",
+                "/qualifications/count");
     }
 
     @Test
@@ -199,6 +204,9 @@ class PermissionsIT {
             assertEquals(403, tooFar.statusCode());
             assertEquals("structure.too_far_ahead", Api.json(tooFar).get("error").asText());
             assertEquals(403, limited.get("/org-units?asOf=" + lastDay.plusDays(1)).statusCode());
+            assertEquals(403, limited.get("/org-units/count?asOf=" + lastDay.plusDays(1)).statusCode());
+            assertEquals(403, limited.get("/org-units/" + unit + "/subtree/count?asOf=" + lastDay.plusDays(1))
+                    .statusCode());
             assertEquals(403, limited.get("/org-units/" + unit + "/history").statusCode());
             assertEquals(200, everything.get("/org-units/" + after + "?asOf=" + lastDay.plusDays(1)).statusCode());
             assertEquals(200, everything.get("/org-units/" + unit + "/history").statusCode());

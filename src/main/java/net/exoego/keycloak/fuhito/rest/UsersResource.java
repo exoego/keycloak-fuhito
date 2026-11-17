@@ -215,6 +215,26 @@ public class UsersResource {
     }
 
     @GET
+    @Path("{userId}/reports/count")
+    @Operation(
+            operationId = "countUserReports",
+            summary = "Counts the direct reports that `GET /users/{userId}/reports` lists with the same filters.")
+    @APIResponse(responseCode = "200", description = "The number of direct reports on all pages.")
+    @BadRequest
+    @NotFound
+    @ApiErrors
+    public CountRepresentation countReports(
+            @Parameter(description = "The ID of the Keycloak user.")
+            @PathParam("userId") String userId,
+            @Parameter(
+                    description = "The date to read. The default is today in the time zone of the realm.",
+                    schema = @Schema(format = "date"))
+            @QueryParam("asOf") String asOf) {
+        context.requireRead();
+        return Calls.run(context, () -> new CountRepresentation(reportingLines.countReportsOf(userId, asOf)));
+    }
+
+    @GET
     @Path("{userId}/qualifications")
     @Operation(operationId = "listUserQualifications", summary = "Lists the qualifications of a user, oldest first.")
     @APIResponse(responseCode = "200", description = "The qualifications.")
@@ -311,6 +331,31 @@ public class UsersResource {
                             .map(UnitRoleRepresentation::of)
                             .toList())
                     .orElse(List.of());
+        });
+    }
+
+    @GET
+    @Path("{userId}/unit-roles/count")
+    @Operation(
+            operationId = "countUserUnitRoles",
+            summary = "Counts the roles that `GET /users/{userId}/unit-roles` lists with the same filters.")
+    @APIResponse(responseCode = "200", description = "The number of roles on all pages.")
+    @BadRequest
+    @NotFound
+    @ApiErrors
+    public CountRepresentation countUnitRoles(
+            @Parameter(description = "The ID of the Keycloak user.")
+            @PathParam("userId") String userId,
+            @Parameter(
+                    description = "The date to read. The default is today in the time zone of the realm.",
+                    schema = @Schema(format = "date"))
+            @QueryParam("asOf") String asOf) {
+        context.requireRead();
+        return Calls.run(context, () -> {
+            requireKnown(userId);
+            return new CountRepresentation(people.ofUser(userId)
+                    .map(person -> unitRoles.countOfPerson(person.id(), asOf))
+                    .orElse(0L));
         });
     }
 

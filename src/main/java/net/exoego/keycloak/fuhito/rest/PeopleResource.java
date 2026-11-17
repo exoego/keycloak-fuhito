@@ -100,6 +100,24 @@ public class PeopleResource {
                 Page.of(first, max).max(), person -> Cursor.encode(Cursor.PEOPLE, person.id())));
     }
 
+    @GET
+    @Path("count")
+    @Operation(operationId = "countPeople", summary = "Counts the people that `GET /people` lists with the same filters.")
+    @APIResponse(responseCode = "200", description = "The number of people on all pages.")
+    @ApiErrors
+    public CountRepresentation count(
+            @Parameter(description = "The ID of a Keycloak user, to count only the person that is linked to it.")
+            @QueryParam("userId") String userId,
+            @Parameter(description = "A text that the name, the phonetic name, or a name in another language has, in "
+                    + "any case. For a person with a Keycloak user, also the first name, the last name, the username, "
+                    + "or the email of the user.")
+            @QueryParam("q") String q,
+            @Parameter(description = "A staff number that an employment of the person has.")
+            @QueryParam("staffNumber") String staffNumber) {
+        context.requireRead();
+        return Calls.run(context, () -> new CountRepresentation(service.count(userId, q, staffNumber)));
+    }
+
     @POST
     @Operation(
             operationId = "createPerson",
@@ -256,6 +274,27 @@ public class PeopleResource {
     }
 
     @GET
+    @Path("{id}/unit-roles/count")
+    @Operation(
+            operationId = "countPersonUnitRoles",
+            summary = "Counts the roles that `GET /people/{id}/unit-roles` lists with the same filters.")
+    @APIResponse(responseCode = "200", description = "The number of roles on all pages.")
+    @BadRequest
+    @NotFound
+    @ApiErrors
+    public CountRepresentation countUnitRoles(
+            @Parameter(description = "The ID of the resource.")
+            @PathParam("id") String id,
+            @Parameter(
+                    description = "The date to read. The default is today in the time zone of the realm.",
+                    schema = @Schema(format = "date"))
+            @QueryParam("asOf") String asOf) {
+        context.requireRead();
+        return Calls.run(context, () -> new CountRepresentation(reads.unitRoles()
+                .countOfPerson(service.get(id).person().id(), asOf)));
+    }
+
+    @GET
     @Path("{id}/managers")
     @Operation(
             operationId = "listPersonManagers",
@@ -307,6 +346,27 @@ public class PeopleResource {
                 .reportsOfPerson(service.get(id).person().id(), asOf, Page.of(first, max)).stream()
                 .map(ReportingRepresentation::of)
                 .toList());
+    }
+
+    @GET
+    @Path("{id}/reports/count")
+    @Operation(
+            operationId = "countPersonReports",
+            summary = "Counts the direct reports that `GET /people/{id}/reports` lists with the same filters.")
+    @APIResponse(responseCode = "200", description = "The number of direct reports on all pages.")
+    @BadRequest
+    @NotFound
+    @ApiErrors
+    public CountRepresentation countReports(
+            @Parameter(description = "The ID of the resource.")
+            @PathParam("id") String id,
+            @Parameter(
+                    description = "The date to read. The default is today in the time zone of the realm.",
+                    schema = @Schema(format = "date"))
+            @QueryParam("asOf") String asOf) {
+        context.requireRead();
+        return Calls.run(context, () -> new CountRepresentation(reads.reportingLines()
+                .countReportsOfPerson(service.get(id).person().id(), asOf)));
     }
 
     @GET

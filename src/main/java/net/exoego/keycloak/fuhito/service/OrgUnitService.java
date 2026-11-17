@@ -530,6 +530,21 @@ public class OrgUnitService {
     }
 
     /**
+     * Counts the direct children of an org unit on a date that {@link #children} lists on all pages together.
+     *
+     * @param id the ID
+     * @param asOf the date as {@code YYYY-MM-DD}, or null for today
+     * @param hierarchy the code of the hierarchy, or null for the default one
+     * @param lateral true for lateral units only, false for line units only, or null for both
+     * @return the number of children
+     * @throws FuhitoException when the unit or the hierarchy does not exist, or the unit does not exist on the date
+     */
+    public long countChildren(String id, String asOf, String hierarchy, Boolean lateral) {
+        LocalDate date = dateOfUnit(id, asOf);
+        return store.countChildrenOn(hierarchyId(hierarchy), id, lateral, date);
+    }
+
+    /**
      * Lists a page of an org unit and everything below it on a date. Each parent comes before its children.
      *
      * @param id the ID
@@ -543,6 +558,21 @@ public class OrgUnitService {
     public List<OrgUnitState> subtree(String id, String asOf, String hierarchy, Boolean lateral, Page page) {
         LocalDate date = dateOfUnit(id, asOf);
         return states(store.treeOn(hierarchyId(hierarchy), id, lateral, date, page.first(), page.max()), date);
+    }
+
+    /**
+     * Counts the units that {@link #subtree} lists on all pages together.
+     *
+     * @param id the ID
+     * @param asOf the date as {@code YYYY-MM-DD}, or null for today
+     * @param hierarchy the code of the hierarchy, or null for the default one
+     * @param lateral true for lateral units only, false for line units only, or null for both
+     * @return the number of units
+     * @throws FuhitoException when the unit or the hierarchy does not exist, or the unit does not exist on the date
+     */
+    public long countSubtree(String id, String asOf, String hierarchy, Boolean lateral) {
+        LocalDate date = dateOfUnit(id, asOf);
+        return store.countTreeOn(hierarchyId(hierarchy), id, lateral, date);
     }
 
     /**

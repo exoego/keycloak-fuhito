@@ -141,6 +141,18 @@ public class ChangeOrderService {
     }
 
     /**
+     * Counts the change orders that {@link #list} lists on all pages together.
+     *
+     * @param from the first effective date to count, as {@code YYYY-MM-DD}, or null
+     * @param to the first effective date not to count, as {@code YYYY-MM-DD}, or null
+     * @return the number of orders
+     * @throws FuhitoException when a date is bad
+     */
+    public long count(String from, String to) {
+        return store.count(Checks.optionalDate("from", from), Checks.optionalDate("to", to));
+    }
+
+    /**
      * Deletes a change order. A change order with writes in the change log cannot be deleted.
      *
      * @param id the ID

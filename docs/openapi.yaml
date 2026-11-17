@@ -395,6 +395,18 @@ components:
           type: string
           description: The ID of the Keycloak user who recorded the announcement.
           readOnly: true
+    Count:
+      required:
+      - count
+      description: The number of entries that a list has on all its pages with the
+        same filters.
+      type: object
+      properties:
+        count:
+          type: integer
+          format: int64
+          minimum: 0
+          description: The number of entries.
     EffectiveChange:
       required:
       - effectiveDate
@@ -3662,13 +3674,6 @@ paths:
           format: date
         name: asOf
         in: query
-      - description: True to get the number of entries on all pages in the header
-          `X-Total-Count`.
-        schema:
-          type: boolean
-          default: false
-        name: count
-        in: query
       - description: The number of entries to skip. It cannot be used with `after`.
         schema:
           type: integer
@@ -3716,10 +3721,6 @@ paths:
                 \ next page is then empty."
               schema:
                 type: string
-            X-Total-Count:
-              description: The number of entries on all pages. It is there with `count=true`.
-              schema:
-                type: integer
           content:
             application/json:
               schema:
@@ -3758,6 +3759,56 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "404":
           $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /assignments/count:
+    get:
+      summary: Counts the assignments that `GET /assignments` lists with the same
+        filters.
+      operationId: countAssignments
+      tags:
+      - assignments
+      parameters:
+      - description: The date to read. The default is today in the time zone of the
+          realm.
+        schema:
+          type: string
+          format: date
+        name: asOf
+        in: query
+      - description: The code of a job title to keep.
+        name: jobTitle
+        in: query
+        schema:
+          type: string
+      - description: The code of an assignment kind to keep.
+        name: kind
+        in: query
+        schema:
+          type: string
+      - description: The code of an occupation to keep.
+        name: occupation
+        in: query
+        schema:
+          type: string
+      - description: The ID of an org unit to keep. The units below do not count.
+        name: orgUnitId
+        in: query
+        schema:
+          type: string
+      responses:
+        "200":
+          description: The number of assignments on all pages.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Count"
+        "400":
+          $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -4255,6 +4306,41 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+  /change-log/count:
+    get:
+      summary: "Counts the writes that `GET /change-log` lists with the same filters,\
+        \ from the start."
+      operationId: countChangeLog
+      tags:
+      - change-orders
+      parameters:
+      - description: "The ID of the resource. Without it, the writes to every resource\
+          \ are counted."
+        name: resourceId
+        in: query
+        schema:
+          type: string
+      - description: "The type of the resource. Without it, the writes to every type\
+          \ are counted."
+        schema:
+          type: string
+          examples:
+          - FUHITO_ORG_UNIT
+        name: resourceType
+        in: query
+      responses:
+        "200":
+          description: The number of entries.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Count"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
   /change-orders:
     get:
       summary: "Lists the change orders with an effective date in a range, newest\
@@ -4329,6 +4415,41 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ChangeOrder"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /change-orders/count:
+    get:
+      summary: Counts the change orders that `GET /change-orders` lists with the same
+        filters.
+      operationId: countChangeOrders
+      tags:
+      - change-orders
+      parameters:
+      - description: The first effective date to count.
+        schema:
+          type: string
+          format: date
+        name: from
+        in: query
+      - description: The first effective date not to count.
+        schema:
+          type: string
+          format: date
+        name: to
+        in: query
+      responses:
+        "200":
+          description: The number of orders on all pages.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Count"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -4509,6 +4630,34 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+  /change-orders/{id}/changes/count:
+    get:
+      summary: "Counts the writes that `GET /change-orders/{id}/changes` lists."
+      operationId: countChangeOrderChanges
+      tags:
+      - change-orders
+      parameters:
+      - description: The ID of the resource.
+        name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: The number of entries.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Count"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
   /effective-changes:
     get:
       summary: Lists the resources with a period that starts or ends in a range of
@@ -4563,6 +4712,43 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/EffectiveChange"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /effective-changes/count:
+    get:
+      summary: Counts the entries that `GET /effective-changes` lists with the same
+        range.
+      operationId: countEffectiveChanges
+      tags:
+      - change-orders
+      parameters:
+      - description: The first date of the range. The default is today in the time
+          zone of the realm.
+        schema:
+          type: string
+          format: date
+        name: from
+        in: query
+      - description: The first date after the range. The default is the day after
+          `from`.
+        schema:
+          type: string
+          format: date
+        name: to
+        in: query
+      responses:
+        "200":
+          description: The number of entries on all pages.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Count"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -4636,13 +4822,6 @@ paths:
           format: date
         name: contractEndTo
         in: query
-      - description: True to get the number of entries on all pages in the header
-          `X-Total-Count`.
-        schema:
-          type: boolean
-          default: false
-        name: count
-        in: query
       - description: "The ID of the org unit that employs, to keep."
         name: employerId
         in: query
@@ -4680,16 +4859,66 @@ paths:
                 \ next page is then empty."
               schema:
                 type: string
-            X-Total-Count:
-              description: The number of entries on all pages. It is there with `count=true`.
-              schema:
-                type: integer
           content:
             application/json:
               schema:
                 type: array
                 items:
                   $ref: "#/components/schemas/Employment"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /employments/count:
+    get:
+      summary: Counts the employments that `GET /employments` lists with the same
+        filters.
+      operationId: countEmployments
+      tags:
+      - employments
+      parameters:
+      - description: A date to keep the employments that hold on it. Leave it out
+          for every date.
+        schema:
+          type: string
+          format: date
+        name: asOf
+        in: query
+      - description: "The earliest contract end to keep. It is the `contractEndDate`\
+          \ of the terms on `asOf`, or on today in the time zone of the realm when\
+          \ `asOf` is left out."
+        schema:
+          type: string
+          format: date
+        name: contractEndFrom
+        in: query
+      - description: The first date after the latest contract end to keep.
+        schema:
+          type: string
+          format: date
+        name: contractEndTo
+        in: query
+      - description: "The ID of the org unit that employs, to keep."
+        name: employerId
+        in: query
+        schema:
+          type: string
+      - description: A staff number to keep.
+        name: staffNumber
+        in: query
+        schema:
+          type: string
+      responses:
+        "200":
+          description: The number of employments on all pages.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Count"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -5363,6 +5592,25 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+  /hierarchies/count:
+    get:
+      summary: Counts the hierarchies that `GET /hierarchies` lists.
+      operationId: countHierarchies
+      tags:
+      - org-units
+      responses:
+        "200":
+          description: The number of hierarchies on all pages.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Count"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
   /hierarchies/{id}:
     put:
       summary: Changes the name of a hierarchy.
@@ -5655,12 +5903,6 @@ paths:
         in: query
         schema:
           type: string
-      - description: True to get the number of units on all pages in the header `X-Total-Count`.
-        schema:
-          type: boolean
-          default: false
-        name: count
-        in: query
       - description: The number of entries to skip. It cannot be used with `after`.
         schema:
           type: integer
@@ -5726,10 +5968,6 @@ paths:
                 \ next page is then empty."
               schema:
                 type: string
-            X-Total-Count:
-              description: The number of units on all pages. It is there with `count=true`.
-              schema:
-                type: integer
           content:
             application/json:
               schema:
@@ -5768,6 +6006,78 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "404":
           $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /org-units/count:
+    get:
+      summary: Counts the org units that `GET /org-units` lists with the same filters.
+      operationId: countOrgUnits
+      tags:
+      - org-units
+      parameters:
+      - description: The date to read. The default is today in the time zone of the
+          realm.
+        schema:
+          type: string
+          format: date
+        name: asOf
+        in: query
+      - description: The code of the unit on the date.
+        name: code
+        in: query
+        schema:
+          type: string
+      - description: The code of the hierarchy of `roots`. The default is the hierarchy
+          `default`.
+        name: hierarchy
+        in: query
+        schema:
+          type: string
+      - description: "True for lateral units only, such as committees. False for line\
+          \ units only. Leave it out for both."
+        name: lateral
+        in: query
+        schema:
+          type: boolean
+      - description: "True for the units that are legal entities only, such as companies.\
+          \ False for the other units only. Leave it out for both. A unit is one when\
+          \ its unit type says so."
+        name: legalEntity
+        in: query
+        schema:
+          type: boolean
+      - description: "A part of the name, of the short name, or of the phonetic name,\
+          \ in any language, with no regard to case."
+        name: q
+        in: query
+        schema:
+          type: string
+      - description: "True for the units with no parent in `hierarchy` only, the roots.\
+          \ In a hierarchy other than the default one, a root also has a child in\
+          \ it."
+        schema:
+          type: boolean
+          default: false
+        name: roots
+        in: query
+      - description: The code of the unit type.
+        name: unitType
+        in: query
+        schema:
+          type: string
+      responses:
+        "200":
+          description: The number of units on all pages.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Count"
+        "400":
+          $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -5952,6 +6262,55 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+  /org-units/{id}/children/count:
+    get:
+      summary: "Counts the children that `GET /org-units/{id}/children` lists with\
+        \ the same filters."
+      operationId: countOrgUnitChildren
+      tags:
+      - org-units
+      parameters:
+      - description: The ID of the resource.
+        name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      - description: The date to read. The default is today for the org unit. It is
+          the date of the realm unless a unit sets its own time zone.
+        schema:
+          type: string
+          format: date
+        name: asOf
+        in: query
+      - description: The code of the hierarchy. The default is the hierarchy `default`.
+        name: hierarchy
+        in: query
+        schema:
+          type: string
+      - description: "True for lateral units only, such as committees. False for line\
+          \ units only. Leave it out for both."
+        name: lateral
+        in: query
+        schema:
+          type: boolean
+      responses:
+        "200":
+          description: The number of children on all pages.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Count"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
   /org-units/{id}/end:
     delete:
       summary: Removes the end of an org unit.
@@ -6090,13 +6449,6 @@ paths:
         in: query
         schema:
           type: string
-      - description: True to get the number of members on all pages in the header
-          `X-Total-Count`. It costs one more query.
-        schema:
-          type: boolean
-          default: false
-        name: count
-        in: query
       - description: The number of entries to skip.
         schema:
           type: integer
@@ -6164,16 +6516,98 @@ paths:
                 \ next page is then empty."
               schema:
                 type: string
-            X-Total-Count:
-              description: The number of members on all pages. It is there with `count=true`.
-              schema:
-                type: integer
           content:
             application/json:
               schema:
                 type: array
                 items:
                   $ref: "#/components/schemas/Member"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /org-units/{id}/members/count:
+    get:
+      summary: "Counts the members that `GET /org-units/{id}/members` lists with the\
+        \ same filters."
+      operationId: countOrgUnitMembers
+      tags:
+      - org-units
+      parameters:
+      - description: The ID of the resource.
+        name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      - description: The date to read. The default is today for the org unit. It is
+          the date of the realm unless a unit sets its own time zone.
+        schema:
+          type: string
+          format: date
+        name: asOf
+        in: query
+      - description: "The code of a cost center to keep. It keeps the members whose\
+          \ cost center that applies on the date is this one. That is the one of the\
+          \ assignment, else the one of its org unit, else the one of the nearest\
+          \ unit above it in the default hierarchy."
+        name: costCenter
+        in: query
+        schema:
+          type: string
+      - description: The code of the hierarchy. The default is the hierarchy `default`.
+        name: hierarchy
+        in: query
+        schema:
+          type: string
+      - description: True to also count the members of every unit below.
+        schema:
+          type: boolean
+          default: false
+        name: includeDescendants
+        in: query
+      - description: The code of a job title to keep.
+        name: jobTitle
+        in: query
+        schema:
+          type: string
+      - description: The code of an occupation to keep.
+        name: occupation
+        in: query
+        schema:
+          type: string
+      - description: True to keep only the people who work outside the legal entity
+          that employs them. False to keep everyone else. The default is everyone.
+        name: seconded
+        in: query
+        schema:
+          type: boolean
+      - description: An employment status to keep.
+        schema:
+          $ref: "#/components/schemas/EmploymentStatus"
+        name: status
+        in: query
+      - description: "The code of a work location to keep. It keeps the members whose\
+          \ work location that applies on the date is this one. That is the one of\
+          \ the assignment, else the one of its org unit, else the one of the nearest\
+          \ unit above it in the default hierarchy."
+        name: workLocation
+        in: query
+        schema:
+          type: string
+      responses:
+        "200":
+          description: The number of members on all pages.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Count"
         "400":
           $ref: "#/components/responses/BadRequest"
         "404":
@@ -6414,6 +6848,58 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+  /org-units/{id}/role-holders/count:
+    get:
+      summary: "Counts the roles that `GET /org-units/{id}/role-holders` lists with\
+        \ the same filters."
+      description: "They name people, so the read needs the full read permission."
+      operationId: countOrgUnitRoleHolders
+      tags:
+      - org-units
+      parameters:
+      - description: The ID of the resource.
+        name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      - description: The date to read. The default is today for the org unit. It is
+          the date of the realm unless a unit sets its own time zone.
+        schema:
+          type: string
+          format: date
+        name: asOf
+        in: query
+      - description: "True to keep, for each role, only the holders of the nearest\
+          \ unit. A holder of a unit above is then left out when a nearer unit has\
+          \ a holder of the same role."
+        schema:
+          type: boolean
+          default: false
+        name: nearest
+        in: query
+      - description: The code of a role to keep.
+        name: role
+        in: query
+        schema:
+          type: string
+      responses:
+        "200":
+          description: The number of roles on all pages.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Count"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
   /org-units/{id}/subtree:
     get:
       summary: Lists an org unit and everything below it on a date.
@@ -6472,6 +6958,56 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/OrgUnit"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /org-units/{id}/subtree/count:
+    get:
+      summary: "Counts the units that `GET /org-units/{id}/subtree` lists with the\
+        \ same filters."
+      description: "The org unit itself counts too, unless `lateral` leaves it out."
+      operationId: countOrgUnitSubtree
+      tags:
+      - org-units
+      parameters:
+      - description: The ID of the resource.
+        name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      - description: The date to read. The default is today for the org unit. It is
+          the date of the realm unless a unit sets its own time zone.
+        schema:
+          type: string
+          format: date
+        name: asOf
+        in: query
+      - description: The code of the hierarchy. The default is the hierarchy `default`.
+        name: hierarchy
+        in: query
+        schema:
+          type: string
+      - description: "True for lateral units only, such as committees. False for line\
+          \ units only. Leave it out for both."
+        name: lateral
+        in: query
+        schema:
+          type: boolean
+      responses:
+        "200":
+          description: The number of units on all pages.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Count"
         "400":
           $ref: "#/components/responses/BadRequest"
         "404":
@@ -6654,6 +7190,44 @@ paths:
                 $ref: "#/components/schemas/Person"
         "400":
           $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /people/count:
+    get:
+      summary: Counts the people that `GET /people` lists with the same filters.
+      operationId: countPeople
+      tags:
+      - people
+      parameters:
+      - description: "A text that the name, the phonetic name, or a name in another\
+          \ language has, in any case. For a person with a Keycloak user, also the\
+          \ first name, the last name, the username, or the email of the user."
+        name: q
+        in: query
+        schema:
+          type: string
+      - description: A staff number that an employment of the person has.
+        name: staffNumber
+        in: query
+        schema:
+          type: string
+      - description: "The ID of a Keycloak user, to count only the person that is\
+          \ linked to it."
+        name: userId
+        in: query
+        schema:
+          type: string
+      responses:
+        "200":
+          description: The number of people on all pages.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Count"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -7048,6 +7622,44 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+  /people/{id}/reports/count:
+    get:
+      summary: "Counts the direct reports that `GET /people/{id}/reports` lists with\
+        \ the same filters."
+      operationId: countPersonReports
+      tags:
+      - people
+      parameters:
+      - description: The ID of the resource.
+        name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      - description: The date to read. The default is today in the time zone of the
+          realm.
+        schema:
+          type: string
+          format: date
+        name: asOf
+        in: query
+      responses:
+        "200":
+          description: The number of direct reports on all pages.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Count"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
   /people/{id}/unit-roles:
     get:
       summary: Lists the roles over org units of a person on a date.
@@ -7094,6 +7706,44 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/UnitRole"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /people/{id}/unit-roles/count:
+    get:
+      summary: "Counts the roles that `GET /people/{id}/unit-roles` lists with the\
+        \ same filters."
+      operationId: countPersonUnitRoles
+      tags:
+      - people
+      parameters:
+      - description: The ID of the resource.
+        name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      - description: The date to read. The default is today in the time zone of the
+          realm.
+        schema:
+          type: string
+          format: date
+        name: asOf
+        in: query
+      responses:
+        "200":
+          description: The number of roles on all pages.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Count"
         "400":
           $ref: "#/components/responses/BadRequest"
         "404":
@@ -7175,13 +7825,6 @@ paths:
           format: date
         name: asOf
         in: query
-      - description: True to get the number of entries on all pages in the header
-          `X-Total-Count`.
-        schema:
-          type: boolean
-          default: false
-        name: count
-        in: query
       - description: The number of entries to skip. It cannot be used with `after`.
         schema:
           type: integer
@@ -7214,10 +7857,6 @@ paths:
                 \ next page is then empty."
               schema:
                 type: string
-            X-Total-Count:
-              description: The number of entries on all pages. It is there with `count=true`.
-              schema:
-                type: integer
           content:
             application/json:
               schema:
@@ -7257,6 +7896,41 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "404":
           $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /qualifications/count:
+    get:
+      summary: Counts the qualifications that `GET /qualifications` lists with the
+        same filters.
+      operationId: countQualifications
+      tags:
+      - qualifications
+      parameters:
+      - description: A date to keep the qualifications that hold on it. Leave it out
+          for every date.
+        schema:
+          type: string
+          format: date
+        name: asOf
+        in: query
+      - description: The code of a kind of qualification to keep.
+        name: kind
+        in: query
+        schema:
+          type: string
+      responses:
+        "200":
+          description: The number of qualifications on all pages.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Count"
+        "400":
+          $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -7429,6 +8103,41 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/RefItem"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /ref-items/count:
+    get:
+      summary: Counts the items that `GET /ref-items` lists with the same filters.
+      operationId: countRefItems
+      tags:
+      - ref-items
+      parameters:
+      - description: True to also count inactive items.
+        schema:
+          type: boolean
+          default: false
+        name: includeInactive
+        in: query
+      - description: "A fixed kind such as `UNIT_TYPE`, or the code of a kind that\
+          \ the realm added."
+        required: true
+        name: kind
+        in: query
+        schema:
+          type: string
+      responses:
+        "200":
+          description: The number of items on all pages.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Count"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -7900,13 +8609,6 @@ paths:
           format: date
         name: asOf
         in: query
-      - description: True to get the number of entries on all pages in the header
-          `X-Total-Count`.
-        schema:
-          type: boolean
-          default: false
-        name: count
-        in: query
       - description: The number of entries to skip. It cannot be used with `after`.
         schema:
           type: integer
@@ -7944,10 +8646,6 @@ paths:
                 \ next page is then empty."
               schema:
                 type: string
-            X-Total-Count:
-              description: The number of entries on all pages. It is there with `count=true`.
-              schema:
-                type: integer
           content:
             application/json:
               schema:
@@ -7984,6 +8682,45 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/UnitRole"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /unit-roles/count:
+    get:
+      summary: Counts the roles that `GET /unit-roles` lists with the same filters.
+      operationId: countUnitRoles
+      tags:
+      - unit-roles
+      parameters:
+      - description: The date to read. The default is today in the time zone of the
+          realm.
+        schema:
+          type: string
+          format: date
+        name: asOf
+        in: query
+      - description: The ID of an org unit to keep. The units above do not count.
+        name: orgUnitId
+        in: query
+        schema:
+          type: string
+      - description: The code of a role to keep.
+        name: role
+        in: query
+        schema:
+          type: string
+      responses:
+        "200":
+          description: The number of roles on all pages.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Count"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -8378,6 +9115,44 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+  /users/{userId}/reports/count:
+    get:
+      summary: "Counts the direct reports that `GET /users/{userId}/reports` lists\
+        \ with the same filters."
+      operationId: countUserReports
+      tags:
+      - users
+      parameters:
+      - description: The ID of the Keycloak user.
+        name: userId
+        in: path
+        required: true
+        schema:
+          type: string
+      - description: The date to read. The default is today in the time zone of the
+          realm.
+        schema:
+          type: string
+          format: date
+        name: asOf
+        in: query
+      responses:
+        "200":
+          description: The number of direct reports on all pages.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Count"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
   /users/{userId}/unit-roles:
     get:
       summary: Lists the roles over org units of a user on a date.
@@ -8424,6 +9199,44 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/UnitRole"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /users/{userId}/unit-roles/count:
+    get:
+      summary: "Counts the roles that `GET /users/{userId}/unit-roles` lists with\
+        \ the same filters."
+      operationId: countUserUnitRoles
+      tags:
+      - users
+      parameters:
+      - description: The ID of the Keycloak user.
+        name: userId
+        in: path
+        required: true
+        schema:
+          type: string
+      - description: The date to read. The default is today in the time zone of the
+          realm.
+        schema:
+          type: string
+          format: date
+        name: asOf
+        in: query
+      responses:
+        "200":
+          description: The number of roles on all pages.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Count"
         "400":
           $ref: "#/components/responses/BadRequest"
         "404":

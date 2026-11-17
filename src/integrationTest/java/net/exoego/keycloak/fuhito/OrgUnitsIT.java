@@ -83,20 +83,18 @@ class OrgUnitsIT {
         }
         assertEquals(List.of("1病棟"), Api.json(search.get("/org-units?unitType=ward&code=W1" + on))
                 .findValuesAsText("name"));
-        HttpResponse<String> counted = search.get("/org-units?q=%E7%97%85%E6%A3%9F&max=1&count=true" + on);
-        assertEquals(1, Api.json(counted).size());
-        assertEquals("2", counted.headers().firstValue("X-Total-Count").orElseThrow());
+        assertEquals(1, Api.json(search.get("/org-units?q=%E7%97%85%E6%A3%9F&max=1" + on)).size());
+        assertEquals(2, search.count("/org-units/count?q=%E7%97%85%E6%A3%9F" + on));
         // The filters apply together, also to the count.
         assertEquals(List.of("X病院"), Api.json(search.get("/org-units?roots=true&legalEntity=false" + on))
                 .findValuesAsText("name"));
         assertEquals(List.of("法人"), Api.json(search.get("/org-units?roots=true&legalEntity=true&lateral=false" + on))
                 .findValuesAsText("name"));
         assertEquals(0, Api.json(search.get("/org-units?roots=true&q=%E7%97%85%E6%A3%9F&unitType=ward" + on)).size());
-        assertEquals("3", search.get("/org-units?legalEntity=false&count=true" + on).headers()
-                .firstValue("X-Total-Count").orElseThrow());
-        assertEquals("1", search.get("/org-units?roots=true&legalEntity=false&count=true" + on).headers()
-                .firstValue("X-Total-Count").orElseThrow());
+        assertEquals(3, search.count("/org-units/count?legalEntity=false" + on));
+        assertEquals(1, search.count("/org-units/count?roots=true&legalEntity=false" + on));
         assertEquals("org_unit.unit_type_unknown", errorOf(400, search.get("/org-units?unitType=room" + on)));
+        assertEquals("org_unit.unit_type_unknown", errorOf(400, search.get("/org-units/count?unitType=room" + on)));
 
         for (String name : List.of("nurse-a", "nurse-b")) {
             HttpResponse<String> staff = search.post("/staff", "{\"userId\": \"" + realm.user(name)
@@ -106,9 +104,13 @@ class OrgUnitsIT {
         HttpResponse<String> members = search.get("/org-units/" + hospital
                 + "/members?includeDescendants=true&max=1&count=true" + on);
         assertEquals(1, Api.json(members).size());
-        assertEquals("2", members.headers().firstValue("X-Total-Count").orElseThrow());
-        assertTrue(search.get("/org-units/" + hospital + "/members" + on.replace('&', '?')).headers()
-                .firstValue("X-Total-Count").isEmpty());
+        // The list no longer counts. The count is a read of its own.
+        assertTrue(members.headers().firstValue("X-Total-Count").isEmpty());
+        assertEquals(2, search.count("/org-units/" + hospital + "/members/count?includeDescendants=true" + on));
+        assertEquals(0, search.count("/org-units/" + hospital + "/members/count" + on.replace('&', '?')));
+        assertEquals("ref_item.unknown", errorOf(400, search.get("/org-units/" + hospital
+                + "/members/count?jobTitle=none" + on)));
+        assertEquals("org_unit.not_found", errorOf(404, search.get("/org-units/none/members/count")));
     }
 
     @Test
@@ -142,6 +144,15 @@ class OrgUnitsIT {
                 + "/subtree?lateral=true&" + on)).findValuesAsText("name"));
         assertEquals(List.of("病院", "内科"), Api.json(units.get("/org-units/" + hospital
                 + "/subtree?lateral=false&" + on)).findValuesAsText("name"));
+        assertEquals(1, units.count("/org-units/" + hospital + "/children/count?lateral=false&" + on));
+        assertEquals(2, units.count("/org-units/" + hospital + "/children/count?" + on));
+        assertEquals(1, units.count("/org-units/" + hospital + "/subtree/count?lateral=true&" + on));
+        assertEquals(2, units.count("/org-units/" + hospital + "/subtree/count?lateral=false&" + on));
+        assertEquals(3, units.count("/org-units/" + hospital + "/subtree/count?" + on));
+        assertEquals("org_unit.not_valid_on", errorOf(404, units.get("/org-units/" + hospital
+                + "/children/count?asOf=2026-03-31")));
+        assertEquals("org_unit.not_valid_on", errorOf(404, units.get("/org-units/" + hospital
+                + "/subtree/count?asOf=2026-03-31")));
         assertEquals(List.of("内科"), Api.json(units.get("/org-units?unitType=department&lateral=false&" + on))
                 .findValuesAsText("name"));
         assertEquals(List.of(), Api.json(units.get("/org-units?unitType=department&lateral=true&" + on))
@@ -493,8 +504,7 @@ class OrgUnitsIT {
 
         // Only the units with a parent or a child in the matrix are in it.
         assertEquals(List.of("Project"), namesOf(matrixApi.get("/org-units?roots=true&hierarchy=matrix&" + on)));
-        assertEquals("1", matrixApi.get("/org-units?roots=true&hierarchy=matrix&count=true&" + on).headers()
-                .firstValue("X-Total-Count").orElseThrow());
+        assertEquals(1, matrixApi.count("/org-units/count?roots=true&hierarchy=matrix&" + on));
         // Every unit is in the list, each with its parent in the hierarchy of the request.
         JsonNode inMatrix = Api.json(matrixApi.get("/org-units?hierarchy=matrix&" + on));
         assertEquals(List.of("Alone", "Line", "Project", "Squad", "Team"), inMatrix.findValuesAsText("name"));
@@ -510,6 +520,9 @@ class OrgUnitsIT {
         assertEquals(List.of("Team"), namesOf(matrixApi.get("/org-units/" + project + "/children?hierarchy=matrix&" + on)));
         assertEquals(List.of(), namesOf(matrixApi.get("/org-units/" + project + "/children?" + on)));
         assertEquals(List.of("Project", "Team"), namesOf(matrixApi.get("/org-units/" + project + "/subtree?hierarchy=matrix&" + on)));
+        assertEquals(1, matrixApi.count("/org-units/" + project + "/children/count?hierarchy=matrix&" + on));
+        assertEquals(0, matrixApi.count("/org-units/" + project + "/children/count?" + on));
+        assertEquals(2, matrixApi.count("/org-units/" + project + "/subtree/count?hierarchy=matrix&" + on));
         assertEquals(List.of("Project", "Team"), namesOf(matrixApi.get("/org-units/" + team + "/path?hierarchy=matrix&" + on)));
         assertEquals(List.of("Line", "Team"), namesOf(matrixApi.get("/org-units/" + team + "/path?" + on)));
         assertEquals(project, Api.json(matrixApi.get("/org-units/" + team + "?hierarchy=matrix&" + on)).get("parentId").asText());
@@ -519,9 +532,14 @@ class OrgUnitsIT {
         String members = "/org-units/" + project + "/members?includeDescendants=true&" + on;
         assertEquals(List.of(member), Api.json(matrixApi.get(members + "&hierarchy=matrix")).findValuesAsText("userId"));
         assertEquals(List.of(), Api.json(matrixApi.get(members)).findValuesAsText("userId"));
+        String counted = "/org-units/" + project + "/members/count?includeDescendants=true&" + on;
+        assertEquals(1, matrixApi.count(counted + "&hierarchy=matrix"));
+        assertEquals(0, matrixApi.count(counted));
 
         for (String path : List.of("/org-units?", "/org-units/" + team + "?", "/org-units/" + team + "/children?",
-                "/org-units/" + team + "/subtree?", "/org-units/" + team + "/path?", "/org-units/" + team + "/members?")) {
+                "/org-units/" + team + "/subtree?", "/org-units/" + team + "/path?", "/org-units/" + team + "/members?",
+                "/org-units/count?", "/org-units/" + team + "/children/count?", "/org-units/" + team + "/subtree/count?",
+                "/org-units/" + team + "/members/count?")) {
             HttpResponse<String> unknown = matrixApi.get(path + "hierarchy=nope&" + on);
             assertEquals(400, unknown.statusCode(), path + " " + unknown.body());
             assertEquals("hierarchy.unknown", Api.json(unknown).get("error").asText());

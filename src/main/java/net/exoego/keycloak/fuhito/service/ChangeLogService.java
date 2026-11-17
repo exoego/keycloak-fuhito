@@ -44,6 +44,17 @@ public class ChangeLogService {
     }
 
     /**
+     * Counts the writes to the realm.
+     *
+     * @param resourceType the type of the resource, for example {@code FUHITO_ORG_UNIT}, or null for every type
+     * @param resourceId the ID of the resource, or null for every resource
+     * @return the number of entries
+     */
+    public long count(String resourceType, String resourceId) {
+        return store.count(resourceType, resourceId);
+    }
+
+    /**
      * Lists the writes that belong to one change order, oldest first.
      *
      * @param changeOrderId the ID of the change order
@@ -53,10 +64,26 @@ public class ChangeLogService {
      * @throws FuhitoException when the realm has no such change order
      */
     public List<ChangeLogEntry> ofChangeOrder(String changeOrderId, Integer first, Integer max) {
+        requireChangeOrder(changeOrderId);
+        Page page = Page.of(first, max);
+        return store.listByChangeOrder(changeOrderId, page.first(), page.max());
+    }
+
+    /**
+     * Counts the writes that belong to one change order.
+     *
+     * @param changeOrderId the ID of the change order
+     * @return the number of entries
+     * @throws FuhitoException when the realm has no such change order
+     */
+    public long countOfChangeOrder(String changeOrderId) {
+        requireChangeOrder(changeOrderId);
+        return store.countByChangeOrder(changeOrderId);
+    }
+
+    private void requireChangeOrder(String changeOrderId) {
         if (changeOrders.find(changeOrderId).isEmpty()) {
             throw FuhitoException.notFound("change_order.not_found", Map.of("id", changeOrderId));
         }
-        Page page = Page.of(first, max);
-        return store.listByChangeOrder(changeOrderId, page.first(), page.max());
     }
 }

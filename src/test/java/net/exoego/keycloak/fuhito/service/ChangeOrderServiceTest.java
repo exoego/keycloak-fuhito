@@ -38,8 +38,18 @@ class ChangeOrderServiceTest {
         }
 
         @Override
+        public long count(String resourceType, String resourceId) {
+            return 0;
+        }
+
+        @Override
         public List<ChangeLogEntry> listByChangeOrder(String changeOrderId, int first, int max) {
             return List.of();
+        }
+
+        @Override
+        public long countByChangeOrder(String changeOrderId) {
+            return 0;
         }
 
         @Override

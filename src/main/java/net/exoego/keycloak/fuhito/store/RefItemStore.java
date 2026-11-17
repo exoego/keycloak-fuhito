@@ -43,6 +43,15 @@ public interface RefItemStore {
     List<RefItem> list(String kind, boolean includeInactive, int first, int max);
 
     /**
+     * Counts the items that {@link #list(String, boolean, int, int)} lists on all pages together.
+     *
+     * @param kind the code of a fixed kind or of a kind of the realm
+     * @param includeInactive true to also count inactive items
+     * @return the number of items
+     */
+    long count(String kind, boolean includeInactive);
+
+    /**
      * Finds an item by ID.
      *
      * @param id the ID

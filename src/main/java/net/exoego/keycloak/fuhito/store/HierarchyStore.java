@@ -27,6 +27,13 @@ public interface HierarchyStore {
     List<Hierarchy> list(int first, int max);
 
     /**
+     * Counts the hierarchies.
+     *
+     * @return the number of hierarchies
+     */
+    long count();
+
+    /**
      * Finds a hierarchy by its ID.
      *
      * @param id the ID

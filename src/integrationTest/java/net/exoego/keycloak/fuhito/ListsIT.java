@@ -8,7 +8,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ListsIT {
 
@@ -51,8 +50,8 @@ class ListsIT {
         assertEquals(List.of("N-0", "N-1", "N-2"), follow(api, "/employments?max=2&asOf=2026-05-01", "staffNumber")
                 .stream().sorted().toList());
         assertEquals(List.of("N-1"), Api.json(api.get("/employments?staffNumber=N-1")).findValuesAsText("staffNumber"));
-        HttpResponse<String> counted = api.get("/employments?max=1&count=true");
-        assertEquals("3", counted.headers().firstValue("X-Total-Count").orElseThrow());
+        assertEquals(3, api.count("/employments/count"));
+        assertEquals(1, api.count("/employments/count?staffNumber=N-1"));
 
         assertEquals(List.of(users.get(0)), Api.json(api.get("/assignments?jobTitle=chief&asOf=2026-05-01"))
                 .findValuesAsText("userId"));
@@ -63,13 +62,14 @@ class ListsIT {
         assertEquals(3, Api.json(api.get("/employments?employerId=" + employer)).size());
         assertEquals(3, follow(api, "/qualifications?max=2", "id").size());
         assertEquals(3, follow(api, "/assignments?max=2&asOf=2026-05-01", "assignmentId").size());
-        assertEquals("3", api.get("/assignments?asOf=2026-05-01&count=true").headers().firstValue("X-Total-Count")
-                .orElseThrow());
+        assertEquals(3, api.count("/assignments/count?asOf=2026-05-01"));
+        assertEquals(1, api.count("/assignments/count?jobTitle=chief&orgUnitId=" + ward + "&asOf=2026-05-01"));
+        assertEquals(400, api.get("/assignments/count?kind=none").statusCode());
 
         JsonNode licenses = Api.json(api.get("/qualifications?kind=license&asOf=2026-05-01"));
         assertEquals(3, licenses.size());
-        assertTrue(api.get("/qualifications?kind=license&count=true").headers().firstValue("X-Total-Count")
-                .orElseThrow().equals("3"));
+        assertEquals(3, api.count("/qualifications/count?kind=license"));
+        assertEquals(0, api.count("/qualifications/count?kind=license&asOf=2019-04-01"));
         assertEquals(400, api.get("/qualifications?first=1&after=qualifications.v1__x").statusCode());
     }
 }

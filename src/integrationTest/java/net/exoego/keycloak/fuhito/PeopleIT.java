@@ -104,6 +104,8 @@ class PeopleIT {
         JsonNode found = ok(api.get("/people?userId=" + user));
         assertEquals(List.of(person.get("id").asText()), found.findValuesAsText("id"));
         assertEquals(0, ok(api.get("/people?userId=nobody")).size());
+        assertEquals(1, api.count("/people/count?userId=" + user));
+        assertEquals(0, api.count("/people/count?userId=nobody"));
     }
 
     @Test
@@ -130,6 +132,10 @@ class PeopleIT {
         assertEquals(all.subList(1, 3), ok(scratch.api.get("/people?first=1&max=5")).findValuesAsText("id"));
         assertEquals(all.subList(0, 1), ok(scratch.api.get("/people?max=1")).findValuesAsText("id"));
         assertEquals(0, ok(otherRealm.api.get("/people")).size());
+        // The path segment count wins over the ID of a person, and the ID still reads the person.
+        assertEquals(3, scratch.api.count("/people/count"));
+        assertEquals(all.get(0), ok(scratch.api.get("/people/" + all.get(0))).get("id").asText());
+        assertEquals(0, otherRealm.api.count("/people/count"));
     }
 
     @Test
@@ -223,6 +229,10 @@ class PeopleIT {
         }
         assertEquals(List.of(ichiro), ok(scratchApi.get("/people?staffNumber=S-77")).findValuesAsText("id"));
         assertEquals(List.of(), ok(scratchApi.get("/people?q=hanako&staffNumber=S-77")).findValuesAsText("id"));
+        assertEquals(1, scratchApi.count("/people/count?staffNumber=S-77"));
+        assertEquals(1, scratchApi.count("/people/count?q=TSUZUKI"));
+        assertEquals(0, scratchApi.count("/people/count?q=hanako&staffNumber=S-77"));
+        assertEquals(3, scratchApi.count("/people/count?q=%20"));
         // The keys of the names in other languages are not names.
         assertEquals(List.of(), ok(scratchApi.get("/people?q=en")).findValuesAsText("id"));
 
@@ -408,6 +418,8 @@ class PeopleIT {
         assertEquals(List.of(chief), ok(scratchApi.get(people + "/managers?asOf=2021-04-01")).findValuesAsText("personId"));
         assertEquals(List.of(member),
                 ok(scratchApi.get("/people/" + chief + "/reports?asOf=2021-04-01")).findValuesAsText("personId"));
+        assertEquals(1, scratchApi.count("/people/" + chief + "/reports/count?asOf=2021-04-01"));
+        assertEquals(0, scratchApi.count("/people/" + chief + "/reports/count?asOf=2024-04-01"));
         assertEquals(List.of("license"), ok(scratchApi.get(people + "/qualifications")).findValuesAsText("kind"));
         assertEquals(1, ok(scratchApi.get(people + "/qualifications?all=true")).size());
         JsonNode history = ok(scratchApi.get(people + "/history"));
@@ -441,7 +453,8 @@ class PeopleIT {
         assertEquals("部長", ok(scratchApi.get("/people/" + chief)).get("name").asText());
         assertEquals(1, ok(scratchApi.get("/people/" + chief + "/history")).get("employments").size());
 
-        for (String path : List.of("/assignments", "/history", "/managers", "/reports", "/qualifications")) {
+        for (String path : List.of("/assignments", "/history", "/managers", "/reports", "/qualifications",
+                "/reports/count", "/unit-roles/count")) {
             assertEquals("person.not_found", errorOf(404, scratchApi.get("/people/nobody" + path)));
             assertEquals("person.not_found", errorOf(404, otherRealm.api.get("/people/" + chief + path)));
         }

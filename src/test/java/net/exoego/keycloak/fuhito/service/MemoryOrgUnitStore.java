@@ -82,6 +82,16 @@ final class MemoryOrgUnitStore implements OrgUnitStore {
         return placed(of(lateral, new OrgUnitTree(this, refItems, date, hierarchyId).children(parentId)), first, max);
     }
 
+    @Override
+    public long countTreeOn(String hierarchyId, String rootId, Boolean lateral, LocalDate date) {
+        return treeOn(hierarchyId, rootId, lateral, date, 0, Integer.MAX_VALUE).size();
+    }
+
+    @Override
+    public long countChildrenOn(String hierarchyId, String parentId, Boolean lateral, LocalDate date) {
+        return childrenOn(hierarchyId, parentId, lateral, date, 0, Integer.MAX_VALUE).size();
+    }
+
     private static List<OrgUnitState> of(Boolean lateral, List<OrgUnitState> states) {
         return states.stream().filter(state -> lateral == null || state.lateral() == lateral).toList();
     }

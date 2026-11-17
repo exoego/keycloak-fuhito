@@ -6,6 +6,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.TypedQuery;
 import net.exoego.keycloak.fuhito.domain.EffectiveChange;
 import net.exoego.keycloak.fuhito.domain.EffectiveChange.Kind;
 import net.exoego.keycloak.fuhito.store.EffectiveChangeStore;
@@ -26,7 +27,7 @@ public class JpaEffectiveChangeStore implements EffectiveChangeStore {
         }
     }
 
-    private static final String QUERY = Stream.of(
+    private static final String CHANGES = Stream.of(
                     new Source("OrgUnitVersionEntity", "orgUnitId", Kind.ORG_UNIT),
                     new Source("OrgUnitLinkEntity", "childId", Kind.ORG_UNIT),
                     new Source("EmploymentEntity", "id", Kind.EMPLOYMENT),
@@ -36,7 +37,12 @@ public class JpaEffectiveChangeStore implements EffectiveChangeStore {
                     new Source("QualificationEntity", "id", Kind.QUALIFICATION),
                     new Source("UnitRoleEntity", "id", Kind.UNIT_ROLE))
             .flatMap(source -> Stream.of(source.select("validFrom"), source.select("validTo")))
-            .collect(Collectors.joining("union\n", "", "order by date, kind, resourceId"));
+            .collect(Collectors.joining("union\n"));
+
+    private static final String QUERY = CHANGES + "order by date, kind, resourceId";
+
+    // The count needs the rows of the union, so the union goes into a with clause.
+    private static final String COUNT = "with Changes as (\n" + CHANGES + ")\nselect count(*) from Changes c";
 
     private final EntityManager em;
     private final String realmId;
@@ -54,14 +60,23 @@ public class JpaEffectiveChangeStore implements EffectiveChangeStore {
 
     @Override
     public List<EffectiveChange> list(LocalDate from, LocalDate to, int first, int max) {
-        return em.createQuery(QUERY, Object[].class)
-                .setParameter("realmId", realmId)
-                .setParameter("from", from)
-                .setParameter("to", to)
+        return inRange(QUERY, from, to, Object[].class)
                 .setFirstResult(first)
                 .setMaxResults(max)
                 .getResultStream()
                 .map(row -> new EffectiveChange((LocalDate) row[0], Kind.valueOf((String) row[1]), (String) row[2]))
                 .toList();
+    }
+
+    @Override
+    public long count(LocalDate from, LocalDate to) {
+        return inRange(COUNT, from, to, Long.class).getSingleResult();
+    }
+
+    private <T> TypedQuery<T> inRange(String text, LocalDate from, LocalDate to, Class<T> type) {
+        return em.createQuery(text, type)
+                .setParameter("realmId", realmId)
+                .setParameter("from", from)
+                .setParameter("to", to);
     }
 }

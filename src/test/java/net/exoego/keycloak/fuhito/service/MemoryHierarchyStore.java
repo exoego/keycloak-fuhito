@@ -31,6 +31,11 @@ final class MemoryHierarchyStore implements HierarchyStore {
     }
 
     @Override
+    public long count() {
+        return hierarchies.size();
+    }
+
+    @Override
     public Optional<Hierarchy> find(String id) {
         return Optional.ofNullable(hierarchies.get(id));
     }

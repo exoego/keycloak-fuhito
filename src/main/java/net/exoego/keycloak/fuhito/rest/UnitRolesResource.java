@@ -68,11 +68,7 @@ public class UnitRolesResource {
                         name = "Link",
                         description = "The URL of the next page, with `rel=\"next\"`. It is there when the page "
                                 + "is full. A full page can be the last one, and the next page is then empty.",
-                        schema = @Schema(type = SchemaType.STRING)),
-                @Header(
-                        name = "X-Total-Count",
-                        description = "The number of entries on all pages. It is there with `count=true`.",
-                        schema = @Schema(type = SchemaType.INTEGER))},
+                        schema = @Schema(type = SchemaType.STRING))},
             content = @Content(mediaType = "application/json",
                     schema = @Schema(type = SchemaType.ARRAY, implementation = RoleHolderRepresentation.class)))
     @BadRequest
@@ -95,20 +91,37 @@ public class UnitRolesResource {
                     schema = @Schema(minimum = "0", maximum = "1000", defaultValue = "100"))
             @QueryParam("max") Integer max,
             @Parameter(description = "The cursor from the `Link` header of the page before.")
-            @QueryParam("after") String after,
-            @Parameter(
-                    description = "True to get the number of entries on all pages in the header `X-Total-Count`.",
-                    schema = @Schema(defaultValue = "false"))
-            @QueryParam("count") boolean count) {
+            @QueryParam("after") String after) {
         context.requireRead();
         return Calls.run(context, () -> {
             Cursor.requireAlone(after, first);
             UnitRoleService.Search search = new UnitRoleService.Search(role, orgUnitId, asOf);
             return Pages.of(context, service.list(search, Page.of(first, max), after).stream()
                             .map(RoleHolderRepresentation::of).toList(), Page.of(first, max).max(),
-                    holder -> Cursor.encode(Cursor.UNIT_ROLES, holder.id()),
-                    count ? service.count(search) : null);
+                    holder -> Cursor.encode(Cursor.UNIT_ROLES, holder.id()));
         });
+    }
+
+    @GET
+    @Path("count")
+    @Operation(
+            operationId = "countUnitRoles",
+            summary = "Counts the roles that `GET /unit-roles` lists with the same filters.")
+    @APIResponse(responseCode = "200", description = "The number of roles on all pages.")
+    @BadRequest
+    @ApiErrors
+    public CountRepresentation count(
+            @Parameter(description = "The code of a role to keep.")
+            @QueryParam("role") String role,
+            @Parameter(description = "The ID of an org unit to keep. The units above do not count.")
+            @QueryParam("orgUnitId") String orgUnitId,
+            @Parameter(
+                    description = "The date to read. The default is today in the time zone of the realm.",
+                    schema = @Schema(format = "date"))
+            @QueryParam("asOf") String asOf) {
+        context.requireRead();
+        return Calls.run(context,
+                () -> new CountRepresentation(service.count(new UnitRoleService.Search(role, orgUnitId, asOf))));
     }
 
     @POST

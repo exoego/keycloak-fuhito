@@ -70,6 +70,16 @@ public class HierarchiesResource {
     }
 
     @GET
+    @Path("count")
+    @Operation(operationId = "countHierarchies", summary = "Counts the hierarchies that `GET /hierarchies` lists.")
+    @APIResponse(responseCode = "200", description = "The number of hierarchies on all pages.")
+    @ApiErrors
+    public CountRepresentation count() {
+        context.requireReadStructure();
+        return Calls.run(context, () -> new CountRepresentation(service.count()));
+    }
+
+    @GET
     @Path("{id}")
     @Operation(operationId = "getHierarchy", summary = "Returns one hierarchy.")
     @APIResponse(responseCode = "200", description = "The hierarchy.")

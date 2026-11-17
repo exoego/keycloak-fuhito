@@ -125,9 +125,8 @@ public class JpaOrgUnitStore implements OrgUnitStore {
     }
 
     private static final String SIBLINGS = """
-            select u, v from OrgUnitVersionEntity v join OrgUnitEntity u on u.id = v.orgUnitId
-            where v.realmId = :realmId and v.%s and %%s%%s
-            order by v.displayOrder, v.phoneticName nulls last, v.name, v.orgUnitId""".formatted(TreeQuery.onDate("v"));
+             from OrgUnitVersionEntity v join OrgUnitEntity u on u.id = v.orgUnitId
+            where v.realmId = :realmId and v.%s and %%s%%s""".formatted(TreeQuery.onDate("v"));
 
     private static final String CHILD_OF = """
             exists (select 1 from OrgUnitLinkEntity l where l.realmId = :realmId
@@ -252,22 +251,31 @@ public class JpaOrgUnitStore implements OrgUnitStore {
     @Override
     public List<PlacedOrgUnit> treeOn(String hierarchyId, String rootId, Boolean lateral, LocalDate date, int first,
             int max) {
-        return em.createQuery(TreeQuery.SUBTREE + """
-                        select u, v, t.parentId from Tree t
-                        join OrgUnitEntity u on u.id = t.id
-                        join OrgUnitVersionEntity v on v.id = t.versionId
-                        where 1 = 1%s
-                        order by t.position""".formatted(nature(lateral)), Object[].class)
-                .setParameter("realmId", realmId)
-                .setParameter("hierarchyId", hierarchyId)
-                .setParameter("date", date)
-                .setParameter("rootId", rootId)
+        return treeQuery(hierarchyId, rootId, lateral, date, false, Object[].class)
                 .setFirstResult(first)
                 .setMaxResults(max)
                 .getResultStream()
                 .map(row -> new PlacedOrgUnit(toDomain((OrgUnitEntity) row[0]),
                         toDomain((OrgUnitVersionEntity) row[1]), (String) row[2]))
                 .toList();
+    }
+
+    @Override
+    public long countTreeOn(String hierarchyId, String rootId, Boolean lateral, LocalDate date) {
+        return treeQuery(hierarchyId, rootId, lateral, date, true, Long.class).getSingleResult();
+    }
+
+    private <T> TypedQuery<T> treeQuery(String hierarchyId, String rootId, Boolean lateral, LocalDate date,
+            boolean count, Class<T> type) {
+        return em.createQuery(TreeQuery.SUBTREE + (count ? "select count(v)" : "select u, v, t.parentId") + """
+                         from Tree t
+                        join OrgUnitEntity u on u.id = t.id
+                        join OrgUnitVersionEntity v on v.id = t.versionId
+                        where 1 = 1""" + nature(lateral) + (count ? "" : " order by t.position"), type)
+                .setParameter("realmId", realmId)
+                .setParameter("hierarchyId", hierarchyId)
+                .setParameter("date", date)
+                .setParameter("rootId", rootId);
     }
 
     // The units after the unit of the cursor, in the order of siblings. A unit with no phonetic name comes after
@@ -479,15 +487,28 @@ public class JpaOrgUnitStore implements OrgUnitStore {
     @Override
     public List<PlacedOrgUnit> childrenOn(String hierarchyId, String parentId, Boolean lateral, LocalDate date,
             int first, int max) {
-        return em.createQuery(SIBLINGS.formatted(CHILD_OF, nature(lateral)), Object[].class)
-                .setParameter("realmId", realmId)
-                .setParameter("hierarchyId", hierarchyId)
-                .setParameter("date", date)
-                .setParameter("parentId", parentId)
+        return childrenQuery(hierarchyId, parentId, lateral, date, false, Object[].class)
                 .setFirstResult(first).setMaxResults(max).getResultStream()
                 .map(row -> new PlacedOrgUnit(toDomain((OrgUnitEntity) row[0]),
                         toDomain((OrgUnitVersionEntity) row[1]), parentId))
                 .toList();
+    }
+
+    @Override
+    public long countChildrenOn(String hierarchyId, String parentId, Boolean lateral, LocalDate date) {
+        return childrenQuery(hierarchyId, parentId, lateral, date, true, Long.class).getSingleResult();
+    }
+
+    private <T> TypedQuery<T> childrenQuery(String hierarchyId, String parentId, Boolean lateral, LocalDate date,
+            boolean count, Class<T> type) {
+        return em.createQuery((count ? "select count(v)" : "select u, v") + SIBLINGS.formatted(CHILD_OF,
+                        nature(lateral))
+                        + (count ? "" : " order by v.displayOrder, v.phoneticName nulls last, v.name, v.orgUnitId"),
+                        type)
+                .setParameter("realmId", realmId)
+                .setParameter("hierarchyId", hierarchyId)
+                .setParameter("date", date)
+                .setParameter("parentId", parentId);
     }
 
     @Override

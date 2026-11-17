@@ -21,4 +21,13 @@ public interface EffectiveChangeStore {
      * @return the entries of the page
      */
     List<EffectiveChange> list(LocalDate from, LocalDate to, int first, int max);
+
+    /**
+     * Counts the entries that {@link #list} lists on all pages together.
+     *
+     * @param from the first date of the range
+     * @param to the first date after the range
+     * @return the number of entries
+     */
+    long count(LocalDate from, LocalDate to);
 }

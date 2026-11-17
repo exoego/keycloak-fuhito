@@ -29,6 +29,15 @@ public interface ChangeLogStore {
     List<ChangeLogEntry> list(long after, String resourceType, String resourceId, int first, int max);
 
     /**
+     * Counts the entries of the realm.
+     *
+     * @param resourceType the type of the resource, or null for every type
+     * @param resourceId the ID of the resource, or null for every resource
+     * @return the number of entries
+     */
+    long count(String resourceType, String resourceId);
+
+    /**
      * Lists the entries of one change order, oldest first.
      *
      * @param changeOrderId the ID of the change order
@@ -37,6 +46,14 @@ public interface ChangeLogStore {
      * @return the entries
      */
     List<ChangeLogEntry> listByChangeOrder(String changeOrderId, int first, int max);
+
+    /**
+     * Counts the entries of one change order.
+     *
+     * @param changeOrderId the ID of the change order
+     * @return the number of entries
+     */
+    long countByChangeOrder(String changeOrderId);
 
     /**
      * Tells whether any entry belongs to a change order.

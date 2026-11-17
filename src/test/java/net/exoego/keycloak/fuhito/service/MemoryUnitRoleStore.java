@@ -53,6 +53,17 @@ final class MemoryUnitRoleStore implements UnitRoleStore {
     }
 
     @Override
+    public long countHoldersOn(String hierarchyId, String orgUnitId, String roleId, boolean nearest,
+            LocalDate date) {
+        return holdersOn(hierarchyId, orgUnitId, roleId, nearest, date, 0, Integer.MAX_VALUE).size();
+    }
+
+    @Override
+    public long countOfPersonOn(String personId, LocalDate date) {
+        return ofPersonOn(personId, date, 0, Integer.MAX_VALUE).size();
+    }
+
+    @Override
     public List<UnitRole> ofPersonOn(String personId, LocalDate date, int first, int max) {
         return roles.stream()
                 .filter(r -> r.personId().equals(personId) && r.period().contains(date))

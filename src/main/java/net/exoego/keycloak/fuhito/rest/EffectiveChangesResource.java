@@ -3,6 +3,7 @@ package net.exoego.keycloak.fuhito.rest;
 import java.util.List;
 
 import jakarta.ws.rs.GET;
+import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
@@ -68,5 +69,26 @@ public class EffectiveChangesResource {
         return Calls.run(context, () -> service.list(from, to, Page.of(first, max)).stream()
                 .map(EffectiveChangeRepresentation::of)
                 .toList());
+    }
+
+    @GET
+    @Path("count")
+    @Operation(
+            operationId = "countEffectiveChanges",
+            summary = "Counts the entries that `GET /effective-changes` lists with the same range.")
+    @APIResponse(responseCode = "200", description = "The number of entries on all pages.")
+    @BadRequest
+    @ApiErrors
+    public CountRepresentation count(
+            @Parameter(
+                    description = "The first date of the range. The default is today in the time zone of the realm.",
+                    schema = @Schema(format = "date"))
+            @QueryParam("from") String from,
+            @Parameter(
+                    description = "The first date after the range. The default is the day after `from`.",
+                    schema = @Schema(format = "date"))
+            @QueryParam("to") String to) {
+        context.requireRead();
+        return Calls.run(context, () -> new CountRepresentation(service.count(from, to)));
     }
 }

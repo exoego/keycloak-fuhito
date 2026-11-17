@@ -67,6 +67,11 @@ final class MemoryPersonStore implements PersonStore {
     }
 
     @Override
+    public long count(String text, String staffNumber) {
+        return search(text, staffNumber, null, 0, Integer.MAX_VALUE).size();
+    }
+
+    @Override
     public void insert(Person person) {
         people.put(person.id(), person);
     }

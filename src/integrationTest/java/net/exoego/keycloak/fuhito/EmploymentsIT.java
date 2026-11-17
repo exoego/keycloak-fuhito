@@ -214,13 +214,12 @@ class EmploymentsIT {
         // With no asOf, the terms of today decide. The renewal of the first one holds from 2026.
         assertEquals(List.of(first), Api.json(contracts.api.get("/employments?contractEndFrom=2027-01-01"
                 + "&contractEndTo=2027-04-01")).findValuesAsText("id"));
-        HttpResponse<String> counted = contracts.api.get("/employments?asOf=2026-03-01&contractEndTo=2027-01-01"
-                + "&max=1&count=true");
-        assertEquals(200, counted.statusCode(), counted.body());
-        assertEquals("2", counted.headers().firstValue("X-Total-Count").orElseThrow());
+        assertEquals(2, contracts.api.count("/employments/count?asOf=2026-03-01&contractEndTo=2027-01-01"));
         assertEquals("employment.contract_end_before_terms", errorOf(400, contracts.api.put("/employments/"
                 + second + "/terms", "{\"validFrom\": \"2026-06-01\", \"contractEndDate\": \"2026-05-31\"}")));
         assertEquals("invalid.period", errorOf(400, contracts.api.get("/employments?contractEndFrom=2026-04-01"
+                + "&contractEndTo=2026-04-01")));
+        assertEquals("invalid.period", errorOf(400, contracts.api.get("/employments/count?contractEndFrom=2026-04-01"
                 + "&contractEndTo=2026-04-01")));
     }
 

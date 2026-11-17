@@ -268,6 +268,36 @@ public class ReportingLineService {
         return reports(personId, dateOrToday(asOf), page);
     }
 
+    /**
+     * Counts the direct reports that {@link #reportsOf} lists on all pages together.
+     *
+     * @param userId the ID of the user
+     * @param asOf the date as {@code YYYY-MM-DD}, or null for today
+     * @return the number of direct reports
+     * @throws FuhitoException when the user does not exist
+     */
+    public long countReportsOf(String userId, String asOf) {
+        LocalDate date = dateOrToday(asOf);
+        requireUser(userId);
+        return personOf(userId).map(personId -> countReports(personId, date)).orElse(0L);
+    }
+
+    /**
+     * Counts the direct reports that {@link #reportsOfPerson} lists on all pages together.
+     *
+     * @param personId the ID of the person
+     * @param asOf the date as {@code YYYY-MM-DD}, or null for today
+     * @return the number of direct reports
+     * @throws FuhitoException when the date is bad
+     */
+    public long countReportsOfPerson(String personId, String asOf) {
+        return countReports(personId, dateOrToday(asOf));
+    }
+
+    private long countReports(String personId, LocalDate date) {
+        return store.countReportsOn(sources.orgUnits().defaultHierarchyId(), personId, date);
+    }
+
     private List<Reporting> reports(String personId, LocalDate date, Page page) {
         return store.reportsOn(sources.orgUnits().defaultHierarchyId(), personId, date, page.first(), page.max())
                 .stream()

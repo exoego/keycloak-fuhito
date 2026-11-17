@@ -29,6 +29,11 @@ final class MemoryRefItemStore implements RefItemStore {
     }
 
     @Override
+    public long count(String kind, boolean includeInactive) {
+        return list(kind, includeInactive).size();
+    }
+
+    @Override
     public Optional<RefItem> find(String id) {
         return Optional.ofNullable(items.get(id));
     }

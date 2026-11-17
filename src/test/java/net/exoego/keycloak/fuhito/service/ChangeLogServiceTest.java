@@ -36,9 +36,19 @@ class ChangeLogServiceTest {
         }
 
         @Override
+        public long count(String resourceType, String resourceId) {
+            return list(0, resourceType, resourceId, 0, Integer.MAX_VALUE).size();
+        }
+
+        @Override
         public List<ChangeLogEntry> listByChangeOrder(String changeOrderId, int first, int max) {
             return entries.stream().filter(e -> changeOrderId.equals(e.changeOrderId())).skip(first).limit(max)
                     .toList();
+        }
+
+        @Override
+        public long countByChangeOrder(String changeOrderId) {
+            return listByChangeOrder(changeOrderId, 0, Integer.MAX_VALUE).size();
         }
 
         @Override
