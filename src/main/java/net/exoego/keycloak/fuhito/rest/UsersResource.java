@@ -21,7 +21,6 @@ import net.exoego.keycloak.fuhito.service.MembershipService;
 import net.exoego.keycloak.fuhito.service.Page;
 import net.exoego.keycloak.fuhito.service.PersonService;
 import net.exoego.keycloak.fuhito.service.QualificationService;
-import net.exoego.keycloak.fuhito.service.Page;
 import net.exoego.keycloak.fuhito.service.ReportingLineService;
 import net.exoego.keycloak.fuhito.service.UnitRoleService;
 import net.exoego.keycloak.fuhito.store.UserDirectory;
