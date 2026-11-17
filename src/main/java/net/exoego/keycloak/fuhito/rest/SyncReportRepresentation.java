@@ -20,7 +20,7 @@ public record SyncReportRepresentation(
         int assignmentsAdded,
         @Schema(description = "The number of users whose assignment moved to another org unit.")
         int assignmentsMoved,
-        @Schema(description = "The number of assignments that got a new job title.")
+        @Schema(description = "The number of assignments whose job title changed. One that lost its title counts too.")
         int assignmentsChanged,
         @Schema(description = "The number of assignments that ended because the department was removed.")
         int assignmentsEnded,

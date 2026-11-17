@@ -330,7 +330,7 @@ public class AttributeSyncService {
         return result;
     }
 
-    private void sync(Values user, String orgUnitId, String jobTitle, Assignment current, LocalDate unitDate) {
+    private void sync(Values user, String orgUnitId, RefItem title, Assignment current, LocalDate unitDate) {
         Employment employment = employmentOf(user, unitDate);
         String employmentId = employment.id();
         // An employment that started on the date of another org unit can start after the date of this one.
@@ -338,15 +338,16 @@ public class AttributeSyncService {
         LocalDate today = later(unitDate, employment.period().from());
         String assignmentId;
         if (current == null) {
-            assignmentId = add(employment, orgUnitId, jobTitle, today);
+            assignmentId = add(employment, orgUnitId, titleCode(user, title, null), today);
             tally.assignmentsAdded++;
         } else if (!current.orgUnitId().equals(orgUnitId) || !current.employmentId().equals(employmentId)) {
             retire(current, today);
-            assignmentId = add(employment, orgUnitId, jobTitle, today);
+            assignmentId = add(employment, orgUnitId, titleCode(user, title, null), today);
             tally.assignmentsMoved++;
         } else {
             assignmentId = current.assignmentId();
             today = later(today, current.period().from());
+            String jobTitle = titleCode(user, title, current.jobTitleId());
             if (!Objects.equals(jobTitle, codeOf(current.jobTitleId()))) {
                 written(from.assignmentService().changeDetails(assignmentId, new AssignmentValues(null, null,
                         today.toString(), null, jobTitle, codeOf(current.occupationId()), codeOf(current.kindId()),
@@ -357,6 +358,18 @@ public class AttributeSyncService {
             }
         }
         syncManager(user, assignmentId, today);
+    }
+
+    // A deactivated title stays on an assignment that has it. Any other assignment gets no title, as when nothing
+    // has the title.
+    private String titleCode(Values user, RefItem title, String currentId) {
+        if (title != null && (title.active() || title.id().equals(currentId))) {
+            return title.code();
+        }
+        if (user.title() != null) {
+            tally.unmatched.add(new Unmatched(user.userId(), "title", user.title(), "unknown"));
+        }
+        return null;
     }
 
     private static LocalDate later(LocalDate a, LocalDate b) {
@@ -492,8 +505,7 @@ public class AttributeSyncService {
 
         private final Map<String, String> unitByCode = new HashMap<>();
         private final Map<String, List<String>> unitsByName = new HashMap<>();
-        private final Map<String, String> titleByCode;
-        private final Map<String, String> titleByName;
+        private final Map<String, RefItem> titles = new HashMap<>();
 
         Matcher(LocalDate today) {
             for (OrgUnitState unit : new OrgUnitTree(from.orgUnits(), from.refItems(), today).all()) {
@@ -502,9 +514,13 @@ public class AttributeSyncService {
                 }
                 unitsByName.computeIfAbsent(unit.version().name(), name -> new ArrayList<>()).add(unit.unit().id());
             }
-            List<RefItem> titles = from.refItems().list(RefKind.JOB_TITLE, false);
-            titleByCode = titles.stream().collect(Collectors.toMap(RefItem::code, RefItem::code));
-            titleByName = titles.stream().collect(Collectors.toMap(RefItem::name, RefItem::code, (a, b) -> a));
+            // The code wins over the name, and an active title wins over a deactivated one.
+            List<RefItem> all = from.refItems().list(RefKind.JOB_TITLE, true);
+            for (boolean active : List.of(true, false)) {
+                List<RefItem> some = all.stream().filter(item -> item.active() == active).toList();
+                some.forEach(item -> titles.putIfAbsent(item.code(), item));
+                some.forEach(item -> titles.putIfAbsent(item.name(), item));
+            }
         }
 
         // The code wins over the name. A name that two units share matches neither.
@@ -523,15 +539,9 @@ public class AttributeSyncService {
             return Optional.empty();
         }
 
-        String jobTitle(Values user) {
-            if (user.title() == null) {
-                return null;
-            }
-            String code = Optional.ofNullable(titleByCode.get(user.title())).orElse(titleByName.get(user.title()));
-            if (code == null) {
-                tally.unmatched.add(new Unmatched(user.userId(), "title", user.title(), "unknown"));
-            }
-            return code;
+        // A deactivated title matches too, so that an assignment that has it can keep it.
+        RefItem jobTitle(Values user) {
+            return user.title() == null ? null : titles.get(user.title());
         }
     }
 }
