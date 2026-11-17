@@ -3281,7 +3281,8 @@ components:
         assignmentsChanged:
           type: integer
           format: int32
-          description: The number of assignments that got a new job title.
+          description: The number of assignments whose job title changed. One that
+            lost its title counts too.
         assignmentsEnded:
           type: integer
           format: int32
@@ -3323,8 +3324,9 @@ components:
           type: string
         reason:
           type: string
-          description: '`unknown` when nothing has the value. `ambiguous` when more
-            than one org unit has the name.'
+          description: "`unknown` when nothing has the value, or when it names a deactivated\
+            \ job title that the assignment does not have. `ambiguous` when more than\
+            \ one org unit has the name."
           enum:
           - unknown
           - ambiguous
