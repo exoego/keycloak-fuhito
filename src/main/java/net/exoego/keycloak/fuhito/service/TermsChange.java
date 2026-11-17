@@ -13,13 +13,31 @@ import java.util.Map;
  * @param status the status, or null for {@code ACTIVE}
  * @param leaveReason the code of the leave reason, or null. Only the status {@code ON_LEAVE} may have one.
  * @param workPercent the share of full-time work in percent, or null
+ * @param contractEndDate the last day of the fixed-term contract, as {@code YYYY-MM-DD}, or null for an indefinite
+ *        contract
  * @param attributes free values, or null
  */
 public record TermsChange(String validFrom, String employmentType, String grade, String status, String leaveReason,
-        BigDecimal workPercent, Map<String, Object> attributes) {
+        BigDecimal workPercent, String contractEndDate, Map<String, Object> attributes) {
 
     /**
-     * Makes a request with no leave reason.
+     * Makes a request for an indefinite contract.
+     *
+     * @param validFrom the first date of the new terms, as {@code YYYY-MM-DD}
+     * @param employmentType the code of the employment type, or null
+     * @param grade the code of the grade, or null
+     * @param status the status, or null for {@code ACTIVE}
+     * @param leaveReason the code of the leave reason, or null. Only the status {@code ON_LEAVE} may have one.
+     * @param workPercent the share of full-time work in percent, or null
+     * @param attributes free values, or null
+     */
+    public TermsChange(String validFrom, String employmentType, String grade, String status, String leaveReason,
+            BigDecimal workPercent, Map<String, Object> attributes) {
+        this(validFrom, employmentType, grade, status, leaveReason, workPercent, null, attributes);
+    }
+
+    /**
+     * Makes a request with no leave reason, for an indefinite contract.
      *
      * @param validFrom the first date of the new terms, as {@code YYYY-MM-DD}
      * @param employmentType the code of the employment type, or null
@@ -30,6 +48,6 @@ public record TermsChange(String validFrom, String employmentType, String grade,
      */
     public TermsChange(String validFrom, String employmentType, String grade, String status, BigDecimal workPercent,
             Map<String, Object> attributes) {
-        this(validFrom, employmentType, grade, status, null, workPercent, attributes);
+        this(validFrom, employmentType, grade, status, null, workPercent, null, attributes);
     }
 }

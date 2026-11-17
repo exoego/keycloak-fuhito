@@ -1,6 +1,7 @@
 package net.exoego.keycloak.fuhito.service;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -35,7 +36,8 @@ class LeaveServiceTest {
                     0, Map.of(), true));
         }
         employment = employments.start(new NewEmployment("nurse", "2026-04-01", "2028-04-01", null, "part-time",
-                "g1", "SUSPENDED", new BigDecimal("50"), Map.of("shift", "night"), null, null)).employment().id();
+                "g1", "SUSPENDED", null, new BigDecimal("50"), "2028-03-31", Map.of("shift", "night"), null, null,
+                null)).employment().id();
     }
 
     private static List<String> statuses(EmploymentView view) {
@@ -58,6 +60,7 @@ class LeaveServiceTest {
             assertEquals("part-time", terms.employmentType());
             assertEquals("g1", terms.grade());
             assertEquals(new BigDecimal("50"), terms.terms().workPercent());
+            assertEquals(LocalDate.of(2028, 3, 31), terms.terms().contractEndDate());
             assertEquals(Map.of("shift", "night"), terms.terms().attributes());
         }
     }

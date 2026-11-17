@@ -354,6 +354,7 @@
                 <constraints nullable="false"/>
             </column>
             <column name="LEAVE_REASON_ID" type="VARCHAR(36)"/>
+            <column name="CONTRACT_END_DATE" type="DATE"/>
         </createTable>
         <addUniqueConstraint tableName="FUHITO_EMPLOYMENT_TERMS" columnNames="EMPLOYMENT_ID, VALID_FROM"
                              constraintName="UK_FUHITO_EMPLOYMENT_TERMS_FROM"/>

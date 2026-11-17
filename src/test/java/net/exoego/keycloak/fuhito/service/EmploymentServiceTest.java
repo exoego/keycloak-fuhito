@@ -136,6 +136,77 @@ class EmploymentServiceTest {
                 .toList());
     }
 
+    private String fixedTerm(String personId, String validFrom, String contractEnd) {
+        return service.start(new NewEmployment(personId, validFrom, null, null, null, null, null, null, null,
+                contractEnd, null, null, null, null)).employment().id();
+    }
+
+    private static TermsChange contract(String validFrom, String contractEnd) {
+        return new TermsChange(validFrom, null, null, null, null, null, contractEnd, null);
+    }
+
+    @Test
+    void aFixedTermContractHasAnEndThatARenewalMovesWithoutEndingTheEmployment() {
+        String id = fixedTerm("alice", "2025-04-01", "2026-03-31");
+        assertEquals(LocalDate.of(2026, 3, 31), service.get(id).terms().getFirst().terms().contractEndDate());
+
+        EmploymentView renewed = service.changeTerms(id, contract("2026-04-01", "2027-03-31"));
+
+        assertEquals(List.of(LocalDate.of(2026, 3, 31), LocalDate.of(2027, 3, 31)),
+                renewed.terms().stream().map(t -> t.terms().contractEndDate()).toList());
+        assertNull(renewed.employment().period().to());
+        // A conversion to an indefinite contract is terms with no end.
+        EmploymentView converted = service.changeTerms(id, new TermsChange("2030-04-01", null, null, null, null,
+                null));
+        assertNull(converted.terms().getLast().terms().contractEndDate());
+    }
+
+    @Test
+    void aContractEndIsNotBeforeTheStartOfItsTerms() {
+        String id = service.start(minimal("alice", "2025-04-01")).employment().id();
+
+        // A contract can end on its first day.
+        service.changeTerms(id, contract("2025-04-01", "2025-04-01"));
+        FuhitoException early = assertThrows(FuhitoException.class,
+                () -> service.changeTerms(id, contract("2025-05-01", "2025-04-30")));
+        assertEquals("employment.contract_end_before_terms", early.code());
+        assertEquals(Map.of("contractEndDate", "2025-04-30", "validFrom", "2025-05-01"), early.params());
+        assertEquals("invalid.date", failure(new NewEmployment("bob", "2025-04-01", null, null, null, null, null,
+                null, null, "soon", null, null, null, null)).code());
+        assertEquals(1, service.get(id).terms().size());
+    }
+
+    @Test
+    void listsTheEmploymentsWhoseContractEndsInARange() {
+        String a = fixedTerm("alice", "2025-04-01", "2026-03-31");
+        String b = fixedTerm("bob", "2025-04-01", "2026-04-30");
+        service.start(minimal("bob", "2025-04-01"));
+        service.changeTerms(a, contract("2026-04-01", "2027-03-31"));
+        LocalDate today = LocalDate.of(2026, 3, 1);
+        Page all = Page.of(null, null);
+
+        assertEquals(List.of(a), ids(new EmploymentService.Search(null, null, null, "2026-03-01", "2026-04-01",
+                today), all));
+        assertEquals(List.of(b), ids(new EmploymentService.Search(null, null, null, "2026-04-01", null, today),
+                all));
+        assertEquals(List.of(a), ids(new EmploymentService.Search(null, null, null, null, "2026-04-01", today),
+                all));
+        // The terms of asOf decide. The renewal of the first one ends in 2027, and the second one has passed.
+        assertEquals(List.of(a), ids(new EmploymentService.Search(null, null, "2026-06-01", "2027-01-01", null,
+                today), all));
+        assertEquals(2, service.count(new EmploymentService.Search(null, null, null, "2026-01-01", "2027-01-01",
+                today)));
+        assertEquals("invalid.period", assertThrows(FuhitoException.class,
+                () -> service.count(new EmploymentService.Search(null, null, null, "2026-04-01", "2026-04-01",
+                        today))).code());
+        assertEquals("invalid.date", assertThrows(FuhitoException.class,
+                () -> service.count(new EmploymentService.Search(null, null, null, null, "later", today))).code());
+    }
+
+    private List<String> ids(EmploymentService.Search search, Page page) {
+        return service.list(search, page, null).stream().map(view -> view.employment().id()).toList();
+    }
+
     @Test
     void anEmploymentKeepsItsEmployerAndEachEmployerGivesItsOwnStaffNumbers() {
         EmploymentView atA = service.start(new NewEmployment("alice", "2020-04-01", null, "1001", null, null, null, null,
@@ -344,7 +415,8 @@ class EmploymentServiceTest {
         item(RefKind.EMPLOYMENT_TYPE, "full-time", true);
         item(RefKind.END_REASON, "transfer", true);
         String old = service.start(new NewEmployment("alice", "2020-04-01", "2030-04-01", "Y-1001", "full-time", null,
-                null, null, new BigDecimal("80"), Map.of("desk", "3F"), "HR-1", "hr", "company-y")).employment().id();
+                null, null, new BigDecimal("80"), "2030-03-31", Map.of("desk", "3F"), "HR-1", "hr", "company-y"))
+                .employment().id();
         service.changeTerms(old, status("2029-04-01", "ON_LEAVE"));
         assignment("ward-row", "ward", old, "2020-04-01", null);
         assignment("past-row", "past", old, "2020-04-01", "2025-04-01");
@@ -374,6 +446,7 @@ class EmploymentServiceTest {
         assertEquals("full-time", transfer.started().terms().getFirst().employmentType());
         EmploymentTerms terms = store.terms(started.id()).getFirst();
         assertEquals(new BigDecimal("80"), terms.workPercent());
+        assertEquals(LocalDate.of(2030, 3, 31), terms.contractEndDate());
         assertEquals(Map.of("desk", "3F"), terms.attributes());
 
         // The assignment of the date and the one for 2028 move over. The one that ended in 2025 stays.

@@ -50,6 +50,11 @@ public record StaffRepresentation(
                 maximum = "100",
                 writeOnly = true)
         BigDecimal workPercent,
+        @Schema(
+                description = "The last day of the fixed-term contract. Leave it out for an indefinite contract.",
+                format = "date",
+                writeOnly = true)
+        String contractEndDate,
         @Schema(description = "The code of the job title.", writeOnly = true)
         String jobTitle,
         @Schema(description = "The code of the occupation.", writeOnly = true)
@@ -65,7 +70,7 @@ public record StaffRepresentation(
 
     NewEmployment toNewEmployment(String person) {
         return new NewEmployment(person, validFrom, validTo, staffNumber, employmentType, grade, null, null,
-                workPercent, null, null, null, employerId);
+                workPercent, contractEndDate, null, null, null, employerId);
     }
 
     // The first assignment of a new employment is its primary one unless the request says otherwise.
@@ -76,6 +81,6 @@ public record StaffRepresentation(
 
     static StaffRepresentation of(EmploymentRepresentation employment, AssignmentRepresentation assignment) {
         return new StaffRepresentation(null, null, null, null, null, null, null, null, null, null, null, null, null,
-                null, employment, assignment);
+                null, null, employment, assignment);
     }
 }

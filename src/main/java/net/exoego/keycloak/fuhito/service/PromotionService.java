@@ -2,6 +2,7 @@ package net.exoego.keycloak.fuhito.service;
 
 import java.time.LocalDate;
 import java.util.Map;
+import java.util.Objects;
 
 import net.exoego.keycloak.fuhito.domain.Assignment;
 import net.exoego.keycloak.fuhito.domain.Checks;
@@ -73,7 +74,7 @@ public class PromotionService {
             EmploymentTerms terms = current.terms();
             employments.changeTerms(employmentId, new TermsChange(request.validFrom(), current.employmentType(),
                     request.grade(), terms.status().name(), current.leaveReason(), terms.workPercent(),
-                    terms.attributes()));
+                    Objects.toString(terms.contractEndDate(), null), terms.attributes()));
         }
         AssignmentView assignment = null;
         if (assignmentId != null) {

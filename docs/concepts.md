@@ -39,7 +39,8 @@ Reads, the mask, and the erase work by person. Each has a shortcut by the ID of 
 |---|---|---|
 | Person | 人 | Someone the realm knows. The link to a Keycloak user is optional. One user is linked to at most one person. |
 | Employment | 雇用、在籍 | The relationship between a person and a legal entity, for a period. The legal entity is the employer. It never changes for one employment. It also covers people who are not direct employees, such as agency staff and contractors. Leaving ends the employment. |
-| Employment Terms | 雇用条件 | The conditions of an employment that change over time. They are the employment type, the grade, the status with its leave reason, and the work ratio. |
+| Employment Terms | 雇用条件 | The conditions of an employment that change over time. They are the employment type, the grade, the status with its leave reason, the work ratio, and the contract end date. |
+| Contract End Date | 契約期間満了日 | The last day of the fixed-term contract in force. An indefinite contract has none. |
 | Employment Type | 雇用形態 | The category of the contract, for example full-time, part-time, or temporary. |
 | Grade | 等級 | A rank level used for pay or seniority. |
 | Status | 状態 | Whether the person is active, on leave, or suspended. |
@@ -56,6 +57,11 @@ Reads, the mask, and the erase work by person. Each has a shortcut by the ID of 
 | Reporting Line | レポートライン | A link from an assignment to a manager. It has a kind, solid or dotted, and a period. |
 | Unit Role | 組織への役割 | A role that an employment holds over an org unit without being a member, such as the HR contact of a division or the approver of expenses of a department. The role is a reference item of the kind `UNIT_ROLE`. With `includesDescendants`, it covers the units below too. `GET /org-units/{id}/role-holders?nearest=true` keeps, for each role, only the holders of the nearest unit, the way an approval goes up until it finds an approver. It is data for products. The extension decides no access with it. |
 | Qualification | 資格、免許 | A license or certificate that a person holds, with a number and a period. |
+
+A fixed-term contract always has an end date, and an indefinite one has none. So `contractEndDate` of the terms also tells which of the two a contract is.
+A renewal is new terms from the first day of the next contract, with a later date. The versions where the date changes give the history of the contracts.
+The end of the employment means that the person leaves. A contract end does not end the employment, so a renewal that is written late does not drop the person from the units.
+`GET /employments?contractEndFrom=&contractEndTo=` lists the employments whose contract ends in that range, by the terms of `asOf` or of today.
 
 Job title, occupation, grade, and employment type are four separate things.
 One person can be a nurse (occupation), a head nurse (job title), grade 4 (grade), and full-time (employment type).

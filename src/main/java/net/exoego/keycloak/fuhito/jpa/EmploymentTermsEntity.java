@@ -48,6 +48,9 @@ public class EmploymentTermsEntity {
     @Column(name = "WORK_PERCENT", precision = 5, scale = 2)
     BigDecimal workPercent;
 
+    @Column(name = "CONTRACT_END_DATE")
+    LocalDate contractEndDate;
+
     @Column(name = "ATTRIBUTES", nullable = false)
     @Convert(converter = JsonConverters.ValueMap.class)
     Map<String, Object> attributes;

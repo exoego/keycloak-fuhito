@@ -103,7 +103,8 @@ public class EmploymentService {
         ValidPeriod period = Checks.period(from, Checks.optionalDate("validTo", request.validTo()));
         String staffNumber = Checks.optionalCode("staffNumber", request.staffNumber());
         TermsChange firstTerms = new TermsChange(request.validFrom(), request.employmentType(), request.grade(),
-                request.status(), request.leaveReason(), request.workPercent(), request.attributes());
+                request.status(), request.leaveReason(), request.workPercent(), request.contractEndDate(),
+                request.attributes());
         EmploymentTerms terms = terms(newId(), null, period, firstTerms, null);
         Person person = people.find(personId).orElseThrow(
                 () -> FuhitoException.invalid("employment.person_unknown", Map.of("personId", personId)));
@@ -165,8 +166,13 @@ public class EmploymentService {
             throw FuhitoException.invalid("employment.leave_reason_not_on_leave",
                     Map.of("leaveReason", values.leaveReason(), "status", status.name()));
         }
+        LocalDate contractEnd = Checks.optionalDate("contractEndDate", values.contractEndDate());
+        if (contractEnd != null && contractEnd.isBefore(period.from())) {
+            throw FuhitoException.invalid("employment.contract_end_before_terms",
+                    Map.of("contractEndDate", contractEnd.toString(), "validFrom", period.from().toString()));
+        }
         return new EmploymentTerms(termsId, employmentId, period, idOf(employmentType), idOf(grade), status,
-                idOf(leaveReason), Checks.optionalPercent("workPercent", values.workPercent()),
+                idOf(leaveReason), Checks.optionalPercent("workPercent", values.workPercent()), contractEnd,
                 attributeRules.check(AttributeDefinition.Target.EMPLOYMENT_TERMS, values.attributes()));
     }
 
@@ -434,11 +440,34 @@ public class EmploymentService {
      * @param staffNumber the staff number
      * @param employerId the ID of the org unit that employs
      * @param asOf a date as {@code YYYY-MM-DD} on which the employment holds
+     * @param contractEndFrom the first date of a range as {@code YYYY-MM-DD}. The contract end in the terms of
+     *        {@code asOf} is on it or later.
+     * @param contractEndTo the first date after that range as {@code YYYY-MM-DD}
+     * @param today the date of the terms when {@code asOf} is null
      */
-    public record Search(String staffNumber, String employerId, String asOf) {
+    public record Search(String staffNumber, String employerId, String asOf, String contractEndFrom,
+            String contractEndTo, LocalDate today) {
+
+        /**
+         * Makes a search that does not look at contracts.
+         *
+         * @param staffNumber the staff number
+         * @param employerId the ID of the org unit that employs
+         * @param asOf a date as {@code YYYY-MM-DD} on which the employment holds
+         */
+        public Search(String staffNumber, String employerId, String asOf) {
+            this(staffNumber, employerId, asOf, null, null, null);
+        }
 
         EmploymentStore.Search toStore() {
-            return new EmploymentStore.Search(staffNumber, employerId, Checks.optionalDate("asOf", asOf));
+            LocalDate date = Checks.optionalDate("asOf", asOf);
+            LocalDate from = Checks.optionalDate("contractEndFrom", contractEndFrom);
+            LocalDate to = Checks.optionalDate("contractEndTo", contractEndTo);
+            if (from != null && to != null && !to.isAfter(from)) {
+                throw FuhitoException.invalid("invalid.period", Map.of("validFrom", contractEndFrom,
+                        "validTo", contractEndTo));
+            }
+            return new EmploymentStore.Search(staffNumber, employerId, date, date == null ? today : date, from, to);
         }
     }
 

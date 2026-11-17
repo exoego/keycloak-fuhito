@@ -1233,7 +1233,13 @@ class ImportServiceTest {
                         new BigDecimal("60"), Map.of("shift", "night"), null, null, null),
                 // A row with no work percent removes the stored one.
                 new EmploymentRow(null, "E", "nurse", null, null, "part-time", "g2", "ON_LEAVE", null,
-                        Map.of("shift", "night"), null, null, null));
+                        Map.of("shift", "night"), null, null, null),
+                new EmploymentRow(null, "E", "nurse", null, null, "part-time", "g2", "ON_LEAVE", null, null,
+                        "2027-03-31", Map.of("shift", "night"), null, null, null, null, null, null, null, null, null,
+                        null),
+                new EmploymentRow(null, "E", "nurse", null, null, "part-time", "g2", "ON_LEAVE", null, null,
+                        "2028-03-31", Map.of("shift", "night"), null, null, null, null, null, null, null, null, null,
+                        null));
 
         assertEquals(new Counts(1, 0, 0),
                 changed(importPeople("2026-04-01", List.of(steps.getFirst()), null), "employments"));

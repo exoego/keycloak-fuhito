@@ -24,6 +24,7 @@ import net.exoego.keycloak.fuhito.service.Page;
 import net.exoego.keycloak.fuhito.service.PersonService;
 import net.exoego.keycloak.fuhito.service.PromotionService;
 import net.exoego.keycloak.fuhito.service.TermsChange;
+import net.exoego.keycloak.fuhito.service.Today;
 import net.exoego.keycloak.fuhito.service.RemovalService;
 import net.exoego.keycloak.fuhito.store.ResourceRemoval;
 import org.eclipse.microprofile.openapi.annotations.Operation;
@@ -56,6 +57,7 @@ public class EmploymentsResource {
     private final PromotionService promotions;
     private final LeaveService leaves;
     private final RemovalService removals;
+    private final Today today;
 
     /**
      * Creates the resource for one request.
@@ -68,10 +70,12 @@ public class EmploymentsResource {
      * @param promotions the promotion of the realm
      * @param leaves the start and the end of a leave in the realm
      * @param removals the removal of resources that were made by mistake
+     * @param today the date of the realm
      */
     public EmploymentsResource(RequestContext context, EmploymentService service, PersonService people,
             AssignmentService assignments, OrgUnitService orgUnits, PromotionService promotions,
-            LeaveService leaves, RemovalService removals) {
+            LeaveService leaves, RemovalService removals, Today today) {
+        this.today = today;
         this.removals = removals;
         this.leaves = leaves;
         this.promotions = promotions;
@@ -114,6 +118,15 @@ public class EmploymentsResource {
                     schema = @Schema(format = "date"))
             @QueryParam("asOf") String asOf,
             @Parameter(
+                    description = "The earliest contract end to keep. It is the `contractEndDate` of the terms on "
+                            + "`asOf`, or on today in the time zone of the realm when `asOf` is left out.",
+                    schema = @Schema(format = "date"))
+            @QueryParam("contractEndFrom") String contractEndFrom,
+            @Parameter(
+                    description = "The first date after the latest contract end to keep.",
+                    schema = @Schema(format = "date"))
+            @QueryParam("contractEndTo") String contractEndTo,
+            @Parameter(
                     description = "The number of entries to skip. It cannot be used with `after`.",
                     schema = @Schema(minimum = "0", defaultValue = "0"))
             @QueryParam("first") Integer first,
@@ -130,7 +143,8 @@ public class EmploymentsResource {
         context.requireRead();
         return Calls.run(context, () -> {
             Cursor.requireAlone(after, first);
-            EmploymentService.Search search = new EmploymentService.Search(staffNumber, employerId, asOf);
+            EmploymentService.Search search = new EmploymentService.Search(staffNumber, employerId, asOf,
+                    contractEndFrom, contractEndTo, today.ofRealm());
             return Pages.of(context, service.list(search, Page.of(first, max), after).stream()
                             .map(EmploymentRepresentation::of).toList(), Page.of(first, max).max(),
                     employment -> Cursor.encode(Cursor.EMPLOYMENTS, employment.id()),
@@ -188,7 +202,7 @@ public class EmploymentsResource {
             operationId = "changeEmploymentTerms",
             summary = "Replaces the terms of an employment from the `validFrom` date of the body.",
             description = "The terms are the employment type, the grade, the status with its leave reason, the work "
-                    + "percentage, and the attributes.")
+                    + "percentage, the end of a fixed-term contract, and the attributes.")
     @Parameter(ref = "changeOrder")
     @APIResponse(responseCode = "200", description = "The employment with the terms of every period.")
     @BadRequest
@@ -203,7 +217,7 @@ public class EmploymentsResource {
             Checks.required("body", body);
             var employment = EmploymentRepresentation.of(service.changeTerms(id, new TermsChange(body.validFrom(),
                     body.employmentType(), body.grade(), body.status(), body.leaveReason(), body.workPercent(),
-                    body.attributes())));
+                    body.contractEndDate(), body.attributes())));
             context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, "fuhito/employments/" + id + "/terms", employment);
             return employment;
         });

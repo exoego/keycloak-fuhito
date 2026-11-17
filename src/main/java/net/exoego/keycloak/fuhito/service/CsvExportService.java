@@ -287,8 +287,8 @@ public class CsvExportService {
                 .toList();
         List<String> header = new ArrayList<>();
         for (String field : List.of("id", "externalId", "source", "personId", "staffNumber", "employerId",
-                "employmentType", "grade", "status", "leaveReason", "workPercent", "validFrom", "validTo",
-                "endReason", "continuesEmploymentId")) {
+                "employmentType", "grade", "status", "leaveReason", "workPercent", "contractEndDate", "validFrom",
+                "validTo", "endReason", "continuesEmploymentId")) {
             header.add(column(field, japanese));
         }
         attributes.forEach(attribute -> header.add(CsvImportService.ATTRIBUTE_COLUMN + attribute));
@@ -311,6 +311,7 @@ public class CsvExportService {
                 cells.add(text(terms.map(t -> t.terms().status().name()).orElse(null)));
                 cells.add(text(terms.map(EmploymentView.TermsView::leaveReason).orElse(null)));
                 cells.add(number(terms.map(t -> t.terms().workPercent()).orElse(null)));
+                cells.add(text(terms.map(t -> t.terms().contractEndDate()).orElse(null)));
                 cells.add(employment.period().from().toString());
                 cells.add(text(employment.period().to()));
                 cells.add(text(view.endReason()));

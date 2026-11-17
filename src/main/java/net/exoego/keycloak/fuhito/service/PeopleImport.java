@@ -201,7 +201,7 @@ final class PeopleImport {
             EmploymentView created = people.employmentService().start(new NewEmployment(personId,
                     row.validFrom() == null ? effectiveDate : row.validFrom(), row.validTo(), row.staffNumber(),
                     row.employmentType(), row.grade(), row.status(), row.leaveReason(), row.workPercent(),
-                    row.attributes(), row.externalId(), source, employerId));
+                    row.contractEndDate(), row.attributes(), row.externalId(), source, employerId));
             String id = created.employment().id();
             written(true, "", continues == null ? created : people.employmentService().continueFrom(id, continues));
             if (row.validTo() != null && row.endReason() != null) {
@@ -242,7 +242,7 @@ final class PeopleImport {
                 }
                 written(false, "/terms", people.employmentService().changeTerms(id, new TermsChange(
                         effectiveDate, row.employmentType(), row.grade(), row.status(), row.leaveReason(),
-                        row.workPercent(), row.attributes())));
+                        row.workPercent(), row.contractEndDate(), row.attributes())));
                 changed = true;
             }
         }
@@ -333,6 +333,7 @@ final class PeopleImport {
                 && status.equals(stored.status().name())
                 && Objects.equals(row.leaveReason(), terms.leaveReason())
                 && sameNumber(row.workPercent(), stored.workPercent())
+                && Objects.equals(row.contractEndDate(), Objects.toString(stored.contractEndDate(), null))
                 && (row.attributes() == null ? Map.of() : row.attributes()).equals(stored.attributes());
     }
 
