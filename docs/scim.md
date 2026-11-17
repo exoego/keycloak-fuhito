@@ -72,6 +72,11 @@ The sync goes on as if the user had no title. So the assignment has no title, an
 A manager that matches nothing is reported too, and the sync goes on as if the user had no manager.
 The sync does not create org units or job titles. A typing mistake in the identity provider must not grow the tree.
 
+An org unit must exist on every date of an assignment.
+So when the org unit has a planned end, the assignment of the sync ends on the same date.
+From that date, the department names no org unit that exists. It is reported, and the user is skipped as above.
+When the end of the unit moves later, the assignment keeps its end. The first run on or after that end adds a new assignment.
+
 ### How to run it
 
 `POST /attribute-sync/run` runs the sync. `?dryRun=true` reports what it would do and writes nothing.
