@@ -94,6 +94,7 @@ public interface AssignmentStore {
 
     /**
      * Stores the new state of an existing row.
+     * The link to the assignment that it continues never changes, so only {@link #insert} writes it.
      *
      * @param row the row
      */

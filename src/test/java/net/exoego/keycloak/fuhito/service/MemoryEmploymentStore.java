@@ -90,8 +90,9 @@ final class MemoryEmploymentStore implements EmploymentStore {
     }
 
     @Override
-    public void update(Employment employment) {
-        employments.put(employment.id(), employment);
+    public void update(Employment e) {
+        employments.put(e.id(), new Employment(e.id(), e.personId(), e.userId(), e.employerId(), e.period(),
+                e.staffNumber(), e.endReasonId(), e.source(), employments.get(e.id()).continuesEmploymentId()));
     }
 
     @Override

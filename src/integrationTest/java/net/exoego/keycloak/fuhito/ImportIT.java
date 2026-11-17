@@ -244,6 +244,73 @@ class ImportIT {
         assertEquals(2, again.get("counts").get("assignments").get("unchanged").asInt());
     }
 
+    private static String lookup(Api api, String resourceType, String externalId) throws Exception {
+        return ok(api.get("/external-ids/lookup?resourceType=" + resourceType + "&source=sheet&externalId="
+                + externalId)).get("resourceId").asText();
+    }
+
+    @Test
+    void anImportSavesTheLinksToTheEmploymentAndTheAssignmentThatRecordsContinue() throws Exception {
+        TestRealm realm = TestRealm.create("import-continues");
+        Api api = realm.api;
+        realm.user("sato");
+        realm.user("suzuki");
+        ok(api.post("/imports", """
+                {"effectiveDate": "2020-04-01", "source": "sheet",
+                 "refItems": [{"kind": "UNIT_TYPE", "code": "company", "name": "会社", "legalEntity": true}],
+                 "orgUnits": [
+                   {"externalId": "X", "name": "医療法人X会", "unitType": "company"},
+                   {"externalId": "Y", "name": "株式会社Yサービス", "unitType": "company"},
+                   {"externalId": "K", "name": "栄養科", "parentExternalId": "X"},
+                   {"externalId": "L", "name": "給食課", "parentExternalId": "Y"}
+                 ],
+                 "employments": [
+                   {"externalId": "E1", "username": "sato", "employerExternalId": "X", "validTo": "2026-04-01"},
+                   {"externalId": "E3", "username": "suzuki", "employerExternalId": "X", "validTo": "2026-04-01"}
+                 ],
+                 "assignments": [
+                   {"externalId": "A1", "employmentExternalId": "E1", "orgUnitExternalId": "K", "primary": true},
+                   {"externalId": "A3", "employmentExternalId": "E3", "orgUnitExternalId": "K", "primary": true}
+                 ]}
+                """));
+        String e3 = lookup(api, "EMPLOYMENT", "E3");
+        String a3 = lookup(api, "ASSIGNMENT", "A3");
+        // Sato is named by the external IDs of the records that the new ones continue, and Suzuki by their IDs.
+        String transfer = """
+                {"effectiveDate": "2026-04-01", "source": "sheet",
+                 "employments": [
+                   {"externalId": "E2", "username": "sato", "employerExternalId": "Y",
+                    "continuesEmploymentExternalId": "E1"},
+                   {"externalId": "E4", "username": "suzuki", "employerExternalId": "Y",
+                    "continuesEmploymentId": "%s"}
+                 ],
+                 "assignments": [
+                   {"externalId": "A2", "employmentExternalId": "E2", "orgUnitExternalId": "L", "primary": true,
+                    "continuesAssignmentExternalId": "A1"},
+                   {"externalId": "A4", "employmentExternalId": "E4", "orgUnitExternalId": "L", "primary": true,
+                    "continuesAssignmentId": "%s"}
+                 ]}
+                """.formatted(e3, a3);
+
+        JsonNode first = ok(api.post("/imports", transfer));
+
+        assertEquals(2, first.get("counts").get("employments").get("created").asInt(), first.toString());
+        assertEquals(2, first.get("counts").get("assignments").get("created").asInt(), first.toString());
+        assertEquals(lookup(api, "EMPLOYMENT", "E1"), ok(api.get("/employments/" + lookup(api, "EMPLOYMENT", "E2")))
+                .path("continuesEmploymentId").asText());
+        assertEquals(e3, ok(api.get("/employments/" + lookup(api, "EMPLOYMENT", "E4")))
+                .path("continuesEmploymentId").asText());
+        assertEquals(lookup(api, "ASSIGNMENT", "A1"), ok(api.get("/assignments/" + lookup(api, "ASSIGNMENT", "A2")))
+                .path("continuesAssignmentId").asText());
+        assertEquals(a3, ok(api.get("/assignments/" + lookup(api, "ASSIGNMENT", "A4")))
+                .path("continuesAssignmentId").asText());
+
+        // The stored links are the ones of the rows, so the same document changes nothing.
+        JsonNode again = ok(api.post("/imports", transfer));
+        assertEquals(2, again.get("counts").get("employments").get("unchanged").asInt(), again.toString());
+        assertEquals(2, again.get("counts").get("assignments").get("unchanged").asInt(), again.toString());
+    }
+
     @Test
     void badPeopleRowsAreReportedAndNothingIsWritten() throws Exception {
         TestRealm realm = TestRealm.withEmployer("import-people-errors");
