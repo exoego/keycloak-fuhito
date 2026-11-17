@@ -65,9 +65,8 @@ public class ChangeOrderService {
      */
     public ChangeOrder update(String id, ChangeOrderValues request) {
         ChangeOrder before = get(id);
-        ChangeOrder order = checked(id, request, before.createdAt(), before);
-        store.update(order);
-        return order;
+        store.update(checked(id, request, before.createdAt(), before));
+        return get(id);
     }
 
     /**
@@ -85,12 +84,11 @@ public class ChangeOrderService {
             throw FuhitoException.conflict("change_order.already_announced",
                     Map.of("id", id, "announcedAt", before.announcedAt().toString()));
         }
-        ChangeOrder order = new ChangeOrder(id, before.number(), before.kind(), before.title(), before.note(),
+        store.update(new ChangeOrder(id, before.number(), before.kind(), before.title(), before.note(),
                 before.orderDate(), before.effectiveDate(), before.approverUserId(), before.requesterUserId(),
                 before.externalReference(), before.createdAt(), Instant.now(clock).truncatedTo(ChronoUnit.MILLIS),
-                byUserId);
-        store.update(order);
-        return order;
+                byUserId, before.version()));
+        return get(id);
     }
 
     /**
@@ -176,7 +174,8 @@ public class ChangeOrderService {
                 Checks.date("effectiveDate", request.effectiveDate()),
                 knownUser("approverUserId", request.approverUserId()),
                 knownUser("requesterUserId", request.requesterUserId()), request.externalReference(), createdAt,
-                before == null ? null : before.announcedAt(), before == null ? null : before.announcedByUserId());
+                before == null ? null : before.announcedAt(), before == null ? null : before.announcedByUserId(),
+                before == null ? 1 : before.version());
         if (number != null && store.findByNumber(number).filter(other -> !other.id().equals(id)).isPresent()) {
             throw FuhitoException.conflict("change_order.number_taken", Map.of("number", number));
         }

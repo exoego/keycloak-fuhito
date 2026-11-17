@@ -11,9 +11,10 @@ package net.exoego.keycloak.fuhito.domain;
  *        null
  * @param multiple true when the value is a list, each of whose elements has the type
  * @param required true when every write of the resource must give a value, and a list at least one element
+ * @param version the number that each write of the resource counts up. A new resource has 1.
  */
 public record AttributeDefinition(String id, Target target, String name, Type type, String refKind,
-        boolean multiple, boolean required) {
+        boolean multiple, boolean required, long version) {
 
     /**
      * The kinds of resources that have free attributes.

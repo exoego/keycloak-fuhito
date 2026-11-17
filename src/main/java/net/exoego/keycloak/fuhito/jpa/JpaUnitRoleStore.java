@@ -131,7 +131,7 @@ public class JpaUnitRoleStore implements UnitRoleStore {
                 .map(row -> {
                     UnitRoleEntity e = (UnitRoleEntity) row[0];
                     return new UnitRole(e.id, e.employmentId, (String) row[1], (String) row[2], e.orgUnitId, e.roleId,
-                            e.includesDescendants, new ValidPeriod(e.validFrom, e.validTo));
+                            e.includesDescendants, new ValidPeriod(e.validFrom, e.validTo), e.version);
                 })
                 .toList();
     }
@@ -188,6 +188,7 @@ public class JpaUnitRoleStore implements UnitRoleStore {
         entity.includesDescendants = role.includesDescendants();
         entity.validFrom = role.period().from();
         entity.validTo = role.period().to();
+        entity.version = role.version();
         em.persist(entity);
         em.flush();
     }
@@ -197,6 +198,7 @@ public class JpaUnitRoleStore implements UnitRoleStore {
         UnitRoleEntity entity = Rows.require(em, UnitRoleEntity.class, role.id(), realmId, found -> found.realmId);
         entity.validFrom = role.period().from();
         entity.validTo = role.period().to();
+        // JPA counts up the version when it writes the row. A read after the write gives the new one.
         em.flush();
     }
 

@@ -16,7 +16,8 @@ package net.exoego.keycloak.fuhito.domain;
  *        apart.
  * @param continuesEmploymentId the ID of the employment that this one continues after a transfer to another
  *        employer, or null
+ * @param version the number that each write of the resource counts up. A new resource has 1.
  */
 public record Employment(String id, String personId, String userId, String employerId, ValidPeriod period,
-        String staffNumber, String endReasonId, String source, String continuesEmploymentId) {
+        String staffNumber, String endReasonId, String source, String continuesEmploymentId, long version) {
 }

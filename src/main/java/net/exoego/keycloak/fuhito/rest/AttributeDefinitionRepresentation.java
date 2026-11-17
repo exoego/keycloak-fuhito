@@ -14,6 +14,11 @@ public record AttributeDefinitionRepresentation(
         @Schema(readOnly = true)
         String id,
         @Schema(
+                description = "The version of the definition. A new definition has 1. Each write counts it "
+                        + "up by one.",
+                readOnly = true)
+        Long version,
+        @Schema(
                 description = "The kind of resource. Only a create request reads it.",
                 enumeration = {"ORG_UNIT", "PERSON", "EMPLOYMENT_TERMS", "ASSIGNMENT", "QUALIFICATION", "REF_ITEM"})
         String target,
@@ -34,7 +39,8 @@ public record AttributeDefinitionRepresentation(
         Boolean required) {
 
     static AttributeDefinitionRepresentation of(AttributeDefinition definition) {
-        return new AttributeDefinitionRepresentation(definition.id(), definition.target().name(), definition.name(),
-                definition.type().name(), definition.refKind(), definition.multiple(), definition.required());
+        return new AttributeDefinitionRepresentation(definition.id(), definition.version(),
+                definition.target().name(), definition.name(), definition.type().name(), definition.refKind(),
+                definition.multiple(), definition.required());
     }
 }

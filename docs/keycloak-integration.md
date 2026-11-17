@@ -414,6 +414,14 @@ The path of an org unit is read with a walk upward from the unit. The assignment
 
 ### Writes of two products at once
 
+Every resource has `version`, in a read of it and in each entry of a list.
+A new resource has 1, and each write counts it up by one.
+A write of a part of a resource counts up the version of the whole resource.
+The parts are the periods and the parents of an org unit, the terms of an employment, the periods of an assignment, and the IDs that other systems have for a resource.
+A write by another endpoint or by Keycloak counts it up too, such as an import, the attribute sync, a mask, and the removal of a user or of an organization in Keycloak.
+A restore keeps the versions of the export.
+Nothing checks the version yet. A later change will require it in the body of every write, in place of `If-Match`. See #496.
+
 A read of one resource has the header `ETag`. It is a hash of the whole stored state of the resource.
 For an org unit, it covers every period of the details and every parent, so a read of any date has the same ETag.
 The work location and the cost center that apply come from other org units, so the ETag of an org unit or of an assignment does not cover them. A change of a unit above does not change it.

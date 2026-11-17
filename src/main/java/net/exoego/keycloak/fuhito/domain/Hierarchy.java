@@ -6,8 +6,9 @@ package net.exoego.keycloak.fuhito.domain;
  * @param id the ID
  * @param code the code. It is unique in the realm and never changes.
  * @param name the name
+ * @param version the number that each write of the resource counts up. A new resource has 1.
  */
-public record Hierarchy(String id, String code, String name) {
+public record Hierarchy(String id, String code, String name, long version) {
 
     /**
      * The code of the hierarchy that every realm has.

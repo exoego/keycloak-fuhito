@@ -12,9 +12,10 @@ package net.exoego.keycloak.fuhito.domain;
  * @param roleId the ID of the reference item of the kind {@code UNIT_ROLE}
  * @param includesDescendants true when the role also covers every unit below in the default hierarchy
  * @param period the dates when the role holds
+ * @param version the number that each write of the resource counts up. A new resource has 1.
  */
 public record UnitRole(String id, String employmentId, String personId, String userId, String orgUnitId,
-        String roleId, boolean includesDescendants, ValidPeriod period) {
+        String roleId, boolean includesDescendants, ValidPeriod period, long version) {
 
     /**
      * Returns the same role for another period.
@@ -23,6 +24,7 @@ public record UnitRole(String id, String employmentId, String personId, String u
      * @return the role
      */
     public UnitRole withPeriod(ValidPeriod newPeriod) {
-        return new UnitRole(id, employmentId, personId, userId, orgUnitId, roleId, includesDescendants, newPeriod);
+        return new UnitRole(id, employmentId, personId, userId, orgUnitId, roleId, includesDescendants, newPeriod,
+                version);
     }
 }

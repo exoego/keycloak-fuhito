@@ -55,6 +55,7 @@ public class JpaRealmKindStore implements RealmKindStore {
         entity.code = kind.code();
         entity.name = kind.name();
         entity.names = kind.names();
+        entity.version = kind.version();
         em.persist(entity);
         em.flush();
     }
@@ -64,6 +65,8 @@ public class JpaRealmKindStore implements RealmKindStore {
         RealmKindEntity entity = Rows.require(em, RealmKindEntity.class, kind.id(), realmId, found -> found.realmId);
         entity.name = kind.name();
         entity.names = kind.names();
+        // JPA counts up the version when it writes the row. A read after the write gives the new one.
+        em.flush();
     }
 
     @Override
@@ -76,6 +79,6 @@ public class JpaRealmKindStore implements RealmKindStore {
     }
 
     static RealmKind toDomain(RealmKindEntity e) {
-        return new RealmKind(e.id, e.code, e.name, e.names);
+        return new RealmKind(e.id, e.code, e.name, e.names, e.version);
     }
 }

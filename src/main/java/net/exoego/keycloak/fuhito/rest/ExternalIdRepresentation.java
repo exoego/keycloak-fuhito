@@ -21,10 +21,15 @@ public record ExternalIdRepresentation(
         @Schema(
                 description = "True when the system made the resource, as the `source` of the resource says.",
                 readOnly = true)
-        Boolean own) {
+        Boolean own,
+        @Schema(
+                description = "The version of this ID. A new one has 1. Each write counts it up by one. A write of "
+                        + "an ID also counts up the version of its resource.",
+                readOnly = true)
+        Long version) {
 
     static ExternalIdRepresentation of(ExternalIdService.View view) {
         return new ExternalIdRepresentation(view.kind().name(), view.resourceId(), view.source(), view.externalId(),
-                view.own());
+                view.own(), view.version());
     }
 }

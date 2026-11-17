@@ -14,8 +14,9 @@ import java.util.Objects;
  * @param resourceId the ID of the resource
  * @param source the name of the system
  * @param externalId the ID of the resource in that system
+ * @param version the number that each write of the resource counts up. A new resource has 1.
  */
-public record ExternalId(String id, Kind kind, String resourceId, String source, String externalId) {
+public record ExternalId(String id, Kind kind, String resourceId, String source, String externalId, long version) {
 
     /**
      * The kinds of resources that can have IDs of other systems.

@@ -140,9 +140,9 @@ class UserRetirementTest {
         String joins = employ("alice", "2026-07-01", null);
         String assignment = assign(joins, "2026-07-01");
         unitRoles.insert(new UnitRole("role-1", joins, null, "alice", unit, "hr-contact", false,
-                ValidPeriod.startingAt(LocalDate.parse("2026-07-01"))));
-        externalIds.insert(new ExternalId("x-1", ExternalId.Kind.EMPLOYMENT, joins, "payroll", "P-1"));
-        externalIds.insert(new ExternalId("x-2", ExternalId.Kind.ASSIGNMENT, assignment, "payroll", "A-1"));
+                ValidPeriod.startingAt(LocalDate.parse("2026-07-01")), 1));
+        externalIds.insert(new ExternalId("x-1", ExternalId.Kind.EMPLOYMENT, joins, "payroll", "P-1", 1));
+        externalIds.insert(new ExternalId("x-2", ExternalId.Kind.ASSIGNMENT, assignment, "payroll", "A-1", 1));
         String next = employments.transfer(joins, new TransferRequest("other", "2026-10-01", null, null))
                 .started().employment().id();
 

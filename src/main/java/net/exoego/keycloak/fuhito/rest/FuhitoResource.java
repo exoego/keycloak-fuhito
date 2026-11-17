@@ -532,7 +532,8 @@ public class FuhitoResource {
 
     private PersonData personData() {
         return new PersonData(context, new UserMaskingService(new JpaUserDataMasker(entityManager, realmId),
-                new JpaEmploymentStore(entityManager, realmId), clock, Clock.systemUTC()), users, erasePerson);
+                new JpaEmploymentStore(entityManager, realmId), clock, Clock.systemUTC()), users, erasePerson,
+                personService());
     }
 
     /**

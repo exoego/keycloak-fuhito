@@ -799,7 +799,7 @@ class ImportServiceTest {
         importTwoUnits();
         importPeople("2026-04-01", List.of(employment("E1", "nurse", null, null, null)), null);
         refItems.insert(new RefItem("approver-id", RefKind.UNIT_ROLE.name(), "approver", "承認者", Map.of(), 0,
-                Map.of(), true, false, false, false));
+                Map.of(), true, false, false, false, 1));
 
         ImportReport first = importRoles("2026-04-01", role(null, "E1", "H", "approver", null, null));
         ImportReport again = importRoles("2026-04-01", role(null, "E1", "H", "approver", false, null));
@@ -849,7 +849,7 @@ class ImportServiceTest {
     @Test
     void importsQualificationsAndReplacesAStoredOne() {
         refItems.insert(new RefItem("license-id", RefKind.QUALIFICATION.name(), "license", "免許", Map.of(), 0,
-                Map.of(), true, false, false, false));
+                Map.of(), true, false, false, false, 1));
         service.apply(new ImportDocument("2026-04-01", false, null, null, null, null, null,
                 List.of(new PersonRow(null, "P1", null, null, "Ann", null, null, null, null),
                         new PersonRow(null, "P2", null, null, "Ben", null, null, null, null))));
@@ -894,7 +894,7 @@ class ImportServiceTest {
     @Test
     void importsTheIdsOfOtherSystemsAndRemovesOneWithAnEmptyText() {
         externalIdStore.resource(ExternalId.Kind.ORG_UNIT, "u-1", "hr");
-        externalIdStore.insert(new ExternalId("row-h", ExternalId.Kind.ORG_UNIT, "u-1", "hr", "H"));
+        externalIdStore.insert(new ExternalId("row-h", ExternalId.Kind.ORG_UNIT, "u-1", "hr", "H", 1));
 
         ImportReport first = importExternalIds(new ExternalIdRow("ORG_UNIT", "u-1", "payroll", "P-1"));
         ImportReport again = importExternalIds(new ExternalIdRow("ORG_UNIT", "u-1", "payroll", "P-1"));

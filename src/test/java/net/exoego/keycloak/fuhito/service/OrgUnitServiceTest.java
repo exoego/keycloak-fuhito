@@ -700,7 +700,7 @@ class OrgUnitServiceTest {
     private void assign(String assignmentId, String orgUnitId, String from, String to) {
         assignments.insert(new Assignment(assignmentId + "-" + from, assignmentId, "employment", orgUnitId,
                 new ValidPeriod(LocalDate.parse(from), to == null ? null : LocalDate.parse(to)), null, null, null,
-                null, null, false, false, null, 0, Map.of(), null, null));
+                null, null, false, false, null, 0, Map.of(), null, null, 1));
     }
 
     @Test
@@ -1023,7 +1023,7 @@ class OrgUnitServiceTest {
         String company = service.create(new NewOrgUnit(null, "Company", null, null, null, null, "company", null,
                 "2020-04-01", null, null, null, null)).unit().id();
         employments.insert(new Employment("e1", "alice", null, company,
-                new ValidPeriod(LocalDate.of(2026, 4, 1), LocalDate.of(2028, 4, 1)), null, null, null, null));
+                new ValidPeriod(LocalDate.of(2026, 4, 1), LocalDate.of(2028, 4, 1)), null, null, null, null, 1));
         OrgUnitChange toDepartment = new OrgUnitChange("2026-01-01", null, "Company", null, null, null, null, "department",
                 null, null);
 

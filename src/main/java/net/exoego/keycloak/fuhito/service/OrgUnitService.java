@@ -470,9 +470,9 @@ public class OrgUnitService {
         } catch (FuhitoException e) {
             throw FuhitoException.invalid(e.code(), e.params()).causedBy(e);
         }
-        OrgUnit changed = new OrgUnit(unit.id(), unit.source(), unit.keycloakOrganizationId(), zone, start);
-        store.updateUnit(changed);
-        return changed;
+        store.updateUnit(new OrgUnit(unit.id(), unit.source(), unit.keycloakOrganizationId(), zone, start,
+                unit.version()));
+        return requireUnit(id);
     }
 
     /**

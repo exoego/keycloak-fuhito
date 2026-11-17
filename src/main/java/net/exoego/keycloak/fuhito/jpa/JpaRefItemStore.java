@@ -120,6 +120,7 @@ public class JpaRefItemStore implements RefItemStore {
         entity.realmId = realmId;
         entity.kind = item.kind();
         entity.code = item.code();
+        entity.version = item.version();
         copyChangeable(item, entity);
         em.persist(entity);
         // Other rows refer to this one. Hibernate groups inserts by entity type, so this row goes to the
@@ -130,6 +131,8 @@ public class JpaRefItemStore implements RefItemStore {
     @Override
     public void update(RefItem item) {
         copyChangeable(item, findEntity(item.id()).orElseThrow());
+        // JPA counts up the version when it writes the row. A read after the write gives the new one.
+        em.flush();
     }
 
     @Override
@@ -156,6 +159,6 @@ public class JpaRefItemStore implements RefItemStore {
 
     static RefItem toDomain(RefItemEntity e) {
         return new RefItem(e.id, e.kind, e.code, e.name, e.names, e.displayOrder, e.attributes,
-                e.active, e.legalEntity, e.actingHead, e.lateralUnit);
+                e.active, e.legalEntity, e.actingHead, e.lateralUnit, e.version);
     }
 }

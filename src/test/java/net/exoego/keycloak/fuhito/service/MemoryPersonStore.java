@@ -30,7 +30,7 @@ final class MemoryPersonStore implements PersonStore {
     }
 
     private static Person of(String id) {
-        return new Person(id, id, null, Map.of(), null, Map.of(), null);
+        return new Person(id, id, null, Map.of(), null, Map.of(), null, 1);
     }
 
     @Override

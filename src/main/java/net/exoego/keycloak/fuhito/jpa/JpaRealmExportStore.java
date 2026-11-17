@@ -198,7 +198,7 @@ public class JpaRealmExportStore implements RealmExportStore {
     @Override
     public Page<UnitRole> unitRoles() {
         return page(UnitRoleEntity.class, "id", e -> new UnitRole(e.id, e.employmentId, null, null, e.orgUnitId,
-                e.roleId, e.includesDescendants, new ValidPeriod(e.validFrom, e.validTo)));
+                e.roleId, e.includesDescendants, new ValidPeriod(e.validFrom, e.validTo), e.version));
     }
 
     @Override

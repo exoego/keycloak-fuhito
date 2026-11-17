@@ -78,6 +78,7 @@ public class JpaChangeOrderStore implements ChangeOrderStore {
         entity.id = order.id();
         entity.realmId = realmId;
         entity.createdAt = order.createdAt();
+        entity.version = order.version();
         copy(order, entity);
         em.persist(entity);
         // Other rows refer to this one. Hibernate groups inserts by entity type, so this row goes to the
@@ -88,6 +89,8 @@ public class JpaChangeOrderStore implements ChangeOrderStore {
     @Override
     public void update(ChangeOrder order) {
         copy(order, findEntity(order.id()).orElseThrow());
+        // JPA counts up the version when it writes the row. A read after the write gives the new one.
+        em.flush();
     }
 
     @Override
@@ -118,6 +121,6 @@ public class JpaChangeOrderStore implements ChangeOrderStore {
     static ChangeOrder toDomain(ChangeOrderEntity e) {
         return new ChangeOrder(e.id, e.number, e.kind, e.title, e.note, e.orderDate, e.effectiveDate,
                 e.approverUserId, e.requesterUserId, e.externalReference, e.createdAt, e.announcedAt,
-                e.announcedByUserId);
+                e.announcedByUserId, e.version);
     }
 }

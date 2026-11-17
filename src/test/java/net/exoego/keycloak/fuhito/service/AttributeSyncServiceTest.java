@@ -310,7 +310,7 @@ class AttributeSyncServiceTest {
         // The person of alice lost the link to the Keycloak user.
         employmentStore.employments.put(employment.id(), new Employment(employment.id(), employment.personId(), null,
                 employment.employerId(), employment.period(), employment.staffNumber(), employment.endReasonId(),
-                employment.source(), employment.continuesEmploymentId()));
+                employment.source(), employment.continuesEmploymentId(), 1));
 
         SyncReport again = run();
 
@@ -351,10 +351,10 @@ class AttributeSyncServiceTest {
         // The person of alice loses the link to the Keycloak user.
         Person person = people.find(first.personId()).orElseThrow();
         people.update(new Person(person.id(), null, person.name(), person.names(), person.phoneticName(),
-                person.attributes(), person.source()));
+                person.attributes(), person.source(), 1));
         employmentStore.employments.put(first.id(), new Employment(first.id(), first.personId(), null,
                 first.employerId(), first.period(), first.staffNumber(), first.endReasonId(), first.source(),
-                first.continuesEmploymentId()));
+                first.continuesEmploymentId(), 1));
         nextDay();
 
         SyncReport back = run();
@@ -819,7 +819,7 @@ class AttributeSyncServiceTest {
                 .filter(id -> !lineStore.findByAssignment(id).isEmpty())
                 .findFirst().orElseThrow();
         lineStore.insert(new ReportingLine("dotted", assignment, "boss", "boss", ReportingLine.Kind.DOTTED,
-                ValidPeriod.startingAt(LocalDate.of(2026, 6, 15))));
+                ValidPeriod.startingAt(LocalDate.of(2026, 6, 15)), 1));
         nextDay();
         set("alice", "med", null, null, null);
         assertEquals(1, run().reportingLinesChanged());

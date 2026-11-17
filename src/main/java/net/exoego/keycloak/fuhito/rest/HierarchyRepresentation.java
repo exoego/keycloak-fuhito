@@ -8,6 +8,10 @@ public record HierarchyRepresentation(
         @Schema(readOnly = true)
         String id,
         @Schema(
+                description = "The version of the hierarchy. A new hierarchy has 1. Each write counts it up by one.",
+                readOnly = true)
+        Long version,
+        @Schema(
                 description = "The code. It is unique in the realm and never changes. Every realm has the "
                         + "hierarchy `default`.",
                 maxLength = 64,
@@ -17,6 +21,6 @@ public record HierarchyRepresentation(
         String name) {
 
     static HierarchyRepresentation of(Hierarchy hierarchy) {
-        return new HierarchyRepresentation(hierarchy.id(), hierarchy.code(), hierarchy.name());
+        return new HierarchyRepresentation(hierarchy.id(), hierarchy.version(), hierarchy.code(), hierarchy.name());
     }
 }

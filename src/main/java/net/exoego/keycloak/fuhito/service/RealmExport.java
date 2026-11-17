@@ -29,7 +29,8 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
 @Schema(
         name = "RealmExport",
         description = "Every stored row of a realm, with every period. `POST /restore` loads it into a realm that "
-                + "has no data of the extension, or in place of the data of a realm.")
+                + "has no data of the extension, or in place of the data of a realm. Each resource has its "
+                + "`version`, which the restore keeps. A resource with none starts at 1.")
 public record RealmExport(
         @Schema(description = "The name and the version of the format.", examples = {"fuhito.export.v1"})
         String format,
@@ -57,27 +58,27 @@ public record RealmExport(
             "qualifications", "external-ids", "change-orders", "erasures");
 
     @Schema(name = "ExportRefKind")
-    public record Kind(String id, String code, String name, Map<String, String> names) {
+    public record Kind(String id, Long version, String code, String name, Map<String, String> names) {
     }
 
     @Schema(name = "ExportRefItem")
-    public record Item(String id, String kind, String code, String name, Map<String, String> names,
+    public record Item(String id, Long version, String kind, String code, String name, Map<String, String> names,
             int displayOrder, Map<String, Object> attributes, boolean active, boolean legalEntity,
             boolean actingHead, boolean lateral) {
     }
 
     @Schema(name = "ExportAttributeDefinition")
-    public record Definition(String id, String target, String name, String type, String refKind,
+    public record Definition(String id, Long version, String target, String name, String type, String refKind,
             boolean multiple, boolean required) {
     }
 
     @Schema(name = "ExportHierarchy")
-    public record HierarchyRow(String id, String code, String name) {
+    public record HierarchyRow(String id, Long version, String code, String name) {
     }
 
     @Schema(name = "ExportOrgUnit", description = "An org unit. It names its Keycloak organization by alias, "
             + "because the IDs of organizations differ between servers.")
-    public record Unit(String id, String source, String timeZone, String dayStart,
+    public record Unit(String id, Long version, String source, String timeZone, String dayStart,
             List<Version> versions, List<Parent> parents, List<Succession> successors,
             @Schema(description = "The alias of the Keycloak organization that the unit is linked to.")
             String organizationAlias) {
@@ -104,15 +105,15 @@ public record RealmExport(
     }
 
     @Schema(name = "ExportPerson", description = "A person. It names its Keycloak user by username.")
-    public record PersonRow(String id, String username, String name, Map<String, String> names,
+    public record PersonRow(String id, Long version, String username, String name, Map<String, String> names,
             String phoneticName, Map<String, Object> attributes, String source,
             @Schema(description = "The time of the mask, for a person who was masked.")
             String maskedAt) {
     }
 
     @Schema(name = "ExportEmployment")
-    public record EmploymentRow(String id, String personId, String employerId, String validFrom, String validTo,
-            String staffNumber, String endReasonId, String source, String continuesEmploymentId,
+    public record EmploymentRow(String id, Long version, String personId, String employerId, String validFrom,
+            String validTo, String staffNumber, String endReasonId, String source, String continuesEmploymentId,
             List<Terms> terms) {
     }
 
@@ -123,7 +124,7 @@ public record RealmExport(
     }
 
     @Schema(name = "ExportAssignment", description = "An assignment with the rows of every period.")
-    public record AssignmentRows(String assignmentId, List<Period> periods) {
+    public record AssignmentRows(String assignmentId, Long version, List<Period> periods) {
     }
 
     @Schema(name = "ExportAssignmentPeriod")
@@ -134,29 +135,29 @@ public record RealmExport(
     }
 
     @Schema(name = "ExportReportingLine")
-    public record Line(String id, String assignmentId, String managerPersonId, String kind, String validFrom,
-            String validTo) {
-    }
-
-    @Schema(name = "ExportUnitRole")
-    public record Role(String id, String employmentId, String orgUnitId, String roleId, boolean includesDescendants,
+    public record Line(String id, Long version, String assignmentId, String managerPersonId, String kind,
             String validFrom, String validTo) {
     }
 
+    @Schema(name = "ExportUnitRole")
+    public record Role(String id, Long version, String employmentId, String orgUnitId, String roleId,
+            boolean includesDescendants, String validFrom, String validTo) {
+    }
+
     @Schema(name = "ExportQualification")
-    public record QualificationRow(String id, String personId, String kindId, String number, String validFrom,
-            String validTo, Map<String, Object> attributes, String source) {
+    public record QualificationRow(String id, Long version, String personId, String kindId, String number,
+            String validFrom, String validTo, Map<String, Object> attributes, String source) {
     }
 
     @Schema(name = "ExportExternalId", description = "The ID that one system has for a resource. A resource names "
             + "only the system that made it in `source`. Its IDs are all here.")
-    public record ExternalIdRow(String id, String resourceType, String resourceId, String source,
+    public record ExternalIdRow(String id, Long version, String resourceType, String resourceId, String source,
             String externalId) {
     }
 
     @Schema(name = "ExportChangeOrder", description = "A change order. It names its users by username.")
-    public record Order(String id, String number, String kind, String title, String note, String orderDate,
-            String effectiveDate, String approver, String requester, String externalReference, String createdAt,
-            String announcedAt, String announcedBy) {
+    public record Order(String id, Long version, String number, String kind, String title, String note,
+            String orderDate, String effectiveDate, String approver, String requester, String externalReference,
+            String createdAt, String announcedAt, String announcedBy) {
     }
 }

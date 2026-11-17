@@ -63,6 +63,7 @@ public class JpaUserDataMasker implements UserDataMasker {
         for (EmploymentEntity employment : employments) {
             employmentIds.add(employment.id);
             employment.staffNumber = null;
+            employment.countUp();
         }
         List<String> assignmentIds = new ArrayList<>();
         if (!employmentIds.isEmpty()) {
@@ -82,6 +83,7 @@ public class JpaUserDataMasker implements UserDataMasker {
                 assignmentIds.add(row.assignmentId);
                 row.attributes = new LinkedHashMap<>();
             }
+            assignmentIds.stream().distinct().forEach(id -> Versions.assignment(em, realmId, id));
         }
         List<String> qualificationIds = new ArrayList<>();
         for (QualificationEntity qualification : em.createQuery("""
@@ -91,6 +93,7 @@ public class JpaUserDataMasker implements UserDataMasker {
             qualificationIds.add(qualification.id);
             qualification.number = null;
             qualification.attributes = new LinkedHashMap<>();
+            qualification.countUp();
         }
         PersonEntity person = Rows.require(em, PersonEntity.class, personId, realmId, found -> found.realmId);
         trail.clearStoredResponses(em, realmId, personId, person.userId);
@@ -99,6 +102,7 @@ public class JpaUserDataMasker implements UserDataMasker {
         person.phoneticName = null;
         person.searchNames = null;
         person.attributes = new LinkedHashMap<>();
+        person.countUp();
         List<String> externalIds = new ArrayList<>(removeExternalIds("PERSON", List.of(personId)));
         externalIds.addAll(removeExternalIds("EMPLOYMENT", employmentIds));
         externalIds.addAll(removeExternalIds("ASSIGNMENT", assignmentIds));

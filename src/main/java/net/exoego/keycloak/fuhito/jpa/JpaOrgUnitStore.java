@@ -209,6 +209,7 @@ public class JpaOrgUnitStore implements OrgUnitStore {
         entity.keycloakOrganizationId = unit.keycloakOrganizationId();
         entity.timeZone = unit.timeZone();
         entity.dayStart = unit.dayStart();
+        entity.countUp();
     }
 
     @Override
@@ -520,6 +521,8 @@ public class JpaOrgUnitStore implements OrgUnitStore {
         entity.keycloakOrganizationId = unit.keycloakOrganizationId();
         entity.timeZone = unit.timeZone();
         entity.dayStart = unit.dayStart();
+        entity.version = unit.version();
+        entity.counted = true;
         em.persist(entity);
         // Other rows refer to this one. Hibernate groups inserts by entity type, so this row goes to the
         // database now, before a row that needs it.
@@ -546,6 +549,7 @@ public class JpaOrgUnitStore implements OrgUnitStore {
         entity.orgUnitId = version.orgUnitId();
         copy(version, entity);
         em.persist(entity);
+        Versions.orgUnit(em, realmId, version.orgUnitId());
     }
 
     @Override
@@ -554,6 +558,7 @@ public class JpaOrgUnitStore implements OrgUnitStore {
         copy(version, entity);
         // A split shortens this row and then inserts the next one. The database must see the shorter row first.
         em.flush();
+        Versions.orgUnit(em, realmId, version.orgUnitId());
     }
 
     private static void copy(OrgUnitVersion version, OrgUnitVersionEntity entity) {
@@ -641,19 +646,24 @@ public class JpaOrgUnitStore implements OrgUnitStore {
         entity.childId = link.childId();
         copy(link, entity);
         em.persist(entity);
+        Versions.orgUnit(em, realmId, link.childId());
     }
 
     @Override
     public void updateLink(OrgUnitLink link) {
-        copy(link, findLink(link.id()));
+        OrgUnitLinkEntity entity = findLink(link.id());
+        copy(link, entity);
         // A split shortens this row and then inserts the next one. The database must see the shorter row first.
         em.flush();
+        Versions.orgUnit(em, realmId, entity.childId);
     }
 
     @Override
     public void deleteLink(String id) {
-        em.remove(findLink(id));
+        OrgUnitLinkEntity entity = findLink(id);
+        em.remove(entity);
         em.flush();
+        Versions.orgUnit(em, realmId, entity.childId);
     }
 
     @Override
@@ -692,7 +702,7 @@ public class JpaOrgUnitStore implements OrgUnitStore {
     }
 
     static OrgUnit toDomain(OrgUnitEntity e) {
-        return new OrgUnit(e.id, e.source, e.keycloakOrganizationId, e.timeZone, e.dayStart);
+        return new OrgUnit(e.id, e.source, e.keycloakOrganizationId, e.timeZone, e.dayStart, e.version);
     }
 
     static OrgUnitVersion toDomain(OrgUnitVersionEntity e) {

@@ -7,6 +7,7 @@ import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 
 /**
  * A kind of reference data that a realm added.
@@ -31,6 +32,10 @@ public class RealmKindEntity {
     @Column(name = "NAMES_I18N", nullable = false)
     @Convert(converter = JsonConverters.TextMap.class)
     Map<String, String> names;
+
+    @Version
+    @Column(name = "VERSION", nullable = false)
+    long version;
 
     /**
      * Creates an empty entity for JPA.

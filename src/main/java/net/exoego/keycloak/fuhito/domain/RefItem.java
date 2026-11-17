@@ -17,13 +17,14 @@ import java.util.Map;
  * @param actingHead true for an assignment kind whose heads stand in for an absent head
  * @param lateral true for a unit type whose org units are lateral units outside the line organization, such as a
  *        committee
+ * @param version the number that each write of the item counts up. A new item has 1.
  */
 public record RefItem(String id, String kind, String code, String name, Map<String, String> names,
         int displayOrder, Map<String, Object> attributes, boolean active, boolean legalEntity, boolean actingHead,
-        boolean lateral) {
+        boolean lateral, long version) {
 
     /**
-     * Makes an item of a fixed kind.
+     * Makes a new item of a fixed kind.
      *
      * @param id the ID
      * @param kind the kind
@@ -39,7 +40,8 @@ public record RefItem(String id, String kind, String code, String name, Map<Stri
      */
     public RefItem(String id, RefKind kind, String code, String name, Map<String, String> names, int displayOrder,
             Map<String, Object> attributes, boolean active, boolean legalEntity, boolean actingHead, boolean lateral) {
-        this(id, kind.name(), code, name, names, displayOrder, attributes, active, legalEntity, actingHead, lateral);
+        this(id, kind.name(), code, name, names, displayOrder, attributes, active, legalEntity, actingHead, lateral,
+                1);
     }
 
     /**

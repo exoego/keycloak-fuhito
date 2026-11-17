@@ -30,8 +30,14 @@ public class RealmKindService {
      * @param name the default name, or null for a fixed kind
      * @param names the names in other languages
      * @param fixed true for a kind that every realm has
+     * @param version the number that each write of the kind counts up, or null for a fixed kind, which never
+     *        changes
      */
-    public record View(String code, String name, Map<String, String> names, boolean fixed) {
+    public record View(String code, String name, Map<String, String> names, boolean fixed, Long version) {
+
+        static View of(RealmKind kind) {
+            return new View(kind.code(), kind.name(), kind.names(), false, kind.version());
+        }
     }
 
     private final RealmKindStore store;
@@ -55,9 +61,9 @@ public class RealmKindService {
      */
     public List<View> list() {
         List<View> kinds = new ArrayList<>(Arrays.stream(RefKind.values())
-                .map(kind -> new View(kind.name(), null, Map.of(), true))
+                .map(kind -> new View(kind.name(), null, Map.of(), true, null))
                 .toList());
-        store.list().forEach(kind -> kinds.add(new View(kind.code(), kind.name(), kind.names(), false)));
+        store.list().forEach(kind -> kinds.add(View.of(kind)));
         return kinds;
     }
 
@@ -81,9 +87,9 @@ public class RealmKindService {
             throw FuhitoException.conflict("ref_kind.code_taken", Map.of("code", code));
         }
         RealmKind kind = new RealmKind(UUID.randomUUID().toString(), code, Checks.name("name", name),
-                Checks.localizedNames("names", names));
+                Checks.localizedNames("names", names), 1);
         store.insert(kind);
-        return new View(kind.code(), kind.name(), kind.names(), false);
+        return View.of(kind);
     }
 
     /**
@@ -93,7 +99,7 @@ public class RealmKindService {
      * @return the kind, or empty for a fixed kind or an unknown code
      */
     public Optional<View> find(String code) {
-        return store.findByCode(code).map(kind -> new View(kind.code(), kind.name(), kind.names(), false));
+        return store.findByCode(code).map(View::of);
     }
 
     /**
@@ -120,9 +126,9 @@ public class RealmKindService {
         RealmKind kind = store.findByCode(code)
                 .orElseThrow(() -> FuhitoException.notFound("ref_kind.not_found", Map.of("code", code)));
         RealmKind renamed = new RealmKind(kind.id(), code, Checks.name("name", name),
-                Checks.localizedNames("names", names));
+                Checks.localizedNames("names", names), kind.version());
         store.update(renamed);
-        return new View(code, renamed.name(), renamed.names(), false);
+        return get(code);
     }
 
     /**

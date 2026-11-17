@@ -241,6 +241,8 @@ public class JpaEmploymentStore implements EmploymentStore {
         entity.staffNumber = employment.staffNumber();
         entity.endReasonId = employment.endReasonId();
         entity.source = employment.source();
+        entity.version = employment.version();
+        entity.counted = true;
         em.persist(entity);
         // Other rows refer to this one. Hibernate groups inserts by entity type, so this row goes to the
         // database now, before a row that needs it.
@@ -254,6 +256,7 @@ public class JpaEmploymentStore implements EmploymentStore {
         entity.validTo = employment.period().to();
         entity.staffNumber = employment.staffNumber();
         entity.endReasonId = employment.endReasonId();
+        entity.countUp();
     }
 
     @Override
@@ -266,8 +269,11 @@ public class JpaEmploymentStore implements EmploymentStore {
 
     @Override
     public void deleteTerms(String termsId) {
-        em.remove(Rows.require(em, EmploymentTermsEntity.class, termsId, realmId, found -> found.realmId));
+        EmploymentTermsEntity entity = Rows.require(em, EmploymentTermsEntity.class, termsId, realmId,
+                found -> found.realmId);
+        em.remove(entity);
         em.flush();
+        Versions.employment(em, realmId, entity.employmentId);
     }
 
     @Override
@@ -290,6 +296,7 @@ public class JpaEmploymentStore implements EmploymentStore {
         entity.employmentId = terms.employmentId();
         copy(terms, entity);
         em.persist(entity);
+        Versions.employment(em, realmId, terms.employmentId());
     }
 
     @Override
@@ -298,6 +305,7 @@ public class JpaEmploymentStore implements EmploymentStore {
         copy(terms, entity);
         // A split shortens this row and then inserts the next one. The database must see the shorter row first.
         em.flush();
+        Versions.employment(em, realmId, entity.employmentId);
     }
 
     private static void copy(EmploymentTerms terms, EmploymentTermsEntity entity) {
@@ -314,7 +322,7 @@ public class JpaEmploymentStore implements EmploymentStore {
 
     static Employment toDomain(EmploymentEntity e) {
         return new Employment(e.id, e.personId, e.person.userId, e.employerId, new ValidPeriod(e.validFrom, e.validTo),
-                e.staffNumber, e.endReasonId, e.source, e.continuesEmploymentId);
+                e.staffNumber, e.endReasonId, e.source, e.continuesEmploymentId, e.version);
     }
 
     static EmploymentTerms toDomain(EmploymentTermsEntity e) {

@@ -124,13 +124,17 @@ public class JpaPersonStore implements PersonStore {
         entity.id = person.id();
         entity.realmId = realmId;
         entity.source = person.source();
+        entity.version = person.version();
+        entity.counted = true;
         copy(person, entity);
         em.persist(entity);
     }
 
     @Override
     public void update(Person person) {
-        copy(person, findEntity(person.id()).orElseThrow());
+        PersonEntity entity = findEntity(person.id()).orElseThrow();
+        copy(person, entity);
+        entity.countUp();
     }
 
     @Override
@@ -161,6 +165,6 @@ public class JpaPersonStore implements PersonStore {
     }
 
     static Person toDomain(PersonEntity e) {
-        return new Person(e.id, e.userId, e.name, e.names, e.phoneticName, e.attributes, e.source);
+        return new Person(e.id, e.userId, e.name, e.names, e.phoneticName, e.attributes, e.source, e.version);
     }
 }

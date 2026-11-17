@@ -7,6 +7,7 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 
 /**
  * An approved instruction that causes changes.
@@ -57,6 +58,10 @@ public class ChangeOrderEntity {
 
     @Column(name = "ANNOUNCED_BY_USER_ID", length = 255)
     String announcedByUserId;
+
+    @Version
+    @Column(name = "VERSION", nullable = false)
+    long version;
 
     /**
      * Creates an empty entity for JPA.

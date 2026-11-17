@@ -117,15 +117,20 @@ public class JpaExternalIdStore implements ExternalIdStore {
         entity.resourceId = externalId.resourceId();
         entity.source = externalId.source();
         entity.externalId = externalId.externalId();
+        entity.version = externalId.version();
         em.persist(entity);
         em.flush();
+        Versions.of(em, realmId, externalId.kind(), externalId.resourceId());
     }
 
     @Override
     public void update(ExternalId externalId) {
-        Rows.require(em, ExternalIdEntity.class, externalId.id(), realmId, found -> found.realmId).externalId =
-                externalId.externalId();
+        ExternalIdEntity entity = Rows.require(em, ExternalIdEntity.class, externalId.id(), realmId,
+                found -> found.realmId);
+        entity.externalId = externalId.externalId();
+        // JPA counts up the version when it writes the row. A read after the write gives the new one.
         em.flush();
+        Versions.of(em, realmId, ExternalId.Kind.valueOf(entity.kind), entity.resourceId);
     }
 
     @Override
@@ -134,10 +139,12 @@ public class JpaExternalIdStore implements ExternalIdStore {
         if (entity != null && entity.realmId.equals(realmId)) {
             em.remove(entity);
             em.flush();
+            Versions.of(em, realmId, ExternalId.Kind.valueOf(entity.kind), entity.resourceId);
         }
     }
 
     static ExternalId toDomain(ExternalIdEntity e) {
-        return new ExternalId(e.id, ExternalId.Kind.valueOf(e.kind), e.resourceId, e.source, e.externalId);
+        return new ExternalId(e.id, ExternalId.Kind.valueOf(e.kind), e.resourceId, e.source, e.externalId,
+                e.version);
     }
 }

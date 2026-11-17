@@ -16,6 +16,10 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
 public record RoleHolderRepresentation(
         @Schema(description = "The ID of the role.")
         String id,
+        @Schema(
+                description = "The version of the role. A new role has 1. Each write counts it up by one.",
+                readOnly = true)
+        Long version,
         @Schema(description = "The ID of the employment that holds the role.")
         String employmentId,
         @Schema(description = "The ID of the person of the employment.")
@@ -39,8 +43,8 @@ public record RoleHolderRepresentation(
 
     static RoleHolderRepresentation of(UnitRoleService.Holder holder) {
         var role = holder.view().role();
-        return new RoleHolderRepresentation(role.id(), role.employmentId(), role.personId(), role.userId(),
-                role.orgUnitId(), holder.orgUnitName(), holder.view().code(), holder.roleName(),
+        return new RoleHolderRepresentation(role.id(), role.version(), role.employmentId(), role.personId(),
+                role.userId(), role.orgUnitId(), holder.orgUnitName(), holder.view().code(), holder.roleName(),
                 role.includesDescendants(), role.period().from().toString(),
                 Objects.toString(role.period().to(), null));
     }

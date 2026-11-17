@@ -193,7 +193,7 @@ public final class RealmData {
     }
 
     /**
-     * Removes the link to a Keycloak organization from the org unit that has it.
+     * Removes the link to a Keycloak organization from the org unit that has it, which is a write of the unit.
      *
      * @param em the entity manager
      * @param realmId the ID of the realm
@@ -201,8 +201,8 @@ public final class RealmData {
      */
     public static void unlinkOrganization(EntityManager em, String realmId, String organizationId) {
         em.createQuery("""
-                        update OrgUnitEntity u set u.keycloakOrganizationId = null where u.realmId = :realmId
-                        and u.keycloakOrganizationId = :organizationId""")
+                        update OrgUnitEntity u set u.keycloakOrganizationId = null, u.version = u.version + 1
+                        where u.realmId = :realmId and u.keycloakOrganizationId = :organizationId""")
                 .setParameter("realmId", realmId)
                 .setParameter("organizationId", organizationId)
                 .executeUpdate();

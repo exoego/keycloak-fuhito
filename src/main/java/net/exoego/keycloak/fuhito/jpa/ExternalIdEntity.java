@@ -4,6 +4,7 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 
 /**
  * The ID that one system has for a resource.
@@ -30,6 +31,10 @@ public class ExternalIdEntity {
 
     @Column(name = "EXTERNAL_ID", nullable = false, length = 255)
     String externalId;
+
+    @Version
+    @Column(name = "VERSION", nullable = false)
+    long version;
 
     /**
      * Creates an empty entity for JPA.

@@ -125,29 +125,29 @@ public class RealmExportService {
         RealmExportStore export = stores.export();
         return switch (Checks.required("list", list)) {
             case "ref-kinds" -> page(export.refKinds().read(afterId, max), RealmKind::id,
-                    kind -> new RealmExport.Kind(kind.id(), kind.code(), kind.name(), kind.names()));
+                    kind -> new RealmExport.Kind(kind.id(), kind.version(), kind.code(), kind.name(), kind.names()));
             case "ref-items" -> page(export.refItems().read(afterId, max), RefItem::id, RealmExportService::item);
             case "attribute-definitions" -> page(export.attributeDefinitions().read(afterId, max),
-                    AttributeDefinition::id, d -> new RealmExport.Definition(d.id(), d.target().name(), d.name(),
-                            d.type().name(), d.refKind(), d.multiple(), d.required()));
+                    AttributeDefinition::id, d -> new RealmExport.Definition(d.id(), d.version(), d.target().name(),
+                            d.name(), d.type().name(), d.refKind(), d.multiple(), d.required()));
             case "hierarchies" -> page(export.hierarchies().read(afterId, max), Hierarchy::id,
-                    h -> new RealmExport.HierarchyRow(h.id(), h.code(), h.name()));
+                    h -> new RealmExport.HierarchyRow(h.id(), h.version(), h.code(), h.name()));
             case "org-units" -> orgUnits(export.orgUnits().read(afterId, max));
             case "people" -> people(export.people().read(afterId, max));
             case "employments" -> employments(export.employments().read(afterId, max));
             case "assignments" -> assignments(export.assignmentIds().read(afterId, max));
             case "reporting-lines" -> page(export.reportingLines().read(afterId, max), ReportingLine::id,
-                    l -> new RealmExport.Line(l.id(), l.assignmentId(), l.managerPersonId(), l.kind().name(),
-                            from(l.period()), to(l.period())));
+                    l -> new RealmExport.Line(l.id(), l.version(), l.assignmentId(), l.managerPersonId(),
+                            l.kind().name(), from(l.period()), to(l.period())));
             case "unit-roles" -> page(export.unitRoles().read(afterId, max), UnitRole::id,
-                    r -> new RealmExport.Role(r.id(), r.employmentId(), r.orgUnitId(), r.roleId(),
+                    r -> new RealmExport.Role(r.id(), r.version(), r.employmentId(), r.orgUnitId(), r.roleId(),
                             r.includesDescendants(), from(r.period()), to(r.period())));
             case "qualifications" -> page(export.qualifications().read(afterId, max), Qualification::id,
-                    q -> new QualificationRow(q.id(), q.personId(), q.kindId(), q.number(), from(q.period()),
-                            to(q.period()), q.attributes(), q.source()));
+                    q -> new QualificationRow(q.id(), q.version(), q.personId(), q.kindId(), q.number(),
+                            from(q.period()), to(q.period()), q.attributes(), q.source()));
             case "external-ids" -> page(export.externalIds().read(afterId, max), ExternalId::id,
-                    x -> new RealmExport.ExternalIdRow(x.id(), x.kind().name(), x.resourceId(), x.source(),
-                            x.externalId()));
+                    x -> new RealmExport.ExternalIdRow(x.id(), x.version(), x.kind().name(), x.resourceId(),
+                            x.source(), x.externalId()));
             case "change-orders" -> page(export.changeOrders().read(afterId, max), ChangeOrder::id, this::order);
             case "erasures" -> page(export.erasures().read(afterId, max), RealmExportStore.Erasure::personId,
                     e -> new RealmExport.Erasure(e.personId(), e.erasedAt().toString()));
@@ -160,8 +160,8 @@ public class RealmExportService {
     }
 
     private static RealmExport.Item item(RefItem i) {
-        return new RealmExport.Item(i.id(), i.kind(), i.code(), i.name(), i.names(), i.displayOrder(), i.attributes(),
-                i.active(), i.legalEntity(), i.actingHead(), i.lateral());
+        return new RealmExport.Item(i.id(), i.version(), i.kind(), i.code(), i.name(), i.names(), i.displayOrder(),
+                i.attributes(), i.active(), i.legalEntity(), i.actingHead(), i.lateral());
     }
 
     private ExportPage orgUnits(List<OrgUnit> units) {
@@ -176,7 +176,7 @@ public class RealmExportService {
                 .collect(Collectors.groupingBy(OrgUnitLink::childId));
         Map<String, List<OrgUnitSuccession>> successions = stores.export().successionsOf(ids).stream()
                 .collect(Collectors.groupingBy(OrgUnitSuccession::predecessorId));
-        return page(units, OrgUnit::id, unit -> new RealmExport.Unit(unit.id(), unit.source(),
+        return page(units, OrgUnit::id, unit -> new RealmExport.Unit(unit.id(), unit.version(), unit.source(),
                 unit.timeZone(), unit.dayStart(),
                 versions.getOrDefault(unit.id(), List.of()).stream()
                         .map(v -> new RealmExport.Version(v.id(), from(v.period()), to(v.period()), v.code(),
@@ -201,8 +201,8 @@ public class RealmExportService {
     private ExportPage people(List<Person> found) {
         Map<String, Instant> masks = found.isEmpty() ? Map.of()
                 : stores.export().maskedAt(found.stream().map(Person::id).toList());
-        return page(found, Person::id, p -> new PersonRow(p.id(), username(p.userId()), p.name(), p.names(),
-                p.phoneticName(), p.attributes(), p.source(),
+        return page(found, Person::id, p -> new PersonRow(p.id(), p.version(), username(p.userId()), p.name(),
+                p.names(), p.phoneticName(), p.attributes(), p.source(),
                 Optional.ofNullable(masks.get(p.id())).map(Instant::toString).orElse(null)));
     }
 
@@ -210,7 +210,7 @@ public class RealmExportService {
         Map<String, List<EmploymentTerms>> terms = found.isEmpty() ? Map.of()
                 : stores.export().termsOf(found.stream().map(Employment::id).toList()).stream()
                         .collect(Collectors.groupingBy(EmploymentTerms::employmentId));
-        return page(found, Employment::id, e -> new EmploymentRow(e.id(), e.personId(), e.employerId(),
+        return page(found, Employment::id, e -> new EmploymentRow(e.id(), e.version(), e.personId(), e.employerId(),
                 from(e.period()), to(e.period()), e.staffNumber(), e.endReasonId(), e.source(),
                 e.continuesEmploymentId(), terms.getOrDefault(e.id(), List.of()).stream()
                         .map(t -> new RealmExport.Terms(t.id(), from(t.period()), to(t.period()),
@@ -222,18 +222,21 @@ public class RealmExportService {
     private ExportPage assignments(List<String> ids) {
         Map<String, List<Assignment>> rows = ids.isEmpty() ? Map.of()
                 : stores.export().rowsOf(ids).stream().collect(Collectors.groupingBy(Assignment::assignmentId));
-        return page(ids, Function.identity(), id -> new AssignmentRows(id, rows.getOrDefault(id, List.of()).stream()
-                .map(a -> new RealmExport.Period(a.rowId(), a.employmentId(), a.orgUnitId(), from(a.period()),
-                        to(a.period()), a.jobTitleId(), a.occupationId(), a.kindId(), a.workLocationId(),
-                        a.costCenterId(), a.head(), a.primary(), a.allocationPercent(), a.displayOrder(),
-                        a.attributes(), a.source(), a.continuesAssignmentId()))
-                .toList()));
+        // The rows of one assignment share its version.
+        return page(ids, Function.identity(), id -> new AssignmentRows(id, rows.get(id).getFirst().version(),
+                rows.get(id).stream()
+                        .map(a -> new RealmExport.Period(a.rowId(), a.employmentId(), a.orgUnitId(),
+                                from(a.period()), to(a.period()), a.jobTitleId(), a.occupationId(), a.kindId(),
+                                a.workLocationId(), a.costCenterId(), a.head(), a.primary(), a.allocationPercent(),
+                                a.displayOrder(), a.attributes(), a.source(), a.continuesAssignmentId()))
+                        .toList()));
     }
 
     private RealmExport.Order order(ChangeOrder o) {
-        return new RealmExport.Order(o.id(), o.number(), o.kind(), o.title(), o.note(), text(o.orderDate()),
-                text(o.effectiveDate()), username(o.approverUserId()), username(o.requesterUserId()),
-                o.externalReference(), text(o.createdAt()), text(o.announcedAt()), usernameInRealm(o.announcedByUserId()));
+        return new RealmExport.Order(o.id(), o.version(), o.number(), o.kind(), o.title(), o.note(),
+                text(o.orderDate()), text(o.effectiveDate()), username(o.approverUserId()),
+                username(o.requesterUserId()), o.externalReference(), text(o.createdAt()), text(o.announcedAt()),
+                usernameInRealm(o.announcedByUserId()));
     }
 
     // A user that Keycloak no longer has gives no username. The restored record then has no link.
@@ -300,13 +303,14 @@ public class RealmExportService {
         }
         Map<String, Integer> counts = new LinkedHashMap<>();
         counts.put("ref-kinds", each("ref-kinds", document.refKinds(), k -> stores.refKinds().insert(
-                new RealmKind(k.id(), k.code(), k.name(), k.names()))));
+                new RealmKind(k.id(), k.code(), k.name(), k.names(), version(k.version())))));
         counts.put("ref-items", each("ref-items", document.refItems(), i -> stores.refItems().insert(new RefItem(i.id(), i.kind(),
                 i.code(), i.name(), i.names(), i.displayOrder(), i.attributes(), i.active(), i.legalEntity(),
-                i.actingHead(), i.lateral()))));
+                i.actingHead(), i.lateral(), version(i.version())))));
         counts.put("attribute-definitions", each("attribute-definitions", document.attributeDefinitions(), d -> stores.attributeDefinitions()
                 .insert(new AttributeDefinition(d.id(), AttributeDefinition.Target.valueOf(d.target()), d.name(),
-                        AttributeDefinition.Type.valueOf(d.type()), d.refKind(), d.multiple(), d.required()))));
+                        AttributeDefinition.Type.valueOf(d.type()), d.refKind(), d.multiple(), d.required(),
+                        version(d.version())))));
         Map<String, String> hierarchyIds = new HashMap<>();
         // A replace deleted the default hierarchy, and this makes it again.
         hierarchyIds.put(Hierarchy.DEFAULT_CODE, stores.hierarchies().defaultId());
@@ -316,14 +320,14 @@ public class RealmExportService {
             if (h.code().equals(Hierarchy.DEFAULT_CODE)) {
                 stores.hierarchies().delete(hierarchyIds.get(Hierarchy.DEFAULT_CODE));
             }
-            stores.hierarchies().insert(new Hierarchy(h.id(), h.code(), h.name()));
+            stores.hierarchies().insert(new Hierarchy(h.id(), h.code(), h.name(), version(h.version())));
             hierarchyIds.put(h.code(), h.id());
         }));
         rows("org-units", () -> restoreOrgUnits(Optional.ofNullable(document.orgUnits()).orElse(List.of()),
                 hierarchyIds, organizations, counts));
         counts.put("people", each("people", document.people(), p -> {
             stores.people().insert(new Person(p.id(), userId(p.username()), p.name(), p.names(), p.phoneticName(),
-                    p.attributes(), p.source()));
+                    p.attributes(), p.source(), version(p.version())));
             if (p.maskedAt() != null) {
                 stores.export().restoreMask(p.id(), Instant.parse(p.maskedAt()));
             }
@@ -334,19 +338,21 @@ public class RealmExportService {
                 .orElse(List.of()), counts));
         counts.put("reporting-lines", each("reporting-lines", document.reportingLines(), l -> stores.reportingLines().insert(
                 new ReportingLine(l.id(), l.assignmentId(), l.managerPersonId(), null,
-                        ReportingLine.Kind.valueOf(l.kind()), period(l.validFrom(), l.validTo())))));
+                        ReportingLine.Kind.valueOf(l.kind()), period(l.validFrom(), l.validTo()),
+                        version(l.version())))));
         counts.put("unit-roles", each("unit-roles", document.unitRoles(), r -> stores.unitRoles().insert(new UnitRole(r.id(),
                 r.employmentId(), null, null, r.orgUnitId(), r.roleId(), r.includesDescendants(),
-                period(r.validFrom(), r.validTo())))));
+                period(r.validFrom(), r.validTo()), version(r.version())))));
         counts.put("qualifications", each("qualifications", document.qualifications(), q -> stores.qualifications().insert(
                 new Qualification(q.id(), q.personId(), null, q.kindId(), q.number(), period(q.validFrom(),
-                        q.validTo()), q.attributes(), q.source()))));
+                        q.validTo()), q.attributes(), q.source(), version(q.version())))));
         counts.put("external-ids", each("external-ids", document.externalIds(), x -> stores.externalIds().insert(new ExternalId(
-                x.id(), ExternalId.Kind.valueOf(x.resourceType()), x.resourceId(), x.source(), x.externalId()))));
+                x.id(), ExternalId.Kind.valueOf(x.resourceType()), x.resourceId(), x.source(), x.externalId(),
+                version(x.version())))));
         counts.put("change-orders", each("change-orders", document.changeOrders(), o -> stores.changeOrders().insert(new ChangeOrder(
                 o.id(), o.number(), o.kind(), o.title(), o.note(), date(o.orderDate()), date(o.effectiveDate()),
                 userId(o.approver()), userId(o.requester()), o.externalReference(), instant(o.createdAt()),
-                instant(o.announcedAt()), userId(o.announcedBy())))));
+                instant(o.announcedAt()), userId(o.announcedBy()), version(o.version())))));
         counts.put("erasures", each("erasures", document.erasures(), e -> stores.export().restoreErasure(
                 new RealmExportStore.Erasure(Objects.requireNonNull(e.personId()), Instant.parse(e.erasedAt())))));
         stores.export().eraseAgain();
@@ -379,7 +385,7 @@ public class RealmExportService {
         OrgUnitStore store = stores.orgUnits();
         units.forEach(u -> store.insertUnit(new OrgUnit(u.id(), u.source(),
                 u.organizationAlias() == null ? null : organizations.get(u.organizationAlias()), u.timeZone(),
-                u.dayStart())));
+                u.dayStart(), version(u.version()))));
         for (RealmExport.Unit u : units) {
             u.versions().forEach(v -> store.insertVersion(new OrgUnitVersion(v.id(), u.id(), period(v.validFrom(),
                     v.validTo()), v.code(), v.name(), v.names(), v.shortName(), v.shortNames(), v.phoneticName(),
@@ -406,7 +412,7 @@ public class RealmExportService {
         for (EmploymentRow e : ordered) {
             stores.employments().insert(new Employment(e.id(), e.personId(), null, e.employerId(),
                     period(e.validFrom(), e.validTo()), e.staffNumber(), e.endReasonId(), e.source(),
-                    e.continuesEmploymentId()));
+                    e.continuesEmploymentId(), version(e.version())));
             e.terms().forEach(t -> stores.employments().insertTerms(new EmploymentTerms(t.id(), e.id(),
                     period(t.validFrom(), t.validTo()), t.employmentTypeId(), t.gradeId(),
                     EmploymentStatus.valueOf(t.status()), t.leaveReasonId(), t.workPercent(),
@@ -421,13 +427,13 @@ public class RealmExportService {
                 .flatMap(a -> a.periods().stream()).toList());
         rows.sort(Comparator.comparing((RealmExport.Period r) -> r.continuesAssignmentId() != null)
                 .thenComparing(RealmExport.Period::validFrom));
-        Map<String, String> assignmentOfRow = new HashMap<>();
-        assignments.forEach(a -> a.periods().forEach(r -> assignmentOfRow.put(r.rowId(), a.assignmentId())));
-        rows.forEach(r -> stores.assignments().insert(new Assignment(r.rowId(), assignmentOfRow.get(r.rowId()),
-                r.employmentId(), r.orgUnitId(), period(r.validFrom(), r.validTo()), r.jobTitleId(),
-                r.occupationId(), r.kindId(), r.workLocationId(), r.costCenterId(), r.head(), r.primary(),
-                r.allocationPercent(), r.displayOrder(), r.attributes(), r.source(),
-                r.continuesAssignmentId())));
+        Map<String, AssignmentRows> assignmentOfRow = new HashMap<>();
+        assignments.forEach(a -> a.periods().forEach(r -> assignmentOfRow.put(r.rowId(), a)));
+        rows.forEach(r -> stores.assignments().insert(new Assignment(r.rowId(),
+                assignmentOfRow.get(r.rowId()).assignmentId(), r.employmentId(), r.orgUnitId(),
+                period(r.validFrom(), r.validTo()), r.jobTitleId(), r.occupationId(), r.kindId(), r.workLocationId(),
+                r.costCenterId(), r.head(), r.primary(), r.allocationPercent(), r.displayOrder(), r.attributes(),
+                r.source(), r.continuesAssignmentId(), version(assignmentOfRow.get(r.rowId()).version()))));
         counts.put("assignments", assignments.size());
     }
 
@@ -452,6 +458,11 @@ public class RealmExportService {
         }
         return stores.users().findIdByUsername(username).orElseThrow(() -> FuhitoException.invalid(
                 "restore.username_unknown", Map.of("username", username)));
+    }
+
+    // An export from before versions has none.
+    private static long version(Long version) {
+        return version == null ? 1 : version;
     }
 
     private static ValidPeriod period(String from, String to) {

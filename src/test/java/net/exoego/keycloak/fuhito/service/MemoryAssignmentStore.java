@@ -51,7 +51,7 @@ final class MemoryAssignmentStore implements AssignmentStore {
                 .sorted(order)
                 .filter(row -> after == null || order.compare(row, new Assignment(null, after.assignmentId(), null,
                         after.orgUnitId(), ValidPeriod.startingAt(after.validFrom()), null, null, null, null, null,
-                        false, false, null, after.displayOrder(), Map.of(), null, null)) > 0)
+                        false, false, null, after.displayOrder(), Map.of(), null, null, 1)) > 0)
                 .skip(first)
                 .limit(max)
                 .toList();
@@ -127,7 +127,7 @@ final class MemoryAssignmentStore implements AssignmentStore {
                 row.employmentId(), row.orgUnitId(), row.period(), row.jobTitleId(), row.occupationId(),
                 row.kindId(), row.workLocationId(), row.costCenterId(), row.head(), row.primary(),
                 row.allocationPercent(), row.displayOrder(), row.attributes(), row.source(),
-                r.continuesAssignmentId()) : r);
+                r.continuesAssignmentId(), r.version()) : r);
     }
 
     @Override

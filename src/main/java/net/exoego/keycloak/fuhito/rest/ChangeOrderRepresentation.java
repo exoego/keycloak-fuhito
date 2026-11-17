@@ -14,6 +14,10 @@ public record ChangeOrderRepresentation(
         @Schema(readOnly = true)
         String id,
         @Schema(
+                description = "The version of the order. A new order has 1. Each write counts it up by one.",
+                readOnly = true)
+        Long version,
+        @Schema(
                 description = "The number that the legal entity gives to the order.",
                 maxLength = 64,
                 pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$")
@@ -50,8 +54,8 @@ public record ChangeOrderRepresentation(
         String announcedByUserId) {
 
     static ChangeOrderRepresentation of(ChangeOrder order) {
-        return new ChangeOrderRepresentation(order.id(), order.number(), order.kind(), order.title(), order.note(),
-                Objects.toString(order.orderDate(), null), order.effectiveDate().toString(),
+        return new ChangeOrderRepresentation(order.id(), order.version(), order.number(), order.kind(), order.title(),
+                order.note(), Objects.toString(order.orderDate(), null), order.effectiveDate().toString(),
                 order.approverUserId(), order.requesterUserId(), order.externalReference(),
                 order.createdAt().toString(), Objects.toString(order.announcedAt(), null),
                 order.announcedByUserId());

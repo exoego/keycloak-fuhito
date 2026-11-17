@@ -69,6 +69,13 @@ components:
         id:
           type: string
           readOnly: true
+        version:
+          type: integer
+          format: int64
+          description: "The version of the assignment. A new assignment has 1. Each\
+            \ write counts it up by one, also a change of a period or of an ID of\
+            \ another system."
+          readOnly: true
         employmentId:
           type: string
         userId:
@@ -249,6 +256,12 @@ components:
         id:
           type: string
           readOnly: true
+        version:
+          type: integer
+          format: int64
+          description: The version of the definition. A new definition has 1. Each
+            write counts it up by one.
+          readOnly: true
         target:
           type: string
           description: The kind of resource. Only a create request reads it.
@@ -345,6 +358,12 @@ components:
       properties:
         id:
           type: string
+          readOnly: true
+        version:
+          type: integer
+          format: int64
+          description: The version of the order. A new order has 1. Each write counts
+            it up by one.
           readOnly: true
         number:
           type: string
@@ -447,6 +466,13 @@ components:
       properties:
         id:
           type: string
+          readOnly: true
+        version:
+          type: integer
+          format: int64
+          description: "The version of the employment. A new employment has 1. Each\
+            \ write counts it up by one, also a change of the terms or of an ID of\
+            \ another system."
           readOnly: true
         personId:
           type: string
@@ -634,6 +660,9 @@ components:
       properties:
         assignmentId:
           type: string
+        version:
+          type: integer
+          format: int64
         periods:
           type: array
           items:
@@ -682,6 +711,9 @@ components:
       properties:
         id:
           type: string
+        version:
+          type: integer
+          format: int64
         target:
           type: string
         name:
@@ -700,6 +732,9 @@ components:
       properties:
         id:
           type: string
+        version:
+          type: integer
+          format: int64
         number:
           type: string
         kind:
@@ -729,6 +764,9 @@ components:
       properties:
         id:
           type: string
+        version:
+          type: integer
+          format: int64
         personId:
           type: string
         employerId:
@@ -789,6 +827,9 @@ components:
       properties:
         id:
           type: string
+        version:
+          type: integer
+          format: int64
         resourceType:
           type: string
         resourceId:
@@ -802,6 +843,9 @@ components:
       properties:
         id:
           type: string
+        version:
+          type: integer
+          format: int64
         code:
           type: string
         name:
@@ -813,6 +857,9 @@ components:
       properties:
         id:
           type: string
+        version:
+          type: integer
+          format: int64
         source:
           type: string
         timeZone:
@@ -901,6 +948,9 @@ components:
       properties:
         id:
           type: string
+        version:
+          type: integer
+          format: int64
         username:
           type: string
         name:
@@ -924,6 +974,9 @@ components:
       properties:
         id:
           type: string
+        version:
+          type: integer
+          format: int64
         personId:
           type: string
         kindId:
@@ -944,6 +997,9 @@ components:
       properties:
         id:
           type: string
+        version:
+          type: integer
+          format: int64
         kind:
           type: string
         code:
@@ -973,6 +1029,9 @@ components:
       properties:
         id:
           type: string
+        version:
+          type: integer
+          format: int64
         code:
           type: string
         name:
@@ -986,6 +1045,9 @@ components:
       properties:
         id:
           type: string
+        version:
+          type: integer
+          format: int64
         assignmentId:
           type: string
         managerPersonId:
@@ -1001,6 +1063,9 @@ components:
       properties:
         id:
           type: string
+        version:
+          type: integer
+          format: int64
         employmentId:
           type: string
         orgUnitId:
@@ -1046,6 +1111,12 @@ components:
           description: "True when the system made the resource, as the `source` of\
             \ the resource says."
           readOnly: true
+        version:
+          type: integer
+          format: int64
+          description: The version of this ID. A new one has 1. Each write counts
+            it up by one. A write of an ID also counts up the version of its resource.
+          readOnly: true
     ExternalIdPair:
       type: object
       required:
@@ -1068,6 +1139,12 @@ components:
       properties:
         id:
           type: string
+          readOnly: true
+        version:
+          type: integer
+          format: int64
+          description: The version of the hierarchy. A new hierarchy has 1. Each write
+            counts it up by one.
           readOnly: true
         code:
           type: string
@@ -2035,6 +2112,7 @@ components:
     Mask:
       required:
       - personId
+      - version
       - maskedAt
       - keycloakNameCleared
       description: The result of a masking.
@@ -2042,6 +2120,10 @@ components:
       properties:
         personId:
           type: string
+        version:
+          type: integer
+          format: int64
+          description: The version of the person after the mask.
         userId:
           type: string
           description: The ID of the Keycloak user that the person is linked to.
@@ -2072,6 +2154,11 @@ components:
       properties:
         assignmentId:
           type: string
+        version:
+          type: integer
+          format: int64
+          description: The version of the assignment.
+          readOnly: true
         employmentId:
           type: string
         personId:
@@ -2248,6 +2335,13 @@ components:
         id:
           type: string
           readOnly: true
+        version:
+          type: integer
+          format: int64
+          description: "The version of the unit. A new unit has 1. Each write counts\
+            \ it up by one, also a change of a period, of a parent, or of an ID of\
+            \ another system."
+          readOnly: true
         code:
           type: string
           maxLength: 64
@@ -2377,6 +2471,13 @@ components:
       properties:
         id:
           type: string
+        version:
+          type: integer
+          format: int64
+          description: "The version of the unit. A new unit has 1. Each write counts\
+            \ it up by one, also a change of a period, of a parent, or of an ID of\
+            \ another system."
+          readOnly: true
         source:
           type: string
           description: The name of the system that made the unit.
@@ -2435,6 +2536,11 @@ components:
         orgUnitId:
           type: string
           readOnly: true
+        version:
+          type: integer
+          format: int64
+          description: The version of the org unit after the write.
+          readOnly: true
         organizationId:
           type: string
           description: The ID of the Keycloak organization. A request to link needs
@@ -2490,6 +2596,12 @@ components:
       properties:
         id:
           type: string
+          readOnly: true
+        version:
+          type: integer
+          format: int64
+          description: "The version of the person. A new person has 1. Each write\
+            \ counts it up by one, also a mask or a change of an ID of another system."
           readOnly: true
         userId:
           type: string
@@ -2646,6 +2758,13 @@ components:
         id:
           type: string
           readOnly: true
+        version:
+          type: integer
+          format: int64
+          description: "The version of the qualification. A new qualification has\
+            \ 1. Each write counts it up by one, also a change of an ID of another\
+            \ system."
+          readOnly: true
         personId:
           type: string
           description: The ID of the person. Only a request to add reads it.
@@ -2698,7 +2817,8 @@ components:
     RealmExport:
       description: "Every stored row of a realm, with every period. `POST /restore`\
         \ loads it into a realm that has no data of the extension, or in place of\
-        \ the data of a realm."
+        \ the data of a realm. Each resource has its `version`, which the restore\
+        \ keeps. A resource with none starts at 1."
       type: object
       properties:
         format:
@@ -2769,6 +2889,12 @@ components:
       properties:
         id:
           type: string
+          readOnly: true
+        version:
+          type: integer
+          format: int64
+          description: The version of the item. A new item has 1. Each write counts
+            it up by one.
           readOnly: true
         kind:
           type: string
@@ -2858,6 +2984,12 @@ components:
         fixed:
           type: boolean
           description: True for a kind that every realm has.
+          readOnly: true
+        version:
+          type: integer
+          format: int64
+          description: The version of a kind that the realm added. A new kind has
+            1. Each write counts it up by one. A fixed kind has none.
           readOnly: true
     Reorganization:
       required:
@@ -3048,6 +3180,12 @@ components:
         id:
           type: string
           readOnly: true
+        version:
+          type: integer
+          format: int64
+          description: The version of the line. A new line has 1. Each write counts
+            it up by one.
+          readOnly: true
         assignmentId:
           type: string
           description: The ID of the assignment of the person who reports.
@@ -3099,6 +3237,12 @@ components:
         id:
           type: string
           description: The ID of the role.
+        version:
+          type: integer
+          format: int64
+          description: The version of the role. A new role has 1. Each write counts
+            it up by one.
+          readOnly: true
         employmentId:
           type: string
           description: The ID of the employment that holds the role.
@@ -3338,6 +3482,11 @@ components:
         orgUnitId:
           type: string
           readOnly: true
+        version:
+          type: integer
+          format: int64
+          description: The version of the org unit after the write.
+          readOnly: true
         timeZone:
           type: string
           description: The time zone. Leave it out to use the one from above.
@@ -3481,6 +3630,12 @@ components:
       properties:
         id:
           type: string
+          readOnly: true
+        version:
+          type: integer
+          format: int64
+          description: The version of the role. A new role has 1. Each write counts
+            it up by one.
           readOnly: true
         employmentId:
           type: string

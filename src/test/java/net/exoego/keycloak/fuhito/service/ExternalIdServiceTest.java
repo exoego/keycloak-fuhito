@@ -23,7 +23,7 @@ class ExternalIdServiceTest {
     @BeforeEach
     void createUnits() {
         store.resource(Kind.ORG_UNIT, "ward", "hr");
-        store.insert(new ExternalId("row-w", Kind.ORG_UNIT, "ward", "hr", "W-1"));
+        store.insert(new ExternalId("row-w", Kind.ORG_UNIT, "ward", "hr", "W-1", 1));
         store.resource(Kind.ORG_UNIT, "clinic", null);
     }
 

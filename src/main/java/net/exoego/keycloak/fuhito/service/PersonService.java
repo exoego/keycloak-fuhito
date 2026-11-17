@@ -117,7 +117,7 @@ public class PersonService {
         Checks.required("body", request);
         ExternalId.Pair externalId = externalIds.check(null, request.source(), request.externalId());
         Person person = checked(UUID.randomUUID().toString(), request,
-                Checks.optionalCode("source", request.source()));
+                Checks.optionalCode("source", request.source()), 1);
         store.insert(person);
         externalIds.store(person.id(), externalId);
         return view(person);
@@ -137,10 +137,9 @@ public class PersonService {
         Checks.required("body", request);
         Person current = get(id).person();
         ExternalId.Pair externalId = externalIds.check(id, request.source(), request.externalId());
-        Person changed = checked(id, request, current.source());
-        store.update(changed);
+        store.update(checked(id, request, current.source(), current.version()));
         externalIds.store(id, externalId);
-        return view(changed);
+        return get(id);
     }
 
     /**
@@ -243,7 +242,7 @@ public class PersonService {
         return value == null || value.isBlank() ? null : value.strip();
     }
 
-    private Person checked(String id, PersonValues request, String source) {
+    private Person checked(String id, PersonValues request, String source, long version) {
         String name = Checks.optionalName("name", request.name());
         String userId = request.userId();
         if (userId == null && name == null) {
@@ -261,7 +260,7 @@ public class PersonService {
         }
         return new Person(id, userId, name, Checks.localizedNames("names", request.names()),
                 Checks.optionalName("phoneticName", request.phoneticName()),
-                attributeRules.check(AttributeDefinition.Target.PERSON, request.attributes()), source);
+                attributeRules.check(AttributeDefinition.Target.PERSON, request.attributes()), source, version);
     }
 
     private PersonView view(Person person) {

@@ -332,7 +332,7 @@ class CsvImportServiceTest {
     void aFileOfAnotherSystemFindsAPersonByTheIdThatSystemHasForIt() {
         assertEquals(List.of(), errors(load("people", "2026-04-01", "外部ID,名称,よみがな\nP1,山田 花子,やまだ\n")));
         String person = stored(ExternalId.Kind.PERSON, "import", "P1");
-        externalIdStore.insert(new ExternalId("row-pay", ExternalId.Kind.PERSON, person, "payroll", "PAY-1"));
+        externalIdStore.insert(new ExternalId("row-pay", ExternalId.Kind.PERSON, person, "payroll", "PAY-1", 1));
 
         CsvImportService.Result result = service.apply("people", "externalId,name\nPAY-1,山田 華子\n", "2026-04-01",
                 false, "payroll");

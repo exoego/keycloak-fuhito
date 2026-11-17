@@ -19,7 +19,7 @@ final class MemoryHierarchyStore implements HierarchyStore {
     @Override
     public String defaultId() {
         return findByCode(Hierarchy.DEFAULT_CODE).map(Hierarchy::id).orElseGet(() -> {
-            insert(new Hierarchy("default-hierarchy", Hierarchy.DEFAULT_CODE, "Default"));
+            insert(new Hierarchy("default-hierarchy", Hierarchy.DEFAULT_CODE, "Default", 1));
             return "default-hierarchy";
         });
     }

@@ -99,7 +99,7 @@ public class AttributeDefinitionService implements AttributeRules {
             throw FuhitoException.conflict("attribute.name_taken", Map.of("target", of.name(), "name", checkedName));
         }
         AttributeDefinition definition = definition(UUID.randomUUID().toString(), of, checkedName, type, refKind,
-                multiple, required);
+                multiple, required, 1);
         store.insert(definition);
         return definition;
     }
@@ -119,9 +119,9 @@ public class AttributeDefinitionService implements AttributeRules {
     public AttributeDefinition replace(String id, String type, String refKind, Boolean multiple, Boolean required) {
         AttributeDefinition current = get(id);
         AttributeDefinition changed = definition(id, current.target(), current.name(), type, refKind, multiple,
-                required);
+                required, current.version());
         store.update(changed);
-        return changed;
+        return get(id);
     }
 
     /**
@@ -136,7 +136,7 @@ public class AttributeDefinitionService implements AttributeRules {
     }
 
     private AttributeDefinition definition(String id, AttributeDefinition.Target target, String name,
-            String type, String refKind, Boolean multiple, Boolean required) {
+            String type, String refKind, Boolean multiple, Boolean required, long version) {
         AttributeDefinition.Type of = Checks.optionalEnum("type", AttributeDefinition.Type.class,
                 Checks.required("type", type), null);
         String kind = refKind;
@@ -147,7 +147,7 @@ public class AttributeDefinitionService implements AttributeRules {
             throw FuhitoException.invalid("attribute.ref_kind", Map.of("type", of.name()));
         }
         return new AttributeDefinition(id, target, name, of, kind, Boolean.TRUE.equals(multiple),
-                Boolean.TRUE.equals(required));
+                Boolean.TRUE.equals(required), version);
     }
 
     @Override

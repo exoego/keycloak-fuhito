@@ -15,6 +15,11 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
 public record PersonRepresentation(
         @Schema(readOnly = true)
         String id,
+        @Schema(
+                description = "The version of the person. A new person has 1. Each write counts it up by one, also a "
+                        + "mask or a change of an ID of another system.",
+                readOnly = true)
+        Long version,
         @Schema(description = "The ID of the linked Keycloak user. One user is linked to at most one person.")
         String userId,
         @Schema(
@@ -55,7 +60,7 @@ public record PersonRepresentation(
 
     static PersonRepresentation of(PersonView view, ExternalIdLists ids) {
         var p = view.person();
-        return new PersonRepresentation(p.id(), p.userId(), view.name(),
+        return new PersonRepresentation(p.id(), p.version(), p.userId(), view.name(),
                 view.nameSource() == null ? null : view.nameSource().name(), p.names(), p.phoneticName(),
                 p.attributes(), null, p.source(), ExternalIdPairRepresentation.of(ids.of(p.id(), p.source())));
     }

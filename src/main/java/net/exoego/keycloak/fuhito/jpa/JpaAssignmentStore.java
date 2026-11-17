@@ -344,6 +344,9 @@ public class JpaAssignmentStore implements AssignmentStore {
         entity.orgUnitId = row.orgUnitId();
         entity.source = row.source();
         entity.continuesAssignmentId = row.continuesAssignmentId();
+        // A row of an assignment that has rows already takes their version.
+        entity.version = Versions.assignment(em, realmId, row.assignmentId()).orElse(row.version());
+        entity.counted = true;
         copy(row, entity);
         em.persist(entity);
     }
@@ -351,6 +354,7 @@ public class JpaAssignmentStore implements AssignmentStore {
     @Override
     public void update(Assignment row) {
         AssignmentEntity entity = Rows.require(em, AssignmentEntity.class, row.rowId(), realmId, found -> found.realmId);
+        Versions.assignment(em, realmId, row.assignmentId());
         copy(row, entity);
         // A split shortens this row and then inserts the next one. The database must see the shorter row first.
         em.flush();
@@ -361,6 +365,7 @@ public class JpaAssignmentStore implements AssignmentStore {
         AssignmentEntity entity = Rows.require(em, AssignmentEntity.class, rowId, realmId, found -> found.realmId);
         em.remove(entity);
         em.flush();
+        Versions.assignment(em, realmId, entity.assignmentId);
         ExternalIds.deleteOfGoneAssignment(em, realmId, entity.assignmentId);
     }
 
@@ -383,6 +388,6 @@ public class JpaAssignmentStore implements AssignmentStore {
         return new Assignment(e.id, e.assignmentId, e.employmentId, e.orgUnitId,
                 new ValidPeriod(e.validFrom, e.validTo), e.jobTitleId, e.occupationId, e.kindId, e.workLocationId,
                 e.costCenterId, e.head, e.primary, e.allocationPercent, e.displayOrder, e.attributes, e.source,
-                e.continuesAssignmentId);
+                e.continuesAssignmentId, e.version);
     }
 }

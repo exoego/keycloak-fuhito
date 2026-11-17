@@ -33,7 +33,7 @@ class RealmExportIT {
     }
 
     // Small pages, so that the export follows its links.
-    private static ObjectNode export(Api api) throws Exception {
+    static ObjectNode export(Api api) throws Exception {
         ObjectNode document = JSON.createObjectNode().put("format", "fuhito.export.v1");
         for (String list : LISTS) {
             ArrayNode rows = document.putArray(camel(list));

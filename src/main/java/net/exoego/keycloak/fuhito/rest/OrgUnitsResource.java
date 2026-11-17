@@ -507,7 +507,7 @@ public class OrgUnitsResource {
             organizationLinks.organizationOf(id).ifPresent(context::requireManageOrganization);
             context.requireManageOrganization(body.organizationId());
             var unit = organizationLinks.link(id, body.organizationId());
-            var link = new OrganizationLinkRepresentation(unit.id(), unit.keycloakOrganizationId());
+            var link = new OrganizationLinkRepresentation(unit.id(), unit.version(), unit.keycloakOrganizationId());
             context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, path(id) + "/organization", link);
             return link;
         });
@@ -530,7 +530,7 @@ public class OrgUnitsResource {
         return Calls.guarded(context, () -> state(id), () -> {
             organizationLinks.organizationOf(id).ifPresent(context::requireManageOrganization);
             var unit = organizationLinks.unlink(id);
-            var link = new OrganizationLinkRepresentation(unit.id(), null);
+            var link = new OrganizationLinkRepresentation(unit.id(), unit.version(), null);
             context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, path(id) + "/organization", link);
             return link;
         });
@@ -556,7 +556,8 @@ public class OrgUnitsResource {
         return Calls.guarded(context, () -> state(id), () -> {
             Checks.required("body", body);
             var unit = service.setTime(id, body.timeZone(), body.dayStart());
-            var settings = new TimeSettingsRepresentation(unit.id(), unit.timeZone(), unit.dayStart());
+            var settings = new TimeSettingsRepresentation(unit.id(), unit.version(), unit.timeZone(),
+                    unit.dayStart());
             context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, path(id) + "/time-settings", settings);
             return settings;
         });

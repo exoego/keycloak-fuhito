@@ -255,8 +255,9 @@ public final class ImportReport {
          *
          * @param orgUnitId the ID of the unit
          * @param organizationId the ID of the organization, or null for no link
+         * @param version the version of the unit after the write
          */
-        record OfOrganizationLink(String orgUnitId, String organizationId) implements Write {
+        record OfOrganizationLink(String orgUnitId, String organizationId, long version) implements Write {
 
             @Override
             public boolean created() {
@@ -285,8 +286,9 @@ public final class ImportReport {
          * @param orgUnitId the ID of the unit
          * @param timeZone the time zone, or null for none
          * @param dayStart the day start, or null for none
+         * @param version the version of the unit after the write
          */
-        record OfTimeSettings(String orgUnitId, String timeZone, String dayStart) implements Write {
+        record OfTimeSettings(String orgUnitId, String timeZone, String dayStart, long version) implements Write {
 
             @Override
             public boolean created() {

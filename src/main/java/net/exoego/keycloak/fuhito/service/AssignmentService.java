@@ -246,7 +246,7 @@ public class AssignmentService {
                 last.occupationId(), last.kindId(), idOf(RefKind.WORK_LOCATION, request.workLocation(), null),
                 idOf(RefKind.COST_CENTER, request.costCenter(), null), Boolean.TRUE.equals(request.head()),
                 last.primary(), last.allocationPercent(), request.displayOrder() == null ? 0 : request.displayOrder(),
-                last.attributes(), null, id);
+                last.attributes(), null, id, 1);
         // The end rejects a change that is stored for the date or later, and ends the reporting lines.
         AssignmentView ended = end(id, request.validFrom());
         store.insert(next);
@@ -419,7 +419,7 @@ public class AssignmentService {
                 Checks.optionalPercent("allocationPercent", values.allocationPercent()),
                 values.displayOrder() == null ? 0 : values.displayOrder(),
                 attributeRules.check(AttributeDefinition.Target.ASSIGNMENT, values.attributes()),
-                source, continuesAssignmentId);
+                source, continuesAssignmentId, current == null ? 1 : current.version());
     }
 
     private String idOf(RefKind kind, String code, String currentId) {

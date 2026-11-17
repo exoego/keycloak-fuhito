@@ -36,7 +36,7 @@ public class JpaHierarchyStore implements HierarchyStore {
     public String defaultId() {
         return findByCode(Hierarchy.DEFAULT_CODE).map(Hierarchy::id).orElseGet(() -> {
             // The ID of the realm, the same as the migration gives to the realms that it fills in.
-            Hierarchy created = new Hierarchy(realmId, Hierarchy.DEFAULT_CODE, "Default");
+            Hierarchy created = new Hierarchy(realmId, Hierarchy.DEFAULT_CODE, "Default", 1);
             insert(created);
             return created.id();
         });
@@ -86,6 +86,7 @@ public class JpaHierarchyStore implements HierarchyStore {
         entity.setRealmId(realmId);
         entity.setCode(hierarchy.code());
         entity.setName(hierarchy.name());
+        entity.setVersion(hierarchy.version());
         em.persist(entity);
         // Parent links refer to this row, so it goes to the database now.
         em.flush();
@@ -95,6 +96,8 @@ public class JpaHierarchyStore implements HierarchyStore {
     public void update(Hierarchy hierarchy) {
         Rows.require(em, HierarchyEntity.class, hierarchy.id(), realmId, HierarchyEntity::getRealmId)
                 .setName(hierarchy.name());
+        // JPA counts up the version when it writes the row. A read after the write gives the new one.
+        em.flush();
     }
 
     @Override
@@ -115,6 +118,6 @@ public class JpaHierarchyStore implements HierarchyStore {
     }
 
     static Hierarchy toDomain(HierarchyEntity entity) {
-        return new Hierarchy(entity.getId(), entity.getCode(), entity.getName());
+        return new Hierarchy(entity.getId(), entity.getCode(), entity.getName(), entity.getVersion());
     }
 }

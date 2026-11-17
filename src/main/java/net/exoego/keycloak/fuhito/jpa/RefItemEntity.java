@@ -7,6 +7,7 @@ import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 
 /**
  * One entry of a list that a realm defines.
@@ -53,6 +54,10 @@ public class RefItemEntity {
 
     @Column(name = "LATERAL_UNIT", nullable = false)
     boolean lateralUnit;
+
+    @Version
+    @Column(name = "VERSION", nullable = false)
+    long version;
 
     /**
      * Creates an empty entity for JPA.

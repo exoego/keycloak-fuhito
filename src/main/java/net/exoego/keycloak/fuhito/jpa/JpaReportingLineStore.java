@@ -194,6 +194,7 @@ public class JpaReportingLineStore implements ReportingLineStore {
         entity.kind = line.kind().name();
         entity.validFrom = line.period().from();
         entity.validTo = line.period().to();
+        entity.version = line.version();
         em.persist(entity);
     }
 
@@ -202,6 +203,7 @@ public class JpaReportingLineStore implements ReportingLineStore {
         ReportingLineEntity entity = findEntity(line.id()).orElseThrow();
         entity.validFrom = line.period().from();
         entity.validTo = line.period().to();
+        // JPA counts up the version when it writes the row. A read after the write gives the new one.
         em.flush();
     }
 
@@ -222,7 +224,7 @@ public class JpaReportingLineStore implements ReportingLineStore {
     static ReportingLine toDomain(ReportingLineEntity e) {
         return new ReportingLine(e.id, e.assignmentId, e.managerPersonId, e.manager.userId,
                 ReportingLine.Kind.valueOf(e.kind),
-                new ValidPeriod(e.validFrom, e.validTo));
+                new ValidPeriod(e.validFrom, e.validTo), e.version);
     }
 
     @Override
