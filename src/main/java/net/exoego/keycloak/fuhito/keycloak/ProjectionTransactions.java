@@ -11,6 +11,7 @@ import net.exoego.keycloak.fuhito.domain.BusinessDay;
 import net.exoego.keycloak.fuhito.jpa.JpaAssignmentStore;
 import net.exoego.keycloak.fuhito.jpa.JpaEmploymentStore;
 import net.exoego.keycloak.fuhito.jpa.JpaOrgUnitStore;
+import net.exoego.keycloak.fuhito.jpa.JpaProjectedMemberStore;
 import net.exoego.keycloak.fuhito.jpa.JpaRefItemStore;
 import net.exoego.keycloak.fuhito.service.InParallel;
 import net.exoego.keycloak.fuhito.service.ProjectionService;
@@ -76,7 +77,8 @@ public final class ProjectionTransactions implements ProjectionService.Work {
             var orgUnits = new JpaOrgUnitStore(em, realmId);
             return piece.apply(new Parts(orgUnits, new JpaAssignmentStore(em, realmId),
                     new JpaEmploymentStore(em, realmId), new JpaRefItemStore(em, realmId),
-                    new KeycloakOrganizations(session, realm), new UnitDays(orgUnits, rule, Clock.systemUTC())));
+                    new KeycloakOrganizations(session, realm), new JpaProjectedMemberStore(em, realmId),
+                    new UnitDays(orgUnits, rule, Clock.systemUTC())));
         });
     }
 }

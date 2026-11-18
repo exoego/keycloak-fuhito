@@ -2736,6 +2736,7 @@ components:
       - membersJoined
       - membersLeft
       - organizationMembersAdded
+      - organizationMembersRemoved
       - realmGroupTrees
       description: What a rebuild of the projection changed in Keycloak.
       type: object
@@ -2772,6 +2773,11 @@ components:
           type: integer
           format: int32
           description: The number of users who became members of an organization.
+        organizationMembersRemoved:
+          type: integer
+          format: int32
+          description: The number of users who were taken out of an organization that
+            the projection had added them to.
         realmGroupTrees:
           type: integer
           format: int32

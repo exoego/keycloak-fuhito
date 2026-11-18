@@ -1,6 +1,7 @@
 package net.exoego.keycloak.fuhito;
 
 import java.util.List;
+import java.util.Map;
 
 import org.junit.jupiter.api.Test;
 
@@ -13,7 +14,8 @@ class RealmRemovalIT {
             "fuhito_attribute_definition", "fuhito_ref_kind", "fuhito_external_id", "fuhito_idempotency_key", "fuhito_job_run", "fuhito_org_unit",
             "fuhito_org_unit_version", "fuhito_org_unit_link", "fuhito_org_unit_succession", "fuhito_employment", "fuhito_employment_terms",
             "fuhito_assignment", "fuhito_change_order", "fuhito_change_log", "fuhito_change_log_counter", "fuhito_qualification",
-            "fuhito_reporting_line", "fuhito_unit_role", "fuhito_user_mask", "fuhito_person", "fuhito_erasure");
+            "fuhito_reporting_line", "fuhito_unit_role", "fuhito_user_mask", "fuhito_person", "fuhito_erasure",
+            "fuhito_projected_member");
 
     // A new table must be added to this test and to the cleanup. This test fails until that is done.
     @Test
@@ -26,8 +28,8 @@ class RealmRemovalIT {
 
     @Test
     void removingARealmDeletesItsRowsAndNoOthers() throws Exception {
-        TestRealm removed = TestRealm.withEmployer("removal");
-        TestRealm kept = TestRealm.withEmployer("removal");
+        TestRealm removed = TestRealm.withEmployer("removal", Map.of("fuhito.projection.enabled", "true"));
+        TestRealm kept = TestRealm.withEmployer("removal", Map.of("fuhito.projection.enabled", "true"));
         fill(removed);
         fill(kept);
         String removedId = removed.id();
@@ -89,8 +91,11 @@ class RealmRemovalIT {
                 .statusCode());
         assertEquals(201, api.post("/people", "{\"name\": \"Guest\"}", "Idempotency-Key", "guest-1").statusCode());
         assertEquals(201, api.post("/ref-kinds", "{\"code\": \"site\", \"name\": \"Site\"}").statusCode());
-        // The projection is off in this realm, so the rebuild fails, and its run is recorded.
-        assertEquals(409, api.post("/projection/rebuild", "").statusCode());
+        // The rebuild records its run, and the staff as a member that it added to the organization.
+        assertEquals(200, api.putWithVersion("/org-units/" + Api.json(parent).get("id").asText() + "/organization",
+                "{\"organizationId\": \"" + realm.organization("removal") + "\"}").statusCode());
+        var rebuilt = api.post("/projection/rebuild", "");
+        assertEquals(200, rebuilt.statusCode(), rebuilt.body());
         realm.refItem("UNIT_ROLE", "approver", "Approver");
         assertEquals(201, api.post("/unit-roles", "{\"employmentId\": \"" + Api.json(employment).get("id").asText()
                 + "\", \"orgUnitId\": \"" + Api.json(parent).get("id").asText()

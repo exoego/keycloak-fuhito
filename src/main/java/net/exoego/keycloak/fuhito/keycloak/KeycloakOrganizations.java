@@ -236,6 +236,18 @@ final class KeycloakOrganizations implements OrganizationDirectory, Organization
         return within(organization, () -> provider().addMember(organization, user));
     }
 
+    // Keycloak asks for the membership itself, so this also finds a user that only a user storage provider holds.
+    @Override
+    public boolean removeOrganizationMember(String organizationId, String userId) {
+        OrganizationModel organization = provider().getById(organizationId);
+        UserModel user = session.users().getUserById(realm, userId);
+        // Keycloak removes a managed member from the realm.
+        if (user == null || provider().isManagedMember(organization, user)) {
+            return false;
+        }
+        return within(organization, () -> provider().removeMember(organization, user));
+    }
+
     // The rebuild writes only through the providers of Keycloak, and those do not read back what they wrote
     // before the end of a piece. In the batch mode of Keycloak a new membership waits for that flush too, and
     // the events and the invalidation of the user cache happen as usual.

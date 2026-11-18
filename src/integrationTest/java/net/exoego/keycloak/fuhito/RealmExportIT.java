@@ -214,7 +214,7 @@ class RealmExportIT {
 
     @Test
     void aRestoreWithReplaceBringsBackTheDataOfTheExport() throws Exception {
-        TestRealm realm = TestRealm.withEmployer("export-replace");
+        TestRealm realm = TestRealm.withEmployer("export-replace", Map.of("fuhito.projection.enabled", "true"));
         Api api = realm.api;
         String nurse = realm.user("nurse");
         String hospital = id(api.post("/org-units", "{\"name\": \"病院\", \"validFrom\": \"2020-04-01\", "
@@ -225,6 +225,10 @@ class RealmExportIT {
         ok(api.putWithVersion("/org-units/" + hospital + "/organization", "{\"organizationId\": \"" + organization + "\"}"));
         ok(api.post("/staff", "{\"userId\": \"" + nurse + "\", \"orgUnitId\": \"" + hospital
                 + "\", \"validFrom\": \"2020-04-01\"}"));
+        // The projection records that it added the nurse to the organization.
+        ok(api.post("/projection/rebuild", ""));
+        String records = "select count(*) from fuhito_projected_member where realm_id = '" + realm.id() + "'";
+        assertEquals("1", KeycloakEnvironment.sql(records));
         realm.refItem("QUALIFICATION", "license", "免許");
         String license = id(api.post("/qualifications", "{\"userId\": \"" + nurse + "\", \"kind\": \"license\", "
                 + "\"number\": \"1\", \"validFrom\": \"2010-04-01\"}"));
@@ -248,6 +252,8 @@ class RealmExportIT {
         // The change log keeps what happened, the mistakes too.
         assertTrue(Api.json(api.get("/change-log?resourceType=FUHITO_QUALIFICATION&resourceId=" + license))
                 .findValuesAsText("operation").contains("DELETE"));
+        // The restore did not change Keycloak, so the record of the member stays.
+        assertEquals("1", KeycloakEnvironment.sql(records));
     }
 
     @Test

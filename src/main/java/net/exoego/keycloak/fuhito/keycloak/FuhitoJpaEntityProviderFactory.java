@@ -2,6 +2,7 @@ package net.exoego.keycloak.fuhito.keycloak;
 
 import jakarta.persistence.EntityManager;
 import net.exoego.keycloak.fuhito.jpa.JpaHierarchyStore;
+import net.exoego.keycloak.fuhito.jpa.JpaProjectedMemberStore;
 import net.exoego.keycloak.fuhito.jpa.RealmData;
 import org.keycloak.Config;
 import org.keycloak.connections.jpa.JpaConnectionProvider;
@@ -61,8 +62,10 @@ public class FuhitoJpaEntityProviderFactory implements JpaEntityProviderFactory 
                                 removed.getUser().getId());
                 case OrganizationModel.OrganizationRemovedEvent removed -> {
                     KeycloakSession session = removed.getKeycloakSession();
-                    RealmData.unlinkOrganization(entityManager(session), session.getContext().getRealm().getId(),
-                            removed.getOrganization().getId());
+                    String realmId = session.getContext().getRealm().getId();
+                    String organizationId = removed.getOrganization().getId();
+                    RealmData.unlinkOrganization(entityManager(session), realmId, organizationId);
+                    new JpaProjectedMemberStore(entityManager(session), realmId).forgetOrganization(organizationId);
                 }
                 default -> { }
             }

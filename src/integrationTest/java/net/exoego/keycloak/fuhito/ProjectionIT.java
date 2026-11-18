@@ -108,6 +108,39 @@ class ProjectionIT {
         return list.findValuesAsText(field).stream().sorted().toList();
     }
 
+    private void link(String unit, String organization) throws Exception {
+        assertEquals(200, api.putWithVersion("/org-units/" + unit + "/organization",
+                "{\"organizationId\": \"" + organization + "\"}").statusCode());
+    }
+
+    private void endAssignment(String assignment) throws Exception {
+        assertEquals(200, api.putWithVersion("/assignments/" + assignment + "/end", "{\"validTo\": \"2021-04-01\"}")
+                .statusCode());
+    }
+
+    private List<String> members(String organization) throws Exception {
+        return sorted(keycloak("/organizations/" + organization + "/members"), "username");
+    }
+
+    private void addByHand(String organization, String userId) {
+        try (Response response = admin.realm(realm).organizations().get(organization).members().addMember(userId)) {
+            assertEquals(201, response.getStatus());
+        }
+    }
+
+    private void removeByHand(String organization, String userId) {
+        try (Response response = admin.realm(realm).organizations().get(organization).members().member(userId)
+                .delete()) {
+            assertEquals(204, response.getStatus());
+        }
+    }
+
+    // The ID of the record of a member that the projection added, or an empty text for none.
+    private static String record(String organization, String userId) throws Exception {
+        return KeycloakEnvironment.sql("select id from fuhito_projected_member where kc_org_id = '" + organization
+                + "' and user_id = '" + userId + "'");
+    }
+
     @Test
     void aSecondRebuildIsRefusedWhileOneIsGoingOn() throws Exception {
         createRealm(true);
@@ -195,7 +228,7 @@ class ProjectionIT {
         // A second rebuild with no change does nothing.
         JsonNode again = rebuild();
         for (String count : List.of("groupsCreated", "groupsRenamed", "groupsMoved", "groupsRemoved", "membersJoined",
-                "membersLeft", "organizationMembersAdded")) {
+                "membersLeft", "organizationMembersAdded", "organizationMembersRemoved")) {
             assertEquals(0, again.get(count).asInt(), count);
         }
 
@@ -216,6 +249,7 @@ class ProjectionIT {
         assertEquals(1, second.get("groupsRemoved").asInt());
         assertEquals(1, second.get("groupsCreated").asInt());
         assertEquals(1, second.get("membersLeft").asInt());
+        assertEquals(2, second.get("organizationMembersRemoved").asInt());
         JsonNode topAfter = keycloak(groups);
         assertEquals(List.of("事務室", "東病棟", "看護部"), sorted(topAfter, "name"));
         assertNotEquals(officeGroup, idOf(topAfter, "事務室"));
@@ -223,8 +257,8 @@ class ProjectionIT {
         assertEquals(wardGroup, idOf(topAfter, "東病棟"));
         assertEquals(0, keycloak(groups + "/" + nursingGroup + "/children").size());
         assertEquals(0, keycloak(groups + "/" + wardGroup + "/members").size());
-        // The projection never takes a user out of the organization.
-        assertEquals(4, keycloak("/organizations/" + organization + "/members").size());
+        // The nurse and the clerk have no assignment today, so they left the organization too.
+        assertEquals(List.of("director", "head-nurse"), members(organization));
     }
 
     @Test
@@ -326,5 +360,170 @@ class ProjectionIT {
         JsonNode groups = keycloak("/organizations/" + organization + "/groups");
         assertEquals(List.of("stays"), sorted(keycloak("/organizations/" + organization + "/groups/"
                 + idOf(groups, "病棟") + "/members"), "username"));
+    }
+
+    @Test
+    void aPersonWhoMovesToAUnitOfAnotherOrganizationLeavesTheOldOne() throws Exception {
+        createRealm(true);
+        String xOrganization = OrganizationLinkIT.createOrganization(admin, realm, "x-hospital");
+        String yOrganization = OrganizationLinkIT.createOrganization(admin, realm, "y-hospital");
+        String xHospital = unit("X病院", null);
+        String yHospital = unit("Y病院", null);
+        String xWard = unit("X病棟", xHospital);
+        String yWard = unit("Y病棟", yHospital);
+        String nurse = user("nurse");
+        String assignment = staff(nurse, xWard);
+        link(xHospital, xOrganization);
+        link(yHospital, yOrganization);
+        rebuild();
+        assertEquals(List.of("nurse"), members(xOrganization));
+        assertNotEquals("", record(xOrganization, nurse));
+
+        assertEquals(201, api.postWithVersion("/assignments/" + assignment + "/move",
+                "{\"orgUnitId\": \"" + yWard + "\", \"validFrom\": \"2021-04-01\"}").statusCode());
+        JsonNode report = rebuild();
+
+        assertEquals(1, report.get("organizationMembersAdded").asInt());
+        assertEquals(1, report.get("organizationMembersRemoved").asInt());
+        assertEquals(List.of(), members(xOrganization));
+        assertEquals(List.of("nurse"), members(yOrganization));
+        assertEquals("", record(xOrganization, nurse));
+        assertNotEquals("", record(yOrganization, nurse));
+        String xGroup = idOf(keycloak("/organizations/" + xOrganization + "/groups"), "X病棟");
+        assertEquals(0, keycloak("/organizations/" + xOrganization + "/groups/" + xGroup + "/members").size());
+        assertEquals(1, Api.json(api.get("/projection/last-run")).get("report").get("organizationMembersRemoved")
+                .asInt());
+    }
+
+    @Test
+    void membersThatTheProjectionDidNotAddStay() throws Exception {
+        createRealm(true);
+        String organization = OrganizationLinkIT.createOrganization(admin, realm, "x-hospital");
+        String hospital = unit("X病院", null);
+        String guest = user("guest");
+        String earlier = user("earlier");
+        String assignment = staff(earlier, hospital);
+        addByHand(organization, guest);
+        addByHand(organization, earlier);
+        link(hospital, organization);
+
+        // The user with an assignment was a member before the projection would add them.
+        assertEquals(0, rebuild().get("organizationMembersAdded").asInt());
+        assertEquals("", record(organization, earlier));
+
+        endAssignment(assignment);
+        assertEquals(0, rebuild().get("organizationMembersRemoved").asInt());
+        assertEquals(List.of("earlier", "guest"), members(organization));
+    }
+
+    @Test
+    void theMembersOfAnOrganizationWhoseLinkedUnitEndedGo() throws Exception {
+        createRealm(true);
+        String organization = OrganizationLinkIT.createOrganization(admin, realm, "z-clinic");
+        String clinic = unit("Zクリニック", null);
+        String desk = unit("受付", clinic);
+        String receptionist = user("receptionist");
+        String assignment = staff(receptionist, desk);
+        link(clinic, organization);
+        rebuild();
+        addByHand(organization, user("guest"));
+
+        endAssignment(assignment);
+        for (String unit : List.of(desk, clinic)) {
+            assertEquals(200, api.putWithVersion("/org-units/" + unit + "/end", "{\"validTo\": \"2021-04-01\"}")
+                    .statusCode());
+        }
+        JsonNode report = rebuild();
+
+        assertEquals(0, report.get("organizations").asInt());
+        assertEquals(1, report.get("groupsRemoved").asInt());
+        assertEquals(1, report.get("organizationMembersRemoved").asInt());
+        assertEquals(List.of("guest"), members(organization));
+        assertEquals("", record(organization, receptionist));
+    }
+
+    @Test
+    void aMemberThatAnAdministratorTookOutLosesItsRecord() throws Exception {
+        createRealm(true);
+        String organization = OrganizationLinkIT.createOrganization(admin, realm, "x-hospital");
+        String hospital = unit("X病院", null);
+        String stays = user("stays");
+        String leaves = user("leaves");
+        staff(stays, hospital);
+        String assignment = staff(leaves, hospital);
+        link(hospital, organization);
+        rebuild();
+        String first = record(organization, stays);
+        removeByHand(organization, stays);
+        removeByHand(organization, leaves);
+        endAssignment(assignment);
+
+        JsonNode report = rebuild();
+
+        // The administrator took both out, so the rebuild took nobody out.
+        assertEquals(0, report.get("organizationMembersRemoved").asInt());
+        assertEquals(1, report.get("organizationMembersAdded").asInt());
+        assertEquals(List.of("stays"), members(organization));
+        assertNotEquals("", record(organization, stays));
+        assertNotEquals(first, record(organization, stays));
+        assertEquals("", record(organization, leaves));
+
+        // With no record, a member that the administrator adds again stays.
+        addByHand(organization, leaves);
+        rebuild();
+        assertEquals(List.of("leaves", "stays"), members(organization));
+    }
+
+    // Keycloak removes a managed member from the realm. An identity provider adds such members.
+    @Test
+    void aManagedMemberStaysAndLosesItsRecord() throws Exception {
+        createRealm(true);
+        String organization = OrganizationLinkIT.createOrganization(admin, realm, "x-hospital");
+        String hospital = unit("X病院", null);
+        String managed = user("managed");
+        String assignment = staff(managed, hospital);
+        link(hospital, organization);
+        rebuild();
+        KeycloakEnvironment.sql("update user_group_membership set membership_type = 'MANAGED' where user_id = '"
+                + managed + "'");
+        admin.realm(realm).clearUserCache();
+        endAssignment(assignment);
+
+        assertEquals(0, rebuild().get("organizationMembersRemoved").asInt());
+
+        assertEquals(List.of("managed"), members(organization));
+        assertEquals("managed", admin.realm(realm).users().get(managed).toRepresentation().getUsername());
+        assertEquals("", record(organization, managed));
+    }
+
+    @Test
+    void theRemovalOfAUserOrAnOrganizationRemovesItsRecords() throws Exception {
+        createRealm(true);
+        String xOrganization = OrganizationLinkIT.createOrganization(admin, realm, "x-hospital");
+        String yOrganization = OrganizationLinkIT.createOrganization(admin, realm, "y-hospital");
+        String xHospital = unit("X病院", null);
+        String yHospital = unit("Y病院", null);
+        String removed = user("removed");
+        String kept = user("kept");
+        for (String userId : List.of(removed, kept)) {
+            staff(userId, xHospital);
+            staff(userId, yHospital);
+        }
+        link(xHospital, xOrganization);
+        link(yHospital, yOrganization);
+        assertEquals(4, rebuild().get("organizationMembersAdded").asInt());
+
+        admin.realm(realm).users().delete(removed).close();
+
+        assertEquals("", record(xOrganization, removed));
+        assertEquals("", record(yOrganization, removed));
+        assertNotEquals("", record(yOrganization, kept));
+
+        try (Response response = admin.realm(realm).organizations().get(yOrganization).delete()) {
+            assertEquals(204, response.getStatus());
+        }
+
+        assertEquals("", record(yOrganization, kept));
+        assertNotEquals("", record(xOrganization, kept));
     }
 }
