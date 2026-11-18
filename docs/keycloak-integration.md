@@ -230,7 +230,8 @@ See [personal-data.md](personal-data.md) for what it clears, what it keeps, and 
 `DELETE /users/{userId}/data` does the same for the person of a user.
 It is the only way to erase. Applications that refer to a record by ID find nothing afterwards, so prefer masking when the records must stay.
 
-It removes the employments with their terms and assignments, the qualifications, the reporting lines of the user as a report and as a manager, and the change log entries about them.
+It removes the employments with their terms and assignments, the qualifications, and the reporting lines of the user as a report and as a manager.
+The change log keeps its entries about them, because they hold only IDs.
 It works for a user who is still in Keycloak and for one who was removed.
 The change log gets one entry that says who erased the data of which user ID. It has nothing else about the person.
 
@@ -610,7 +611,8 @@ A failed request records no event.
 Every successful write also adds an entry to the change log of the extension.
 The log is kept whether or not the realm stores admin events.
 
-An entry has its sequence number in the realm, the time, the user who did the write, the resource type, the resource ID, the operation, the path, and the state of the resource after the write.
+An entry has its sequence number in the realm, the time, the user who did the write, the resource type, the resource ID, the operation, the path, and the change order.
+It has no state of the resource. A reader that needs the state reads the resource again.
 Entries are only added. No endpoint changes or removes one.
 Another system can follow the log from a sequence number. See [history.md](history.md).
 
@@ -621,8 +623,7 @@ A request that names an unknown change order gets 400 and writes nothing.
 The valid period of a row says when a fact is true.
 The change log says when the system learned it, from whom, and under which approval.
 
-Removal of a user from Keycloak removes no entry.
-Only the erase endpoint removes the entries about one user.
+Removal of a user from Keycloak removes no entry. A mask and an erase do not change or remove entries either.
 
 ## Errors
 

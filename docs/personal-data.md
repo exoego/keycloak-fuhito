@@ -17,7 +17,8 @@ Which way a law requires depends on the law, the country, and the reason for kee
 | Why the person was on leave | Employment terms |
 | Free values that the realm defines | The attributes of people, employment terms, assignments, and qualifications |
 | Where and when the person worked, with job title and occupation | Employments, assignments, reporting lines, and roles over org units |
-| A copy of all of the above after each write | The change log |
+
+The change log keeps who wrote, when, and the IDs of what was written. It keeps no other data about a person.
 
 The email address and the credentials of a person are in Keycloak, not in this extension.
 The name of a person with a Keycloak user is in Keycloak. The person record can also have one.
@@ -32,7 +33,7 @@ A person with no Keycloak user has the name only in the person record.
 | Org units, job titles, occupations, dates | Stay | Stay | Gone |
 | The names in the person record | Stay | Cleared | Gone, with the person record |
 | Staff number, license numbers, the IDs in other systems, leave reasons, free attributes | Stay | Cleared | Gone |
-| The same fields in the change log | Stay | Cleared | The entries are gone |
+| The entries of the change log, which hold only IDs | Stay | Stay | Stay |
 | Can be undone | Yes | No | No |
 | Applications that refer to a record by ID | Find it | Find it | Find nothing |
 
@@ -60,9 +61,8 @@ Masking removes what identifies the person directly, and keeps the structure of 
 
 ### Erase
 
-Erasing removes the person record, and every row and every change log entry about the person.
-That includes the entries of rows that are gone, for example a qualification that was deleted. They are found by the IDs that the entries name: the person, the employments of the person, and their assignments. A mask finds the entries to clear the same way.
-The change log keeps one entry that says who erased the data of which person ID.
+Erasing removes the person record, and every row about the person.
+The change log keeps its entries about the person, because they hold only IDs. It gets one more entry that says who erased the data of which person ID.
 The realm also keeps the person ID and the time of the erase, and nothing else. A restore uses them to erase the person again.
 
 An export of the realm has the data of people as it is stored. An export taken before a mask or an erase still has what they removed. A restore of such an export erases those people again after the load, so erased data does not come back. A mask comes back as the export has it, because a masked person stays in use. A person masked after the export gets the data of the export back, and needs a mask again. Copies of the export file itself are not changed. Remove old export files that you no longer need.
@@ -72,7 +72,7 @@ The mask entry and the erase entry tell it which person ID to clean up. See [his
 
 ### Other copies
 
-- A request with `Idempotency-Key` keeps its response for 24 hours. A mask and an erase clear each stored response that names the person or a record of the person. A request sent again still writes nothing, and gets the first status with no body.
+- A request with `Idempotency-Key` keeps its response for 24 hours. A mask and an erase clear each stored response that names the person, the user, or a record of the person that is still stored. A request sent again still writes nothing, and gets the first status with no body.
 - Keycloak keeps admin events with the representation of each write when the realm asks for it. A mask and an erase do not change them. Use the settings of admin events in Keycloak to limit what they keep and for how long.
 - The last run of the sync keeps the users and the values that matched nothing, until the next run replaces it.
 - The projection records the user ID of each member that it added to a Keycloak organization. A mask and an erase do not remove the record. The next rebuild takes a user with no assignment out of the organization and removes the record.
