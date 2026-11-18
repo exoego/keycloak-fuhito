@@ -268,6 +268,81 @@ What the runs showed.
 - A call that took more than 300 seconds did all its work and then answered with the status 500. The transaction of the request had ended by then, and its end failed. Now a long job ends that transaction before it starts.
 - A sync with nothing to change was close to that limit of 300 seconds for 500,000 people, because it asked for the employments and the reporting line of each user. It now takes 33 seconds. See "The reads of a piece at once" above.
 
+## A run of the changes of the projection
+
+`POST /projection/rebuild?changesOnly=true` looks only at what the change log names since the last run. See "A run of the changes" in [keycloak-integration.md](keycloak-integration.md).
+`scripts/bench/projection-changes.sh` measures it against a full rebuild at the same commit. It runs after `BATCH=1 SYNC=0 scripts/bench/run.sh`, which ends with two full rebuilds.
+
+- `run.sh` turns the timer of the projection off, so only the measured calls rebuild.
+- Before each run, the script makes the change of its case through the API. So the change log has the same entries as for any other caller. Each run gets a change of its own. A run of the changes and a full rebuild take turns.
+- Each case runs five times with each kind of run. A cell has the median, and the fastest and the slowest run in brackets.
+- `pg_stat_statements` counts the SQL statements of one whole run, also those of Keycloak.
+
+| Case | The change before each run |
+|---|---|
+| Nothing changed | None |
+| 10, 100, or 1,000 assignments moved | That many people in teams move to the next team, with one call of `POST /assignments/{id}/move` each. Each move makes two entries of the change log. |
+| One unit renamed | A team gets a new name. |
+| One subtree moved | A department moves to another division with the teams below it. A department has about nine. |
+
+Run on 2026-11-18 at commit `395d510`, with Keycloak 26.8.2 and PostgreSQL 18, on a laptop with an Apple M4 Pro and 48 GB of memory, with macOS 26.7.
+Docker is OrbStack 29.8.2 with 2 CPUs and 8 GB of memory for Keycloak and PostgreSQL together. Containers of other projects ran on the same Docker.
+
+### 50,000 people and 5,000 org units
+
+The time of one call.
+
+| Case | Full rebuild | Run of the changes |
+|---|---|---|
+| Nothing changed | 3,328 ms (2,888 to 3,668) | 12 ms (11 to 20) |
+| 10 assignments moved | 3,018 ms (2,723 to 3,168) | 143 ms (131 to 170) |
+| 100 assignments moved | 3,255 ms (2,760 to 3,476) | 215 ms (153 to 223) |
+| 1,000 assignments moved | 3,964 ms (3,163 to 4,522) | 645 ms (510 to 762) |
+| One unit renamed | 3,172 ms (3,149 to 3,214) | 154 ms (139 to 157) |
+| One subtree moved | 3,117 ms (3,112 to 3,211) | 137 ms (129 to 152) |
+
+The SQL statements of one run, the median.
+
+| Case | Full rebuild | Run of the changes |
+|---|---|---|
+| Nothing changed | 50,440 | 13 |
+| 10 assignments moved | 50,546 | 169 |
+| 100 assignments moved | 51,555 | 1,255 |
+| 1,000 assignments moved | 61,546 | 11,616 |
+| One unit renamed | 50,461 | 60 |
+| One subtree moved | 50,470 | 65 |
+
+### 500,000 people and 50,000 org units
+
+`PEOPLE=500000 UNITS=50000 BATCH=1 SYNC=0 scripts/bench/run.sh`, then `UNITS=50000 CASES="nothing 10" scripts/bench/projection-changes.sh`.
+The seed, the users, and the first full rebuild took 29 minutes together. Other tests shared the Docker for part of that time, but not during the runs below.
+
+The time of one call.
+
+| Case | Full rebuild | Run of the changes |
+|---|---|---|
+| Nothing changed | 43,110 ms (42,799 to 43,381) | 21 ms (11 to 32) |
+| 10 assignments moved | 42,369 ms (41,976 to 42,574) | 1,420 ms (1,392 to 1,526) |
+
+The SQL statements of one run, the median.
+
+| Case | Full rebuild | Run of the changes |
+|---|---|---|
+| Nothing changed | 602,830 | 36 |
+| 10 assignments moved | 605,008 | 181 |
+
+The next commit, `a846883`, changes only the order of the writes for a user who joins another organization. No case here does that.
+
+What the runs showed.
+
+- With nothing to change, a run of the changes reads its checkpoint and one page of the change log.
+- For moved assignments, a run of the changes reads and writes for each user that the change log names. That is about 12 statements for each user, and most of them are the writes through the API of Keycloak. A full rebuild makes the same writes.
+- With nothing to change, a full rebuild runs about 50,000 statements. 50,000 of them read the person of one employment each. The other reads come in pieces of 100 org units, about 50 queries each.
+- A renamed unit or a moved subtree changes only the groups of that unit and below it. The run still reads the whole tree of the date and every group of the realm that mirrors a unit. It reads them once for the check of the permissions and once more in the run.
+- With nothing to change, a run of the changes does not grow with the realm. The 23 more statements at 500,000 people are Keycloak, which loads roles and clients into its cache for the request.
+- With moved assignments, a run of the changes grows with the realm. At 500,000 people, the reads of every org unit, every version and parent link of today, and every group that mirrors a unit return about 500,000 rows. The database spends about 160 ms on them, and loading them takes most of the 1.4 seconds. A walk up the tree in the database from the units of the users, and a read of only their groups, would not grow with the realm.
+- A full rebuild grows with the realm in the same way as before. 500,000 of its statements read the person of one employment each.
+
 ## What the numbers say
 
 - A read about one org unit, one person, or one page of people does not grow with the realm.
