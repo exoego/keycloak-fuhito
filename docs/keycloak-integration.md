@@ -122,6 +122,7 @@ The projection is off unless the realm has the attribute `fuhito.projection.enab
 
 `POST /projection/rebuild` runs it. The response counts what changed.
 A rebuild with no change in between changes nothing.
+`POST /projection/rebuild?changesOnly=true` looks only at what changed since the last run. See "A run of the changes" below.
 
 A first rebuild of a large realm takes many minutes, and the call stays open for that time. A proxy or a load balancer between the caller and Keycloak may end the call first. The rebuild goes on in the server anyway.
 `GET /projection/last-run` reads the last run, also one that the timer started. It has `state`, `startedAt`, `endedAt`, the counts of the report, and the code of an error.
@@ -156,6 +157,44 @@ For example, this starts Keycloak with a run every hour.
 ```sh
 kc.sh start --spi-admin-realm-restapi-extension--fuhito--projection-interval-seconds=3600
 ```
+
+#### A run of the changes
+
+`POST /projection/rebuild?changesOnly=true` looks only at what the change log names since the last run that was done. Without the parameter, a rebuild is a full one. The timer runs full rebuilds.
+
+- Each run that is done, full or of the changes, keeps the sequence number of the newest entry of the change log when it started. A run of the changes reads the entries after the number of the last run that was done. A run that fails keeps the number of the run before it.
+- An entry of an assignment, an employment, or a person names the users of the person. The run compares the groups and the organizations of each such user with what the assignments of today give. For a person who changed, it also looks at the user that the person was linked to before. It reads that user from the change log.
+- An entry of an org unit names the group of the unit and the groups below it, in each organization and in the realm group tree. That is where the units are now and where their groups are now. A user who joins or leaves with such a group is looked at too.
+- An entry of a linked unit mirrors its whole organization again. So does a new time setting at the linked unit or above it, because it can change the date of the organization.
+- A new time setting also mirrors the whole realm group tree again. So does any change of an org unit while the roots of the tree are not all on one date.
+- An organization that no unit of today links loses what the projection made there, as in a full rebuild.
+- An entry of a reference item, a kind, an attribute definition, a reporting line, a role over an org unit, a qualification, an ID of another system, a change order, or a mask changes nothing that the projection reads. The run skips it.
+- The run reads today's state of what it looks at, as a full rebuild does. A dated change that becomes true later with no write is not in the change log, so only a full rebuild picks it up. So does a change made by hand in Keycloak.
+- The run asks for the permission to manage only the organizations that it may change. It asks for the permission to manage groups only when the realm uses realm groups and something changed.
+
+So a full rebuild right after a run of the changes finds nothing to change, when no write came in between.
+
+In some cases a run of the changes runs a full rebuild instead. Its report then has `fellBack` with `true`, and the reason in `fallbackReason`.
+
+| Reason | When |
+|---|---|
+| `no_earlier_run` | No run was done before. |
+| `settings` | The realm group or the use of organizations is not the same as at the last run, or the realm group cannot be read. These are not in the change log. |
+| `restore` | A restore wrote the data again. |
+| `hierarchy` | A hierarchy changed. The default hierarchy decides the tree. |
+| `erasure` | The data of a person was erased, with the entries about the person. |
+| `earlier_state` | The change log does not tell an earlier state that the run needs. For example, a person changed who has no earlier entry, as after a restore. |
+| `unknown_entry` | An entry of a type that the run does not know. |
+
+The report of a run of the changes has three more counts. A full rebuild that was asked for has none of them.
+
+| Count | What it counts |
+|---|---|
+| `changeLogEntries` | The entries that the run read. |
+| `usersLookedAt` | The users whose groups and organizations the run compared. |
+| `organizationsLookedAt` | The organizations that the run may change, for its org units and for its users. |
+
+See [performance.md](performance.md) for how long each kind of run takes.
 
 #### What the projection owns
 
