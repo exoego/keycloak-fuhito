@@ -21,6 +21,8 @@ It needs Docker, curl, and jq. Run it from the root of the project. It is not a 
 
 The database writes the plan of every statement that takes 20 ms or more to its log.
 So a slow read can be looked at with `docker logs fuhito-bench-pg`.
+The database also loads `pg_stat_statements`, which counts the statements of a run. The timer of the projection is off, so only the calls of the script rebuild it.
+`JAR` names a jar that is built already, as a path from the root of the project. Then the script does not build one.
 
 ## Results
 
@@ -267,6 +269,33 @@ What the runs showed.
 - A rebuild took longer than the 15 minutes of the timer, and the timer started a second one. The two failed on the unique keys of Keycloak. Now only one rebuild runs for a realm at a time.
 - A call that took more than 300 seconds did all its work and then answered with the status 500. The transaction of the request had ended by then, and its end failed. Now a long job ends that transaction before it starts.
 - A sync with nothing to change was close to that limit of 300 seconds for 500,000 people, because it asked for the employments and the reporting line of each user. It now takes 33 seconds. See "The reads of a piece at once" above.
+
+## The reads of a full rebuild
+
+A full rebuild with nothing to change sent about one statement to the database for each person. Two reads did that.
+
+- The users of the assignments. The rebuild read the employments of the assignments of a piece, and then each employment read its person with a select of its own. Now one query for each piece of 100 org units reads the user of each assignment through its employment and its person.
+- The groups of the organization. The rebuild walked them through the API of Keycloak, which reads the subgroups of one group at a time. The realms cache of Keycloak holds groups, and it keeps 10,000 entries by default. So the walk of 5,000 groups came from the cache, but the walk of 50,000 groups went to the database for almost every group. Now one query reads every group of the organization with its attribute `fuhito.orgUnitId`.
+
+The groups come in the order of the walk of Keycloak. When two groups name one unit, the first of them stays, so the order decides what a rebuild writes. Keycloak gives the groups at the top of an organization in the order of names in the database, and the subgroups of a group in the order of names in Java.
+
+Measured on 2026-11-18 on a laptop with an Apple M4 Pro and 48 GB of memory. Docker (OrbStack 29.8.2) had 2 CPUs and 8 GB of memory for Keycloak and PostgreSQL together. Keycloak 26.8.2 and PostgreSQL 18.7.
+Before is `main` at commit `637d17c`. After is commit `454bc8b`.
+
+Each size was filled once with `BATCH=1 SYNC=0 scripts/bench/run.sh` and the jar of before. Then Keycloak started again with each jar on the same database. After one rebuild to warm up, five full rebuilds ran with nothing to change.
+The time is the median of the five, with the fastest and the slowest. `pg_stat_statements` counted the statements of the database of Keycloak during each rebuild, and the number is their median.
+
+| Realm | Before | After |
+|---|---|---|
+| 50,000 people, 5,000 org units, time | 3.0 s (2.8 to 3.2) | 0.54 s (0.52 to 0.59) |
+| 50,000 people, 5,000 org units, statements | 50,436 | 385 |
+| 500,000 people, 50,000 org units, time | 41.6 s (41.0 to 42.9) | 8.0 s (7.9 to 8.3) |
+| 500,000 people, 50,000 org units, statements | 610,626 | 3,535 |
+
+Every rebuild before and after reported no change.
+
+- With 500,000 people, the select of one person ran 500,000 times. The walk of the groups read one group and its subgroups about 50,000 times each, and the attributes of the groups about 6,500 times.
+- Of the 3,535 statements that are left with 500,000 people, about 1,000 start a transaction. The others are reads of a piece of 100 org units or of a page of 1,000 recorded members, about 500 of each kind.
 
 ## What the numbers say
 

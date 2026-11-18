@@ -19,8 +19,6 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import net.exoego.keycloak.fuhito.domain.Assignment;
-import net.exoego.keycloak.fuhito.domain.Employment;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.OrgUnit;
 import net.exoego.keycloak.fuhito.store.AssignmentStore;
@@ -525,7 +523,7 @@ public class ProjectionService {
     private List<MemberWrite> memberWrites(Parts parts, Target target, List<String> unitIds,
             LocalDate today, Map<String, String> groupIdByUnit, Set<String> everyone) {
         List<MemberWrite> writes = new ArrayList<>();
-        Map<String, Set<String>> usersByUnit = usersByUnit(parts, unitIds, today);
+        Map<String, Set<String>> usersByUnit = parts.assignments().usersOn(unitIds, today);
         if (target.organization()) {
             String organizationId = target.id();
             Set<String> newHere = new LinkedHashSet<>();
@@ -634,22 +632,5 @@ public class ProjectionService {
             removed.add(group.id());
             groupsRemoved++;
         }
-    }
-
-    // The org units come in pieces. One query for all of them would name every employment of the organization,
-    // and the database takes only so many values in one statement.
-    private static Map<String, Set<String>> usersByUnit(Parts parts, List<String> unitIds, LocalDate today) {
-        List<Assignment> rows = parts.assignments().rowsOn(unitIds, today);
-        // A person with no Keycloak user cannot be a member of a group.
-        Map<String, String> userByEmployment = parts.employments()
-                .findAll(rows.stream().map(Assignment::employmentId).distinct().toList()).stream()
-                .filter(employment -> employment.userId() != null)
-                .collect(Collectors.toMap(Employment::id, Employment::userId));
-        Map<String, Set<String>> result = new HashMap<>();
-        for (Assignment row : rows) {
-            Set<String> users = result.computeIfAbsent(row.orgUnitId(), id -> new LinkedHashSet<>());
-            Optional.ofNullable(userByEmployment.get(row.employmentId())).ifPresent(users::add);
-        }
-        return result;
     }
 }

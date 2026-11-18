@@ -14,22 +14,28 @@ UNITS="${UNITS:-5000}"
 # SYNC=0 leaves the sync out.
 BATCH="${BATCH:-0}"
 
-./gradlew jar -q
-JAR="$(ls build/libs/keycloak-fuhito-*-SNAPSHOT.jar | head -1)"
+# A caller that built the jar already can name it in JAR, as a path from the root of the project.
+if [ -z "${JAR:-}" ]; then
+  ./gradlew jar -q
+  JAR="$(ls build/libs/keycloak-fuhito-*-SNAPSHOT.jar | head -1)"
+fi
 
 docker rm -f fuhito-bench-kc fuhito-bench-pg >/dev/null 2>&1 || true
 docker network create fuhito-bench >/dev/null 2>&1 || true
 # The database writes the plan of every statement that takes 20 ms or more to its log.
+# pg_stat_statements counts the statements of a run.
 docker run -d --name fuhito-bench-pg --network fuhito-bench \
   -e POSTGRES_DB=keycloak -e POSTGRES_USER=keycloak -e POSTGRES_PASSWORD=keycloak postgres:18 \
-  -c shared_preload_libraries=auto_explain -c auto_explain.log_min_duration=20ms \
+  -c shared_preload_libraries=auto_explain,pg_stat_statements -c auto_explain.log_min_duration=20ms \
   -c auto_explain.log_analyze=on -c auto_explain.log_nested_statements=on >/dev/null
+# The timer of the projection is off, so only the measured calls rebuild it.
 docker run -d --name fuhito-bench-kc --network fuhito-bench -p "127.0.0.1:${PORT}:8080" \
   -v "${PWD}/${JAR}:/opt/keycloak/providers/fuhito.jar:ro" \
   -e KC_DB=postgres -e KC_DB_URL=jdbc:postgresql://fuhito-bench-pg:5432/keycloak \
   -e KC_DB_USERNAME=keycloak -e KC_DB_PASSWORD=keycloak \
   -e KC_BOOTSTRAP_ADMIN_USERNAME=admin -e KC_BOOTSTRAP_ADMIN_PASSWORD=admin \
-  "quay.io/keycloak/keycloak:${KEYCLOAK_VERSION}" start-dev >/dev/null
+  "quay.io/keycloak/keycloak:${KEYCLOAK_VERSION}" start-dev \
+  --spi-admin-realm-restapi-extension--fuhito--projection-timer-enabled=false >/dev/null
 curl -s -o /dev/null --retry 120 --retry-delay 2 --retry-all-errors --max-time 5 "${BASE}/realms/master"
 
 token() {

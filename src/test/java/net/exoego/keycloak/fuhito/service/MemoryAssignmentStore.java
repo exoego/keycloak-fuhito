@@ -4,11 +4,15 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import net.exoego.keycloak.fuhito.domain.Assignment;
+import net.exoego.keycloak.fuhito.domain.Employment;
 import net.exoego.keycloak.fuhito.domain.MemberCursor;
 import net.exoego.keycloak.fuhito.domain.MemberFilter;
 import net.exoego.keycloak.fuhito.domain.UnitDefaults;
@@ -19,7 +23,7 @@ final class MemoryAssignmentStore implements AssignmentStore {
 
     final List<Assignment> rows = new ArrayList<>();
 
-    /** The stores that a list of members reads besides the rows. A test of members sets them. */
+    /** The stores that a list of members or of users reads besides the rows. A test that reads those sets them. */
     MemoryOrgUnitStore orgUnits;
     MemoryEmploymentStore employments;
 
@@ -109,6 +113,16 @@ final class MemoryAssignmentStore implements AssignmentStore {
     @Override
     public List<Assignment> rowsOn(Collection<String> orgUnitIds, LocalDate date) {
         return rows.stream().filter(r -> orgUnitIds.contains(r.orgUnitId()) && r.period().contains(date)).toList();
+    }
+
+    @Override
+    public Map<String, Set<String>> usersOn(Collection<String> orgUnitIds, LocalDate date) {
+        Map<String, Set<String>> result = new HashMap<>();
+        for (Assignment row : rowsOn(orgUnitIds, date)) {
+            employments.find(row.employmentId()).map(Employment::userId).ifPresent(userId -> result
+                    .computeIfAbsent(row.orgUnitId(), id -> new LinkedHashSet<>()).add(userId));
+        }
+        return result;
     }
 
     @Override
