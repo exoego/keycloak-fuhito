@@ -440,7 +440,7 @@ public class ProjectionService {
     // A recorded user that no assignment of today puts in the organization leaves it. The record goes in any case,
     // also when someone else took the user out before.
     private void removeMembers(String organizationId, Set<String> wanted, boolean exists) {
-        // The removal of an organization removes its records. A record that a rebuild wrote at the same time stays.
+        // The removal of an organization removed its records, but not one that a rebuild wrote at the same time.
         if (!exists) {
             piece(parts -> {
                 parts.projectedMembers().forgetOrganization(organizationId);
