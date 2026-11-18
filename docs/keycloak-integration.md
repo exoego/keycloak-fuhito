@@ -14,7 +14,7 @@ The extension uses these Keycloak APIs that Keycloak does not promise to keep st
 | `AdminRealmResourceProvider` | Own endpoints in the admin REST API |
 | `AdminPermissionEvaluator` | Permission checks for the caller |
 | `AbstractOIDCProtocolMapper` | The protocol mapper for tokens |
-| `TimerProvider` and `ClusterAwareScheduledTaskRunner` | The timer of the projection |
+| `TimerProvider`, `ClusterAwareScheduledTaskRunner`, and `ExecutorsProvider` | The timer of the projection |
 
 All code that touches these APIs is in the package `net.exoego.keycloak.fuhito.keycloak`.
 When Keycloak changes one of them, only that package needs a change.

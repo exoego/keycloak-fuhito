@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executor;
 
 import jakarta.persistence.EntityManager;
 import net.exoego.keycloak.fuhito.domain.BusinessDay;
@@ -18,6 +19,7 @@ import net.exoego.keycloak.fuhito.service.ProjectionService;
 import net.exoego.keycloak.fuhito.service.UnitDays;
 import org.jboss.logging.Logger;
 import org.keycloak.connections.jpa.JpaConnectionProvider;
+import org.keycloak.executors.ExecutorsProvider;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.KeycloakSessionFactory;
 import org.keycloak.models.RealmModel;
@@ -36,8 +38,8 @@ final class ProjectionSchedule {
 
     private static final long CHECK_MILLIS = 60_000;
 
-    // The runner of Keycloak holds the lock of the cluster until the task ends, or for this long when its node
-    // dies. So a long run keeps the other nodes out.
+    // The runner of Keycloak holds the lock of the cluster while the check runs, but no longer than this.
+    // A rebuild that takes longer still holds the lock of its realm, so no other node runs that realm meanwhile.
     private static final long LOCK_MILLIS = 15 * 60_000;
 
     private static final Logger LOG = Logger.getLogger(ProjectionSchedule.class);
@@ -66,12 +68,14 @@ final class ProjectionSchedule {
     private ProjectionSchedule() {
     }
 
-    // The timer of every node of a cluster fires. The runner of Keycloak lets only one of them in at a time.
-    // Keycloak runs its own scheduled tasks the same way.
+    // The timer of every node of a cluster fires and hands the check to a thread of its own.
+    // There the runner of Keycloak lets one node in at a time, as it does for the scheduled tasks of Keycloak.
     static void start(KeycloakSessionFactory factory) {
-        KeycloakModelUtils.runJobInTransaction(factory, session -> session.getProvider(TimerProvider.class)
-                .schedule(new ClusterAwareScheduledTaskRunner(factory, new FuhitoProjectionTask(), LOCK_MILLIS),
-                        CHECK_MILLIS));
+        KeycloakModelUtils.runJobInTransaction(factory, session -> {
+            var check = new ClusterAwareScheduledTaskRunner(factory, new FuhitoProjectionTask(), LOCK_MILLIS);
+            Executor executor = session.getProvider(ExecutorsProvider.class).getExecutor(TASK);
+            session.getProvider(TimerProvider.class).schedule(new InBackground(executor, check), CHECK_MILLIS, TASK);
+        });
         LOG.info("The projection runs once a day for each realm that turned it on, after the day start.");
     }
 

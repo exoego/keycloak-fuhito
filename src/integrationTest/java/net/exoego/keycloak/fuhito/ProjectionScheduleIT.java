@@ -256,6 +256,9 @@ class ProjectionScheduleIT {
             assertEquals(1, count(logs, "realm a-failing failed with projection.duplicate_name"), "the failure");
             assertEquals(1, count(logs, "The scheduled projection failed for the realm with the ID a-crashing"),
                     "the crash");
+            // The log names the thread. The timer thread of Keycloak would hold up its other scheduled tasks.
+            assertTrue(Pattern.compile("\\(kc-fuhito-projection-[^)]*\\) The scheduled projection of realm a-failing")
+                    .matcher(logs).find(), "the rebuild ran on a thread of its own");
             Coverage.save(keycloak);
         }
     }
