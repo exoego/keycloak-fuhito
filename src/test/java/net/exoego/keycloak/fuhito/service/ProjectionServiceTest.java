@@ -274,6 +274,7 @@ class ProjectionServiceTest {
 
     @BeforeEach
     void createTheHospital() {
+        assignmentStore.employments = employmentStore;
         hospital = unit("Hospital", null);
         nursing = unit("Nursing", hospital);
         ward = unit("Ward", nursing);

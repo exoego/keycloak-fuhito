@@ -16,6 +16,7 @@ import jakarta.ws.rs.core.Response;
 import org.junit.jupiter.api.Test;
 import org.keycloak.admin.client.CreatedResponseUtil;
 import org.keycloak.admin.client.Keycloak;
+import org.keycloak.representations.idm.GroupRepresentation;
 import org.keycloak.representations.idm.RealmRepresentation;
 import org.keycloak.representations.idm.UserRepresentation;
 
@@ -333,6 +334,52 @@ class ProjectionIT {
         JsonNode top = keycloak(groups);
         assertEquals(List.of("看護部"), sorted(top, "name"));
         assertEquals(List.of("事務室"), sorted(keycloak(groups + "/" + idOf(top, "看護部") + "/children"), "name"));
+    }
+
+    // Keycloak lists the groups at the top of an organization in the order of names in the database, and the
+    // subgroups of a group in the order of names in Java. Of two groups of one unit, the first in that order stays.
+    @Test
+    void whenTwoGroupsNameOneUnitTheFirstThatKeycloakListsStays() throws Exception {
+        createRealm(true);
+        String organization = OrganizationLinkIT.createOrganization(admin, realm, "x-hospital");
+        String hospital = unit("Hospital", null);
+        String nursing = unit("Nursing", hospital);
+        String ward = unit("Ward", nursing);
+        staff(user("head-nurse"), nursing);
+        link(hospital, organization);
+        rebuild();
+        String groups = "/organizations/" + organization + "/groups";
+        String nursingGroup = idOf(keycloak(groups), "Nursing");
+        String wardGroup = idOf(keycloak(groups + "/" + nursingGroup + "/children"), "Ward");
+        // The database puts a name in lower case first. Java puts it last.
+        var byHand = admin.realm(realm).organizations().get(organization).groups();
+        String copyOfNursing;
+        try (Response response = byHand.addTopLevelGroup(copyOf(nursing))) {
+            copyOfNursing = CreatedResponseUtil.getCreatedId(response);
+        }
+        // Keycloak leaves out the attributes of a new subgroup, so an update adds them.
+        try (Response response = byHand.group(nursingGroup).addSubGroup(copyOf(ward))) {
+            byHand.group(CreatedResponseUtil.getCreatedId(response)).update(copyOf(ward)).close();
+        }
+
+        JsonNode report = rebuild();
+
+        assertEquals(1, report.get("groupsRenamed").asInt());
+        assertEquals(1, report.get("groupsMoved").asInt());
+        assertEquals(2, report.get("groupsRemoved").asInt());
+        JsonNode top = keycloak(groups);
+        assertEquals(List.of("Nursing"), sorted(top, "name"));
+        assertEquals(copyOfNursing, idOf(top, "Nursing"));
+        JsonNode children = keycloak(groups + "/" + copyOfNursing + "/children");
+        assertEquals(List.of("Ward"), sorted(children, "name"));
+        assertEquals(wardGroup, idOf(children, "Ward"));
+    }
+
+    private static GroupRepresentation copyOf(String orgUnitId) {
+        var group = new GroupRepresentation();
+        group.setName("copy of " + orgUnitId);
+        group.setAttributes(Map.of("fuhito.orgUnitId", List.of(orgUnitId)));
+        return group;
     }
 
     // Keycloak ends the employments of a user that it removes. Here the user is gone with no such step,
