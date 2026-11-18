@@ -35,7 +35,7 @@ docker run -d --name fuhito-bench-kc --network fuhito-bench -p "127.0.0.1:${PORT
   -e KC_DB_USERNAME=keycloak -e KC_DB_PASSWORD=keycloak \
   -e KC_BOOTSTRAP_ADMIN_USERNAME=admin -e KC_BOOTSTRAP_ADMIN_PASSWORD=admin \
   "quay.io/keycloak/keycloak:${KEYCLOAK_VERSION}" start-dev \
-  --spi-admin-realm-restapi-extension--fuhito--projection-interval-seconds=0 >/dev/null
+  --spi-admin-realm-restapi-extension--fuhito--projection-timer-enabled=false >/dev/null
 curl -s -o /dev/null --retry 120 --retry-delay 2 --retry-all-errors --max-time 5 "${BASE}/realms/master"
 
 token() {
