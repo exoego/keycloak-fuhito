@@ -22,13 +22,11 @@ public class FuhitoAdminRealmResourceProviderFactory implements AdminRealmResour
     public static final String ID = "fuhito";
 
     /**
-     * The option with the number of seconds between two runs of the projection. 0 turns the timer off.
+     * The option that turns the timer of the projection on or off.
      */
-    static final String PROJECTION_INTERVAL_OPTION = "projection-interval-seconds";
+    static final String PROJECTION_TIMER_OPTION = "projection-timer-enabled";
 
-    static final long DEFAULT_PROJECTION_INTERVAL_SECONDS = 900;
-
-    private long projectionIntervalSeconds = DEFAULT_PROJECTION_INTERVAL_SECONDS;
+    private boolean projectionTimer = true;
 
     /**
      * Creates the factory.
@@ -43,18 +41,18 @@ public class FuhitoAdminRealmResourceProviderFactory implements AdminRealmResour
 
     @Override
     public void init(Config.Scope config) {
-        projectionIntervalSeconds = config.getLong(PROJECTION_INTERVAL_OPTION, DEFAULT_PROJECTION_INTERVAL_SECONDS);
+        projectionTimer = config.getBoolean(PROJECTION_TIMER_OPTION, true);
     }
 
     @Override
     public void postInit(KeycloakSessionFactory factory) {
-        if (projectionIntervalSeconds <= 0) {
+        if (!projectionTimer) {
             return;
         }
         // The tables exist only after the migration of the database.
         factory.register(event -> {
             if (event instanceof PostMigrationEvent) {
-                ProjectionSchedule.start(factory, projectionIntervalSeconds);
+                ProjectionSchedule.start(factory);
             }
         });
     }
@@ -63,11 +61,11 @@ public class FuhitoAdminRealmResourceProviderFactory implements AdminRealmResour
     public List<ProviderConfigProperty> getConfigMetadata() {
         return ProviderConfigurationBuilder.create()
                 .property()
-                .name(PROJECTION_INTERVAL_OPTION)
-                .type("long")
-                .helpText("The number of seconds between two runs of the projection into organization groups."
-                        + " 0 turns the timer off.")
-                .defaultValue(DEFAULT_PROJECTION_INTERVAL_SECONDS)
+                .name(PROJECTION_TIMER_OPTION)
+                .type(ProviderConfigProperty.BOOLEAN_TYPE)
+                .helpText("Whether a timer rebuilds the projection once a day, after the day start of each realm"
+                        + " that turned the projection on. false turns the timer off.")
+                .defaultValue(true)
                 .add()
                 .build();
     }

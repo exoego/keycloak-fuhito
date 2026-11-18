@@ -131,7 +131,7 @@ A rebuild does its work in pieces, and each piece is one transaction. One transa
 So a rebuild that fails in the middle keeps the pieces that it finished. The groups are then partly up to date. The next rebuild does the rest.
 
 Only one rebuild runs for a realm at a time, on all nodes of a cluster. A second call fails with `projection.running` and the status 409.
-The timer skips a realm whose rebuild is still going on, and logs a warning.
+The timer skips a realm whose rebuild is still going on, and logs a warning. It tries again 15 minutes later.
 The lock goes away by itself after six hours, for the case that a node dies with it.
 
 A rebuild reads who is in which group from the table of Keycloak, for many groups in one query.
@@ -140,21 +140,29 @@ A user is outside the table when a custom user storage provider keeps the users 
 For such a user, each rebuild adds the memberships again and counts them again. It never takes the user out of a group.
 The membership of an organization is different. A rebuild asks Keycloak itself about such a user, and Keycloak tells that the user is a member already. So the rebuild records the user once, and writes and counts nothing more. It takes the user out of the organization like any other member that it added.
 
-A timer inside Keycloak also runs it, for every realm that turned the projection on.
-A dated change becomes true on its date with no write on that day, so only a run on that day picks it up.
-A write to the API does not run the projection. The timer picks the change up at its next run.
+A timer inside Keycloak also runs a full rebuild once a day, for every realm that turned the projection on.
+A dated change becomes true on its date with no write on that day, so the timer runs when the date changes.
 
-- The timer runs every 15 minutes by default.
-- The server option `spi-admin-realm-restapi-extension--fuhito--projection-interval-seconds` sets the number of seconds between two runs. `0` turns the timer off.
-- There is no time of day to set. Each realm and each org unit can change its date at another moment, so the timer runs through the whole day.
-- In a cluster, only one node runs the projection at a time. The extension uses the same runner as the scheduled tasks of Keycloak itself. A run with nothing to change writes nothing.
+- A realm runs after its day start, from `fuhito.timeZone` and `fuhito.dayStart`.
+- It also runs after the day start of each org unit that has a time zone or a day start of its own. The units below such a unit follow its time.
+- After each day start, a realm waits for a fixed time of 0 to 15 minutes. The time comes from the ID of the realm and is the same every day. So the realms do not all start at once.
+- The timer checks once a minute. It runs a realm when a day start plus the wait of the realm has passed since the start of the last run of the timer that was done.
+- A server that was down at that time runs the realm at its first check, one minute after it starts. A realm that the timer never ran also runs at the next check.
+- A run that fails runs again 15 minutes after it failed, until one is done.
+- A call of `POST /projection/rebuild` does not count as the run of the day.
+- In a cluster, only one node runs the timer at a time. The extension uses the same runner as the scheduled tasks of Keycloak itself. A run with nothing to change writes nothing.
 - A failure in one realm is logged and does not stop the other realms.
-- A realm with no usable time zone is skipped, and the log has a warning.
+- A realm with no usable time zone is skipped. So is a realm with an org unit whose time setting is bad. Each node logs one warning for such a realm.
+- The timer keeps its last run in `FUHITO_JOB_RUN` as the job `projection-timer`. `GET /projection/last-run` does not read that row.
+- The timer is on by default. The server option `spi-admin-realm-restapi-extension--fuhito--projection-timer-enabled` with `false` turns it off.
 
-For example, this starts Keycloak with a run every hour.
+A write to the API does not run the projection. The timer picks the change up after the next day start.
+When a change must reach Keycloak at once, the app that writes to the API calls `POST /projection/rebuild` after its writes.
+
+For example, this starts Keycloak with no timer.
 
 ```sh
-kc.sh start --spi-admin-realm-restapi-extension--fuhito--projection-interval-seconds=3600
+kc.sh start --spi-admin-realm-restapi-extension--fuhito--projection-timer-enabled=false
 ```
 
 #### What the projection owns

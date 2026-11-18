@@ -28,7 +28,7 @@ class UserMaskIT {
                 + "\"employmentType\": \"full-time\", \"status\": \"ON_LEAVE\", \"leaveReason\": \"sick-leave\", \"attributes\": {\"理由\": \"育休\"}}").statusCode());
         String assignment = created(api.post("/assignments", "{\"employmentId\": \"" + employment
                 + "\", \"orgUnitId\": \"" + unit + "\", \"validFrom\": \"2020-04-01\", \"jobTitle\": \"chief\", "
-                + "\"occupation\": \"nurse\", \"primary\": true, \"attributes\": {\"内線\": \"1234\"}, "
+                + "\"occupation\": \"nurse\", \"primary\": true, \"attributes\": {\"内線\": \"ext-1234\"}, "
                 + "\"externalId\": \"A-" + staffNumber + "\", \"source\": \"hr\"}")).get("id").asText();
         String qualification = created(api.post("/qualifications", "{\"userId\": \"" + userId
                 + "\", \"kind\": \"license\", \"number\": \"第" + staffNumber + "号\", \"validFrom\": \"2010-05-01\", "
@@ -111,14 +111,14 @@ class UserMaskIT {
             everything += log.body();
         }
         assertEquals(2, Api.json(api.get("/change-log?resourceType=FUHITO_EMPLOYMENT&resourceId=" + ids.get(0))).size());
-        for (String secret : List.of("N-001", "HR-N-001", "A-N-001", "東京都", "育休", "1234", "第N-001号",
+        for (String secret : List.of("N-001", "HR-N-001", "A-N-001", "東京都", "育休", "ext-1234", "第N-001号",
                 "sick-leave")) {
             assertFalse(everything.contains(secret), secret);
         }
         assertTrue(everything.contains("ON_LEAVE"));
         assertEquals("0", KeycloakEnvironment.sql("select count(*) from fuhito_change_log where realm_id = '" + realm.id()
                 + "' and resource_id in ('" + String.join("','", ids) + "') and (representation like '%N-001%'"
-                + " or representation like '%東京都%' or representation like '%育休%' or representation like '%1234%')"));
+                + " or representation like '%東京都%' or representation like '%育休%' or representation like '%ext-1234%')"));
 
         // The other user is untouched.
         assertEquals(otherBefore, Api.json(api.get("/users/" + other + "/history")));

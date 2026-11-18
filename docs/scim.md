@@ -138,4 +138,4 @@ Define the attributes in the user profile of the realm, as the SCIM documentatio
 ## Open points
 
 - The dates are the dates of the sync, not the dates of the real change. An identity provider does not send the real date.
-- A daily sync and a daily rebuild of the projection are two calls. An issue tracks a timer for the projection. The sync could use the same timer.
+- A daily sync is a call. The timer of the projection runs a rebuild once a day. The sync could use the same timer.
