@@ -236,11 +236,10 @@ public class JpaRealmExportStore implements RealmExportStore {
         return page(ChangeOrderEntity.class, "id", JpaChangeOrderStore::toDomain);
     }
 
-    // The last runs of the jobs, the keys of repeated requests, and the members that the projection added are not
-    // data, and an export has none of them. A job can run in a new realm before the restore, for example the timer
-    // of the projection.
-    private static final Set<Class<?>> NOT_DATA = Set.of(HierarchyEntity.class, IdempotencyKeyEntity.class,
-            JobRunEntity.class, ProjectedMemberEntity.class);
+    // The last runs of the jobs and the members that the projection added are not data, and an export has none of
+    // them. A job can run in a new realm before the restore, for example the timer of the projection.
+    private static final Set<Class<?>> NOT_DATA = Set.of(HierarchyEntity.class, JobRunEntity.class,
+            ProjectedMemberEntity.class);
 
     // The table of each list of an export.
     private static final Map<String, Class<?>> TABLES = Map.ofEntries(

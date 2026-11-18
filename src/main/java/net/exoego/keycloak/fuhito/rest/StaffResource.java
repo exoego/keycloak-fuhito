@@ -71,7 +71,7 @@ public class StaffResource {
     @ApiErrors
     public Response add(StaffRepresentation body) {
         context.requireWrite();
-        return Calls.once(context, body, Response.class, () -> Calls.run(context, () -> {
+        return Calls.run(context, () -> {
             Checks.required("body", body);
             // The org unit is checked first, so that a request without it does not get as far as the employment.
             Checks.required("orgUnitId", body.orgUnitId());
@@ -88,6 +88,6 @@ public class StaffResource {
             return Response.status(Response.Status.CREATED)
                     .entity(StaffRepresentation.of(employment, assignment))
                     .build();
-        }));
+        });
     }
 }

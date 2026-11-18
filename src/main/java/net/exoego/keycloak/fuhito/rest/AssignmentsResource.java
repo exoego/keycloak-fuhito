@@ -162,12 +162,12 @@ public class AssignmentsResource {
     @ApiErrors
     public Response add(AssignmentRepresentation body) {
         context.requireWrite();
-        return Calls.once(context, body, Response.class, () -> Calls.run(context, () -> {
+        return Calls.run(context, () -> {
             Checks.required("body", body);
             var assignment = represent(service.add(body.toValues()));
             context.recordChange(Change.CREATE, RESOURCE_TYPE, assignment.id(), path(assignment.id()), assignment);
             return Response.status(Response.Status.CREATED).entity(assignment).build();
-        }));
+        });
     }
 
     @GET
@@ -281,14 +281,14 @@ public class AssignmentsResource {
             @PathParam("id") String id,
             MoveRepresentation body) {
         context.requireWrite();
-        return Calls.once(context, body, Response.class, () -> Calls.guarded(context, body, () -> version(id), () -> {
+        return Calls.guarded(context, body, () -> version(id), () -> {
             AssignmentService.Move move = service.move(id, body.toRequest());
             var ended = represent(move.ended());
             var started = represent(move.started());
             context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, path(id) + "/move", ended);
             context.recordChange(Change.CREATE, RESOURCE_TYPE, started.id(), path(started.id()), started);
             return Response.status(Response.Status.CREATED).entity(MoveRepresentation.of(ended, started)).build();
-        }));
+        });
     }
 
     @DELETE

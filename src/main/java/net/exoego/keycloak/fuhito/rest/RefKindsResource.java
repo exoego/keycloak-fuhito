@@ -80,12 +80,12 @@ public class RefKindsResource {
     @ApiErrors
     public Response create(RefKindRepresentation body) {
         context.requireWrite();
-        return Calls.once(context, body, Response.class, () -> Calls.run(context, () -> {
+        return Calls.run(context, () -> {
             Checks.required("body", body);
             var kind = RefKindRepresentation.of(service.create(body.code(), body.name(), body.names()));
             context.recordChange(Change.CREATE, RESOURCE_TYPE, kind.code(), path(kind.code()), kind);
             return Response.status(Response.Status.CREATED).entity(kind).build();
-        }));
+        });
     }
 
     @PUT

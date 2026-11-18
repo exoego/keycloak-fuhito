@@ -221,7 +221,7 @@ public interface RealmExportStore {
 
     /**
      * Deletes every row of the realm that an export has, before a restore that replaces them.
-     * The change log, the keys of repeated requests, and the runs of jobs stay.
+     * The change log and the runs of jobs stay.
      */
     void deleteData();
 

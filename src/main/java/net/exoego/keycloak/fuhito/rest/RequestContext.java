@@ -4,7 +4,6 @@ import java.util.Locale;
 import java.util.OptionalInt;
 
 import jakarta.ws.rs.core.Response;
-import net.exoego.keycloak.fuhito.store.IdempotencyStore;
 
 /**
  * What a resource needs to know about the current request and its caller.
@@ -80,21 +79,6 @@ public interface RequestContext {
     Locale locale();
 
     /**
-     * Returns a header of the request.
-     *
-     * @param name the name of the header
-     * @return the value, or null when the request has none
-     */
-    String header(String name);
-
-    /**
-     * Returns the path of the request.
-     *
-     * @return the path, without the query
-     */
-    String requestPath();
-
-    /**
      * Locks the stored row of the resource that the path of the request names, until the end of the transaction.
      * A second write to the resource then waits for the first one.
      */
@@ -116,20 +100,6 @@ public interface RequestContext {
      * @throws jakarta.persistence.OptimisticLockException when another write changed a row after this one read it
      */
     void flush();
-
-    /**
-     * Returns the query of the request, as it came.
-     *
-     * @return the query, or null when the request has none
-     */
-    String requestQuery();
-
-    /**
-     * Returns the storage of the responses to requests with an idempotency key.
-     *
-     * @return the storage of the realm
-     */
-    IdempotencyStore idempotency();
 
     /**
      * Makes an exception that ends the request with the response and rolls back the transaction.

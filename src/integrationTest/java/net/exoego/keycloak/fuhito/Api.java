@@ -82,10 +82,6 @@ final class Api {
         return send("PUT", path, json);
     }
 
-    HttpResponse<String> post(String path, String json, String header, String value) throws Exception {
-        return send("POST", path, json, header, value);
-    }
-
     HttpResponse<String> delete(String path) throws Exception {
         return send("DELETE", path, null);
     }
@@ -239,19 +235,11 @@ final class Api {
     }
 
     private HttpResponse<String> send(String method, String path, String json) throws Exception {
-        return send(method, path, json, null, null);
-    }
-
-    private HttpResponse<String> send(String method, String path, String json, String header, String value)
-            throws Exception {
         var request = HttpRequest.newBuilder(
                         URI.create(serverUrl + "/admin/realms/" + realm + "/fuhito" + path))
                 .method(method, json == null ? BodyPublishers.noBody() : BodyPublishers.ofString(json, StandardCharsets.UTF_8));
         if (json != null) {
             request.header("Content-Type", "application/json");
-        }
-        if (header != null) {
-            request.header(header, value);
         }
         if (acceptLanguage != null) {
             request.header("Accept-Language", acceptLanguage);

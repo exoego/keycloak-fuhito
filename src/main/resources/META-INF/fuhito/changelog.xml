@@ -953,4 +953,9 @@
     <changeSet id="0.1.0-change-log-without-state" author="keycloak-fuhito">
         <dropColumn tableName="FUHITO_CHANGE_LOG" columnName="REPRESENTATION"/>
     </changeSet>
+
+    <!-- The extension no longer keeps the responses to requests that are sent again. -->
+    <changeSet id="0.1.0-no-idempotency-key" author="keycloak-fuhito">
+        <dropTable tableName="FUHITO_IDEMPOTENCY_KEY"/>
+    </changeSet>
 </databaseChangeLog>
