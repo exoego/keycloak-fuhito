@@ -276,8 +276,78 @@ What the runs showed.
 - The effective changes scanned the tables of employments, terms, and assignments in the first run, because no index started with the realm and a date. The indexes above fixed that.
 - The tree does not need another table design for 5,000 org units. A walk over them stays below 100 ms. For 50,000 org units see the section above.
 
+## The version on writes
+
+Every write of a stored resource names the version that the caller read. The extension checks it under a lock of the row, and answers 409 when it is old.
+This section measures what that costs, and what a timestamp would cost in its place.
+
+### How to measure the writes
+
+`scripts/bench/writes.sh` starts PostgreSQL and Keycloak like `run.sh`, and fills the same realm with 50,000 people and 5,000 org units.
+It also adds 400 occupations, and 400 assignments with 20 periods each.
+It needs Docker, curl, jq, and perl.
+
+- Before each run, the script reads every resource that the run writes, like a client, and takes the version from the read. Then it sends the writes one after another on one connection. Only the writes are timed.
+- Each kind of write runs 100 times to warm up, and then three runs of 300 writes. The script prints the median and the 95th percentile of the run with the lowest median.
+- A write that adds a period goes to a resource of its own, so that no resource gets longer from run to run.
+- `pg_stat_statements` counts the SQL statements of 50 more writes of each kind.
+- The writers at once send 300 writes of the terms of different employments, 8 at a time.
+- `JAR=path/to/the.jar scripts/bench/writes.sh` measures a jar that was built before, for example one of another branch. Without `JAR`, the script builds the jar of the checkout.
+
+In a first try, each write opened a new connection, and the writes took 5 to 20 ms longer.
+So the script keeps one connection, as the HTTP client of another system would.
+
+### The three ways
+
+1. Version number. The extension as it is, at commit `4fcfbf1`.
+2. Timestamp. The same writes store the time in microseconds since 1970 in place of the next number. It is the same `VERSION` column of the type `BIGINT`. A row with `@Version` gets the time from a version type of Hibernate. The check compares the value of the request with the stored one, as before.
+3. No check. No version is counted, no row is locked for the check, nothing is checked, and no row has `@Version`. It shows what any marker costs.
+
+Ways 2 and 3 were local branches made from the same commit for this run. They are not in the repository.
+Way 2 writes the same rows as way 1. No write needs a row more or a row less.
+
+### Results of the writes
+
+Run on 2026-11-18 at commit `4fcfbf1`, with Keycloak 26.8.2 and PostgreSQL 18, on a laptop with an Apple M4 Pro and 48 GB of memory.
+Docker ran in OrbStack, with 2 CPUs and 8 GB of memory for Keycloak and PostgreSQL together. Other apps of the laptop kept running.
+Each way ran three times, in the order 1 2 3, 1 2 3, 3 2 1. Each cell is the run with the lowest median of all 9 runs of 300 writes. It gives the median and the 95th percentile in ms.
+
+| Write | 1 Version number | 2 Timestamp | 3 No check |
+|---|---|---|---|
+| Ref item, `PUT /ref-items/{id}` | 3.3 / 6.8 | 3.3 / 7.9 | 3.1 / 5.5 |
+| Org unit with a new period, `PUT /org-units/{id}` | 5.2 / 9.7 | 5.1 / 10.0 | 4.9 / 10.5 |
+| Assignment with 20 periods, `PUT /assignments/{id}/details` | 18.3 / 23.7 | 18.6 / 21.5 | 17.0 / 20.3 |
+| Terms with a new period, `PUT /employments/{id}/terms` | 3.2 / 5.5 | 3.2 / 5.6 | 3.2 / 6.7 |
+| Move, `POST /assignments/{id}/move` | 6.2 / 9.8 | 6.2 / 9.0 | 5.8 / 8.1 |
+| 8 writers of terms at once, the run with the most writes | 10.3 / 33.4 | 9.4 / 31.5 | 7.6 / 25.6 |
+
+| 8 writers of terms at once | 1 Version number | 2 Timestamp | 3 No check |
+|---|---|---|---|
+| Writes per second, best of 9 runs | 569 | 581 | 708 |
+| Writes per second, median of 9 runs | 515 | 513 | 528 |
+
+The SQL statements and the rows that they wrote, for each write. A move takes one statement more for some assignments, so its numbers are the average of 50 moves.
+
+| Write | 1 Version number | 2 Timestamp | 3 No check |
+|---|---|---|---|
+| Ref item | 6 statements, 3 rows | 6 statements, 3 rows | 6 statements, 3 rows |
+| Org unit with a new period | 24 statements, 5 rows | 24 statements, 5 rows | 23 statements, 4 rows |
+| Assignment with 20 periods | 76 statements, 22 rows | 76 statements, 22 rows | 54 statements, 3 rows |
+| Terms with a new period | 16 statements, 5 rows | 16 statements, 5 rows | 14 statements, 4 rows |
+| Move | 30.3 statements, 6 rows | 30.3 statements, 6 rows | 26.3 statements, 6 rows |
+
+### What these numbers say
+
+- The version number and the timestamp cost the same. They run the same statements on the same rows, and only the value differs. Their medians are within 0.3 ms of each other, and neither is always the faster one.
+- A write of one row costs about the same with a marker and without one. So does a write that writes the head row anyway. The difference is 0.3 ms or less, which is less than the change from run to run.
+- A change of a period writes the head row only for the marker. That is one update more for an org unit and for terms. Terms also take one read more.
+- The assignment with 20 periods costs 1.3 to 1.6 ms more with a marker, 8 to 9%. The marker is written on all 20 rows, where the write itself changes one. The rows are also read three more times.
+- A move costs about 0.4 ms more with a marker. It reads rows of assignments four more times.
+- The 95th percentile moves by 1 to 2 ms from run to run, so its small differences say little.
+- The 8 writers reached about 515 writes per second in the median run, with each way. The best runs differ more than the ways do, so this bench shows no difference in throughput.
+
 ## Not measured
 
 - The token mapper.
-- Writes.
-- More than one request at the same time.
+- Writes other than the ones in "The version on writes".
+- More than one request at the same time, other than the 8 writers in "The version on writes".
