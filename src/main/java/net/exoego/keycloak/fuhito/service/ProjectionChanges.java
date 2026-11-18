@@ -581,19 +581,10 @@ final class ProjectionChanges {
     // The writes that make the groups and the organizations of some users match what their assignments give.
     private List<MemberWrite> writes(Parts parts, List<String> users, Targets targets) {
         Wanted wanted = wanted(parts, users, targets);
-        Map<String, String> live = targets.live();
-        Map<String, Set<String>> inGroup = new HashMap<>();
-        Map<String, Set<String>> wantGroup = new HashMap<>();
-        parts.keycloak().groupsOf(users).forEach((userId, groups) -> groups.stream().filter(live::containsKey)
-                .forEach(groupId -> add(inGroup, groupId, userId)));
-        wanted.groups().forEach((userId, groups) -> groups.forEach(groupId -> add(wantGroup, groupId, userId)));
+        // The writes of one user run in this order, as in a full rebuild. Keycloak takes a member of a group of an
+        // organization for a member of the organization, so a user joins the organization before its groups.
         List<MemberWrite> writes = new ArrayList<>();
-        Set<String> groupIds = new TreeSet<>(inGroup.keySet());
-        groupIds.addAll(wantGroup.keySet());
-        for (String groupId : groupIds) {
-            projection.memberWrites(groupId, inGroup.getOrDefault(groupId, Set.of()),
-                    wantGroup.getOrDefault(groupId, Set.of()), writes);
-        }
+        List<MemberWrite> leaving = new ArrayList<>();
         if (targets.organizations()) {
             Map<String, Set<String>> wanting = new HashMap<>();
             Map<String, Set<String>> recorded = new HashMap<>();
@@ -617,12 +608,25 @@ final class ProjectionChanges {
                 if (targets.existing().contains(organizationId)) {
                     for (String userId : new TreeSet<>(records)) {
                         if (!wantedHere.contains(userId)) {
-                            writes.add(projection.removeMember(organizationId, userId));
+                            leaving.add(projection.removeMember(organizationId, userId));
                         }
                     }
                 }
             }
         }
+        Map<String, String> live = targets.live();
+        Map<String, Set<String>> inGroup = new HashMap<>();
+        Map<String, Set<String>> wantGroup = new HashMap<>();
+        parts.keycloak().groupsOf(users).forEach((userId, groups) -> groups.stream().filter(live::containsKey)
+                .forEach(groupId -> add(inGroup, groupId, userId)));
+        wanted.groups().forEach((userId, groups) -> groups.forEach(groupId -> add(wantGroup, groupId, userId)));
+        Set<String> groupIds = new TreeSet<>(inGroup.keySet());
+        groupIds.addAll(wantGroup.keySet());
+        for (String groupId : groupIds) {
+            projection.memberWrites(groupId, inGroup.getOrDefault(groupId, Set.of()),
+                    wantGroup.getOrDefault(groupId, Set.of()), writes);
+        }
+        writes.addAll(leaving);
         return writes;
     }
 

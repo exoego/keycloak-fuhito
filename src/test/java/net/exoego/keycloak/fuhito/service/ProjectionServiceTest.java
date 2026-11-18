@@ -261,6 +261,10 @@ class ProjectionServiceTest {
         public boolean addOrganizationMember(String organizationId, String userId) {
             requireOrganizations(organizationId);
             writesOfPiece.add(userId);
+            // Keycloak takes a member of a group of the organization for a member of the organization.
+            if (groups(organizationId).stream().anyMatch(group -> members(group.id()).contains(userId))) {
+                return false;
+            }
             return organizationMembers.computeIfAbsent(organizationId, id -> new HashSet<>()).add(userId);
         }
 
@@ -786,7 +790,8 @@ class ProjectionServiceTest {
     void aMemberThatSomeoneTookOutLosesItsRecordAndComesBackWithANewOne() {
         rebuild();
         Integer before = projectedMembers.records.get("org-x").get("nurse");
-        keycloak.organizationMembers.get("org-x").removeAll(Set.of("nurse", "head-nurse"));
+        // Keycloak takes them out of the groups of the organization too.
+        List.of("nurse", "head-nurse").forEach(userId -> keycloak.removeOrganizationMember("org-x", userId));
         assignmentStore.rows.removeIf(row -> row.orgUnitId().equals(nursing));
 
         ProjectionReport report = rebuild();
