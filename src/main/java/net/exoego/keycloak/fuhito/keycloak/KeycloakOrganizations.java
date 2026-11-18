@@ -1,6 +1,5 @@
 package net.exoego.keycloak.fuhito.keycloak;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -14,6 +13,7 @@ import java.util.function.Supplier;
 import jakarta.persistence.EntityManager;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.jpa.GroupMemberships;
+import net.exoego.keycloak.fuhito.jpa.GroupTrees;
 import net.exoego.keycloak.fuhito.jpa.OneFlush;
 import net.exoego.keycloak.fuhito.store.OrganizationDirectory;
 import net.exoego.keycloak.fuhito.store.OrganizationGroups;
@@ -108,15 +108,8 @@ final class KeycloakOrganizations implements OrganizationDirectory, Organization
     @Override
     public List<Group> groups(String organizationId) {
         OrganizationModel organization = provider().getById(organizationId);
-        List<Group> result = new ArrayList<>();
-        provider().getTopLevelGroups(organization, null, null).toList()
-                .forEach(group -> collect(group, null, result));
-        return result;
-    }
-
-    private static void collect(GroupModel group, String parentId, List<Group> result) {
-        result.add(new Group(group.getId(), group.getName(), parentId, group.getFirstAttribute(ORG_UNIT_ATTRIBUTE)));
-        group.getSubGroupsStream().toList().forEach(child -> collect(child, group.getId(), result));
+        return GroupTrees.ofOrganization(entityManager(), realm.getId(),
+                provider().getOrganizationGroup(organization).getId(), ORG_UNIT_ATTRIBUTE);
     }
 
     @Override
@@ -144,9 +137,7 @@ final class KeycloakOrganizations implements OrganizationDirectory, Organization
 
     @Override
     public List<Group> realmGroups(String rootGroupId) {
-        List<Group> result = new ArrayList<>();
-        group(rootGroupId).getSubGroupsStream().toList().forEach(group -> collect(group, null, result));
-        return result;
+        return GroupTrees.below(entityManager(), realm.getId(), rootGroupId, ORG_UNIT_ATTRIBUTE);
     }
 
     @Override
