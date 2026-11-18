@@ -3,12 +3,19 @@ package net.exoego.keycloak.fuhito.service;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Comparator;
+import java.util.List;
 import java.util.Optional;
+import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.function.Supplier;
 
+import net.exoego.keycloak.fuhito.domain.FuhitoException;
+import net.exoego.keycloak.fuhito.service.ProjectionService.Parts;
+import net.exoego.keycloak.fuhito.store.JobRunStore;
 import net.exoego.keycloak.fuhito.store.JobRunStore.JobRun;
 
 /**
- * Decides when the timer rebuilds the projection of a realm.
+ * Decides when the timer rebuilds the projection of a realm, and records its runs.
  * The timer runs once a day, after the date changes for the realm or for an org unit with a time of its own.
  * Each realm runs some minutes after the day start, so that the realms do not all start at once.
  */
@@ -25,6 +32,10 @@ public final class DailyProjection {
     public static final Duration RETRY = Duration.ofMinutes(15);
 
     private static final int SPREAD_SECONDS = 15 * 60;
+
+    private static final String RUNNING = "projection.running";
+
+    private static final String INTERNAL = "internal";
 
     private DailyProjection() {
     }
@@ -66,5 +77,97 @@ public final class DailyProjection {
                 .min(Comparator.naturalOrder())
                 .orElseThrow()
                 .plus(delay);
+    }
+
+    /**
+     * Rebuilds the projection as the run of the timer, and records the run.
+     * The run is recorded while the rebuild still holds the lock of the realm. So a node that checks right after
+     * the rebuild finds the run, and does not run the realm again.
+     * When another rebuild of the realm goes on, from a call or on another node, nothing runs and nothing is
+     * recorded. The next check looks at the realm again.
+     *
+     * @param <T> the type of the report
+     * @param work the work of the rebuild. Its {@link ProjectionService.Work#alone} holds the lock of the realm.
+     * @param rebuild rebuilds with the work that it gets
+     * @param record records the run. It gets the code of the error, or null when the rebuild is done.
+     * @return the report, or empty when another rebuild of the realm goes on
+     */
+    public static <T> Optional<T> rebuild(ProjectionService.Work work, Function<ProjectionService.Work, T> rebuild,
+            Consumer<String> record) {
+        var timer = new TimerWork(work, record);
+        try {
+            return Optional.of(rebuild.apply(timer));
+        } catch (FuhitoException e) {
+            if (!timer.recorded && e.code().equals(RUNNING)) {
+                return Optional.empty();
+            }
+            timer.recordOnce(e.code());
+            throw e;
+        } catch (RuntimeException e) {
+            // A crash before the rebuild took the lock counts as a failure too.
+            timer.recordOnce(INTERNAL);
+            throw e;
+        }
+    }
+
+    /**
+     * Records a run of the timer in place of the run before.
+     *
+     * @param runs the runs of the realm
+     * @param startedAt when the run started
+     * @param endedAt when the run ended
+     * @param error the code of the error, or null when the run is done
+     */
+    public static void record(JobRunStore runs, Instant startedAt, Instant endedAt, String error) {
+        runs.started(JOB, startedAt);
+        runs.ended(JOB, endedAt, error == null ? "DONE" : "FAILED", null, error);
+    }
+
+    // Records the run once, inside the lock of the realm when the rebuild got that far.
+    private static final class TimerWork implements ProjectionService.Work {
+
+        private final ProjectionService.Work work;
+        private final Consumer<String> record;
+        private boolean recorded;
+
+        TimerWork(ProjectionService.Work work, Consumer<String> record) {
+            this.work = work;
+            this.record = record;
+        }
+
+        @Override
+        public <T> T inNewTransaction(Function<Parts, T> piece) {
+            return work.inNewTransaction(piece);
+        }
+
+        @Override
+        public void inParallel(List<Consumer<Parts>> pieces) {
+            work.inParallel(pieces);
+        }
+
+        // A crash counts as a failure too. Otherwise the realm would run again at the next check.
+        @Override
+        public <T> T alone(Supplier<T> run) {
+            return work.alone(() -> {
+                String error = INTERNAL;
+                try {
+                    T result = run.get();
+                    error = null;
+                    return result;
+                } catch (FuhitoException e) {
+                    error = e.code();
+                    throw e;
+                } finally {
+                    recordOnce(error);
+                }
+            });
+        }
+
+        void recordOnce(String error) {
+            if (!recorded) {
+                recorded = true;
+                record.accept(error);
+            }
+        }
     }
 }

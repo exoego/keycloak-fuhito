@@ -6,16 +6,24 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.function.Supplier;
 
 import net.exoego.keycloak.fuhito.domain.BusinessDay;
+import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.store.JobRunStore.JobRun;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -30,6 +38,31 @@ class DailyProjectionTest {
     private final MemoryOrgUnitStore store = new MemoryOrgUnitStore();
     private final OrgUnitService orgUnits = new OrgUnitService(store, new MemoryExternalIdStore(),
             new MemoryAssignmentStore(), new MemoryRefItemStore(), Today.of(BASE));
+    private final MemoryJobRunStore runs = new MemoryJobRunStore();
+
+    // The lock of the realm. A call of the API or another node may hold it.
+    private static final class Lock implements ProjectionService.Work {
+        private boolean heldByAnother;
+        private boolean held;
+
+        @Override
+        public <T> T inNewTransaction(Function<ProjectionService.Parts, T> piece) {
+            throw new UnsupportedOperationException("The tests rebuild nothing.");
+        }
+
+        @Override
+        public <T> T alone(Supplier<T> run) {
+            if (heldByAnother) {
+                throw FuhitoException.conflict("projection.running", Map.of());
+            }
+            held = true;
+            try {
+                return run.get();
+            } finally {
+                held = false;
+            }
+        }
+    }
 
     private static Instant tokyo(String localDateTime) {
         return OffsetDateTime.parse(localDateTime + "+09:00").toInstant();
@@ -52,6 +85,12 @@ class DailyProjectionTest {
     private String unit(String name, String parentId) {
         return orgUnits.create(new NewOrgUnit(null, name, null, null, null, null, null, parentId, "2020-04-01", null,
                 null, null, null)).unit().id();
+    }
+
+    // A run of the timer that starts now and takes 40 seconds.
+    private Optional<String> timerRun(Lock lock) {
+        return DailyProjection.rebuild(lock, work -> work.alone(() -> "report"),
+                error -> DailyProjection.record(runs, BASE.instant(), BASE.instant().plusSeconds(40), error));
     }
 
     @Test
@@ -145,5 +184,55 @@ class DailyProjectionTest {
 
         assertEquals(tokyo("2026-04-01T13:00:00").plus(DELAY),
                 next("Asia/Tokyo", null, done(tokyo("2026-04-01T00:20:00"))));
+    }
+
+    @Test
+    void aRealmWhoseRebuildGoesOnIsDueAgainAtTheNextCheck() {
+        // The last run failed 20 minutes ago, so the realm is due.
+        DailyProjection.record(runs, BASE.instant().minusSeconds(1240), BASE.instant().minusSeconds(1200),
+                "projection.duplicate_name");
+        Optional<JobRun> failed = runs.last(DailyProjection.JOB);
+        var lock = new Lock();
+        lock.heldByAnother = true;
+
+        assertEquals(Optional.empty(), timerRun(lock));
+        assertEquals(failed, runs.last(DailyProjection.JOB), "nothing is recorded");
+        assertTrue(next("Asia/Tokyo", null, runs.last(DailyProjection.JOB)).isBefore(BASE.instant()),
+                "the realm is still due");
+
+        lock.heldByAnother = false;
+        assertEquals(Optional.of("report"), timerRun(lock));
+        assertEquals("DONE", runs.last(DailyProjection.JOB).orElseThrow().state());
+        assertTrue(next("Asia/Tokyo", null, runs.last(DailyProjection.JOB)).isAfter(BASE.instant()),
+                "the run of the day is done");
+    }
+
+    @Test
+    void theRunIsRecordedBeforeTheLockOfTheRealmIsReleased() {
+        var lock = new Lock();
+        List<String> records = new ArrayList<>();
+        Consumer<String> record = error -> records.add(error + (lock.held ? " in the lock" : " after the lock"));
+
+        DailyProjection.rebuild(lock, work -> work.alone(() -> "report"), record);
+        assertThrows(FuhitoException.class, () -> DailyProjection.rebuild(lock, work -> work.alone(() -> {
+            throw FuhitoException.conflict("projection.duplicate_name", Map.of());
+        }), record));
+        assertThrows(IllegalStateException.class, () -> DailyProjection.rebuild(lock, work -> work.alone(() -> {
+            throw new IllegalStateException("crash");
+        }), record));
+
+        assertEquals(List.of("null in the lock", "projection.duplicate_name in the lock", "internal in the lock"),
+                records);
+    }
+
+    @Test
+    void aCrashBeforeTheLockIsRecordedAsAFailure() {
+        List<String> records = new ArrayList<>();
+
+        assertThrows(IllegalStateException.class, () -> DailyProjection.rebuild(new Lock(), work -> {
+            throw new IllegalStateException("no connection");
+        }, records::add));
+
+        assertEquals(List.of("internal"), records);
     }
 }
