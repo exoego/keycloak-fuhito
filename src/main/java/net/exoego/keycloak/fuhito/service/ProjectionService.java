@@ -39,6 +39,7 @@ import net.exoego.keycloak.fuhito.store.RefItemStore;
  * When the realm names a realm group, every root and the units below it become groups below that group.
  * A user that the projection added to an organization leaves it again when no assignment of today puts the user
  * there. Members that someone else added stay.
+ * While the realm cannot use organizations, a rebuild leaves them and the records of their members alone.
  */
 public class ProjectionService {
 
@@ -243,6 +244,9 @@ public class ProjectionService {
     // The linked organizations, and those that keep groups or members of an earlier rebuild, which this one
     // removes.
     private Set<String> organizationsToChange() {
+        if (!piece(parts -> parts.keycloak().organizationsAvailable())) {
+            return Set.of();
+        }
         Set<String> result = piece(parts -> parts.orgUnits().units().stream()
                 .map(OrgUnit::keycloakOrganizationId)
                 .filter(Objects::nonNull)
@@ -267,6 +271,24 @@ public class ProjectionService {
                 .filter(unit -> unit.keycloakOrganizationId() != null)
                 .map(unit -> new Linked(unit, parts.today().ofUnit(unit.id())))
                 .toList());
+        boolean available = piece(parts -> {
+            if (parts.keycloak().organizationsAvailable()) {
+                return true;
+            }
+            if (!linked.isEmpty()) {
+                parts.keycloak().warnLinksSkipped(linked.size());
+            }
+            return false;
+        });
+        int organizations = available ? projectOrganizations(linked) : 0;
+        Optional<String> realmGroup = piece(parts -> parts.keycloak().realmGroupRoot());
+        realmGroup.ifPresent(this::projectRealm);
+        return new ProjectionReport(organizations, groupsCreated, groupsRenamed, groupsMoved, groupsRemoved,
+                membersJoined.get(), membersLeft.get(), organizationMembersAdded.get(),
+                organizationMembersRemoved.get(), realmGroup.isPresent() ? 1 : 0);
+    }
+
+    private int projectOrganizations(List<Linked> linked) {
         int organizations = 0;
         Set<String> mirrored = new HashSet<>();
         for (Linked one : linked) {
@@ -292,11 +314,7 @@ public class ProjectionService {
                 removeMembers(organizationId, Set.of(), existing.contains(organizationId));
             }
         }
-        Optional<String> realmGroup = piece(parts -> parts.keycloak().realmGroupRoot());
-        realmGroup.ifPresent(this::projectRealm);
-        return new ProjectionReport(organizations, groupsCreated, groupsRenamed, groupsMoved, groupsRemoved,
-                membersJoined.get(), membersLeft.get(), organizationMembersAdded.get(),
-                organizationMembersRemoved.get(), realmGroup.isPresent() ? 1 : 0);
+        return organizations;
     }
 
     // Every piece puts off its writes to its end. See OrganizationGroups.inOneFlush.

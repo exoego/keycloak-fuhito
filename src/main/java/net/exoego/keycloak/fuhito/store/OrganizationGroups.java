@@ -33,9 +33,24 @@ public interface OrganizationGroups {
     boolean projectionEnabled();
 
     /**
+     * Tells whether the realm can use organizations now. It cannot when the server runs without the organization
+     * feature, or when the realm turned organizations off.
+     *
+     * @return true when the realm can use organizations
+     */
+    boolean organizationsAvailable();
+
+    /**
+     * Warns that a rebuild skips the links to organizations, because the realm cannot use organizations now.
+     *
+     * @param links the number of org units that link an organization
+     */
+    void warnLinksSkipped(int links);
+
+    /**
      * Lists the IDs of every organization of the realm.
      *
-     * @return the IDs
+     * @return the IDs, or none when the realm cannot use organizations
      */
     List<String> organizations();
 

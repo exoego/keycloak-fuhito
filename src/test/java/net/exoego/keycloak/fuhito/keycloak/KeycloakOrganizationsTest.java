@@ -8,6 +8,7 @@ import org.keycloak.models.KeycloakSession;
 import org.keycloak.organization.OrganizationProvider;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
 class KeycloakOrganizationsTest {
 
@@ -30,11 +31,17 @@ class KeycloakOrganizationsTest {
 
     @Test
     void thereAreNoOrganizationsWhenTheServerRunsWithoutTheFeature() {
-        assertEquals(List.of(), new KeycloakOrganizations(sessionWith(null), null).organizations());
+        var organizations = new KeycloakOrganizations(sessionWith(null), null);
+
+        assertFalse(organizations.organizationsAvailable());
+        assertEquals(List.of(), organizations.organizations());
     }
 
     @Test
     void thereAreNoOrganizationsWhenTheRealmTurnedThemOff() {
-        assertEquals(List.of(), new KeycloakOrganizations(sessionWith(turnedOff()), null).organizations());
+        var organizations = new KeycloakOrganizations(sessionWith(turnedOff()), null);
+
+        assertFalse(organizations.organizationsAvailable());
+        assertEquals(List.of(), organizations.organizations());
     }
 }

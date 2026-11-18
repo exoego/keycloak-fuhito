@@ -17,6 +17,7 @@ import net.exoego.keycloak.fuhito.jpa.GroupMemberships;
 import net.exoego.keycloak.fuhito.jpa.OneFlush;
 import net.exoego.keycloak.fuhito.store.OrganizationDirectory;
 import net.exoego.keycloak.fuhito.store.OrganizationGroups;
+import org.jboss.logging.Logger;
 import org.keycloak.connections.jpa.JpaConnectionProvider;
 import org.keycloak.connections.jpa.support.EntityManagers;
 import org.keycloak.models.GroupModel;
@@ -46,6 +47,8 @@ final class KeycloakOrganizations implements OrganizationDirectory, Organization
      * The group attribute that holds the ID of the org unit that a group mirrors.
      */
     static final String ORG_UNIT_ATTRIBUTE = "fuhito.orgUnitId";
+
+    private static final Logger LOG = Logger.getLogger(KeycloakOrganizations.class);
 
     private final KeycloakSession session;
     private final RealmModel realm;
@@ -83,6 +86,17 @@ final class KeycloakOrganizations implements OrganizationDirectory, Organization
     @Override
     public boolean projectionEnabled() {
         return realm.getAttribute(PROJECTION_ATTRIBUTE, false);
+    }
+
+    @Override
+    public boolean organizationsAvailable() {
+        return enabledProvider().isPresent();
+    }
+
+    @Override
+    public void warnLinksSkipped(int links) {
+        LOG.warnf("Organizations are off for realm %s. The projection skips the %d org units that link an "
+                + "organization.", realm.getName(), links);
     }
 
     @Override

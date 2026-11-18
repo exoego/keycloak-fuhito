@@ -36,8 +36,10 @@ class ProjectionServiceTest {
     private final MemoryExternalIdStore externalIds = new MemoryExternalIdStore();
     private static final class MemoryGroups implements OrganizationGroups {
         private boolean enabled = true;
-        // The server runs with the organization feature off.
+        // The server runs with the organization feature off, or the realm turned organizations off.
         private boolean noOrganizations;
+        // The number of links that each warning named.
+        private final List<Integer> skippedLinks = new ArrayList<>();
         private final Map<String, Group> groups = new LinkedHashMap<>();
         private final Map<String, String> organizationOfGroup = new HashMap<>();
         private final Map<String, Set<String>> members = new HashMap<>();
@@ -70,10 +72,18 @@ class ProjectionServiceTest {
         }
 
         @Override
+        public boolean organizationsAvailable() {
+            return !noOrganizations;
+        }
+
+        @Override
+        public void warnLinksSkipped(int links) {
+            skippedLinks.add(links);
+        }
+
+        @Override
         public List<String> organizations() {
-            if (noOrganizations) {
-                return List.of();
-            }
+            requireOrganizations("every organization");
             Set<String> result = new java.util.TreeSet<>(organizationMembers.keySet());
             organizationOfGroup.values().stream().filter(id -> !id.startsWith("realm:")).forEach(result::add);
             return List.copyOf(result);
@@ -331,9 +341,7 @@ class ProjectionServiceTest {
     }
 
     @Test
-    void aServerWithoutOrganizationsStillMirrorsIntoTheRealmGroup() {
-        rebuild();
-        links.unlink(hospital);
+    void aLinkedUnitIsSkippedWhileOrganizationsAreOffAndTheRealmGroupIsStillMirrored() {
         keycloak.realmGroup = "org";
         keycloak.noOrganizations = true;
         List<String> asked = new ArrayList<>();
@@ -345,6 +353,24 @@ class ProjectionServiceTest {
         assertEquals(new ProjectionReport(0, 3, 0, 0, 0, 3, 0, 0, 0, 1), report);
         assertEquals(List.of("Hospital [director]", "Nursing < Hospital [head-nurse]", "Ward < Nursing [nurse]"),
                 keycloak.describe("realm:org"));
+        assertEquals(List.of(1), keycloak.skippedLinks);
+    }
+
+    @Test
+    void whileOrganizationsAreOffTheRecordsStayForTheNextRebuild() {
+        rebuild();
+        projectedMembers.record("org-gone", "visitor");
+        assignments.end(nurseAssignment, "2026-06-01");
+        keycloak.noOrganizations = true;
+        String records = projectedMembers.records.toString();
+
+        assertEquals(new ProjectionReport(0, 0, 0, 0, 0, 0, 0, 0, 0, 0), rebuild());
+        assertEquals(records, projectedMembers.records.toString());
+
+        keycloak.noOrganizations = false;
+        assertEquals(1, rebuild().organizationMembersRemoved());
+        assertEquals(Set.of("director", "head-nurse"), keycloak.organizationMembers.get("org-x"));
+        assertEquals(List.of("org-x"), projectedMembers.organizations());
     }
 
     @Test
