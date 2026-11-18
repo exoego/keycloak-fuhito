@@ -279,16 +279,6 @@ erDiagram
         varchar(255) EXTERNAL_ID
         bigint VERSION
     }
-    FUHITO_IDEMPOTENCY_KEY {
-        varchar(36) ID PK
-        varchar(36) REALM_ID
-        varchar(255) KEY_VALUE
-        varchar(512) REQUEST_PATH
-        varchar(64) REQUEST_HASH
-        integer STATUS
-        text BODY
-        timestamp CREATED_AT
-    }
     FUHITO_JOB_RUN {
         varchar(36) ID PK
         varchar(36) REALM_ID
