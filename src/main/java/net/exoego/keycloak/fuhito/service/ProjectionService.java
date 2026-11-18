@@ -14,6 +14,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -97,6 +98,20 @@ public class ProjectionService {
          */
         default <T> T alone(Supplier<T> run) {
             return run.get();
+        }
+
+        /**
+         * Runs a whole run when the check still wants it, unless another run for the realm is going on.
+         * A work with a lock runs the check after it takes the lock, and before anything is written.
+         *
+         * @param <T> the type of the result
+         * @param check says whether the run is still wanted
+         * @param run the run
+         * @return the result of the run, or empty when the check said no
+         * @throws FuhitoException when another run is going on
+         */
+        default <T> Optional<T> aloneIf(BooleanSupplier check, Supplier<T> run) {
+            return check.getAsBoolean() ? Optional.of(alone(run)) : Optional.empty();
         }
     }
 

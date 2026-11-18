@@ -5,6 +5,8 @@ import java.time.Instant;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Optional;
+import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -77,11 +79,33 @@ final class OneAtATime {
      * @throws FuhitoException with the code of the job and ".running" when another run is going on
      */
     static <T> T run(KeycloakSessionFactory factory, String job, String realmId, boolean record, Supplier<T> run) {
+        return locked(factory, job, realmId, () -> record ? recorded(factory, job, realmId, run) : run.get());
+    }
+
+    /**
+     * Runs a job when the check still wants it after the lock is taken, unless another run of it for the realm is
+     * going on. The check runs before anything is written.
+     *
+     * @param <T> the type of the result
+     * @param factory the factory of sessions
+     * @param job the name of the job, which is also the start of the error code
+     * @param realmId the ID of the realm
+     * @param check says whether the run is still wanted
+     * @param run the job, whose state is kept as the last run of the job
+     * @return the result of the job, or empty when the check said no
+     * @throws FuhitoException with the code of the job and ".running" when another run is going on
+     */
+    static <T> Optional<T> runIf(KeycloakSessionFactory factory, String job, String realmId, BooleanSupplier check,
+            Supplier<T> run) {
+        return locked(factory, job, realmId,
+                () -> check.getAsBoolean() ? Optional.of(recorded(factory, job, realmId, run)) : Optional.empty());
+    }
+
+    private static <T> T locked(KeycloakSessionFactory factory, String job, String realmId, Supplier<T> run) {
         // The session has no transaction, so no timeout of a transaction ends a long run.
         try (KeycloakSession session = factory.create()) {
             ExecutionResult<T> result = session.getProvider(ClusterProvider.class)
-                    .executeIfNotExecuted("fuhito-" + job + "-" + realmId, LOCK_SECONDS,
-                            () -> record ? recorded(factory, job, realmId, run) : run.get());
+                    .executeIfNotExecuted("fuhito-" + job + "-" + realmId, LOCK_SECONDS, run::get);
             if (!result.isExecuted()) {
                 throw FuhitoException.conflict(job + ".running", Map.of());
             }

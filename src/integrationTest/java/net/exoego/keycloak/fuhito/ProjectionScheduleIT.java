@@ -5,6 +5,9 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.Statement;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -15,6 +18,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CompletableFuture;
 import java.util.regex.Pattern;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -123,6 +128,17 @@ class ProjectionScheduleIT {
         return null;
     }
 
+    // Waits for up to two and a half minutes, which is more than two checks of the timer.
+    private static boolean waitFor(Callable<Boolean> condition) throws Exception {
+        for (int i = 0; i < 300; i++) {
+            if (condition.call()) {
+                return true;
+            }
+            Thread.sleep(500);
+        }
+        return false;
+    }
+
     private static int count(String logs, String text) {
         return logs.split(Pattern.quote(text), -1).length - 1;
     }
@@ -190,6 +206,48 @@ class ProjectionScheduleIT {
         return organization;
     }
 
+    // The timer ran this realm a moment ago, and its next day start is half a day away. A call ran it too.
+    private static void busyRealm(Keycloak admin, PostgreSQLContainer postgres) throws Exception {
+        createRealm(admin, "d-busy", zoneWithDayStartAt(Instant.now().plus(12, ChronoUnit.HOURS)));
+        String now = utc(Instant.now().truncatedTo(ChronoUnit.SECONDS));
+        KeycloakEnvironment.run(postgres, "insert into fuhito_job_run (id, realm_id, job, state, started_at,"
+                + " ended_at) values ('busy-timer', 'd-busy', 'projection-timer', 'DONE', " + now + ", " + now
+                + "), ('busy-call', 'd-busy', 'projection', 'DONE', " + now + ", " + now + ")");
+        turnOnTheProjection(admin, "d-busy");
+    }
+
+    // A call of POST /projection/rebuild goes on when the timer finds the realm due.
+    private static void skipWhileACallRuns(KeycloakContainer keycloak, Keycloak admin, PostgreSQLContainer postgres)
+            throws Exception {
+        Api api = new Api(keycloak.getAuthServerUrl(), "d-busy", token(admin));
+        CompletableFuture<HttpResponse<String>> call;
+        try (Connection connection = DriverManager.getConnection(postgres.getJdbcUrl(), postgres.getUsername(),
+                postgres.getPassword())) {
+            // The call writes the start of its run inside the lock of the realm. So it waits there for this row.
+            connection.setAutoCommit(false);
+            try (Statement statement = connection.createStatement()) {
+                statement.execute("select id from fuhito_job_run where id = 'busy-call' for update");
+            }
+            call = CompletableFuture.supplyAsync(() -> {
+                try {
+                    return api.post("/projection/rebuild", "");
+                } catch (Exception e) {
+                    throw new IllegalStateException(e);
+                }
+            });
+            assertTrue(waitFor(() -> !KeycloakEnvironment.run(postgres, "select count(*) from pg_stat_activity"
+                    + " where wait_event_type = 'Lock' and query ilike '%fuhito_job_run%'").equals("0")),
+                    "the call never waited");
+
+            KeycloakEnvironment.run(postgres, "delete from fuhito_job_run where id = 'busy-timer'");
+            assertTrue(waitFor(() -> keycloak.getLogs().contains("realm d-busy waits for the next check")),
+                    "the timer skipped d-busy");
+            assertEquals("", timerRun(postgres, "d-busy"), "the skip is not recorded");
+            connection.rollback();
+        }
+        assertEquals(200, call.get().statusCode(), call.get().body());
+    }
+
     @Test
     void theTimerRunsEachRealmOnceAfterItsDayStart() throws Exception {
         try (Network network = Network.newNetwork();
@@ -206,7 +264,10 @@ class ProjectionScheduleIT {
                                 .withEnv("KC_DB", "postgres")
                                 .withEnv("KC_DB_URL", "jdbc:postgresql://schedule-postgres:5432/keycloak")
                                 .withEnv("KC_DB_USERNAME", "keycloak")
-                                .withEnv("KC_DB_PASSWORD", "keycloak")) {
+                                .withEnv("KC_DB_PASSWORD", "keycloak")
+                                // The timer logs a realm that it leaves for the next check at the debug level.
+                                .withEnv("KC_LOG_LEVEL",
+                                        "info,net.exoego.keycloak.fuhito.keycloak.ProjectionSchedule:debug")) {
             postgres.start();
             keycloak.start();
             Keycloak admin = keycloak.getKeycloakAdminClient();
@@ -216,6 +277,7 @@ class ProjectionScheduleIT {
             String failingOrganization = failingRealm(keycloak, admin);
             crashingRealm(keycloak, admin, postgres);
             String organization = workingRealm(keycloak, admin);
+            busyRealm(admin, postgres);
 
             for (String realm : List.of("a-broken", "a-failing", "a-crashing")) {
                 turnOnTheProjection(admin, realm);
@@ -227,6 +289,7 @@ class ProjectionScheduleIT {
                     + utc(due.minusSeconds(15)) + ", " + utc(due.minusSeconds(14)) + ")");
             setAttributes(admin, "b-working", Map.of("fuhito.projection.enabled", "true",
                     "fuhito.timeZone", zoneWithDayStartAt(due.minus(delay("b-working")))));
+            skipWhileACallRuns(keycloak, admin, postgres);
 
             JsonNode run = waitForRun(keycloak, admin, "b-working");
             assertNotNull(run, "the timer ran the realm");
@@ -249,7 +312,10 @@ class ProjectionScheduleIT {
             assertEquals(List.of(), groupNames(keycloak, admin, "a-failing", failingOrganization));
             assertEquals("FAILED projection.duplicate_name", timerRun(postgres, "a-failing"));
             assertEquals("FAILED internal", timerRun(postgres, "a-crashing"));
+            // The skip left the realm due.
+            assertTrue(waitFor(() -> timerRun(postgres, "d-busy").equals("DONE ")), "a later check ran d-busy");
             String logs = keycloak.getLogs();
+            assertEquals(0, count(logs, "realm d-busy failed"), "the skip is no failure");
             assertEquals(1, count(logs, "The projection runs once a day"), "the start is logged");
             // A failed run waits for 15 minutes, and a skipped realm is logged once.
             assertEquals(1, count(logs, "skips realm a-broken"), "the skipped realm is logged");
