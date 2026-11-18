@@ -182,6 +182,85 @@ class RefItemsIT {
     }
 
     @Test
+    void aRenameFromADateKeepsTheOldNameForEarlierDates() throws Exception {
+        String id = created(api.post("/ref-items", """
+                {"kind": "JOB_TITLE", "code": "dated-chief", "name": "主任", "names": {"en": "Chief"}}
+                """)).get("id").asText();
+
+        HttpResponse<String> response = api.putWithVersion("/ref-items/" + id,
+                "{\"name\": \"主任補佐\", \"names\": {\"en\": \"Senior Chief\"}, \"validFrom\": \"2027-04-01\"}");
+
+        assertEquals(200, response.statusCode(), response.body());
+        JsonNode renamed = Api.json(response);
+        assertEquals("主任補佐", renamed.get("name").asText());
+        assertEquals("2027-04-01", renamed.get("validFrom").asText());
+        assertFalse(renamed.has("validTo"));
+        assertEquals(2, renamed.get("version").asLong());
+        JsonNode before = Api.json(api.get("/ref-items/" + id + "?asOf=2027-03-31"));
+        assertEquals("主任", before.get("name").asText());
+        assertEquals("Chief", before.get("names").get("en").asText());
+        assertFalse(before.has("validFrom"));
+        assertEquals("2027-04-01", before.get("validTo").asText());
+        assertEquals(renamed, Api.json(api.get("/ref-items/" + id + "?asOf=2027-04-01")));
+        assertEquals("主任", Api.json(api.get("/ref-items/" + id)).get("name").asText());
+        assertEquals("主任", name(api.get("/ref-items?kind=JOB_TITLE&asOf=2027-03-31"), "dated-chief"));
+        assertEquals("主任補佐", name(api.get("/ref-items?kind=JOB_TITLE&asOf=2027-04-01"), "dated-chief"));
+
+        // A rename on the first date of the new names corrects them, and a write without a date renames today.
+        assertEquals(200, api.putWithVersion("/ref-items/" + id,
+                "{\"name\": \"係長\", \"validFrom\": \"2027-04-01\"}").statusCode());
+        assertEquals(200, api.putWithVersion("/ref-items/" + id,
+                "{\"name\": \"主任A\", \"names\": {\"en\": \"Chief\"}}").statusCode());
+
+        HttpResponse<String> history = api.get("/ref-items/" + id + "/history");
+        assertEquals(200, history.statusCode(), history.body());
+        assertEquals(Api.json(api.get("/ref-items/" + id)).get("version"), Api.json(history).get("version"));
+        assertEquals("dated-chief", Api.json(history).get("code").asText());
+        JsonNode versions = Api.json(history).get("versions");
+        assertEquals(List.of("主任A", "係長"), versions.findValuesAsText("name"));
+        assertFalse(versions.get(0).has("validFrom"));
+        assertEquals("2027-04-01", versions.get(0).get("validTo").asText());
+        assertEquals("Chief", versions.get(0).get("names").get("en").asText());
+        assertEquals("2027-04-01", versions.get(1).get("validFrom").asText());
+        assertFalse(versions.get(1).has("validTo"));
+        assertEquals(4, Api.json(history).get("version").asLong());
+
+        JsonNode log = Api.json(api.get("/change-log?resourceType=FUHITO_REF_ITEM&resourceId=" + id));
+        assertEquals(List.of("CREATE", "UPDATE", "UPDATE", "UPDATE"), log.findValuesAsText("operation"));
+        assertEquals("2027-04-01", log.get(1).get("representation").get("validFrom").asText());
+
+        assertEquals("ref_item.not_found", errorOf(404, api.get("/ref-items/nope/history")));
+        assertEquals("invalid.date", errorOf(400, api.get("/ref-items/" + id + "?asOf=soon")));
+        assertEquals("invalid.date", errorOf(400, api.putWithVersion("/ref-items/" + id,
+                "{\"name\": \"x\", \"validFrom\": \"soon\"}")));
+    }
+
+    @Test
+    void createsAnItemWithNamesFromADate() throws Exception {
+        JsonNode item = created(api.post("/ref-items",
+                "{\"kind\": \"JOB_TITLE\", \"code\": \"dated-new\", \"name\": \"部長\", \"validFrom\": \"2026-04-01\"}"));
+
+        assertEquals("2026-04-01", item.get("validFrom").asText());
+        assertEquals(1, item.get("version").asLong());
+        // The item has no dates of its own, so a date before its first names gets them.
+        assertEquals("部長", Api.json(api.get("/ref-items/" + item.get("id").asText() + "?asOf=2000-01-01"))
+                .get("name").asText());
+        JsonNode versions = Api.json(api.get("/ref-items/" + item.get("id").asText() + "/history")).get("versions");
+        assertEquals(1, versions.size());
+        assertEquals("2026-04-01", versions.get(0).get("validFrom").asText());
+    }
+
+    private static String name(HttpResponse<String> list, String code) throws Exception {
+        assertEquals(200, list.statusCode(), list.body());
+        for (JsonNode item : Api.json(list)) {
+            if (item.get("code").asText().equals(code)) {
+                return item.get("name").asText();
+            }
+        }
+        return null;
+    }
+
+    @Test
     void deletesAnItem() throws Exception {
         String id = created(api.post("/ref-items",
                 "{\"kind\": \"UNIT_TYPE\", \"code\": \"to-delete\", \"name\": \"x\"}")).get("id").asText();

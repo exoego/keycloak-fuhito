@@ -31,6 +31,22 @@ class SchemaIT {
     }
 
     @Test
+    void theDatabaseRejectsOverlappingNamesOfOneReferenceItem() throws Exception {
+        KeycloakEnvironment.sql("insert into fuhito_ref_item (id, realm_id, kind, code, attributes)"
+                + " values ('ex-r1', 'ex-realm-3', 'JOB_TITLE', 'a', '{}')");
+        String insert = "insert into fuhito_ref_item_name (id, realm_id, ref_item_id, valid_from, valid_to, name,"
+                + " names_i18n) values ";
+        KeycloakEnvironment.sql(insert + "('ex-n1', 'ex-realm-3', 'ex-r1', null, '2027-04-01', 'a', '{}')");
+
+        // Names with no first date hold from the start, so they overlap any earlier names.
+        assertTrue(KeycloakEnvironment.sqlError(insert
+                + "('ex-n2', 'ex-realm-3', 'ex-r1', '2020-04-01', '2021-04-01', 'b', '{}')")
+                .contains("ex_fuhito_ref_item_name_period"));
+
+        KeycloakEnvironment.sql(insert + "('ex-n3', 'ex-realm-3', 'ex-r1', '2027-04-01', null, 'c', '{}')");
+    }
+
+    @Test
     void theDatabaseRejectsTwoParentsAtTheSameTime() throws Exception {
         KeycloakEnvironment.sql("insert into fuhito_hierarchy (id, realm_id, code, name)"
                 + " values ('ex-h1', 'ex-realm-2', 'default', 'Default'), ('ex-h2', 'ex-realm-2', 'other', 'Other')");

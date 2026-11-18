@@ -53,6 +53,13 @@ final class KeycloakEnvironment {
         return DriverManager.getConnection(POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword());
     }
 
+    /** Opens a connection to another database of the same server, for a test that makes its own schema. */
+    static Connection connection(String database) throws SQLException {
+        return DriverManager.getConnection("jdbc:postgresql://" + POSTGRES.getHost() + ":"
+                + POSTGRES.getMappedPort(PostgreSQLContainer.POSTGRESQL_PORT) + "/" + database,
+                POSTGRES.getUsername(), POSTGRES.getPassword());
+    }
+
     /** Runs a statement and returns the first column of its first row, or an empty text. */
     static String sql(String sql) throws Exception {
         return run(POSTGRES, sql);

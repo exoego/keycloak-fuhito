@@ -211,6 +211,19 @@ class PermissionsIT {
             assertEquals(200, everything.get("/org-units/" + after + "?asOf=" + lastDay.plusDays(1)).statusCode());
             assertEquals(200, everything.get("/org-units/" + unit + "/history").statusCode());
 
+            // A rename of a job title after the limit is a later change too.
+            String title = realm.refItem("JOB_TITLE", "chief", "主任");
+            assertEquals(200, realm.api.putWithVersion("/ref-items/" + title, "{\"name\": \"主任補佐\", "
+                    + "\"validFrom\": \"" + lastDay.plusDays(1) + "\"}").statusCode());
+            assertEquals(403, limited.get("/ref-items/" + title + "?asOf=" + lastDay.plusDays(1)).statusCode());
+            assertEquals(403, limited.get("/ref-items?kind=JOB_TITLE&asOf=" + lastDay.plusDays(1)).statusCode());
+            assertEquals(403, limited.get("/ref-items/" + title + "/history").statusCode());
+            assertFalse(Api.json(limited.get("/ref-items/" + title)).has("validTo"));
+            assertFalse(Api.json(limited.get("/ref-items?kind=JOB_TITLE")).get(0).has("validTo"));
+            assertEquals(lastDay.plusDays(1).toString(),
+                    Api.json(everything.get("/ref-items/" + title)).get("validTo").asText());
+            assertEquals(200, everything.get("/ref-items/" + title + "/history").statusCode());
+
             JsonNode seen = Api.json(limited.get("/org-units/" + unit + "/succession"));
             assertEquals(List.of(before), seen.get("predecessors").findValuesAsText("orgUnitId"));
             assertEquals(0, seen.get("successors").size());

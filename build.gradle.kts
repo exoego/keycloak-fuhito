@@ -138,6 +138,7 @@ testing {
                 implementation(platform(libs.keycloak.parent))
                 // To read the coverage out of the Keycloak container.
                 implementation(libs.jacoco.core)
+                implementation(libs.liquibase.core)
                 runtimeOnly(libs.postgresql)
                 runtimeOnly(libs.slf4j.simple)
             }

@@ -8,7 +8,7 @@ import net.exoego.keycloak.fuhito.domain.ExternalId;
 
 /**
  * Counts up the version of a resource whose writes can change several rows, such as an org unit with its periods
- * and its parents. Each write counts it up once, however many rows it changes.
+ * and its parents, or a reference item with its names. Each write counts it up once, however many rows it changes.
  */
 final class Versions {
 
@@ -17,6 +17,10 @@ final class Versions {
 
     static void orgUnit(EntityManager em, String realmId, String id) {
         Rows.require(em, OrgUnitEntity.class, id, realmId, row -> row.realmId).countUp();
+    }
+
+    static void refItem(EntityManager em, String realmId, String id) {
+        Rows.require(em, RefItemEntity.class, id, realmId, row -> row.realmId).countUp();
     }
 
     static void person(EntityManager em, String realmId, String id) {

@@ -77,6 +77,7 @@ The lists are applied in the order change orders, kinds of reference data, attri
 }
 ```
 
+- A row of a reference item can have `validFrom`, the first date of its names. A new item without it has names that hold for every date. A stored item without it gets the names of the row from the effective date, and keeps its old names for the dates before. A row compares with the names of its date, so the same row changes nothing the second time. Two rows of one item with two dates load two periods of names, for example the names of a job title from a system that kept them.
 - The list `refKinds` adds kinds of reference data to the realm. A row has `code`, `name`, and `names`. A row of a stored kind changes its names. A fixed kind such as `UNIT_TYPE` is in every realm and cannot be a row.
 - The list `attributeDefinitions` defines free attributes. A row has `target`, `name`, `type`, `refKind`, `multiple`, and `required`. A row of a stored definition changes the type, the kind, `multiple`, and `required`, as `PUT /attribute-definitions/{id}` does. Stored values stay as they are. The definitions come before the reference items, so that a row of a reference item can set an attribute that the same document defines.
 - The list `hierarchies` adds hierarchies. A row has `code` and `name`. A row of a stored hierarchy changes its name. The code `default` names the default hierarchy.
@@ -117,7 +118,7 @@ The lists are applied in the order change orders, kinds of reference data, attri
 
 `GET /imports/csv/ref-kinds` gives the kinds that the realm added the same way. It takes no `asOf`. `GET /imports/csv/attribute-definitions` gives the definitions of attributes the same way. `GET /imports/csv/hierarchies` gives the hierarchies the same way, the default one too.
 
-`GET /imports/csv/ref-items` gives the reference items of every kind the same way, the inactive ones too. It takes no `asOf`. An item is matched by kind and code, so the file has no `id`. A mark such as `legalEntity` is blank for a kind that cannot have it.
+`GET /imports/csv/ref-items?asOf=` gives the reference items of every kind the same way, the inactive ones too, with the names of the date. An item is matched by kind and code, so the file has no `id`. A mark such as `legalEntity` is blank for a kind that cannot have it. The file has no `validFrom`, so a name changed in it loads as names from the effective date. A file to load can have the column `validFrom`, and blank cells of a row then keep the stored values of that date.
 
 `GET /imports/csv/org-unit-parents?asOf=` gives the parents of the date in every hierarchy but the default one. It names the units by `orgUnitId` and `parentId`. In a file, blank cells of the parent keep the stored parent, and `#CLEAR` takes the unit out of the hierarchy.
 
@@ -193,6 +194,7 @@ Reference items.
 | `name` | `名称` |
 | `displayOrder` | `表示順` |
 | `active` | `有効` |
+| `validFrom` | `開始日` |
 
 Org units.
 
@@ -419,6 +421,7 @@ This copies a realm to a test environment, moves it to another Keycloak, or brin
 
 - `GET /export/{list}` reads one list in pages, ordered by ID. Follow the `Link` header to the end. The lists are `ref-kinds`, `ref-items`, `attribute-definitions`, `hierarchies`, `org-units`, `people`, `employments`, `assignments`, `reporting-lines`, `unit-roles`, `qualifications`, `external-ids`, `change-orders`, and `erasures`.
 - Put the lists together under their names in camel case, such as `refKinds`, with `"format": "fuhito.export.v1"`. `POST /restore` takes that document.
+- A reference item has every period of its names in `versions`. An export from before names had periods has `name` and `names` in place of them, and a restore gives the item those names for every date.
 - A restore keeps every ID, so products that stored IDs find the same resources. It writes all or nothing. The default hierarchy of the export takes the place of the one of the empty realm, with its ID and its name.
 - It fails with `restore.realm_not_empty` when the realm has any data of the extension. So a restore into the wrong realm does not remove its data.
 - With `?replace=true`, the restore first deletes every row of the extension in the realm, in the same transaction. The realm is then as it was at the export. The change log stays, with the changes after the export. The idempotency keys and the runs of jobs stay too. The next projection makes the Keycloak groups and organizations match. A replace asks for the permission to manage each organization that a unit was linked to before it.

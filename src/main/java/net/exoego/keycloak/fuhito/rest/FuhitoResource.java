@@ -272,12 +272,12 @@ public class FuhitoResource {
      */
     @Path("ref-items")
     public RefItemsResource refItems() {
-        return new RefItemsResource(context, refItemService());
+        return new RefItemsResource(context, refItemService(), new StructureLimit(context, today()));
     }
 
     private RefItemService refItemService() {
         return new RefItemService(new JpaRefItemStore(entityManager, realmId), attributeRules(),
-                realmKinds()::isKnown);
+                realmKinds()::isKnown, today());
     }
 
     /**

@@ -28,7 +28,7 @@ class UnitRolesIT {
         TestRealm realm = TestRealm.withEmployer("unit-roles-list");
         Api api = realm.api;
         realm.refItem("UNIT_ROLE", "safety-officer", "安全管理者");
-        realm.refItem("UNIT_ROLE", "approver", "承認者");
+        String approverRole = realm.refItem("UNIT_ROLE", "approver", "承認者");
         String division = created(api.post("/org-units", "{\"name\": \"看護部\", \"validFrom\": \"2026-04-01\"}"))
                 .get("id").asText();
         String ward = created(api.post("/org-units", "{\"name\": \"1病棟\", \"parentId\": \"" + division
@@ -87,6 +87,15 @@ class UnitRolesIT {
         }
         assertEquals(every.findValuesAsText("id"), followed);
         assertEquals(followed, skipped);
+
+        // A role renamed from a date keeps its old name for a read of an earlier date.
+        HttpResponse<String> renamed = api.putWithVersion("/ref-items/" + approverRole,
+                "{\"name\": \"決裁者\", \"validFrom\": \"2026-06-01\"}");
+        assertEquals(200, renamed.statusCode(), renamed.body());
+        assertEquals(List.of("承認者"), Api.json(api.get("/unit-roles?role=approver&asOf=2026-05-31"))
+                .findValuesAsText("roleName"));
+        assertEquals(List.of("決裁者"), Api.json(api.get("/unit-roles?role=approver&asOf=2026-06-01"))
+                .findValuesAsText("roleName"));
 
         assertEquals("ref_item.unknown", error(400, api.get("/unit-roles?role=nurse")));
         assertEquals("ref_item.unknown", error(400, api.get("/unit-roles/count?role=nurse")));

@@ -42,6 +42,31 @@ class ImportIT {
     }
 
     @Test
+    void importsTheNamesOfAReferenceItemFromTheirDates() throws Exception {
+        TestRealm realm = TestRealm.create("import-dated-names");
+        Api api = realm.api;
+        String document = """
+                {"effectiveDate": "2026-04-01", "refItems": [
+                  {"kind": "JOB_TITLE", "code": "m1", "name": "課長", "validFrom": "2015-04-01"},
+                  {"kind": "JOB_TITLE", "code": "m1", "name": "マネージャー", "validFrom": "2023-04-01"}
+                ]}
+                """;
+
+        JsonNode first = ok(api.post("/imports", document));
+        JsonNode again = ok(api.post("/imports", document));
+
+        assertEquals(1, first.get("counts").get("refItems").get("created").asInt());
+        assertEquals(1, first.get("counts").get("refItems").get("changed").asInt());
+        assertEquals(2, again.get("counts").get("refItems").get("unchanged").asInt());
+        String id = Api.json(api.get("/ref-items?kind=JOB_TITLE")).get(0).get("id").asText();
+        JsonNode versions = Api.json(api.get("/ref-items/" + id + "/history")).get("versions");
+        assertEquals(List.of("課長", "マネージャー"), versions.findValuesAsText("name"));
+        assertEquals(List.of("2015-04-01", "2023-04-01"), versions.findValuesAsText("validFrom"));
+        assertEquals("課長", Api.json(api.get("/ref-items/" + id + "?asOf=2020-01-01")).get("name").asText());
+        assertEquals("マネージャー", Api.json(api.get("/ref-items/" + id + "?asOf=2023-04-01")).get("name").asText());
+    }
+
+    @Test
     void importsAHospitalThenTheSameDocumentThenAChangedOne() throws Exception {
         TestRealm realm = TestRealm.create("import");
         Api api = realm.api;

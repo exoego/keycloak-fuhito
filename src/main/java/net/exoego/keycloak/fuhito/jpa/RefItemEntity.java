@@ -7,10 +7,10 @@ import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
-import jakarta.persistence.Version;
+import jakarta.persistence.Transient;
 
 /**
- * One entry of a list that a realm defines.
+ * One entry of a list that a realm defines. Its names are in {@link RefItemNameEntity}.
  */
 @Entity
 @Table(name = "FUHITO_REF_ITEM")
@@ -28,13 +28,6 @@ public class RefItemEntity {
 
     @Column(name = "CODE", nullable = false, length = 64)
     String code;
-
-    @Column(name = "NAME", nullable = false, length = 255)
-    String name;
-
-    @Column(name = "NAMES_I18N", nullable = false)
-    @Convert(converter = JsonConverters.TextMap.class)
-    Map<String, String> names;
 
     @Column(name = "DISPLAY_ORDER", nullable = false)
     int displayOrder;
@@ -55,13 +48,24 @@ public class RefItemEntity {
     @Column(name = "LATERAL_UNIT", nullable = false)
     boolean lateralUnit;
 
-    @Version
     @Column(name = "VERSION", nullable = false)
     long version;
+
+    // True once a write of this session counted up the version. A session of Keycloak has one transaction.
+    @Transient
+    boolean counted;
 
     /**
      * Creates an empty entity for JPA.
      */
     public RefItemEntity() {
+    }
+
+    // A write may change the item and its names. It counts up the version once.
+    void countUp() {
+        if (!counted) {
+            version++;
+            counted = true;
+        }
     }
 }

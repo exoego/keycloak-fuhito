@@ -121,7 +121,7 @@ public class CsvExportService {
             case "attribute-definitions" -> attributeDefinitions(japanese);
             case "hierarchies" -> hierarchies(japanese);
             case "org-unit-parents" -> orgUnitParents(asOf, japanese);
-            case "ref-items" -> refItems(japanese);
+            case "ref-items" -> refItems(asOf, japanese);
             case "org-units" -> orgUnits(asOf, japanese);
             case "people" -> people(japanese);
             case "employments" -> employments(asOf, japanese);
@@ -207,11 +207,13 @@ public class CsvExportService {
     }
 
     // A mark is left blank for a kind that cannot have it, as a blank cell means no mark for a new item.
-    private String refItems(boolean japanese) {
+    // The file has the names of the date and no validFrom, so that a changed name loads as names from the
+    // effective date of the import.
+    private String refItems(String asOf, boolean japanese) {
         List<RefItem> items = new ArrayList<>();
         for (String kind : kinds.get().stream().map(RealmKindService.View::code).toList()) {
             for (int first = 0;; first += ROWS_AT_A_TIME) {
-                List<RefItem> page = refItems.list(kind, true, Page.of(first, ROWS_AT_A_TIME));
+                List<RefItem> page = refItems.list(kind, true, asOf, Page.of(first, ROWS_AT_A_TIME));
                 items.addAll(page);
                 if (page.size() < ROWS_AT_A_TIME) {
                     break;

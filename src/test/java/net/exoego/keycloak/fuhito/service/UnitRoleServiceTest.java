@@ -157,6 +157,21 @@ class UnitRoleServiceTest {
     }
 
     @Test
+    void theNameOfARoleIsTheNameOfTheDate() {
+        String role = service.add(alice, division, "approver", null, "2026-04-01", null).role().id();
+        RefItem approver = refItems.findByCode(RefKind.UNIT_ROLE, "approver").orElseThrow();
+        new RefItemService(refItems).update(approver.id(), "Head approver", null, null, null, null,
+                RefItemService.Marks.NONE, "2026-07-01");
+
+        assertEquals(List.of("approver"), service.list(new UnitRoleService.Search(null, null, "2026-06-30"),
+                Page.of(null, null), null).stream().filter(h -> h.view().role().id().equals(role))
+                .map(UnitRoleService.Holder::roleName).toList());
+        assertEquals(List.of("Head approver"), service.list(new UnitRoleService.Search(null, null, "2026-07-01"),
+                Page.of(null, null), null).stream().filter(h -> h.view().role().id().equals(role))
+                .map(UnitRoleService.Holder::roleName).toList());
+    }
+
+    @Test
     void rejectsAListWithAnUnknownRoleABadDateOrACursorOfAnotherList() {
         assertEquals("ref_item.unknown", code(() -> service.list(new UnitRoleService.Search("nurse", null, null),
                 Page.of(null, null), null)));

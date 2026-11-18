@@ -876,4 +876,51 @@
             daterange(VALID_FROM, VALID_TO) WITH &amp;&amp;)
         </sql>
     </changeSet>
+
+    <!-- The names of a reference item get valid periods. A missing VALID_FROM means that the names hold from the
+         start. -->
+    <changeSet id="0.1.0-ref-item-names" author="keycloak-fuhito">
+        <createTable tableName="FUHITO_REF_ITEM_NAME">
+            <column name="ID" type="VARCHAR(36)">
+                <constraints primaryKey="true" primaryKeyName="PK_FUHITO_REF_ITEM_NAME" nullable="false"/>
+            </column>
+            <column name="REALM_ID" type="VARCHAR(36)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="REF_ITEM_ID" type="VARCHAR(36)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="VALID_FROM" type="DATE"/>
+            <column name="VALID_TO" type="DATE"/>
+            <column name="NAME" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="NAMES_I18N" type="CLOB">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        <addUniqueConstraint tableName="FUHITO_REF_ITEM_NAME" columnNames="REF_ITEM_ID, VALID_FROM"
+                             constraintName="UK_FUHITO_REF_ITEM_NAME_FROM"/>
+        <addForeignKeyConstraint baseTableName="FUHITO_REF_ITEM_NAME" baseColumnNames="REF_ITEM_ID"
+                                 referencedTableName="FUHITO_REF_ITEM" referencedColumnNames="ID"
+                                 constraintName="FK_FUHITO_REF_ITEM_NAME_ITEM"/>
+        <!-- Each stored item keeps its names for every date. The row of the names takes the ID of the item. -->
+        <sql>
+            INSERT INTO FUHITO_REF_ITEM_NAME (ID, REALM_ID, REF_ITEM_ID, VALID_FROM, VALID_TO, NAME, NAMES_I18N)
+            SELECT ID, REALM_ID, ID, NULL, NULL, NAME, NAMES_I18N FROM FUHITO_REF_ITEM
+        </sql>
+        <dropColumn tableName="FUHITO_REF_ITEM" columnName="NAME"/>
+        <dropColumn tableName="FUHITO_REF_ITEM" columnName="NAMES_I18N"/>
+    </changeSet>
+
+    <!-- The same as 0.1.0-no-overlap, for the names of a reference item. -->
+    <changeSet id="0.1.0-ref-item-names-no-overlap" author="keycloak-fuhito" dbms="postgresql">
+        <preConditions onFail="CONTINUE">
+            <sqlCheck expectedResult="1">SELECT count(*) FROM pg_extension WHERE extname = 'btree_gist'</sqlCheck>
+        </preConditions>
+        <sql>
+            ALTER TABLE FUHITO_REF_ITEM_NAME ADD CONSTRAINT EX_FUHITO_REF_ITEM_NAME_PERIOD
+            EXCLUDE USING gist (REF_ITEM_ID WITH =, daterange(VALID_FROM, VALID_TO) WITH &amp;&amp;)
+        </sql>
+    </changeSet>
 </databaseChangeLog>

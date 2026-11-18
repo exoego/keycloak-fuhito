@@ -118,6 +118,7 @@ When a reader must know that something happened, the field is an `At` field that
 Unit types, job titles, occupations, employment types, grades, end reasons, assignment kinds, qualification kinds, leave reasons, unit roles, work locations, and cost centers are reference data.
 Each realm defines its own items.
 An item has a code, a name, and optional names in other languages.
+The names have valid periods, so a rename that keeps the code shows the old name in a read of an old date. The code and the other values have no dates. See [history.md](history.md).
 
 These kinds are fixed, because fields of the resources point to them. A realm can add kinds of its own with `POST /ref-kinds`, for example a working time system or a collective agreement. `PUT /ref-kinds/{code}` changes their names.
 

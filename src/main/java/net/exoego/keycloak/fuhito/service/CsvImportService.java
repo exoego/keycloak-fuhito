@@ -172,7 +172,7 @@ public class CsvImportService {
             Map.entry(Kind.REPORTING_LINES, Set.of("id", "source", "assignmentExternalId", "assignmentId",
                     "managerPersonExternalId", "managerPersonId", "managerUsername", "kind", "validFrom", "validTo")),
             Map.entry(Kind.REF_ITEMS, Set.of("kind", "code", "name", "displayOrder", "active", "legalEntity",
-                    "actingHead", "lateral")),
+                    "actingHead", "lateral", "validFrom")),
             Map.entry(Kind.ORG_UNITS, Set.of("id", "externalId", "source", "code", "name", "shortName",
                     "phoneticName", "unitType", "workLocation", "costCenter", "parentExternalId", "parentId",
                     "displayOrder", "validFrom", "validTo", "successorExternalIds", "successorIds",
@@ -256,7 +256,7 @@ public class CsvImportService {
                     document);
             case EXTERNAL_IDS -> run(data, columns, defined, cells -> externalId(cells, defaultSource), document);
             case CHANGE_ORDERS -> run(data, columns, defined, this::changeOrder, document);
-            case REF_ITEMS -> run(data, columns, defined, this::refItem, document);
+            case REF_ITEMS -> run(data, columns, defined, cells -> refItem(cells, date), document);
             case ORG_UNITS -> run(data, columns, defined, cells -> orgUnit(cells, date, defaultSource), document);
             case EMPLOYMENTS -> run(data, columns, defined, cells -> employment(cells, date, defaultSource),
                     document);
@@ -450,17 +450,22 @@ public class CsvImportService {
                 cells.bool("required", stored.map(AttributeDefinition::required).orElse(null)));
     }
 
-    private RefItemRow refItem(Cells cells) {
+    // Blank cells keep the stored values, with the names of the date of the row.
+    private RefItemRow refItem(Cells cells, LocalDate effectiveDate) {
         String kind = cells.text("kind", null);
         String code = cells.text("code", null);
+        String validFrom = cells.text("validFrom", null);
+        LocalDate date = validFrom == null ? effectiveDate : Checks.date("validFrom", validFrom);
         // The import reports an unknown kind. Here it only means that nothing is stored.
-        Optional<RefItem> stored = code == null || kind == null ? Optional.empty() : refItems.findByCode(kind, code);
+        Optional<RefItem> stored = code == null || kind == null ? Optional.empty()
+                : refItems.findByCode(kind, code, date);
         return new RefItemRow(kind, code, cells.text("name", stored.map(RefItem::name).orElse(null)),
                 cells.localized("name", stored.map(RefItem::names).orElse(Map.of())),
                 cells.integer("displayOrder", stored.map(RefItem::displayOrder).orElse(null)),
                 cells.attributes(stored.map(RefItem::attributes).orElse(null)),
                 cells.bool("active", stored.map(RefItem::active).orElse(null)),
-                cells.bool("legalEntity", null), cells.bool("actingHead", null), cells.bool("lateral", null));
+                cells.bool("legalEntity", null), cells.bool("actingHead", null), cells.bool("lateral", null),
+                validFrom);
     }
 
     private OrgUnitRow orgUnit(Cells cells, LocalDate date, String defaultSource) {

@@ -1,13 +1,17 @@
 package net.exoego.keycloak.fuhito.store;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
 import net.exoego.keycloak.fuhito.domain.RefItem;
+import net.exoego.keycloak.fuhito.domain.RefItemName;
 import net.exoego.keycloak.fuhito.domain.RefKind;
 
 /**
  * Storage of the reference items of one realm.
+ * A read with a date gives each item the names of that date, and the first names for a date before them.
+ * A read with no date gives the names of the last period, which is for code that does not show them.
  */
 public interface RefItemStore {
 
@@ -32,18 +36,32 @@ public interface RefItemStore {
     }
 
     /**
-     * Lists a page of the items of a kind, ordered by display order and then by code.
+     * Lists every item of a fixed kind with the names of a date, ordered by display order and then by code.
+     *
+     * @param kind the kind
+     * @param includeInactive true to also return inactive items
+     * @param date the date of the names
+     * @return the items
+     */
+    default List<RefItem> list(RefKind kind, boolean includeInactive, LocalDate date) {
+        return list(kind.name(), includeInactive, date, 0, Integer.MAX_VALUE);
+    }
+
+    /**
+     * Lists a page of the items of a kind with the names of a date, ordered by display order and then by code.
      *
      * @param kind the code of a fixed kind or of a kind of the realm
      * @param includeInactive true to also return inactive items
+     * @param date the date of the names
      * @param first the number of items to skip
      * @param max the largest number of items to return
      * @return the items of the page
      */
-    List<RefItem> list(String kind, boolean includeInactive, int first, int max);
+    List<RefItem> list(String kind, boolean includeInactive, LocalDate date, int first, int max);
 
     /**
-     * Counts the items that {@link #list(String, boolean, int, int)} lists on all pages together.
+     * Counts the items that {@link #list(String, boolean, LocalDate, int, int)} lists on all pages together. Every
+     * item has names on every date, so the count has no date.
      *
      * @param kind the code of a fixed kind or of a kind of the realm
      * @param includeInactive true to also count inactive items
@@ -58,6 +76,15 @@ public interface RefItemStore {
      * @return the item, or empty when the realm has no such item
      */
     Optional<RefItem> find(String id);
+
+    /**
+     * Finds an item by ID, with the names of a date.
+     *
+     * @param id the ID
+     * @param date the date of the names
+     * @return the item, or empty when the realm has no such item
+     */
+    Optional<RefItem> find(String id, LocalDate date);
 
     /**
      * Finds an item by kind and code.
@@ -80,6 +107,24 @@ public interface RefItemStore {
     }
 
     /**
+     * Finds an item by kind and code, with the names of a date.
+     *
+     * @param kind the code of a fixed kind or of a kind of the realm
+     * @param code the code
+     * @param date the date of the names
+     * @return the item, or empty when the realm has no such item
+     */
+    Optional<RefItem> findByCode(String kind, String code, LocalDate date);
+
+    /**
+     * Lists every period of the names of an item.
+     *
+     * @param id the ID of the item
+     * @return the names, oldest first, or an empty list when the realm has no such item
+     */
+    List<RefItemName> names(String id);
+
+    /**
      * Tells whether an employment names an org unit that had this unit type on the first date of the employment.
      *
      * @param id the ID of the unit type
@@ -96,21 +141,45 @@ public interface RefItemStore {
     boolean isInUse(String id);
 
     /**
-     * Stores a new item.
+     * Stores a new item with every period of its names. The item keeps its version.
+     *
+     * @param item the item
+     * @param names the names, oldest first
+     */
+    void insert(RefItem item, List<RefItemName> names);
+
+    /**
+     * Stores a new item whose names hold for every date. The row of the names has the ID of the item.
      *
      * @param item the item
      */
-    void insert(RefItem item);
+    default void insert(RefItem item) {
+        insert(item, List.of(new RefItemName(item.id(), item.id(), null, null, item.name(), item.names())));
+    }
 
     /**
-     * Stores the new state of an existing item.
+     * Stores the values of an existing item that have no dates, and counts up its version. The names stay.
      *
      * @param item the item
      */
     void update(RefItem item);
 
     /**
-     * Removes an item.
+     * Stores the names of a new period of an item, and counts up the version of the item.
+     *
+     * @param names the names
+     */
+    void insertNames(RefItemName names);
+
+    /**
+     * Stores new names or new dates of a stored period, and counts up the version of the item.
+     *
+     * @param names the names
+     */
+    void updateNames(RefItemName names);
+
+    /**
+     * Removes an item with its names.
      *
      * @param id the ID
      */

@@ -634,10 +634,16 @@ public record ImportDocument(
             Boolean actingHead,
             @Schema(description = "True for a unit type whose org units are lateral units, outside the line "
                     + "organization. A row that leaves it out keeps the mark of a stored item.")
-            Boolean lateral) {
+            Boolean lateral,
+            @Schema(
+                    description = "The first date of the names of the row. A new item without it has names that "
+                            + "hold for every date. A stored item without it gets the names from the effective "
+                            + "date. A date that starts stored names corrects them.",
+                    format = "date")
+            String validFrom) {
 
         /**
-         * Makes a row that does not speak about the marks.
+         * Makes a row that does not speak about the marks, with names from the effective date.
          *
          * @param kind the kind
          * @param code the code
@@ -649,7 +655,7 @@ public record ImportDocument(
          */
         public RefItemRow(String kind, String code, String name, Map<String, String> names, Integer displayOrder,
                 Map<String, Object> attributes, Boolean active) {
-            this(kind, code, name, names, displayOrder, attributes, active, null, null, null);
+            this(kind, code, name, names, displayOrder, attributes, active, null, null, null, null);
         }
     }
 

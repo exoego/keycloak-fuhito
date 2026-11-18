@@ -1,5 +1,6 @@
 package net.exoego.keycloak.fuhito.domain;
 
+import java.time.LocalDate;
 import java.util.Map;
 
 /**
@@ -8,8 +9,8 @@ import java.util.Map;
  * @param id the ID
  * @param kind the name of a fixed kind, or the code of a kind that the realm added
  * @param code the code, which is unique in the realm for the kind and never changes
- * @param name the default name
- * @param names the names in other languages, by language tag
+ * @param name the default name on the date of the read
+ * @param names the names in other languages on the date of the read, by language tag
  * @param displayOrder the position in lists, lowest first
  * @param attributes free values that the realm defines
  * @param active false when the item must not be used for new data
@@ -18,10 +19,12 @@ import java.util.Map;
  * @param lateral true for a unit type whose org units are lateral units outside the line organization, such as a
  *        committee
  * @param version the number that each write of the item counts up. A new item has 1.
+ * @param validFrom the first date of the names, or null when they hold from the start
+ * @param validTo the first date after the names, or null when they have no end
  */
 public record RefItem(String id, String kind, String code, String name, Map<String, String> names,
         int displayOrder, Map<String, Object> attributes, boolean active, boolean legalEntity, boolean actingHead,
-        boolean lateral, long version) {
+        boolean lateral, long version, LocalDate validFrom, LocalDate validTo) {
 
     /**
      * Makes a new item of a fixed kind.
@@ -41,7 +44,18 @@ public record RefItem(String id, String kind, String code, String name, Map<Stri
     public RefItem(String id, RefKind kind, String code, String name, Map<String, String> names, int displayOrder,
             Map<String, Object> attributes, boolean active, boolean legalEntity, boolean actingHead, boolean lateral) {
         this(id, kind.name(), code, name, names, displayOrder, attributes, active, legalEntity, actingHead, lateral,
-                1);
+                1, null, null);
+    }
+
+    /**
+     * Returns the item with the names of a period.
+     *
+     * @param period the names and their dates
+     * @return the item with those names
+     */
+    public RefItem withNames(RefItemName period) {
+        return new RefItem(id, kind, code, period.name(), period.names(), displayOrder, attributes, active,
+                legalEntity, actingHead, lateral, version, period.validFrom(), period.validTo());
     }
 
     /**

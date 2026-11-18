@@ -530,7 +530,7 @@ public class AttributeSyncService {
                 unitsByName.computeIfAbsent(unit.version().name(), name -> new ArrayList<>()).add(unit.unit().id());
             }
             // The code wins over the name, and an active title wins over a deactivated one.
-            List<RefItem> all = from.refItems().list(RefKind.JOB_TITLE, true);
+            List<RefItem> all = from.refItems().list(RefKind.JOB_TITLE, true, today);
             for (boolean active : List.of(true, false)) {
                 List<RefItem> some = all.stream().filter(item -> item.active() == active).toList();
                 some.forEach(item -> titles.putIfAbsent(item.code(), item));

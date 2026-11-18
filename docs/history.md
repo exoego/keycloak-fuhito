@@ -24,26 +24,37 @@ The change log entry has the time of 2027-02-10.
 | Org unit | Its details with its code, and its parent in a hierarchy |
 | Employment | The employment itself, and its terms |
 | Assignment | Its details |
+| Reference item | Its names |
 
 Each resource keeps its ID through all changes.
 The code of an org unit is part of its details, so a reorganization can give a unit a new code on a date.
 No two org units have the same code on the same date. A code that one unit gives up on a date is free for another unit from that date.
 The ID is the key that never changes. So is `source`, the name of the system that made the resource. The IDs that systems have for a resource have no history. A write replaces them.
 
-### Reference items have no history
+### Reference items keep their old names
 
-A reference item, such as a job title or a unit type, has no valid period. Its code never changes, and its name is the name of today for every date.
-So a rename of a job title shows the new name also in a read of last year. An org unit is different, and keeps its old names for old dates.
+A reference item, such as a job title or a unit type, keeps its old names for old dates.
+Only `name` and `names` have valid periods. The code never changes. The display order, the attributes, `active`, and the marks have no dates.
+The item itself has no dates either. Data of any date may use it.
 
-- The change log keeps every name that an item had, with the time of each change.
-- To keep an old name for old dates, add a new item with a new code, move the data to it from the date, and deactivate the old item. Data of the past keeps the old item, so a read of the past shows the old name.
-- A rename alone fits a change of wording, such as a typo or a new spelling.
+- `POST /ref-items` takes `validFrom`. Without it, the first names hold for every date.
+- `PUT /ref-items/{id}` with `validFrom` keeps the old names for the dates before it. A date inside stored names, a date in the past, and the first date of stored names follow the rules of a change on a date below.
+- `PUT /ref-items/{id}` without `validFrom` changes the names of today. This fits a fix of a typo.
+- A date before the first names of an item gets its first names. A write on such a date gives names from that date until the first names start.
+- Names that are the same as the names of the date make no new period.
+- `GET /ref-items`, `GET /ref-items/{id}`, the role names of `GET /unit-roles`, and the CSV file of `GET /imports/csv/ref-items` show the names of their date. `GET /ref-items/count` takes no date, because every item has names on every date.
+- `GET /ref-items/{id}/history` lists the names of every period, oldest first.
+- A write of names counts up the version of the item, and the change log keeps it.
+
+A new code is still the way when the meaning changes, for example when one job title splits into two. Add a new item, move the data to it from the date, and deactivate the old item.
+
+Checked by `RefItemsIT.aRenameFromADateKeepsTheOldNameForEarlierDates`, `RefItemsIT.createsAnItemWithNamesFromADate`, and `UnitRolesIT.listsTheRolesOfADateAcrossTheRealmInPagesByIdWithTheirNames`.
 
 ## Reading
 
 - Every read of a tree or a list takes `asOf`. It returns what is true on that date.
 - The default of `asOf` is today. The realm decides what today is with its time zone and its day start. An org unit can set its own. See [keycloak-integration.md](keycloak-integration.md).
-- `GET /org-units/{id}/history` returns every period of an org unit.
+- `GET /org-units/{id}/history` returns every period of an org unit. `GET /ref-items/{id}/history` returns every period of the names of a reference item.
 - `GET /employments/{id}` and `GET /assignments/{id}` return every period of their resource.
 - `GET /people/{id}/history` returns every employment and assignment of a person. `GET /users/{userId}/history` does the same for the person of a user.
 
