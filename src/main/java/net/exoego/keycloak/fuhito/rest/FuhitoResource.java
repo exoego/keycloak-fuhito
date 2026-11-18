@@ -133,7 +133,7 @@ public class FuhitoResource {
      * @param users the users of the realm
      * @param organizations the Keycloak organizations of the realm
      * @param userAttributes the user attributes that an identity provider fills
-     * @param erasePerson removes every row and every change log entry about one person
+     * @param erasePerson removes every row about one person
      * @param projectionWork runs each piece of a rebuild of the projection in a transaction of its own
      * @param pieces runs each piece of a sync in a transaction of its own
      */

@@ -8,8 +8,6 @@ import java.util.Map;
 import java.util.OptionalInt;
 import java.util.UUID;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.persistence.EntityManager;
 import jakarta.ws.rs.ForbiddenException;
 import jakarta.ws.rs.core.MediaType;
@@ -17,7 +15,6 @@ import jakarta.ws.rs.core.Response;
 import net.exoego.keycloak.fuhito.domain.ChangeLogEntry;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.Messages;
-import net.exoego.keycloak.fuhito.domain.Unchecked;
 import net.exoego.keycloak.fuhito.jpa.JpaChangeLogStore;
 import net.exoego.keycloak.fuhito.jpa.JpaChangeOrderStore;
 import net.exoego.keycloak.fuhito.jpa.JpaIdempotencyStore;
@@ -50,8 +47,6 @@ final class KeycloakRequestContext implements RequestContext {
      * may read it on.
      */
     static final String DAYS_AHEAD_ATTRIBUTE = "fuhito.structure.daysAhead";
-
-    private static final ObjectMapper JSON = new ObjectMapper().setDefaultPropertyInclusion(JsonInclude.Include.NON_NULL);
 
     private final KeycloakSession session;
     private final RealmModel realm;
@@ -229,7 +224,7 @@ final class KeycloakRequestContext implements RequestContext {
                 .success();
         new JpaChangeLogStore(entityManager, realm.getId()).append(new ChangeLogEntry(UUID.randomUUID().toString(),
                 0, Instant.now().truncatedTo(ChronoUnit.MILLIS), callerUserId(), resourceType,
-                resourceId, change.name(), resourcePath, changeOrderId(), toJson(representation)));
+                resourceId, change.name(), resourcePath, changeOrderId()));
     }
 
     @Override
@@ -243,9 +238,5 @@ final class KeycloakRequestContext implements RequestContext {
 
     private String changeOrderId() {
         return session.getContext().getUri().getQueryParameters().getFirst(CHANGE_ORDER_PARAMETER);
-    }
-
-    static String toJson(Object representation) {
-        return representation == null ? null : Unchecked.io(() -> JSON.writeValueAsString(representation));
     }
 }

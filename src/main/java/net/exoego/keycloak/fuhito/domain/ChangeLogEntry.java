@@ -15,8 +15,7 @@ import java.time.Instant;
  * @param operation {@code CREATE}, {@code UPDATE}, or {@code DELETE}
  * @param resourcePath the path of the request below the realm
  * @param changeOrderId the ID of the change order that the write belongs to, or null
- * @param representation the new state of the resource as JSON, or null after a delete
  */
 public record ChangeLogEntry(String id, long sequence, Instant recordedAt, String actorUserId, String resourceType,
-        String resourceId, String operation, String resourcePath, String changeOrderId, String representation) {
+        String resourceId, String operation, String resourcePath, String changeOrderId) {
 }

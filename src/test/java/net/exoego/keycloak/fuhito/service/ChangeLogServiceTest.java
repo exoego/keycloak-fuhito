@@ -23,7 +23,7 @@ class ChangeLogServiceTest {
         public void append(ChangeLogEntry entry) {
             entries.add(new ChangeLogEntry(entry.id(), entries.size() + 1, entry.recordedAt(), entry.actorUserId(),
                     entry.resourceType(), entry.resourceId(), entry.operation(), entry.resourcePath(),
-                    entry.changeOrderId(), entry.representation()));
+                    entry.changeOrderId()));
         }
 
         @Override
@@ -63,8 +63,7 @@ class ChangeLogServiceTest {
 
     private void write(String resourceId, String operation, String changeOrderId) {
         store.append(new ChangeLogEntry("entry-" + store.entries.size(), 0, Instant.parse("2026-04-01T00:00:00Z"),
-                "admin", "FUHITO_ORG_UNIT", resourceId, operation, "fuhito/org-units/" + resourceId, changeOrderId,
-                "{\"id\":\"" + resourceId + "\"}"));
+                "admin", "FUHITO_ORG_UNIT", resourceId, operation, "fuhito/org-units/" + resourceId, changeOrderId));
     }
 
     private static List<String> summary(List<ChangeLogEntry> entries) {
@@ -87,7 +86,6 @@ class ChangeLogServiceTest {
         assertEquals("FUHITO_ORG_UNIT", update.resourceType());
         assertEquals("fuhito/org-units/u1", update.resourcePath());
         assertEquals("order", update.changeOrderId());
-        assertEquals("{\"id\":\"u1\"}", update.representation());
         assertEquals(List.of(), service.list(null, "FUHITO_REF_ITEM", "u1", null, null));
     }
 

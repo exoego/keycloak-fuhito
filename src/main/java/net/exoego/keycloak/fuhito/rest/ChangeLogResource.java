@@ -41,8 +41,8 @@ public class ChangeLogResource {
             summary = "Lists the writes to the realm, oldest first.",
             description = "To follow the changes, keep the `sequence` of the last entry of each read and pass it as "
                     + "`after` in the next read. A read that returns fewer entries than `max` has reached the end. "
-                    + "The numbers of a realm start at 1 and have no gaps, except where an erase of the data of a "
-                    + "person removed entries.")
+                    + "The numbers of a realm start at 1 and have no gaps. An entry has no state of the resource. "
+                    + "Read the resource again for its state.")
     @APIResponse(responseCode = "200", description = "The entries.")
     @BadRequest
     @ApiErrors

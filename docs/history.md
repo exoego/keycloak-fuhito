@@ -44,7 +44,7 @@ The item itself has no dates either. Data of any date may use it.
 - Names that are the same as the names of the date make no new period.
 - `GET /ref-items`, `GET /ref-items/{id}`, the role names of `GET /unit-roles`, and the CSV file of `GET /imports/csv/ref-items` show the names of their date. `GET /ref-items/count` takes no date, because every item has names on every date.
 - `GET /ref-items/{id}/history` lists the names of every period, oldest first.
-- A write of names counts up the version of the item, and the change log keeps it.
+- A write of names counts up the version of the item, and adds an entry to the change log.
 
 A new code is still the way when the meaning changes, for example when one job title splits into two. Add a new item, move the data to it from the date, and deactivate the old item.
 
@@ -197,7 +197,7 @@ It names those units in `successorIds`, or in `successorRefs` for units that an 
 - Each unit that follows must exist on the date.
 - The old unit ends the same way as with the step `end`. The units below it and the people in it must move first.
 - `GET /org-units/{id}/succession` lists the units before a unit and the units after it. A report across a reorganization follows a unit with it.
-- The change log has two entries for the old unit. One has the path `.../end`, and one has the path `.../succession` with the links.
+- The change log has two entries for the old unit. One has the path `.../end`, and one has the path `.../succession`.
 
 An end cannot be taken back, so a link never points to a unit that exists again.
 
@@ -263,6 +263,8 @@ Checked by `EmploymentsIT` and `MembershipIT`.
 ## The change log and change orders
 
 Every successful write adds one entry to the change log.
+An entry says who wrote, when, which resource, which operation, and which change order.
+It does not keep the state of the resource. A reader that needs the state reads the resource again.
 A write with the query parameter `changeOrder` belongs to that change order.
 The change order has the approver and the effective date.
 
@@ -292,7 +294,7 @@ Each entry has a `sequence`. It is the position of the entry in the change log o
 So another system can ask what changed since its last read.
 
 1. Read with `after=0`, or with no `after`.
-2. Apply the entries, and keep the `sequence` of the last one.
+2. For each entry, read the resource again to get its state. A deleted resource answers 404. Keep the `sequence` of the last entry.
 3. Read again with `after` set to that number. A read with fewer entries than `max` has reached the end.
 
 `max` is 100 by default and 1000 at most. `resourceType` and `resourceId` narrow the list, each alone or both.
@@ -301,13 +303,12 @@ The entries of a realm become readable in the order of their numbers.
 So a reader that goes on after the last number it saw misses no entry.
 For this, the writes to one realm record their entries one after another.
 
-The numbers have no gaps, with one exception.
-An erase of the data of a person removes the entries about that person, and their numbers stay unused.
+The numbers have no gaps.
+An entry holds only IDs, so a mask and an erase do not change or remove earlier entries.
 The erase adds one entry of the type `FUHITO_PERSON_DATA` with the operation `DELETE`. A reader can use it to remove its own copy.
-A mask adds an entry of the same type with the operation `UPDATE`, and clears the personal fields in the earlier entries.
-A reader that already read those entries keeps what it read, so it must act on the mask entry too.
+A mask adds an entry of the same type with the operation `UPDATE`. A reader can use it to clear the personal data in its own copy.
 
-Checked by `ChangeLogIT.followsEveryWriteOfTheRealmAfterASequenceNumber` and `ChangeLogIT.eachRealmCountsItsOwnWritesFromOneWithoutGapsUnderParallelWrites`.
+Checked by `ChangeLogIT.followsEveryWriteOfTheRealmAfterASequenceNumber`, `ChangeLogIT.eachRealmCountsItsOwnWritesFromOneWithoutGapsUnderParallelWrites`, `ChangeLogIT.anEntryHasNoStateOfTheResource`, and `UserRemovalIT.aMaskAndAnEraseKeepTheEarlierEntriesAndAddTheirOwn`.
 
 ### Learning when a dated change takes effect
 
@@ -330,7 +331,8 @@ An org unit with its own time zone starts its day at another moment than the rea
 Checked by `EffectiveChangesIT`.
 
 Entries are only added. A correction of a mistake adds a new entry and keeps the old one.
-So the log shows what the system said at any earlier time, even after the rows were corrected.
+So the log shows who changed which resource and when, even after the rows were corrected.
+It does not keep the values from before a correction. Only the corrected values stay.
 
 The application does not compare the dates of a write with the effective date of its change order.
 The client keeps them the same.
@@ -340,7 +342,7 @@ Checked by `ChangeLogIT.listsTheWritesOfAChangeOrderInTheOrderTheyHappened` and 
 ## What is removed for good
 
 - Removal of a realm removes all its rows and its change log.
-- `DELETE /people/{id}/data` erases everything about one person.
+- `DELETE /people/{id}/data` erases everything about one person. The change log keeps its entries, which hold only IDs.
 
 Removal of a user from Keycloak removes nothing that held.
 It ends the open employment of the user on that day, and the history stays readable.

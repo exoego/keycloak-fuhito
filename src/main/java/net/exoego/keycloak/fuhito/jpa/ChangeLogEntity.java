@@ -45,9 +45,6 @@ public class ChangeLogEntity {
     @Column(name = "CHANGE_ORDER_ID", length = 36)
     String changeOrderId;
 
-    @Column(name = "REPRESENTATION")
-    String representation;
-
     /**
      * Creates an empty entity for JPA.
      */

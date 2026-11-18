@@ -3,28 +3,17 @@ package net.exoego.keycloak.fuhito.jpa;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 import java.util.UUID;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import jakarta.persistence.EntityManager;
-import net.exoego.keycloak.fuhito.domain.Unchecked;
 import net.exoego.keycloak.fuhito.store.UserDataMasker;
 
 /**
  * Masks the data of one person in the database of Keycloak.
  */
 public class JpaUserDataMasker implements UserDataMasker {
-
-    // The fields of a stored representation that can identify a person. A leave reason can tell of an illness.
-    private static final Set<String> IDENTIFYING = Set.of("staffNumber", "number", "externalId", "externalIds",
-            "attributes", "name", "names", "phoneticName", "leaveReason");
-    private static final ObjectMapper JSON = new ObjectMapper();
 
     private final EntityManager em;
     private final String realmId;
@@ -53,7 +42,6 @@ public class JpaUserDataMasker implements UserDataMasker {
 
     @Override
     public void mask(String personId, Instant now) {
-        // Also the rows that are gone, so that their copies in the change log are masked too.
         PersonTrail trail = PersonTrail.of(em, realmId, personId);
         List<EmploymentEntity> employments = em.createQuery("""
                         select e from EmploymentEntity e
@@ -103,17 +91,10 @@ public class JpaUserDataMasker implements UserDataMasker {
         person.searchNames = null;
         person.attributes = new LinkedHashMap<>();
         person.countUp();
-        List<String> externalIds = new ArrayList<>(removeExternalIds("PERSON", List.of(personId)));
-        externalIds.addAll(removeExternalIds("EMPLOYMENT", employmentIds));
-        externalIds.addAll(removeExternalIds("ASSIGNMENT", assignmentIds));
-        externalIds.addAll(removeExternalIds("QUALIFICATION", qualificationIds));
-        Set<String> loggedIds = new LinkedHashSet<>(externalIds);
-        loggedIds.addAll(trail.externalIds());
-        maskChangeLog("FUHITO_EXTERNAL_ID", loggedIds);
-        maskChangeLog("FUHITO_PERSON", Set.of(personId));
-        maskChangeLog("FUHITO_EMPLOYMENT", trail.employments());
-        maskChangeLog("FUHITO_ASSIGNMENT", trail.assignments());
-        maskChangeLog("FUHITO_QUALIFICATION", trail.qualifications());
+        removeExternalIds("PERSON", List.of(personId));
+        removeExternalIds("EMPLOYMENT", employmentIds);
+        removeExternalIds("ASSIGNMENT", assignmentIds);
+        removeExternalIds("QUALIFICATION", qualificationIds);
 
         if (maskedAt(personId).isEmpty()) {
             UserMaskEntity mark = new UserMaskEntity();
@@ -127,48 +108,16 @@ public class JpaUserDataMasker implements UserDataMasker {
     }
 
     // The IDs that systems have for the records of the person can identify the person too.
-    private List<String> removeExternalIds(String kind, List<String> resourceIds) {
+    private void removeExternalIds(String kind, List<String> resourceIds) {
         if (resourceIds.isEmpty()) {
-            return List.of();
+            return;
         }
-        List<ExternalIdEntity> rows = em.createQuery("""
+        em.createQuery("""
                         select x from ExternalIdEntity x where x.realmId = :realmId and x.kind = :kind
                         and %s""".formatted(ManyIds.has("x.resourceId", "ids")), ExternalIdEntity.class)
                 .setParameter("realmId", realmId).setParameter("kind", kind)
                 .setParameter("ids", ManyIds.of(resourceIds))
-                .getResultList();
-        rows.forEach(em::remove);
-        return rows.stream().map(row -> row.id).toList();
-    }
-
-    // The change log holds copies of the state after each write. The same fields are cleared there.
-    private void maskChangeLog(String resourceType, Set<String> resourceIds) {
-        if (resourceIds.isEmpty()) {
-            return;
-        }
-        for (ChangeLogEntity entry : em.createQuery("""
-                        select l from ChangeLogEntity l where l.realmId = :realmId
-                        and l.resourceType = :type and %s
-                        and l.representation is not null""".formatted(ManyIds.has("l.resourceId", "ids")),
-                        ChangeLogEntity.class)
-                .setParameter("realmId", realmId).setParameter("type", resourceType)
-                .setParameter("ids", ManyIds.of(resourceIds)).getResultList()) {
-            entry.representation = masked(entry.representation);
-        }
-    }
-
-    static String masked(String json) {
-        return Unchecked.io(() -> {
-            JsonNode root = JSON.readTree(json);
-            strip(root);
-            return JSON.writeValueAsString(root);
-        });
-    }
-
-    private static void strip(JsonNode node) {
-        if (node instanceof ObjectNode object) {
-            object.remove(IDENTIFYING);
-        }
-        node.forEach(JpaUserDataMasker::strip);
+                .getResultList()
+                .forEach(em::remove);
     }
 }

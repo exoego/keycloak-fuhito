@@ -1,6 +1,7 @@
 package net.exoego.keycloak.fuhito;
 
 import java.net.http.HttpResponse;
+import java.util.ArrayList;
 import java.util.List;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -192,11 +193,12 @@ class ImportIT {
         assertEquals(List.of("CREATE", "CREATE", "CREATE", "CREATE", "CREATE", "CREATE", "CREATE"),
                 changes.findValuesAsText("operation"));
         // A parent is written before its children, wherever it is in the document.
-        assertEquals(List.of("X病院", "看護部", "1病棟", "診療部"), List.of(
-                changes.get(3).get("representation").get("name").asText(),
-                changes.get(4).get("representation").get("name").asText(),
-                changes.get(5).get("representation").get("name").asText(),
-                changes.get(6).get("representation").get("name").asText()));
+        List<String> units = new ArrayList<>();
+        for (int i = 3; i < 7; i++) {
+            units.add(ok(api.get("/org-units/" + changes.get(i).get("resourceId").asText() + "?asOf=2026-04-01"))
+                    .get("name").asText());
+        }
+        assertEquals(List.of("X病院", "看護部", "1病棟", "診療部"), units);
     }
 
     @Test

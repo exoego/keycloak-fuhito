@@ -3,6 +3,8 @@ package net.exoego.keycloak.fuhito;
 import java.net.http.HttpResponse;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.stream.LongStream;
@@ -72,12 +74,11 @@ class ChangeLogIT {
         assertEquals(List.of(order, order, order), changes.findValuesAsText("changeOrderId"));
         JsonNode created = changes.get(0);
         assertEquals("fuhito/org-units/" + newUnit, created.get("resourcePath").asText());
-        assertEquals("人事課", created.get("representation").get("name").asText());
-        assertEquals("2026-04-01", created.get("representation").get("validFrom").asText());
         assertTrue(created.get("recordedAt").asText().endsWith("Z"));
         assertEquals(36, created.get("actorUserId").asText().length());
         assertEquals("fuhito/assignments/" + oldAssignment + "/end", changes.get(1).get("resourcePath").asText());
-        assertEquals("2026-04-01", changes.get(1).get("representation").get("validTo").asText());
+        // A reader that needs the state reads the resource again.
+        assertEquals("人事課", ok(api.get("/org-units/" + newUnit + "?asOf=2026-04-01")).get("name").asText());
         assertEquals(1, ok(api.get("/change-orders/" + order + "/changes?first=1&max=1")).size());
         assertEquals(3, api.count("/change-orders/" + order + "/changes/count"));
     }
@@ -89,13 +90,24 @@ class ChangeLogIT {
         assertEquals(List.of("CREATE", "UPDATE"), entries.findValuesAsText("operation"));
         assertFalse(entries.get(0).has("changeOrderId"));
         assertEquals(order, entries.get(1).get("changeOrderId").asText());
-        assertFalse(entries.get(0).get("representation").has("validTo"));
 
         // The order itself is a resource too, and its own writes do not belong to it.
         JsonNode ofOrder = ok(api.get("/change-log?resourceType=FUHITO_CHANGE_ORDER&resourceId=" + order));
         assertEquals(List.of("CREATE"), ofOrder.findValuesAsText("operation"));
         assertFalse(ofOrder.get(0).has("changeOrderId"));
-        assertEquals("2026年4月異動", ofOrder.get(0).get("representation").get("title").asText());
+    }
+
+    @Test
+    void anEntryHasNoStateOfTheResource() throws Exception {
+        JsonNode entries = ok(api.get("/change-log?max=1000"));
+
+        Set<String> fields = new TreeSet<>();
+        entries.forEach(entry -> entry.fieldNames().forEachRemaining(fields::add));
+        assertEquals(Set.of("id", "sequence", "recordedAt", "actorUserId", "resourceType", "resourceId", "operation",
+                "resourcePath", "changeOrderId"), fields);
+        for (String state : List.of("総務課", "人事課", "2026年4月異動")) {
+            assertFalse(entries.toString().contains(state), state);
+        }
     }
 
     private static List<Long> sequences(JsonNode entries) {
@@ -150,14 +162,14 @@ class ChangeLogIT {
     }
 
     @Test
-    void aDeleteIsLoggedWithoutAState() throws Exception {
+    void aDeleteIsLogged() throws Exception {
         String item = realm.refItem("UNIT_TYPE", "to-delete", "x");
         assertEquals(204, api.deleteWithVersion("/ref-items/" + item).statusCode());
 
         JsonNode entries = ok(api.get("/change-log?resourceType=FUHITO_REF_ITEM&resourceId=" + item));
 
         assertEquals(List.of("CREATE", "DELETE"), entries.findValuesAsText("operation"));
-        assertFalse(entries.get(1).has("representation"));
+        assertEquals("fuhito/ref-items/" + item, entries.get(1).get("resourcePath").asText());
     }
 
     @Test

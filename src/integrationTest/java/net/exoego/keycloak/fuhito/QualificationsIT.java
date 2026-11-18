@@ -126,7 +126,8 @@ class QualificationsIT {
         assertEquals(204, scratch.api.delete("/users/" + removed + "/data").statusCode());
 
         assertEquals(404, scratch.api.get("/qualifications/" + removedId).statusCode());
-        assertEquals(0, Api.json(scratch.api.get(log + removedId)).size());
+        // The entry holds only IDs, so it stays.
+        assertEquals(List.of("CREATE"), Api.json(scratch.api.get(log + removedId)).findValuesAsText("operation"));
         assertEquals(200, scratch.api.get("/qualifications/" + keptId).statusCode());
         assertFalse(Api.json(scratch.api.get(log + keptId)).isEmpty());
     }

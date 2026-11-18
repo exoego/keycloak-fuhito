@@ -61,6 +61,7 @@ class UserMaskIT {
         List<String> otherIds = hire(realm, other, unit, "N-002");
         JsonNode otherBefore = Api.json(api.get("/users/" + other + "/history"));
         assertFalse(Api.json(api.get("/users/" + left + "/history")).has("maskedAt"));
+        HttpResponse<String> logBefore = api.get("/change-log?max=1000");
 
         HttpResponse<String> response = api.post("/users/" + left + "/mask", "");
 
@@ -102,28 +103,17 @@ class UserMaskIT {
         assertFalse(qualification.has("number"));
         assertEquals(0, qualification.get("attributes").size());
 
-        // The copies in the change log are cleared too, and the entries themselves stay.
-        String everything = "";
-        for (String[] resource : new String[][] {{"FUHITO_EMPLOYMENT", ids.get(0)}, {"FUHITO_ASSIGNMENT", ids.get(1)},
-                {"FUHITO_QUALIFICATION", ids.get(2)}}) {
-            HttpResponse<String> log = api.get("/change-log?resourceType=" + resource[0] + "&resourceId=" + resource[1]);
-            assertFalse(Api.json(log).isEmpty());
-            everything += log.body();
+        // The change log never had the personal data. The mask leaves its entries as they are.
+        for (String secret : List.of("N-001", "N-002", "東京都", "育休", "ext-1234", "sick-leave", "ON_LEAVE")) {
+            assertFalse(logBefore.body().contains(secret), secret);
         }
+        JsonNode earlier = Api.json(logBefore);
+        assertEquals(earlier, Api.json(api.get("/change-log?max=" + earlier.size())));
         assertEquals(2, Api.json(api.get("/change-log?resourceType=FUHITO_EMPLOYMENT&resourceId=" + ids.get(0))).size());
-        for (String secret : List.of("N-001", "HR-N-001", "A-N-001", "東京都", "育休", "ext-1234", "第N-001号",
-                "sick-leave")) {
-            assertFalse(everything.contains(secret), secret);
-        }
-        assertTrue(everything.contains("ON_LEAVE"));
-        assertEquals("0", KeycloakEnvironment.sql("select count(*) from fuhito_change_log where realm_id = '" + realm.id()
-                + "' and resource_id in ('" + String.join("','", ids) + "') and (representation like '%N-001%'"
-                + " or representation like '%東京都%' or representation like '%育休%' or representation like '%ext-1234%')"));
 
         // The other user is untouched.
         assertEquals(otherBefore, Api.json(api.get("/users/" + other + "/history")));
         assertEquals("第N-002号", Api.json(api.get("/qualifications/" + otherIds.get(2))).get("number").asText());
-        assertTrue(api.get("/change-log?resourceType=FUHITO_EMPLOYMENT&resourceId=" + otherIds.get(0)).body().contains("N-002"));
 
         // The log says who masked whom. Masking again keeps the first time.
         String person = Api.json(response).get("personId").asText();
@@ -131,6 +121,7 @@ class UserMaskIT {
         JsonNode maskLog = Api.json(api.get("/change-log?resourceType=FUHITO_PERSON_DATA&resourceId=" + person));
         assertEquals(List.of("UPDATE"), maskLog.findValuesAsText("operation"));
         assertEquals("fuhito/people/" + person + "/mask", maskLog.get(0).get("resourcePath").asText());
+        assertEquals(earlier.get(earlier.size() - 1).get("sequence").asLong() + 1, maskLog.get(0).get("sequence").asLong());
         assertEquals(maskedAt, Api.json(api.post("/users/" + left + "/mask", "")).get("maskedAt").asText());
     }
 
@@ -163,7 +154,7 @@ class UserMaskIT {
         assertEquals(List.of("", ""), realm.nameOfUser(cleared));
         JsonNode logged = Api.json(api.get("/change-log?resourceType=FUHITO_PERSON_DATA&resourceId="
                 + byUser.get("personId").asText()));
-        assertTrue(logged.get(0).get("representation").get("keycloakNameCleared").asBoolean());
+        assertEquals(List.of("UPDATE"), logged.findValuesAsText("operation"));
 
         // There is no name to clear for a person whose user is gone, or who never had one.
         for (String person : List.of(removedPerson, unlinked)) {
@@ -211,13 +202,12 @@ class UserMaskIT {
                 + "\", \"kind\": \"license\", \"number\": \"L-1\", \"validFrom\": \"2020-04-01\"}")).get("id").asText();
         String deleted = created(api.post("/qualifications", "{\"userId\": \"" + user
                 + "\", \"kind\": \"license\", \"number\": \"L-2\", \"validFrom\": \"2021-04-01\"}")).get("id").asText();
-        // The log entry of a delete has no state to mask.
         assertEquals(204, api.deleteWithVersion("/qualifications/" + deleted).statusCode());
 
         assertEquals(200, api.post("/users/" + user + "/mask", "").statusCode());
 
         assertFalse(Api.json(api.get("/qualifications/" + kept)).has("number"));
-        assertEquals("0", KeycloakEnvironment.sql("select count(*) from fuhito_change_log where realm_id = '"
-                + realm.id() + "' and representation like '%L-1%'"));
+        assertEquals(List.of("CREATE", "DELETE"), Api.json(api.get(
+                "/change-log?resourceType=FUHITO_QUALIFICATION&resourceId=" + deleted)).findValuesAsText("operation"));
     }
 }

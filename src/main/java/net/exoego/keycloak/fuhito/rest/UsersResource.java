@@ -85,8 +85,8 @@ public class UsersResource {
             operationId = "maskUser",
             summary = "Masks the personal data of a user who left. It cannot be undone.",
             description = "It clears the staff number, the numbers of qualifications, the external IDs, and the "
-                    + "free attributes, also in the change log. Every record keeps its ID, its org unit, its job "
-                    + "title, its occupation, and its dates.")
+                    + "free attributes. Every record keeps its ID, its org unit, its job title, its occupation, and "
+                    + "its dates. The entries of the change log stay as they are.")
     @Parameter(ref = "changeOrder")
     @APIResponse(responseCode = "200", description = "The person and the time of the masking.")
     @BadRequest
@@ -144,10 +144,10 @@ public class UsersResource {
     @Operation(
             operationId = "eraseUserData",
             summary = "Erases everything about one user for good.",
-            description = "These are the employments with their terms and assignments, the qualifications, the "
-                    + "reporting lines of the user as a report and as a manager, and the change log entries about "
-                    + "them. Removal of a user from Keycloak does not do this. This endpoint is for a request to "
-                    + "delete personal data.")
+            description = "These are the employments with their terms and assignments, the qualifications, and the "
+                    + "reporting lines of the user as a report and as a manager. The change log keeps its entries "
+                    + "about them, because they hold only IDs. Removal of a user from Keycloak does not do this. "
+                    + "This endpoint is for a request to delete personal data.")
     @Parameter(ref = "changeOrder")
     @APIResponse(responseCode = "204", description = "The data was erased.")
     @BadRequest

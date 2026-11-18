@@ -138,7 +138,8 @@ class AttributeSyncIT {
         assertEquals(List.of("CREATE"), Api.json(api.get("/change-log?resourceType=FUHITO_ASSIGNMENT&resourceId=" + aliceAssignment)).findValuesAsText("operation"));
         JsonNode lineEntries = Api.json(api.get("/change-log?resourceType=FUHITO_REPORTING_LINE"));
         assertEquals(List.of("CREATE"), lineEntries.findValuesAsText("operation"));
-        assertEquals(boss, lineEntries.get(0).get("representation").get("managerUserId").asText());
+        assertEquals(boss, Api.json(api.get("/reporting-lines/" + lineEntries.get(0).get("resourceId").asText()))
+                .get("managerUserId").asText());
 
         JsonNode again = run("");
         for (String count : List.of("employmentsStarted", "assignmentsAdded", "assignmentsMoved", "assignmentsChanged",

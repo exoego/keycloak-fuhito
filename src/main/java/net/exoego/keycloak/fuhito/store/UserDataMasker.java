@@ -18,8 +18,8 @@ public interface UserDataMasker {
 
     /**
      * Clears the staff number, the numbers of qualifications, the external IDs, and the free attributes of the
-     * employments, assignments, and qualifications of a person, and the same fields in the change log entries
-     * about them. Every ID, the org units, the job titles, the occupations, and the dates stay.
+     * employments, assignments, and qualifications of a person. Every ID, the org units, the job titles, the
+     * occupations, and the dates stay.
      *
      * @param personId the ID of the person
      * @param now the time to record as the time of the masking

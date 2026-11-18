@@ -314,7 +314,8 @@ components:
       - resourceId
       - operation
       - resourcePath
-      description: One successful write.
+      description: One successful write. It has no state of the resource. Read the
+        resource again for its state.
       type: object
       properties:
         id:
@@ -351,11 +352,6 @@ components:
         changeOrderId:
           type: string
           description: The ID of the change order that the write belongs to.
-        representation:
-          description: The state of the resource after the write. It is missing after
-            a delete.
-          type: object
-          additionalProperties: true
     ChangeOrder:
       required:
       - title
@@ -4612,8 +4608,8 @@ paths:
       description: "To follow the changes, keep the `sequence` of the last entry of\
         \ each read and pass it as `after` in the next read. A read that returns fewer\
         \ entries than `max` has reached the end. The numbers of a realm start at\
-        \ 1 and have no gaps, except where an erase of the data of a person removed\
-        \ entries."
+        \ 1 and have no gaps. An entry has no state of the resource. Read the resource\
+        \ again for its state."
       operationId: listChangeLog
       tags:
       - change-orders
@@ -7830,9 +7826,10 @@ paths:
     delete:
       summary: Erases everything about one person for good.
       description: "These are the person record, the employments with their terms\
-        \ and assignments, the qualifications, the reporting lines of the person as\
-        \ a report and as a manager, and the change log entries about them. This endpoint\
-        \ is for a request to delete personal data."
+        \ and assignments, the qualifications, and the reporting lines of the person\
+        \ as a report and as a manager. The change log keeps its entries about them,\
+        \ because they hold only IDs. This endpoint is for a request to delete personal\
+        \ data."
       operationId: erasePersonData
       tags:
       - people
@@ -7939,9 +7936,9 @@ paths:
     post:
       summary: Masks the personal data of a person who left. It cannot be undone.
       description: "It clears the names, the staff number, the numbers of qualifications,\
-        \ the external IDs, and the free attributes, also in the change log. Every\
-        \ record keeps its ID, its org unit, its job title, its occupation, and its\
-        \ dates."
+        \ the external IDs, and the free attributes. Every record keeps its ID, its\
+        \ org unit, its job title, its occupation, and its dates. The entries of the\
+        \ change log stay as they are."
       operationId: maskPerson
       tags:
       - people
@@ -9438,9 +9435,10 @@ paths:
     delete:
       summary: Erases everything about one user for good.
       description: "These are the employments with their terms and assignments, the\
-        \ qualifications, the reporting lines of the user as a report and as a manager,\
-        \ and the change log entries about them. Removal of a user from Keycloak does\
-        \ not do this. This endpoint is for a request to delete personal data."
+        \ qualifications, and the reporting lines of the user as a report and as a\
+        \ manager. The change log keeps its entries about them, because they hold\
+        \ only IDs. Removal of a user from Keycloak does not do this. This endpoint\
+        \ is for a request to delete personal data."
       operationId: eraseUserData
       tags:
       - users
@@ -9540,8 +9538,9 @@ paths:
     post:
       summary: Masks the personal data of a user who left. It cannot be undone.
       description: "It clears the staff number, the numbers of qualifications, the\
-        \ external IDs, and the free attributes, also in the change log. Every record\
-        \ keeps its ID, its org unit, its job title, its occupation, and its dates."
+        \ external IDs, and the free attributes. Every record keeps its ID, its org\
+        \ unit, its job title, its occupation, and its dates. The entries of the change\
+        \ log stay as they are."
       operationId: maskUser
       tags:
       - users

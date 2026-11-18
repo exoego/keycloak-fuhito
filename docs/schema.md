@@ -44,7 +44,6 @@ erDiagram
         varchar(16) OPERATION
         varchar(255) RESOURCE_PATH
         varchar(36) CHANGE_ORDER_ID FK
-        text REPRESENTATION
         bigint SEQUENCE_NUMBER
     }
     FUHITO_CHANGE_ORDER {
