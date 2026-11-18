@@ -127,6 +127,16 @@ public interface OrganizationGroups {
     boolean addOrganizationMember(String organizationId, String userId);
 
     /**
+     * Takes an unmanaged member out of an organization and out of its groups. A managed member stays.
+     *
+     * @param organizationId the ID of the organization
+     * @param userId the ID of the user
+     * @return true when the user left the organization now. False when Keycloak has no such user, or the user is
+     *         no member, or a managed one.
+     */
+    boolean removeOrganizationMember(String organizationId, String userId);
+
+    /**
      * Returns the realm group that the whole tree is mirrored below.
      *
      * @return the ID of the group, or empty when the realm mirrors into no realm group

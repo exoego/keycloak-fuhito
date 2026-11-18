@@ -22,6 +22,7 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -41,6 +42,8 @@ class ProjectionServiceTest {
         private final Map<String, Set<String>> organizationMembers = new HashMap<>();
         // Users that Keycloak no longer has.
         private final Set<String> gone = new HashSet<>();
+        // Users that only a user storage provider holds. The table of members does not show them.
+        private final Set<String> outsideTable = new HashSet<>();
         private int nextId = 1;
         // How often a rebuild asked to put off the writes.
         private int flushes;
@@ -149,6 +152,7 @@ class ProjectionServiceTest {
         public Set<String> organizationMembers(String organizationId, java.util.Collection<String> userIds) {
             Set<String> result = new HashSet<>(organizationMembers.getOrDefault(organizationId, Set.of()));
             result.retainAll(userIds);
+            result.removeAll(outsideTable);
             return result;
         }
 
@@ -202,6 +206,16 @@ class ProjectionServiceTest {
             return organizationMembers.computeIfAbsent(organizationId, id -> new HashSet<>()).add(userId);
         }
 
+        @Override
+        public boolean removeOrganizationMember(String organizationId, String userId) {
+            boolean removed = organizationMembers.getOrDefault(organizationId, new HashSet<>()).remove(userId);
+            if (removed) {
+                groups(organizationId).forEach(group -> members.getOrDefault(group.id(), new HashSet<>())
+                        .remove(userId));
+            }
+            return removed;
+        }
+
         List<String> describe(String organizationId) {
             return groups(organizationId).stream()
                     .map(g -> g.name() + (g.parentId() == null ? "" : " < " + groups.get(g.parentId()).name())
@@ -213,6 +227,7 @@ class ProjectionServiceTest {
     private static final Clock CLOCK = Clock.fixed(Instant.parse("2026-06-15T03:00:00Z"), ZoneId.of("Asia/Tokyo"));
 
     private final MemoryGroups keycloak = new MemoryGroups();
+    private final MemoryProjectedMemberStore projectedMembers = new MemoryProjectedMemberStore();
     private final MemoryOrgUnitStore orgUnitStore = new MemoryOrgUnitStore();
     private final MemoryAssignmentStore assignmentStore = new MemoryAssignmentStore();
     private final MemoryEmploymentStore employmentStore = new MemoryEmploymentStore();
@@ -255,15 +270,15 @@ class ProjectionServiceTest {
     }
 
     private ProjectionReport rebuild() {
-        return new ProjectionService(orgUnitStore, assignmentStore, employmentStore, refItems, keycloak, CLOCK)
-                .rebuild();
+        return new ProjectionService(orgUnitStore, assignmentStore, employmentStore, refItems, keycloak,
+                projectedMembers, CLOCK).rebuild();
     }
 
     @Test
     void mirrorsTheUnitsBelowALinkedUnitAndTheAssignmentsOfToday() {
         ProjectionReport report = rebuild();
 
-        assertEquals(new ProjectionReport(1, 2, 0, 0, 0, 2, 0, 3, 0), report);
+        assertEquals(new ProjectionReport(1, 2, 0, 0, 0, 2, 0, 3, 0, 0), report);
         assertEquals(List.of("Nursing [head-nurse]", "Ward < Nursing [nurse]"), keycloak.describe("org-x"));
         assertEquals(Set.of("director", "head-nurse", "nurse"), keycloak.organizationMembers.get("org-x"));
         assertEquals(nursing, keycloak.groups("org-x").getFirst().orgUnitId());
@@ -293,7 +308,9 @@ class ProjectionServiceTest {
         rebuild();
         assertEquals(List.of("Clinic [doctor]", "Ward < Clinic [nurse]", "Hospital [director]",
                 "Nursing < Hospital [head-nurse]"), keycloak.describe("realm:org"));
-        assertEquals(new ProjectionReport(1, 0, 0, 0, 0, 0, 0, 0, 1), rebuild());
+        // The ward is no longer below the hospital, so the nurse left its organization.
+        assertEquals(Set.of("director", "head-nurse"), keycloak.organizationMembers.get("org-x"));
+        assertEquals(new ProjectionReport(1, 0, 0, 0, 0, 0, 0, 0, 0, 1), rebuild());
     }
 
     @Test
@@ -309,7 +326,7 @@ class ProjectionServiceTest {
     void aSecondRebuildWithNoChangeDoesNothing() {
         rebuild();
 
-        assertEquals(new ProjectionReport(1, 0, 0, 0, 0, 0, 0, 0, 0), rebuild());
+        assertEquals(new ProjectionReport(1, 0, 0, 0, 0, 0, 0, 0, 0, 0), rebuild());
     }
 
     @Test
@@ -324,12 +341,12 @@ class ProjectionServiceTest {
 
         ProjectionReport report = rebuild();
 
-        assertEquals(new ProjectionReport(1, 1, 1, 1, 0, 1, 1, 1, 0), report);
+        assertEquals(new ProjectionReport(1, 1, 1, 1, 0, 1, 1, 1, 1, 0), report);
         assertEquals(List.of("Nursing Division [head-nurse]", "Ward [pharmacist]", "Pharmacy []"),
                 keycloak.describe("org-x"));
-        // The nurse left the ward. The projection never takes a user out of the organization.
-        assertEquals(Set.of("director", "head-nurse", "nurse", "pharmacist"),
-                keycloak.organizationMembers.get("org-x"));
+        // The nurse has no assignment in the hospital any more, so the nurse left the organization too.
+        assertEquals(Set.of("director", "head-nurse", "pharmacist"), keycloak.organizationMembers.get("org-x"));
+        assertEquals(Set.of("director", "head-nurse", "pharmacist"), projectedMembers.users("org-x"));
     }
 
     @Test
@@ -343,7 +360,7 @@ class ProjectionServiceTest {
 
         ProjectionReport report = rebuild();
 
-        assertEquals(new ProjectionReport(1, 1, 0, 0, 1, 0, 0, 0, 0), report);
+        assertEquals(new ProjectionReport(1, 1, 0, 0, 1, 0, 0, 0, 0, 0), report);
         assertEquals(List.of("Nursing [head-nurse]", "Ward < Nursing [nurse]", "Lab < Nursing []"),
                 keycloak.describe("org-x"));
         assertTrue(keycloak.groups.containsKey(groupOf(next)));
@@ -369,12 +386,12 @@ class ProjectionServiceTest {
 
         ProjectionReport report = rebuild();
 
-        assertEquals(new ProjectionReport(1, 0, 4, 4, 0, 0, 0, 0, 1), report);
+        assertEquals(new ProjectionReport(1, 0, 4, 4, 0, 0, 0, 0, 0, 1), report);
         assertEquals(List.of("East []", "Nursing [head-nurse]", "Team < East []", "Team < West []",
                 "Ward < Nursing [nurse]", "West []"), keycloak.describe("org-x").stream().sorted().toList());
         assertEquals(eastGroup, groupOf(east));
         assertEquals(teamGroup, groupOf(team));
-        assertEquals(new ProjectionReport(1, 0, 0, 0, 0, 0, 0, 0, 1), rebuild());
+        assertEquals(new ProjectionReport(1, 0, 0, 0, 0, 0, 0, 0, 0, 1), rebuild());
     }
 
     @Test
@@ -384,7 +401,7 @@ class ProjectionServiceTest {
                 "2026-06-01", null, null, null, null)).unit().id();
         orgUnits.move(ward, annex, "2026-06-01");
 
-        assertEquals(new ProjectionReport(1, 1, 0, 1, 0, 0, 0, 0, 0), rebuild());
+        assertEquals(new ProjectionReport(1, 1, 0, 1, 0, 0, 0, 0, 0, 0), rebuild());
         assertEquals(List.of("Nursing [head-nurse]", "Annex []", "Ward < Annex [nurse]"), keycloak.describe("org-x"));
     }
 
@@ -446,7 +463,7 @@ class ProjectionServiceTest {
     }
 
     @Test
-    void anOrganizationThatNoUnitLinksTodayLosesItsGroupsAndKeepsItsMembers() {
+    void anOrganizationThatNoUnitLinksTodayLosesItsGroupsAndTheMembersThatTheProjectionAdded() {
         String clinic = unit("Clinic", null);
         String desk = unit("Desk", clinic);
         assign("receptionist", desk, "2026-04-01");
@@ -454,6 +471,7 @@ class ProjectionServiceTest {
         rebuild();
         String handMade = keycloak.createGroup("org-y", "Made by hand", null, null);
         assertEquals(List.of("Desk [receptionist]", "Made by hand []"), keycloak.describe("org-y"));
+        keycloak.addOrganizationMember("org-y", "guest");
 
         // The clinic closes. The hospital is no longer linked.
         String nextDay = "2026-06-01";
@@ -468,9 +486,11 @@ class ProjectionServiceTest {
         assertEquals(List.of("Made by hand []"), keycloak.describe("org-y"));
         assertEquals(List.of(), keycloak.describe("org-x"));
         assertTrue(keycloak.groups.containsKey(handMade));
-        // The users stay in the organizations.
-        assertEquals(Set.of("director", "head-nurse", "nurse"), keycloak.organizationMembers.get("org-x"));
-        assertEquals(Set.of("receptionist"), keycloak.organizationMembers.get("org-y"));
+        assertEquals(4, report.organizationMembersRemoved());
+        assertEquals(Set.of(), keycloak.organizationMembers.get("org-x"));
+        // Someone else added the guest.
+        assertEquals(Set.of("guest"), keycloak.organizationMembers.get("org-y"));
+        assertEquals(List.of(), projectedMembers.organizations());
     }
 
     private String assignmentOf(String userId) {
@@ -494,7 +514,8 @@ class ProjectionServiceTest {
 
     @Test
     void aCallerMustBeAllowedToChangeEachPlaceBeforeAnythingIsWritten() {
-        var service = new ProjectionService(orgUnitStore, assignmentStore, employmentStore, refItems, keycloak, CLOCK);
+        var service = new ProjectionService(orgUnitStore, assignmentStore, employmentStore, refItems, keycloak,
+                projectedMembers, CLOCK);
         List<String> asked = new ArrayList<>();
         IllegalStateException denied = new IllegalStateException("denied");
 
@@ -510,12 +531,18 @@ class ProjectionServiceTest {
         rebuild();
         links.unlink(clinic);
         keycloak.organizationMembers.put("org-z", new HashSet<>(Set.of("guest")));
+        // A member that a rebuild added to org-w leaves it. Keycloak no longer has org-gone, so only its record goes.
+        keycloak.organizationMembers.put("org-w", new HashSet<>(Set.of("visitor")));
+        projectedMembers.record("org-w", "visitor");
+        projectedMembers.record("org-gone", "visitor");
         keycloak.realmGroup = "org";
 
         service.rebuild(asked::add, () -> asked.add("realm groups"));
 
-        assertEquals(List.of("org-x", "org-y", "realm groups"), asked);
+        assertEquals(List.of("org-w", "org-x", "org-y", "realm groups"), asked);
         assertEquals(List.of(), keycloak.describe("org-y"));
+        assertEquals(Set.of(), keycloak.organizationMembers.get("org-w"));
+        assertEquals(List.of("org-x"), projectedMembers.organizations());
 
         // A realm group that does not exist fails the run itself, after the check.
         keycloak.realmGroupMissing = true;
@@ -534,7 +561,8 @@ class ProjectionServiceTest {
         assertEquals(FuhitoException.Reason.CONFLICT, e.reason());
         assertEquals("projection.disabled", e.code());
         assertEquals(0, keycloak.groups.size());
-        var service = new ProjectionService(orgUnitStore, assignmentStore, employmentStore, refItems, keycloak, CLOCK);
+        var service = new ProjectionService(orgUnitStore, assignmentStore, employmentStore, refItems, keycloak,
+                projectedMembers, CLOCK);
         assertEquals("projection.disabled", assertThrows(FuhitoException.class,
                 () -> service.rebuild(id -> fail(id), () -> fail("realm groups"))).code());
     }
@@ -574,7 +602,8 @@ class ProjectionServiceTest {
         orgUnits.setTime(clinic, "Asia/Tokyo", null);
         Today today = new UnitDays(orgUnitStore, BusinessDay.rule("America/New_York", null), CLOCK);
 
-        new ProjectionService(orgUnitStore, assignmentStore, employmentStore, refItems, keycloak, today).rebuild();
+        new ProjectionService(orgUnitStore, assignmentStore, employmentStore, refItems, keycloak, projectedMembers,
+                today).rebuild();
 
         assertEquals(List.of("Lab [technician]"), keycloak.describe("org-y"));
         assertEquals(List.of("Nursing [head-nurse]", "Ward < Nursing [nurse]"), keycloak.describe("org-x"));
@@ -617,5 +646,89 @@ class ProjectionServiceTest {
 
         assertEquals(0, report.membersJoined());
         assertEquals(0, report.membersLeft());
+    }
+
+    @Test
+    void aUserWhoMovesToAUnitOfAnotherOrganizationLeavesTheOldOne() {
+        String clinic = unit("Clinic", null);
+        links.link(clinic, "org-y");
+        rebuild();
+        assertEquals(Set.of("director", "head-nurse", "nurse"), projectedMembers.users("org-x"));
+
+        assignments.end(nurseAssignment, "2026-06-01");
+        assign("nurse", clinic, "2026-06-01");
+        ProjectionReport report = rebuild();
+
+        assertEquals(1, report.organizationMembersAdded());
+        assertEquals(1, report.organizationMembersRemoved());
+        assertEquals(Set.of("director", "head-nurse"), keycloak.organizationMembers.get("org-x"));
+        assertEquals(Set.of("nurse"), keycloak.organizationMembers.get("org-y"));
+        assertEquals(List.of("Nursing [head-nurse]", "Ward < Nursing []"), keycloak.describe("org-x"));
+        assertEquals(Set.of("director", "head-nurse"), projectedMembers.users("org-x"));
+        assertEquals(Set.of("nurse"), projectedMembers.users("org-y"));
+    }
+
+    @Test
+    void membersThatTheProjectionDidNotAddStay() {
+        // Someone added the head nurse before the first rebuild, and a guest with no assignment.
+        keycloak.organizationMembers.put("org-x", new HashSet<>(Set.of("head-nurse", "guest")));
+
+        assertEquals(2, rebuild().organizationMembersAdded());
+        assertEquals(Set.of("director", "nurse"), projectedMembers.users("org-x"));
+
+        assignmentStore.rows.removeIf(row -> !row.orgUnitId().equals(hospital));
+        ProjectionReport report = rebuild();
+
+        assertEquals(1, report.organizationMembersRemoved());
+        assertEquals(Set.of("director", "guest", "head-nurse"), keycloak.organizationMembers.get("org-x"));
+    }
+
+    @Test
+    void aMemberThatSomeoneTookOutLosesItsRecordAndComesBackWithANewOne() {
+        rebuild();
+        Integer before = projectedMembers.records.get("org-x").get("nurse");
+        keycloak.organizationMembers.get("org-x").removeAll(Set.of("nurse", "head-nurse"));
+        assignmentStore.rows.removeIf(row -> row.orgUnitId().equals(nursing));
+
+        ProjectionReport report = rebuild();
+
+        assertEquals(1, report.organizationMembersAdded());
+        assertEquals(0, report.organizationMembersRemoved());
+        assertEquals(Set.of("director", "nurse"), keycloak.organizationMembers.get("org-x"));
+        assertEquals(Set.of("director", "nurse"), projectedMembers.users("org-x"));
+        assertNotEquals(before, projectedMembers.records.get("org-x").get("nurse"));
+
+        // The head nurse has no record any more, so a member that someone adds again stays.
+        keycloak.addOrganizationMember("org-x", "head-nurse");
+        rebuild();
+        assertEquals(Set.of("director", "head-nurse", "nurse"), keycloak.organizationMembers.get("org-x"));
+    }
+
+    @Test
+    void aUserThatOnlyAUserStorageProviderHoldsIsRecordedOnceAndLeavesLikeOthers() {
+        keycloak.outsideTable.add("nurse");
+        rebuild();
+        Integer first = projectedMembers.records.get("org-x").get("nurse");
+
+        // Keycloak tells that the nurse is a member already, so nothing is written.
+        assertEquals(0, rebuild().organizationMembersAdded());
+        assertEquals(first, projectedMembers.records.get("org-x").get("nurse"));
+
+        assignments.end(nurseAssignment, "2026-06-01");
+        assertEquals(1, rebuild().organizationMembersRemoved());
+        assertEquals(Set.of("director", "head-nurse"), keycloak.organizationMembers.get("org-x"));
+        assertEquals(Set.of("director", "head-nurse"), projectedMembers.users("org-x"));
+    }
+
+    @Test
+    void readsTheRecordedMembersPageByPage() {
+        rebuild();
+        for (int i = 0; i < 1001; i++) {
+            keycloak.addOrganizationMember("org-x", "former-" + i);
+            projectedMembers.record("org-x", "former-" + i);
+        }
+
+        assertEquals(1001, rebuild().organizationMembersRemoved());
+        assertEquals(Set.of("director", "head-nurse", "nurse"), keycloak.organizationMembers.get("org-x"));
     }
 }

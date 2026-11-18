@@ -300,6 +300,12 @@ erDiagram
         text REPORT
         varchar(128) ERROR_CODE
     }
+    FUHITO_PROJECTED_MEMBER {
+        varchar(36) ID PK
+        varchar(36) REALM_ID
+        varchar(36) KC_ORG_ID
+        varchar(255) USER_ID
+    }
     FUHITO_REF_KIND {
         varchar(36) ID PK
         varchar(36) REALM_ID

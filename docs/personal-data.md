@@ -75,6 +75,7 @@ The mask entry and the erase entry tell it which person ID to clean up. See [his
 - A request with `Idempotency-Key` keeps its response for 24 hours. A mask and an erase clear each stored response that names the person or a record of the person. A request sent again still writes nothing, and gets the first status with no body.
 - Keycloak keeps admin events with the representation of each write when the realm asks for it. A mask and an erase do not change them. Use the settings of admin events in Keycloak to limit what they keep and for how long.
 - The last run of the sync keeps the users and the values that matched nothing, until the next run replaces it.
+- The projection records the user ID of each member that it added to a Keycloak organization. A mask and an erase do not remove the record. The next rebuild takes a user with no assignment out of the organization and removes the record.
 
 ## What masking does not do
 

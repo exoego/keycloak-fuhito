@@ -14,6 +14,7 @@ import net.exoego.keycloak.fuhito.jpa.JpaEmploymentStore;
 import net.exoego.keycloak.fuhito.jpa.JpaExternalIdStore;
 import net.exoego.keycloak.fuhito.jpa.JpaOrgUnitStore;
 import net.exoego.keycloak.fuhito.jpa.JpaPersonStore;
+import net.exoego.keycloak.fuhito.jpa.JpaProjectedMemberStore;
 import net.exoego.keycloak.fuhito.jpa.JpaRefItemStore;
 import net.exoego.keycloak.fuhito.jpa.JpaUnitRoleStore;
 import net.exoego.keycloak.fuhito.jpa.JpaReportingLineStore;
@@ -28,6 +29,7 @@ import org.keycloak.models.RealmModel;
 
 /**
  * Keeps the history of a user who is removed from Keycloak, and ends what would still hold.
+ * The records of the organizations that the projection added the user to go.
  */
 final class UserRemovalHandler {
 
@@ -44,6 +46,7 @@ final class UserRemovalHandler {
                 new JpaRefItemStore(em, realmId), new JpaPersonStore(em, realmId), lines,
                 new JpaUnitRoleStore(em, realmId),
                 new LegalEntityEmployers(new JpaOrgUnitStore(em, realmId), new JpaRefItemStore(em, realmId)));
+        new JpaProjectedMemberStore(em, realmId).forgetUser(userId);
         var changeLog = new JpaChangeLogStore(em, realmId);
         var ids = new ExternalIdService(externalIds);
         for (Write write : new UserRetirement(employments, employmentService, assignments, lines,

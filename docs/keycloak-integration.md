@@ -112,6 +112,7 @@ For each org unit that is linked to a Keycloak organization, a rebuild does this
 - Each unit below the linked unit becomes a group of the organization, with the same nesting.
 - Each assignment that holds today becomes a membership of the group of its unit.
 - Each user with an assignment in the linked unit or below becomes an unmanaged member of the organization. So one person can belong to several organizations.
+- A user that the projection added leaves the organization again when no assignment of today puts the user there. Members that someone else added stay. See "What the projection owns" below.
 
 The linked unit itself has no group. The organization stands for it.
 
@@ -137,6 +138,7 @@ A rebuild reads who is in which group from the table of Keycloak, for many group
 A user that only a user storage provider holds is not in that table. A user that Keycloak imported, for example from LDAP, is in it.
 A user is outside the table when a custom user storage provider keeps the users in another database, or when an LDAP federation has "Import Users" off.
 For such a user, each rebuild adds the memberships again and counts them again. It never takes the user out of a group.
+The membership of an organization is different. A rebuild asks Keycloak itself about such a user, and Keycloak tells that the user is a member already. So the rebuild records the user once, and writes and counts nothing more. It takes the user out of the organization like any other member that it added.
 
 A timer inside Keycloak also runs it, for every realm that turned the projection on.
 A dated change becomes true on its date with no write on that day, so only a run on that day picks it up.
@@ -163,11 +165,18 @@ The projection goes one way. The tables of this extension stay the source of tru
 - A rename or a move keeps the group and its ID. So role mappings on the group stay.
 - A member that someone added by hand to such a group is taken out at the next rebuild.
 - A group that someone made by hand has no such attribute. The projection leaves it and its members alone, unless it sits below a group that the projection removes.
-- The projection never takes a user out of an organization. A person who left stays a member of the organization until an administrator removes them.
-- An organization that no unit links on its date loses every group that the projection made there, for example when the linked unit ends or its link is taken away. Its members stay.
+- Keycloak does not record who added a member to an organization. So the projection records each user that it adds, in the table `FUHITO_PROJECTED_MEMBER`.
+- A rebuild takes a recorded user out of the organization when no assignment of today puts the user there. For example, the person moved to a unit of another organization, or the assignment ended. The record goes too. Keycloak also takes the user out of every group of that organization.
+- A member with no record stays. These are the members that an administrator or an identity provider added. A user who was a member before the projection would add them gets no record, so that user stays too.
+- A managed member stays, also with a record, because Keycloak would remove a managed member from the realm. The record goes.
+- When an administrator takes a recorded member out by hand, the next rebuild removes the record. If an assignment still puts the user there, the rebuild adds the user again with a new record.
+- The records of a user go when Keycloak removes the user. The records of an organization go when Keycloak removes the organization.
+- An organization that no unit links on its date loses every group that the projection made there, for example when the linked unit ends or its link is taken away. It also loses every recorded member. Its other members stay.
+- The report has `organizationMembersAdded` and `organizationMembersRemoved`. They count the users that the rebuild added to an organization and took out of one.
 - Two units below one parent must have different names, because Keycloak requires it for groups. A rebuild fails with `projection.duplicate_name` otherwise, and changes nothing in that organization. The organizations that the rebuild handled before it stay as the rebuild left them.
 
 The projection records no admin events and no change log entries. It changes data of Keycloak, not data of the extension.
+The records of the members that it added describe Keycloak too. So an export does not have them, and a restore keeps them.
 
 ### Projection into realm groups
 
@@ -193,6 +202,7 @@ In the same transaction it ends only what would still hold.
 - An employment that would start on that day or later is removed, because it never held.
 - A reporting line where the user is the manager ends on that day.
 - Qualifications stay as they are.
+- The records of the organizations that the projection added the user to are removed.
 - The change log keeps every entry. It gets one more for each employment that ended. That entry has no acting user.
 
 So the person no longer shows up as a current member, in tokens, or in the projection.
