@@ -135,6 +135,12 @@ class ProjectionIT {
         }
     }
 
+    private void organizationsEnabled(boolean enabled) {
+        RealmRepresentation representation = admin.realm(realm).toRepresentation();
+        representation.setOrganizationsEnabled(enabled);
+        admin.realm(realm).update(representation);
+    }
+
     // The ID of the record of a member that the projection added, or an empty text for none.
     private static String record(String organization, String userId) throws Exception {
         return KeycloakEnvironment.sql("select id from fuhito_projected_member where kc_org_id = '" + organization
@@ -393,6 +399,34 @@ class ProjectionIT {
         assertEquals(0, keycloak("/organizations/" + xOrganization + "/groups/" + xGroup + "/members").size());
         assertEquals(1, Api.json(api.get("/projection/last-run")).get("report").get("organizationMembersRemoved")
                 .asInt());
+    }
+
+    @Test
+    void whileTheRealmTurnedOrganizationsOffTheRecordsStayForTheNextRebuild() throws Exception {
+        createRealm(true);
+        String organization = OrganizationLinkIT.createOrganization(admin, realm, "x-hospital");
+        String xHospital = unit("X病院", null);
+        String yHospital = unit("Y病院", null);
+        String nurse = user("nurse");
+        String assignment = staff(nurse, xHospital);
+        link(xHospital, organization);
+        rebuild();
+        String recorded = record(organization, nurse);
+        assertNotEquals("", recorded);
+
+        organizationsEnabled(false);
+        assertEquals(201, api.postWithVersion("/assignments/" + assignment + "/move",
+                "{\"orgUnitId\": \"" + yHospital + "\", \"validFrom\": \"2021-04-01\"}").statusCode());
+        JsonNode report = rebuild();
+
+        assertEquals(0, report.get("organizations").asInt());
+        assertEquals(0, report.get("organizationMembersRemoved").asInt());
+        assertEquals(recorded, record(organization, nurse));
+
+        organizationsEnabled(true);
+        assertEquals(1, rebuild().get("organizationMembersRemoved").asInt());
+        assertEquals(List.of(), members(organization));
+        assertEquals("", record(organization, nurse));
     }
 
     @Test

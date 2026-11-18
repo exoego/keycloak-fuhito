@@ -172,6 +172,7 @@ The projection goes one way. The tables of this extension stay the source of tru
 - When an administrator takes a recorded member out by hand, the next rebuild removes the record. If an assignment still puts the user there, the rebuild adds the user again with a new record.
 - The records of a user go when Keycloak removes the user. The records of an organization go when Keycloak removes the organization.
 - An organization that no unit links on its date loses every group that the projection made there, for example when the linked unit ends or its link is taken away. It also loses every recorded member. Its other members stay.
+- While organizations are off, because the server runs without the feature or the realm turned them off, a rebuild leaves every organization and every record alone. It still mirrors the realm groups. When a unit links an organization, the rebuild writes one warning to the server log. The first rebuild after organizations are on again takes out the recorded members that should go.
 - The report has `organizationMembersAdded` and `organizationMembersRemoved`. They count the users that the rebuild added to an organization and took out of one.
 - Two units below one parent must have different names, because Keycloak requires it for groups. A rebuild fails with `projection.duplicate_name` otherwise, and changes nothing in that organization. The organizations that the rebuild handled before it stay as the rebuild left them.
 

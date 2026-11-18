@@ -36,6 +36,10 @@ class ProjectionServiceTest {
     private final MemoryExternalIdStore externalIds = new MemoryExternalIdStore();
     private static final class MemoryGroups implements OrganizationGroups {
         private boolean enabled = true;
+        // The server runs with the organization feature off, or the realm turned organizations off.
+        private boolean noOrganizations;
+        // The number of links that each warning named.
+        private final List<Integer> skippedLinks = new ArrayList<>();
         private final Map<String, Group> groups = new LinkedHashMap<>();
         private final Map<String, String> organizationOfGroup = new HashMap<>();
         private final Map<String, Set<String>> members = new HashMap<>();
@@ -68,7 +72,18 @@ class ProjectionServiceTest {
         }
 
         @Override
+        public boolean organizationsAvailable() {
+            return !noOrganizations;
+        }
+
+        @Override
+        public void warnLinksSkipped(int links) {
+            skippedLinks.add(links);
+        }
+
+        @Override
         public List<String> organizations() {
+            requireOrganizations("every organization");
             Set<String> result = new java.util.TreeSet<>(organizationMembers.keySet());
             organizationOfGroup.values().stream().filter(id -> !id.startsWith("realm:")).forEach(result::add);
             return List.copyOf(result);
@@ -76,6 +91,7 @@ class ProjectionServiceTest {
 
         @Override
         public List<Group> groups(String organizationId) {
+            requireOrganizations(organizationId);
             List<Group> result = new ArrayList<>();
             collect(organizationId, null, result);
             return result;
@@ -91,6 +107,12 @@ class ProjectionServiceTest {
             }
         }
 
+        private void requireOrganizations(String organizationId) {
+            if (noOrganizations && !organizationId.startsWith("realm:")) {
+                fail("The server has no organizations: " + organizationId);
+            }
+        }
+
         // Keycloak allows one name among the groups of one parent.
         private void requireFree(String organizationId, String name, String parentId, String groupId) {
             for (Group other : groups.values()) {
@@ -103,6 +125,7 @@ class ProjectionServiceTest {
 
         @Override
         public String createGroup(String organizationId, String name, String parentId, String orgUnitId) {
+            requireOrganizations(organizationId);
             requireFree(organizationId, name, parentId, null);
             String id = "g" + nextId++;
             groups.put(id, new Group(id, name, parentId, orgUnitId));
@@ -119,6 +142,7 @@ class ProjectionServiceTest {
 
         @Override
         public void moveGroup(String organizationId, String groupId, String parentId) {
+            requireOrganizations(organizationId);
             Group group = groups.get(groupId);
             requireFree(organizationId, group.name(), parentId, groupId);
             groups.put(groupId, new Group(groupId, group.name(), parentId, group.orgUnitId()));
@@ -150,6 +174,7 @@ class ProjectionServiceTest {
 
         @Override
         public Set<String> organizationMembers(String organizationId, java.util.Collection<String> userIds) {
+            requireOrganizations(organizationId);
             Set<String> result = new HashSet<>(organizationMembers.getOrDefault(organizationId, Set.of()));
             result.retainAll(userIds);
             result.removeAll(outsideTable);
@@ -202,12 +227,14 @@ class ProjectionServiceTest {
 
         @Override
         public boolean addOrganizationMember(String organizationId, String userId) {
+            requireOrganizations(organizationId);
             writesOfPiece.add(userId);
             return organizationMembers.computeIfAbsent(organizationId, id -> new HashSet<>()).add(userId);
         }
 
         @Override
         public boolean removeOrganizationMember(String organizationId, String userId) {
+            requireOrganizations(organizationId);
             boolean removed = organizationMembers.getOrDefault(organizationId, new HashSet<>()).remove(userId);
             if (removed) {
                 groups(organizationId).forEach(group -> members.getOrDefault(group.id(), new HashSet<>())
@@ -311,6 +338,39 @@ class ProjectionServiceTest {
         // The ward is no longer below the hospital, so the nurse left its organization.
         assertEquals(Set.of("director", "head-nurse"), keycloak.organizationMembers.get("org-x"));
         assertEquals(new ProjectionReport(1, 0, 0, 0, 0, 0, 0, 0, 0, 1), rebuild());
+    }
+
+    @Test
+    void aLinkedUnitIsSkippedWhileOrganizationsAreOffAndTheRealmGroupIsStillMirrored() {
+        keycloak.realmGroup = "org";
+        keycloak.noOrganizations = true;
+        List<String> asked = new ArrayList<>();
+
+        ProjectionReport report = new ProjectionService(orgUnitStore, assignmentStore, employmentStore, refItems,
+                keycloak, projectedMembers, CLOCK).rebuild(asked::add, () -> asked.add("realm groups"));
+
+        assertEquals(List.of("realm groups"), asked);
+        assertEquals(new ProjectionReport(0, 3, 0, 0, 0, 3, 0, 0, 0, 1), report);
+        assertEquals(List.of("Hospital [director]", "Nursing < Hospital [head-nurse]", "Ward < Nursing [nurse]"),
+                keycloak.describe("realm:org"));
+        assertEquals(List.of(1), keycloak.skippedLinks);
+    }
+
+    @Test
+    void whileOrganizationsAreOffTheRecordsStayForTheNextRebuild() {
+        rebuild();
+        projectedMembers.record("org-gone", "visitor");
+        assignments.end(nurseAssignment, "2026-06-01");
+        keycloak.noOrganizations = true;
+        String records = projectedMembers.records.toString();
+
+        assertEquals(new ProjectionReport(0, 0, 0, 0, 0, 0, 0, 0, 0, 0), rebuild());
+        assertEquals(records, projectedMembers.records.toString());
+
+        keycloak.noOrganizations = false;
+        assertEquals(1, rebuild().organizationMembersRemoved());
+        assertEquals(Set.of("director", "head-nurse"), keycloak.organizationMembers.get("org-x"));
+        assertEquals(List.of("org-x"), projectedMembers.organizations());
     }
 
     @Test
