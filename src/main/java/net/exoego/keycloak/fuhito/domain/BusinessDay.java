@@ -3,8 +3,11 @@ package net.exoego.keycloak.fuhito.domain;
 import java.time.Clock;
 import java.time.DateTimeException;
 import java.time.Duration;
+import java.time.Instant;
+import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.time.format.ResolverStyle;
@@ -43,6 +46,18 @@ public final class BusinessDay {
         public Clock clock(Clock base) {
             // Before the day start, the date is still the date of the day before.
             return Clock.offset(base.withZone(zone), Duration.ofSeconds(-dayStart.toSecondOfDay()));
+        }
+
+        /**
+         * Returns the first instant after the given one at which the date of this rule changes.
+         * It agrees with {@link #clock(Clock)}, also on a day that is shorter or longer because of summer time.
+         *
+         * @param after the instant
+         * @return the start of the next date
+         */
+        public Instant nextDayStart(Instant after) {
+            LocalDate today = LocalDate.now(clock(Clock.fixed(after, ZoneOffset.UTC)));
+            return today.plusDays(1).atStartOfDay(zone).toInstant().plusSeconds(dayStart.toSecondOfDay());
         }
 
         /**

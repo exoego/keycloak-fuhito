@@ -99,6 +99,23 @@ class UnitDaysTest {
     }
 
     @Test
+    void theRulesAreTheRuleOfTheRealmAndTheRuleOfEachUnitWithATimeOfItsOwn() {
+        String america = unit("America", null);
+        String sales = unit("Sales", america);
+        unit("Team", sales);
+        String japan = unit("Japan", null);
+        assertEquals(Set.of(TOKYO), days().rules());
+
+        orgUnits.setTime(america, "America/New_York", null);
+        orgUnits.setTime(sales, null, "13:00");
+        // The same rule as the realm counts once.
+        orgUnits.setTime(japan, "Asia/Tokyo", null);
+
+        assertEquals(Set.of(TOKYO, BusinessDay.rule("America/New_York", null),
+                BusinessDay.rule("America/New_York", "13:00")), days().rules());
+    }
+
+    @Test
     void aUnitFollowsTheParentItHasToday() {
         String america = unit("America", null);
         String japan = unit("Japan", null);
