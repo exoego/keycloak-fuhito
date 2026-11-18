@@ -132,6 +132,7 @@ So a rebuild that fails in the middle keeps the pieces that it finished. The gro
 
 Only one rebuild runs for a realm at a time, on all nodes of a cluster. A second call fails with `projection.running` and the status 409.
 The timer skips a realm whose rebuild is still going on, and records no run for it. It looks at the realm again at its next check, a minute later.
+After the timer takes the lock of a realm, it reads the last run of the realm again. So a realm that another node ran in the meantime does not run a second time.
 The lock goes away by itself after six hours, for the case that a node dies with it.
 
 A rebuild reads who is in which group from the table of Keycloak, for many groups in one query.

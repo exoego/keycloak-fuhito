@@ -89,14 +89,18 @@ final class ProjectionSchedule {
             for (String realmId : realmIds) {
                 // Sessions of its own for each realm, so a failure in one realm leaves the others alone.
                 try {
-                    KeycloakModelUtils.runJobInTransactionWithResult(factory,
-                            each -> due(each, realmId, Instant.now())).ifPresent(due -> run(factory, realmId, due));
+                    due(factory, realmId).ifPresent(due -> run(factory, realmId, due));
                 } catch (RuntimeException e) {
                     LOG.errorf(e, "The scheduled projection failed for the realm with the ID %s.", realmId);
                 }
             }
             return null;
         });
+    }
+
+    private static Optional<Due> due(KeycloakSessionFactory factory, String realmId) {
+        return KeycloakModelUtils.runJobInTransactionWithResult(factory,
+                session -> due(session, realmId, Instant.now()));
     }
 
     private static Optional<Due> due(KeycloakSession session, String realmId, Instant now) {
@@ -129,13 +133,14 @@ final class ProjectionSchedule {
                     session -> DailyProjection.rebuild(
                             new ProjectionTransactions(factory, realmId, due.rule(), session),
                             work -> new ProjectionService(work).rebuild(),
+                            () -> due(factory, realmId).isPresent(),
                             error -> record(factory, realmId, startedAt, error)));
             if (report.isPresent()) {
                 LOG.debugf("The scheduled projection of realm %s is done: %s", due.name(), report.get());
             } else {
-                // A call or another node rebuilds the realm. That is no failure.
+                // A call or another node rebuilds the realm, or just rebuilt it. That is no failure.
                 LOG.debugf("The scheduled projection of realm %s waits for the next check, as another rebuild"
-                        + " of it is going on.", due.name());
+                        + " of it is going on or just ended.", due.name());
             }
         } catch (FuhitoException e) {
             // The data of the realm must change first, so a stack trace on every run would only be noise.

@@ -2,6 +2,8 @@ package net.exoego.keycloak.fuhito.keycloak;
 
 import java.time.Clock;
 import java.util.List;
+import java.util.Optional;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -57,6 +59,12 @@ public final class ProjectionTransactions implements ProjectionService.Work {
     public <T> T alone(Supplier<T> run) {
         return OneAtATime.outsideTransaction(caller,
                 () -> OneAtATime.run(factory, "projection", realmId, run));
+    }
+
+    @Override
+    public <T> Optional<T> aloneIf(BooleanSupplier check, Supplier<T> run) {
+        return OneAtATime.outsideTransaction(caller,
+                () -> OneAtATime.runIf(factory, "projection", realmId, check, run));
     }
 
     // Each piece takes a session of its own, so the threads share nothing of Keycloak.

@@ -5,6 +5,7 @@ import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -81,22 +82,27 @@ public final class DailyProjection {
 
     /**
      * Rebuilds the projection as the run of the timer, and records the run.
+     * After it takes the lock of the realm, it checks again that the realm is due. Another node may have run the
+     * realm since the timer read the last run.
      * The run is recorded while the rebuild still holds the lock of the realm. So a node that checks right after
      * the rebuild finds the run, and does not run the realm again.
      * When another rebuild of the realm goes on, from a call or on another node, nothing runs and nothing is
      * recorded. The next check looks at the realm again.
      *
      * @param <T> the type of the report
-     * @param work the work of the rebuild. Its {@link ProjectionService.Work#alone} holds the lock of the realm.
+     * @param work the work of the rebuild. Its {@link ProjectionService.Work#aloneIf} holds the lock of the realm.
      * @param rebuild rebuilds with the work that it gets
+     * @param due reads the last run again and says whether the realm is still due
      * @param record records the run. It gets the code of the error, or null when the rebuild is done.
-     * @return the report, or empty when another rebuild of the realm goes on
+     * @return the report, or empty when another rebuild of the realm goes on or the realm is no longer due
      */
     public static <T> Optional<T> rebuild(ProjectionService.Work work, Function<ProjectionService.Work, T> rebuild,
-            Consumer<String> record) {
-        var timer = new TimerWork(work, record);
+            BooleanSupplier due, Consumer<String> record) {
+        var timer = new TimerWork(work, due, record);
         try {
             return Optional.of(rebuild.apply(timer));
+        } catch (NotDue e) {
+            return Optional.empty();
         } catch (FuhitoException e) {
             if (!timer.recorded && e.code().equals(RUNNING)) {
                 return Optional.empty();
@@ -104,7 +110,7 @@ public final class DailyProjection {
             timer.recordOnce(e.code());
             throw e;
         } catch (RuntimeException e) {
-            // A crash before the rebuild took the lock counts as a failure too.
+            // A crash before the run started counts as a failure too.
             timer.recordOnce(INTERNAL);
             throw e;
         }
@@ -123,15 +129,27 @@ public final class DailyProjection {
         runs.ended(JOB, endedAt, error == null ? "DONE" : "FAILED", null, error);
     }
 
+    // Ends a rebuild that found the realm no longer due. The lock is free again by then.
+    private static final class NotDue extends RuntimeException {
+
+        private static final long serialVersionUID = 1L;
+
+        NotDue() {
+            super(null, null, false, false);
+        }
+    }
+
     // Records the run once, inside the lock of the realm when the rebuild got that far.
     private static final class TimerWork implements ProjectionService.Work {
 
         private final ProjectionService.Work work;
+        private final BooleanSupplier due;
         private final Consumer<String> record;
         private boolean recorded;
 
-        TimerWork(ProjectionService.Work work, Consumer<String> record) {
+        TimerWork(ProjectionService.Work work, BooleanSupplier due, Consumer<String> record) {
             this.work = work;
+            this.due = due;
             this.record = record;
         }
 
@@ -148,7 +166,7 @@ public final class DailyProjection {
         // A crash counts as a failure too. Otherwise the realm would run again at the next check.
         @Override
         public <T> T alone(Supplier<T> run) {
-            return work.alone(() -> {
+            return work.aloneIf(due, () -> {
                 String error = INTERNAL;
                 try {
                     T result = run.get();
@@ -160,7 +178,7 @@ public final class DailyProjection {
                 } finally {
                     recordOnce(error);
                 }
-            });
+            }).orElseThrow(NotDue::new);
         }
 
         void recordOnce(String error) {
