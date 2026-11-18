@@ -33,7 +33,7 @@ public record RefItemRepresentation(
         Integer displayOrder,
         @Schema(description = "Free values that the realm defines.")
         Map<String, Object> attributes,
-        @Schema(description = "False when the item must not be used for new data.")
+        @Schema(description = "False when the item must not be used for new data.", defaultValue = "true")
         Boolean active,
         @Schema(
                 description = "True for a unit type whose org units are legal entities, such as a company. Only "

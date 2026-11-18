@@ -250,6 +250,25 @@ class RefItemsIT {
         assertEquals("2026-04-01", versions.get(0).get("validFrom").asText());
     }
 
+    @Test
+    void createsAnInactiveItem() throws Exception {
+        JsonNode item = created(api.post("/ref-items",
+                "{\"kind\": \"UNIT_TYPE\", \"code\": \"created-inactive\", \"name\": \"x\", \"active\": false}"));
+
+        assertFalse(item.get("active").asBoolean());
+        assertFalse(Api.json(api.get("/ref-items/" + item.get("id").asText())).get("active").asBoolean());
+        assertFalse(codes(api.get("/ref-items?kind=UNIT_TYPE")).contains("created-inactive"));
+    }
+
+    @Test
+    void createsAnActiveItemWhenTheBodyLeavesActiveOut() throws Exception {
+        JsonNode item = created(api.post("/ref-items",
+                "{\"kind\": \"UNIT_TYPE\", \"code\": \"created-active\", \"name\": \"x\"}"));
+
+        assertTrue(item.get("active").asBoolean());
+        assertTrue(Api.json(api.get("/ref-items/" + item.get("id").asText())).get("active").asBoolean());
+    }
+
     private static String name(HttpResponse<String> list, String code) throws Exception {
         assertEquals(200, list.statusCode(), list.body());
         for (JsonNode item : Api.json(list)) {

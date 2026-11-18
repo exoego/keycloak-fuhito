@@ -3003,6 +3003,7 @@ components:
         active:
           type: boolean
           description: False when the item must not be used for new data.
+          default: true
         legalEntity:
           type: boolean
           description: "True for a unit type whose org units are legal entities, such\

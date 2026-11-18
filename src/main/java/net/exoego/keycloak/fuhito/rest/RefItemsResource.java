@@ -163,7 +163,8 @@ public class RefItemsResource {
         return Calls.once(context, body, Response.class, () -> Calls.run(context, () -> {
             Checks.required("body", body);
             var item = RefItemRepresentation.of(service.create(body.kind(), body.code(), body.name(),
-                    body.names(), body.displayOrder(), body.attributes(), body.marks(), true, body.validFrom()));
+                    body.names(), body.displayOrder(), body.attributes(), body.marks(),
+                    !Boolean.FALSE.equals(body.active()), body.validFrom()));
             context.recordChange(Change.CREATE, RESOURCE_TYPE, item.id(), path(item.id()), item);
             return Response.status(Response.Status.CREATED).entity(item).build();
         }));
