@@ -3,7 +3,11 @@ package net.exoego.keycloak.fuhito.jpa;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.TypedQuery;
@@ -97,6 +101,26 @@ public class JpaAssignmentStore implements AssignmentStore {
                 .getResultStream()
                 .map(JpaAssignmentStore::toDomain)
                 .toList();
+    }
+
+    @Override
+    public Map<String, Set<String>> usersOn(Collection<String> orgUnitIds, LocalDate date) {
+        Map<String, Set<String>> result = new HashMap<>();
+        em.createQuery("""
+                        select a.orgUnitId, p.userId from AssignmentEntity a
+                        join EmploymentEntity e on e.id = a.employmentId and e.realmId = :realmId
+                        join PersonEntity p on p.id = e.personId
+                        where a.realmId = :realmId and %s
+                        and a.validFrom <= :date and (a.validTo is null or a.validTo > :date)
+                        and p.userId is not null""".formatted(ManyIds.has("a.orgUnitId", "orgUnitIds")),
+                        Object[].class)
+                .setParameter("realmId", realmId)
+                .setParameter("orgUnitIds", ManyIds.of(orgUnitIds))
+                .setParameter("date", date)
+                .getResultStream()
+                .forEach(row -> result.computeIfAbsent((String) row[0], id -> new LinkedHashSet<>())
+                        .add((String) row[1]));
+        return result;
     }
 
     // Each employer with itself and every org unit below it. A person who works in one of those is at home.

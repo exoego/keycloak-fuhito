@@ -3,6 +3,8 @@ package net.exoego.keycloak.fuhito.store;
 import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import net.exoego.keycloak.fuhito.domain.Assignment;
 import net.exoego.keycloak.fuhito.domain.MemberCursor;
@@ -54,6 +56,16 @@ public interface AssignmentStore {
      * @return the rows
      */
     List<Assignment> rowsOn(Collection<String> orgUnitIds, LocalDate date);
+
+    /**
+     * Lists the Keycloak users of the rows that are valid on a date in any of the given org units.
+     * A row whose person has no Keycloak user is left out.
+     *
+     * @param orgUnitIds the IDs of the org units, at least one
+     * @param date the date
+     * @return the IDs of the users by the ID of their org unit. A unit with no such row is left out.
+     */
+    Map<String, Set<String>> usersOn(Collection<String> orgUnitIds, LocalDate date);
 
     /**
      * Lists a page of the rows of the members of an org unit on a date.
