@@ -38,7 +38,7 @@ public class UnitRoleService {
      * A role on a date, with the names that show it.
      *
      * @param view the role with the code of its reference item
-     * @param roleName the name of the role, or null when the role is unknown
+     * @param roleName the name of the role on the date, or null when the role is unknown
      * @param orgUnitName the name of the org unit on the date, or null when the unit does not exist on the date
      */
     public record Holder(View view, String roleName, String orgUnitName) {
@@ -192,7 +192,7 @@ public class UnitRoleService {
         String afterId = after == null ? null : Cursor.decode(Cursor.UNIT_ROLES, after).getFirst();
         List<UnitRole> roles = store.searchOn(filter, afterId, page.first(), page.max());
         Map<String, RefItem> items = new HashMap<>();
-        sources.refItems().list(RefKind.UNIT_ROLE, true).forEach(item -> items.put(item.id(), item));
+        sources.refItems().list(RefKind.UNIT_ROLE, true, filter.date()).forEach(item -> items.put(item.id(), item));
         Map<String, String> unitNames = new HashMap<>();
         sources.orgUnits().placedOn(sources.orgUnits().defaultHierarchyId(),
                         roles.stream().map(UnitRole::orgUnitId).distinct().toList(), filter.date())

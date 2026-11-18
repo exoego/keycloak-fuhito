@@ -64,7 +64,7 @@ class RestrictedDatabaseIT {
                             .withEnv("KC_FEATURES_DISABLED", "organization")) {
                 keycloak.start();
 
-                assertEquals("7", psql(postgres, "select count(*) from pg_constraint where conname like 'ex_fuhito_%'"));
+                assertEquals("8", psql(postgres, "select count(*) from pg_constraint where conname like 'ex_fuhito_%'"));
                 assertALinkToAnOrganizationIsRefused(keycloak);
                 Coverage.save(keycloak);
             }

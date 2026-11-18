@@ -41,22 +41,27 @@ public class RefItemsResource {
 
     private final RequestContext context;
     private final RefItemService service;
+    private final StructureLimit limit;
 
     /**
      * Creates the resource for one request.
      *
      * @param context the request and its caller
      * @param service the operations on the realm of the request
+     * @param limit how far ahead a caller who may read only the structure may read
      */
-    public RefItemsResource(RequestContext context, RefItemService service) {
+    RefItemsResource(RequestContext context, RefItemService service, StructureLimit limit) {
         this.context = context;
         this.service = service;
+        this.limit = limit;
     }
 
     @GET
     @Operation(
             operationId = "listRefItems",
-            summary = "Lists the items of a kind, ordered by display order and then by code.")
+            summary = "Lists the items of a kind, ordered by display order and then by code.",
+            description = "Each item has the names of the date. A date before the first names of an item gets "
+                    + "its first names.")
     @APIResponse(responseCode = "200", description = "The items.")
     @BadRequest
     @ApiErrors
@@ -66,6 +71,10 @@ public class RefItemsResource {
             @Parameter(description = "True to also return inactive items.", schema = @Schema(defaultValue = "false"))
             @QueryParam("includeInactive") boolean includeInactive,
             @Parameter(
+                    description = "The date of the names. The default is today in the time zone of the realm.",
+                    schema = @Schema(format = "date"))
+            @QueryParam("asOf") String asOf,
+            @Parameter(
                     description = "The number of entries to skip.",
                     schema = @Schema(minimum = "0", defaultValue = "0"))
             @QueryParam("first") Integer first,
@@ -74,8 +83,9 @@ public class RefItemsResource {
                     schema = @Schema(minimum = "0", maximum = "1000", defaultValue = "100"))
             @QueryParam("max") Integer max) {
         context.requireReadStructure();
-        return Calls.run(context, () -> service.list(kind, includeInactive, Page.of(first, max)).stream()
-                .map(RefItemRepresentation::of)
+        return Calls.run(context, () -> service.list(kind, includeInactive, limit.checked(asOf), Page.of(first, max))
+                .stream()
+                .map(item -> RefItemRepresentation.of(limit.readable(item)))
                 .toList());
     }
 
@@ -83,7 +93,8 @@ public class RefItemsResource {
     @Path("count")
     @Operation(
             operationId = "countRefItems",
-            summary = "Counts the items that `GET /ref-items` lists with the same filters.")
+            summary = "Counts the items that `GET /ref-items` lists with the same filters.",
+            description = "Every item has names on every date, so the count is the same for every date.")
     @APIResponse(responseCode = "200", description = "The number of items on all pages.")
     @BadRequest
     @ApiErrors
@@ -98,22 +109,47 @@ public class RefItemsResource {
 
     @GET
     @Path("{id}")
-    @Operation(operationId = "getRefItem", summary = "Returns one item.")
+    @Operation(operationId = "getRefItem", summary = "Returns one item with the names of a date.")
     @APIResponse(responseCode = "200", description = "The item.")
     @NotFound
     @ApiErrors
     public RefItemRepresentation get(
             @Parameter(description = "The ID of the resource.")
+            @PathParam("id") String id,
+            @Parameter(
+                    description = "The date of the names. The default is today in the time zone of the realm.",
+                    schema = @Schema(format = "date"))
+            @QueryParam("asOf") String asOf) {
+        context.requireReadStructure();
+        return Calls.run(context, () -> RefItemRepresentation.of(limit.readable(service.get(id, limit.checked(asOf)))));
+    }
+
+    @GET
+    @Path("{id}/history")
+    @Operation(
+            operationId = "getRefItemHistory",
+            summary = "Returns every period of the names of an item.",
+            description = "A caller who may read only the structure gets 403 when the realm attribute "
+                    + "`fuhito.structure.daysAhead` limits how far ahead the caller may read.")
+    @APIResponse(responseCode = "200", description = "The names of every period, oldest first.")
+    @NotFound
+    @ApiErrors
+    public RefItemHistoryRepresentation history(
+            @Parameter(description = "The ID of the resource.")
             @PathParam("id") String id) {
         context.requireReadStructure();
-        return Calls.run(context, () -> RefItemRepresentation.of(service.get(id)));
+        return Calls.run(context, () -> {
+            limit.requireEveryDate();
+            return RefItemHistoryRepresentation.of(service.history(id));
+        });
     }
 
     @POST
     @Operation(
             operationId = "createRefItem",
             summary = "Creates an item.",
-            description = "The body needs `kind`, `code`, and `name`.")
+            description = "The body needs `kind`, `code`, and `name`. With `validFrom`, the names hold from that "
+                    + "date. Without it, they hold for every date.")
     @Parameter(ref = "changeOrder")
     @APIResponse(
             responseCode = "201",
@@ -127,7 +163,7 @@ public class RefItemsResource {
         return Calls.once(context, body, Response.class, () -> Calls.run(context, () -> {
             Checks.required("body", body);
             var item = RefItemRepresentation.of(service.create(body.kind(), body.code(), body.name(),
-                    body.names(), body.displayOrder(), body.attributes(), body.marks()));
+                    body.names(), body.displayOrder(), body.attributes(), body.marks(), true, body.validFrom()));
             context.recordChange(Change.CREATE, RESOURCE_TYPE, item.id(), path(item.id()), item);
             return Response.status(Response.Status.CREATED).entity(item).build();
         }));
@@ -138,7 +174,11 @@ public class RefItemsResource {
     @Operation(
             operationId = "updateRefItem",
             summary = "Replaces the changeable values of an item.",
-            description = "The kind and the code never change. The body can leave them out.")
+            description = "The kind and the code never change. The body can leave them out. Only the names have "
+                    + "dates. With `validFrom`, the new names hold from that date until the next stored names, and "
+                    + "the old names stay for the dates before. A date that starts stored names corrects them. "
+                    + "Without `validFrom`, the write changes the names of today. The response has the names of "
+                    + "that date.")
     @Parameter(ref = "changeOrder")
     @APIResponse(responseCode = "200", description = "The changed item.")
     @BadRequest
@@ -151,9 +191,9 @@ public class RefItemsResource {
                     schema = @Schema(allOf = {RefItemRepresentation.class, VersionCheckRepresentation.class})))
             RefItemRepresentation body) {
         context.requireWrite();
-        return Calls.guarded(context, body, () -> version(id), () -> {
+        return Calls.guarded(context, body, () -> service.version(id), () -> {
             var item = RefItemRepresentation.of(service.update(id, body.name(), body.names(), body.displayOrder(),
-                    body.attributes(), body.active(), body.marks()));
+                    body.attributes(), body.active(), body.marks(), body.validFrom()));
             context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, path(id), item);
             return item;
         });
@@ -176,7 +216,7 @@ public class RefItemsResource {
                     schema = @Schema(type = SchemaType.INTEGER, format = "int64"))
             @QueryParam("version") String version) {
         context.requireWrite();
-        return Calls.guarded(context, version, () -> version(id), () -> {
+        return Calls.guarded(context, version, () -> service.version(id), () -> {
             service.delete(id);
             context.recordChange(Change.DELETE, RESOURCE_TYPE, id, path(id), null);
             return Response.noContent().build();
@@ -185,9 +225,5 @@ public class RefItemsResource {
 
     private static String path(String id) {
         return "fuhito/ref-items/" + id;
-    }
-
-    private long version(String id) {
-        return service.get(id).version();
     }
 }

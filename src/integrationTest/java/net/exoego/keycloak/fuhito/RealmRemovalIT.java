@@ -9,7 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
 class RealmRemovalIT {
 
-    private static final List<String> TABLES = List.of("fuhito_hierarchy", "fuhito_ref_item",
+    private static final List<String> TABLES = List.of("fuhito_hierarchy", "fuhito_ref_item", "fuhito_ref_item_name",
             "fuhito_attribute_definition", "fuhito_ref_kind", "fuhito_external_id", "fuhito_idempotency_key", "fuhito_job_run", "fuhito_org_unit",
             "fuhito_org_unit_version", "fuhito_org_unit_link", "fuhito_org_unit_succession", "fuhito_employment", "fuhito_employment_terms",
             "fuhito_assignment", "fuhito_change_order", "fuhito_change_log", "fuhito_change_log_counter", "fuhito_qualification",

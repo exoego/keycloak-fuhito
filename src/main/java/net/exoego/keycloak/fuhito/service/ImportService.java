@@ -1,5 +1,6 @@
 package net.exoego.keycloak.fuhito.service;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -140,7 +141,7 @@ public class ImportService {
      */
     public ImportReport apply(ImportDocument document) {
         Checks.required("body", document);
-        Checks.date("effectiveDate", document.effectiveDate());
+        LocalDate effectiveDate = Checks.date("effectiveDate", document.effectiveDate());
         String source = Checks.optionalCode("source", document.source());
         ImportReport report = new ImportReport();
         if (document.changeOrders() != null) {
@@ -155,7 +156,7 @@ public class ImportService {
                     row -> importAttributeDefinition(row, report));
         }
         if (document.refItems() != null) {
-            each(REF_ITEMS, document.refItems(), report, row -> importRefItem(row, report));
+            each(REF_ITEMS, document.refItems(), report, row -> importRefItem(row, effectiveDate, report));
         }
         if (document.hierarchies() != null) {
             each(HIERARCHIES, document.hierarchies(), report, row -> importHierarchy(row, report));
@@ -261,14 +262,17 @@ public class ImportService {
         return Outcome.CHANGED;
     }
 
-    private Outcome importRefItem(RefItemRow row, ImportReport report) {
+    // A row compares with the names of its date, so the same row on the same date changes nothing.
+    private Outcome importRefItem(RefItemRow row, LocalDate effectiveDate, ImportReport report) {
         String kind = Checks.required("kind", row.kind());
         String code = Checks.code("code", row.code());
-        Optional<RefItem> stored = refItems.findByCode(kind, code);
+        LocalDate validFrom = Checks.optionalDate("validFrom", row.validFrom());
+        LocalDate date = validFrom == null ? effectiveDate : validFrom;
+        Optional<RefItem> stored = refItems.findByCode(kind, code, date);
         if (stored.isEmpty()) {
             RefItemService.Marks marks = new RefItemService.Marks(row.legalEntity(), row.actingHead(), row.lateral());
             RefItem item = refItemService.create(kind, code, row.name(), row.names(), row.displayOrder(),
-                    row.attributes(), marks, !Boolean.FALSE.equals(row.active()));
+                    row.attributes(), marks, !Boolean.FALSE.equals(row.active()), row.validFrom());
             report.write(new Write.OfRefItem(true, item));
             return Outcome.CREATED;
         }
@@ -278,13 +282,14 @@ public class ImportService {
                 row.attributes() == null ? Map.of() : row.attributes(), row.active() == null || row.active(),
                 row.legalEntity() == null ? before.legalEntity() : row.legalEntity(),
                 row.actingHead() == null ? before.actingHead() : row.actingHead(),
-                row.lateral() == null ? before.lateral() : row.lateral(), before.version());
+                row.lateral() == null ? before.lateral() : row.lateral(), before.version(), before.validFrom(),
+                before.validTo());
         if (wanted.equals(before)) {
             return Outcome.UNCHANGED;
         }
         RefItem item = refItemService.update(before.id(), row.name(), row.names(), row.displayOrder(),
                 row.attributes(), row.active(), new RefItemService.Marks(wanted.legalEntity(), wanted.actingHead(),
-                        wanted.lateral()));
+                        wanted.lateral()), date.toString());
         report.write(new Write.OfRefItem(false, item));
         return Outcome.CHANGED;
     }

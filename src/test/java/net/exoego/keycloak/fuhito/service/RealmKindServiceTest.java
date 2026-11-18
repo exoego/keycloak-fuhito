@@ -67,7 +67,7 @@ class RealmKindServiceTest {
         assertFalse(kinds.isKnown("cost-center"));
 
         refItems.create("work-location", "tokyo", "東京", null, null, null, RefItemService.Marks.NONE);
-        assertEquals(List.of("tokyo"), refItems.list("work-location", false, Page.of(null, null)).stream()
+        assertEquals(List.of("tokyo"), refItems.list("work-location", false, null, Page.of(null, null)).stream()
                 .map(item -> item.code()).toList());
         assertEquals("invalid.kind", code(() -> refItems.create("cost-center", "c1", "C1", null, null, null,
                 RefItemService.Marks.NONE)));
@@ -86,7 +86,7 @@ class RealmKindServiceTest {
                 null, null)));
 
         assertEquals("ref_kind.in_use", code(() -> kinds.delete("work-location")));
-        refItems.delete(refItems.list("work-location", true, Page.of(null, null)).getFirst().id());
+        refItems.delete(refItems.list("work-location", true, null, Page.of(null, null)).getFirst().id());
         kinds.delete("work-location");
         assertFalse(kinds.isKnown("work-location"));
     }

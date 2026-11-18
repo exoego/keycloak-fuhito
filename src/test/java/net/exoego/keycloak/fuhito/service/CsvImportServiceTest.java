@@ -104,6 +104,24 @@ class CsvImportServiceTest {
     }
 
     @Test
+    void loadsTheNamesOfAReferenceItemFromTheDateOfTheRow() {
+        load("refItems", "2026-04-01", "kind,code,name,name:en\nJOB_TITLE,chief,主任,Chief\n");
+
+        // A blank name keeps the names of the date of the row.
+        CsvImportService.Result result = load("refItems", "2026-04-01", """
+                種類,コード,名称,名称:en,開始日
+                JOB_TITLE,chief,,Senior Chief,2027-04-01
+                JOB_TITLE,chief,,,2027-13-01
+                """);
+
+        assertEquals(List.of("line 3 row 1 invalid.date"), errors(result));
+        RefItem item = refItems.findByCode(RefKind.JOB_TITLE, "chief").orElseThrow();
+        assertEquals(List.of("null 主任 Chief", "2027-04-01 主任 Senior Chief"), refItems.names(item.id()).stream()
+                .map(n -> n.validFrom() + " " + n.name() + " " + n.names().get("en"))
+                .toList());
+    }
+
+    @Test
     void aBlankCellKeepsTheStoredValueAndClearRemovesIt() {
         item(RefKind.UNIT_TYPE, "ward");
         load("orgUnits", "2026-04-01", """

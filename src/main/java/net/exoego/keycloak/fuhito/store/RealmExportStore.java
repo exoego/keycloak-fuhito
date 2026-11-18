@@ -21,6 +21,7 @@ import net.exoego.keycloak.fuhito.domain.Person;
 import net.exoego.keycloak.fuhito.domain.Qualification;
 import net.exoego.keycloak.fuhito.domain.RealmKind;
 import net.exoego.keycloak.fuhito.domain.RefItem;
+import net.exoego.keycloak.fuhito.domain.RefItemName;
 import net.exoego.keycloak.fuhito.domain.ReportingLine;
 import net.exoego.keycloak.fuhito.domain.UnitRole;
 
@@ -70,6 +71,14 @@ public interface RealmExportStore {
      * @return the pages
      */
     Page<RefItem> refItems();
+
+    /**
+     * Lists every period of the names of some reference items.
+     *
+     * @param refItemIds the IDs
+     * @return the periods, in no order
+     */
+    List<RefItemName> namesOf(Collection<String> refItemIds);
 
     /**
      * Pages through the definitions of free attributes.

@@ -1011,6 +1011,7 @@ components:
           type: string
     ExportRefItem:
       type: object
+      description: A reference item with every period of its names.
       properties:
         id:
           type: string
@@ -1023,10 +1024,13 @@ components:
           type: string
         name:
           type: string
+          description: Only in an export from before names had periods. A restore
+            takes it as the name for every date when `versions` is missing.
         names:
           type: object
           additionalProperties:
             type: string
+          description: "Only in an export from before names had periods, with `name`."
         displayOrder:
           type: integer
           format: int32
@@ -1041,6 +1045,28 @@ components:
           type: boolean
         lateral:
           type: boolean
+        versions:
+          type: array
+          items:
+            $ref: "#/components/schemas/ExportRefItemNames"
+          description: "The names of each period, oldest first."
+    ExportRefItemNames:
+      type: object
+      description: The names of a reference item for a period. A missing `validFrom`
+        means that they hold from the start.
+      properties:
+        id:
+          type: string
+        validFrom:
+          type: string
+        validTo:
+          type: string
+        name:
+          type: string
+        names:
+          type: object
+          additionalProperties:
+            type: string
     ExportRefKind:
       type: object
       properties:
@@ -1903,6 +1929,13 @@ components:
           description: "True for a unit type whose org units are lateral units, outside\
             \ the line organization. A row that leaves it out keeps the mark of a\
             \ stored item."
+        validFrom:
+          type: string
+          description: The first date of the names of the row. A new item without
+            it has names that hold for every date. A stored item without it gets the
+            names from the effective date. A date that starts stored names corrects
+            them.
+          format: date
     ImportRefKindRow:
       type: object
       required:
@@ -2951,12 +2984,13 @@ components:
         name:
           type: string
           maxLength: 255
-          description: The default name.
+          description: The default name. A read gives the name of its date.
         names:
           type: object
           additionalProperties:
             type: string
-          description: "Names in other languages, by language tag."
+          description: "Names in other languages, by language tag. A read gives the\
+            \ names of its date."
         displayOrder:
           type: integer
           format: int32
@@ -2986,6 +3020,69 @@ components:
             \ or a project team. Only the kind `UNIT_TYPE` can have it. It cannot\
             \ change while an org unit has the type."
           default: false
+        validFrom:
+          type: string
+          description: The first date of the names. A create without it gives names
+            that hold for every date. A change without it changes the names of today.
+            A change with it keeps the old names for the dates before. A read leaves
+            it out for names that hold from the start.
+          format: date
+        validTo:
+          type: string
+          description: The first date after the names. It is missing for no end.
+          format: date
+          readOnly: true
+    RefItemHistory:
+      required:
+      - id
+      - version
+      - kind
+      - code
+      - versions
+      description: Every period of the names of a reference item. The other values
+        of the item have no dates.
+      type: object
+      properties:
+        id:
+          type: string
+        version:
+          type: integer
+          format: int64
+          description: The version of the item. A write of names counts it up too.
+          readOnly: true
+        kind:
+          type: string
+        code:
+          type: string
+        versions:
+          type: array
+          items:
+            $ref: "#/components/schemas/RefItemNames"
+          description: "The names of each period, oldest first."
+    RefItemNames:
+      type: object
+      required:
+      - name
+      - names
+      description: The names of a reference item for a period.
+      properties:
+        validFrom:
+          type: string
+          description: The first date. It is missing for names that hold from the
+            start.
+          format: date
+        validTo:
+          type: string
+          description: The first date after the period. It is missing for no end.
+          format: date
+        name:
+          type: string
+          description: The default name.
+        names:
+          type: object
+          additionalProperties:
+            type: string
+          description: "Names in other languages, by language tag."
     RefKind:
       type: string
       enum:
@@ -3317,7 +3414,7 @@ components:
           description: The code of a reference item of the kind `UNIT_ROLE`.
         roleName:
           type: string
-          description: The name of the reference item of the role.
+          description: The name of the reference item of the role on the date.
         includesDescendants:
           type: boolean
           description: True when the role also covers every unit below in the default
@@ -6058,8 +6155,8 @@ paths:
         \ has an ID has the column `id`, so that a row of a thing with no external\
         \ ID comes back too. The columns `source` and `externalId` hold the system\
         \ that made the thing and the ID that it has there. The kinds, the definitions\
-        \ of attributes, the reference items, the hierarchies, and the people have\
-        \ no date."
+        \ of attributes, the hierarchies, and the people have no date. The reference\
+        \ items have the names of the date."
       operationId: exportCsv
       tags:
       - bulk
@@ -8403,10 +8500,19 @@ paths:
   /ref-items:
     get:
       summary: "Lists the items of a kind, ordered by display order and then by code."
+      description: Each item has the names of the date. A date before the first names
+        of an item gets its first names.
       operationId: listRefItems
       tags:
       - ref-items
       parameters:
+      - description: The date of the names. The default is today in the time zone
+          of the realm.
+        schema:
+          type: string
+          format: date
+        name: asOf
+        in: query
       - description: The number of entries to skip.
         schema:
           type: integer
@@ -8456,7 +8562,8 @@ paths:
           $ref: "#/components/responses/Conflict"
     post:
       summary: Creates an item.
-      description: "The body needs `kind`, `code`, and `name`."
+      description: "The body needs `kind`, `code`, and `name`. With `validFrom`, the\
+        \ names hold from that date. Without it, they hold for every date."
       operationId: createRefItem
       tags:
       - ref-items
@@ -8486,6 +8593,8 @@ paths:
   /ref-items/count:
     get:
       summary: Counts the items that `GET /ref-items` lists with the same filters.
+      description: "Every item has names on every date, so the count is the same for\
+        \ every date."
       operationId: countRefItems
       tags:
       - ref-items
@@ -8521,7 +8630,11 @@ paths:
   /ref-items/{id}:
     put:
       summary: Replaces the changeable values of an item.
-      description: The kind and the code never change. The body can leave them out.
+      description: "The kind and the code never change. The body can leave them out.\
+        \ Only the names have dates. With `validFrom`, the new names hold from that\
+        \ date until the next stored names, and the old names stay for the dates before.\
+        \ A date that starts stored names corrects them. Without `validFrom`, the\
+        \ write changes the names of today. The response has the names of that date."
       operationId: updateRefItem
       tags:
       - ref-items
@@ -8559,7 +8672,7 @@ paths:
         "409":
           $ref: "#/components/responses/Conflict"
     get:
-      summary: Returns one item.
+      summary: Returns one item with the names of a date.
       operationId: getRefItem
       tags:
       - ref-items
@@ -8570,6 +8683,13 @@ paths:
         required: true
         schema:
           type: string
+      - description: The date of the names. The default is today in the time zone
+          of the realm.
+        schema:
+          type: string
+          format: date
+        name: asOf
+        in: query
       responses:
         "200":
           description: The item.
@@ -8610,6 +8730,37 @@ paths:
           description: The item was deleted.
         "400":
           $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /ref-items/{id}/history:
+    get:
+      summary: Returns every period of the names of an item.
+      description: A caller who may read only the structure gets 403 when the realm
+        attribute `fuhito.structure.daysAhead` limits how far ahead the caller may
+        read.
+      operationId: getRefItemHistory
+      tags:
+      - ref-items
+      parameters:
+      - description: The ID of the resource.
+        name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: "The names of every period, oldest first."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RefItemHistory"
         "404":
           $ref: "#/components/responses/NotFound"
         "401":

@@ -28,6 +28,8 @@ testcontainers-keycloak = { module = "com.github.dasniko:testcontainers-keycloak
 testcontainers-postgresql = { module = "org.testcontainers:testcontainers-postgresql", version = "2.0.5" }
 # The integration tests read the database directly. The version comes from the Keycloak parent POM.
 postgresql = { module = "org.postgresql:postgresql" }
+# The test of a migration runs the changelog step by step. The version comes from the Keycloak parent POM.
+liquibase-core = { module = "org.liquibase:liquibase-core" }
 slf4j-simple = { module = "org.slf4j:slf4j-simple", version = "2.0.20" }
 
 [bundles]

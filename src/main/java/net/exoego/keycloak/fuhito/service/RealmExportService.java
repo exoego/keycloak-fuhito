@@ -34,6 +34,7 @@ import net.exoego.keycloak.fuhito.domain.Person;
 import net.exoego.keycloak.fuhito.domain.Qualification;
 import net.exoego.keycloak.fuhito.domain.RealmKind;
 import net.exoego.keycloak.fuhito.domain.RefItem;
+import net.exoego.keycloak.fuhito.domain.RefItemName;
 import net.exoego.keycloak.fuhito.domain.ReportingLine;
 import net.exoego.keycloak.fuhito.domain.UnitRole;
 import net.exoego.keycloak.fuhito.domain.ValidPeriod;
@@ -126,7 +127,7 @@ public class RealmExportService {
         return switch (Checks.required("list", list)) {
             case "ref-kinds" -> page(export.refKinds().read(afterId, max), RealmKind::id,
                     kind -> new RealmExport.Kind(kind.id(), kind.version(), kind.code(), kind.name(), kind.names()));
-            case "ref-items" -> page(export.refItems().read(afterId, max), RefItem::id, RealmExportService::item);
+            case "ref-items" -> refItems(export.refItems().read(afterId, max));
             case "attribute-definitions" -> page(export.attributeDefinitions().read(afterId, max),
                     AttributeDefinition::id, d -> new RealmExport.Definition(d.id(), d.version(), d.target().name(),
                             d.name(), d.type().name(), d.refKind(), d.multiple(), d.required()));
@@ -159,9 +160,21 @@ public class RealmExportService {
         return new ExportPage(found.stream().map(toRow).toList(), found.isEmpty() ? null : idOf.apply(found.getLast()));
     }
 
-    private static RealmExport.Item item(RefItem i) {
-        return new RealmExport.Item(i.id(), i.version(), i.kind(), i.code(), i.name(), i.names(), i.displayOrder(),
-                i.attributes(), i.active(), i.legalEntity(), i.actingHead(), i.lateral());
+    private ExportPage refItems(List<RefItem> items) {
+        if (items.isEmpty()) {
+            return new ExportPage(List.of(), null);
+        }
+        Map<String, List<RealmExport.ItemNames>> names = stores.export()
+                .namesOf(items.stream().map(RefItem::id).toList()).stream()
+                .sorted(Comparator.comparing(RefItemName::validFrom, Comparator.nullsFirst(Comparator.naturalOrder())))
+                .collect(Collectors.groupingBy(RefItemName::refItemId, Collectors.mapping(
+                        n -> new RealmExport.ItemNames(n.id(), text(n.validFrom()), text(n.validTo()), n.name(),
+                                n.names()),
+                        Collectors.toList())));
+        return new ExportPage(items.stream()
+                .map(i -> new RealmExport.Item(i.id(), i.version(), i.kind(), i.code(), null, null, i.displayOrder(),
+                        i.attributes(), i.active(), i.legalEntity(), i.actingHead(), i.lateral(), names.get(i.id())))
+                .toList(), items.getLast().id());
     }
 
     private ExportPage orgUnits(List<OrgUnit> units) {
@@ -304,9 +317,7 @@ public class RealmExportService {
         Map<String, Integer> counts = new LinkedHashMap<>();
         counts.put("ref-kinds", each("ref-kinds", document.refKinds(), k -> stores.refKinds().insert(
                 new RealmKind(k.id(), k.code(), k.name(), k.names(), version(k.version())))));
-        counts.put("ref-items", each("ref-items", document.refItems(), i -> stores.refItems().insert(new RefItem(i.id(), i.kind(),
-                i.code(), i.name(), i.names(), i.displayOrder(), i.attributes(), i.active(), i.legalEntity(),
-                i.actingHead(), i.lateral(), version(i.version())))));
+        counts.put("ref-items", each("ref-items", document.refItems(), this::restoreRefItem));
         counts.put("attribute-definitions", each("attribute-definitions", document.attributeDefinitions(), d -> stores.attributeDefinitions()
                 .insert(new AttributeDefinition(d.id(), AttributeDefinition.Target.valueOf(d.target()), d.name(),
                         AttributeDefinition.Type.valueOf(d.type()), d.refKind(), d.multiple(), d.required(),
@@ -377,6 +388,20 @@ public class RealmExportService {
             }
         }
         return ids;
+    }
+
+    // An export from before names had periods has one name for every date.
+    private void restoreRefItem(RealmExport.Item i) {
+        RefItem item = new RefItem(i.id(), i.kind(), i.code(), i.name(), i.names(), i.displayOrder(), i.attributes(),
+                i.active(), i.legalEntity(), i.actingHead(), i.lateral(), version(i.version()), null, null);
+        if (i.versions() == null) {
+            stores.refItems().insert(item);
+            return;
+        }
+        stores.refItems().insert(item, i.versions().stream()
+                .map(n -> new RefItemName(n.id(), i.id(), date(n.validFrom()), date(n.validTo()), n.name(),
+                        n.names()))
+                .toList());
     }
 
     // Every unit comes first, so that a parent or a successor exists when a link names it.

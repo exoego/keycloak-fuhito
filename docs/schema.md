@@ -171,8 +171,6 @@ erDiagram
         varchar(36) REALM_ID
         varchar(32) KIND
         varchar(64) CODE
-        varchar(255) NAME
-        text NAMES_I18N
         integer DISPLAY_ORDER
         text ATTRIBUTES
         boolean ACTIVE
@@ -180,6 +178,15 @@ erDiagram
         boolean ACTING_HEAD
         boolean LATERAL_UNIT
         bigint VERSION
+    }
+    FUHITO_REF_ITEM_NAME {
+        varchar(36) ID PK
+        varchar(36) REALM_ID
+        varchar(36) REF_ITEM_ID FK
+        date VALID_FROM
+        date VALID_TO
+        varchar(255) NAME
+        text NAMES_I18N
     }
     FUHITO_REPORTING_LINE {
         varchar(36) ID PK
@@ -229,6 +236,7 @@ erDiagram
     FUHITO_ORG_UNIT ||..o{ FUHITO_ORG_UNIT_VERSION : "ORG_UNIT_ID"
     FUHITO_REF_ITEM ||..o{ FUHITO_QUALIFICATION : "KIND_ID"
     FUHITO_PERSON ||..o{ FUHITO_QUALIFICATION : "PERSON_ID"
+    FUHITO_REF_ITEM ||..o{ FUHITO_REF_ITEM_NAME : "REF_ITEM_ID"
     FUHITO_PERSON ||..o{ FUHITO_REPORTING_LINE : "MANAGER_PERSON_ID"
     FUHITO_EMPLOYMENT ||..o{ FUHITO_UNIT_ROLE : "EMPLOYMENT_ID"
     FUHITO_ORG_UNIT ||..o{ FUHITO_UNIT_ROLE : "ORG_UNIT_ID"

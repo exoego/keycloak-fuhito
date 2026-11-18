@@ -430,6 +430,16 @@ class CsvImportIT {
         String renamed = api.get("/imports/csv/ref-items").body().replace("東京", "東京本社");
         load(api, "ref-items", "effectiveDate=2026-06-01", renamed);
         assertEquals("東京本社", Api.json(api.get("/ref-items?kind=site")).get(0).get("name").asText());
+
+        // The new name holds from the effective date. The file of an earlier date has the old one.
+        assertEquals("東京", Api.json(api.get("/ref-items?kind=site&asOf=2026-05-31")).get(0).get("name").asText());
+        assertTrue(api.get("/imports/csv/ref-items?asOf=2026-05-31").body().contains("site,tokyo,東京,Tokyo,"));
+        assertTrue(api.get("/imports/csv/ref-items?asOf=2026-06-01").body().contains("site,tokyo,東京本社,Tokyo,"));
+
+        // A row can name the first date of its names.
+        load(api, "ref-items", "effectiveDate=2026-06-01", "kind,code,name,validFrom\nsite,tokyo,東京本店,2030-04-01\n");
+        assertEquals("東京本社", Api.json(api.get("/ref-items?kind=site&asOf=2030-03-31")).get(0).get("name").asText());
+        assertEquals("東京本店", Api.json(api.get("/ref-items?kind=site&asOf=2030-04-01")).get(0).get("name").asText());
     }
 
     @Test

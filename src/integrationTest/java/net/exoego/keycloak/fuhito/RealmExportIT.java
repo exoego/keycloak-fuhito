@@ -162,6 +162,44 @@ class RealmExportIT {
         assertEquals(404, target.api.get("/export/nothing").statusCode());
     }
 
+    @Test
+    void aRestoreKeepsEveryPeriodOfTheNamesOfAReferenceItem() throws Exception {
+        TestRealm source = TestRealm.create("export-names");
+        Api api = source.api;
+        String chief = source.refItem("JOB_TITLE", "chief", "主任");
+        ok(api.putWithVersion("/ref-items/" + chief, "{\"name\": \"主任看護師\", \"validFrom\": \"2024-04-01\"}"));
+        String head = id(api.post("/ref-items", "{\"kind\": \"JOB_TITLE\", \"code\": \"head\", \"name\": \"師長\", "
+                + "\"validFrom\": \"2021-04-01\"}"));
+        ObjectNode first = export(api);
+        TestRealm target = TestRealm.create("export-names-target");
+        source.remove();
+
+        ok(target.api.post("/restore", JSON.writeValueAsString(first)));
+
+        assertEquals(first, export(target.api));
+        assertEquals("主任", Api.json(target.api.get("/ref-items/" + chief + "?asOf=2024-03-31")).get("name").asText());
+        assertEquals("主任看護師", Api.json(target.api.get("/ref-items/" + chief + "?asOf=2024-04-01")).get("name")
+                .asText());
+        assertEquals(2, Api.json(target.api.get("/ref-items/" + chief + "/history")).get("versions").size());
+        assertEquals("2021-04-01", Api.json(target.api.get("/ref-items/" + head + "/history")).get("versions").get(0)
+                .get("validFrom").asText());
+
+        // An export from before names had periods has one name for each item. It holds for every date.
+        ObjectNode older = first.deepCopy();
+        older.get("refItems").forEach(row -> {
+            ObjectNode item = (ObjectNode) row;
+            JsonNode versions = item.remove("versions");
+            item.set("name", versions.get(versions.size() - 1).get("name"));
+            item.set("names", versions.get(versions.size() - 1).get("names"));
+        });
+        ok(target.api.post("/restore?replace=true", JSON.writeValueAsString(older)));
+        assertEquals("主任看護師", Api.json(target.api.get("/ref-items/" + chief + "?asOf=2000-01-01")).get("name")
+                .asText());
+        JsonNode one = Api.json(target.api.get("/ref-items/" + chief + "/history")).get("versions");
+        assertEquals(1, one.size());
+        assertFalse(one.get(0).has("validFrom"));
+    }
+
     // A unit names only the system that made it. Every ID is in the list of IDs.
     private static void assertIdsAreApart(JsonNode export, String unit) {
         JsonNode exported = null;

@@ -61,10 +61,22 @@ public record RealmExport(
     public record Kind(String id, Long version, String code, String name, Map<String, String> names) {
     }
 
-    @Schema(name = "ExportRefItem")
-    public record Item(String id, Long version, String kind, String code, String name, Map<String, String> names,
+    @Schema(name = "ExportRefItem", description = "A reference item with every period of its names.")
+    public record Item(String id, Long version, String kind, String code,
+            @Schema(description = "Only in an export from before names had periods. A restore takes it as the "
+                    + "name for every date when `versions` is missing.")
+            String name,
+            @Schema(description = "Only in an export from before names had periods, with `name`.")
+            Map<String, String> names,
             int displayOrder, Map<String, Object> attributes, boolean active, boolean legalEntity,
-            boolean actingHead, boolean lateral) {
+            boolean actingHead, boolean lateral,
+            @Schema(description = "The names of each period, oldest first.")
+            List<ItemNames> versions) {
+    }
+
+    @Schema(name = "ExportRefItemNames", description = "The names of a reference item for a period. A missing "
+            + "`validFrom` means that they hold from the start.")
+    public record ItemNames(String id, String validFrom, String validTo, String name, Map<String, String> names) {
     }
 
     @Schema(name = "ExportAttributeDefinition")

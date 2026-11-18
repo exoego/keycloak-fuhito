@@ -38,6 +38,7 @@ On PostgreSQL the database checks it again with exclusion constraints.
 - One assignment has no two sets of details on the same date.
 - One employment has no two primary assignments on the same date.
 - No two org units have the same code on the same date.
+- One reference item has no two sets of names on the same date.
 
 The constraints need the `btree_gist` extension, and the extension creates it when Keycloak starts.
 On PostgreSQL 13 or later, the owner of the database may create it.
@@ -306,7 +307,7 @@ The extension adds three roles to the client `realm-management` of every realm. 
 - The roles have the prefix `fuhito-`, so that no role that Keycloak adds later has the same name.
 - Fine-grained admin permissions do not apply to the data of the extension. They still apply to the data of Keycloak below.
 
-The org structure is the org units with their children, subtree, path, and history, the hierarchies, the reference items and their kinds, the definitions of free attributes, and the version.
+The org structure is the org units with their children, subtree, path, and history, the hierarchies, the reference items with the history of their names, their kinds, the definitions of free attributes, and the version.
 Every other read has data of people, and needs `fuhito-view-people`. The members of an org unit and the holders of roles over it are among them.
 A reader of the structure sees the ID of the Keycloak organization that an org unit links. A reader of people also sees its alias in an export. Neither tells anything else about the organization.
 
@@ -339,9 +340,9 @@ The realm attribute `fuhito.structure.daysAhead` keeps a caller with only `fuhit
 With this attribute, such a caller is limited in these ways.
 
 - A read with a later `asOf` gets 403 with `structure.too_far_ahead`. Today is the date of the realm.
-- The history of an org unit has every period, so a read of it gets 403 too.
+- The history of an org unit has every period, so a read of it gets 403 too. So does the history of a reference item.
 - The successions of an org unit leave out those after the limit.
-- An org unit shows no end of its details after the limit, because that is the date of a later change.
+- An org unit shows no end of its details after the limit, because that is the date of a later change. A reference item shows no end of its names after the limit for the same reason.
 - `GET /external-ids/lookup` finds no org unit that starts after the limit.
 
 A read with no `asOf` reads today. For an org unit with its own time zone, that can be the day after the date of the realm.
@@ -416,7 +417,7 @@ The path of an org unit is read with a walk upward from the unit. The assignment
 Every resource has `version`, in a read of it and in each entry of a list.
 A new resource has 1, and each write counts it up by one.
 A write of a part of a resource counts up the version of the whole resource.
-The parts are the periods and the parents of an org unit, the terms of an employment, the periods of an assignment, and the IDs that other systems have for a resource.
+The parts are the periods and the parents of an org unit, the terms of an employment, the periods of an assignment, the names of a reference item, and the IDs that other systems have for a resource.
 A write by another endpoint or by Keycloak counts it up too, such as an import, the attribute sync, a mask, and the removal of a user or of an organization in Keycloak.
 A restore keeps the versions of the export.
 The work location and the cost center that apply come from other org units, so they are no part of an org unit or of an assignment. A change of a unit above does not count up the version of the units and the assignments below it.

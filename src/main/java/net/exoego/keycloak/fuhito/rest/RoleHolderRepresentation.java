@@ -32,7 +32,7 @@ public record RoleHolderRepresentation(
         String orgUnitName,
         @Schema(description = "The code of a reference item of the kind `UNIT_ROLE`.")
         String role,
-        @Schema(description = "The name of the reference item of the role.")
+        @Schema(description = "The name of the reference item of the role on the date.")
         String roleName,
         @Schema(description = "True when the role also covers every unit below in the default hierarchy.")
         boolean includesDescendants,

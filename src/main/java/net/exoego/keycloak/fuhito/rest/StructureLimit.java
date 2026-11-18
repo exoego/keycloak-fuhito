@@ -10,6 +10,8 @@ import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.OrgUnitSuccession;
 import net.exoego.keycloak.fuhito.domain.OrgUnitVersion;
+import net.exoego.keycloak.fuhito.domain.RefItem;
+import net.exoego.keycloak.fuhito.domain.RefItemName;
 import net.exoego.keycloak.fuhito.domain.ValidPeriod;
 import net.exoego.keycloak.fuhito.service.OrgUnitState;
 import net.exoego.keycloak.fuhito.service.OrgUnitSuccessions;
@@ -91,6 +93,22 @@ final class StructureLimit {
                 version.shortName(), version.shortNames(), version.phoneticName(), version.unitTypeId(),
                 version.workLocationId(), version.costCenterId(), version.displayOrder(), version.attributes()),
                 state.unitType(), state.parentId(), state.legalEntity(), state.lateral(), state.places());
+    }
+
+    /**
+     * Leaves out an end of the names of a reference item after the last date that the caller may read. Such an
+     * end is the date of later names.
+     *
+     * @param item the item with the names of a date
+     * @return the item as the caller may read it
+     */
+    RefItem readable(RefItem item) {
+        LocalDate to = item.validTo();
+        Optional<LocalDate> lastDay = lastDay();
+        if (to == null || lastDay.isEmpty() || !to.isAfter(lastDay.get())) {
+            return item;
+        }
+        return item.withNames(new RefItemName(null, item.id(), item.validFrom(), null, item.name(), item.names()));
     }
 
     /**

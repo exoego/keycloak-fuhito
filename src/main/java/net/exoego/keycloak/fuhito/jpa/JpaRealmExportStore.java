@@ -29,6 +29,7 @@ import net.exoego.keycloak.fuhito.domain.Person;
 import net.exoego.keycloak.fuhito.domain.Qualification;
 import net.exoego.keycloak.fuhito.domain.RealmKind;
 import net.exoego.keycloak.fuhito.domain.RefItem;
+import net.exoego.keycloak.fuhito.domain.RefItemName;
 import net.exoego.keycloak.fuhito.domain.ReportingLine;
 import net.exoego.keycloak.fuhito.domain.UnitRole;
 import net.exoego.keycloak.fuhito.domain.ValidPeriod;
@@ -73,7 +74,26 @@ public class JpaRealmExportStore implements RealmExportStore {
 
     @Override
     public Page<RefItem> refItems() {
-        return page(RefItemEntity.class, "id", JpaRefItemStore::toDomain);
+        return (afterId, max) -> em.createQuery(JpaRefItemStore.ITEMS + JpaRefItemStore.LAST_NAMES
+                        + " and r.id > :after order by r.id", Object[].class)
+                .setParameter("realmId", realmId)
+                .setParameter("after", afterId == null ? "" : afterId)
+                .setMaxResults(max)
+                .getResultStream()
+                .map(JpaRefItemStore::toDomain)
+                .toList();
+    }
+
+    @Override
+    public List<RefItemName> namesOf(Collection<String> refItemIds) {
+        return em.createQuery("""
+                        select n from RefItemNameEntity n where n.realmId = :realmId
+                        and %s""".formatted(ManyIds.has("n.refItemId", "ids")), RefItemNameEntity.class)
+                .setParameter("realmId", realmId)
+                .setParameter("ids", ManyIds.of(refItemIds))
+                .getResultStream()
+                .map(JpaRefItemStore::toDomain)
+                .toList();
     }
 
     @Override
@@ -225,6 +245,7 @@ public class JpaRealmExportStore implements RealmExportStore {
     private static final Map<String, Class<?>> TABLES = Map.ofEntries(
             Map.entry("ref-kinds", RealmKindEntity.class),
             Map.entry("ref-items", RefItemEntity.class),
+            Map.entry("ref-item-names", RefItemNameEntity.class),
             Map.entry("attribute-definitions", AttributeDefinitionEntity.class),
             Map.entry("hierarchies", HierarchyEntity.class),
             Map.entry("org-units", OrgUnitEntity.class),

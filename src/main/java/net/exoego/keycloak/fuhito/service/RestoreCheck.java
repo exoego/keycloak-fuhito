@@ -53,6 +53,8 @@ final class RestoreCheck {
         Map<String, Collection<String>> ids = new LinkedHashMap<>();
         ids.put("ref-kinds", ids(document.refKinds(), RealmExport.Kind::id));
         ids.put("ref-items", ids(document.refItems(), RealmExport.Item::id));
+        ids.put("ref-item-names", ids(all(document.refItems()).stream().flatMap(i -> all(i.versions()).stream())
+                .toList(), RealmExport.ItemNames::id));
         ids.put("attribute-definitions", ids(document.attributeDefinitions(), RealmExport.Definition::id));
         ids.put("hierarchies", ids(document.hierarchies(), RealmExport.HierarchyRow::id));
         List<RealmExport.Unit> units = all(document.orgUnits());

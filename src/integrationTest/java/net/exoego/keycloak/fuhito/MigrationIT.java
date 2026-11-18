@@ -1,0 +1,94 @@
+package net.exoego.keycloak.fuhito;
+
+import java.io.File;
+import java.net.URL;
+import java.net.URLClassLoader;
+import java.sql.Connection;
+import java.sql.ResultSet;
+import java.sql.Statement;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+
+import liquibase.Scope;
+import liquibase.analytics.configuration.AnalyticsArgs;
+import liquibase.command.CommandScope;
+import liquibase.command.core.UpdateCommandStep;
+import liquibase.command.core.UpdateCountCommandStep;
+import liquibase.command.core.helpers.DbUrlConnectionArgumentsCommandStep;
+import liquibase.database.Database;
+import liquibase.database.DatabaseFactory;
+import liquibase.database.jvm.JdbcConnection;
+import liquibase.resource.ClassLoaderResourceAccessor;
+import org.junit.jupiter.api.Test;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
+/**
+ * Runs the changelog of the provider jar on a database with rows of an older schema, as an upgrade does.
+ */
+class MigrationIT {
+
+    private static final String CHANGELOG = "META-INF/fuhito/changelog.xml";
+
+    // The tables, the extension for the exclusion constraints, and the constraints.
+    private static final int FIRST_SCHEMA = 3;
+
+    @Test
+    void anItemOfTheOlderSchemaKeepsItsNamesForEveryDate() throws Exception {
+        KeycloakEnvironment.sql("create database fuhito_migration");
+        try (Connection connection = KeycloakEnvironment.connection("fuhito_migration");
+                Statement statement = connection.createStatement();
+                URLClassLoader jar = new URLClassLoader(
+                        new URL[] {new File(System.getProperty("provider.jar")).toURI().toURL()},
+                        MigrationIT.class.getClassLoader())) {
+            // The first change set gives each realm of Keycloak its default hierarchy.
+            statement.execute("create table REALM (ID varchar(36) primary key)");
+            statement.execute("insert into REALM (ID) values ('realm-1')");
+            Database database = DatabaseFactory.getInstance()
+                    .findCorrectDatabaseImplementation(new JdbcConnection(connection));
+            update(jar, database, FIRST_SCHEMA);
+            statement.execute("""
+                    insert into fuhito_ref_item (id, realm_id, kind, code, name, names_i18n, attributes) values
+                    ('item-1', 'realm-1', 'JOB_TITLE', 'chief', '主任', '{"en":"Chief"}', '{}'),
+                    ('item-2', 'realm-1', 'UNIT_TYPE', 'ward', '病棟', '{}', '{}')""");
+
+            update(jar, database, null);
+
+            assertEquals(List.of("item-1 item-1 null null 主任 {\"en\":\"Chief\"}",
+                    "item-2 item-2 null null 病棟 {}"), rows(statement, """
+                    select id, ref_item_id, valid_from, valid_to, name, names_i18n
+                    from fuhito_ref_item_name order by id"""));
+            assertEquals(List.of("0"), rows(statement, """
+                    select count(*) from information_schema.columns
+                    where table_name = 'fuhito_ref_item' and column_name in ('name', 'names_i18n')"""));
+        }
+    }
+
+    private static void update(ClassLoader jar, Database database, Integer count) throws Exception {
+        Scope.child(Map.of(Scope.Attr.resourceAccessor.name(), new ClassLoaderResourceAccessor(jar),
+                AnalyticsArgs.ENABLED.getKey(), false), () -> {
+                    CommandScope command = count == null ? new CommandScope(UpdateCommandStep.COMMAND_NAME)
+                            .addArgumentValue(UpdateCommandStep.CHANGELOG_FILE_ARG, CHANGELOG)
+                            : new CommandScope(UpdateCountCommandStep.COMMAND_NAME)
+                                    .addArgumentValue(UpdateCountCommandStep.CHANGELOG_FILE_ARG, CHANGELOG)
+                                    .addArgumentValue(UpdateCountCommandStep.COUNT_ARG, count);
+                    command.addArgumentValue(DbUrlConnectionArgumentsCommandStep.DATABASE_ARG, database).execute();
+                });
+    }
+
+    private static List<String> rows(Statement statement, String query) throws Exception {
+        List<String> rows = new ArrayList<>();
+        try (ResultSet result = statement.executeQuery(query)) {
+            int columns = result.getMetaData().getColumnCount();
+            while (result.next()) {
+                List<String> cells = new ArrayList<>();
+                for (int i = 1; i <= columns; i++) {
+                    cells.add(String.valueOf(result.getObject(i)));
+                }
+                rows.add(String.join(" ", cells));
+            }
+        }
+        return rows;
+    }
+}

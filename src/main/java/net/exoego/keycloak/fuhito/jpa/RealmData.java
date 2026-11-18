@@ -32,6 +32,7 @@ public final class RealmData {
             OrgUnitLinkEntity.class,
             OrgUnitVersionEntity.class,
             OrgUnitEntity.class,
+            RefItemNameEntity.class,
             RefItemEntity.class,
             RealmKindEntity.class,
             AttributeDefinitionEntity.class,
