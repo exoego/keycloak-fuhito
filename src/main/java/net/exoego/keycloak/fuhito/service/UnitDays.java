@@ -58,6 +58,19 @@ public class UnitDays implements Today {
         return dates;
     }
 
+    /**
+     * Returns the rule of the realm and the rule of each org unit that sets a time of its own.
+     * The units below such a unit follow one of these rules too.
+     *
+     * @return the rules, with no rule twice
+     */
+    public Set<BusinessDay.Rule> rules() {
+        Set<BusinessDay.Rule> rules = new LinkedHashSet<>();
+        rules.add(realmRule);
+        ownTime().keySet().forEach(id -> rules.add(ruleOf(id)));
+        return rules;
+    }
+
     private Map<String, OrgUnit> ownTime() {
         if (ownTime == null) {
             ownTime = new HashMap<>();
@@ -66,10 +79,14 @@ public class UnitDays implements Today {
         return ownTime;
     }
 
+    private LocalDate resolve(String orgUnitId) {
+        return LocalDate.now(ruleOf(orgUnitId).clock(base));
+    }
+
     // The tree can change on a date, and the date depends on the tree. The tree of the date of the realm is
     // used to find the units above.
     // The nearest time zone and the nearest day start are looked up one by one, so a unit can set only one.
-    private LocalDate resolve(String orgUnitId) {
+    private BusinessDay.Rule ruleOf(String orgUnitId) {
         String timeZone = null;
         String dayStart = null;
         for (String id : store.lineOn(store.defaultHierarchyId(), orgUnitId, ofRealm())) {
@@ -84,6 +101,6 @@ public class UnitDays implements Today {
                 dayStart = unit.dayStart();
             }
         }
-        return LocalDate.now(realmRule.with(timeZone, dayStart).clock(base));
+        return realmRule.with(timeZone, dayStart);
     }
 }

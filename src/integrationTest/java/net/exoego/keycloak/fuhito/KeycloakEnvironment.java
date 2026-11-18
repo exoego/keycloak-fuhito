@@ -36,7 +36,9 @@ final class KeycloakEnvironment {
                     .withEnv("KC_DB", "postgres")
                     .withEnv("KC_DB_URL", "jdbc:postgresql://postgres:5432/keycloak")
                     .withEnv("KC_DB_USERNAME", "keycloak")
-                    .withEnv("KC_DB_PASSWORD", "keycloak");
+                    .withEnv("KC_DB_PASSWORD", "keycloak")
+                    // The timer would run the realms of the tests at times that they cannot know.
+                    .withEnv("KC_SPI_ADMIN_REALM_RESTAPI_EXTENSION__FUHITO__PROJECTION_TIMER_ENABLED", "false");
 
     static {
         POSTGRES.start();

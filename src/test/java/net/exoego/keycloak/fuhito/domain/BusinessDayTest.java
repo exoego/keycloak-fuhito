@@ -12,6 +12,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
+import static java.time.temporal.ChronoUnit.DAYS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -115,5 +116,39 @@ class BusinessDayTest {
         FuhitoException start = assertThrows(FuhitoException.class, () -> realm.with(null, "24:00"));
         assertEquals("org_unit.day_start_invalid", start.code());
         assertEquals(Map.of("value", "24:00"), start.params());
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+        // 01:00 on April 1 in Tokyo. The next date starts at the next midnight.
+        "2026-03-31T16:00:00Z, Asia/Tokyo, , 2026-04-01T15:00:00Z",
+        // With a day start of 04:00, 01:00 is still March 31. April 1 starts at 04:00.
+        "2026-03-31T16:00:00Z, Asia/Tokyo, 04:00, 2026-03-31T19:00:00Z",
+        // At the very start of a date, the next start is a day later.
+        "2026-03-31T15:00:00Z, Asia/Tokyo, , 2026-04-01T15:00:00Z",
+        "2026-03-31T14:59:59Z, Asia/Tokyo, , 2026-03-31T15:00:00Z",
+        // The clocks in New York go forward at 02:00 on March 8. The day start is counted from midnight, so
+        // March 8 starts at 03:30 by the clock, and March 9 at 02:30 again.
+        "2026-03-08T06:00:00Z, America/New_York, 02:30, 2026-03-08T07:30:00Z",
+        "2026-03-08T07:30:00Z, America/New_York, 02:30, 2026-03-09T06:30:00Z",
+        // The clocks go back at 02:00 on November 1, so November 1 starts at 01:30 by the clock.
+        "2026-11-01T03:00:00Z, America/New_York, 02:30, 2026-11-01T06:30:00Z"
+    })
+    void findsTheNextDayStart(Instant after, String timeZone, String dayStart, Instant expected) {
+        assertEquals(expected, BusinessDay.rule(timeZone, dayStart).nextDayStart(after));
+    }
+
+    @ParameterizedTest
+    @CsvSource({"Asia/Tokyo, 04:00", "America/New_York, 02:30", "Europe/London, 01:00", "Australia/Lord_Howe, "})
+    void theNextDayStartIsWhereTheDateOfTheRuleChanges(String timeZone, String dayStart) {
+        BusinessDay.Rule rule = BusinessDay.rule(timeZone, dayStart);
+        Instant start = Instant.parse("2026-01-01T00:00:00Z");
+        for (Instant after = start; after.isBefore(start.plus(365, DAYS)); after = after.plusSeconds(1800)) {
+            Instant next = rule.nextDayStart(after);
+            LocalDate today = LocalDate.now(rule.clock(Clock.fixed(after, ZoneOffset.UTC)));
+
+            assertEquals(today, LocalDate.now(rule.clock(Clock.fixed(next.minusSeconds(1), ZoneOffset.UTC))));
+            assertEquals(today.plusDays(1), LocalDate.now(rule.clock(Clock.fixed(next, ZoneOffset.UTC))));
+        }
     }
 }

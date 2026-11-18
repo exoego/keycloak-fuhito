@@ -15,8 +15,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  */
 class ProviderFactoriesTest {
 
-    // A configuration where every number is the same value.
-    private static Config.Scope everyNumberIs(long value) {
+    // A configuration where every option has the same value.
+    private static Config.Scope everyOptionIs(Object value) {
         return (Config.Scope) Proxy.newProxyInstance(ProviderFactoriesTest.class.getClassLoader(),
                 new Class<?>[] {Config.Scope.class}, (proxy, method, args) -> value);
     }
@@ -26,15 +26,15 @@ class ProviderFactoriesTest {
         List<ProviderConfigProperty> options = new FuhitoAdminRealmResourceProviderFactory().getConfigMetadata();
 
         assertEquals(1, options.size());
-        assertEquals("projection-interval-seconds", options.get(0).getName());
-        assertEquals(900L, options.get(0).getDefaultValue());
-        assertEquals("long", options.get(0).getType());
+        assertEquals("projection-timer-enabled", options.get(0).getName());
+        assertEquals(true, options.get(0).getDefaultValue());
+        assertEquals("boolean", options.get(0).getType());
     }
 
     @Test
-    void anIntervalOfZeroStartsNoTimer() {
+    void falseStartsNoTimer() {
         var factory = new FuhitoAdminRealmResourceProviderFactory();
-        factory.init(everyNumberIs(0));
+        factory.init(everyOptionIs(false));
 
         // With a timer, this would ask the session factory, which is missing here.
         assertDoesNotThrow(() -> factory.postInit(null));
