@@ -948,4 +948,12 @@
             <column name="USER_ID"/>
         </createIndex>
     </changeSet>
+
+    <!-- Where the last projection that was done started in the change log. A run of the changes starts there. -->
+    <changeSet id="0.1.0-job-run-checkpoint" author="keycloak-fuhito">
+        <addColumn tableName="FUHITO_JOB_RUN">
+            <column name="CHECKPOINT_SEQUENCE" type="BIGINT"/>
+            <column name="CHECKPOINT_SETTINGS" type="VARCHAR(255)"/>
+        </addColumn>
+    </changeSet>
 </databaseChangeLog>

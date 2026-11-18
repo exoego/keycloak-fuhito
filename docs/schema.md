@@ -299,6 +299,8 @@ erDiagram
         timestamp ENDED_AT
         text REPORT
         varchar(128) ERROR_CODE
+        bigint CHECKPOINT_SEQUENCE
+        varchar(255) CHECKPOINT_SETTINGS
     }
     FUHITO_PROJECTED_MEMBER {
         varchar(36) ID PK

@@ -4,6 +4,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -40,6 +41,16 @@ class ChangeOrderServiceTest {
         @Override
         public long count(String resourceType, String resourceId) {
             return 0;
+        }
+
+        @Override
+        public long lastSequence() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Map<String, String> statesUpTo(String resourceType, Collection<String> resourceIds, long upTo) {
+            throw new UnsupportedOperationException();
         }
 
         @Override

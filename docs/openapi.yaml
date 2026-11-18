@@ -2744,7 +2744,8 @@ components:
         organizations:
           type: integer
           format: int32
-          description: The number of linked organizations that were projected.
+          description: The number of linked organizations that were projected. A run
+            of the changes counts the organizations whose groups it mirrored again.
         groupsCreated:
           type: integer
           format: int32
@@ -2783,6 +2784,45 @@ components:
           format: int32
           description: "1 when the tree was mirrored into realm groups, 0 when the\
             \ realm does not do it."
+        changeLogEntries:
+          type: integer
+          format: int32
+          description: The number of entries of the change log that a run of the changes
+            read. Missing for a full rebuild.
+        usersLookedAt:
+          type: integer
+          format: int32
+          description: "The number of users whose groups and organizations a run of\
+            \ the changes looked at again. Missing for a full rebuild, and when a\
+            \ run of the changes fell back to one."
+        organizationsLookedAt:
+          type: integer
+          format: int32
+          description: "The number of organizations that a run of the changes looked\
+            \ at, for its org units and for its users. Missing for a full rebuild,\
+            \ and when a run of the changes fell back to one."
+        fellBack:
+          type: boolean
+          description: True when a run of the changes ran a full rebuild instead.
+            Missing for a full rebuild that was asked for.
+        fallbackReason:
+          type: string
+          description: "Why a run of the changes fell back to a full rebuild. `no_earlier_run`\
+            \ means that no run was done before. `settings` means that the realm group\
+            \ or the use of organizations changed, or that the realm group cannot\
+            \ be read. `restore`, `hierarchy`, and `erasure` mean that such an entry\
+            \ is in the change log. `earlier_state` means that the change log does\
+            \ not tell an earlier state that the run needs, such as the user that\
+            \ a person was linked to. `unknown_entry` means an entry of a type that\
+            \ the run does not know."
+          enum:
+          - no_earlier_run
+          - settings
+          - restore
+          - hierarchy
+          - erasure
+          - earlier_state
+          - unknown_entry
     Promotion:
       required:
       - version
@@ -8255,6 +8295,15 @@ paths:
       tags:
       - keycloak
       parameters:
+      - description: "True to look only at what the change log names since the last\
+          \ run that was done. A dated change that becomes true with no write is not\
+          \ in the log. When the log names something that the run cannot map, or no\
+          \ run was done before, a full rebuild runs and the report says so."
+        schema:
+          type: boolean
+          default: false
+        name: changesOnly
+        in: query
       - $ref: "#/components/parameters/changeOrder"
       responses:
         "200":

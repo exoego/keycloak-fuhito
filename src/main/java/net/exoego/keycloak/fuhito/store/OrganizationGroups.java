@@ -26,6 +26,16 @@ public interface OrganizationGroups {
     }
 
     /**
+     * A group that mirrors an org unit, and where it is.
+     *
+     * @param group the group. A group at the top of an organization has no parent here. A realm group has its real
+     *        parent.
+     * @param organizationId the ID of the organization of the group, or null for a realm group
+     */
+    record OwnedGroup(Group group, String organizationId) {
+    }
+
+    /**
      * Tells whether the realm asked for the projection.
      *
      * @return true when the projection is turned on for the realm
@@ -61,6 +71,14 @@ public interface OrganizationGroups {
      * @return the groups
      */
     List<Group> groups(String organizationId);
+
+    /**
+     * Lists every group of the realm that mirrors an org unit, in organizations and among the realm groups.
+     * It reads them all at once. The groups that someone made by hand are not in it.
+     *
+     * @return the groups, in no order
+     */
+    List<OwnedGroup> ownedGroups();
 
     /**
      * Creates a group that mirrors an org unit.
@@ -104,6 +122,14 @@ public interface OrganizationGroups {
      * @return the IDs of the users by the ID of their group. A group with no member can be left out.
      */
     Map<String, Set<String>> members(Collection<String> groupIds);
+
+    /**
+     * The groups of some users. The hidden group of an organization is one of them for its members.
+     *
+     * @param userIds the IDs of the users
+     * @return the IDs of the groups by the ID of their user. A user in no group can be left out.
+     */
+    Map<String, Set<String>> groupsOf(Collection<String> userIds);
 
     /**
      * The members of an organization, out of some users.

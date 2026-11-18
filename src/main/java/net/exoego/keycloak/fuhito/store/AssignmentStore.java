@@ -56,6 +56,15 @@ public interface AssignmentStore {
     List<Assignment> rowsOn(Collection<String> orgUnitIds, LocalDate date);
 
     /**
+     * Lists the rows of some employments that are valid on a date.
+     *
+     * @param employmentIds the IDs of the employments
+     * @param date the date
+     * @return the rows
+     */
+    List<Assignment> rowsOfEmploymentsOn(Collection<String> employmentIds, LocalDate date);
+
+    /**
      * Lists a page of the rows of the members of an org unit on a date.
      * With descendants, the units come in tree order.
      * Inside one unit, the rows follow the display order, then the start of the row, then the assignment ID.

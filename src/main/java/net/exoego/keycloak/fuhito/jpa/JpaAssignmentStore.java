@@ -99,6 +99,22 @@ public class JpaAssignmentStore implements AssignmentStore {
                 .toList();
     }
 
+    @Override
+    public List<Assignment> rowsOfEmploymentsOn(Collection<String> employmentIds, LocalDate date) {
+        return em.createQuery("""
+                        select a from AssignmentEntity a where a.realmId = :realmId
+                        and %s
+                        and a.validFrom <= :date and (a.validTo is null or a.validTo > :date)"""
+                        .formatted(ManyIds.has("a.employmentId", "employmentIds")),
+                        AssignmentEntity.class)
+                .setParameter("realmId", realmId)
+                .setParameter("employmentIds", ManyIds.of(employmentIds))
+                .setParameter("date", date)
+                .getResultStream()
+                .map(JpaAssignmentStore::toDomain)
+                .toList();
+    }
+
     // Each employer with itself and every org unit below it. A person who works in one of those is at home.
     private static final String OWNED = """
             Owned as (

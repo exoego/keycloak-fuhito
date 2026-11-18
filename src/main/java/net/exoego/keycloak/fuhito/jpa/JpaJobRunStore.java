@@ -69,4 +69,19 @@ public class JpaJobRunStore implements JobRunStore {
             em.flush();
         });
     }
+
+    @Override
+    public Optional<Checkpoint> checkpoint(String job) {
+        return entity(job).filter(run -> run.checkpointSequence != null)
+                .map(run -> new Checkpoint(run.checkpointSequence, run.checkpointSettings));
+    }
+
+    @Override
+    public void saveCheckpoint(String job, Checkpoint checkpoint) {
+        entity(job).ifPresent(run -> {
+            run.checkpointSequence = checkpoint.sequence();
+            run.checkpointSettings = checkpoint.settings();
+            em.flush();
+        });
+    }
 }

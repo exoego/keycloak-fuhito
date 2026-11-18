@@ -120,6 +120,11 @@ final class KeycloakOrganizations implements OrganizationDirectory, Organization
     }
 
     @Override
+    public List<OwnedGroup> ownedGroups() {
+        return GroupMemberships.withAttribute(entityManager(), realm.getId(), ORG_UNIT_ATTRIBUTE);
+    }
+
+    @Override
     public String createGroup(String organizationId, String name, String parentId, String orgUnitId) {
         OrganizationModel organization = provider().getById(organizationId);
         return within(organization, () -> {
@@ -202,6 +207,11 @@ final class KeycloakOrganizations implements OrganizationDirectory, Organization
     @Override
     public Map<String, Set<String>> members(Collection<String> groupIds) {
         return GroupMemberships.byGroup(entityManager(), groupIds);
+    }
+
+    @Override
+    public Map<String, Set<String>> groupsOf(Collection<String> userIds) {
+        return GroupMemberships.byUser(entityManager(), userIds);
     }
 
     // A member of an organization is a member of the hidden group of the organization.

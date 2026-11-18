@@ -1,8 +1,10 @@
 package net.exoego.keycloak.fuhito.jpa;
 
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -81,6 +83,19 @@ public class JpaProjectedMemberStore implements ProjectedMemberStore {
                 .setParameter("organizationId", organizationId)
                 .setParameter("userIds", ManyIds.of(userIds))
                 .getResultList());
+    }
+
+    @Override
+    public Map<String, Set<String>> organizationsOf(Collection<String> userIds) {
+        Map<String, Set<String>> result = new HashMap<>();
+        em.createQuery("""
+                        select m.userId, m.organizationId from ProjectedMemberEntity m where m.realmId = :realmId
+                        and %s""".formatted(ManyIds.has("m.userId", "userIds")), Object[].class)
+                .setParameter("realmId", realmId)
+                .setParameter("userIds", ManyIds.of(userIds))
+                .getResultStream()
+                .forEach(row -> result.computeIfAbsent((String) row[0], id -> new HashSet<>()).add((String) row[1]));
+        return result;
     }
 
     @Override

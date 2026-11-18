@@ -1,7 +1,10 @@
 package net.exoego.keycloak.fuhito.jpa;
 
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.criteria.CriteriaBuilder;
@@ -92,6 +95,35 @@ public class JpaChangeLogStore implements ChangeLogStore {
                 .getResultStream()
                 .map(JpaChangeLogStore::toDomain)
                 .toList();
+    }
+
+    @Override
+    public long lastSequence() {
+        return em.createQuery("select c.lastSequence from ChangeLogCounterEntity c where c.realmId = :realmId",
+                        Long.class)
+                .setParameter("realmId", realmId)
+                .getResultStream()
+                .findFirst()
+                .orElse(0L);
+    }
+
+    @Override
+    public Map<String, String> statesUpTo(String resourceType, Collection<String> resourceIds, long upTo) {
+        Map<String, String> result = new HashMap<>();
+        em.createQuery("""
+                        select l.resourceId, l.representation from ChangeLogEntity l
+                        where l.realmId = :realmId and l.resourceType = :type and %s
+                        and l.sequence = (select max(m.sequence) from ChangeLogEntity m where m.realmId = :realmId
+                            and m.resourceType = :type and m.resourceId = l.resourceId
+                            and m.representation is not null and m.sequence <= :upTo)"""
+                        .formatted(ManyIds.has("l.resourceId", "ids")), Object[].class)
+                .setParameter("realmId", realmId)
+                .setParameter("type", resourceType)
+                .setParameter("ids", ManyIds.of(resourceIds))
+                .setParameter("upTo", upTo)
+                .getResultStream()
+                .forEach(row -> result.put((String) row[0], (String) row[1]));
+        return result;
     }
 
     @Override

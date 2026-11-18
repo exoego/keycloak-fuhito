@@ -1,6 +1,7 @@
 package net.exoego.keycloak.fuhito.service;
 
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -45,6 +46,14 @@ final class MemoryProjectedMemberStore implements ProjectedMemberStore {
     public Set<String> recorded(String organizationId, Collection<String> userIds) {
         Set<String> result = new HashSet<>(users(organizationId));
         result.retainAll(userIds);
+        return result;
+    }
+
+    @Override
+    public Map<String, Set<String>> organizationsOf(Collection<String> userIds) {
+        Map<String, Set<String>> result = new HashMap<>();
+        records.forEach((organizationId, users) -> users.keySet().stream().filter(userIds::contains)
+                .forEach(userId -> result.computeIfAbsent(userId, id -> new HashSet<>()).add(organizationId)));
         return result;
     }
 

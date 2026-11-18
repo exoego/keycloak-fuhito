@@ -12,8 +12,13 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
+import java.util.function.Supplier;
 
+import net.exoego.keycloak.fuhito.domain.Assignment;
 import net.exoego.keycloak.fuhito.domain.BusinessDay;
+import net.exoego.keycloak.fuhito.domain.ChangeLogEntry;
+import net.exoego.keycloak.fuhito.domain.Employment;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.OrgUnit;
 import net.exoego.keycloak.fuhito.store.OrganizationGroups;
@@ -121,6 +126,33 @@ class ProjectionServiceTest {
                     throw new IllegalStateException("name taken: " + name);
                 }
             }
+        }
+
+        @Override
+        public List<OwnedGroup> ownedGroups() {
+            List<OwnedGroup> result = new ArrayList<>();
+            for (Group group : groups.values()) {
+                String organizationId = organizationOfGroup.get(group.id());
+                if (group.orgUnitId() == null) {
+                    continue;
+                }
+                if (organizationId.startsWith("realm:")) {
+                    // A realm group has its real parent, which is the root for a group right below it.
+                    String parentId = group.parentId() == null ? organizationId.substring(6) : group.parentId();
+                    result.add(new OwnedGroup(new Group(group.id(), group.name(), parentId, group.orgUnitId()), null));
+                } else {
+                    result.add(new OwnedGroup(group, organizationId));
+                }
+            }
+            return result;
+        }
+
+        @Override
+        public Map<String, Set<String>> groupsOf(java.util.Collection<String> userIds) {
+            Map<String, Set<String>> result = new HashMap<>();
+            members.forEach((groupId, users) -> users.stream().filter(userIds::contains)
+                    .forEach(userId -> result.computeIfAbsent(userId, id -> new HashSet<>()).add(groupId)));
+            return result;
         }
 
         @Override
@@ -260,9 +292,12 @@ class ProjectionServiceTest {
     private final MemoryEmploymentStore employmentStore = new MemoryEmploymentStore();
     private final MemoryRefItemStore refItems = new MemoryRefItemStore();
     private final MemoryReportingLineStore lines = new MemoryReportingLineStore();
+    private final MemoryPersonStore people = MemoryPersonStore.anyUser();
+    private final MemoryChangeLogStore changeLog = new MemoryChangeLogStore();
+    private final MemoryJobRunStore runs = new MemoryJobRunStore();
     private final OrgUnitService orgUnits = new OrgUnitService(orgUnitStore, externalIds, assignmentStore, refItems, CLOCK);
     private final EmploymentService employments =
-            new EmploymentService(employmentStore, externalIds, assignmentStore, refItems, MemoryPersonStore.anyUser(), lines, new MemoryUnitRoleStore(), new AnyEmployer());
+            new EmploymentService(employmentStore, externalIds, assignmentStore, refItems, people, lines, new MemoryUnitRoleStore(), new AnyEmployer());
     private final AssignmentService assignments =
             new AssignmentService(assignmentStore, externalIds, employmentStore, orgUnitStore, refItems, lines);
     private final OrganizationLinkService links = new OrganizationLinkService(orgUnitStore, id -> true);
@@ -296,9 +331,17 @@ class ProjectionServiceTest {
                 null, null, null, null, null, null, null)).assignmentId();
     }
 
+    private ProjectionService service(Today today) {
+        return new ProjectionService(new ProjectionService.Parts(orgUnitStore, assignmentStore, employmentStore,
+                people, refItems, keycloak, projectedMembers, changeLog, runs, today));
+    }
+
+    private ProjectionService service() {
+        return service(Today.of(CLOCK));
+    }
+
     private ProjectionReport rebuild() {
-        return new ProjectionService(orgUnitStore, assignmentStore, employmentStore, refItems, keycloak,
-                projectedMembers, CLOCK).rebuild();
+        return service().rebuild();
     }
 
     @Test
@@ -346,8 +389,7 @@ class ProjectionServiceTest {
         keycloak.noOrganizations = true;
         List<String> asked = new ArrayList<>();
 
-        ProjectionReport report = new ProjectionService(orgUnitStore, assignmentStore, employmentStore, refItems,
-                keycloak, projectedMembers, CLOCK).rebuild(asked::add, () -> asked.add("realm groups"));
+        ProjectionReport report = service().rebuild(asked::add, () -> asked.add("realm groups"));
 
         assertEquals(List.of("realm groups"), asked);
         assertEquals(new ProjectionReport(0, 3, 0, 0, 0, 3, 0, 0, 0, 1), report);
@@ -574,8 +616,7 @@ class ProjectionServiceTest {
 
     @Test
     void aCallerMustBeAllowedToChangeEachPlaceBeforeAnythingIsWritten() {
-        var service = new ProjectionService(orgUnitStore, assignmentStore, employmentStore, refItems, keycloak,
-                projectedMembers, CLOCK);
+        var service = service();
         List<String> asked = new ArrayList<>();
         IllegalStateException denied = new IllegalStateException("denied");
 
@@ -621,8 +662,7 @@ class ProjectionServiceTest {
         assertEquals(FuhitoException.Reason.CONFLICT, e.reason());
         assertEquals("projection.disabled", e.code());
         assertEquals(0, keycloak.groups.size());
-        var service = new ProjectionService(orgUnitStore, assignmentStore, employmentStore, refItems, keycloak,
-                projectedMembers, CLOCK);
+        var service = service();
         assertEquals("projection.disabled", assertThrows(FuhitoException.class,
                 () -> service.rebuild(id -> fail(id), () -> fail("realm groups"))).code());
     }
@@ -662,8 +702,7 @@ class ProjectionServiceTest {
         orgUnits.setTime(clinic, "Asia/Tokyo", null);
         Today today = new UnitDays(orgUnitStore, BusinessDay.rule("America/New_York", null), CLOCK);
 
-        new ProjectionService(orgUnitStore, assignmentStore, employmentStore, refItems, keycloak, projectedMembers,
-                today).rebuild();
+        service(today).rebuild();
 
         assertEquals(List.of("Lab [technician]"), keycloak.describe("org-y"));
         assertEquals(List.of("Nursing [head-nurse]", "Ward < Nursing [nurse]"), keycloak.describe("org-x"));
@@ -790,5 +829,420 @@ class ProjectionServiceTest {
 
         assertEquals(1001, rebuild().organizationMembersRemoved());
         assertEquals(Set.of("director", "head-nurse", "nurse"), keycloak.organizationMembers.get("org-x"));
+    }
+
+    // An entry of the change log, as the API writes it with each write.
+    private void logged(String resourceType, String resourceId, String operation, String path, String state) {
+        changeLog.append(new ChangeLogEntry("entry-" + changeLog.entries.size(), 0, Instant.EPOCH, "admin",
+                resourceType, resourceId, operation, path, null, state));
+    }
+
+    private void loggedUnit(String unitId) {
+        logged("FUHITO_ORG_UNIT", unitId, "UPDATE", "fuhito/org-units/" + unitId, "{}");
+    }
+
+    private void loggedAssignment(String assignmentId, String operation) {
+        String employmentId = assignmentStore.rows.stream().filter(row -> row.assignmentId().equals(assignmentId))
+                .findFirst().map(Assignment::employmentId).orElse(null);
+        logged("FUHITO_ASSIGNMENT", assignmentId, operation, "fuhito/assignments/" + assignmentId,
+                operation.equals("DELETE") ? null : "{\"employmentId\": \"" + employmentId + "\"}");
+    }
+
+    private String employmentOf(String assignmentId) {
+        return assignmentStore.rows.stream().filter(row -> row.assignmentId().equals(assignmentId)).findFirst()
+                .orElseThrow().employmentId();
+    }
+
+    private ProjectionReport changes() {
+        return service().rebuildChanges(id -> { }, () -> { });
+    }
+
+    // After a run of the changes, a full rebuild finds nothing more to do.
+    private void assertSettled() {
+        ProjectionReport full = rebuild();
+        assertEquals(List.of(0, 0, 0, 0, 0, 0, 0, 0), List.of(full.groupsCreated(), full.groupsRenamed(),
+                full.groupsMoved(), full.groupsRemoved(), full.membersJoined(), full.membersLeft(),
+                full.organizationMembersAdded(), full.organizationMembersRemoved()), full.toString());
+    }
+
+    @Test
+    void aRunOfTheChangesWithNoRunBeforeIsAFullRebuild() {
+        ProjectionReport first = changes();
+
+        assertEquals(true, first.fellBack());
+        assertEquals("no_earlier_run", first.fallbackReason());
+        assertEquals(2, first.groupsCreated());
+        assertEquals(null, first.usersLookedAt());
+
+        assertEquals(new ProjectionReport(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, false, null), changes());
+        // A full rebuild is no run of the changes.
+        assertEquals(null, rebuild().fellBack());
+    }
+
+    @Test
+    void aMoveInsideTheOrganizationChangesTheGroupsOfOneUser() {
+        rebuild();
+        AssignmentService.Move move = assignments.move(nurseAssignment,
+                new MoveRequest(nursing, "2026-06-01", null, null, null));
+        loggedAssignment(nurseAssignment, "UPDATE");
+        loggedAssignment(move.started().assignmentId(), "CREATE");
+        // Writes that the projection does not read.
+        logged("FUHITO_REF_ITEM", "item", "CREATE", "fuhito/ref-items/item", "{}");
+        logged("FUHITO_PERSON_DATA", "nurse", "UPDATE", "fuhito/people/nurse/mask", "{}");
+
+        ProjectionReport report = changes();
+
+        assertEquals(new ProjectionReport(0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 4, 1, 1, false, null), report);
+        assertEquals(List.of("Nursing [head-nurse, nurse]", "Ward < Nursing []"), keycloak.describe("org-x"));
+        assertSettled();
+    }
+
+    @Test
+    void aMoveToAnotherOrganizationMovesTheMembershipToo() {
+        String clinic = unit("Clinic", null);
+        String desk = unit("Desk", clinic);
+        links.link(clinic, "org-y");
+        rebuild();
+        AssignmentService.Move move = assignments.move(nurseAssignment,
+                new MoveRequest(desk, "2026-06-01", null, null, null));
+        loggedAssignment(nurseAssignment, "UPDATE");
+        loggedAssignment(move.started().assignmentId(), "CREATE");
+        List<String> asked = new ArrayList<>();
+
+        ProjectionReport report = service().rebuildChanges(asked::add, () -> asked.add("realm groups"));
+
+        assertEquals(List.of("org-x", "org-y"), asked);
+        assertEquals(new ProjectionReport(0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 2, 1, 2, false, null), report);
+        assertEquals(Set.of("nurse"), keycloak.organizationMembers.get("org-y"));
+        assertEquals(Set.of("director", "head-nurse"), projectedMembers.users("org-x"));
+        assertSettled();
+    }
+
+    @Test
+    void aNewPersonWithAUserJoinsAndAnEndedEmploymentLeaves() {
+        rebuild();
+        String pharmacist = assign("pharmacist", ward, "2026-05-01");
+        String employment = employmentOf(pharmacist);
+        logged("FUHITO_PERSON", "pharmacist", "CREATE", "fuhito/people/pharmacist", "{\"userId\": \"pharmacist\"}");
+        logged("FUHITO_EMPLOYMENT", employment, "CREATE", "fuhito/employments/" + employment, "{}");
+        loggedAssignment(pharmacist, "CREATE");
+        String nurseEmployment = employmentOf(nurseAssignment);
+        employments.end(nurseEmployment, "2026-06-01", null);
+        logged("FUHITO_EMPLOYMENT", nurseEmployment, "UPDATE", "fuhito/employments/" + nurseEmployment + "/end",
+                "{}");
+
+        ProjectionReport report = changes();
+
+        assertEquals(2, report.usersLookedAt());
+        assertEquals(List.of(1, 1, 1, 1), List.of(report.membersJoined(), report.membersLeft(),
+                report.organizationMembersAdded(), report.organizationMembersRemoved()));
+        assertEquals(List.of("Nursing [head-nurse]", "Ward < Nursing [pharmacist]"), keycloak.describe("org-x"));
+        assertSettled();
+    }
+
+    @Test
+    void aRenamedUnitAndAMovedSubtreeChangeOnlyTheirGroups() {
+        keycloak.realmGroup = "org";
+        String annex = unit("Annex", hospital);
+        rebuild();
+        orgUnits.changeDetails(ward, new OrgUnitChange("2026-06-01", null, "East Ward", null, null, null, null, null,
+                null, null));
+        orgUnits.move(nursing, annex, "2026-06-01");
+        loggedUnit(ward);
+        loggedUnit(nursing);
+        List<String> asked = new ArrayList<>();
+
+        ProjectionReport report = service().rebuildChanges(asked::add, () -> asked.add("realm groups"));
+
+        assertEquals(List.of("org-x", "realm groups"), asked);
+        // The rename and the move each happen in the organization and in the realm groups.
+        assertEquals(new ProjectionReport(1, 0, 2, 2, 0, 0, 0, 0, 0, 1, 2, 0, 1, false, null), report);
+        assertEquals(List.of("Annex []", "Nursing < Annex [head-nurse]", "East Ward < Nursing [nurse]"),
+                keycloak.describe("org-x"));
+        assertSettled();
+    }
+
+    @Test
+    void aUnitThatMovesToAnotherOrganizationTakesItsPeopleAlong() {
+        keycloak.realmGroup = "org";
+        String clinic = unit("Clinic", null);
+        links.link(clinic, "org-y");
+        rebuild();
+        orgUnits.move(nursing, clinic, "2026-06-01");
+        loggedUnit(nursing);
+
+        ProjectionReport report = changes();
+
+        assertEquals(2, report.organizations());
+        assertEquals(List.of(2, 2, 1, 2, 2, 2), List.of(report.groupsCreated(), report.groupsRemoved(),
+                report.groupsMoved(), report.usersLookedAt(), report.organizationMembersAdded(),
+                report.organizationMembersRemoved()));
+        assertEquals(List.of("Nursing [head-nurse]", "Ward < Nursing [nurse]"), keycloak.describe("org-y"));
+        assertEquals(List.of(), keycloak.describe("org-x"));
+        assertSettled();
+    }
+
+    @Test
+    void anEndedUnitLosesItsGroup() {
+        keycloak.realmGroup = "org";
+        rebuild();
+        assignments.end(nurseAssignment, "2026-06-01");
+        assignmentStore.rows.removeIf(row -> row.orgUnitId().equals(ward) && row.period().from().getYear() == 2027);
+        orgUnits.end(ward, "2026-06-01");
+        loggedAssignment(nurseAssignment, "UPDATE");
+        loggedUnit(ward);
+
+        ProjectionReport report = changes();
+
+        assertEquals(2, report.groupsRemoved());
+        assertEquals(1, report.organizationMembersRemoved());
+        assertEquals(List.of("Nursing [head-nurse]"), keycloak.describe("org-x"));
+        assertSettled();
+    }
+
+    @Test
+    void aNewLinkMirrorsTheWholeOrganizationAndARemovedLinkTakesItAway() {
+        String clinic = unit("Clinic", null);
+        String desk = unit("Desk", clinic);
+        assign("receptionist", desk, "2026-04-01");
+        rebuild();
+        links.link(clinic, "org-y");
+        links.unlink(hospital);
+        logged("FUHITO_ORG_UNIT", clinic, "UPDATE", "fuhito/org-units/" + clinic + "/organization", "{}");
+        logged("FUHITO_ORG_UNIT", hospital, "UPDATE", "fuhito/org-units/" + hospital + "/organization", "{}");
+        List<String> asked = new ArrayList<>();
+
+        ProjectionReport report = service().rebuildChanges(asked::add, () -> asked.add("realm groups"));
+
+        assertEquals(List.of("org-x", "org-y"), asked);
+        assertEquals(List.of("Desk [receptionist]"), keycloak.describe("org-y"));
+        assertEquals(List.of(), keycloak.describe("org-x"));
+        assertEquals(List.of("org-y"), projectedMembers.organizations());
+        assertEquals(1, report.organizations());
+        assertSettled();
+    }
+
+    @Test
+    void aNewTimeSettingMirrorsTheOrganizationsBelowItAgain() {
+        keycloak.realmGroup = "org";
+        String group = unit("Group", null);
+        String clinic = unit("Clinic", group);
+        links.link(clinic, "org-y");
+        rebuild();
+        orgUnits.setTime(group, "Asia/Tokyo", null);
+        logged("FUHITO_ORG_UNIT", group, "UPDATE", "fuhito/org-units/" + group + "/time-settings", "{}");
+        logged("FUHITO_ORG_UNIT", nursing, "UPDATE", "fuhito/org-units/" + nursing + "/time-settings", "{}");
+
+        ProjectionReport report = changes();
+
+        // The clinic takes the date of the group. A setting below the hospital changes only the groups below it.
+        assertEquals(2, report.organizations());
+        assertEquals(false, report.fellBack());
+        assertSettled();
+    }
+
+    @Test
+    void theRealmGroupsOfRootsOnTwoDatesAreMirroredWhole() {
+        keycloak.realmGroup = "org";
+        String clinic = unit("Clinic", null);
+        // 23:00 on June 14 in New York, where the realm is. The clinic is in Tokyo, where it is already June 15.
+        orgUnits.setTime(clinic, "Asia/Tokyo", null);
+        Today today = new UnitDays(orgUnitStore, BusinessDay.rule("America/New_York", null), CLOCK);
+        service(today).rebuild();
+        String lab = orgUnits.create(new NewOrgUnit(null, "Lab", null, null, null, null, null, clinic, "2026-06-15",
+                null, null, null, null)).unit().id();
+        assign("technician", lab, "2026-06-15");
+        loggedUnit(lab);
+        logged("FUHITO_PERSON", "technician", "CREATE", "fuhito/people/technician", "{\"userId\": \"technician\"}");
+
+        ProjectionReport report = service(today).rebuildChanges(id -> { }, () -> { });
+
+        assertEquals(List.of(1, 1), List.of(report.groupsCreated(), report.membersJoined()));
+        assertTrue(keycloak.describe("realm:org").contains("Lab < Clinic [technician]"),
+                keycloak.describe("realm:org").toString());
+        assertEquals(new ProjectionReport(1, 0, 0, 0, 0, 0, 0, 0, 0, 1), service(today).rebuild());
+    }
+
+    @Test
+    void aGroupThatSomeoneRemovedByHandComesBackWithTheWholeOrganization() {
+        rebuild();
+        keycloak.removeGroup(groupOf(nursing));
+        orgUnits.changeDetails(ward, new OrgUnitChange("2026-06-01", null, "East Ward", null, null, null, null, null,
+                null, null));
+        loggedUnit(ward);
+
+        ProjectionReport report = changes();
+
+        assertEquals(2, report.groupsCreated());
+        assertEquals(List.of("Nursing [head-nurse]", "East Ward < Nursing [nurse]"), keycloak.describe("org-x"));
+        assertSettled();
+    }
+
+    @Test
+    void aNewUnitWithTheNameOfASiblingFailsTheRun() {
+        rebuild();
+        loggedUnit(unit("Ward", nursing));
+
+        assertEquals("projection.duplicate_name", assertThrows(FuhitoException.class, this::changes).code());
+    }
+
+    @Test
+    void aPersonLinkedToAnotherUserMovesTheMembershipsToThatUser() {
+        logged("FUHITO_PERSON", "nurse", "CREATE", "fuhito/people/nurse", "{\"userId\": \"nurse\"}");
+        rebuild();
+        Employment linked = employmentStore.find(employmentOf(nurseAssignment)).orElseThrow();
+        employmentStore.update(new Employment(linked.id(), linked.personId(), "nurse-2", linked.employerId(),
+                linked.period(), linked.staffNumber(), linked.endReasonId(), linked.source(),
+                linked.continuesEmploymentId(), linked.version()));
+        logged("FUHITO_PERSON", "nurse", "UPDATE", "fuhito/people/nurse", "{\"userId\": \"nurse-2\"}");
+
+        ProjectionReport report = changes();
+
+        assertEquals(2, report.usersLookedAt());
+        assertEquals(List.of("Nursing [head-nurse]", "Ward < Nursing [nurse-2]"), keycloak.describe("org-x"));
+        assertSettled();
+    }
+
+    @Test
+    void aRemovedAssignmentOrEmploymentIsFoundThroughTheChangeLog() {
+        String pharmacist = assign("pharmacist", ward, "2026-05-01");
+        String employment = employmentOf(pharmacist);
+        loggedAssignment(pharmacist, "CREATE");
+        logged("FUHITO_EMPLOYMENT", employment, "CREATE", "fuhito/employments/" + employment,
+                "{\"personId\": \"pharmacist\"}");
+        rebuild();
+        assignmentStore.rows.removeIf(row -> row.assignmentId().equals(pharmacist));
+        employmentStore.delete(employment);
+        loggedAssignment(pharmacist, "DELETE");
+        logged("FUHITO_EMPLOYMENT", employment, "DELETE", "fuhito/employments/" + employment, null);
+
+        ProjectionReport report = changes();
+
+        assertEquals(1, report.membersLeft());
+        assertEquals(1, report.organizationMembersRemoved());
+        assertSettled();
+    }
+
+    @Test
+    void aRunOfTheChangesFallsBackWhenTheChangeLogDoesNotTellEnough() {
+        rebuild();
+        // The person had no entry before, so the user that it was linked to is not known.
+        logged("FUHITO_PERSON", "nurse", "UPDATE", "fuhito/people/nurse", "{\"userId\": \"nurse\"}");
+        assertEquals("earlier_state", changes().fallbackReason());
+        logged("FUHITO_ASSIGNMENT", "gone", "DELETE", "fuhito/assignments/gone", null);
+        assertEquals("earlier_state", changes().fallbackReason());
+        logged("FUHITO_ASSIGNMENT", "known", "CREATE", "fuhito/assignments/known", "{\"employmentId\": \"gone\"}");
+        logged("FUHITO_ASSIGNMENT", "known", "DELETE", "fuhito/assignments/known", null);
+        assertEquals("earlier_state", changes().fallbackReason());
+
+        for (List<String> entry : List.of(List.of("FUHITO_RESTORE", "UPDATE", "restore"),
+                List.of("FUHITO_HIERARCHY", "UPDATE", "hierarchy"),
+                List.of("FUHITO_PERSON_DATA", "DELETE", "erasure"),
+                List.of("FUHITO_SOMETHING_NEW", "CREATE", "unknown_entry"))) {
+            logged(entry.get(0), "x", entry.get(1), "fuhito/x", null);
+            loggedUnit(ward);
+            ProjectionReport report = changes();
+            assertEquals(entry.get(2), report.fallbackReason());
+            // The entries after the one that the run cannot map are not read.
+            assertEquals(1, report.changeLogEntries());
+        }
+    }
+
+    @Test
+    void aRunOfTheChangesFallsBackWhenASettingOutsideTheChangeLogChanged() {
+        rebuild();
+        keycloak.realmGroup = "org";
+        List<String> asked = new ArrayList<>();
+
+        ProjectionReport report = service().rebuildChanges(asked::add, () -> asked.add("realm groups"));
+
+        assertEquals("settings", report.fallbackReason());
+        assertEquals(List.of("org-x", "realm groups"), asked);
+        assertEquals(1, report.realmGroupTrees());
+
+        keycloak.realmGroupMissing = true;
+        assertEquals("projection.realm_group_unknown",
+                assertThrows(FuhitoException.class, this::changes).code());
+    }
+
+    @Test
+    void aRunOfTheChangesReadsTheChangeLogPageByPage() {
+        rebuild();
+        for (int i = 0; i < 1001; i++) {
+            logged("FUHITO_QUALIFICATION", "q-" + i, "CREATE", "fuhito/qualifications/q-" + i, "{}");
+        }
+        loggedUnit(ward);
+
+        ProjectionReport report = changes();
+
+        assertEquals(1002, report.changeLogEntries());
+        assertEquals(false, report.fellBack());
+        assertEquals(0, changes().changeLogEntries());
+    }
+
+    @Test
+    void aRunOfTheChangesAsksOnlyForWhatItMayChange() {
+        String clinic = unit("Clinic", null);
+        links.link(clinic, "org-y");
+        rebuild();
+        List<String> asked = new ArrayList<>();
+        service().rebuildChanges(asked::add, () -> asked.add("realm groups"));
+        assertEquals(List.of(), asked);
+
+        // The nurse sits in a group of org-y by hand and has a record in an organization that is gone.
+        keycloak.join(keycloak.createGroup("org-y", "By hand", null, clinic), "nurse");
+        projectedMembers.record("org-gone", "nurse");
+        loggedAssignment(nurseAssignment, "UPDATE");
+        service().rebuildChanges(asked::add, () -> asked.add("realm groups"));
+
+        assertEquals(List.of("org-x", "org-y"), asked);
+        // A full rebuild removes the record of the organization that is gone.
+        assertEquals(List.of("org-gone", "org-x"), projectedMembers.organizations());
+    }
+
+    @Test
+    void aRunOfTheChangesWhileOrganizationsAreOffChangesTheRealmGroupsOnly() {
+        keycloak.realmGroup = "org";
+        keycloak.noOrganizations = true;
+        rebuild();
+        projectedMembers.record("org-x", "nurse");
+        AssignmentService.Move move = assignments.move(nurseAssignment,
+                new MoveRequest(nursing, "2026-06-01", null, null, null));
+        loggedAssignment(nurseAssignment, "UPDATE");
+        loggedAssignment(move.started().assignmentId(), "CREATE");
+        loggedUnit(ward);
+
+        ProjectionReport report = changes();
+
+        assertEquals(List.of(1, 1, 0), List.of(report.membersJoined(), report.membersLeft(),
+                report.organizationMembersRemoved()));
+        assertEquals(List.of("org-x"), projectedMembers.organizations());
+        assertSettled();
+    }
+
+    @Test
+    void aRunOfTheChangesFailsLikeAFullRebuildWhenTheRealmTurnedItOff() {
+        rebuild();
+        keycloak.enabled = false;
+
+        assertEquals("projection.disabled", assertThrows(FuhitoException.class, this::changes).code());
+        // The realm turns it off while the run waits for its turn.
+        keycloak.enabled = true;
+        loggedUnit(ward);
+        ProjectionService service = new ProjectionService(new ProjectionService.Work() {
+            @Override
+            public <T> T inNewTransaction(Function<ProjectionService.Parts, T> piece) {
+                return piece.apply(new ProjectionService.Parts(orgUnitStore, assignmentStore, employmentStore,
+                        people, refItems, keycloak, projectedMembers, changeLog, runs, Today.of(CLOCK)));
+            }
+
+            @Override
+            public <T> T alone(Supplier<T> run) {
+                keycloak.enabled = false;
+                return run.get();
+            }
+        });
+        assertEquals("projection.disabled", assertThrows(FuhitoException.class,
+                () -> service.rebuildChanges(id -> { }, () -> { })).code());
     }
 }

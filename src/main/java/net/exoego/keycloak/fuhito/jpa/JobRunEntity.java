@@ -39,6 +39,12 @@ public class JobRunEntity {
     @Column(name = "ERROR_CODE", length = 128)
     String errorCode;
 
+    @Column(name = "CHECKPOINT_SEQUENCE")
+    Long checkpointSequence;
+
+    @Column(name = "CHECKPOINT_SETTINGS", length = 255)
+    String checkpointSettings;
+
     /**
      * Creates an empty entity for JPA.
      */

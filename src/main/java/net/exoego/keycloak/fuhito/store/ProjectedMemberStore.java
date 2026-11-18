@@ -2,6 +2,7 @@ package net.exoego.keycloak.fuhito.store;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -41,6 +42,14 @@ public interface ProjectedMemberStore {
      * @return the IDs of those users that have a record
      */
     Set<String> recorded(String organizationId, Collection<String> userIds);
+
+    /**
+     * The organizations where some users have a record.
+     *
+     * @param userIds the IDs of the users to look at
+     * @return the IDs of the organizations by the ID of the user. A user with no record is left out.
+     */
+    Map<String, Set<String>> organizationsOf(Collection<String> userIds);
 
     /**
      * Reads a page of the users that have a record in an organization, in the order of their IDs.

@@ -7,12 +7,14 @@ import jakarta.ws.rs.GET;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.service.ProjectionReport;
 import net.exoego.keycloak.fuhito.service.ProjectionService;
 import net.exoego.keycloak.fuhito.store.JobRunStore;
 import org.eclipse.microprofile.openapi.annotations.Operation;
+import org.eclipse.microprofile.openapi.annotations.media.Schema;
 import org.eclipse.microprofile.openapi.annotations.parameters.Parameter;
 import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
 import org.eclipse.microprofile.openapi.annotations.tags.Tag;
@@ -53,10 +55,18 @@ public class ProjectionResource {
     @APIResponse(responseCode = "200", description = "What the rebuild changed in Keycloak.")
     @BadRequest
     @ApiErrors
-    public ProjectionReport rebuild() {
+    public ProjectionReport rebuild(
+            @Parameter(
+                    description = "True to look only at what the change log names since the last run that was done. "
+                            + "A dated change that becomes true with no write is not in the log. When the log names "
+                            + "something that the run cannot map, or no run was done before, a full rebuild runs "
+                            + "and the report says so.",
+                    schema = @Schema(defaultValue = "false"))
+            @QueryParam("changesOnly") boolean changesOnly) {
         context.requireWrite();
-        return Calls.run(context, () -> service.rebuild(context::requireManageOrganization,
-                context::requireManageGroups));
+        return Calls.run(context, () -> changesOnly
+                ? service.rebuildChanges(context::requireManageOrganization, context::requireManageGroups)
+                : service.rebuild(context::requireManageOrganization, context::requireManageGroups));
     }
 
     @GET

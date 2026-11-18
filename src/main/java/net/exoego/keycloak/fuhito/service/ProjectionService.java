@@ -1,6 +1,5 @@
 package net.exoego.keycloak.fuhito.service;
 
-import java.time.Clock;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -24,10 +23,14 @@ import net.exoego.keycloak.fuhito.domain.Employment;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.OrgUnit;
 import net.exoego.keycloak.fuhito.store.AssignmentStore;
+import net.exoego.keycloak.fuhito.store.ChangeLogStore;
 import net.exoego.keycloak.fuhito.store.EmploymentStore;
+import net.exoego.keycloak.fuhito.store.JobRunStore;
+import net.exoego.keycloak.fuhito.store.JobRunStore.Checkpoint;
 import net.exoego.keycloak.fuhito.store.OrgUnitStore;
 import net.exoego.keycloak.fuhito.store.OrganizationGroups;
 import net.exoego.keycloak.fuhito.store.OrganizationGroups.Group;
+import net.exoego.keycloak.fuhito.store.PersonStore;
 import net.exoego.keycloak.fuhito.store.ProjectedMemberStore;
 import net.exoego.keycloak.fuhito.store.RefItemStore;
 
@@ -49,13 +52,17 @@ public class ProjectionService {
      * @param orgUnits the storage of org units of the realm
      * @param assignments the storage of assignments of the realm
      * @param employments the storage of employments of the realm
+     * @param people the storage of people of the realm
      * @param refItems the storage of reference items of the realm
      * @param keycloak the groups and members of the Keycloak organizations of the realm
      * @param projectedMembers the users that the projection added to the organizations of the realm
+     * @param changeLog the change log of the realm
+     * @param runs the last runs of the jobs of the realm
      * @param today what today is for the realm and for each org unit
      */
     public record Parts(OrgUnitStore orgUnits, AssignmentStore assignments, EmploymentStore employments,
-            RefItemStore refItems, OrganizationGroups keycloak, ProjectedMemberStore projectedMembers, Today today) {
+            PersonStore people, RefItemStore refItems, OrganizationGroups keycloak,
+            ProjectedMemberStore projectedMembers, ChangeLogStore changeLog, JobRunStore runs, Today today) {
     }
 
     /**
@@ -109,7 +116,7 @@ public class ProjectionService {
     }
 
     // Where groups go. An organization has members of its own. A realm group has groups below it only.
-    private record Target(String id, boolean organization) {
+    record Target(String id, boolean organization) {
 
         List<Group> groups(OrganizationGroups keycloak) {
             return organization ? keycloak.groups(id) : keycloak.realmGroups(id);
@@ -129,7 +136,7 @@ public class ProjectionService {
         }
     }
 
-    private static final int UNITS_AT_A_TIME = 100;
+    static final int UNITS_AT_A_TIME = 100;
 
     // Keycloak flushes after each change of a membership, and a flush looks through everything that the
     // transaction loaded. So a transaction with few writes keeps each flush small.
@@ -163,34 +170,9 @@ public class ProjectionService {
     /**
      * Creates the service for one rebuild that runs in the transaction of the caller.
      *
-     * @param orgUnits the storage of org units of the realm
-     * @param assignments the storage of assignments of the realm
-     * @param employments the storage of employments of the realm
-     * @param refItems the storage of reference items of the realm
-     * @param keycloak the groups and members of the Keycloak organizations of the realm
-     * @param projectedMembers the users that the projection added to the organizations of the realm
-     * @param clock the clock that decides what "today" is
+     * @param parts the storage of the realm, and what today is
      */
-    public ProjectionService(OrgUnitStore orgUnits, AssignmentStore assignments, EmploymentStore employments,
-            RefItemStore refItems, OrganizationGroups keycloak, ProjectedMemberStore projectedMembers, Clock clock) {
-        this(orgUnits, assignments, employments, refItems, keycloak, projectedMembers, Today.of(clock));
-    }
-
-    /**
-     * Creates the service for a realm where an org unit can have its own time settings.
-     * The rebuild runs in the transaction of the caller.
-     *
-     * @param orgUnits the storage of org units of the realm
-     * @param assignments the storage of assignments of the realm
-     * @param employments the storage of employments of the realm
-     * @param refItems the storage of reference items of the realm
-     * @param keycloak the groups and members of the Keycloak organizations of the realm
-     * @param projectedMembers the users that the projection added to the organizations of the realm
-     * @param today what today is for the realm and for each org unit
-     */
-    public ProjectionService(OrgUnitStore orgUnits, AssignmentStore assignments, EmploymentStore employments,
-            RefItemStore refItems, OrganizationGroups keycloak, ProjectedMemberStore projectedMembers, Today today) {
-        Parts parts = new Parts(orgUnits, assignments, employments, refItems, keycloak, projectedMembers, today);
+    public ProjectionService(Parts parts) {
         this.work = new Work() {
             @Override
             public <T> T inNewTransaction(Function<Parts, T> piece) {
@@ -225,12 +207,46 @@ public class ProjectionService {
     public ProjectionReport rebuild(Consumer<String> mayChangeOrganization, Runnable mayChangeRealmGroups) {
         // A rebuild that fails for another reason fails in its run, which keeps the failure.
         if (piece(parts -> parts.keycloak().projectionEnabled())) {
-            organizationsToChange().forEach(mayChangeOrganization);
-            if (namesRealmGroup()) {
-                mayChangeRealmGroups.run();
-            }
+            checkAll(mayChangeOrganization, mayChangeRealmGroups);
         }
         return rebuild();
+    }
+
+    /**
+     * Makes the groups and the memberships match the org structure of today for what changed since the last run
+     * that was done. The change log names the users and the org units that changed. The run looks at today's state
+     * of those, the same as a full rebuild. A dated change that becomes true later with no write is not in the log,
+     * so only a full rebuild picks it up.
+     * When the log names something that the run cannot map, or no run was done before, a full rebuild runs instead.
+     * The caller must be allowed to change each place the run may write to. The checks run before anything is
+     * written.
+     *
+     * @param mayChangeOrganization throws when the caller may not change the organization with the given ID
+     * @param mayChangeRealmGroups throws when the caller may not change the realm groups
+     * @return what the run changed, and how much it looked at
+     * @throws FuhitoException when the realm did not turn the projection on, two sibling units have one name,
+     *         or another rebuild is going on
+     */
+    public ProjectionReport rebuildChanges(Consumer<String> mayChangeOrganization, Runnable mayChangeRealmGroups) {
+        ProjectionChanges changes = new ProjectionChanges(this);
+        ProjectionChanges.Scope scope = changes.scope();
+        if (scope.fallback() != null) {
+            checkAll(mayChangeOrganization, mayChangeRealmGroups);
+            return work.alone(() -> rebuildAlone().fellBackFrom(scope.entries(), scope.fallback()));
+        }
+        Set<String> organizations = changes.organizations(scope);
+        organizations.forEach(mayChangeOrganization);
+        if (changes.touchesRealmGroups(scope)) {
+            mayChangeRealmGroups.run();
+        }
+        return work.alone(() -> changes.run(scope, organizations.size()));
+    }
+
+    private void checkAll(Consumer<String> mayChangeOrganization, Runnable mayChangeRealmGroups) {
+        organizationsToChange().forEach(mayChangeOrganization);
+        if (namesRealmGroup()) {
+            mayChangeRealmGroups.run();
+        }
     }
 
     private boolean namesRealmGroup() {
@@ -263,9 +279,9 @@ public class ProjectionService {
     }
 
     private ProjectionReport rebuildAlone() {
-        if (!piece(parts -> parts.keycloak().projectionEnabled())) {
-            throw FuhitoException.conflict("projection.disabled", Map.of());
-        }
+        requireEnabled();
+        // Read first, so that a write during the run is in the change log after this point.
+        long sequence = piece(parts -> parts.changeLog().lastSequence());
         // Each linked unit is mirrored as it is on its own date.
         List<Linked> linked = piece(parts -> parts.orgUnits().units().stream()
                 .filter(unit -> unit.keycloakOrganizationId() != null)
@@ -283,9 +299,32 @@ public class ProjectionService {
         int organizations = available ? projectOrganizations(linked) : 0;
         Optional<String> realmGroup = piece(parts -> parts.keycloak().realmGroupRoot());
         realmGroup.ifPresent(this::projectRealm);
+        saveCheckpoint(new Checkpoint(sequence, settings(available, realmGroup)));
+        return report(organizations, realmGroup.isPresent());
+    }
+
+    void requireEnabled() {
+        if (!piece(parts -> parts.keycloak().projectionEnabled())) {
+            throw FuhitoException.conflict("projection.disabled", Map.of());
+        }
+    }
+
+    // A run of the changes cannot see a change of these in the change log. So it compares them with the last run.
+    static String settings(boolean organizationsAvailable, Optional<String> realmGroup) {
+        return "organizations=" + organizationsAvailable + " realmGroup=" + realmGroup.orElse("");
+    }
+
+    void saveCheckpoint(Checkpoint checkpoint) {
+        piece(parts -> {
+            parts.runs().saveCheckpoint(ProjectionChanges.JOB, checkpoint);
+            return null;
+        });
+    }
+
+    ProjectionReport report(int organizations, boolean realmGroup) {
         return new ProjectionReport(organizations, groupsCreated, groupsRenamed, groupsMoved, groupsRemoved,
                 membersJoined.get(), membersLeft.get(), organizationMembersAdded.get(),
-                organizationMembersRemoved.get(), realmGroup.isPresent() ? 1 : 0);
+                organizationMembersRemoved.get(), realmGroup ? 1 : 0);
     }
 
     private int projectOrganizations(List<Linked> linked) {
@@ -318,11 +357,11 @@ public class ProjectionService {
     }
 
     // Every piece puts off its writes to its end. See OrganizationGroups.inOneFlush.
-    private <T> T piece(Function<Parts, T> piece) {
+    <T> T piece(Function<Parts, T> piece) {
         return work.inNewTransaction(parts -> parts.keycloak().inOneFlush(() -> piece.apply(parts)));
     }
 
-    private boolean project(OrgUnit root, LocalDate today) {
+    boolean project(OrgUnit root, LocalDate today) {
         Target target = new Target(root.keycloakOrganizationId(), true);
         Plan plan = piece(parts -> {
             OrgUnitTree tree = new OrgUnitTree(parts.orgUnits(), parts.refItems(), today);
@@ -339,7 +378,7 @@ public class ProjectionService {
             return false;
         }
         Map<String, String> groupIdByUnit = new HashMap<>();
-        park(root.id(), plan.below(), plan.existing());
+        park(root.id(), plan.below(), plan.existing(), byUnit(plan.existing()));
         mirrorAll(target, root.id(), plan.below(), byUnit(plan.existing()), groupIdByUnit);
         removeGone(plan.existing(), groupIdByUnit);
         // The linked unit itself has no group. Its people are members of the organization only.
@@ -352,7 +391,7 @@ public class ProjectionService {
     }
 
     // Every root becomes a group right below the realm group, each as it is on its own date.
-    private void projectRealm(String rootGroupId) {
+    void projectRealm(String rootGroupId) {
         Target target = new Target(rootGroupId, false);
         List<Linked> roots = piece(parts -> new OrgUnitTree(parts.orgUnits(), parts.refItems(),
                 parts.today().ofRealm()).roots().stream()
@@ -370,7 +409,7 @@ public class ProjectionService {
         List<Group> existing = piece(parts -> target.groups(parts.keycloak()));
         Map<String, Group> mirrored = byUnit(existing);
         Map<String, String> groupIdByUnit = new HashMap<>();
-        park(null, all, existing);
+        park(null, all, existing, mirrored);
         trees.values().forEach(units -> mirrorAll(target, null, units, mirrored, groupIdByUnit));
         removeGone(existing, groupIdByUnit);
         Set<String> everyone = new HashSet<>();
@@ -378,14 +417,14 @@ public class ProjectionService {
                 root.date(), groupIdByUnit, everyone));
     }
 
-    private static Map<String, Group> byUnit(List<Group> existing) {
+    static Map<String, Group> byUnit(List<Group> existing) {
         return existing.stream()
                 .filter(group -> group.orgUnitId() != null)
                 .collect(Collectors.toMap(Group::orgUnitId, group -> group, (first, second) -> first));
     }
 
     // A parent comes before its children, so its group is known when a child needs it.
-    private void mirrorAll(Target target, String rootId, List<OrgUnitState> units, Map<String, Group> mirrored,
+    void mirrorAll(Target target, String rootId, List<OrgUnitState> units, Map<String, Group> mirrored,
             Map<String, String> groupIdByUnit) {
         for (List<OrgUnitState> some : inPieces(units, UNITS_AT_A_TIME)) {
             piece(parts -> {
@@ -397,8 +436,7 @@ public class ProjectionService {
 
     // Keycloak allows one name among the groups of one parent. A group that goes away, or that gets another name
     // or another parent, first takes its own ID as its name. Then it holds no name that another group needs.
-    private void park(String rootId, List<OrgUnitState> units, List<Group> existing) {
-        Map<String, Group> mirrored = byUnit(existing);
+    void park(String rootId, List<OrgUnitState> units, List<Group> existing, Map<String, Group> mirrored) {
         Map<String, OrgUnitState> wanted = new HashMap<>();
         units.forEach(unit -> wanted.put(unit.unit().id(), unit));
         List<Group> changing = existing.stream()
@@ -428,7 +466,7 @@ public class ProjectionService {
                 || !group.name().equals(unit.version().name());
     }
 
-    private void removeGone(List<Group> existing, Map<String, String> groupIdByUnit) {
+    void removeGone(List<Group> existing, Map<String, String> groupIdByUnit) {
         piece(parts -> {
             removeGroupsOfGoneUnits(parts.keycloak(), existing, groupIdByUnit);
             return null;
@@ -444,7 +482,7 @@ public class ProjectionService {
 
     // The writes of different users do not touch the same rows, so they run at the same time. The time of a write
     // goes mostly into trips to the database.
-    private void run(List<MemberWrite> writes) {
+    void run(List<MemberWrite> writes) {
         List<Consumer<Parts>> pieces = new ArrayList<>();
         for (List<MemberWrite> few : byUser(writes)) {
             pieces.add(parts -> parts.keycloak().inOneFlush(() -> {
@@ -457,7 +495,7 @@ public class ProjectionService {
 
     // A recorded user that no assignment of today puts in the organization leaves it. The record goes in any case,
     // also when someone else took the user out before.
-    private void removeMembers(String organizationId, Set<String> wanted, boolean exists) {
+    void removeMembers(String organizationId, Set<String> wanted, boolean exists) {
         // The removal of an organization removed its records, but not one that a rebuild wrote at the same time.
         if (!exists) {
             piece(parts -> {
@@ -474,12 +512,7 @@ public class ProjectionService {
             List<MemberWrite> writes = new ArrayList<>();
             for (String userId : page) {
                 if (!wanted.contains(userId)) {
-                    writes.add(new MemberWrite(userId, parts -> {
-                        if (parts.keycloak().removeOrganizationMember(organizationId, userId)) {
-                            organizationMembersRemoved.incrementAndGet();
-                        }
-                        parts.projectedMembers().forget(organizationId, userId);
-                    }));
+                    writes.add(removeMember(organizationId, userId));
                 }
             }
             run(writes);
@@ -488,6 +521,28 @@ public class ProjectionService {
             }
             after = page.getLast();
         }
+    }
+
+    MemberWrite removeMember(String organizationId, String userId) {
+        return new MemberWrite(userId, parts -> {
+            if (parts.keycloak().removeOrganizationMember(organizationId, userId)) {
+                organizationMembersRemoved.incrementAndGet();
+            }
+            parts.projectedMembers().forget(organizationId, userId);
+        });
+    }
+
+    // A user who is a member already gets no record, because someone else added the user.
+    MemberWrite addMember(String organizationId, String userId, boolean recorded) {
+        return new MemberWrite(userId, parts -> {
+            if (parts.keycloak().addOrganizationMember(organizationId, userId)) {
+                organizationMembersAdded.incrementAndGet();
+                if (recorded) {
+                    parts.projectedMembers().forget(organizationId, userId);
+                }
+                parts.projectedMembers().record(organizationId, userId);
+            }
+        });
     }
 
     // Keycloak reads a user again in each transaction that changes it, and in a realm with organizations each
@@ -510,10 +565,10 @@ public class ProjectionService {
         return pieces;
     }
 
-    private record MemberWrite(String userId, Consumer<Parts> action) {
+    record MemberWrite(String userId, Consumer<Parts> action) {
     }
 
-    private static <E> List<List<E>> inPieces(List<E> all, int size) {
+    static <E> List<List<E>> inPieces(List<E> all, int size) {
         List<List<E>> pieces = new ArrayList<>();
         for (int start = 0; start < all.size(); start += size) {
             pieces.add(all.subList(start, Math.min(start + size, all.size())));
@@ -536,16 +591,7 @@ public class ProjectionService {
             Set<String> recorded = missing.isEmpty() ? Set.of()
                     : parts.projectedMembers().recorded(organizationId, missing);
             for (String userId : missing) {
-                writes.add(new MemberWrite(userId, write -> {
-                    // A user who is a member already gets no record, because someone else added the user.
-                    if (write.keycloak().addOrganizationMember(organizationId, userId)) {
-                        organizationMembersAdded.incrementAndGet();
-                        if (recorded.contains(userId)) {
-                            write.projectedMembers().forget(organizationId, userId);
-                        }
-                        write.projectedMembers().record(organizationId, userId);
-                    }
-                }));
+                writes.add(addMember(organizationId, userId, recorded.contains(userId)));
             }
         }
         List<String> groupIds = unitIds.stream().map(groupIdByUnit::get).filter(Objects::nonNull).toList();
@@ -585,8 +631,7 @@ public class ProjectionService {
         }
     }
 
-    private void memberWrites(String groupId, Set<String> current, Set<String> wanted,
-            List<MemberWrite> writes) {
+    void memberWrites(String groupId, Set<String> current, Set<String> wanted, List<MemberWrite> writes) {
         for (String userId : wanted) {
             if (!current.contains(userId)) {
                 writes.add(new MemberWrite(userId, parts -> {
@@ -608,7 +653,7 @@ public class ProjectionService {
     }
 
     // Keycloak allows one name among the groups of one parent.
-    private static void requireUniqueNames(List<OrgUnitState> below) {
+    static void requireUniqueNames(List<OrgUnitState> below) {
         Set<String> seen = new HashSet<>();
         for (OrgUnitState unit : below) {
             if (!seen.add(unit.parentId() + "/" + unit.version().name())) {
@@ -638,7 +683,7 @@ public class ProjectionService {
 
     // The org units come in pieces. One query for all of them would name every employment of the organization,
     // and the database takes only so many values in one statement.
-    private static Map<String, Set<String>> usersByUnit(Parts parts, List<String> unitIds, LocalDate today) {
+    static Map<String, Set<String>> usersByUnit(Parts parts, List<String> unitIds, LocalDate today) {
         List<Assignment> rows = parts.assignments().rowsOn(unitIds, today);
         // A person with no Keycloak user cannot be a member of a group.
         Map<String, String> userByEmployment = parts.employments()
