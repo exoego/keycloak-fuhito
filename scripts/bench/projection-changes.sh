@@ -81,8 +81,8 @@ subtree() {
     "{\"version\": $(version "u-$1"), \"parentId\": \"u-$((division % 50 + 1))\", \"validFrom\": \"${TODAY}\"}" 200
 }
 
-# Each change takes a unit of its own.
-NEXT=0
+# Each change takes a unit of its own. A second call in the same realm sets NEXT above the changes of the first.
+NEXT="${NEXT:-0}"
 change() {
   NEXT=$((NEXT + 1))
   case "$1" in
