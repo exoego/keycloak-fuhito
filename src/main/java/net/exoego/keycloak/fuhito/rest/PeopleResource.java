@@ -407,8 +407,8 @@ public class PeopleResource {
             operationId = "maskPerson",
             summary = "Masks the personal data of a person who left. It cannot be undone.",
             description = "It clears the names, the staff number, the numbers of qualifications, the external IDs, "
-                    + "and the free attributes, also in the change log. Every record keeps its ID, its org unit, "
-                    + "its job title, its occupation, and its dates.")
+                    + "and the free attributes. Every record keeps its ID, its org unit, its job title, its "
+                    + "occupation, and its dates. The entries of the change log stay as they are.")
     @Parameter(ref = "changeOrder")
     @APIResponse(responseCode = "200", description = "The person and the time of the masking.")
     @BadRequest
@@ -440,8 +440,9 @@ public class PeopleResource {
             operationId = "erasePersonData",
             summary = "Erases everything about one person for good.",
             description = "These are the person record, the employments with their terms and assignments, the "
-                    + "qualifications, the reporting lines of the person as a report and as a manager, and the "
-                    + "change log entries about them. This endpoint is for a request to delete personal data.")
+                    + "qualifications, and the reporting lines of the person as a report and as a manager. The "
+                    + "change log keeps its entries about them, because they hold only IDs. This endpoint is for "
+                    + "a request to delete personal data.")
     @Parameter(ref = "changeOrder")
     @APIResponse(responseCode = "204", description = "The data was erased.")
     @BadRequest

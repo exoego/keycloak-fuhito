@@ -8,8 +8,7 @@ import java.util.Set;
 import jakarta.persistence.EntityManager;
 
 /**
- * The IDs of what was ever stored about one person, also of rows that are gone. The change log keeps a copy of
- * a row after each write, and the IDs in the copies lead to the rest.
+ * The IDs of the rows that are stored about one person now.
  *
  * @param employments the IDs of the employments
  * @param assignments the IDs of the assignments of those employments
@@ -22,25 +21,25 @@ record PersonTrail(Set<String> employments, Set<String> assignments, Set<String>
         Set<String> unitRoles, Set<String> reportingLines, Set<String> externalIds) {
 
     static PersonTrail of(EntityManager em, String realmId, String personId) {
-        Trail trail = new Trail(em, realmId);
-        Set<String> employments = trail.both("select e.id from EmploymentEntity e where e.realmId = :realmId "
-                + "and e.personId in :ids", List.of(personId), "FUHITO_EMPLOYMENT", "personId");
-        Set<String> assignments = trail.both("select a.assignmentId from AssignmentEntity a where a.realmId = :realmId "
-                + "and a.employmentId in :ids", employments, "FUHITO_ASSIGNMENT", "employmentId");
-        Set<String> qualifications = trail.both("select q.id from QualificationEntity q where q.realmId = :realmId "
-                + "and q.personId in :ids", List.of(personId), "FUHITO_QUALIFICATION", "personId");
-        Set<String> unitRoles = trail.both("select r.id from UnitRoleEntity r where r.realmId = :realmId "
-                + "and r.employmentId in :ids", employments, "FUHITO_UNIT_ROLE", "employmentId");
-        Set<String> reportingLines = trail.both("select r.id from ReportingLineEntity r where r.realmId = :realmId "
-                + "and r.assignmentId in :ids", assignments, "FUHITO_REPORTING_LINE", "assignmentId");
-        reportingLines.addAll(trail.both("select r.id from ReportingLineEntity r where r.realmId = :realmId "
-                + "and r.managerPersonId in :ids", List.of(personId), "FUHITO_REPORTING_LINE", "managerPersonId"));
+        Ids ids = new Ids(em, realmId);
+        Set<String> employments = ids.of("select e.id from EmploymentEntity e where e.realmId = :realmId "
+                + "and e.personId in :ids", List.of(personId));
+        Set<String> assignments = ids.of("select a.assignmentId from AssignmentEntity a where a.realmId = :realmId "
+                + "and a.employmentId in :ids", employments);
+        Set<String> qualifications = ids.of("select q.id from QualificationEntity q where q.realmId = :realmId "
+                + "and q.personId in :ids", List.of(personId));
+        Set<String> unitRoles = ids.of("select r.id from UnitRoleEntity r where r.realmId = :realmId "
+                + "and r.employmentId in :ids", employments);
+        Set<String> reportingLines = ids.of("select r.id from ReportingLineEntity r where r.realmId = :realmId "
+                + "and r.assignmentId in :ids", assignments);
+        reportingLines.addAll(ids.of("select r.id from ReportingLineEntity r where r.realmId = :realmId "
+                + "and r.managerPersonId in :ids", List.of(personId)));
         Set<String> named = new LinkedHashSet<>(List.of(personId));
         named.addAll(employments);
         named.addAll(assignments);
         named.addAll(qualifications);
-        Set<String> externalIds = trail.both("select x.id from ExternalIdEntity x where x.realmId = :realmId "
-                + "and x.resourceId in :ids", named, "FUHITO_EXTERNAL_ID", "resourceId");
+        Set<String> externalIds = ids.of("select x.id from ExternalIdEntity x where x.realmId = :realmId "
+                + "and x.resourceId in :ids", named);
         return new PersonTrail(employments, assignments, qualifications, unitRoles, reportingLines, externalIds);
     }
 
@@ -69,39 +68,26 @@ record PersonTrail(Set<String> employments, Set<String> assignments, Set<String>
                             update IdempotencyKeyEntity k set k.body = null where k.realmId = :realmId
                             and k.body like :pattern escape '!'""")
                     .setParameter("realmId", realmId)
-                    .setParameter("pattern", "%\"" + Trail.escaped(id) + "\"%")
+                    .setParameter("pattern", "%\"" + escaped(id) + "\"%")
                     .executeUpdate();
         }
     }
 
-    private record Trail(EntityManager em, String realmId) {
+    private static String escaped(String value) {
+        return value.replace("!", "!!").replace("%", "!%").replace("_", "!_");
+    }
 
-        // The IDs of the rows of today, and the IDs of the copies that name one of the values in a field.
-        Set<String> both(String rowsOfToday, Collection<String> values, String resourceType, String field) {
+    private record Ids(EntityManager em, String realmId) {
+
+        Set<String> of(String query, Collection<String> values) {
             Set<String> ids = new LinkedHashSet<>();
-            if (values.isEmpty()) {
-                return ids;
-            }
-            ids.addAll(em.createQuery(rowsOfToday, String.class)
-                    .setParameter("realmId", realmId)
-                    .setParameter("ids", values)
-                    .getResultList());
-            // A copy is JSON with no spaces, so a field and its value are always written the same way.
-            for (String value : values) {
-                ids.addAll(em.createQuery("""
-                                select distinct l.resourceId from ChangeLogEntity l where l.realmId = :realmId
-                                and l.resourceType = :type and l.representation like :pattern escape '!'""",
-                                String.class)
+            if (!values.isEmpty()) {
+                ids.addAll(em.createQuery(query, String.class)
                         .setParameter("realmId", realmId)
-                        .setParameter("type", resourceType)
-                        .setParameter("pattern", "%\"" + field + "\":\"" + escaped(value) + "\"%")
+                        .setParameter("ids", values)
                         .getResultList());
             }
             return ids;
-        }
-
-        private static String escaped(String value) {
-            return value.replace("!", "!!").replace("%", "!%").replace("_", "!_");
         }
     }
 }

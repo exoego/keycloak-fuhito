@@ -87,9 +87,10 @@ class PeopleIT {
         assertEquals(user, person.get("userId").asText());
         assertEquals("Taro Yamada", person.get("name").asText());
         assertEquals("KEYCLOAK", person.get("nameSource").asText());
-        // The change log has the name too, so that a mask or an erase clears it there.
-        assertTrue(api.get("/change-log?resourceType=FUHITO_PERSON&resourceId=" + person.get("id").asText())
-                .body().contains("Taro Yamada"));
+        // The change log has no name.
+        HttpResponse<String> log = api.get("/change-log?resourceType=FUHITO_PERSON&resourceId=" + person.get("id").asText());
+        assertEquals(1, Api.json(log).size());
+        assertFalse(log.body().contains("Taro"), log.body());
 
         JsonNode noName = created(api.post("/people", "{\"userId\": \"" + nameless + "\"}"));
         assertFalse(noName.has("name"));
@@ -274,10 +275,10 @@ class PeopleIT {
         assertEquals(204, scratchApi.delete("/users/" + user + "/data").statusCode());
 
         assertEquals("person.not_found", errorOf(404, scratchApi.get("/people/" + id)));
-        assertEquals(0, Api.json(scratchApi.get(log + id)).size());
-        // The entry of the mask had the ID of the user. Only the entry of the erase stays.
-        assertEquals(List.of("DELETE"), Api.json(scratchApi.get("/change-log?resourceType=FUHITO_PERSON_DATA&resourceId="
-                + id)).findValuesAsText("operation"));
+        // The entries hold only IDs, so they stay.
+        assertEquals(List.of("CREATE"), Api.json(scratchApi.get(log + id)).findValuesAsText("operation"));
+        assertEquals(List.of("UPDATE", "DELETE"), Api.json(scratchApi.get(
+                "/change-log?resourceType=FUHITO_PERSON_DATA&resourceId=" + id)).findValuesAsText("operation"));
         assertEquals("Kept", ok(scratchApi.get("/people/" + kept)).get("name").asText());
         assertEquals(1, Api.json(scratchApi.get(log + kept)).size());
     }
@@ -445,10 +446,11 @@ class PeopleIT {
         assertEquals("person.not_found", errorOf(404, scratchApi.get(people)));
         assertEquals("person.not_found", errorOf(404, scratchApi.deleteWithVersion(people + "/data")));
         assertEquals(404, scratchApi.get("/employments/" + staff.get("employment").get("id").asText()).statusCode());
-        // Only the entry of the erase stays.
-        assertEquals(List.of("DELETE"), Api.json(scratchApi.get(
+        // The entries of the masks and of the erase stay.
+        assertEquals(List.of("UPDATE", "UPDATE", "DELETE"), Api.json(scratchApi.get(
                 "/change-log?resourceType=FUHITO_PERSON_DATA&resourceId=" + member)).findValuesAsText("operation"));
-        assertEquals(0, Api.json(scratchApi.get("/change-log?resourceType=FUHITO_PERSON&resourceId=" + member)).size());
+        assertEquals(List.of("CREATE"), Api.json(scratchApi.get("/change-log?resourceType=FUHITO_PERSON&resourceId="
+                + member)).findValuesAsText("operation"));
         // The other person is untouched.
         assertEquals("部長", ok(scratchApi.get("/people/" + chief)).get("name").asText());
         assertEquals(1, ok(scratchApi.get("/people/" + chief + "/history")).get("employments").size());

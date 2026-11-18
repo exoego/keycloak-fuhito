@@ -124,6 +124,7 @@ public final class RealmData {
     /**
      * Deletes every row about one person. These are the employments of the person with their terms, assignments, and roles over
      * org units, the qualifications, the reporting lines, and the person record itself.
+     * The entries of the change log stay, because they hold only IDs.
      *
      * @param em the entity manager
      * @param realmId the ID of the realm
@@ -135,15 +136,6 @@ public final class RealmData {
         PersonEntity person = em.find(PersonEntity.class, personId);
         trail.clearStoredResponses(em, realmId, personId,
                 person == null || !person.realmId.equals(realmId) ? null : person.userId);
-        // An entry that only names the person as the actor of a write stays.
-        deleteEntries(em, realmId, "FUHITO_PERSON", Set.of(personId));
-        deleteEntries(em, realmId, "FUHITO_PERSON_DATA", Set.of(personId));
-        deleteEntries(em, realmId, "FUHITO_EMPLOYMENT", trail.employments());
-        deleteEntries(em, realmId, "FUHITO_ASSIGNMENT", trail.assignments());
-        deleteEntries(em, realmId, "FUHITO_QUALIFICATION", trail.qualifications());
-        deleteEntries(em, realmId, "FUHITO_UNIT_ROLE", trail.unitRoles());
-        deleteEntries(em, realmId, "FUHITO_REPORTING_LINE", trail.reportingLines());
-        deleteEntries(em, realmId, "FUHITO_EXTERNAL_ID", trail.externalIds());
         // Every query is one fixed text. The order matters, because later queries read rows of earlier ones.
         List.of(
                 // Lines where the person reports, and lines where the person is the manager.
@@ -181,18 +173,6 @@ public final class RealmData {
                         .setParameter("realmId", realmId)
                         .setParameter("personId", personId)
                         .executeUpdate());
-    }
-
-    private static void deleteEntries(EntityManager em, String realmId, String resourceType, Set<String> ids) {
-        if (!ids.isEmpty()) {
-            em.createQuery("""
-                            delete from ChangeLogEntity l where l.realmId = :realmId and l.resourceType = :type
-                            and l.resourceId in :ids""")
-                    .setParameter("realmId", realmId)
-                    .setParameter("type", resourceType)
-                    .setParameter("ids", ids)
-                    .executeUpdate();
-        }
     }
 
     /**

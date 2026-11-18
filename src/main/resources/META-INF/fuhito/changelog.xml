@@ -948,4 +948,9 @@
             <column name="USER_ID"/>
         </createIndex>
     </changeSet>
+
+    <!-- The change log no longer keeps the state of a resource after a write. -->
+    <changeSet id="0.1.0-change-log-without-state" author="keycloak-fuhito">
+        <dropColumn tableName="FUHITO_CHANGE_LOG" columnName="REPRESENTATION"/>
+    </changeSet>
 </databaseChangeLog>

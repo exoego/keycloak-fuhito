@@ -153,6 +153,7 @@ public interface RequestContext {
 
     /**
      * Records a successful change in the admin event log of the realm and in the change log.
+     * Only the admin event gets the new state.
      *
      * @param change the kind of the change
      * @param resourceType the type of the changed resource, for example {@code FUHITO_ORG_UNIT}

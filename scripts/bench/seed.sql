@@ -87,9 +87,9 @@ FROM generate_series(0, :people - 1) n WHERE n % 10 < 3;
 -- One person in ten works from home.
 UPDATE fuhito_assignment SET work_location_id = 'bench-home' WHERE realm_id = :'realm' AND id LIKE 'a-%7';
 
-INSERT INTO fuhito_change_log (id, realm_id, recorded_at, resource_type, resource_id, operation, resource_path, representation, sequence_number)
+INSERT INTO fuhito_change_log (id, realm_id, recorded_at, resource_type, resource_id, operation, resource_path, sequence_number)
 SELECT 'c-' || n, :'realm', TIMESTAMP '2020-04-01' + n * INTERVAL '10 minutes', 'FUHITO_ASSIGNMENT', 'a-' || (n % :people),
-       'UPDATE', 'fuhito/assignments/a-' || (n % :people), '{"id":"a-' || (n % :people) || '"}', n
+       'UPDATE', 'fuhito/assignments/a-' || (n % :people), n
 FROM generate_series(1, :people * 4) n;
 
 ANALYZE;

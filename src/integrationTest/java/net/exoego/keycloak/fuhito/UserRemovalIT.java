@@ -3,14 +3,15 @@ package net.exoego.keycloak.fuhito;
 import java.net.http.HttpResponse;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.LongStream;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class UserRemovalIT {
 
@@ -64,7 +65,6 @@ class UserRemovalIT {
         assertEquals(List.of("CREATE", "UPDATE"), log.findValuesAsText("operation"));
         assertFalse(log.get(1).has("actorUserId"));
         assertEquals("fuhito/employments/" + removedIds.get(1) + "/end", log.get(1).get("resourcePath").asText());
-        assertEquals(TODAY, log.get(1).get("representation").get("validTo").asText());
     }
 
     @Test
@@ -98,13 +98,14 @@ class UserRemovalIT {
         assertEquals("3", rows("fuhito_employment_terms", realmId));
         assertEquals("3", rows("fuhito_assignment", realmId));
         assertEquals("1", rows("fuhito_qualification", realmId));
+        // The entries of the change log stay, because they hold only IDs.
         for (String id : List.of(erasedIds.get(0), erasedIds.get(1), goneIds.get(1))) {
             assertEquals(404, api.get("/employments/" + id).statusCode());
-            assertEquals(0, Api.json(api.get("/change-log?resourceType=FUHITO_EMPLOYMENT&resourceId=" + id)).size());
+            assertFalse(Api.json(api.get("/change-log?resourceType=FUHITO_EMPLOYMENT&resourceId=" + id)).isEmpty());
         }
         for (String line : lines) {
-            assertEquals(0, Api.json(api.get("/change-log?resourceType=FUHITO_REPORTING_LINE&resourceId=" + line))
-                    .size(), line);
+            assertEquals(List.of("CREATE"), Api.json(api.get("/change-log?resourceType=FUHITO_REPORTING_LINE&resourceId="
+                    + line)).findValuesAsText("operation"), line);
         }
         assertEquals(200, api.get("/employments/" + keptIds.get(1)).statusCode());
         assertEquals(2, Api.json(api.get("/change-log?resourceType=FUHITO_EMPLOYMENT&resourceId=" + keptIds.get(0))).size());
@@ -120,7 +121,6 @@ class UserRemovalIT {
         assertEquals(204, api.delete("/users/" + erased + "/data").statusCode());
         assertFalse(Api.json(api.get("/users/" + erased + "/history")).has("personId"));
         assertEquals(List.of("DELETE"), erasure.findValuesAsText("operation"));
-        assertFalse(erasure.get(0).has("representation"));
         assertEquals(401, new Api(realm.name, null).delete("/users/" + kept + "/data").statusCode());
     }
 
@@ -189,8 +189,8 @@ class UserRemovalIT {
     }
 
     @Test
-    void aMaskAndAnEraseReachTheCopiesOfRowsThatAreGone() throws Exception {
-        TestRealm realm = TestRealm.withEmployer("user-erase-trail");
+    void aMaskAndAnEraseKeepTheEarlierEntriesAndAddTheirOwn() throws Exception {
+        TestRealm realm = TestRealm.withEmployer("user-erase-log");
         Api api = realm.api;
         String unit = Api.json(api.post("/org-units", "{\"name\": \"課\", \"validFrom\": \"2020-04-01\"}")).get("id").asText();
         realm.refItem("QUALIFICATION", "license", "免許");
@@ -205,20 +205,24 @@ class UserRemovalIT {
         assertEquals(201, api.post("/employments", "{\"userId\": \"" + user + "\", \"staffNumber\": \"S-555\", "
                 + "\"validFrom\": \"" + TOMORROW + "\"}").statusCode());
         realm.removeUser(user);
-        assertTrue(api.get("/change-log").body().contains("L-777"));
-        assertTrue(api.get("/change-log").body().contains("S-555"));
+        HttpResponse<String> before = api.get("/change-log");
+        assertFalse(before.body().contains("L-777"), before.body());
+        assertFalse(before.body().contains("S-555"), before.body());
+        JsonNode earlier = Api.json(before);
+        long last = earlier.get(earlier.size() - 1).get("sequence").asLong();
 
         assertEquals(200, api.postWithVersion("/people/" + person + "/mask", "").statusCode());
-
-        String masked = api.get("/change-log").body();
-        assertFalse(masked.contains("L-777"), masked);
-        assertFalse(masked.contains("S-555"), masked);
-
         assertEquals(204, api.deleteWithVersion("/people/" + person + "/data").statusCode());
 
-        JsonNode left = Api.json(api.get("/change-log"));
-        assertFalse(left.findValuesAsText("resourceType").contains("FUHITO_QUALIFICATION"), left.toString());
-        assertFalse(left.findValuesAsText("resourceType").contains("FUHITO_EMPLOYMENT"), left.toString());
+        assertEquals(earlier, Api.json(api.get("/change-log?max=" + earlier.size())));
+        JsonNode added = Api.json(api.get("/change-log?after=" + last));
+        assertEquals(List.of("FUHITO_PERSON_DATA", "FUHITO_PERSON_DATA"), added.findValuesAsText("resourceType"));
+        assertEquals(List.of(person, person), added.findValuesAsText("resourceId"));
+        assertEquals(List.of("UPDATE", "DELETE"), added.findValuesAsText("operation"));
+        // The numbers of the realm have no gaps.
+        List<Long> numbers = new ArrayList<>();
+        Api.json(api.get("/change-log")).forEach(entry -> numbers.add(entry.get("sequence").asLong()));
+        assertEquals(LongStream.rangeClosed(1, last + 2).boxed().toList(), numbers);
     }
 
     @Test

@@ -179,13 +179,14 @@ class UnitRolesIT {
         assertEquals(List.of(), Api.json(api.get("/org-units/" + division + "/role-holders?asOf=2026-10-01"))
                 .findValuesAsText("id"));
 
-        // An erase removes the role and its entries in the change log.
+        // An erase removes the role. Its entries in the change log hold only IDs, so they stay.
         assertEquals(204, api.deleteWithVersion("/people/" + person + "/data").statusCode());
         assertEquals(404, api.get("/unit-roles/" + id).statusCode());
         // The user is still in Keycloak, but has no person and so no role.
         assertEquals(0, api.count("/users/" + user + "/unit-roles/count"));
         assertEquals(404, api.get("/users/nobody/unit-roles/count").statusCode());
         assertEquals(404, api.get("/people/" + person + "/unit-roles/count").statusCode());
-        assertEquals(0, Api.json(api.get("/change-log?resourceType=FUHITO_UNIT_ROLE&resourceId=" + id)).size());
+        assertEquals("CREATE", Api.json(api.get("/change-log?resourceType=FUHITO_UNIT_ROLE&resourceId=" + id)).get(0)
+                .get("operation").asText());
     }
 }

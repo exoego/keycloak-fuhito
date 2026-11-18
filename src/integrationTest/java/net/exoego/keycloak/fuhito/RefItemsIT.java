@@ -227,7 +227,6 @@ class RefItemsIT {
 
         JsonNode log = Api.json(api.get("/change-log?resourceType=FUHITO_REF_ITEM&resourceId=" + id));
         assertEquals(List.of("CREATE", "UPDATE", "UPDATE", "UPDATE"), log.findValuesAsText("operation"));
-        assertEquals("2027-04-01", log.get(1).get("representation").get("validFrom").asText());
 
         assertEquals("ref_item.not_found", errorOf(404, api.get("/ref-items/nope/history")));
         assertEquals("invalid.date", errorOf(400, api.get("/ref-items/" + id + "?asOf=soon")));

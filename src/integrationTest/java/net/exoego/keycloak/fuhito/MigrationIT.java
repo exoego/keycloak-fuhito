@@ -35,7 +35,7 @@ class MigrationIT {
     private static final int FIRST_SCHEMA = 3;
 
     @Test
-    void anItemOfTheOlderSchemaKeepsItsNamesForEveryDate() throws Exception {
+    void rowsOfTheOlderSchemaMoveToTheNewOne() throws Exception {
         KeycloakEnvironment.sql("create database fuhito_migration");
         try (Connection connection = KeycloakEnvironment.connection("fuhito_migration");
                 Statement statement = connection.createStatement();
@@ -52,9 +52,15 @@ class MigrationIT {
                     insert into fuhito_ref_item (id, realm_id, kind, code, name, names_i18n, attributes) values
                     ('item-1', 'realm-1', 'JOB_TITLE', 'chief', '主任', '{"en":"Chief"}', '{}'),
                     ('item-2', 'realm-1', 'UNIT_TYPE', 'ward', '病棟', '{}', '{}')""");
+            statement.execute("""
+                    insert into fuhito_change_log (id, realm_id, sequence_number, recorded_at, resource_type,
+                    resource_id, operation, resource_path, representation) values ('entry-1', 'realm-1', 1,
+                    '2026-04-01 00:00:00', 'FUHITO_PERSON', 'person-1', 'CREATE', 'fuhito/people/person-1',
+                    '{"name":"山田"}')""");
 
             update(jar, database, null);
 
+            // An item keeps its names for every date.
             assertEquals(List.of("item-1 item-1 null null 主任 {\"en\":\"Chief\"}",
                     "item-2 item-2 null null 病棟 {}"), rows(statement, """
                     select id, ref_item_id, valid_from, valid_to, name, names_i18n
@@ -62,6 +68,12 @@ class MigrationIT {
             assertEquals(List.of("0"), rows(statement, """
                     select count(*) from information_schema.columns
                     where table_name = 'fuhito_ref_item' and column_name in ('name', 'names_i18n')"""));
+            // An entry of the change log keeps all but the state.
+            assertEquals(List.of("entry-1 1 FUHITO_PERSON person-1 CREATE"), rows(statement, """
+                    select id, sequence_number, resource_type, resource_id, operation from fuhito_change_log"""));
+            assertEquals(List.of("0"), rows(statement, """
+                    select count(*) from information_schema.columns
+                    where table_name = 'fuhito_change_log' and column_name = 'representation'"""));
         }
     }
 
