@@ -153,7 +153,7 @@ No way looks up an org unit by its work location or its cost center, so these co
 
 ## The projection into Keycloak
 
-`BATCH=1 SYNC=0 scripts/bench/run.sh` also makes one Keycloak user for each person, links the company to one Keycloak organization, and runs `POST /projection/rebuild` twice.
+`BATCH=1 SYNC=0 scripts/bench/run.sh` also makes one Keycloak user for each person, links the company to one Keycloak organization, and runs a full rebuild twice with `POST /projection/rebuild?full=true`.
 The realm has 50,000 people and 5,000 org units. The first run makes 5,000 groups, 49,990 memberships of groups, and 50,000 members of the organization.
 
 Each version keeps the changes of the versions on its left.
@@ -270,7 +270,7 @@ What the runs showed.
 
 ## A run of the changes of the projection
 
-`POST /projection/rebuild?changesOnly=true` looks only at what the change log names since the last run. See "A run of the changes" in [keycloak-integration.md](keycloak-integration.md).
+`POST /projection/rebuild` looks only at what the change log names since the last run, and `POST /projection/rebuild?full=true` runs a full rebuild. See "A run of the changes" in [keycloak-integration.md](keycloak-integration.md).
 `scripts/bench/projection-changes.sh` measures it against a full rebuild at the same commit. It runs after `BATCH=1 SYNC=0 scripts/bench/run.sh`, which ends with two full rebuilds.
 
 - `run.sh` turns the timer of the projection off, so only the measured calls rebuild.
@@ -332,6 +332,7 @@ The SQL statements of one run, the median.
 | 10 assignments moved | 605,008 | 181 |
 
 The next commit, `a846883`, changes only the order of the writes for a user who joins another organization. No case here does that.
+At the measured commit, `changesOnly=true` asked for a run of the changes and a full rebuild was the default. Later the run of the changes became the default. The runs themselves are the same.
 
 What the runs showed.
 

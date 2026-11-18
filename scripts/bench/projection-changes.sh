@@ -111,9 +111,9 @@ measure() {
 for name in ${CASES}; do
   for run in $(seq 1 "${RUNS}"); do
     change "${name}"
-    measure "${name}" changes "${run}" '?changesOnly=true'
+    measure "${name}" changes "${run}" ''
     change "${name}"
-    measure "${name}" full "${run}" ''
+    measure "${name}" full "${run}" '?full=true'
   done
 done
 

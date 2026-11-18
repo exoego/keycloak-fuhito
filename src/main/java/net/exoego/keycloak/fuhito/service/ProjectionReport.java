@@ -31,7 +31,7 @@ public record ProjectionReport(
         @Schema(description = "1 when the tree was mirrored into realm groups, 0 when the realm does not do it.")
         int realmGroupTrees,
         @Schema(description = "The number of entries of the change log that a run of the changes read. Missing for "
-                + "a full rebuild.")
+                + "a full rebuild that was asked for, also by the timer.")
         Integer changeLogEntries,
         @Schema(description = "The number of users whose groups and organizations a run of the changes looked at "
                 + "again. Missing for a full rebuild, and when a run of the changes fell back to one.")
@@ -40,7 +40,7 @@ public record ProjectionReport(
                 + "and for its users. Missing for a full rebuild, and when a run of the changes fell back to one.")
         Integer organizationsLookedAt,
         @Schema(description = "True when a run of the changes ran a full rebuild instead. Missing for a full "
-                + "rebuild that was asked for.")
+                + "rebuild that was asked for, also by the timer.")
         Boolean fellBack,
         @Schema(
                 description = "Why a run of the changes fell back to a full rebuild. `no_earlier_run` means that no "

@@ -124,8 +124,8 @@ if [ "${BATCH}" = 1 ]; then
   echo
   echo '| Batch | Path | ms | Status | Report |'
   echo '|---|---|---|---|---|'
-  once 'Projection, first run' '/projection/rebuild'
-  once 'Projection, nothing changed' '/projection/rebuild'
+  once 'Projection, first run' '/projection/rebuild?full=true'
+  once 'Projection, nothing changed' '/projection/rebuild?full=true'
   if [ "${SYNC:-1}" = 1 ]; then
     once 'Sync from user attributes, first run' '/attribute-sync/run'
     once 'Sync from user attributes, nothing changed' '/attribute-sync/run'

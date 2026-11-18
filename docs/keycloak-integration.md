@@ -120,9 +120,9 @@ The linked unit itself has no group. The organization stands for it.
 
 The projection is off unless the realm has the attribute `fuhito.projection.enabled` with the value `true`.
 
-`POST /projection/rebuild` runs it. The response counts what changed.
+`POST /projection/rebuild` runs it. By default it looks only at what changed since the last run. See "A run of the changes" below.
+`POST /projection/rebuild?full=true` runs a full rebuild. The response counts what changed.
 A rebuild with no change in between changes nothing.
-`POST /projection/rebuild?changesOnly=true` looks only at what changed since the last run. See "A run of the changes" below.
 
 A first rebuild of a large realm takes many minutes, and the call stays open for that time. A proxy or a load balancer between the caller and Keycloak may end the call first. The rebuild goes on in the server anyway.
 `GET /projection/last-run` reads the last run, also one that the timer started. It has `state`, `startedAt`, `endedAt`, the counts of the report, and the code of an error.
@@ -160,7 +160,7 @@ kc.sh start --spi-admin-realm-restapi-extension--fuhito--projection-interval-sec
 
 #### A run of the changes
 
-`POST /projection/rebuild?changesOnly=true` looks only at what the change log names since the last run that was done. Without the parameter, a rebuild is a full one. The timer runs full rebuilds.
+`POST /projection/rebuild` looks only at what the change log names since the last run that was done. With `full=true`, it runs a full rebuild instead. The timer runs full rebuilds.
 
 - Each run that is done, full or of the changes, keeps the sequence number of the newest entry of the change log when it started. A run of the changes reads the entries after the number of the last run that was done. A run that fails keeps the number of the run before it.
 - An entry of an assignment, an employment, or a person names the users of the person. The run compares the groups and the organizations of each such user with what the assignments of today give. For a person who changed, it also looks at the user that the person was linked to before. It reads that user from the change log.

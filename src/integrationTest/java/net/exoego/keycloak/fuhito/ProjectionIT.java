@@ -89,8 +89,9 @@ class ProjectionIT {
         return Api.json(response);
     }
 
+    // Only a full rebuild undoes what someone changed by hand in Keycloak.
     private JsonNode rebuild() throws Exception {
-        HttpResponse<String> response = api.post("/projection/rebuild", "");
+        HttpResponse<String> response = api.post("/projection/rebuild?full=true", "");
         assertEquals(200, response.statusCode(), response.body());
         return Api.json(response);
     }

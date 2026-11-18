@@ -48,25 +48,26 @@ public class ProjectionResource {
     @Operation(
             operationId = "rebuildProjection",
             summary = "Mirrors the org structure of today into the groups of Keycloak organizations.",
-            description = "A rebuild with no change in between changes nothing. It also needs the permission of "
-                    + "Keycloak to manage every organization that it may change, and to manage groups when the "
-                    + "realm uses realm groups. These are checked before anything is written.")
+            description = "By default it looks only at what the change log names since the last run that was done. "
+                    + "When the log names something that the run cannot map, or no run was done before, a full "
+                    + "rebuild runs and the report says so. A rebuild with no change in between changes nothing. "
+                    + "It also needs the permission of Keycloak to manage every organization that it may change, "
+                    + "and to manage groups when the realm uses realm groups. These are checked before anything is "
+                    + "written.")
     @Parameter(ref = "changeOrder")
     @APIResponse(responseCode = "200", description = "What the rebuild changed in Keycloak.")
     @BadRequest
     @ApiErrors
     public ProjectionReport rebuild(
             @Parameter(
-                    description = "True to look only at what the change log names since the last run that was done. "
-                            + "A dated change that becomes true with no write is not in the log. When the log names "
-                            + "something that the run cannot map, or no run was done before, a full rebuild runs "
-                            + "and the report says so.",
+                    description = "True for a full rebuild. Only a full rebuild picks up a dated change that became "
+                            + "true with no write, and undoes a change made by hand in Keycloak.",
                     schema = @Schema(defaultValue = "false"))
-            @QueryParam("changesOnly") boolean changesOnly) {
+            @QueryParam("full") boolean full) {
         context.requireWrite();
-        return Calls.run(context, () -> changesOnly
-                ? service.rebuildChanges(context::requireManageOrganization, context::requireManageGroups)
-                : service.rebuild(context::requireManageOrganization, context::requireManageGroups));
+        return Calls.run(context, () -> full
+                ? service.rebuild(context::requireManageOrganization, context::requireManageGroups)
+                : service.rebuildChanges(context::requireManageOrganization, context::requireManageGroups));
     }
 
     @GET

@@ -82,14 +82,14 @@ class ProjectionChangesIT {
     }
 
     private JsonNode changes() throws Exception {
-        JsonNode report = rebuild("?changesOnly=true");
+        JsonNode report = rebuild("");
         assertFalse(report.get("fellBack").asBoolean(), report.toString());
         return report;
     }
 
     // After a run of the changes, a full rebuild finds nothing more to do.
     private void assertSettled() throws Exception {
-        JsonNode full = rebuild("");
+        JsonNode full = rebuild("?full=true");
         for (String count : CHANGES) {
             assertEquals(0, full.get(count).asInt(), count + " " + full);
         }
@@ -154,7 +154,7 @@ class ProjectionChangesIT {
         link(yHospital, yOrganization);
 
         // No run was done before, so the first one is a full rebuild.
-        JsonNode first = rebuild("?changesOnly=true");
+        JsonNode first = rebuild("");
         assertTrue(first.get("fellBack").asBoolean(), first.toString());
         assertEquals("no_earlier_run", first.get("fallbackReason").asText());
         assertEquals(5, first.get("organizationMembersAdded").asInt());
@@ -207,7 +207,7 @@ class ProjectionChangesIT {
         staff(realm.user("z-nurse"), unit("Z病棟", zHospital));
         link(xHospital, xOrganization);
         link(zHospital, zOrganization);
-        rebuild("");
+        rebuild("?full=true");
 
         ok(api.putWithVersion("/org-units/" + ward, "{\"name\": \"第一病棟\", \"validFrom\": \"2021-04-01\"}"));
         ok(api.putWithVersion("/org-units/" + nursing + "/parent",
@@ -241,12 +241,12 @@ class ProjectionChangesIT {
         String ward = unit("病棟", hospital);
         staff(realm.user("nurse"), ward);
         link(hospital, organization);
-        rebuild("");
+        rebuild("?full=true");
         var export = RealmExportIT.export(api);
         ok(api.post("/restore?replace=true", JSON.writeValueAsString(export)));
         staff(realm.user("joins"), ward);
 
-        JsonNode report = rebuild("?changesOnly=true");
+        JsonNode report = rebuild("");
 
         assertTrue(report.get("fellBack").asBoolean(), report.toString());
         assertEquals("restore", report.get("fallbackReason").asText());
