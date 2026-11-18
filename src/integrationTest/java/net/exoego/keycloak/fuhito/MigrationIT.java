@@ -57,6 +57,10 @@ class MigrationIT {
                     resource_id, operation, resource_path, representation) values ('entry-1', 'realm-1', 1,
                     '2026-04-01 00:00:00', 'FUHITO_PERSON', 'person-1', 'CREATE', 'fuhito/people/person-1',
                     '{"name":"山田"}')""");
+            statement.execute("""
+                    insert into fuhito_idempotency_key (id, realm_id, key_value, request_path, request_hash, status,
+                    body, created_at) values ('key-1', 'realm-1', 'key', '/fuhito/people', 'hash', 201,
+                    '{"name":"山田"}', '2026-04-01 00:00:00')""");
 
             update(jar, database, null);
 
@@ -74,6 +78,9 @@ class MigrationIT {
             assertEquals(List.of("0"), rows(statement, """
                     select count(*) from information_schema.columns
                     where table_name = 'fuhito_change_log' and column_name = 'representation'"""));
+            // No table keeps the responses to requests that were sent again.
+            assertEquals(List.of("0"), rows(statement, """
+                    select count(*) from information_schema.tables where table_name = 'fuhito_idempotency_key'"""));
         }
     }
 

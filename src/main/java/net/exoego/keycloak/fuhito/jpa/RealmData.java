@@ -37,16 +37,15 @@ public final class RealmData {
             RealmKindEntity.class,
             AttributeDefinitionEntity.class,
             ExternalIdEntity.class,
-            IdempotencyKeyEntity.class,
             JobRunEntity.class,
             ProjectedMemberEntity.class,
             HierarchyEntity.class);
 
-    // The record of what happened, and the state of requests and of jobs, stay over a restore. So do the records
-    // of erases, which the restore does again. The masks come back as the export has them. The members that the
-    // projection added describe Keycloak, which a restore does not change.
+    // The record of what happened, and the state of jobs, stay over a restore. So do the records of erases, which
+    // the restore does again. The masks come back as the export has them. The members that the projection added
+    // describe Keycloak, which a restore does not change.
     private static final Set<Class<?>> KEPT_BY_RESTORE = Set.of(ChangeLogEntity.class, ChangeLogCounterEntity.class,
-            IdempotencyKeyEntity.class, JobRunEntity.class, ErasureEntity.class, ProjectedMemberEntity.class);
+            JobRunEntity.class, ErasureEntity.class, ProjectedMemberEntity.class);
 
     private RealmData() {
     }
@@ -131,11 +130,6 @@ public final class RealmData {
      * @param personId the ID of the person
      */
     public static void deletePerson(EntityManager em, String realmId, String personId) {
-        // The trail is read first, because the deletes below remove the rows that it starts from.
-        PersonTrail trail = PersonTrail.of(em, realmId, personId);
-        PersonEntity person = em.find(PersonEntity.class, personId);
-        trail.clearStoredResponses(em, realmId, personId,
-                person == null || !person.realmId.equals(realmId) ? null : person.userId);
         // Every query is one fixed text. The order matters, because later queries read rows of earlier ones.
         List.of(
                 // Lines where the person reports, and lines where the person is the manager.

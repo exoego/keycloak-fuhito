@@ -100,13 +100,13 @@ public class AttributeDefinitionsResource {
     @ApiErrors
     public Response create(AttributeDefinitionRepresentation body) {
         context.requireWrite();
-        return Calls.once(context, body, Response.class, () -> Calls.run(context, () -> {
+        return Calls.run(context, () -> {
             Checks.required("body", body);
             var definition = AttributeDefinitionRepresentation.of(service.create(body.target(), body.name(),
                     body.type(), body.refKind(), body.multiple(), body.required()));
             context.recordChange(Change.CREATE, RESOURCE_TYPE, definition.id(), path(definition.id()), definition);
             return Response.status(Response.Status.CREATED).entity(definition).build();
-        }));
+        });
     }
 
     @PUT

@@ -13,7 +13,6 @@ import java.util.concurrent.CompletableFuture;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.junit.jupiter.api.Test;
 
-import static net.exoego.keycloak.fuhito.KeycloakEnvironment.KEYCLOAK;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -282,64 +281,25 @@ class ConditionalWritesIT {
     }
 
     @Test
-    void anEraseClearsTheStoredResponsesThatNameThePerson() throws Exception {
-        TestRealm realm = TestRealm.withEmployer("idempotency-erase");
+    void aRetryOfAWriteThatWentThroughFails() throws Exception {
+        TestRealm realm = TestRealm.withEmployer("retries");
         Api api = realm.api;
-        String body = "{\"name\": \"山田 花子\"}";
-        HttpResponse<String> first = api.post("/people", body, "Idempotency-Key", "person-1");
-        assertEquals(201, first.statusCode(), first.body());
-        String person = Api.json(first).get("id").asText();
-        HttpResponse<String> other = api.post("/people", "{\"name\": \"Other\"}", "Idempotency-Key", "person-2");
+        String body = "{\"name\": \"1病棟\", \"validFrom\": \"2026-04-01\", \"source\": \"hr\", "
+                + "\"externalId\": \"W-1\"}";
+        String unit = ok(api.post("/org-units", body)).get("id").asText();
 
-        assertEquals(204, api.delete("/people/" + person + "/data?version=1").statusCode());
-
-        // The same request again still writes nothing, and its answer no longer has the name.
-        HttpResponse<String> again = api.post("/people", body, "Idempotency-Key", "person-1");
-        assertEquals(201, again.statusCode(), again.body());
-        assertFalse(again.body().contains("山田"), again.body());
-        assertEquals(1, Api.json(api.get("/people")).size());
-        // The response about another person stays.
-        assertEquals(Api.json(other), Api.json(api.post("/people", "{\"name\": \"Other\"}", "Idempotency-Key",
-                "person-2")));
-    }
-
-    @Test
-    void aRepeatedPostWithTheSameKeyGetsTheFirstResponse() throws Exception {
-        TestRealm realm = TestRealm.withEmployer("idempotency");
-        Api api = realm.api;
-        String body = "{\"name\": \"1病棟\", \"validFrom\": \"2026-04-01\"}";
-
-        HttpResponse<String> first = api.post("/org-units", body, "Idempotency-Key", "order-1");
-        HttpResponse<String> again = api.post("/org-units", body, "Idempotency-Key", "order-1");
-
-        assertEquals(201, first.statusCode(), first.body());
-        assertEquals(201, again.statusCode(), again.body());
-        assertEquals(Api.json(first), Api.json(again));
+        assertEquals("external_id.taken", error(409, api.post("/org-units", body)).get("error").asText());
+        assertEquals(unit, ok(api.get("/external-ids/lookup?resourceType=ORG_UNIT&source=hr&externalId=W-1"))
+                .get("resourceId").asText());
         assertEquals(1, Api.json(api.get("/org-units?q=1%E7%97%85%E6%A3%9F&asOf=2026-05-01")).size());
-        assertEquals(422, api.post("/org-units", "{\"name\": \"2病棟\", \"validFrom\": \"2026-04-01\"}",
-                "Idempotency-Key", "order-1").statusCode());
-        assertEquals("idempotency.bad_key", Api.json(api.post("/org-units", body, "Idempotency-Key", " "))
-                .get("error").asText());
-        // The query and the caller are part of the request too.
-        String order = Api.json(api.post("/change-orders", "{\"title\": \"内示\", \"effectiveDate\": \"2026-04-01\"}"))
-                .get("id").asText();
-        assertEquals("idempotency.key_reused", Api.json(api.post("/org-units?changeOrder=" + order, body,
-                "Idempotency-Key", "order-1")).get("error").asText());
-        Api other = PermissionsIT.administrator(KEYCLOAK.getKeycloakAdminClient(), realm.name, "realm-management",
-                "other-writer", "fuhito-manage");
-        assertEquals("idempotency.key_reused", Api.json(other.post("/org-units", body, "Idempotency-Key", "order-1"))
-                .get("error").asText());
 
-        // An operation that answers with a resource returns the same one again, though its version is old now.
-        HttpResponse<String> employment = api.post("/employments", "{\"userId\": \"" + realm.user("nurse")
-                + "\", \"validFrom\": \"2026-04-01\"}");
-        String id = Api.json(employment).get("id").asText();
+        String employment = ok(api.post("/employments", "{\"userId\": \"" + realm.user("nurse")
+                + "\", \"validFrom\": \"2026-04-01\"}")).get("id").asText();
         String leave = "{\"version\": 1, \"validFrom\": \"2026-10-01\"}";
-        HttpResponse<String> firstLeave = api.post("/employments/" + id + "/leave", leave, "Idempotency-Key", "l-1");
-        HttpResponse<String> secondLeave = api.post("/employments/" + id + "/leave", leave, "Idempotency-Key", "l-1");
-        assertEquals(200, secondLeave.statusCode(), secondLeave.body());
-        assertEquals(Api.json(firstLeave), Api.json(secondLeave));
-        assertEquals(2, Api.json(api.get("/employments/" + id)).get("terms").size());
-        assertEquals(2, version(api, "/employments/" + id));
+        ok(api.post("/employments/" + employment + "/leave", leave));
+
+        assertEquals("version.conflict", error(409, api.post("/employments/" + employment + "/leave", leave))
+                .get("error").asText());
+        assertEquals(2, Api.json(api.get("/employments/" + employment)).get("terms").size());
     }
 }

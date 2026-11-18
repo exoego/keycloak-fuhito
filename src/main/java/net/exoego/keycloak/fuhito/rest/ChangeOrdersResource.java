@@ -163,12 +163,12 @@ public class ChangeOrdersResource {
     @ApiErrors
     public Response create(ChangeOrderRepresentation body) {
         context.requireWrite();
-        return Calls.once(context, body, Response.class, () -> Calls.run(context, () -> {
+        return Calls.run(context, () -> {
             Checks.required("body", body);
             var order = ChangeOrderRepresentation.of(service.create(body.toValues()));
             context.recordChange(Change.CREATE, RESOURCE_TYPE, order.id(), path(order.id()), order);
             return Response.status(Response.Status.CREATED).entity(order).build();
-        }));
+        });
     }
 
     @PUT
@@ -211,12 +211,11 @@ public class ChangeOrdersResource {
             @PathParam("id") String id,
             VersionCheckRepresentation body) {
         context.requireWrite();
-        return Calls.once(context, body, ChangeOrderRepresentation.class,
-                () -> Calls.guarded(context, body, () -> version(id), () -> {
+        return Calls.guarded(context, body, () -> version(id), () -> {
             var order = ChangeOrderRepresentation.of(service.announce(id, context.callerUserId()));
             context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, path(id) + "/announce", order);
             return order;
-        }));
+        });
     }
 
     @DELETE

@@ -140,13 +140,13 @@ public class UnitRolesResource {
     @ApiErrors
     public Response add(UnitRoleRepresentation body) {
         context.requireWrite();
-        return Calls.once(context, body, Response.class, () -> Calls.run(context, () -> {
+        return Calls.run(context, () -> {
             Checks.required("body", body);
             var role = UnitRoleRepresentation.of(service.add(body.employmentId(), body.orgUnitId(), body.role(),
                     body.includesDescendants(), body.validFrom(), body.validTo()));
             context.recordChange(Change.CREATE, RESOURCE_TYPE, role.id(), path(role.id()), role);
             return Response.status(Response.Status.CREATED).entity(role).build();
-        }));
+        });
     }
 
     @GET

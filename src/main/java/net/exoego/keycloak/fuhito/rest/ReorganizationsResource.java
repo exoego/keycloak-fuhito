@@ -59,7 +59,7 @@ public class ReorganizationsResource {
     @ApiErrors
     public ReorganizationRepresentation apply(ReorganizationRepresentation body) {
         context.requireWrite();
-        return Calls.once(context, body, ReorganizationRepresentation.class, () -> Calls.run(context, () -> {
+        return Calls.run(context, () -> {
             Checks.required("body", body);
             List<ReorganizationRepresentation.Result> results = new ArrayList<>();
             // A second request that changes the same unit waits for the first one.
@@ -89,7 +89,7 @@ public class ReorganizationsResource {
                 results.add(new ReorganizationRepresentation.Result(result.op(), unit, successorIds));
             }
             return new ReorganizationRepresentation(null, null, results);
-        }));
+        });
     }
 
     private void record(Change change, String path, OrgUnitRepresentation unit) {

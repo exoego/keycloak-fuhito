@@ -110,12 +110,12 @@ public class HierarchiesResource {
     @ApiErrors
     public Response create(HierarchyRepresentation body) {
         context.requireWrite();
-        return Calls.once(context, body, Response.class, () -> Calls.run(context, () -> {
+        return Calls.run(context, () -> {
             Checks.required("body", body);
             var hierarchy = HierarchyRepresentation.of(service.create(body.code(), body.name()));
             context.recordChange(Change.CREATE, RESOURCE_TYPE, hierarchy.id(), path(hierarchy.id()), hierarchy);
             return Response.status(Response.Status.CREATED).entity(hierarchy).build();
-        }));
+        });
     }
 
     @PUT

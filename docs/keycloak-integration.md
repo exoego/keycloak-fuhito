@@ -479,16 +479,28 @@ PUT /employments/e-1/terms
 409 {"error": "version.conflict", "params": {"version": "4"}, "message": "The resource changed since it was read. ..."}
 ```
 
-### A request sent again
+### A retry after a timeout
 
-A `POST` that creates something or runs an operation can have the header `Idempotency-Key`, a text of up to 255 characters that the caller makes, for example a UUID.
+A request can time out after the extension made its change. The caller then does not know whether the write went through.
+The extension keeps no copy of a response, so a request that is sent again runs again.
+The caller retries safely in this way.
 
-- A second request with the same key, the same caller, the same path and query, and the same body gets the first response again, and writes nothing. This makes a retry after a timeout safe.
-- The same key with another body, another query such as another `changeOrder`, or another caller fails with 422 and `idempotency.key_reused`.
-- A key whose first request is still running fails with 409 and `idempotency.in_progress`.
-- A key works for 24 hours. A request with no key works as before.
-- A first request that failed stores nothing, so the same key can try again.
-- A mask or an erase of a person clears the stored body of a response that names the person. The same request then gets the first status with no body. See [personal-data.md](personal-data.md).
+- An update or an operation on a stored resource has the version in its body. When the first request went through, the retry fails with 409 and `version.conflict`, and writes nothing. The caller reads the resource again and sees the change.
+- A `DELETE` has the version in its query. A retry of one that went through fails with 409, or with 404 when the resource is gone.
+- A create with `source` and `externalId` fails with 409 and `external_id.taken` when it is sent again. `GET /external-ids/lookup` with the same type, system, and ID finds the resource that the first request made.
+- A create with another value that must be unique, such as the code of an org unit or of a reference item, fails with 409 in the same way.
+- A create with no unique value can make a second resource. The caller finds the second one and deletes it.
+
+For example, a product creates a person with the ID of its own system. The request times out, so the product sends it again.
+
+```
+POST /people
+{"name": "山田 花子", "source": "hr", "externalId": "P-1"}
+409 {"error": "external_id.taken", "params": {"source": "hr", "externalId": "P-1"}, ...}
+
+GET /external-ids/lookup?resourceType=PERSON&source=hr&externalId=P-1
+200 {"resourceType": "PERSON", "resourceId": "p-1", "source": "hr", "externalId": "P-1", ...}
+```
 
 ### Hierarchies
 

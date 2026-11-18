@@ -66,7 +66,7 @@ public class ReportingLinesResource {
     @ApiErrors
     public Response add(ReportingLineRepresentation body) {
         context.requireWrite();
-        return Calls.once(context, body, Response.class, () -> Calls.run(context, () -> {
+        return Calls.run(context, () -> {
             Checks.required("body", body);
             var line = ReportingLineRepresentation.of(service.add(body.assignmentId(),
                     Writes.personId(context, people, "managerPersonId", body.managerPersonId(),
@@ -74,7 +74,7 @@ public class ReportingLinesResource {
                     body.kind(), body.validFrom(), body.validTo()));
             context.recordChange(Change.CREATE, RESOURCE_TYPE, line.id(), path(line.id()), line);
             return Response.status(Response.Status.CREATED).entity(line).build();
-        }));
+        });
     }
 
     @GET

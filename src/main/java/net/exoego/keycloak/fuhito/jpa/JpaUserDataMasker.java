@@ -42,7 +42,6 @@ public class JpaUserDataMasker implements UserDataMasker {
 
     @Override
     public void mask(String personId, Instant now) {
-        PersonTrail trail = PersonTrail.of(em, realmId, personId);
         List<EmploymentEntity> employments = em.createQuery("""
                         select e from EmploymentEntity e
                         where e.realmId = :realmId and e.personId = :personId""", EmploymentEntity.class)
@@ -84,7 +83,6 @@ public class JpaUserDataMasker implements UserDataMasker {
             qualification.countUp();
         }
         PersonEntity person = Rows.require(em, PersonEntity.class, personId, realmId, found -> found.realmId);
-        trail.clearStoredResponses(em, realmId, personId, person.userId);
         person.name = null;
         person.names = new LinkedHashMap<>();
         person.phoneticName = null;
