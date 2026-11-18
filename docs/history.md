@@ -305,7 +305,8 @@ For this, the writes to one realm record their entries one after another.
 
 The numbers have no gaps.
 An entry holds only IDs, so a mask and an erase do not change or remove earlier entries.
-The erase adds one entry of the type `FUHITO_PERSON_DATA` with the operation `DELETE`. A reader can use it to remove its own copy.
+The erase adds one entry of the type `FUHITO_PERSON_DATA` with the operation `DELETE`. Its resource ID is the ID of the person.
+It stands for every row that the erase removed, also the reporting lines where the person is the manager. A reader can use it to remove its own copy of those rows.
 A mask adds an entry of the same type with the operation `UPDATE`. A reader can use it to clear the personal data in its own copy.
 
 Checked by `ChangeLogIT.followsEveryWriteOfTheRealmAfterASequenceNumber`, `ChangeLogIT.eachRealmCountsItsOwnWritesFromOneWithoutGapsUnderParallelWrites`, `ChangeLogIT.anEntryHasNoStateOfTheResource`, and `UserRemovalIT.aMaskAndAnEraseKeepTheEarlierEntriesAndAddTheirOwn`.

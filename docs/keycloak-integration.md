@@ -233,7 +233,8 @@ It is the only way to erase. Applications that refer to a record by ID find noth
 It removes the employments with their terms and assignments, the qualifications, and the reporting lines of the user as a report and as a manager.
 The change log keeps its entries about them, because they hold only IDs.
 It works for a user who is still in Keycloak and for one who was removed.
-The change log gets one entry that says who erased the data of which user ID. It has nothing else about the person.
+The change log gets one entry that says who erased the data of which person. Its resource ID is the ID of the person. It has nothing else about the person.
+The erase adds no entry for each row it removes. That one entry stands for all of them, also for the reporting lines where the person is the manager.
 
 ## Entities
 
