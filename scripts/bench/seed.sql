@@ -4,11 +4,17 @@
 -- The realm has its default hierarchy from its start.
 
 INSERT INTO fuhito_change_log_counter (realm_id, last_sequence) VALUES (:'realm', :people * 4);
-INSERT INTO fuhito_ref_item (id, realm_id, kind, code, name, names_i18n, display_order, attributes, active, legal_entity) VALUES
-  ('bench-company', :'realm', 'UNIT_TYPE', 'company', 'Company', '{}', 0, '{}', true, true),
-  ('bench-unit', :'realm', 'UNIT_TYPE', 'unit', 'Unit', '{}', 0, '{}', true, false),
-  ('bench-nurse', :'realm', 'OCCUPATION', 'nurse', 'Nurse', '{}', 0, '{}', true, false),
-  ('bench-full', :'realm', 'EMPLOYMENT_TYPE', 'full-time', 'Full time', '{}', 0, '{}', true, false);
+INSERT INTO fuhito_ref_item (id, realm_id, kind, code, display_order, attributes, active, legal_entity) VALUES
+  ('bench-company', :'realm', 'UNIT_TYPE', 'company', 0, '{}', true, true),
+  ('bench-unit', :'realm', 'UNIT_TYPE', 'unit', 0, '{}', true, false),
+  ('bench-nurse', :'realm', 'OCCUPATION', 'nurse', 0, '{}', true, false),
+  ('bench-full', :'realm', 'EMPLOYMENT_TYPE', 'full-time', 0, '{}', true, false);
+-- The names of each item hold for every date.
+INSERT INTO fuhito_ref_item_name (id, realm_id, ref_item_id, valid_from, valid_to, name, names_i18n) VALUES
+  ('bench-company', :'realm', 'bench-company', NULL, NULL, 'Company', '{}'),
+  ('bench-unit', :'realm', 'bench-unit', NULL, NULL, 'Unit', '{}'),
+  ('bench-nurse', :'realm', 'bench-nurse', NULL, NULL, 'Nurse', '{}'),
+  ('bench-full', :'realm', 'bench-full', NULL, NULL, 'Full time', '{}');
 
 -- n = 0 is the company. 1 to 50 are divisions, 51 to 550 departments, and the rest are teams.
 CREATE TEMP TABLE bench_unit AS
@@ -36,13 +42,21 @@ FROM bench_unit u JOIN fuhito_hierarchy h ON h.realm_id = :'realm' AND h.code = 
 
 -- The company is at site 0 with cost center 0. Each division has a cost center, and one division in five a site of
 -- its own. One team in ten is at site 3.
-INSERT INTO fuhito_ref_item (id, realm_id, kind, code, name, names_i18n, display_order, attributes, active, legal_entity)
-SELECT 'bench-wl-' || n, :'realm', 'WORK_LOCATION', 'site-' || n, 'Site ' || n, '{}', 0, '{}', true, false
+INSERT INTO fuhito_ref_item (id, realm_id, kind, code, display_order, attributes, active, legal_entity)
+SELECT 'bench-wl-' || n, :'realm', 'WORK_LOCATION', 'site-' || n, 0, '{}', true, false
 FROM generate_series(0, 10) n;
-INSERT INTO fuhito_ref_item (id, realm_id, kind, code, name, names_i18n, display_order, attributes, active, legal_entity)
-VALUES ('bench-home', :'realm', 'WORK_LOCATION', 'home', 'Home', '{}', 0, '{}', true, false);
-INSERT INTO fuhito_ref_item (id, realm_id, kind, code, name, names_i18n, display_order, attributes, active, legal_entity)
-SELECT 'bench-cc-' || n, :'realm', 'COST_CENTER', 'cc-' || n, 'Cost center ' || n, '{}', 0, '{}', true, false
+INSERT INTO fuhito_ref_item_name (id, realm_id, ref_item_id, valid_from, valid_to, name, names_i18n)
+SELECT 'bench-wl-' || n, :'realm', 'bench-wl-' || n, NULL, NULL, 'Site ' || n, '{}'
+FROM generate_series(0, 10) n;
+INSERT INTO fuhito_ref_item (id, realm_id, kind, code, display_order, attributes, active, legal_entity)
+VALUES ('bench-home', :'realm', 'WORK_LOCATION', 'home', 0, '{}', true, false);
+INSERT INTO fuhito_ref_item_name (id, realm_id, ref_item_id, valid_from, valid_to, name, names_i18n)
+VALUES ('bench-home', :'realm', 'bench-home', NULL, NULL, 'Home', '{}');
+INSERT INTO fuhito_ref_item (id, realm_id, kind, code, display_order, attributes, active, legal_entity)
+SELECT 'bench-cc-' || n, :'realm', 'COST_CENTER', 'cc-' || n, 0, '{}', true, false
+FROM generate_series(0, 50) n;
+INSERT INTO fuhito_ref_item_name (id, realm_id, ref_item_id, valid_from, valid_to, name, names_i18n)
+SELECT 'bench-cc-' || n, :'realm', 'bench-cc-' || n, NULL, NULL, 'Cost center ' || n, '{}'
 FROM generate_series(0, 50) n;
 UPDATE fuhito_org_unit_version v SET work_location_id = 'bench-wl-0', cost_center_id = 'bench-cc-0' FROM bench_unit u
 WHERE v.realm_id = :'realm' AND v.org_unit_id = u.id AND u.n = 0;
