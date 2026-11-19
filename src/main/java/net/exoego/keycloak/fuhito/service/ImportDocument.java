@@ -182,8 +182,8 @@ public record ImportDocument(
     @Schema(
             name = "ImportUnitRoleRow",
             description = "A role that an employment holds over an org unit. It is matched by employment, org unit, "
-                    + "and role, or by `id`. A row that changes `includesDescendants` ends the stored role and starts "
-                    + "a new one on the date.")
+                    + "and role, or by `id`. `includesDescendants` of a stored role does not change. A row with "
+                    + "another value is a new role, which fails while the stored role holds on the same dates.")
     public record UnitRoleRow(
             @Schema(description = "The ID of a stored role. A CSV export has it in every row. A new role has none.")
             String id,
@@ -203,7 +203,8 @@ public record ImportDocument(
             String orgUnitId,
             @Schema(description = "The code of a reference item of the kind `UNIT_ROLE`.")
             String role,
-            @Schema(description = "True when the role also covers the units below.", defaultValue = "false")
+            @Schema(description = "True when the role also covers the units below. A row with `id` that leaves it "
+                    + "out keeps the stored value.", defaultValue = "false")
             Boolean includesDescendants,
             @Schema(description = "The first date of a new role. The default is the effective date. A stored role "
                     + "ignores it.", format = "date")
@@ -216,8 +217,8 @@ public record ImportDocument(
     @Schema(
             name = "ImportReportingLineRow",
             description = "A reporting line from an assignment to a manager. It is matched by assignment, manager, "
-                    + "and kind, or by `id`. A new solid manager ends the solid line that the assignment has on the "
-                    + "date.")
+                    + "and kind, or by `id`. A new solid line fails while the assignment has a solid line on the same "
+                    + "dates.")
     public record ReportingLineRow(
             @Schema(description = "The ID of a stored line. A CSV export has it in every row. A new line has none.")
             String id,

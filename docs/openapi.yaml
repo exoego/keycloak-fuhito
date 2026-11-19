@@ -1951,8 +1951,8 @@ components:
     ImportReportingLineRow:
       type: object
       description: "A reporting line from an assignment to a manager. It is matched\
-        \ by assignment, manager, and kind, or by `id`. A new solid manager ends the\
-        \ solid line that the assignment has on the date."
+        \ by assignment, manager, and kind, or by `id`. A new solid line fails while\
+        \ the assignment has a solid line on the same dates."
       properties:
         id:
           type: string
@@ -2033,8 +2033,9 @@ components:
     ImportUnitRoleRow:
       type: object
       description: "A role that an employment holds over an org unit. It is matched\
-        \ by employment, org unit, and role, or by `id`. A row that changes `includesDescendants`\
-        \ ends the stored role and starts a new one on the date."
+        \ by employment, org unit, and role, or by `id`. `includesDescendants` of\
+        \ a stored role does not change. A row with another value is a new role, which\
+        \ fails while the stored role holds on the same dates."
       properties:
         id:
           type: string
@@ -2063,7 +2064,8 @@ components:
           description: The code of a reference item of the kind `UNIT_ROLE`.
         includesDescendants:
           type: boolean
-          description: True when the role also covers the units below.
+          description: True when the role also covers the units below. A row with
+            `id` that leaves it out keeps the stored value.
           default: false
         validFrom:
           type: string
