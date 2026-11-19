@@ -782,7 +782,7 @@ class ImportServiceTest {
     }
 
     @Test
-    void importsReportingLinesAndEndsTheSolidLineOfTheManagerBefore() {
+    void importsReportingLinesAndRejectsASecondSolidLine() {
         importTwoUnits();
         importPeople("2026-04-01", List.of(employment("E1", "nurse", null, null, null)),
                 List.of(assignment("A1", "E1", "W", true, null)));
@@ -791,22 +791,37 @@ class ImportServiceTest {
 
         ImportReport first = importLines("2026-04-01", line(null, "A1", null, "doctor", null));
         ImportReport again = importLines("2026-04-01", line(null, "A1", null, "doctor", null));
-        ImportReport next = importLines("2026-05-01", line(null, "A1", "P3", null, null));
+        ImportReport second = importLines("2026-05-01", line(null, "A1", "P3", null, null));
 
         assertEquals(List.of(), errors(first));
         assertEquals(Map.of("reportingLines", new Counts(1, 0, 0)), first.counts());
         assertEquals(Map.of("reportingLines", new Counts(0, 0, 1)), again.counts());
-        assertEquals(Map.of("reportingLines", new Counts(1, 0, 0)), next.counts());
+        String doctor = lineStore.lines.getFirst().id();
+        assertEquals(List.of("reportingLines[0] reporting_line.solid_exists"), errors(second));
+        assertEquals(doctor, second.errors().getFirst().error().params().get("lineId"));
+        assertEquals(List.of(), second.writes());
+
+        // The row that ends the stored line can come after the new line, and the same file loads again.
+        ReportingLineRow[] change = {line(null, "A1", "P3", null, null), line(doctor, null, null, null, "2026-05-01")};
+        ImportReport next = importLines("2026-05-01", change);
+        ImportReport nextAgain = importLines("2026-05-01", change);
+
+        assertEquals(List.of(), errors(next));
+        assertEquals(Map.of("reportingLines", new Counts(1, 1, 0)), next.counts());
+        assertEquals(Map.of("reportingLines", new Counts(0, 0, 2)), nextAgain.counts());
         List<ReportingLine> stored = lineStore.lines.stream()
                 .sorted(java.util.Comparator.comparing(l -> l.period().from()))
                 .toList();
         assertEquals("2026-05-01", stored.getFirst().period().to().toString());
-        assertEquals(stored(ExternalId.Kind.PERSON, "import", "P3"),
-                stored.getLast().managerPersonId());
-        assertEquals("fuhito/reporting-lines/" + stored.getFirst().id() + "/end", next.writes().getFirst().path());
+        String chiefLine = stored.getLast().id();
+        assertEquals(stored(ExternalId.Kind.PERSON, "import", "P3"), stored.getLast().managerPersonId());
+        assertEquals("fuhito/reporting-lines/" + doctor + "/end", next.writes().getFirst().path());
 
-        ImportReport ended = importLines("2026-05-01", line(stored.getLast().id(), null, null, null, "2026-06-01"));
-        assertEquals(Map.of("reportingLines", new Counts(0, 1, 0)), ended.counts());
+        ImportReport back = importLines("2026-06-01", line(chiefLine, null, null, null, "2026-06-01"),
+                line(null, "A1", null, "doctor", null));
+        assertEquals(List.of(), errors(back));
+        assertEquals(Map.of("reportingLines", new Counts(1, 1, 0)), back.counts());
+        assertEquals(3, lineStore.lines.size());
         assertEquals(List.of("reportingLines[0] import.assignment_unknown", "reportingLines[1] import.manager_twice",
                 "reportingLines[2] import.username_unknown", "reportingLines[3] import.id_unknown",
                 "reportingLines[4] import.person_unknown", "reportingLines[5] invalid.required"),
@@ -820,8 +835,7 @@ class ImportServiceTest {
                 "reportingLines[3] import.duplicate_row"),
                 errors(importLines("2026-05-01",
                         new ReportingLineRow(null, null, "A1", a1, "P3", null, null, null, null, null),
-                        new ReportingLineRow(stored.getLast().id(), null, null, null, null, null, "doctor", null,
-                                null, null),
+                        new ReportingLineRow(chiefLine, null, null, null, null, null, "doctor", null, null, null),
                         new ReportingLineRow(null, null, null, a1, null, chief, null, null, null, null),
                         new ReportingLineRow(null, null, null, a1, null, chief, null, null, null, null))));
     }
@@ -836,7 +850,7 @@ class ImportServiceTest {
     }
 
     @Test
-    void importsRolesAndStartsANewOneWhenItCoversTheUnitsBelow() {
+    void importsRolesAndKeepsWhetherARoleCoversTheUnitsBelow() {
         importTwoUnits();
         importPeople("2026-04-01", List.of(employment("E1", "nurse", null, null, null)), null);
         refItems.insert(new RefItem("approver-id", RefKind.UNIT_ROLE.name(), "approver", ItemNames.of("承認者"), 0,
@@ -849,24 +863,42 @@ class ImportServiceTest {
         assertEquals(List.of(), errors(first));
         assertEquals(Map.of("unitRoles", new Counts(1, 0, 0)), first.counts());
         assertEquals(Map.of("unitRoles", new Counts(0, 0, 1)), again.counts());
-        assertEquals(Map.of("unitRoles", new Counts(0, 1, 0)), wider.counts());
+        String narrow = roleStore.roles.getFirst().id();
+        assertEquals(List.of("unitRoles[0] unit_role.overlap"), errors(wider));
+        assertEquals(narrow, wider.errors().getFirst().error().params().get("id"));
+        assertEquals(List.of(), wider.writes());
+        assertEquals(List.of("unitRoles[0] import.unit_role_mismatch"),
+                errors(importRoles("2026-05-01", role(narrow, null, null, null, true, null))));
+
+        // The row that ends the stored role can come after the new role, and the same file loads again.
+        UnitRoleRow[] change = {role(null, "E1", "H", "approver", true, null),
+                role(narrow, null, null, null, null, "2026-05-01")};
+        ImportReport changed = importRoles("2026-05-01", change);
+        ImportReport changedAgain = importRoles("2026-05-01", change);
+
+        assertEquals(List.of(), errors(changed));
+        assertEquals(Map.of("unitRoles", new Counts(1, 1, 0)), changed.counts());
+        assertEquals(Map.of("unitRoles", new Counts(0, 0, 2)), changedAgain.counts());
         List<UnitRole> stored = roleStore.roles.stream()
                 .sorted(java.util.Comparator.comparing(r -> r.period().from()))
                 .toList();
         assertEquals("2026-05-01", stored.getFirst().period().to().toString());
         assertTrue(stored.getLast().includesDescendants());
-        assertEquals("fuhito/unit-roles/" + stored.getFirst().id() + "/end", wider.writes().getFirst().path());
+        String wide = stored.getLast().id();
+        assertEquals("fuhito/unit-roles/" + narrow + "/end", changed.writes().getFirst().path());
 
-        ImportReport ended = importRoles("2026-05-01", role(stored.getLast().id(), null, null, null, true,
-                "2026-06-01"));
-        assertEquals(Map.of("unitRoles", new Counts(0, 1, 0)), ended.counts());
+        ImportReport back = importRoles("2026-06-01", role(wide, null, null, null, null, "2026-06-01"),
+                role(null, "E1", "H", "approver", false, null));
+        assertEquals(List.of(), errors(back));
+        assertEquals(Map.of("unitRoles", new Counts(1, 1, 0)), back.counts());
+        assertEquals(3, roleStore.roles.size());
         assertEquals(List.of("unitRoles[0] import.employment_unknown", "unitRoles[1] import.org_unit_unknown",
                 "unitRoles[2] import.id_unknown", "unitRoles[3] invalid.required",
                 "unitRoles[4] import.id_mismatch", "unitRoles[6] import.duplicate_row"),
                 errors(importRoles("2026-05-01", role(null, "NOPE", "H", "approver", null, null),
                         role(null, "E1", "NOPE", "approver", null, null), role("nope", null, null, null, null, null),
                         role(null, "E1", "W", null, null, null),
-                        role(stored.getLast().id(), null, "W", null, true, null),
+                        role(wide, null, "W", null, true, null),
                         role(null, "E1", "H", "approver", true, null), role(null, "E1", "H", "approver", true, null))));
         String e1 = stored(ExternalId.Kind.EMPLOYMENT, "import", "E1");
         String h = stored(ExternalId.Kind.ORG_UNIT, "import", "H");

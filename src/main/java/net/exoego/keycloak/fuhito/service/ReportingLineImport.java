@@ -3,6 +3,7 @@ package net.exoego.keycloak.fuhito.service;
 import java.time.LocalDate;
 import java.util.Comparator;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -21,11 +22,15 @@ import net.exoego.keycloak.fuhito.service.ImportReport.Write;
 
 /**
  * The reporting lines of one document. A row is matched by assignment, manager, and kind, or by ID.
- * A new solid manager ends the solid line that the assignment has on the date.
+ * A new solid line fails while the assignment has a solid line on the same dates, as in {@code POST /reporting-lines}.
  */
 final class ReportingLineImport {
 
     static final String REPORTING_LINES = "reportingLines";
+
+    private record Line(ReportingLineRow row, String assignmentId, String managerId, Kind kind,
+            Optional<ReportingLine> stored) {
+    }
 
     private final ReportingLineService lines;
     private final ImportService.People people;
@@ -47,16 +52,30 @@ final class ReportingLineImport {
 
     void run(List<ReportingLineRow> rows) {
         report.startList(REPORTING_LINES);
+        // New lines go last, so that the row that ends a solid line can come before or after the row of the next one.
+        Map<Integer, Line> added = new LinkedHashMap<>();
         for (int i = 0; i < rows.size(); i++) {
             try {
-                report.count(REPORTING_LINES, apply(Checks.required("row", rows.get(i))));
+                Line line = resolve(Checks.required("row", rows.get(i)));
+                if (line.stored().isEmpty()) {
+                    added.put(i, line);
+                } else {
+                    report.count(REPORTING_LINES, change(line.stored().get(), line.row()));
+                }
             } catch (FuhitoException e) {
                 report.error(REPORTING_LINES, i, e);
             }
         }
+        for (Map.Entry<Integer, Line> entry : added.entrySet()) {
+            try {
+                report.count(REPORTING_LINES, add(entry.getValue()));
+            } catch (FuhitoException e) {
+                report.error(REPORTING_LINES, entry.getKey(), e);
+            }
+        }
     }
 
-    private Outcome apply(ReportingLineRow row) {
+    private Line resolve(ReportingLineRow row) {
         String source = Checks.code("source", row.source() == null ? defaultSource : row.source());
         Optional<ReportingLine> byId = row.id() == null ? Optional.empty() : Optional.of(lines.find(row.id())
                 .orElseThrow(() -> FuhitoException.invalid("import.id_unknown", Map.of("id", row.id()))));
@@ -76,25 +95,21 @@ final class ReportingLineImport {
                 .filter(line -> line.managerPersonId().equals(managerId) && line.kind() == kind)
                 .filter(line -> line.period().contains(date) || line.period().from().isAfter(date))
                 .min(Comparator.comparing(line -> line.period().from()));
-        if (stored.isPresent()) {
-            ReportingLine line = stored.get();
-            if (row.validTo() == null || Objects.equals(row.validTo(), Objects.toString(line.period().to(), null))) {
-                return Outcome.UNCHANGED;
-            }
-            report.write(new Write.OfReportingLine(false, "/end", lines.end(line.id(), row.validTo())));
-            return Outcome.CHANGED;
+        return new Line(row, assignmentId, managerId, kind, stored);
+    }
+
+    private Outcome change(ReportingLine line, ReportingLineRow row) {
+        if (row.validTo() == null || Objects.equals(row.validTo(), Objects.toString(line.period().to(), null))) {
+            return Outcome.UNCHANGED;
         }
-        LocalDate from = row.validFrom() == null ? date : Checks.date("validFrom", row.validFrom());
-        if (kind == Kind.SOLID) {
-            for (ReportingLine other : lines.ofAssignment(assignmentId)) {
-                if (other.kind() == Kind.SOLID && other.period().contains(from)
-                        && other.period().from().isBefore(from)) {
-                    report.write(new Write.OfReportingLine(false, "/end", lines.end(other.id(), from.toString())));
-                }
-            }
-        }
-        report.write(new Write.OfReportingLine(true, "", lines.add(assignmentId, managerId, kind.name(),
-                from.toString(), row.validTo())));
+        report.write(new Write.OfReportingLine(false, "/end", lines.end(line.id(), row.validTo())));
+        return Outcome.CHANGED;
+    }
+
+    private Outcome add(Line line) {
+        ReportingLineRow row = line.row();
+        report.write(new Write.OfReportingLine(true, "", lines.add(line.assignmentId(), line.managerId(),
+                line.kind().name(), row.validFrom() == null ? date.toString() : row.validFrom(), row.validTo())));
         return Outcome.CREATED;
     }
 
