@@ -1,6 +1,7 @@
 package net.exoego.keycloak.fuhito.rest;
 
 import java.util.Collection;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.OptionalInt;
@@ -134,6 +135,19 @@ public interface RequestContext {
     }
 
     /**
+     * A successful change, for the event log.
+     *
+     * @param change the kind of the change
+     * @param resourceType the type of the changed resource, for example {@code FUHITO_ORG_UNIT}
+     * @param resourceId the ID of the changed resource
+     * @param resourcePath the path of the request below the realm
+     * @param representation the new state, or null
+     */
+    record ChangeRecord(Change change, String resourceType, String resourceId, String resourcePath,
+            Object representation) {
+    }
+
+    /**
      * Records a successful change in the admin event log of the realm and in the change log.
      * Only the admin event gets the new state.
      *
@@ -143,6 +157,15 @@ public interface RequestContext {
      * @param resourcePath the path of the request below the realm
      * @param representation the new state, or null
      */
-    void recordChange(Change change, String resourceType, String resourceId, String resourcePath,
-            Object representation);
+    default void recordChange(Change change, String resourceType, String resourceId, String resourcePath,
+            Object representation) {
+        recordChanges(List.of(new ChangeRecord(change, resourceType, resourceId, resourcePath, representation)));
+    }
+
+    /**
+     * Records successful changes in their order, as {@link #recordChange} does for each.
+     *
+     * @param changes the changes
+     */
+    void recordChanges(List<ChangeRecord> changes);
 }

@@ -1,6 +1,7 @@
 package net.exoego.keycloak.fuhito.store;
 
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -26,6 +27,16 @@ public interface UnitRoleStore {
      * @return the roles
      */
     List<UnitRole> findByEmployment(String employmentId);
+
+    /**
+     * Lists the roles of several employments over all time. The roles of one employment come oldest first.
+     *
+     * @param employmentIds the IDs of the employments
+     * @return the roles
+     */
+    default List<UnitRole> findByEmployments(Collection<String> employmentIds) {
+        return employmentIds.stream().distinct().flatMap(id -> findByEmployment(id).stream()).toList();
+    }
 
     /**
      * Lists a page of the roles over an org unit on a date. These are the roles over the unit, and the roles over
@@ -80,7 +91,16 @@ public interface UnitRoleStore {
      *
      * @param role the role
      */
-    void insert(UnitRole role);
+    default void insert(UnitRole role) {
+        insertAll(List.of(role));
+    }
+
+    /**
+     * Stores new roles.
+     *
+     * @param roles the roles
+     */
+    void insertAll(List<UnitRole> roles);
 
     /**
      * What a list of the roles of a date across the realm keeps. A value that is null keeps everything.
@@ -116,12 +136,30 @@ public interface UnitRoleStore {
      *
      * @param role the role with its new period
      */
-    void update(UnitRole role);
+    default void update(UnitRole role) {
+        updateAll(List.of(role));
+    }
+
+    /**
+     * Stores the new periods of several roles.
+     *
+     * @param roles the roles with their new periods
+     */
+    void updateAll(List<UnitRole> roles);
 
     /**
      * Deletes a role.
      *
      * @param id the ID
      */
-    void delete(String id);
+    default void delete(String id) {
+        deleteAll(List.of(id));
+    }
+
+    /**
+     * Deletes several roles.
+     *
+     * @param ids the IDs
+     */
+    void deleteAll(Collection<String> ids);
 }

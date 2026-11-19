@@ -67,8 +67,8 @@ final class MemoryEmploymentStore implements EmploymentStore {
     }
 
     @Override
-    public void insert(Employment employment) {
-        employments.put(employment.id(), employment);
+    public void insertAll(List<Employment> added) {
+        added.forEach(employment -> employments.put(employment.id(), employment));
     }
 
     @Override
@@ -85,8 +85,8 @@ final class MemoryEmploymentStore implements EmploymentStore {
     }
 
     @Override
-    public void updateTerms(EmploymentTerms changed) {
-        terms.replaceAll(t -> t.id().equals(changed.id()) ? changed : t);
+    public void updateAllTerms(List<EmploymentTerms> changed) {
+        changed.forEach(c -> terms.replaceAll(t -> t.id().equals(c.id()) ? c : t));
     }
 
     @Override
@@ -102,8 +102,8 @@ final class MemoryEmploymentStore implements EmploymentStore {
     }
 
     @Override
-    public void deleteTerms(String termsId) {
-        terms.removeIf(t -> t.id().equals(termsId));
+    public void deleteAllTerms(Collection<String> termsIds) {
+        terms.removeIf(t -> termsIds.contains(t.id()));
     }
 
     @Override

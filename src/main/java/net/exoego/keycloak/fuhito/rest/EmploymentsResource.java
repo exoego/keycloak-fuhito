@@ -1,9 +1,12 @@
 package net.exoego.keycloak.fuhito.rest;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Stream;
 
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.DELETE;
@@ -401,7 +404,7 @@ public class EmploymentsResource {
         context.requireWrite();
         return Calls.guarded(context, body, () -> version(id), () -> scopes.employment(id), () -> {
             return Response.status(Response.Status.CREATED)
-                    .entity(record(service.transfer(id, body.toRequest())))
+                    .entity(record(List.of(service.transfer(id, body.toRequest()))).getFirst())
                     .build();
         });
     }
@@ -432,8 +435,7 @@ public class EmploymentsResource {
                 changed.put("org-units", Set.of(body.fromEmployerId()));
             }
             context.lock(changed);
-            List<TransfersRepresentation.Moved> moved = service.transferAll(body.toRequest()).stream()
-                    .map(this::record)
+            List<TransfersRepresentation.Moved> moved = record(service.transferAll(body.toRequest())).stream()
                     .map(transfer -> new TransfersRepresentation.Moved(transfer.started().personId(),
                             transfer.ended().id(), transfer.started().id()))
                     .toList();
@@ -454,27 +456,49 @@ public class EmploymentsResource {
     }
 
     // Every part of a transfer gets its own entry in the admin events and in the change log.
-    private TransferRepresentation record(EmploymentService.Transfer transfer) {
-        List<EmploymentRepresentation> both = represent(List.of(transfer.ended(), transfer.started()));
-        var ended = both.getFirst();
-        var started = both.getLast();
-        context.recordChange(Change.UPDATE, RESOURCE_TYPE, ended.id(), "fuhito/employments/" + ended.id() + "/transfer",
-                ended);
-        context.recordChange(Change.CREATE, RESOURCE_TYPE, started.id(), "fuhito/employments/" + started.id(),
-                started);
-        var newAssignments = AssignmentsResource.represent(transfer.assignmentIds().stream()
-                .map(assignments::get)
-                .toList(), externalIds);
-        newAssignments.forEach(assignment -> context.recordChange(Change.CREATE,
-                AssignmentsResource.RESOURCE_TYPE, assignment.id(), "fuhito/assignments/" + assignment.id(),
-                assignment));
-        var newLines = ReportingLinesResource.represent(transfer.reportingLines(), externalIds);
-        newLines.forEach(line -> context.recordChange(Change.CREATE, ReportingLinesResource.RESOURCE_TYPE,
-                line.id(), "fuhito/reporting-lines/" + line.id(), line));
-        var newRoles = UnitRolesResource.represent(transfer.unitRoles(), externalIds);
-        newRoles.forEach(role -> context.recordChange(Change.CREATE, UnitRolesResource.RESOURCE_TYPE, role.id(),
-                "fuhito/unit-roles/" + role.id(), role));
-        return TransferRepresentation.of(ended, started, newAssignments, newLines, newRoles);
+    private List<TransferRepresentation> record(List<EmploymentService.Transfer> transfers) {
+        Iterator<EmploymentRepresentation> employments = represent(transfers.stream()
+                .flatMap(transfer -> Stream.of(transfer.ended(), transfer.started()))
+                .toList()).iterator();
+        Iterator<AssignmentRepresentation> newAssignments = AssignmentsResource.represent(assignments.getAll(
+                transfers.stream().flatMap(transfer -> transfer.assignmentIds().stream()).toList()), externalIds)
+                .iterator();
+        Iterator<ReportingLineRepresentation> newLines = ReportingLinesResource.represent(transfers.stream()
+                .flatMap(transfer -> transfer.reportingLines().stream()).toList(), externalIds).iterator();
+        Iterator<UnitRoleRepresentation> newRoles = UnitRolesResource.represent(transfers.stream()
+                .flatMap(transfer -> transfer.unitRoles().stream()).toList(), externalIds).iterator();
+        List<RequestContext.ChangeRecord> changes = new ArrayList<>();
+        List<TransferRepresentation> recorded = new ArrayList<>();
+        for (EmploymentService.Transfer transfer : transfers) {
+            var ended = employments.next();
+            var started = employments.next();
+            changes.add(new RequestContext.ChangeRecord(Change.UPDATE, RESOURCE_TYPE, ended.id(),
+                    "fuhito/employments/" + ended.id() + "/transfer", ended));
+            changes.add(new RequestContext.ChangeRecord(Change.CREATE, RESOURCE_TYPE, started.id(),
+                    "fuhito/employments/" + started.id(), started));
+            var assignmentsOfTransfer = take(newAssignments, transfer.assignmentIds().size());
+            assignmentsOfTransfer.forEach(assignment -> changes.add(new RequestContext.ChangeRecord(Change.CREATE,
+                    AssignmentsResource.RESOURCE_TYPE, assignment.id(), "fuhito/assignments/" + assignment.id(),
+                    assignment)));
+            var linesOfTransfer = take(newLines, transfer.reportingLines().size());
+            linesOfTransfer.forEach(line -> changes.add(new RequestContext.ChangeRecord(Change.CREATE,
+                    ReportingLinesResource.RESOURCE_TYPE, line.id(), "fuhito/reporting-lines/" + line.id(), line)));
+            var rolesOfTransfer = take(newRoles, transfer.unitRoles().size());
+            rolesOfTransfer.forEach(role -> changes.add(new RequestContext.ChangeRecord(Change.CREATE,
+                    UnitRolesResource.RESOURCE_TYPE, role.id(), "fuhito/unit-roles/" + role.id(), role)));
+            recorded.add(TransferRepresentation.of(ended, started, assignmentsOfTransfer, linesOfTransfer,
+                    rolesOfTransfer));
+        }
+        context.recordChanges(changes);
+        return recorded;
+    }
+
+    private static <T> List<T> take(Iterator<T> items, int count) {
+        List<T> taken = new ArrayList<>();
+        for (int i = 0; i < count; i++) {
+            taken.add(items.next());
+        }
+        return taken;
     }
 
     @DELETE

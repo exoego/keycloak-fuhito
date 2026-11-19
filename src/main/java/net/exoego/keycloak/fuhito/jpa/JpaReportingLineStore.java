@@ -200,20 +200,24 @@ public class JpaReportingLineStore implements ReportingLineStore {
     }
 
     @Override
-    public void update(ReportingLine line) {
-        ReportingLineEntity entity = findEntity(line.id()).orElseThrow();
-        entity.validFrom = line.period().from();
-        entity.validTo = line.period().to();
-        entity.countUp();
+    public void updateAll(List<ReportingLine> lines) {
+        for (ReportingLine line : lines) {
+            ReportingLineEntity entity = findEntity(line.id()).orElseThrow();
+            entity.validFrom = line.period().from();
+            entity.validTo = line.period().to();
+            entity.countUp();
+        }
     }
 
     @Override
-    public void delete(String id) {
-        findEntity(id).ifPresent(entity -> {
-            ExternalIds.deleteOf(em, realmId, "REPORTING_LINE", id);
-            em.remove(entity);
-            em.flush();
-        });
+    public void deleteAll(Collection<String> ids) {
+        for (String id : ids) {
+            findEntity(id).ifPresent(entity -> {
+                ExternalIds.deleteOf(em, realmId, "REPORTING_LINE", id);
+                em.remove(entity);
+            });
+        }
+        em.flush();
     }
 
     // The realm filter keeps one realm from reaching the rows of another by ID.
