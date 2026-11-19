@@ -14,6 +14,7 @@ import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.OrgUnitName;
 import net.exoego.keycloak.fuhito.domain.Person;
+import net.exoego.keycloak.fuhito.domain.PersonName;
 import net.exoego.keycloak.fuhito.domain.Qualification;
 import net.exoego.keycloak.fuhito.domain.RefItem;
 import net.exoego.keycloak.fuhito.domain.RefKind;
@@ -39,6 +40,7 @@ import net.exoego.keycloak.fuhito.store.UserDirectory;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import static net.exoego.keycloak.fuhito.service.PeopleNames.japanese;
 import static net.exoego.keycloak.fuhito.service.UnitNames.ja;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -625,16 +627,16 @@ class ImportServiceTest {
         // The nurse has a person already, made for the user by an earlier employment.
         importPeople("2026-04-01", List.of(employment("E0", "nurse", null, null, null)), null);
         List<PersonRow> rows = List.of(
-                new PersonRow(null, "P1", null, null, "山田 花子", Map.of("en", "Hanako Yamada"), "やまだ はなこ",
-                        Map.of("note", "retired"), null),
-                new PersonRow(null, "P2", "nurse", null, null, null, null, null, null));
+                new PersonRow(null, "P1", null, null, "ja", Map.of("ja", new PersonName("山田 花子", "やまだ はなこ"),
+                        "en", new PersonName("Hanako Yamada", null)), Map.of("note", "retired"), null),
+                new PersonRow(null, "P2", "nurse", null, null, null, null, null));
 
         ImportReport first = service.apply(new ImportDocument("2026-04-01", false, null, null, null, null, null, rows));
 
         assertEquals(new Counts(1, 1, 0), first.counts().get("people"));
         Person retired = personStore.find(stored(ExternalId.Kind.PERSON, "import", "P1")).orElseThrow();
         assertEquals(null, retired.userId());
-        assertEquals("やまだ はなこ", retired.phoneticName());
+        assertEquals("やまだ はなこ", retired.names().primary().phoneticName());
         assertEquals(personStore.findByUser(users.findIdByUsername("nurse").orElseThrow()).orElseThrow().id(),
                 stored(ExternalId.Kind.PERSON, "import", "P2"));
         assertEquals(new Counts(0, 0, 2), service.apply(new ImportDocument("2026-04-01", false, null, null, null,
@@ -660,7 +662,7 @@ class ImportServiceTest {
                 null, "1990-04-01", null, null, null, "P1", null, null, null);
         assertEquals("import.user_mismatch", service.apply(new ImportDocument("2026-04-01", false, null, null,
                 null, List.of(mismatch), null)).errors().getFirst().error().code());
-        PersonRow renamed = new PersonRow(null, "P1", null, null, "山田 華子", null, null, null, null);
+        PersonRow renamed = new PersonRow(null, "P1", null, null, "ja", japanese("山田 華子"), null, null);
         assertEquals(new Counts(0, 1, 0), service.apply(new ImportDocument("2026-04-01", false, null, null, null,
                 null, null, List.of(renamed))).counts().get("people"));
     }
@@ -681,7 +683,7 @@ class ImportServiceTest {
         refItems.insert(new RefItem("g", RefKind.GRADE, "g2", "x", Map.of(), 0, Map.of(), true));
         String hospital = stored(ExternalId.Kind.ORG_UNIT, "import", "H");
         PersonService personService = new PersonService(personStore, externalIdStore, users, id -> false);
-        String taro = personService.create(new PersonValues(null, "Taro", null, null, null, null, null)).person().id();
+        String taro = personService.create(new PersonValues(null, "ja", japanese("Taro"), null, null, null)).person().id();
 
         assertEquals(List.of(), errors(importEmployments(byIds("E1", taro, hospital, null, null))));
         Employment stored = employmentStore.find(stored(ExternalId.Kind.EMPLOYMENT, "import", "E1")).orElseThrow();
@@ -694,7 +696,7 @@ class ImportServiceTest {
         assertEquals(new Counts(0, 0, 1), importEmployments(byIds("E1", null, null, "g2", stored.id())).counts()
                 .get("employments"));
 
-        String hanako = personService.create(new PersonValues(null, "Hanako", null, null, null, null, null)).person()
+        String hanako = personService.create(new PersonValues(null, "ja", japanese("Hanako"), null, null, null)).person()
                 .id();
         EmploymentRow twice = new EmploymentRow(null, "E2", null, null, null, null, null, null, null, null, null,
                 null, null, null, "H", "P1", taro, hospital, null);
@@ -730,7 +732,7 @@ class ImportServiceTest {
         String hospital = stored(ExternalId.Kind.ORG_UNIT, "import", "H");
         String ward = stored(ExternalId.Kind.ORG_UNIT, "import", "W");
         String taro = new PersonService(personStore, externalIdStore, users, id -> false)
-                .create(new PersonValues(null, "Taro", null, null, null, null, null)).person().id();
+                .create(new PersonValues(null, "ja", japanese("Taro"), null, null, null)).person().id();
         importEmployments(byIds("E1", taro, null, null, null));
         String employment = stored(ExternalId.Kind.EMPLOYMENT, "import", "E1");
 
@@ -777,7 +779,7 @@ class ImportServiceTest {
         importPeople("2026-04-01", List.of(employment("E1", "nurse", null, null, null)),
                 List.of(assignment("A1", "E1", "W", true, null)));
         service.apply(new ImportDocument("2026-04-01", false, null, null, null, null, null,
-                List.of(new PersonRow(null, "P3", null, null, "Chief", null, null, null, null))));
+                List.of(new PersonRow(null, "P3", null, null, "ja", japanese("Chief"), null, null))));
 
         ImportReport first = importLines("2026-04-01", line(null, "A1", null, "doctor", null));
         ImportReport again = importLines("2026-04-01", line(null, "A1", null, "doctor", null));
@@ -882,8 +884,8 @@ class ImportServiceTest {
         refItems.insert(new RefItem("license-id", RefKind.QUALIFICATION.name(), "license", "免許", Map.of(), 0,
                 Map.of(), true, false, false, false, 1, null, null));
         service.apply(new ImportDocument("2026-04-01", false, null, null, null, null, null,
-                List.of(new PersonRow(null, "P1", null, null, "Ann", null, null, null, null),
-                        new PersonRow(null, "P2", null, null, "Ben", null, null, null, null))));
+                List.of(new PersonRow(null, "P1", null, null, "ja", japanese("Ann"), null, null),
+                        new PersonRow(null, "P2", null, null, "ja", japanese("Ben"), null, null))));
 
         ImportReport first = importQualifications(qualification(null, "Q1", "P1", null, "123", null),
                 qualification(null, "Q2", null, "nurse", null, null));
@@ -1385,7 +1387,7 @@ class ImportServiceTest {
                 List.of(unit("H", "Hospital", null)),
                 List.of(new EmploymentRow(null, "E1", null, null, null, null, null, null, null, null, null,
                         "2020-04-01", null, null, null, "P1", null, null, null)),
-                null, List.of(new PersonRow(null, "P1", null, null, "Hanako", null, null, null, null))));
+                null, List.of(new PersonRow(null, "P1", null, null, "ja", japanese("Hanako"), null, null))));
         assertEquals(List.of(), errors(fromHr));
         String unit = stored(ExternalId.Kind.ORG_UNIT, "hr", "H");
         String person = stored(ExternalId.Kind.PERSON, "hr", "P1");
@@ -1401,8 +1403,8 @@ class ImportServiceTest {
                         "2020-04-01", null, null, null, "PAY-1", null, null, null)),
                 List.of(new AssignmentRow(null, "PAY-A1", "PAY-E1", "PAY-H", null, null, null, null, true, null,
                         null, null, null, null)),
-                List.of(new PersonRow(null, "PAY-1", null, null, "Hanako", null, null, null, null),
-                        new PersonRow(null, "PAY-2", null, null, "Taro", null, null, null, null))));
+                List.of(new PersonRow(null, "PAY-1", null, null, "ja", japanese("Hanako"), null, null),
+                        new PersonRow(null, "PAY-2", null, null, "ja", japanese("Taro"), null, null))));
 
         assertEquals(List.of(), errors(fromPayroll));
         assertEquals(new Counts(1, 0, 1), fromPayroll.counts().get("people"));
@@ -1419,9 +1421,9 @@ class ImportServiceTest {
         // A row with the ID of the record and an ID of a system names the record only when the system has that ID.
         assertEquals(List.of("people[0] import.id_mismatch"), errors(service.apply(new ImportDocument("2026-04-01",
                 false, "payroll", null, null, null, null,
-                List.of(new PersonRow(null, "PAY-9", null, null, "Hanako", null, null, null, person))))));
+                List.of(new PersonRow(null, "PAY-9", null, null, "ja", japanese("Hanako"), null, person))))));
         assertEquals(new Counts(0, 0, 1), service.apply(new ImportDocument("2026-04-01", false, "payroll", null,
-                null, null, null, List.of(new PersonRow(null, "PAY-1", null, null, "Hanako", null, null, null,
+                null, null, null, List.of(new PersonRow(null, "PAY-1", null, null, "ja", japanese("Hanako"), null,
                         person)))).counts().get("people"));
     }
 

@@ -125,7 +125,7 @@ class RealmExportIT {
         ok(api.post("/employments", "{\"userId\": \"" + ids.get("former")
                 + "\", \"validFrom\": \"2010-04-01\", \"validTo\": \"2015-04-01\"}"));
         ok(api.post("/users/" + ids.get("former") + "/mask", ""));
-        ok(api.post("/people", "{\"name\": \"山田 花子\", \"attributes\": {\"site\": [\"tokyo\"]}}"));
+        ok(api.post("/people", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"山田 花子\", \"phoneticName\": \"やまだ はなこ\"}, \"en\": {\"name\": \"Hanako Yamada\"}}, \"attributes\": {\"site\": [\"tokyo\"]}}"));
 
         ObjectNode first = export(api);
         assertTrue(first.get("attributeDefinitions").get(0).get("multiple").asBoolean(), first.toString());
@@ -264,7 +264,7 @@ class RealmExportIT {
         Map<String, String> people = new HashMap<>();
         for (String username : users) {
             people.put(username, id(realm.api.post("/people", "{\"userId\": \"" + realm.user(username)
-                    + "\", \"name\": \"" + username + "\"}")));
+                    + "\", \"primaryLanguage\": \"en\", \"names\": {\"en\": {\"name\": \"" + username + "\"}}}")));
         }
         // A mask needs a person with no open employment.
         ok(realm.api.post("/staff", "{\"personId\": \"" + people.get("erased") + "\", \"orgUnitId\": \"" + hospital
@@ -295,7 +295,7 @@ class RealmExportIT {
     @Test
     void aRestoreChecksTheExportBeforeItWrites() throws Exception {
         TestRealm source = TestRealm.withEmployer("export-copy");
-        String person = Api.json(source.api.post("/people", "{\"name\": \"Ann\"}")).get("id").asText();
+        String person = Api.json(source.api.post("/people", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"Ann\"}}}")).get("id").asText();
         ObjectNode copy = export(source.api);
         TestRealm target = TestRealm.create("export-copy-target");
 
@@ -384,8 +384,8 @@ class RealmExportIT {
     void aRestoreNeedsTheUsersAndTheFormat() throws Exception {
         TestRealm target = TestRealm.create("export-users");
         ObjectNode document = JSON.createObjectNode().put("format", "fuhito.export.v1");
-        document.putArray("people").addObject().put("id", "p-1").put("username", "nobody").put("name", "X")
-                .putObject("names");
+        document.putArray("people").addObject().put("id", "p-1").put("username", "nobody")
+                .put("primaryLanguage", "ja").putObject("names").putObject("ja").put("name", "X");
 
         assertEquals("restore.username_unknown", Api.json(target.api.post("/restore",
                 JSON.writeValueAsString(document))).get("error").asText());

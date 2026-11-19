@@ -44,29 +44,44 @@ class PeopleIT {
     @Test
     void createsReadsReplacesAndDeletesAPersonWithNoUser() throws Exception {
         realm.attribute("PERSON", "派遣元", "STRING");
-        JsonNode person = created(api.post("/people", "{\"name\": \"山田 太郎\", \"names\": {\"en\": \"Taro Yamada\"}, "
-                + "\"phoneticName\": \"やまだ たろう\", \"attributes\": {\"派遣元\": \"A社\"}, "
-                + "\"externalId\": \"P-1\", \"source\": \"hr\"}"));
+        JsonNode person = created(api.post("/people", """
+                {"primaryLanguage": "ja", "names": {
+                  "ja": {"name": "山田 太郎", "phoneticName": "やまだ たろう"},
+                  "EN-us": {"name": "Taro Yamada"}},
+                 "attributes": {"派遣元": "A社"}, "externalId": "P-1", "source": "hr"}
+                """));
         String id = person.get("id").asText();
 
         assertFalse(person.has("userId"));
+        // With no Accept-Language, a read gives the primary names.
         assertEquals("山田 太郎", person.get("name").asText());
-        assertEquals("RECORD", person.get("nameSource").asText());
-        assertEquals("Taro Yamada", person.get("names").get("en").asText());
         assertEquals("やまだ たろう", person.get("phoneticName").asText());
+        assertEquals("RECORD", person.get("nameSource").asText());
+        assertEquals("ja", person.get("primaryLanguage").asText());
+        assertEquals("Taro Yamada", person.get("names").get("en-US").get("name").asText());
         assertEquals("A社", person.get("attributes").get("派遣元").asText());
         assertEquals(List.of("hr=P-1"), Api.externalIds(person));
         assertFalse(person.has("externalId"));
         assertEquals("hr", person.get("source").asText());
         assertEquals(person, ok(api.get("/people/" + id)));
+        // The first language of Accept-Language gives the names of that tag, else of that language with no region.
+        Api english = api.withAcceptLanguage("en-US, ja;q=0.5");
+        JsonNode inEnglish = ok(english.get("/people/" + id));
+        assertEquals("Taro Yamada", inEnglish.get("name").asText());
+        assertFalse(inEnglish.has("phoneticName"));
+        assertEquals(person.get("names"), inEnglish.get("names"));
+        JsonNode found = ok(english.get("/people?q=taro%20yamada"));
+        assertEquals(1, found.size());
+        assertEquals("Taro Yamada", found.get(0).get("name").asText());
+        assertEquals("山田 太郎", ok(api.withAcceptLanguage("en").get("/people/" + id)).get("name").asText());
 
-        JsonNode changed = ok(api.putWithVersion("/people/" + id, "{\"name\": \"山田 花子\"}"));
+        JsonNode changed = ok(api.putWithVersion("/people/" + id, "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"山田 花子\"}}}"));
         assertEquals("山田 花子", changed.get("name").asText());
-        assertEquals(0, changed.get("names").size());
+        assertEquals(1, changed.get("names").size());
         assertFalse(changed.has("phoneticName"));
         assertEquals(List.of("hr=P-1"), Api.externalIds(changed));
         // A replace with the ID of another system adds it. The person keeps the system that made it.
-        JsonNode payroll = ok(api.putWithVersion("/people/" + id, "{\"name\": \"山田 花子\", \"source\": \"payroll\", "
+        JsonNode payroll = ok(api.putWithVersion("/people/" + id, "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"山田 花子\"}}, \"source\": \"payroll\", "
                 + "\"externalId\": \"E-5\"}"));
         assertEquals(List.of("hr=P-1", "payroll=E-5"), Api.externalIds(payroll));
         assertEquals("hr", payroll.get("source").asText());
@@ -92,13 +107,16 @@ class PeopleIT {
         assertEquals(1, Api.json(log).size());
         assertFalse(log.body().contains("Taro"), log.body());
 
+        assertFalse(person.has("primaryLanguage"));
+        assertEquals(0, person.get("names").size());
+
         JsonNode noName = created(api.post("/people", "{\"userId\": \"" + nameless + "\"}"));
         assertFalse(noName.has("name"));
         assertFalse(noName.has("nameSource"));
 
         // A name of the record wins from then on.
-        JsonNode named = ok(api.putWithVersion("/people/" + person.get("id").asText(),
-                "{\"userId\": \"" + user + "\", \"name\": \"山田 太郎\"}"));
+        JsonNode named = ok(api.putWithVersion("/people/" + person.get("id").asText(), "{\"userId\": \"" + user
+                + "\", \"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"山田 太郎\"}}}"));
         assertEquals("山田 太郎", named.get("name").asText());
         assertEquals("RECORD", named.get("nameSource").asText());
 
@@ -124,7 +142,7 @@ class PeopleIT {
     void listsThePeopleInPages() throws Exception {
         TestRealm scratch = TestRealm.withEmployer("people-list");
         for (String name : List.of("A", "B", "C")) {
-            created(scratch.api.post("/people", "{\"name\": \"" + name + "\"}"));
+            created(scratch.api.post("/people", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"" + name + "\"}}}"));
         }
 
         List<String> all = ok(scratch.api.get("/people")).findValuesAsText("id");
@@ -143,7 +161,7 @@ class PeopleIT {
     void theLinkHeaderLeadsThroughEveryPage() throws Exception {
         TestRealm scratch = TestRealm.create("people-cursor");
         for (String name : List.of("A", "B", "C", "D", "E")) {
-            created(scratch.api.post("/people", "{\"name\": \"" + name + "\"}"));
+            created(scratch.api.post("/people", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"" + name + "\"}}}"));
         }
         List<String> all = ok(scratch.api.get("/people")).findValuesAsText("id");
         String prefix = "/admin/realms/" + scratch.name + "/fuhito";
@@ -191,18 +209,30 @@ class PeopleIT {
         String user = realm.user("linked");
         String id = created(api.post("/people", "{\"userId\": \"" + user
                 + "\", \"externalId\": \"P-9\", \"source\": \"hr\"}")).get("id").asText();
-        String other = created(api.post("/people", "{\"name\": \"Other\"}")).get("id").asText();
+        String other = created(api.post("/people", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"Other\"}}}")).get("id").asText();
 
         assertEquals("person.name_required", errorOf(400, api.post("/people", "{}")));
         assertEquals("person.user_unknown", errorOf(400, api.post("/people", "{\"userId\": \"nobody\"}")));
         assertEquals("person.user_taken", errorOf(409, api.post("/people", "{\"userId\": \"" + user + "\"}")));
         assertEquals("person.user_taken", errorOf(409, api.putWithVersion("/people/" + other,
-                "{\"name\": \"Other\", \"userId\": \"" + user + "\"}")));
+                "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"Other\"}}, \"userId\": \"" + user
+                        + "\"}")));
         assertEquals("external_id.taken", errorOf(409, api.post("/people",
-                "{\"name\": \"X\", \"externalId\": \"P-9\", \"source\": \"hr\"}")));
-        assertEquals("invalid.required", errorOf(400, api.post("/people", "{\"name\": \"X\", \"externalId\": \"P-8\"}")));
+                "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"X\"}}, \"externalId\": \"P-9\", "
+                        + "\"source\": \"hr\"}")));
+        // The names need a primary language, which must be one of them.
+        assertEquals("invalid.required", errorOf(400, api.post("/people", "{\"names\": {\"ja\": {\"name\": \"X\"}}}")));
+        HttpResponse<String> notAKey = api.post("/people", "{\"primaryLanguage\": \"en\", \"names\": {\"ja\": "
+                + "{\"name\": \"X\"}}}");
+        assertEquals("invalid.primary_language", errorOf(400, notAKey));
+        assertTrue(Api.json(notAKey).get("message").asText().contains("\"en\""), notAKey.body());
+        HttpResponse<String> blank = api.post("/people", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": "
+                + "{\"name\": \" \"}}}");
+        assertEquals("invalid.name", errorOf(400, blank));
+        assertTrue(Api.json(blank).get("message").asText().contains("names.ja.name"), blank.body());
+        assertEquals("invalid.required", errorOf(400, api.post("/people", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"X\"}}, \"externalId\": \"P-8\"}")));
         assertEquals("person.not_found", errorOf(404, otherRealm.api.get("/people/" + id)));
-        assertEquals("person.not_found", errorOf(404, otherRealm.api.putWithVersion("/people/" + id, "{\"name\": \"X\"}")));
+        assertEquals("person.not_found", errorOf(404, otherRealm.api.putWithVersion("/people/" + id, "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"X\"}}}")));
         assertEquals("person.not_found", errorOf(404, otherRealm.api.deleteWithVersion("/people/" + id)));
         assertEquals(401, new Api(realm.name, null).get("/people").statusCode());
         assertEquals(401, new Api(realm.name, null).post("/people", "{}").statusCode());
@@ -214,9 +244,10 @@ class PeopleIT {
         Api scratchApi = scratch.api;
         String unit = created(scratchApi.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"1病棟\"}}, \"validFrom\": \"2020-04-01\"}"))
                 .get("id").asText();
-        String hanako = created(scratchApi.post("/people", "{\"name\": \"山田 花子\", \"phoneticName\": "
-                + "\"やまだ はなこ\", \"names\": {\"en\": \"Hanako Yamada\"}}")).get("id").asText();
-        created(scratchApi.post("/people", "{\"name\": \"Other\"}"));
+        String hanako = created(scratchApi.post("/people", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": "
+                + "{\"name\": \"山田 花子\", \"phoneticName\": \"やまだ はなこ\"}, \"en\": {\"name\": \"Hanako Yamada\"}}}"))
+                .get("id").asText();
+        created(scratchApi.post("/people", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"Other\"}}}"));
         // A person who takes the name of the Keycloak user.
         String user = scratch.user("tsuzuki", "Ichiro", "Tsuzuki");
         JsonNode staff = created(scratchApi.post("/staff", "{\"userId\": \"" + user + "\", \"orgUnitId\": \"" + unit
@@ -248,10 +279,10 @@ class PeopleIT {
         Api scratchApi = scratch.api;
         String user = scratch.user("left");
         scratch.attribute("PERSON", "住所", "STRING");
-        String kept = created(scratchApi.post("/people", "{\"name\": \"Kept\"}")).get("id").asText();
-        String id = created(scratchApi.post("/people", "{\"userId\": \"" + user + "\", \"name\": \"山田 太郎\", "
-                + "\"names\": {\"en\": \"Taro Yamada\"}, \"phoneticName\": \"やまだ\", "
-                + "\"attributes\": {\"住所\": \"東京都\"}, \"externalId\": \"P-1\", \"source\": \"hr\"}"))
+        String kept = created(scratchApi.post("/people", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"Kept\"}}}")).get("id").asText();
+        String id = created(scratchApi.post("/people", "{\"userId\": \"" + user + "\", \"primaryLanguage\": \"ja\", "
+                + "\"names\": {\"ja\": {\"name\": \"山田 太郎\", \"phoneticName\": \"やまだ\"}, \"en\": {\"name\": "
+                + "\"Taro Yamada\"}}, \"attributes\": {\"住所\": \"東京都\"}, \"externalId\": \"P-1\", \"source\": \"hr\"}"))
                 .get("id").asText();
         String log = "/change-log?resourceType=FUHITO_PERSON&resourceId=";
 
@@ -260,11 +291,13 @@ class PeopleIT {
         JsonNode masked = ok(scratchApi.get("/people/" + id));
         assertEquals(user, masked.get("userId").asText());
         assertEquals("hr", masked.get("source").asText());
-        for (String field : List.of("name", "phoneticName", "externalId")) {
+        for (String field : List.of("name", "phoneticName", "primaryLanguage", "externalId")) {
             assertFalse(masked.has(field), field);
         }
         assertEquals(List.of(), Api.externalIds(masked));
         assertEquals(0, masked.get("names").size());
+        assertEquals("0", KeycloakEnvironment.sql("select count(*) from fuhito_person_name where person_id = '"
+                + id + "'"));
         assertEquals(0, masked.get("attributes").size());
         HttpResponse<String> maskedLog = scratchApi.get(log + id);
         assertEquals(1, Api.json(maskedLog).size());
@@ -289,7 +322,7 @@ class PeopleIT {
         Api scratchApi = scratch.api;
         String unit = created(scratchApi.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"1病棟\"}}, \"validFrom\": \"2020-04-01\"}"))
                 .get("id").asText();
-        String cleaner = created(scratchApi.post("/people", "{\"name\": \"清掃 花子\"}")).get("id").asText();
+        String cleaner = created(scratchApi.post("/people", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"清掃 花子\"}}}")).get("id").asText();
         String nurse = scratch.user("nurse");
 
         JsonNode employment = created(scratchApi.post("/employments",
@@ -301,7 +334,7 @@ class PeopleIT {
                 + "\", \"validFrom\": \"2020-04-01\", \"head\": true}"));
         assertFalse(assignment.has("userId"));
         // The staff shortcut takes a person too.
-        String visitor = created(scratchApi.post("/people", "{\"name\": \"応援 医師\"}")).get("id").asText();
+        String visitor = created(scratchApi.post("/people", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"応援 医師\"}}}")).get("id").asText();
         JsonNode staff = created(scratchApi.post("/staff", "{\"personId\": \"" + visitor + "\", \"orgUnitId\": \""
                 + unit + "\", \"validFrom\": \"2020-04-01\"}"));
         assertEquals(visitor, staff.get("employment").get("personId").asText());
@@ -320,7 +353,7 @@ class PeopleIT {
 
         // The person gets an account later. The employment then shows the user.
         String account = scratch.user("cleaner");
-        ok(scratchApi.putWithVersion("/people/" + cleaner, "{\"name\": \"清掃 花子\", \"userId\": \"" + account + "\"}"));
+        ok(scratchApi.putWithVersion("/people/" + cleaner, "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"清掃 花子\"}}, \"userId\": \"" + account + "\"}"));
         assertEquals(account, ok(scratchApi.get("/employments/" + employment.get("id").asText())).get("userId").asText());
         assertEquals(List.of(unit), ok(scratchApi.get("/users/" + account + "/assignments")).findValuesAsText("orgUnitId"));
         assertEquals(List.of(account), ok(scratchApi.get("/users/" + nurse + "/managers")).findValuesAsText("userId"));
@@ -335,8 +368,8 @@ class PeopleIT {
         scratch.refItem("QUALIFICATION", "license", "免許");
         String unit = created(scratchApi.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"外科\"}}, \"validFrom\": \"2020-04-01\"}"))
                 .get("id").asText();
-        String visiting = created(scratchApi.post("/people", "{\"name\": \"応援 医師\"}")).get("id").asText();
-        String advisor = created(scratchApi.post("/people", "{\"name\": \"顧問\"}")).get("id").asText();
+        String visiting = created(scratchApi.post("/people", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"応援 医師\"}}}")).get("id").asText();
+        String advisor = created(scratchApi.post("/people", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"顧問\"}}}")).get("id").asText();
         String resident = scratch.user("resident");
 
         JsonNode license = created(scratchApi.post("/qualifications", "{\"personId\": \"" + visiting
@@ -401,9 +434,10 @@ class PeopleIT {
         scratch.refItem("QUALIFICATION", "license", "免許");
         String unit = created(scratchApi.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"外科\"}}, \"validFrom\": \"2020-04-01\"}"))
                 .get("id").asText();
-        String chief = created(scratchApi.post("/people", "{\"name\": \"部長\", \"phoneticName\": \"ぶちょう\"}"))
+        String chief = created(scratchApi.post("/people", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": "
+                + "{\"name\": \"部長\", \"phoneticName\": \"ぶちょう\"}}}"))
                 .get("id").asText();
-        String member = created(scratchApi.post("/people", "{\"name\": \"応援 医師\", \"externalId\": \"X-1\", "
+        String member = created(scratchApi.post("/people", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"応援 医師\"}}, \"externalId\": \"X-1\", "
                 + "\"source\": \"hr\"}")).get("id").asText();
         String start = "\", \"orgUnitId\": \"" + unit + "\", \"validFrom\": \"2020-04-01\", \"validTo\": \"2024-04-01\"";
         created(scratchApi.post("/staff", "{\"personId\": \"" + chief + start + ", \"head\": true}"));

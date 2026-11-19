@@ -10,7 +10,7 @@ Which way a law requires depends on the law, the country, and the reason for kee
 | Data | Where |
 |---|---|
 | The Keycloak user ID | Employments, qualifications, reporting lines, change orders, and the change log |
-| The name, the names in other languages, and the phonetic name | The person record |
+| The names and the phonetic names in each language | The person record |
 | The staff number | Employments |
 | The number of a license or certificate | Qualifications |
 | The ID in another system | The IDs that systems have for people, employments, assignments, and qualifications |

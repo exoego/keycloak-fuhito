@@ -45,7 +45,7 @@ A row can name a stored thing by `id` in place of the external ID, also when the
 
 The list `people` loads people, also those with no Keycloak user, such as staff who left long ago or never log in. It comes before the employments.
 
-- A row has the names, the phonetic name, and the attributes. It can link a user with `username` or `userId`. A row that names no user keeps the link that is stored.
+- A row has `primaryLanguage`, `names`, and the attributes, as `POST /people` has them. It can link a user with `username` or `userId`. A row that names no user keeps the link that is stored. A row that links a user can leave out the names.
 - A row that links a user whose person the import made earlier gives that person the external ID of the row, as the ID of the system of the row. A user whose person has another ID of that system fails with `import.user_mismatch`.
 - A row of an employment can name its person by `personExternalId`, with the same source. A person with no user is named this way. With a user as well, the user must be the one of that person.
 - A row for a stored employment may name no person and no user. The employment keeps its person.
@@ -158,6 +158,7 @@ curl -X POST \
 - True is `true`, `1`, `yes`, `はい`, or `○`. False is `false`, `0`, `no`, `いいえ`, or `×`.
 - A name in another language has its own column, for example `name:en` or `名称:en`.
 - In a file of org units, `name`, `shortName`, and `phoneticName` are the names of the primary language, which `primaryLanguage` names. A new unit needs `primaryLanguage`. `name:en`, `shortName:en`, and `phoneticName:en` are the names of one language. `name:en` with `#CLEAR` removes that language. A CSV export leaves the columns of a language empty for a unit whose primary language it is.
+- A file of people has the names in the same way, with `primaryLanguage`, `name`, `phoneticName`, `name:en`, and `phoneticName:en`. A row with a name needs `primaryLanguage`, unless the person has a primary language already.
 - A column `attributes.<name>` sets an attribute that the realm defined for the resource of the list, for example `attributes.beds`. The cell is read by the type of the definition. The cell of a definition with `multiple` is a JSON array, for example `["night","icu"]`, which the CSV writes as `"[""night"",""icu""]"`. Other attributes keep what is stored. A column of an attribute with no definition is rejected.
 
 ### Columns
@@ -254,6 +255,7 @@ People.
 | `source` | `ソース` |
 | `username` | `ユーザー名` |
 | `userId` | `ユーザーID` |
+| `primaryLanguage` | `主言語` |
 | `name` | `名称` |
 | `phoneticName` | `よみがな` |
 | `id` | `ID` |

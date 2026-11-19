@@ -47,6 +47,19 @@ class SchemaIT {
     }
 
     @Test
+    void theDatabaseRejectsASecondPrimaryNameOfOnePerson() throws Exception {
+        KeycloakEnvironment.sql("insert into fuhito_person (id, realm_id, attributes) values ('ex-person', 'ex-realm-5', '{}')");
+        String insert = "insert into fuhito_person_name (person_id, language, realm_id, is_primary, name) values ";
+        KeycloakEnvironment.sql(insert + "('ex-person', 'ja', 'ex-realm-5', true, '山田 花子')");
+        KeycloakEnvironment.sql(insert + "('ex-person', 'en', 'ex-realm-5', false, 'Hanako Yamada')");
+
+        assertTrue(KeycloakEnvironment.sqlError(insert + "('ex-person', 'zh-Hant', 'ex-realm-5', true, '山田花子')")
+                .contains("uk_fuhito_person_name_primary"));
+        assertTrue(KeycloakEnvironment.sqlError(insert + "('ex-person', 'en', 'ex-realm-5', false, 'Hanako')")
+                .contains("pk_fuhito_person_name"));
+    }
+
+    @Test
     void theDatabaseRejectsOverlappingNamesOfOneReferenceItem() throws Exception {
         KeycloakEnvironment.sql("insert into fuhito_ref_item (id, realm_id, kind, code, attributes)"
                 + " values ('ex-r1', 'ex-realm-3', 'JOB_TITLE', 'a', '{}')");

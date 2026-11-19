@@ -958,14 +958,12 @@ components:
           format: int64
         username:
           type: string
-        name:
+        primaryLanguage:
           type: string
         names:
           type: object
           additionalProperties:
-            type: string
-        phoneticName:
-          type: string
+            $ref: "#/components/schemas/PersonName"
         attributes:
           type: object
           additionalProperties: {}
@@ -1780,19 +1778,16 @@ components:
         userId:
           type: string
           description: The ID of a Keycloak user to link.
-        name:
+        primaryLanguage:
           type: string
-          maxLength: 255
-          description: The default name. A person with no user needs it.
+          description: "The language tag of the primary names, such as `ja`. It is\
+            \ a key of `names`."
         names:
           type: object
           additionalProperties:
-            type: string
-          description: "Names in other languages, by language tag."
-        phoneticName:
-          type: string
-          maxLength: 255
-          description: The reading of the name for sorting.
+            $ref: "#/components/schemas/PersonName"
+          description: "The names by language tag, such as `ja`, `en`, or `zh-Hant`.\
+            \ A person with no user needs them."
         attributes:
           type: object
           additionalProperties: {}
@@ -2679,10 +2674,12 @@ components:
             most one person.
         name:
           type: string
-          maxLength: 255
-          description: "The default name. A person with no linked user needs it. When\
-            \ the record has no name, a response has the name of the linked user from\
-            \ Keycloak."
+          description: "The name in the language of the request. It is the one of\
+            \ the first language of `Accept-Language`, else the one of that language\
+            \ with no region, such as `en` for `en-US`, else the primary one. A request\
+            \ with no `Accept-Language` reads the primary one. When the record has\
+            \ no names, it is the name of the linked user from Keycloak."
+          readOnly: true
         nameSource:
           type: string
           description: Where the name of a response came from. `RECORD` is the person
@@ -2692,15 +2689,23 @@ components:
           enum:
           - RECORD
           - KEYCLOAK
+        phoneticName:
+          type: string
+          description: The reading of the name in the language of `name`.
+          readOnly: true
+        primaryLanguage:
+          type: string
+          maxLength: 64
+          description: "The language tag of the primary names, such as `ja`. It is\
+            \ a key of `names`. A person with no names has none."
         names:
           type: object
           additionalProperties:
-            type: string
-          description: "Names in other languages, by language tag."
-        phoneticName:
-          type: string
-          maxLength: 255
-          description: The reading of the name for sorting.
+            $ref: "#/components/schemas/PersonName"
+          description: "The names by language tag, such as `ja`, `en`, or `zh-Hant`.\
+            \ A read gives the tags in their standard form, such as `en-US` for `en-us`.\
+            \ A person with no linked user needs them. A person with a linked user\
+            \ can have none, and a response then has the name of the user in `name`."
         attributes:
           type: object
           additionalProperties: {}
@@ -2726,6 +2731,19 @@ components:
           description: "Every ID that a system has for the person. The one of `source`\
             \ comes first, then the others by system."
           readOnly: true
+    PersonName:
+      required:
+      - name
+      description: The names of a person in one language.
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 255
+        phoneticName:
+          type: string
+          maxLength: 255
+          description: The reading of the name for sorting.
     ProjectionReport:
       required:
       - organizations
@@ -7557,9 +7575,9 @@ paths:
           default: 100
         name: max
         in: query
-      - description: "A text that the name, the phonetic name, or a name in another\
-          \ language has, in any case. For a person with a Keycloak user, also the\
-          \ first name, the last name, the username, or the email of the user."
+      - description: "A text that the name or the phonetic name of any language has,\
+          \ in any case. For a person with a Keycloak user, also the first name, the\
+          \ last name, the username, or the email of the user."
         name: q
         in: query
         schema:
@@ -7601,8 +7619,8 @@ paths:
           $ref: "#/components/responses/Conflict"
     post:
       summary: Creates a person.
-      description: "The body needs `name`, or `userId` of a Keycloak user that has\
-        \ a name."
+      description: "The body needs `primaryLanguage` and `names`, or `userId` of a\
+        \ Keycloak user that has a name."
       operationId: createPerson
       tags:
       - people
@@ -7636,9 +7654,9 @@ paths:
       tags:
       - people
       parameters:
-      - description: "A text that the name, the phonetic name, or a name in another\
-          \ language has, in any case. For a person with a Keycloak user, also the\
-          \ first name, the last name, the username, or the email of the user."
+      - description: "A text that the name or the phonetic name of any language has,\
+          \ in any case. For a person with a Keycloak user, also the first name, the\
+          \ last name, the username, or the email of the user."
         name: q
         in: query
         schema:

@@ -64,11 +64,11 @@ class AttributeDefinitionsIT {
     void attributesMayHave64KbAsJson() throws Exception {
         TestRealm realm = TestRealm.create("attributes-size");
         realm.attribute("PERSON", "note", "STRING");
-        HttpResponse<String> large = realm.api.post("/people", "{\"name\": \"山田 花子\", \"attributes\": "
+        HttpResponse<String> large = realm.api.post("/people", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"山田 花子\"}}, \"attributes\": "
                 + "{\"note\": \"" + "a".repeat(65_536) + "\"}}");
 
         assertEquals("attribute.too_large", errorOf(400, large));
-        assertEquals(201, realm.api.post("/people", "{\"name\": \"山田 花子\", \"attributes\": {\"note\": \""
+        assertEquals(201, realm.api.post("/people", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"山田 花子\"}}, \"attributes\": {\"note\": \""
                 + "a".repeat(65_000) + "\"}}").statusCode());
     }
 
@@ -78,9 +78,9 @@ class AttributeDefinitionsIT {
         Api api = realm.api;
         created(api.post("/attribute-definitions", "{\"target\": \"PERSON\", \"name\": \"住所\", \"type\": \"STRING\"}"));
 
-        assertEquals("attribute.unknown", errorOf(400, api.post("/people", "{\"name\": \"山田 花子\", "
+        assertEquals("attribute.unknown", errorOf(400, api.post("/people", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"山田 花子\"}}, "
                 + "\"attributes\": {\"電話\": \"03\"}}")));
-        assertEquals(201, api.post("/people", "{\"name\": \"山田 花子\", \"attributes\": {\"住所\": \"東京都\"}}")
+        assertEquals(201, api.post("/people", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"山田 花子\"}}, \"attributes\": {\"住所\": \"東京都\"}}")
                 .statusCode());
     }
 
@@ -95,20 +95,20 @@ class AttributeDefinitionsIT {
                 + "\"required\": true}"));
         assertTrue(occupations.get("multiple").asBoolean());
 
-        assertEquals("attribute.required", errorOf(400, api.post("/people", "{\"name\": \"山田 花子\", "
+        assertEquals("attribute.required", errorOf(400, api.post("/people", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"山田 花子\"}}, "
                 + "\"attributes\": {\"occupations\": []}}")));
-        assertEquals("attribute.bad_value", errorOf(400, api.post("/people", "{\"name\": \"山田 花子\", "
+        assertEquals("attribute.bad_value", errorOf(400, api.post("/people", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"山田 花子\"}}, "
                 + "\"attributes\": {\"occupations\": \"nurse\"}}")));
-        assertEquals("attribute.bad_value", errorOf(400, api.post("/people", "{\"name\": \"山田 花子\", "
+        assertEquals("attribute.bad_value", errorOf(400, api.post("/people", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"山田 花子\"}}, "
                 + "\"attributes\": {\"occupations\": [\"nurse\", \"driver\"]}}")));
-        JsonNode person = created(api.post("/people", "{\"name\": \"山田 花子\", "
+        JsonNode person = created(api.post("/people", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"山田 花子\"}}, "
                 + "\"attributes\": {\"occupations\": [\"nurse\", \"clerk\"]}}"));
         assertEquals(List.of("nurse", "clerk"), List.of(person.get("attributes").get("occupations").get(0).asText(),
                 person.get("attributes").get("occupations").get(1).asText()));
 
         assertEquals(200, api.putWithVersion("/attribute-definitions/" + occupations.get("id").asText(), "{\"type\": "
                 + "\"REF_ITEM\", \"refKind\": \"OCCUPATION\"}").statusCode());
-        assertEquals("attribute.bad_value", errorOf(400, api.post("/people", "{\"name\": \"山田 太郎\", "
+        assertEquals("attribute.bad_value", errorOf(400, api.post("/people", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"山田 太郎\"}}, "
                 + "\"attributes\": {\"occupations\": [\"nurse\"]}}")));
     }
 
@@ -132,9 +132,9 @@ class AttributeDefinitionsIT {
 
         created(api.post("/attribute-definitions", "{\"target\": \"PERSON\", \"name\": \"workLocation\", "
                 + "\"type\": \"REF_ITEM\", \"refKind\": \"work-location\"}"));
-        assertEquals("attribute.bad_value", errorOf(400, api.post("/people", "{\"name\": \"山田 花子\", "
+        assertEquals("attribute.bad_value", errorOf(400, api.post("/people", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"山田 花子\"}}, "
                 + "\"attributes\": {\"workLocation\": \"nagoya\"}}")));
-        assertEquals(201, api.post("/people", "{\"name\": \"山田 花子\", \"attributes\": {\"workLocation\": "
+        assertEquals(201, api.post("/people", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"山田 花子\"}}, \"attributes\": {\"workLocation\": "
                 + "\"tokyo\"}}").statusCode());
 
         assertEquals("ref_kind.in_use", errorOf(409, api.deleteWithVersion("/ref-kinds/work-location")));

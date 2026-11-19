@@ -109,7 +109,7 @@ public class QualificationService {
         Qualification current = get(id).qualification();
         ExternalId.Pair externalId = externalIds.check(id, request.source(), request.externalId());
         store.update(checked(id,
-                new Person(current.personId(), current.userId(), null, Map.of(), null, Map.of(), null, 0),
+                new Person(current.personId(), current.userId(), null, Map.of(), null, 0),
                 request, current.kindId(), current.source(), current.version()));
         externalIds.store(id, externalId);
         return get(id);

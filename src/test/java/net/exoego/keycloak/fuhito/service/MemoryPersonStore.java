@@ -30,7 +30,7 @@ final class MemoryPersonStore implements PersonStore {
     }
 
     private static Person of(String id) {
-        return new Person(id, id, null, Map.of(), null, Map.of(), null, 1);
+        return new Person(id, id, null, Map.of(), null, 1);
     }
 
     @Override
@@ -58,11 +58,11 @@ final class MemoryPersonStore implements PersonStore {
     public List<Person> search(String text, String staffNumber, String afterId, int first, int max) {
         // Only the names. The staff numbers are in the store of employments.
         return list(afterId, 0, Integer.MAX_VALUE).stream()
-                .filter(person -> text == null || Stream.concat(
-                                Stream.of(person.name(), person.phoneticName()),
-                                person.names().values().stream())
+                .filter(person -> text == null || (person.names() != null && person.names().byLanguage().values()
+                        .stream()
+                        .flatMap(names -> Stream.of(names.name(), names.phoneticName()))
                         .anyMatch(name -> name != null && name.toLowerCase(Locale.ROOT)
-                                .contains(text.toLowerCase(Locale.ROOT))))
+                                .contains(text.toLowerCase(Locale.ROOT)))))
                 .skip(first).limit(max).toList();
     }
 

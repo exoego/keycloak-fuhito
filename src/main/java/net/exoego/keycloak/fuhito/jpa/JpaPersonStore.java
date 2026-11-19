@@ -2,14 +2,14 @@ package net.exoego.keycloak.fuhito.jpa;
 
 import java.util.List;
 import java.util.Locale;
-import java.util.Objects;
+import java.util.Map;
 import java.util.Optional;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.TypedQuery;
+import net.exoego.keycloak.fuhito.domain.Localized;
 import net.exoego.keycloak.fuhito.domain.Person;
+import net.exoego.keycloak.fuhito.domain.PersonName;
 import net.exoego.keycloak.fuhito.store.PersonStore;
 
 /**
@@ -33,29 +33,27 @@ public class JpaPersonStore implements PersonStore {
 
     @Override
     public Optional<Person> find(String id) {
-        return findEntity(id).map(JpaPersonStore::toDomain);
+        return findEntity(id).map(entity -> withNames(em, realmId, List.of(entity)).getFirst());
     }
 
     @Override
     public Optional<Person> findByUser(String userId) {
-        return em.createQuery("""
+        return withNames(em, realmId, em.createQuery("""
                         select p from PersonEntity p where p.realmId = :realmId
                         and p.userId = :userId""", PersonEntity.class)
                 .setParameter("realmId", realmId)
                 .setParameter("userId", userId)
-                .getResultStream()
-                .findFirst()
-                .map(JpaPersonStore::toDomain);
+                .getResultList())
+                .stream()
+                .findFirst();
     }
 
     @Override
     public List<Person> search(String text, String staffNumber, String afterId, int first, int max) {
-        return searchQuery(text, staffNumber, afterId, false, PersonEntity.class)
+        return withNames(em, realmId, searchQuery(text, staffNumber, afterId, false, PersonEntity.class)
                 .setFirstResult(first)
                 .setMaxResults(max)
-                .getResultStream()
-                .map(JpaPersonStore::toDomain)
-                .toList();
+                .getResultList());
     }
 
     @Override
@@ -73,7 +71,9 @@ public class JpaPersonStore implements PersonStore {
         if (text != null) {
             // A person with a Keycloak user often has no name of its own, and takes the name of the user.
             query.append("""
-                     and (p.searchNames like :text escape '!' or exists (select 1 from UserEntity u
+                     and (exists (select 1 from PersonNameEntity n where n.personId = p.id
+                    and (lower(n.name) like :text escape '!' or lower(n.phoneticName) like :text escape '!'))
+                    or exists (select 1 from UserEntity u
                     where u.id = p.userId and u.realmId = :realmId and (lower(u.firstName) like :text escape '!'
                     or lower(u.lastName) like :text escape '!' or u.username like :text escape '!'
                     or u.email like :text escape '!')))""");
@@ -110,12 +110,10 @@ public class JpaPersonStore implements PersonStore {
                 : em.createQuery("""
                         select p from PersonEntity p where p.realmId = :realmId and p.id > :afterId
                         order by p.id""", PersonEntity.class).setParameter("afterId", afterId);
-        return query.setParameter("realmId", realmId)
+        return withNames(em, realmId, query.setParameter("realmId", realmId)
                 .setFirstResult(first)
                 .setMaxResults(max)
-                .getResultStream()
-                .map(JpaPersonStore::toDomain)
-                .toList();
+                .getResultList());
     }
 
     @Override
@@ -128,12 +126,14 @@ public class JpaPersonStore implements PersonStore {
         entity.counted = true;
         copy(person, entity);
         em.persist(entity);
+        PersonNames.insert(em, realmId, person.id(), person.names());
     }
 
     @Override
     public void update(Person person) {
         PersonEntity entity = findEntity(person.id()).orElseThrow();
         copy(person, entity);
+        PersonNames.replace(em, realmId, person.id(), person.names());
         entity.countUp();
     }
 
@@ -141,6 +141,7 @@ public class JpaPersonStore implements PersonStore {
     public void delete(String id) {
         findEntity(id).ifPresent(entity -> {
             ExternalIds.deleteOf(em, realmId, "PERSON", id);
+            PersonNames.replace(em, realmId, id, null);
             em.remove(entity);
         });
     }
@@ -153,18 +154,22 @@ public class JpaPersonStore implements PersonStore {
 
     private static void copy(Person person, PersonEntity entity) {
         entity.userId = person.userId();
-        entity.name = person.name();
-        entity.names = person.names();
-        entity.phoneticName = person.phoneticName();
-        entity.searchNames = Stream.concat(Stream.of(person.name(), person.phoneticName()),
-                        person.names() == null ? Stream.empty() : person.names().values().stream())
-                .filter(Objects::nonNull)
-                .map(value -> value.toLowerCase(Locale.ROOT))
-                .collect(Collectors.joining("\n"));
         entity.attributes = person.attributes();
     }
 
-    static Person toDomain(PersonEntity e) {
-        return new Person(e.id, e.userId, e.name, e.names, e.phoneticName, e.attributes, e.source, e.version);
+    /**
+     * Reads the names of people in one query, and gives each person its names.
+     *
+     * @param em the entity manager
+     * @param realmId the ID of the realm
+     * @param entities the rows of the people
+     * @return the people in the same order
+     */
+    static List<Person> withNames(EntityManager em, String realmId, List<PersonEntity> entities) {
+        Map<String, Localized<PersonName>> names = PersonNames.of(em, realmId,
+                entities.stream().map(e -> e.id).toList());
+        return entities.stream()
+                .map(e -> new Person(e.id, e.userId, names.get(e.id), e.attributes, e.source, e.version))
+                .toList();
     }
 }

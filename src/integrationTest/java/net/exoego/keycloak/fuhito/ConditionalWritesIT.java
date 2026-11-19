@@ -89,8 +89,8 @@ class ConditionalWritesIT {
         assertEquals(404, api.get("/employments/" + other).statusCode());
 
         // A mask and an erase of a person are writes of the person too. A mask has only the version in its body.
-        String person = ok(api.post("/people", "{\"name\": \"Ann\"}")).get("id").asText();
-        assertEquals(2, ok(api.put("/people/" + person, "{\"version\": 1, \"name\": \"Anne\"}")).get("version")
+        String person = ok(api.post("/people", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"Ann\"}}}")).get("id").asText();
+        assertEquals(2, ok(api.put("/people/" + person, "{\"version\": 1, \"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"Anne\"}}}")).get("version")
                 .asLong());
         assertEquals("invalid.required", error(400, api.post("/people/" + person + "/mask", "")).get("error")
                 .asText());
@@ -153,7 +153,7 @@ class ConditionalWritesIT {
     void aStoredIdOfAnotherSystemNeedsItsVersionAndANewOneNone() throws Exception {
         TestRealm realm = TestRealm.withEmployer("versions-external-ids");
         Api api = realm.api;
-        String person = ok(api.post("/people", "{\"name\": \"Ann\"}")).get("id").asText();
+        String person = ok(api.post("/people", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"Ann\"}}}")).get("id").asText();
         String payroll = "{\"resourceType\": \"PERSON\", \"resourceId\": \"" + person
                 + "\", \"source\": \"payroll\", \"externalId\": \"%s\"%s}";
 
@@ -204,7 +204,7 @@ class ConditionalWritesIT {
     void aRowThatAnotherWriteChangedAfterTheCheckFailsWithAConflict() throws Exception {
         TestRealm realm = TestRealm.withEmployer("versions-row-race");
         Api api = realm.api;
-        String person = ok(api.post("/people", "{\"name\": \"Ann\"}")).get("id").asText();
+        String person = ok(api.post("/people", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"Ann\"}}}")).get("id").asText();
         String payroll = "{\"resourceType\": \"PERSON\", \"resourceId\": \"" + person
                 + "\", \"source\": \"payroll\", \"externalId\": \"%s\"%s}";
         ok(api.put("/external-ids", payroll.formatted("X-1", "")));

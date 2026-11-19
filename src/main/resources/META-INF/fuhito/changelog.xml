@@ -997,4 +997,39 @@
         <dropColumn tableName="FUHITO_ORG_UNIT_VERSION" columnName="PHONETIC_NAME"/>
         <dropColumn tableName="FUHITO_ORG_UNIT_VERSION" columnName="SEARCH_NAMES"/>
     </changeSet>
+
+    <!-- The names of a person get one row for each language, and one row of each person is the primary one.
+         A person with a Keycloak user may have no rows. Nothing was released, so the stored names do not move. -->
+    <changeSet id="0.1.0-person-names" author="keycloak-fuhito">
+        <createTable tableName="FUHITO_PERSON_NAME">
+            <column name="PERSON_ID" type="VARCHAR(36)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="LANGUAGE" type="VARCHAR(64)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="REALM_ID" type="VARCHAR(36)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="IS_PRIMARY" type="BOOLEAN" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+            <column name="NAME" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="PHONETIC_NAME" type="VARCHAR(255)"/>
+        </createTable>
+        <addPrimaryKey tableName="FUHITO_PERSON_NAME" columnNames="PERSON_ID, LANGUAGE"
+                       constraintName="PK_FUHITO_PERSON_NAME"/>
+        <addForeignKeyConstraint baseTableName="FUHITO_PERSON_NAME" baseColumnNames="PERSON_ID"
+                                 referencedTableName="FUHITO_PERSON" referencedColumnNames="ID"
+                                 constraintName="FK_FUHITO_PERSON_NAME_PERSON"/>
+        <sql dbms="postgresql">
+            CREATE UNIQUE INDEX UK_FUHITO_PERSON_NAME_PRIMARY ON FUHITO_PERSON_NAME (PERSON_ID) WHERE IS_PRIMARY
+        </sql>
+        <dropColumn tableName="FUHITO_PERSON" columnName="NAME"/>
+        <dropColumn tableName="FUHITO_PERSON" columnName="NAMES_I18N"/>
+        <dropColumn tableName="FUHITO_PERSON" columnName="PHONETIC_NAME"/>
+        <dropColumn tableName="FUHITO_PERSON" columnName="SEARCH_NAMES"/>
+    </changeSet>
 </databaseChangeLog>

@@ -148,13 +148,17 @@ erDiagram
         varchar(36) ID PK
         varchar(36) REALM_ID
         varchar(255) USER_ID
-        varchar(255) NAME
-        text NAMES_I18N
-        varchar(255) PHONETIC_NAME
         text ATTRIBUTES
         varchar(64) SOURCE
-        text SEARCH_NAMES
         bigint VERSION
+    }
+    FUHITO_PERSON_NAME {
+        varchar(36) PERSON_ID PK, FK
+        varchar(64) LANGUAGE PK
+        varchar(36) REALM_ID
+        boolean IS_PRIMARY
+        varchar(255) NAME
+        varchar(255) PHONETIC_NAME
     }
     FUHITO_QUALIFICATION {
         varchar(36) ID PK
@@ -237,6 +241,7 @@ erDiagram
     FUHITO_REF_ITEM |o..o{ FUHITO_ORG_UNIT_VERSION : "UNIT_TYPE_ID"
     FUHITO_ORG_UNIT ||..o{ FUHITO_ORG_UNIT_VERSION : "ORG_UNIT_ID"
     FUHITO_ORG_UNIT_VERSION ||--o{ FUHITO_ORG_UNIT_VERSION_NAME : "VERSION_ID"
+    FUHITO_PERSON ||--o{ FUHITO_PERSON_NAME : "PERSON_ID"
     FUHITO_REF_ITEM ||..o{ FUHITO_QUALIFICATION : "KIND_ID"
     FUHITO_PERSON ||..o{ FUHITO_QUALIFICATION : "PERSON_ID"
     FUHITO_REF_ITEM ||..o{ FUHITO_REF_ITEM_NAME : "REF_ITEM_ID"

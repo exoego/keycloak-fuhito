@@ -199,7 +199,7 @@ class AttributeSyncIT {
 
         // The person of bob loses the link to the user. The user then has no person and no employment.
         String oldPerson = historyOf(bob).get("personId").asText();
-        HttpResponse<String> unlinked = api.putWithVersion("/people/" + oldPerson, "{\"name\": \"Bob\"}");
+        HttpResponse<String> unlinked = api.putWithVersion("/people/" + oldPerson, "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"Bob\"}}}");
         assertEquals(200, unlinked.statusCode(), unlinked.body());
 
         JsonNode back = run("");

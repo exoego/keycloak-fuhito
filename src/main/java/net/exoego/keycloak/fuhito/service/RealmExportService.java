@@ -32,6 +32,7 @@ import net.exoego.keycloak.fuhito.domain.OrgUnitLink;
 import net.exoego.keycloak.fuhito.domain.OrgUnitSuccession;
 import net.exoego.keycloak.fuhito.domain.OrgUnitVersion;
 import net.exoego.keycloak.fuhito.domain.Person;
+import net.exoego.keycloak.fuhito.domain.PersonName;
 import net.exoego.keycloak.fuhito.domain.Qualification;
 import net.exoego.keycloak.fuhito.domain.RealmKind;
 import net.exoego.keycloak.fuhito.domain.RefItem;
@@ -214,8 +215,9 @@ public class RealmExportService {
     private ExportPage people(List<Person> found) {
         Map<String, Instant> masks = found.isEmpty() ? Map.of()
                 : stores.export().maskedAt(found.stream().map(Person::id).toList());
-        return page(found, Person::id, p -> new PersonRow(p.id(), p.version(), username(p.userId()), p.name(),
-                p.names(), p.phoneticName(), p.attributes(), p.source(),
+        return page(found, Person::id, p -> new PersonRow(p.id(), p.version(), username(p.userId()),
+                p.names() == null ? null : p.names().primaryLanguage(),
+                p.names() == null ? null : p.names().byLanguage(), p.attributes(), p.source(),
                 Optional.ofNullable(masks.get(p.id())).map(Instant::toString).orElse(null)));
     }
 
@@ -337,8 +339,9 @@ public class RealmExportService {
         rows("org-units", () -> restoreOrgUnits(Optional.ofNullable(document.orgUnits()).orElse(List.of()),
                 hierarchyIds, organizations, counts));
         counts.put("people", each("people", document.people(), p -> {
-            stores.people().insert(new Person(p.id(), userId(p.username()), p.name(), p.names(), p.phoneticName(),
-                    p.attributes(), p.source(), version(p.version())));
+            stores.people().insert(new Person(p.id(), userId(p.username()),
+                    PersonName.check(p.primaryLanguage(), p.names()), p.attributes(), p.source(),
+                    version(p.version())));
             if (p.maskedAt() != null) {
                 stores.export().restoreMask(p.id(), Instant.parse(p.maskedAt()));
             }

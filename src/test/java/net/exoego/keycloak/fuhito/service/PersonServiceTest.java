@@ -2,18 +2,22 @@ package net.exoego.keycloak.fuhito.service;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 
 import net.exoego.keycloak.fuhito.domain.Employment;
 import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
+import net.exoego.keycloak.fuhito.domain.Localized;
 import net.exoego.keycloak.fuhito.domain.Person;
+import net.exoego.keycloak.fuhito.domain.PersonName;
 import net.exoego.keycloak.fuhito.domain.ValidPeriod;
 import net.exoego.keycloak.fuhito.service.PersonView.NameSource;
 import net.exoego.keycloak.fuhito.store.UserDirectory;
 import org.junit.jupiter.api.Test;
 
+import static net.exoego.keycloak.fuhito.service.PeopleNames.japanese;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -44,11 +48,16 @@ class PersonServiceTest {
             id -> !employments.findByPerson(id).isEmpty());
 
     private static PersonValues named(String name) {
-        return new PersonValues(null, name, null, null, null, null, null);
+        return linked(null, name);
     }
 
     private static PersonValues linked(String userId, String name) {
-        return new PersonValues(userId, name, null, null, null, null, null);
+        return name == null ? new PersonValues(userId, null, null, null, null, null)
+                : new PersonValues(userId, "ja", japanese(name), null, null, null);
+    }
+
+    private static PersonValues withIds(String name, String externalId, String source) {
+        return new PersonValues(null, "ja", japanese(name), null, externalId, source);
     }
 
     private FuhitoException failure(Runnable call) {
@@ -57,19 +66,20 @@ class PersonServiceTest {
 
     @Test
     void createsAPersonWithNoUserAndEveryValue() {
-        PersonView view = service.create(new PersonValues(null, " 山田 太郎 ", Map.of("en", "Taro Yamada"),
-                " やまだ たろう ", Map.of("派遣元", "A社"), "P-1", "hr"));
+        PersonView view = service.create(new PersonValues(null, "JA", Map.of("JA",
+                new PersonName(" 山田 太郎 ", " やまだ たろう "), "en", new PersonName("Taro Yamada", null)),
+                Map.of("派遣元", "A社"), "P-1", "hr"));
 
         Person person = view.person();
         assertEquals(36, person.id().length());
         assertNull(person.userId());
-        assertEquals("山田 太郎", person.name());
-        assertEquals(Map.of("en", "Taro Yamada"), person.names());
-        assertEquals("やまだ たろう", person.phoneticName());
+        assertEquals(new Localized<>("ja", Map.of("ja", new PersonName("山田 太郎", "やまだ たろう"), "en",
+                new PersonName("Taro Yamada", null))), person.names());
         assertEquals(Map.of("派遣元", "A社"), person.attributes());
         assertEquals(Optional.of(person.id()), externalIds.idOf(ExternalId.Kind.PERSON, "hr", "P-1"));
         assertEquals("hr", person.source());
-        assertEquals("山田 太郎", view.name());
+        assertEquals(new PersonName("山田 太郎", "やまだ たろう"), view.names(null));
+        assertEquals(new PersonName("Taro Yamada", null), view.names(Locale.US));
         assertEquals(NameSource.RECORD, view.nameSource());
         assertEquals(view, service.get(person.id()));
     }
@@ -78,18 +88,19 @@ class PersonServiceTest {
     void aPersonWithNoNameOfItsOwnShowsTheNameOfKeycloak() {
         PersonView view = service.create(linked("taro", null));
 
-        assertNull(view.person().name());
-        assertEquals("Taro Yamada", view.name());
+        assertNull(view.person().names());
+        assertEquals(new PersonName("Taro Yamada", null), view.names(Locale.JAPANESE));
         assertEquals(NameSource.KEYCLOAK, view.nameSource());
-        assertEquals(Map.of(), view.person().names());
         assertEquals(Map.of(), view.person().attributes());
+        // A request with no languages has no names either.
+        assertNull(service.create(new PersonValues("hanako", null, Map.of(), null, null, null)).person().names());
     }
 
     @Test
     void theNameOfTheRecordWinsOverTheNameOfKeycloak() {
         PersonView view = service.create(linked("taro", "山田 太郎"));
 
-        assertEquals("山田 太郎", view.name());
+        assertEquals("山田 太郎", view.names(Locale.ENGLISH).name());
         assertEquals(NameSource.RECORD, view.nameSource());
     }
 
@@ -97,28 +108,31 @@ class PersonServiceTest {
     void aLinkedPersonCanHaveNoNameAtAll() {
         PersonView view = service.create(linked("nameless", null));
 
-        assertNull(view.name());
+        assertNull(view.names(null));
         assertNull(view.nameSource());
     }
 
     @Test
     void replacesTheNamesAndTheLinkAndAddsTheIdOfAnotherSystem() {
-        String id = service.create(new PersonValues(null, "山田 太郎", null, null, Map.of("a", 1), "P-1", "hr"))
+        String id = service.create(new PersonValues(null, "ja", japanese("山田 太郎"), Map.of("a", 1), "P-1", "hr"))
                 .person().id();
 
         // The person gets an account later.
-        PersonView changed = service.replace(id, new PersonValues("taro", null, Map.of("en", "Taro"), "やまだ",
-                null, "E-9", "payroll"));
+        PersonView changed = service.replace(id, new PersonValues("taro", "en",
+                Map.of("en", new PersonName("Taro", "やまだ")), null, "E-9", "payroll"));
 
         assertEquals("taro", changed.person().userId());
-        assertEquals("Taro Yamada", changed.name());
-        assertEquals(NameSource.KEYCLOAK, changed.nameSource());
-        assertEquals(Map.of("en", "Taro"), changed.person().names());
-        assertEquals("やまだ", changed.person().phoneticName());
+        assertEquals(Localized.of("en", new PersonName("Taro", "やまだ")), changed.person().names());
+        assertEquals(NameSource.RECORD, changed.nameSource());
         assertEquals(Map.of(), changed.person().attributes());
         assertEquals(Optional.of(id), externalIds.idOf(ExternalId.Kind.PERSON, "hr", "P-1"));
         assertEquals(Optional.of(id), externalIds.idOf(ExternalId.Kind.PERSON, "payroll", "E-9"));
         assertEquals("hr", changed.person().source());
+
+        // With no names of its own, the person shows the name of Keycloak again.
+        PersonView nameless = service.replace(id, linked("taro", null));
+        assertNull(nameless.person().names());
+        assertEquals(NameSource.KEYCLOAK, nameless.nameSource());
 
         // Keeping the same link is no conflict. Leaving it out removes it.
         assertEquals("taro", service.replace(id, linked("taro", "山田")).person().userId());
@@ -168,7 +182,7 @@ class PersonServiceTest {
 
         assertEquals("taro", first.person().userId());
         assertEquals(first.person(), first.created().person());
-        assertEquals("Taro Yamada", first.created().name());
+        assertEquals("Taro Yamada", first.created().names(null).name());
         assertEquals(first.person(), second.person());
         assertNull(second.created());
         assertEquals("person.user_unknown", failure(() -> service.forUser("nobody")).code());
@@ -186,7 +200,7 @@ class PersonServiceTest {
 
     @Test
     void rejectsBadValues() {
-        service.create(new PersonValues("taro", null, null, null, null, "P-1", "hr"));
+        service.create(new PersonValues("taro", null, null, null, "P-1", "hr"));
         String other = service.create(named("Other")).person().id();
 
         assertEquals("invalid.required", failure(() -> service.create(null)).code());
@@ -199,25 +213,27 @@ class PersonServiceTest {
         assertEquals("person.user_taken", taken.code());
         assertEquals("taro", taken.params().get("userId"));
         assertEquals("person.user_taken", failure(() -> service.replace(other, linked("taro", "X"))).code());
-        assertEquals("external_id.taken", failure(
-                () -> service.create(new PersonValues(null, "X", null, null, null, "P-1", "hr"))).code());
-        assertEquals("invalid.code", failure(
-                () -> service.create(new PersonValues(null, "X", null, null, null, "P-2", "bad source"))).code());
-        assertEquals("invalid.language_tag", failure(
-                () -> service.create(new PersonValues(null, "X", Map.of("not a tag", "X"), null, null, null,
-                        null))).code());
+        assertEquals("external_id.taken", failure(() -> service.create(withIds("X", "P-1", "hr"))).code());
+        assertEquals("invalid.code", failure(() -> service.create(withIds("X", "P-2", "bad source"))).code());
+        assertEquals("invalid.language_tag", failure(() -> service.create(new PersonValues(null, "ja",
+                Map.of("ja", new PersonName("X", null), "not a tag", new PersonName("X", null)), null, null,
+                null))).code());
+        assertEquals("invalid.required", failure(() -> service.create(new PersonValues(null, null,
+                japanese("X"), null, null, null))).code());
+        assertEquals("invalid.primary_language", failure(() -> service.create(new PersonValues("hanako", "en",
+                Map.of(), null, null, null))).code());
+        assertEquals("invalid.name", failure(() -> service.create(new PersonValues(null, "ja",
+                Map.of("ja", new PersonName("X", "x".repeat(256))), null, null, null))).code());
         assertEquals("person.not_found", failure(() -> service.replace("nope", named("X"))).code());
     }
 
     @Test
     void theSameExternalIdIsFineForAnotherSourceAndNeedsASource() {
-        service.create(new PersonValues(null, "A", null, null, null, "P-1", "hr"));
+        service.create(withIds("A", "P-1", "hr"));
 
-        assertEquals("payroll", service.create(new PersonValues(null, "B", null, null, null, "P-1", "payroll"))
-                .person().source());
-        assertEquals("invalid.required", failure(
-                () -> service.create(new PersonValues(null, "C", null, null, null, "P-1", null))).code());
-        String withSourceOnly = service.create(new PersonValues(null, "D", null, null, null, null, "hr")).person().id();
+        assertEquals("payroll", service.create(withIds("B", "P-1", "payroll")).person().source());
+        assertEquals("invalid.required", failure(() -> service.create(withIds("C", "P-1", null))).code());
+        String withSourceOnly = service.create(withIds("D", null, "hr")).person().id();
         assertEquals(List.of(), externalIds.ofResource(ExternalId.Kind.PERSON, withSourceOnly));
     }
 }

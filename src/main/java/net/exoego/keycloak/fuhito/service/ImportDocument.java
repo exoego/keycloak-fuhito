@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Map;
 
 import net.exoego.keycloak.fuhito.domain.OrgUnitName;
+import net.exoego.keycloak.fuhito.domain.PersonName;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 
 @Schema(
@@ -364,12 +365,11 @@ public record ImportDocument(
             String username,
             @Schema(description = "The ID of a Keycloak user to link.")
             String userId,
-            @Schema(description = "The default name. A person with no user needs it.", maxLength = 255)
-            String name,
-            @Schema(description = "Names in other languages, by language tag.")
-            Map<String, String> names,
-            @Schema(description = "The reading of the name for sorting.", maxLength = 255)
-            String phoneticName,
+            @Schema(description = "The language tag of the primary names, such as `ja`. It is a key of `names`.")
+            String primaryLanguage,
+            @Schema(description = "The names by language tag, such as `ja`, `en`, or `zh-Hant`. A person with no "
+                    + "user needs them.")
+            Map<String, PersonName> names,
             @Schema(description = "Free values of the person.")
             Map<String, Object> attributes,
             @Schema(description = "The ID of a stored person, for a row of a person with no external ID. A CSV export "

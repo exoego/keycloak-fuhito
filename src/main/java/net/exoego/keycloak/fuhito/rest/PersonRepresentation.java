@@ -1,8 +1,10 @@
 package net.exoego.keycloak.fuhito.rest;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
+import net.exoego.keycloak.fuhito.domain.PersonName;
 import net.exoego.keycloak.fuhito.service.ExternalIdLists;
 import net.exoego.keycloak.fuhito.service.PersonValues;
 import net.exoego.keycloak.fuhito.service.PersonView;
@@ -22,9 +24,11 @@ public record PersonRepresentation(
         @Schema(description = "The ID of the linked Keycloak user. One user is linked to at most one person.")
         String userId,
         @Schema(
-                description = "The default name. A person with no linked user needs it. When the record has no "
-                        + "name, a response has the name of the linked user from Keycloak.",
-                maxLength = 255)
+                description = "The name in the language of the request. It is the one of the first language of "
+                        + "`Accept-Language`, else the one of that language with no region, such as `en` for "
+                        + "`en-US`, else the primary one. A request with no `Accept-Language` reads the primary one. "
+                        + "When the record has no names, it is the name of the linked user from Keycloak.",
+                readOnly = true)
         String name,
         @Schema(
                 description = "Where the name of a response came from. `RECORD` is the person record. `KEYCLOAK` "
@@ -32,10 +36,19 @@ public record PersonRepresentation(
                 enumeration = {"RECORD", "KEYCLOAK"},
                 readOnly = true)
         String nameSource,
-        @Schema(description = "Names in other languages, by language tag.")
-        Map<String, String> names,
-        @Schema(description = "The reading of the name for sorting.", maxLength = 255)
+        @Schema(description = "The reading of the name in the language of `name`.", readOnly = true)
         String phoneticName,
+        @Schema(
+                description = "The language tag of the primary names, such as `ja`. It is a key of `names`. A "
+                        + "person with no names has none.",
+                maxLength = 64)
+        String primaryLanguage,
+        @Schema(
+                description = "The names by language tag, such as `ja`, `en`, or `zh-Hant`. A read gives the tags in "
+                        + "their standard form, such as `en-US` for `en-us`. A person with no linked user needs "
+                        + "them. A person with a linked user can have none, and a response then has the name of "
+                        + "the user in `name`.")
+        Map<String, PersonName> names,
         @Schema(description = "Free values that the realm defines.")
         Map<String, Object> attributes,
         @Schema(
@@ -57,14 +70,18 @@ public record PersonRepresentation(
                 readOnly = true)
         List<ExternalIdPairRepresentation> externalIds) implements Versioned {
 
-    static PersonRepresentation of(PersonView view, ExternalIdLists ids) {
+    static PersonRepresentation of(PersonView view, ExternalIdLists ids, Locale language) {
         var p = view.person();
-        return new PersonRepresentation(p.id(), p.version(), p.userId(), view.name(),
-                view.nameSource() == null ? null : view.nameSource().name(), p.names(), p.phoneticName(),
-                p.attributes(), null, p.source(), ExternalIdPairRepresentation.of(ids.of(p.id(), p.source())));
+        PersonName read = view.names(language);
+        return new PersonRepresentation(p.id(), p.version(), p.userId(), read == null ? null : read.name(),
+                view.nameSource() == null ? null : view.nameSource().name(),
+                read == null ? null : read.phoneticName(),
+                p.names() == null ? null : p.names().primaryLanguage(),
+                p.names() == null ? Map.of() : p.names().byLanguage(), p.attributes(), null, p.source(),
+                ExternalIdPairRepresentation.of(ids.of(p.id(), p.source())));
     }
 
     PersonValues toValues() {
-        return new PersonValues(userId, name, names, phoneticName, attributes, externalId, source);
+        return new PersonValues(userId, primaryLanguage, names, attributes, externalId, source);
     }
 }

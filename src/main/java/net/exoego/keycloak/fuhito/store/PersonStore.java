@@ -39,8 +39,8 @@ public interface PersonStore {
     /**
      * Finds people of the realm, ordered by ID.
      *
-     * @param text a text that the name, the phonetic name, a name in another language, or the name, the username,
-     *        or the email of the Keycloak user has, in any case, or null for any
+     * @param text a text that the name or the phonetic name of any language, or the name, the username, or the
+     *        email of the Keycloak user has, in any case, or null for any
      * @param staffNumber a staff number that an employment of the person has, or null for any
      * @param afterId the ID of the person that the list goes on after, or null to start at the first one
      * @param first the number of people to skip
@@ -52,8 +52,8 @@ public interface PersonStore {
     /**
      * Counts the people that {@link #search} finds on all pages together.
      *
-     * @param text a text that the name, the phonetic name, a name in another language, or the name, the username,
-     *        or the email of the Keycloak user has, in any case, or null for any
+     * @param text a text that the name or the phonetic name of any language, or the name, the username, or the
+     *        email of the Keycloak user has, in any case, or null for any
      * @param staffNumber a staff number that an employment of the person has, or null for any
      * @return the number of people
      */

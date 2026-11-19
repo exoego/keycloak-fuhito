@@ -134,7 +134,7 @@ class UserMaskIT {
         String removed = realm.user("gone", "Jiro", "Suzuki");
         String removedPerson = created(api.post("/people", "{\"userId\": \"" + removed + "\"}")).get("id").asText();
         realm.removeUser(removed);
-        String unlinked = created(api.post("/people", "{\"name\": \"田中 三郎\"}")).get("id").asText();
+        String unlinked = created(api.post("/people", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"田中 三郎\"}}}")).get("id").asText();
 
         JsonNode plain = Api.json(api.post("/users/" + kept + "/mask", ""));
         assertFalse(plain.get("keycloakNameCleared").asBoolean());
