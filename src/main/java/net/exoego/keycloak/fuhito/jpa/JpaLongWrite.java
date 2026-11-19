@@ -9,12 +9,20 @@ import jakarta.persistence.EntityManager;
 import net.exoego.keycloak.fuhito.store.LongWrite;
 import org.hibernate.engine.spi.EntityEntry;
 import org.hibernate.engine.spi.SessionImplementor;
+import org.keycloak.models.jpa.entities.CredentialEntity;
+import org.keycloak.models.jpa.entities.FederatedIdentityEntity;
+import org.keycloak.models.jpa.entities.UserAttributeEntity;
+import org.keycloak.models.jpa.entities.UserEntity;
+import org.keycloak.models.jpa.entities.UserGroupMembershipEntity;
+import org.keycloak.models.jpa.entities.UserRequiredActionEntity;
+import org.keycloak.models.jpa.entities.UserRoleMappingEntity;
 
 /**
  * Keeps the session of a long write small. Before each query, Hibernate looks through every entity that the session
  * holds for changes. A write that keeps every entity that it read or wrote then grows with the square of its rows.
  * So the entities of the extension leave the session after each row of the write, once their changes are in the
- * database. The entities of Keycloak stay.
+ * database. So do the users of Keycloak, which a row of a long write only reads. The other entities of Keycloak
+ * stay.
  */
 public final class JpaLongWrite implements LongWrite {
 
@@ -22,6 +30,11 @@ public final class JpaLongWrite implements LongWrite {
     // gets the mark back when it is loaded again. A loaded entity knows no entity manager, so the marks belong to
     // the thread of the request.
     private static final ThreadLocal<Set<String>> COUNTED = new ThreadLocal<>();
+
+    // A user that leaves the session is read again when Keycloak writes it, as the cache of users does anyway.
+    private static final Set<Class<?>> USERS = Set.of(UserEntity.class, UserAttributeEntity.class,
+            UserRequiredActionEntity.class, CredentialEntity.class, FederatedIdentityEntity.class,
+            UserGroupMembershipEntity.class, UserRoleMappingEntity.class);
 
     private final EntityManager em;
 
@@ -51,7 +64,8 @@ public final class JpaLongWrite implements LongWrite {
         for (Map.Entry<Object, EntityEntry> entry : em.unwrap(SessionImplementor.class)
                 .getPersistenceContextInternal().reentrantSafeEntityEntries()) {
             Object entity = entry.getKey();
-            if (entity.getClass().getPackageName().equals(JpaLongWrite.class.getPackageName())) {
+            if (entity.getClass().getPackageName().equals(JpaLongWrite.class.getPackageName())
+                    || USERS.contains(entity.getClass())) {
                 if (entity instanceof VersionedRow versioned && versioned.counted()) {
                     counted.add(key(entity.getClass(), entry.getValue().getId()));
                 }

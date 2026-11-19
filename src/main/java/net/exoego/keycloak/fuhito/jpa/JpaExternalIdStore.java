@@ -131,6 +131,24 @@ public class JpaExternalIdStore implements ExternalIdStore {
     }
 
     @Override
+    public List<ExternalId> findAll(ExternalId.Kind kind, String source, Collection<String> externalIds) {
+        if (externalIds.isEmpty()) {
+            return List.of();
+        }
+        return em.createQuery("""
+                        select x from ExternalIdEntity x where x.realmId = :realmId and x.kind = :kind
+                        and x.source = :source and %s""".formatted(ManyIds.has("x.externalId", "values")),
+                        ExternalIdEntity.class)
+                .setParameter("realmId", realmId)
+                .setParameter("kind", kind.name())
+                .setParameter("source", source)
+                .setParameter("values", ManyIds.of(externalIds))
+                .getResultStream()
+                .map(JpaExternalIdStore::toDomain)
+                .toList();
+    }
+
+    @Override
     public void insert(ExternalId externalId) {
         ExternalIdEntity entity = new ExternalIdEntity();
         entity.id = externalId.id();

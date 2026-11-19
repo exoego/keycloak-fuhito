@@ -50,6 +50,16 @@ public interface ExternalIdStore {
     Optional<ExternalId> find(ExternalId.Kind kind, String source, String externalId);
 
     /**
+     * Finds the IDs of one system that name resources of a kind, with one read.
+     *
+     * @param kind the kind of resource
+     * @param source the name of the system
+     * @param externalIds the IDs in that system
+     * @return the rows of the IDs that name one, in no order
+     */
+    List<ExternalId> findAll(ExternalId.Kind kind, String source, Collection<String> externalIds);
+
+    /**
      * Lists a page of the IDs of every resource, ordered by the ID of the row.
      *
      * @param afterId the ID of the row after which the page starts, or null for the start

@@ -1119,4 +1119,17 @@
         <dropColumn tableName="FUHITO_REF_KIND" columnName="NAME"/>
         <dropColumn tableName="FUHITO_REF_KIND" columnName="NAMES_I18N"/>
     </changeSet>
+
+    <!-- Each unique key of the IDs of other systems starts with the column that tells its rows apart. While the
+         statistics of a table are old, as in a long import into a new realm, the realm can look as if it had no
+         rows. Then a key that starts with the realm and the kind looked as good for a lookup by the other key, and
+         such a lookup read every ID of the kind. -->
+    <changeSet id="0.1.0-external-id-keys" author="keycloak-fuhito">
+        <dropUniqueConstraint tableName="FUHITO_EXTERNAL_ID" constraintName="UK_FUHITO_EXTERNAL_ID_VALUE"/>
+        <dropUniqueConstraint tableName="FUHITO_EXTERNAL_ID" constraintName="UK_FUHITO_EXTERNAL_ID_SOURCE"/>
+        <addUniqueConstraint tableName="FUHITO_EXTERNAL_ID" columnNames="EXTERNAL_ID, SOURCE, RESOURCE_KIND, REALM_ID"
+                             constraintName="UK_FUHITO_EXTERNAL_ID_VALUE"/>
+        <addUniqueConstraint tableName="FUHITO_EXTERNAL_ID" columnNames="RESOURCE_ID, RESOURCE_KIND, REALM_ID, SOURCE"
+                             constraintName="UK_FUHITO_EXTERNAL_ID_SOURCE"/>
+    </changeSet>
 </databaseChangeLog>

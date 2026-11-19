@@ -1,5 +1,9 @@
 package net.exoego.keycloak.fuhito;
 
+import java.sql.Connection;
+import java.sql.ResultSet;
+import java.sql.Statement;
+
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -44,6 +48,45 @@ class SchemaIT {
                 .contains("uk_fuhito_org_unit_version_name_primary"));
         assertTrue(KeycloakEnvironment.sqlError(insert + "('ex-v5', 'en', 'ex-realm-4', false, 'Sales 2')")
                 .contains("pk_fuhito_org_unit_version_name"));
+    }
+
+    // An import into a new realm writes its rows in one transaction, so the statistics still say that the realm has
+    // no rows. Nothing is committed here.
+    @Test
+    void aLookupOfAnExternalIdUsesTheKeyWithItAlsoWhileTheStatisticsAreOld() throws Exception {
+        try (Connection connection = KeycloakEnvironment.connection();
+                Statement statement = connection.createStatement()) {
+            connection.setAutoCommit(false);
+            statement.execute("""
+                    insert into fuhito_external_id (id, realm_id, resource_kind, resource_id, source, external_id)
+                    select 'ex-old-' || i, 'ex-old-realm', 'ORG_UNIT', 'ex-old-unit-' || i, 'sheet', 'U' || i
+                    from generate_series(1, 20) i""");
+            statement.execute("analyze fuhito_external_id");
+            statement.execute("""
+                    insert into fuhito_external_id (id, realm_id, resource_kind, resource_id, source, external_id)
+                    select 'ex-new-' || i, 'ex-new-realm', 'ORG_UNIT', 'ex-new-unit-' || i, 'sheet', 'U' || i
+                    from generate_series(1, 3000) i""");
+
+            assertTrue(plan(statement, """
+                    explain select * from fuhito_external_id where realm_id = 'ex-new-realm'
+                    and resource_kind = 'ORG_UNIT' and source = 'sheet' and external_id = 'U7'""")
+                    .contains("uk_fuhito_external_id_value"));
+            assertTrue(plan(statement, """
+                    explain select * from fuhito_external_id where realm_id = 'ex-new-realm'
+                    and resource_kind = 'ORG_UNIT' and resource_id = 'ex-new-unit-7'""")
+                    .contains("uk_fuhito_external_id_source"));
+            connection.rollback();
+        }
+    }
+
+    private static String plan(Statement statement, String explain) throws Exception {
+        StringBuilder plan = new StringBuilder();
+        try (ResultSet rows = statement.executeQuery(explain)) {
+            while (rows.next()) {
+                plan.append(rows.getString(1)).append('\n');
+            }
+        }
+        return plan.toString();
     }
 
     @Test
