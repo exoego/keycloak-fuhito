@@ -218,7 +218,42 @@ class SchemaIT {
                     and t.employment_id = a.employment_id and t.status = 'ACTIVE' and t.valid_from <= '2026-04-01'
                     and (t.valid_to is null or t.valid_to > '2026-04-01'))
                     order by a.display_order, a.valid_from, a.assignment_id fetch first 100 rows only""",
-                    unit, "Index Cond: ((employment_id)::text = (a.employment_id)::text)");
+                    unit, "Index Cond: (((employment_id)::text = (a.employment_id)::text) AND (valid_from <= ");
+            connection.rollback();
+        }
+    }
+
+    // The index of the exclusion constraint on the terms serves only the constraint.
+    @Test
+    void aLookupOfTheTermsOfAnEmploymentUsesTheirUniqueKeyAlsoWhileTheStatisticsAreOld() throws Exception {
+        try (Connection connection = KeycloakEnvironment.connection();
+                Statement statement = connection.createStatement()) {
+            connection.setAutoCommit(false);
+            realmsWithOldStatistics(statement);
+
+            String onDate = "t.valid_from <= '2026-04-01' and (t.valid_to is null or t.valid_to > '2026-04-01')";
+            assertPlanHas(statement, """
+                    explain select count(a.id) from fuhito_assignment a where a.org_unit_id = 'ex-new-unit-7' and %s
+                    and a.valid_from <= '2026-04-01' and (a.valid_to is null or a.valid_to > '2026-04-01')
+                    and exists (select 1 from fuhito_employment_terms t where t.realm_id = a.realm_id
+                    and t.employment_id = a.employment_id and t.status = 'ACTIVE' and %s)"""
+                    .formatted(realmOfUnit("a", "ex-new-unit-7"), onDate),
+                    "Index Cond: (((employment_id)::text = (a.employment_id)::text) AND (valid_from <= ");
+            String byContractEnd = """
+                    from fuhito_employment e where e.realm_id = 'ex-new-realm' and exists (select t.id
+                    from fuhito_employment_terms t where t.employment_id = e.id and %s
+                    and t.contract_end_date >= '2026-01-01' and t.contract_end_date < '2027-01-01')"""
+                    .formatted(onDate);
+            String ofEmployment = "Index Cond: (((employment_id)::text = (e.id)::text) AND (valid_from <= ";
+            assertPlanHas(statement, "explain select * " + byContractEnd + " order by e.id fetch first 100 rows only",
+                    ofEmployment);
+            assertPlanHas(statement, "explain select count(e.id) " + byContractEnd, ofEmployment);
+            String ofEmployments = "from fuhito_employment_terms t"
+                    + " where t.employment_id = any('{ex-new-employment-7,ex-new-employment-8}')";
+            assertPlanHas(statement, "explain select * " + ofEmployments + " and " + onDate,
+                    "uk_fuhito_employment_terms_from");
+            assertPlanHas(statement, "explain select * " + ofEmployments + " order by t.employment_id, t.valid_from",
+                    "uk_fuhito_employment_terms_from");
             connection.rollback();
         }
     }
