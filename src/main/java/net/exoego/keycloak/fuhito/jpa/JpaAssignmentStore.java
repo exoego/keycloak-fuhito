@@ -195,8 +195,8 @@ public class JpaAssignmentStore implements AssignmentStore {
                      from AssignmentEntity a join Tree t on t.id = a.orgUnitId
                     where a.realmId = :realmId""");
         } else {
-            text.append(selected)
-                    .append(" from AssignmentEntity a where a.realmId = :realmId and a.orgUnitId = :rootId");
+            text.append(selected).append(" from AssignmentEntity a where a.orgUnitId = :rootId and ")
+                    .append(Rows.ofUnit("a.realmId", "rootId"));
         }
         text.append(" and a.").append(TreeQuery.onDate("a"));
         if (places != null) {
@@ -220,9 +220,10 @@ public class JpaAssignmentStore implements AssignmentStore {
         if (filter.jobTitleId() != null) {
             text.append(" and a.jobTitleId = :jobTitleId");
         }
+        // For one unit, the realm of the assignment comes from a sub-select, and the terms take it from there.
         if (filter.status() != null) {
             text.append("""
-                     and exists (select 1 from EmploymentTermsEntity e where e.realmId = :realmId
+                     and exists (select 1 from EmploymentTermsEntity e where e.realmId = a.realmId
                     and e.employmentId = a.employmentId and e.status = :status and e.""")
                     .append(TreeQuery.onDate("e")).append(')');
         }
@@ -298,11 +299,10 @@ public class JpaAssignmentStore implements AssignmentStore {
     private <T> TypedQuery<T> searchQuery(AssignmentStore.Search search, String afterId, boolean count,
             Class<T> type) {
         StringBuilder text = new StringBuilder(count ? "select count(a)" : "select a")
-                .append(" from AssignmentEntity a where a.realmId = :realmId and a.")
-                .append(TreeQuery.onDate("a"));
-        if (search.orgUnitId() != null) {
-            text.append(" and a.orgUnitId = :orgUnitId");
-        }
+                .append(" from AssignmentEntity a where ")
+                .append(search.orgUnitId() == null ? "a.realmId = :realmId"
+                        : "a.orgUnitId = :orgUnitId and " + Rows.ofUnit("a.realmId", "orgUnitId"))
+                .append(" and a.").append(TreeQuery.onDate("a"));
         if (search.jobTitleId() != null) {
             text.append(" and a.jobTitleId = :jobTitleId");
         }

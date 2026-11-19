@@ -185,6 +185,44 @@ class SchemaIT {
         }
     }
 
+    // These reads page in the database, so they keep the realm in the query. A sub-select finds the realm of the org
+    // unit by its key.
+    @Test
+    void aPagedReadByAnOrgUnitUsesItsIndexAlsoWhileTheStatisticsAreOld() throws Exception {
+        try (Connection connection = KeycloakEnvironment.connection();
+                Statement statement = connection.createStatement()) {
+            connection.setAutoCommit(false);
+            realmsWithOldStatistics(statement);
+
+            String employer = "Index Cond: ((employer_id)::text = 'ex-new-unit-2'::text)";
+            String unit = "Index Cond: (((org_unit_id)::text = 'ex-new-unit-7'::text) AND (valid_from <= ";
+            assertPlanHas(statement, """
+                    explain select * from fuhito_employment e where e.employer_id = 'ex-new-unit-2'
+                    and %s order by e.id fetch first 100 rows only""".formatted(realmOfUnit("e", "ex-new-unit-2")),
+                    employer, "Index Cond: ((id)::text = 'ex-new-unit-2'::text)");
+            assertPlanHas(statement, """
+                    explain select count(e.id) from fuhito_employment e where e.employer_id = 'ex-new-unit-2'
+                    and %s and e.valid_from <= '2026-04-01' and (e.valid_to is null or e.valid_to > '2026-04-01')"""
+                    .formatted(realmOfUnit("e", "ex-new-unit-2")), employer);
+            String members = """
+                    from fuhito_assignment a where a.org_unit_id = 'ex-new-unit-7' and %s
+                    and a.valid_from <= '2026-04-01' and (a.valid_to is null or a.valid_to > '2026-04-01')"""
+                    .formatted(realmOfUnit("a", "ex-new-unit-7"));
+            assertPlanHas(statement, "explain select * " + members
+                    + " order by a.display_order, a.valid_from, a.assignment_id fetch first 100 rows only", unit);
+            assertPlanHas(statement, "explain select * " + members
+                    + " order by a.assignment_id fetch first 100 rows only", unit);
+            assertPlanHas(statement, "explain select count(a.id) " + members, unit);
+            assertPlanHas(statement, "explain select * " + members + """
+                     and exists (select 1 from fuhito_employment_terms t where t.realm_id = a.realm_id
+                    and t.employment_id = a.employment_id and t.status = 'ACTIVE' and t.valid_from <= '2026-04-01'
+                    and (t.valid_to is null or t.valid_to > '2026-04-01'))
+                    order by a.display_order, a.valid_from, a.assignment_id fetch first 100 rows only""",
+                    unit, "Index Cond: ((employment_id)::text = (a.employment_id)::text)");
+            connection.rollback();
+        }
+    }
+
     @Test
     void theWalkUpTheTreeLooksUpEachStepByItsUnitAlsoWhileTheStatisticsAreOld() throws Exception {
         try (Connection connection = KeycloakEnvironment.connection();
@@ -266,6 +304,11 @@ class SchemaIT {
                 from generate_series(1, %2$d) i""")) {
             statement.execute(insert.formatted(prefix, count));
         }
+    }
+
+    private static String realmOfUnit(String alias, String unitId) {
+        String realm = "(select u.realm_id from fuhito_org_unit u where u.id = '%s')".formatted(unitId);
+        return "%s.realm_id = %s and %s = 'ex-new-realm'".formatted(alias, realm, realm);
     }
 
     private static void assertPlanHas(Statement statement, String explain, String... parts) throws Exception {
