@@ -132,23 +132,26 @@ public class JpaAssignmentStore implements AssignmentStore {
         return result;
     }
 
-    // Each employer with itself and every org unit below it. A person who works in one of those is at home.
+    // Each employer with itself and every org unit below it. A person who works in one of those is at home. Each step
+    // takes the hierarchy and the realm from its row, for the reason in the walk down of TreeQuery.
     private static final String OWNED = """
             Owned as (
-                select m.employerId as employerId, m.employerId as unitId
+                select m.employerId as employerId, m.employerId as unitId,
+                    cast(:employerHierarchyId as String) as hierarchyId, m.realmId as realmId
                 from EmploymentEntity m where m.realmId = :realmId and m.employerId is not null
-                group by m.employerId
+                group by m.employerId, m.realmId
                 union all
-                select o.employerId as employerId, l.childId as unitId
+                select o.employerId as employerId, l.childId as unitId, o.hierarchyId as hierarchyId,
+                    o.realmId as realmId
                 from Owned o
-                join OrgUnitLinkEntity l on l.parentId = o.unitId and l.realmId = :realmId
-                    and l.hierarchyId = :employerHierarchyId and l.%s
+                join OrgUnitLinkEntity l on l.parentId = o.unitId and l.hierarchyId = o.hierarchyId
+                    and l.realmId = o.realmId and l.%s
             )
             """.formatted(TreeQuery.onDate("l"));
 
     private static final String ROOT_PLACES = TreeQuery.places("""
-            from OrgUnitVersionEntity v where v.realmId = :realmId and v.orgUnitId = :rootId and v.%s"""
-            .formatted(TreeQuery.onDate("v")));
+            from OrgUnitVersionEntity v where v.orgUnitId = :rootId and %s and v.%s"""
+            .formatted(Rows.ofUnit("v.realmId", "rootId"), TreeQuery.onDate("v")));
 
     private static final String TREE_PLACES = TreeQuery.places(
             "from Tree t join OrgUnitVersionEntity v on v.id = t.versionId");
@@ -191,9 +194,8 @@ public class JpaAssignmentStore implements AssignmentStore {
         }
         StringBuilder text = new StringBuilder(tables.isEmpty() ? "" : "with " + String.join(", ", tables));
         if (below) {
-            text.append(selected).append("""
-                     from AssignmentEntity a join Tree t on t.id = a.orgUnitId
-                    where a.realmId = :realmId""");
+            text.append(selected).append(" from AssignmentEntity a join Tree t on t.id = a.orgUnitId where ")
+                    .append(Rows.ofUnit("a.realmId", "rootId"));
         } else {
             text.append(selected).append(" from AssignmentEntity a where a.orgUnitId = :rootId and ")
                     .append(Rows.ofUnit("a.realmId", "rootId"));

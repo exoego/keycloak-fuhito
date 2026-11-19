@@ -49,76 +49,68 @@ public class JpaOrgUnitStore implements OrgUnitStore {
             where v.realmId = :realmId and %s and v.%s""".formatted(TreeQuery.onDate("l"),
             ManyIds.has("v.orgUnitId", "ids"), TreeQuery.onDate("v"));
 
+    // The walks up look up each step with TreeQuery.parentOf. The last row of a walk has no unit. The first units
+    // are found without the realm, for the reason in Rows.inRealm, so a walk checks the realm of its rows.
     private static final String ANCESTORS = """
             with Above as (
-                select v.orgUnitId as unitId, v.orgUnitId as ancestorId
+                select v.orgUnitId as unitId, v.orgUnitId as ancestorId, v.realmId as realmId
                 from OrgUnitVersionEntity v
-                where v.realmId = :realmId and %3$s and v.%1$s
+                where %2$s and v.%1$s
                 union all
-                select a.unitId as unitId, l.parentId as ancestorId
-                from Above a
-                join OrgUnitLinkEntity l on l.childId = a.ancestorId and l.realmId = :realmId
-                    and l.hierarchyId = :hierarchyId and l.%2$s
+                select a.unitId as unitId, %3$s as ancestorId, a.realmId as realmId
+                from Above a where a.ancestorId is not null
             )
-            select a.unitId, a.ancestorId from Above a""".formatted(TreeQuery.onDate("v"), TreeQuery.onDate("l"),
-            ManyIds.has("v.orgUnitId", "ids"));
+            select a.unitId, a.ancestorId from Above a where a.realmId = :realmId and a.ancestorId is not null"""
+            .formatted(TreeQuery.onDate("v"), ManyIds.has("v.orgUnitId", "ids"),
+                    TreeQuery.parentOf("a.ancestorId", "hierarchyId"));
 
-    // Each unit reads its own version and the versions above it, nearest first. The last row of a unit has no
-    // ancestor. Each step looks up the parent and the version of one unit in the select. While the statistics do not
-    // know a new realm, a join there can read every link of the hierarchy or every version of the realm for each walk.
-    // The versions are found without the realm, for the reason in Rows.inRealm, so the walk checks the realm of its
-    // rows.
+    // Each unit reads its own version and the versions above it, nearest first. Each step looks up the version of
+    // one unit in the select, for the same reason as the parent.
     private static final String DEFAULTS = """
             with Above as (
                 select v.orgUnitId as unitId, v.orgUnitId as ancestorId, 0 as depth, v.realmId as realmId
                 from OrgUnitVersionEntity v
-                where %3$s and v.%4$s
+                where %2$s and v.%3$s
                 union all
-                select a.unitId as unitId,
-                    (select l.parentId from OrgUnitLinkEntity l where l.childId = a.ancestorId
-                        and l.realmId = :realmId and l.hierarchyId = :hierarchyId and l.%2$s) as ancestorId,
-                    a.depth + 1 as depth, a.realmId as realmId
+                select a.unitId as unitId, %4$s as ancestorId, a.depth + 1 as depth, a.realmId as realmId
                 from Above a where a.ancestorId is not null
             )
             select a.unitId,
                 (select w.workLocationId from OrgUnitVersionEntity w where w.orgUnitId = a.ancestorId and w.%1$s),
                 (select w.costCenterId from OrgUnitVersionEntity w where w.orgUnitId = a.ancestorId and w.%1$s)
             from Above a where a.realmId = :realmId and a.ancestorId is not null
-            order by a.unitId, a.depth""".formatted(TreeQuery.onDate("w"), TreeQuery.onDate("l"),
-            ManyIds.has("v.orgUnitId", "ids"), TreeQuery.onDate("v"));
+            order by a.unitId, a.depth""".formatted(TreeQuery.onDate("w"), ManyIds.has("v.orgUnitId", "ids"),
+            TreeQuery.onDate("v"), TreeQuery.parentOf("a.ancestorId", "hierarchyId"));
 
+    // A path ends below a parent with no version on the date.
     private static final String PATHS = """
             with Above as (
-                select v.orgUnitId as startId, v.orgUnitId as id, v.id as versionId, 0 as depth
+                select v.orgUnitId as startId, v.orgUnitId as id, 0 as depth, v.realmId as realmId
                 from OrgUnitVersionEntity v
-                where v.realmId = :realmId and %4$s and v.%1$s
+                where %2$s and v.%1$s
                 union all
-                select a.startId as startId, p.orgUnitId as id, p.id as versionId, a.depth + 1 as depth
-                from Above a
-                join OrgUnitLinkEntity l on l.childId = a.id and l.realmId = :realmId
-                    and l.hierarchyId = :hierarchyId and l.%2$s
-                join OrgUnitVersionEntity p on p.orgUnitId = l.parentId and p.realmId = :realmId and p.%3$s
+                select a.startId as startId, %3$s as id, a.depth + 1 as depth, a.realmId as realmId
+                from Above a where a.id is not null
             )
-            select u, v, (select l.parentId from OrgUnitLinkEntity l where l.realmId = :realmId
-                and l.hierarchyId = :hierarchyId and l.childId = v.orgUnitId and l.%2$s), a.startId
+            select u, v, %4$s, a.startId
             from Above a
-            join OrgUnitVersionEntity v on v.id = a.versionId
+            join OrgUnitVersionEntity v on v.orgUnitId = a.id and v.%1$s
             join OrgUnitEntity u on u.id = a.id
-            order by a.startId, a.depth desc""".formatted(TreeQuery.onDate("v"), TreeQuery.onDate("l"),
-            TreeQuery.onDate("p"), ManyIds.has("v.orgUnitId", "ids"));
+            where a.realmId = :realmId and a.id is not null
+            order by a.startId, a.depth desc""".formatted(TreeQuery.onDate("v"), ManyIds.has("v.orgUnitId", "ids"),
+            TreeQuery.livingParentOf("a.id", "hierarchyId"), TreeQuery.parentOf("v.orgUnitId", "hierarchyId"));
 
     private static final String LINE = """
             with Above as (
-                select u.id as id, 0 as depth
+                select u.id as id, 0 as depth, u.realmId as realmId
                 from OrgUnitEntity u
-                where u.realmId = :realmId and u.id = :id
+                where u.id = :id
                 union all
-                select l.parentId as id, a.depth + 1 as depth
-                from Above a
-                join OrgUnitLinkEntity l on l.childId = a.id and l.realmId = :realmId
-                    and l.hierarchyId = :hierarchyId and l.%s
+                select %s as id, a.depth + 1 as depth, a.realmId as realmId
+                from Above a where a.id is not null
             )
-            select a.id from Above a order by a.depth""".formatted(TreeQuery.onDate("l"));
+            select a.id from Above a where a.realmId = :realmId and a.id is not null order by a.depth"""
+            .formatted(TreeQuery.parentOf("a.id", "hierarchyId"));
 
     // The condition that keeps only the units whose unit type has a mark, only the others, or both, for the
     // version v. The mark is a field name in the code, never a value of a request.
