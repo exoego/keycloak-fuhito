@@ -230,7 +230,6 @@ class SchemaIT {
                 Statement statement = connection.createStatement()) {
             connection.setAutoCommit(false);
             realmsWithOldStatistics(statement);
-
             String terms = "from fuhito_employment_terms t where t.valid_from <= '2026-04-01'"
                     + " and (t.valid_to is null or t.valid_to > '2026-04-01') and ";
             String byContractEnd = "from fuhito_employment e where e.realm_id = 'ex-new-realm' and exists (select t.id "
