@@ -135,13 +135,6 @@ public final class RealmData {
     public static void deletePerson(EntityManager em, String realmId, String personId) {
         // Every query is one fixed text. The order matters, because later queries read rows of earlier ones.
         List.of(
-                // Lines where the person reports, and lines where the person is the manager.
-                """
-                delete from ReportingLineEntity r where r.realmId = :realmId
-                and (r.managerPersonId = :personId or r.assignmentId in
-                (select a.assignmentId from AssignmentEntity a where a.realmId = :realmId
-                and a.employmentId in
-                (select e.id from EmploymentEntity e where e.realmId = :realmId and e.personId = :personId)))""",
                 // The IDs that systems have for the person and for the records of the person.
                 """
                 delete from ExternalIdEntity x where x.realmId = :realmId
@@ -152,7 +145,22 @@ public final class RealmData {
                 (select a.assignmentId from AssignmentEntity a where a.realmId = :realmId and a.employmentId in
                 (select e.id from EmploymentEntity e where e.realmId = :realmId and e.personId = :personId)))
                 or (x.kind = 'QUALIFICATION' and x.resourceId in
-                (select q.id from QualificationEntity q where q.realmId = :realmId and q.personId = :personId)))""",
+                (select q.id from QualificationEntity q where q.realmId = :realmId and q.personId = :personId))
+                or (x.kind = 'REPORTING_LINE' and x.resourceId in
+                (select r.id from ReportingLineEntity r where r.realmId = :realmId
+                and (r.managerPersonId = :personId or r.assignmentId in
+                (select a.assignmentId from AssignmentEntity a where a.realmId = :realmId and a.employmentId in
+                (select e.id from EmploymentEntity e where e.realmId = :realmId and e.personId = :personId)))))
+                or (x.kind = 'UNIT_ROLE' and x.resourceId in
+                (select r.id from UnitRoleEntity r where r.realmId = :realmId and r.employmentId in
+                (select e.id from EmploymentEntity e where e.realmId = :realmId and e.personId = :personId))))""",
+                // Lines where the person reports, and lines where the person is the manager.
+                """
+                delete from ReportingLineEntity r where r.realmId = :realmId
+                and (r.managerPersonId = :personId or r.assignmentId in
+                (select a.assignmentId from AssignmentEntity a where a.realmId = :realmId
+                and a.employmentId in
+                (select e.id from EmploymentEntity e where e.realmId = :realmId and e.personId = :personId)))""",
                 """
                 delete from UnitRoleEntity r where r.realmId = :realmId and r.employmentId in
                 (select e.id from EmploymentEntity e where e.realmId = :realmId and e.personId = :personId)""",

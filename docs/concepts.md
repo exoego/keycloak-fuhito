@@ -128,21 +128,24 @@ These kinds are fixed, because fields of the resources point to them. A realm ca
 
 ## IDs in other systems
 
-An org unit, a person, an employment, an assignment, and a qualification can have an ID in each system that knows it, such as an HR system, a payroll system, and a time keeping system.
+Every resource with an ID of its own can have an ID in each system that knows it, such as an HR system, a payroll system, and a time keeping system.
+These are org units, people, employments, assignments, qualifications, reporting lines, roles over org units, change orders, reference items, kinds of reference data that a realm added, hierarchies, and attribute definitions.
 Every ID of every system is one row of one table, also the ID of the system that made the resource.
-The resource itself keeps only `source`, the name of the system that made it.
+An org unit, a person, an employment, an assignment, and a qualification keep `source`, the name of the system that made them. The other resources keep no system.
 
 - A write with `source` and `externalId` stores the ID of that system for the resource. It replaces the ID that the system had. A write without them leaves the IDs as they are.
 - A create also sets `source` of the resource. It never changes, also when the ID of that system is removed.
-- A read of a resource gives `source` and `externalIds`, the list of every ID. The ID of the system of `source` comes first, then the others by system. A read of many resources reads the IDs of all of them at once.
+- The other resources take `source` and `externalId` only in a create. `PUT /external-ids` changes their IDs later.
+- A read of a resource gives `externalIds`, the list of every ID, and `source` when the resource keeps it. The ID of the system of `source` comes first, then the others by system. A read of many resources reads the IDs of all of them at once.
+- An ID is part of its resource. A change of an ID counts up the version of the resource, once in a write.
 - `PUT /external-ids` stores the ID of one system for one resource, and `DELETE /external-ids` removes it.
 - A resource has at most one ID for each system.
 - One ID of one system names one resource of a kind.
 - `GET /external-ids/lookup?resourceType=&source=&externalId=` finds the resource.
 - `GET /external-ids?resourceType=&resourceId=` lists every ID of one resource, the ID of the system that made it first. That one has `own`.
 - The import matches a row by the ID of any system. A file of the payroll system finds a person that the HR system made, when the person has an ID of the payroll system.
-- A resource that goes away takes its IDs with it. A mask and an erase remove the IDs of the person and of the records of the person.
-- The IDs of an org unit need the permission to read the org structure. The others need the full read.
+- A resource that goes away takes its IDs with it. A mask and an erase remove the IDs of the person and of the records of the person. These records are the employments, the assignments, the qualifications, the roles over org units, and the reporting lines where the person reports or is the manager.
+- The IDs of an org unit, a reference item, a kind of reference data, a hierarchy, and an attribute definition need the permission to read the org structure. The others need the full read.
 
 ## Free attributes
 

@@ -31,7 +31,21 @@ public record ExternalId(String id, Kind kind, String resourceId, String source,
         /** An assignment. */
         ASSIGNMENT,
         /** A qualification. */
-        QUALIFICATION
+        QUALIFICATION,
+        /** A reporting line. */
+        REPORTING_LINE,
+        /** A role over an org unit. */
+        UNIT_ROLE,
+        /** A change order. */
+        CHANGE_ORDER,
+        /** A reference item. */
+        REF_ITEM,
+        /** A kind of reference data that a realm added. */
+        REF_KIND,
+        /** A hierarchy. */
+        HIERARCHY,
+        /** The definition of a free attribute. */
+        ATTRIBUTE_DEFINITION
     }
 
     /**

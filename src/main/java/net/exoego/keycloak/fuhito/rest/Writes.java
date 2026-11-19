@@ -69,6 +69,14 @@ final class Writes {
                     assignment.state().assignmentId();
             case Write.OfQualification qualification when kind == ExternalId.Kind.QUALIFICATION ->
                     qualification.state().qualification().id();
+            case Write.OfReportingLine line when kind == ExternalId.Kind.REPORTING_LINE -> line.state().id();
+            case Write.OfUnitRole role when kind == ExternalId.Kind.UNIT_ROLE -> role.state().role().id();
+            case Write.OfChangeOrder order when kind == ExternalId.Kind.CHANGE_ORDER -> order.state().id();
+            case Write.OfRefItem item when kind == ExternalId.Kind.REF_ITEM -> item.state().id();
+            case Write.OfRefKind refKind when kind == ExternalId.Kind.REF_KIND -> refKind.state().id();
+            case Write.OfHierarchy hierarchy when kind == ExternalId.Kind.HIERARCHY -> hierarchy.state().id();
+            case Write.OfAttributeDefinition definition when kind == ExternalId.Kind.ATTRIBUTE_DEFINITION ->
+                    definition.state().id();
             default -> null;
         };
     }
@@ -76,10 +84,14 @@ final class Writes {
     private static void record(RequestContext context, Function<ExternalId.Kind, ExternalIdLists> ids,
             Write write, Locale language) {
         Object representation = switch (write) {
-            case Write.OfRefItem item -> RefItemRepresentation.of(item.state(), language);
-            case Write.OfRefKind kind -> RefKindRepresentation.of(kind.state(), language);
-            case Write.OfAttributeDefinition definition -> AttributeDefinitionRepresentation.of(definition.state());
-            case Write.OfHierarchy hierarchy -> HierarchyRepresentation.of(hierarchy.state());
+            case Write.OfRefItem item -> RefItemRepresentation.of(item.state(), ids.apply(ExternalId.Kind.REF_ITEM),
+                    language);
+            case Write.OfRefKind kind -> RefKindRepresentation.of(kind.state(), ids.apply(ExternalId.Kind.REF_KIND),
+                    language);
+            case Write.OfAttributeDefinition definition -> AttributeDefinitionRepresentation.of(definition.state(),
+                    ids.apply(ExternalId.Kind.ATTRIBUTE_DEFINITION));
+            case Write.OfHierarchy hierarchy -> HierarchyRepresentation.of(hierarchy.state(),
+                    ids.apply(ExternalId.Kind.HIERARCHY));
             case Write.OfPerson person -> PersonRepresentation.of(person.state(),
                     ids.apply(ExternalId.Kind.PERSON), language);
             case Write.OfOrgUnit unit -> OrgUnitRepresentation.of(unit.state(),
@@ -93,12 +105,15 @@ final class Writes {
                     ids.apply(ExternalId.Kind.EMPLOYMENT));
             case Write.OfAssignment assignment -> AssignmentRepresentation.of(assignment.state(),
                     ids.apply(ExternalId.Kind.ASSIGNMENT));
-            case Write.OfReportingLine line -> ReportingLineRepresentation.of(line.state());
-            case Write.OfUnitRole role -> UnitRoleRepresentation.of(role.state());
+            case Write.OfReportingLine line -> ReportingLineRepresentation.of(line.state(),
+                    ids.apply(ExternalId.Kind.REPORTING_LINE));
+            case Write.OfUnitRole role -> UnitRoleRepresentation.of(role.state(),
+                    ids.apply(ExternalId.Kind.UNIT_ROLE));
             case Write.OfQualification qualification -> QualificationRepresentation.of(qualification.state(),
                     ids.apply(ExternalId.Kind.QUALIFICATION));
             case Write.OfExternalId externalId -> ExternalIdRepresentation.of(externalId.state());
-            case Write.OfChangeOrder order -> ChangeOrderRepresentation.of(order.state());
+            case Write.OfChangeOrder order -> ChangeOrderRepresentation.of(order.state(),
+                    ids.apply(ExternalId.Kind.CHANGE_ORDER));
             case Write.Removed removed -> null;
         };
         Change change = write.deleted() ? Change.DELETE : write.created() ? Change.CREATE : Change.UPDATE;

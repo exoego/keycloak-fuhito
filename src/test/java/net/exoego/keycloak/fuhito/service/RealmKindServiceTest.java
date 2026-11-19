@@ -34,6 +34,11 @@ class RealmKindServiceTest {
         }
 
         @Override
+        public Optional<String> codeOf(String id) {
+            return rows.stream().filter(kind -> kind.id().equals(id)).map(RealmKind::code).findFirst();
+        }
+
+        @Override
         public void insert(RealmKind kind) {
             rows.add(kind);
         }

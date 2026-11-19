@@ -3,8 +3,10 @@ package net.exoego.keycloak.fuhito.jpa;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 import jakarta.persistence.EntityManager;
@@ -90,6 +92,11 @@ public class JpaUserDataMasker implements UserDataMasker {
         removeExternalIds("EMPLOYMENT", employmentIds);
         removeExternalIds("ASSIGNMENT", assignmentIds);
         removeExternalIds("QUALIFICATION", qualificationIds);
+        // The lines and the roles keep their values, so only those that lose an ID are written.
+        removeExternalIds("REPORTING_LINE", lineIds(personId))
+                .forEach(id -> Versions.reportingLine(em, realmId, id));
+        removeExternalIds("UNIT_ROLE", roleIds(employmentIds))
+                .forEach(id -> Versions.unitRole(em, realmId, id));
 
         if (maskedAt(personId).isEmpty()) {
             UserMaskEntity mark = new UserMaskEntity();
@@ -102,17 +109,44 @@ public class JpaUserDataMasker implements UserDataMasker {
         em.flush();
     }
 
-    // The IDs that systems have for the records of the person can identify the person too.
-    private void removeExternalIds(String kind, List<String> resourceIds) {
-        if (resourceIds.isEmpty()) {
-            return;
+    // Lines where the person reports, and lines where the person is the manager.
+    private List<String> lineIds(String personId) {
+        return em.createQuery("""
+                        select l.id from ReportingLineEntity l where l.realmId = :realmId
+                        and (l.managerPersonId = :personId or l.assignmentId in
+                        (select a.assignmentId from AssignmentEntity a where a.realmId = :realmId
+                        and a.employmentId in (select e.id from EmploymentEntity e where e.realmId = :realmId
+                        and e.personId = :personId)))""",
+                        String.class)
+                .setParameter("realmId", realmId).setParameter("personId", personId).getResultList();
+    }
+
+    private List<String> roleIds(List<String> employmentIds) {
+        if (employmentIds.isEmpty()) {
+            return List.of();
         }
+        return em.createQuery("""
+                        select r.id from UnitRoleEntity r where r.realmId = :realmId
+                        and %s""".formatted(ManyIds.has("r.employmentId", "ids")), String.class)
+                .setParameter("realmId", realmId).setParameter("ids", ManyIds.of(employmentIds)).getResultList();
+    }
+
+    // The IDs that systems have for the records of the person can identify the person too.
+    private Set<String> removeExternalIds(String kind, List<String> resourceIds) {
+        if (resourceIds.isEmpty()) {
+            return Set.of();
+        }
+        Set<String> owners = new LinkedHashSet<>();
         em.createQuery("""
                         select x from ExternalIdEntity x where x.realmId = :realmId and x.kind = :kind
                         and %s""".formatted(ManyIds.has("x.resourceId", "ids")), ExternalIdEntity.class)
                 .setParameter("realmId", realmId).setParameter("kind", kind)
                 .setParameter("ids", ManyIds.of(resourceIds))
                 .getResultList()
-                .forEach(em::remove);
+                .forEach(row -> {
+                    owners.add(row.resourceId);
+                    em.remove(row);
+                });
+        return owners;
     }
 }

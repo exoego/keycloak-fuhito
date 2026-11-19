@@ -93,7 +93,7 @@ class AdminApiIT {
 
         assertEquals(200, response.statusCode());
         assertTrue(response.body().matches(
-                "\\[\\{\"id\":\"[^\"]+\",\"version\":1,\"code\":\"default\",\"name\":\"Default\"}]"),
+                "\\[\\{\"id\":\"[^\"]+\",\"version\":1,\"code\":\"default\",\"name\":\"Default\",\"externalIds\":\\[]}]"),
                 response.body());
     }
 

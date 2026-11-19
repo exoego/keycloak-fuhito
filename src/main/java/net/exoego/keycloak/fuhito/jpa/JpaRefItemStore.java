@@ -233,6 +233,7 @@ public class JpaRefItemStore implements RefItemStore {
                     .setParameter("realmId", realmId)
                     .setParameter("id", id)
                     .executeUpdate();
+            ExternalIds.deleteOf(em, realmId, "REF_ITEM", id);
             em.remove(entity);
         });
     }

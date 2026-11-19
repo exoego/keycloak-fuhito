@@ -265,9 +265,10 @@ components:
         version:
           type: integer
           format: int64
-          description: The version of the definition. A new definition has 1. Each
-            write counts it up by one. A write of a stored definition sends the version
-            that the caller read. A create needs none.
+          description: "The version of the definition. A new definition has 1. Each\
+            \ write counts it up by one, also a change of an ID of another system.\
+            \ A write of a stored definition sends the version that the caller read.\
+            \ A create needs none."
         target:
           type: string
           description: The kind of resource. Only a create request reads it.
@@ -304,6 +305,25 @@ components:
           description: True when every write of the resource must give a value. A
             list needs at least one element.
           default: false
+        externalId:
+          type: string
+          maxLength: 255
+          description: The ID of the definition in the system that `source` names.
+            Only a create reads it. A read gives every ID in `externalIds`.
+          writeOnly: true
+        source:
+          type: string
+          maxLength: 64
+          pattern: "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
+          description: The name of the system of `externalId`. Only a create reads
+            it.
+          writeOnly: true
+        externalIds:
+          type: array
+          items:
+            $ref: "#/components/schemas/ExternalIdPair"
+          description: "Every ID that a system has for the definition, by system."
+          readOnly: true
     ChangeLogEntry:
       required:
       - id
@@ -364,9 +384,10 @@ components:
         version:
           type: integer
           format: int64
-          description: The version of the order. A new order has 1. Each write counts
-            it up by one. A write of a stored order sends the version that the caller
-            read. A create needs none.
+          description: "The version of the order. A new order has 1. Each write counts\
+            \ it up by one, also a change of an ID of another system. A write of a\
+            \ stored order sends the version that the caller read. A create needs\
+            \ none."
         number:
           type: string
           maxLength: 64
@@ -415,6 +436,25 @@ components:
         announcedByUserId:
           type: string
           description: The ID of the Keycloak user who recorded the announcement.
+          readOnly: true
+        externalId:
+          type: string
+          maxLength: 255
+          description: The ID of the order in the system that `source` names. Only
+            a create reads it. A read gives every ID in `externalIds`.
+          writeOnly: true
+        source:
+          type: string
+          maxLength: 64
+          pattern: "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
+          description: The name of the system of `externalId`. Only a create reads
+            it.
+          writeOnly: true
+        externalIds:
+          type: array
+          items:
+            $ref: "#/components/schemas/ExternalIdPair"
+          description: "Every ID that a system has for the order, by system."
           readOnly: true
     Count:
       required:
@@ -1115,6 +1155,13 @@ components:
           - EMPLOYMENT
           - ASSIGNMENT
           - QUALIFICATION
+          - REPORTING_LINE
+          - UNIT_ROLE
+          - CHANGE_ORDER
+          - REF_ITEM
+          - REF_KIND
+          - HIERARCHY
+          - ATTRIBUTE_DEFINITION
         resourceId:
           type: string
         source:
@@ -1164,9 +1211,10 @@ components:
         version:
           type: integer
           format: int64
-          description: The version of the hierarchy. A new hierarchy has 1. Each write
-            counts it up by one. A write of a stored hierarchy sends the version that
-            the caller read. A create needs none.
+          description: "The version of the hierarchy. A new hierarchy has 1. Each\
+            \ write counts it up by one, also a change of an ID of another system.\
+            \ A write of a stored hierarchy sends the version that the caller read.\
+            \ A create needs none."
         code:
           type: string
           maxLength: 64
@@ -1176,6 +1224,25 @@ components:
         name:
           type: string
           maxLength: 255
+        externalId:
+          type: string
+          maxLength: 255
+          description: The ID of the hierarchy in the system that `source` names.
+            Only a create reads it. A read gives every ID in `externalIds`.
+          writeOnly: true
+        source:
+          type: string
+          maxLength: 64
+          pattern: "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
+          description: The name of the system of `externalId`. Only a create reads
+            it.
+          writeOnly: true
+        externalIds:
+          type: array
+          items:
+            $ref: "#/components/schemas/ExternalIdPair"
+          description: "Every ID that a system has for the hierarchy, by system."
+          readOnly: true
     ImportAssignmentRow:
       type: object
       description: "An assignment. It is matched by its ID in the system of `source`,\
@@ -1594,6 +1661,13 @@ components:
           - EMPLOYMENT
           - ASSIGNMENT
           - QUALIFICATION
+          - REPORTING_LINE
+          - UNIT_ROLE
+          - CHANGE_ORDER
+          - REF_ITEM
+          - REF_KIND
+          - HIERARCHY
+          - ATTRIBUTE_DEFINITION
         resourceId:
           type: string
           description: The ID of the resource.
@@ -2987,9 +3061,9 @@ components:
         version:
           type: integer
           format: int64
-          description: The version of the item. A new item has 1. Each write counts
-            it up by one. A write of a stored item sends the version that the caller
-            read. A create needs none.
+          description: "The version of the item. A new item has 1. Each write counts\
+            \ it up by one, also a change of an ID of another system. A write of a\
+            \ stored item sends the version that the caller read. A create needs none."
         kind:
           type: string
           description: "A fixed kind such as `UNIT_TYPE`, or the code of a kind that\
@@ -3060,12 +3134,32 @@ components:
           description: The first date after the names. It is missing for no end.
           format: date
           readOnly: true
+        externalId:
+          type: string
+          maxLength: 255
+          description: The ID of the item in the system that `source` names. Only
+            a create reads it. A read gives every ID in `externalIds`.
+          writeOnly: true
+        source:
+          type: string
+          maxLength: 64
+          pattern: "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
+          description: The name of the system of `externalId`. Only a create reads
+            it.
+          writeOnly: true
+        externalIds:
+          type: array
+          items:
+            $ref: "#/components/schemas/ExternalIdPair"
+          description: "Every ID that a system has for the item, by system."
+          readOnly: true
     RefItemHistory:
       required:
       - id
       - version
       - kind
       - code
+      - externalIds
       - versions
       description: Every period of the names of a reference item. The other values
         of the item have no dates.
@@ -3082,6 +3176,11 @@ components:
           type: string
         code:
           type: string
+        externalIds:
+          type: array
+          items:
+            $ref: "#/components/schemas/ExternalIdPair"
+          description: "Every ID that a system has for the item, by system."
         versions:
           type: array
           items:
@@ -3150,6 +3249,10 @@ components:
       description: A kind of reference data.
       type: object
       properties:
+        id:
+          type: string
+          description: The ID of a kind that the realm added. A fixed kind has none.
+          readOnly: true
         code:
           type: string
           maxLength: 32
@@ -3181,9 +3284,29 @@ components:
         version:
           type: integer
           format: int64
-          description: The version of a kind that the realm added. A new kind has
-            1. Each write counts it up by one. A fixed kind has none. A write of a
-            stored kind sends the version that the caller read. A create needs none.
+          description: "The version of a kind that the realm added. A new kind has\
+            \ 1. Each write counts it up by one, also a change of an ID of another\
+            \ system. A fixed kind has none. A write of a stored kind sends the version\
+            \ that the caller read. A create needs none."
+        externalId:
+          type: string
+          maxLength: 255
+          description: The ID of the kind in the system that `source` names. Only
+            a create reads it. A read gives every ID in `externalIds`.
+          writeOnly: true
+        source:
+          type: string
+          maxLength: 64
+          pattern: "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
+          description: The name of the system of `externalId`. Only a create reads
+            it.
+          writeOnly: true
+        externalIds:
+          type: array
+          items:
+            $ref: "#/components/schemas/ExternalIdPair"
+          description: "Every ID that a system has for the kind, by system."
+          readOnly: true
     RefKindName:
       required:
       - name
@@ -3378,8 +3501,8 @@ components:
         version:
           type: integer
           format: int64
-          description: The version of the line. A new line has 1. Each write counts
-            it up by one.
+          description: "The version of the line. A new line has 1. Each write counts\
+            \ it up by one, also a change of an ID of another system."
           readOnly: true
         assignmentId:
           type: string
@@ -3404,6 +3527,25 @@ components:
           description: The first date after the line. Leave it out to last as long
             as the assignment.
           format: date
+        externalId:
+          type: string
+          maxLength: 255
+          description: The ID of the line in the system that `source` names. Only
+            a create reads it. A read gives every ID in `externalIds`.
+          writeOnly: true
+        source:
+          type: string
+          maxLength: 64
+          pattern: "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
+          description: The name of the system of `externalId`. Only a create reads
+            it.
+          writeOnly: true
+        externalIds:
+          type: array
+          items:
+            $ref: "#/components/schemas/ExternalIdPair"
+          description: "Every ID that a system has for the line, by system."
+          readOnly: true
     Return:
       required:
       - version
@@ -3845,8 +3987,8 @@ components:
         version:
           type: integer
           format: int64
-          description: The version of the role. A new role has 1. Each write counts
-            it up by one.
+          description: "The version of the role. A new role has 1. Each write counts\
+            \ it up by one, also a change of an ID of another system."
           readOnly: true
         employmentId:
           type: string
@@ -3879,6 +4021,25 @@ components:
           description: The first date after the role. Leave it out to last as long
             as the employment.
           format: date
+        externalId:
+          type: string
+          maxLength: 255
+          description: The ID of the role in the system that `source` names. Only
+            a create reads it. A read gives every ID in `externalIds`.
+          writeOnly: true
+        source:
+          type: string
+          maxLength: 64
+          pattern: "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
+          description: The name of the system of `externalId`. Only a create reads
+            it.
+          writeOnly: true
+        externalIds:
+          type: array
+          items:
+            $ref: "#/components/schemas/ExternalIdPair"
+          description: "Every ID that a system has for the role, by system."
+          readOnly: true
     UserHistory:
       required:
       - employments
@@ -5841,8 +6002,9 @@ paths:
     get:
       summary: Lists every ID that systems have for one resource.
       description: "The ID of the system that made the resource comes first, then\
-        \ the others by system. The IDs of an org unit need the permission to read\
-        \ the org structure. The others need the full read."
+        \ the others by system. The IDs of an org unit, a reference item, a kind of\
+        \ reference data, a hierarchy, and an attribute definition need the permission\
+        \ to read the org structure. The others need the full read."
       operationId: listExternalIds
       tags:
       - general
@@ -5854,7 +6016,8 @@ paths:
         schema:
           type: string
       - description: "The kind of resource, ORG_UNIT, PERSON, EMPLOYMENT, ASSIGNMENT,\
-          \ or QUALIFICATION."
+          \ QUALIFICATION, REPORTING_LINE, UNIT_ROLE, CHANGE_ORDER, REF_ITEM, REF_KIND,\
+          \ HIERARCHY, or ATTRIBUTE_DEFINITION."
         required: true
         name: resourceType
         in: query
@@ -5894,7 +6057,8 @@ paths:
         schema:
           type: string
       - description: "The kind of resource, ORG_UNIT, PERSON, EMPLOYMENT, ASSIGNMENT,\
-          \ or QUALIFICATION."
+          \ QUALIFICATION, REPORTING_LINE, UNIT_ROLE, CHANGE_ORDER, REF_ITEM, REF_KIND,\
+          \ HIERARCHY, or ATTRIBUTE_DEFINITION."
         required: true
         name: resourceType
         in: query
@@ -5944,7 +6108,8 @@ paths:
         schema:
           type: string
       - description: "The kind of resource, ORG_UNIT, PERSON, EMPLOYMENT, ASSIGNMENT,\
-          \ or QUALIFICATION."
+          \ QUALIFICATION, REPORTING_LINE, UNIT_ROLE, CHANGE_ORDER, REF_ITEM, REF_KIND,\
+          \ HIERARCHY, or ATTRIBUTE_DEFINITION."
         required: true
         name: resourceType
         in: query

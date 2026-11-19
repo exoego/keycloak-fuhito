@@ -18,6 +18,7 @@ import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.rest.RequestContext.Change;
 import net.exoego.keycloak.fuhito.service.ExternalIdService;
 import net.exoego.keycloak.fuhito.service.OrgUnitService;
+import net.exoego.keycloak.fuhito.service.RealmKindService;
 import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.enums.SchemaType;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
@@ -38,11 +39,13 @@ public class ExternalIdsResource {
      */
     public static final String RESOURCE_TYPE = "FUHITO_EXTERNAL_ID";
 
-    private static final String KINDS = "ORG_UNIT, PERSON, EMPLOYMENT, ASSIGNMENT, or QUALIFICATION.";
+    private static final String KINDS = "ORG_UNIT, PERSON, EMPLOYMENT, ASSIGNMENT, QUALIFICATION, REPORTING_LINE, "
+            + "UNIT_ROLE, CHANGE_ORDER, REF_ITEM, REF_KIND, HIERARCHY, or ATTRIBUTE_DEFINITION.";
 
     private final RequestContext context;
     private final ExternalIdService service;
     private final OrgUnitService orgUnits;
+    private final RealmKindService refKinds;
     private final StructureLimit limit;
 
     /**
@@ -51,13 +54,15 @@ public class ExternalIdsResource {
      * @param context the request and its caller
      * @param service the operations on the realm of the request
      * @param orgUnits the org units of the realm of the request
+     * @param refKinds the kinds of reference data of the realm of the request
      * @param limit how far ahead a caller who may read only the structure may read it
      */
     ExternalIdsResource(RequestContext context, ExternalIdService service, OrgUnitService orgUnits,
-            StructureLimit limit) {
+            RealmKindService refKinds, StructureLimit limit) {
         this.context = context;
         this.service = service;
         this.orgUnits = orgUnits;
+        this.refKinds = refKinds;
         this.limit = limit;
     }
 
@@ -66,7 +71,8 @@ public class ExternalIdsResource {
             operationId = "listExternalIds",
             summary = "Lists every ID that systems have for one resource.",
             description = "The ID of the system that made the resource comes first, then the others by system. "
-                    + "The IDs of an org unit need the permission to read the org structure. The others need the "
+                    + "The IDs of an org unit, a reference item, a kind of reference data, a hierarchy, and an "
+                    + "attribute definition need the permission to read the org structure. The others need the "
                     + "full read.")
     @APIResponse(responseCode = "200", description = "The IDs.")
     @BadRequest
@@ -176,15 +182,27 @@ public class ExternalIdsResource {
     private void lockOwner(String resourceType, String resourceId) {
         ExternalId.Kind kind = Checks.optionalEnum("resourceType", ExternalId.Kind.class,
                 Checks.required("resourceType", resourceType), null);
-        if (resourceId != null) {
-            context.lock(Map.of(switch (kind) {
-                case ORG_UNIT -> "org-units";
-                case PERSON -> "people";
-                case EMPLOYMENT -> "employments";
-                case ASSIGNMENT -> "assignments";
-                case QUALIFICATION -> "qualifications";
-            }, List.of(resourceId)));
+        if (resourceId == null) {
+            return;
         }
+        String collection = switch (kind) {
+            case ORG_UNIT -> "org-units";
+            case PERSON -> "people";
+            case EMPLOYMENT -> "employments";
+            case ASSIGNMENT -> "assignments";
+            case QUALIFICATION -> "qualifications";
+            case REPORTING_LINE -> "reporting-lines";
+            case UNIT_ROLE -> "unit-roles";
+            case CHANGE_ORDER -> "change-orders";
+            case REF_ITEM -> "ref-items";
+            case REF_KIND -> "ref-kinds";
+            case HIERARCHY -> "hierarchies";
+            case ATTRIBUTE_DEFINITION -> "attribute-definitions";
+        };
+        // The rows of a kind of reference data are locked by the code that its path names.
+        List<String> ids = kind == ExternalId.Kind.REF_KIND ? refKinds.codeOf(resourceId).stream().toList()
+                : List.of(resourceId);
+        context.lock(Map.of(collection, ids));
     }
 
     // A new ID needs no version. JPA checks the version of the row again when it writes it.

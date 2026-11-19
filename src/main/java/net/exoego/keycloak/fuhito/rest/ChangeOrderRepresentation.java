@@ -1,9 +1,11 @@
 package net.exoego.keycloak.fuhito.rest;
 
+import java.util.List;
 import java.util.Objects;
 
 import net.exoego.keycloak.fuhito.domain.ChangeOrder;
 import net.exoego.keycloak.fuhito.service.ChangeOrderValues;
+import net.exoego.keycloak.fuhito.service.ExternalIdLists;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 
 /**
@@ -13,8 +15,9 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
 public record ChangeOrderRepresentation(
         @Schema(readOnly = true)
         String id,
-        @Schema(description = "The version of the order. A new order has 1. Each write counts it up by one. A write "
-                + "of a stored order sends the version that the caller read. A create needs none.")
+        @Schema(description = "The version of the order. A new order has 1. Each write counts it up by one, also a "
+                + "change of an ID of another system. A write of a stored order sends the version that the caller "
+                + "read. A create needs none.")
         Long version,
         @Schema(
                 description = "The number that the legal entity gives to the order.",
@@ -50,14 +53,28 @@ public record ChangeOrderRepresentation(
                 readOnly = true)
         String announcedAt,
         @Schema(description = "The ID of the Keycloak user who recorded the announcement.", readOnly = true)
-        String announcedByUserId) implements Versioned {
+        String announcedByUserId,
+        @Schema(
+                description = "The ID of the order in the system that `source` names. Only a create reads it. "
+                        + "A read gives every ID in `externalIds`.",
+                maxLength = 255,
+                writeOnly = true)
+        String externalId,
+        @Schema(
+                description = "The name of the system of `externalId`. Only a create reads it.",
+                maxLength = 64,
+                pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$",
+                writeOnly = true)
+        String source,
+        @Schema(description = "Every ID that a system has for the order, by system.", readOnly = true)
+        List<ExternalIdPairRepresentation> externalIds) implements Versioned {
 
-    static ChangeOrderRepresentation of(ChangeOrder order) {
+    static ChangeOrderRepresentation of(ChangeOrder order, ExternalIdLists ids) {
         return new ChangeOrderRepresentation(order.id(), order.version(), order.number(), order.kind(), order.title(),
                 order.note(), Objects.toString(order.orderDate(), null), order.effectiveDate().toString(),
                 order.approverUserId(), order.requesterUserId(), order.externalReference(),
                 order.createdAt().toString(), Objects.toString(order.announcedAt(), null),
-                order.announcedByUserId());
+                order.announcedByUserId(), null, null, ExternalIdPairRepresentation.of(ids.of(order.id(), null)));
     }
 
     ChangeOrderValues toValues() {

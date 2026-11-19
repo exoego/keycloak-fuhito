@@ -13,9 +13,13 @@ import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
+import net.exoego.keycloak.fuhito.domain.AttributeDefinition;
 import net.exoego.keycloak.fuhito.domain.Checks;
+import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.rest.RequestContext.Change;
 import net.exoego.keycloak.fuhito.service.AttributeDefinitionService;
+import net.exoego.keycloak.fuhito.service.ExternalIdLists;
+import net.exoego.keycloak.fuhito.service.ExternalIdService;
 import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.enums.SchemaType;
 import org.eclipse.microprofile.openapi.annotations.media.Content;
@@ -40,16 +44,20 @@ public class AttributeDefinitionsResource {
 
     private final RequestContext context;
     private final AttributeDefinitionService service;
+    private final ExternalIdService externalIds;
 
     /**
      * Creates the resource for one request.
      *
      * @param context the request and its caller
      * @param service the operations on the realm of the request
+     * @param externalIds the IDs that systems have for the resources of the realm
      */
-    public AttributeDefinitionsResource(RequestContext context, AttributeDefinitionService service) {
+    public AttributeDefinitionsResource(RequestContext context, AttributeDefinitionService service,
+            ExternalIdService externalIds) {
         this.context = context;
         this.service = service;
+        this.externalIds = externalIds;
     }
 
     @GET
@@ -66,9 +74,7 @@ public class AttributeDefinitionsResource {
                         "QUALIFICATION", "REF_ITEM"}))
             @QueryParam("target") String target) {
         context.requireReadStructure();
-        return Calls.run(context, () -> service.list(target).stream()
-                .map(AttributeDefinitionRepresentation::of)
-                .toList());
+        return Calls.run(context, () -> represent(service.list(target)));
     }
 
     @GET
@@ -81,7 +87,7 @@ public class AttributeDefinitionsResource {
             @Parameter(description = "The ID of the resource.")
             @PathParam("id") String id) {
         context.requireReadStructure();
-        return Calls.run(context, () -> AttributeDefinitionRepresentation.of(service.get(id)));
+        return Calls.run(context, () -> represent(service.get(id)));
     }
 
     @POST
@@ -102,8 +108,9 @@ public class AttributeDefinitionsResource {
         context.requireWrite();
         return Calls.run(context, () -> {
             Checks.required("body", body);
-            var definition = AttributeDefinitionRepresentation.of(service.create(body.target(), body.name(),
-                    body.type(), body.refKind(), body.multiple(), body.required()));
+            var definition = represent(externalIds.create(ExternalId.Kind.ATTRIBUTE_DEFINITION, body.source(),
+                    body.externalId(), () -> service.create(body.target(), body.name(), body.type(), body.refKind(),
+                            body.multiple(), body.required()), AttributeDefinition::id));
             context.recordChange(Change.CREATE, RESOURCE_TYPE, definition.id(), path(definition.id()), definition);
             return Response.status(Response.Status.CREATED).entity(definition).build();
         });
@@ -128,8 +135,8 @@ public class AttributeDefinitionsResource {
             AttributeDefinitionRepresentation body) {
         context.requireWrite();
         return Calls.guarded(context, body, () -> version(id), () -> {
-            var definition = AttributeDefinitionRepresentation.of(service.replace(id, body.type(), body.refKind(),
-                    body.multiple(), body.required()));
+            var definition = represent(service.replace(id, body.type(), body.refKind(), body.multiple(),
+                    body.required()));
             context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, path(id), definition);
             return definition;
         });
@@ -164,6 +171,17 @@ public class AttributeDefinitionsResource {
 
     private static String path(String id) {
         return "fuhito/attribute-definitions/" + id;
+    }
+
+    // The IDs of every definition of a list are read with one query.
+    private List<AttributeDefinitionRepresentation> represent(List<AttributeDefinition> definitions) {
+        ExternalIdLists ids = externalIds.lists(ExternalId.Kind.ATTRIBUTE_DEFINITION,
+                definitions.stream().map(AttributeDefinition::id).toList());
+        return definitions.stream().map(definition -> AttributeDefinitionRepresentation.of(definition, ids)).toList();
+    }
+
+    private AttributeDefinitionRepresentation represent(AttributeDefinition definition) {
+        return represent(List.of(definition)).getFirst();
     }
 
     private long version(String id) {
