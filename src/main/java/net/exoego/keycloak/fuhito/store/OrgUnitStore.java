@@ -44,6 +44,16 @@ public interface OrgUnitStore {
     Optional<OrgUnit> findUnit(String id);
 
     /**
+     * Lists the org units with the given IDs.
+     *
+     * @param ids the IDs
+     * @return the units that exist in the realm, in no order
+     */
+    default List<OrgUnit> findUnits(Collection<String> ids) {
+        return ids.stream().distinct().map(this::findUnit).flatMap(Optional::stream).toList();
+    }
+
+    /**
      * Finds the org unit that has a code on a date.
      *
      * @param code the code
@@ -59,6 +69,16 @@ public interface OrgUnitStore {
      * @return the details, oldest first
      */
     List<OrgUnitVersion> versionsWithCode(String code);
+
+    /**
+     * Lists the details of every org unit that have one of some codes, over all time.
+     *
+     * @param codes the codes
+     * @return the details, in no order
+     */
+    default List<OrgUnitVersion> versionsWithCodes(Collection<String> codes) {
+        return codes.stream().distinct().flatMap(code -> versionsWithCode(code).stream()).toList();
+    }
 
     /**
      * Finds the org unit that is linked to a Keycloak organization.
@@ -317,12 +337,38 @@ public interface OrgUnitStore {
     void insertUnit(OrgUnit unit);
 
     /**
+     * Stores new org units.
+     *
+     * @param units the units
+     */
+    default void insertUnits(List<OrgUnit> units) {
+        units.forEach(this::insertUnit);
+    }
+
+    /**
      * Lists all versions of an org unit, oldest first.
      *
      * @param orgUnitId the ID of the unit
      * @return the versions
      */
     List<OrgUnitVersion> versions(String orgUnitId);
+
+    /**
+     * Lists all versions of some org units, oldest first for each unit.
+     *
+     * @param orgUnitIds the IDs of the units
+     * @return the versions of each unit that has some, by the ID of the unit
+     */
+    default Map<String, List<OrgUnitVersion>> versionsOf(Collection<String> orgUnitIds) {
+        Map<String, List<OrgUnitVersion>> found = new HashMap<>();
+        orgUnitIds.stream().distinct().forEach(id -> {
+            List<OrgUnitVersion> versions = versions(id);
+            if (!versions.isEmpty()) {
+                found.put(id, versions);
+            }
+        });
+        return found;
+    }
 
     /**
      * Stores a new version.
@@ -346,6 +392,24 @@ public interface OrgUnitStore {
      * @return the links
      */
     List<OrgUnitLink> parentLinks(String hierarchyId, String childId);
+
+    /**
+     * Lists all parent links of some org units in a hierarchy, oldest first for each unit.
+     *
+     * @param hierarchyId the ID of the hierarchy
+     * @param childIds the IDs of the units
+     * @return the links of each unit that has some, by the ID of the unit
+     */
+    default Map<String, List<OrgUnitLink>> parentLinksOf(String hierarchyId, Collection<String> childIds) {
+        Map<String, List<OrgUnitLink>> found = new HashMap<>();
+        childIds.stream().distinct().forEach(id -> {
+            List<OrgUnitLink> links = parentLinks(hierarchyId, id);
+            if (!links.isEmpty()) {
+                found.put(id, links);
+            }
+        });
+        return found;
+    }
 
     /**
      * Lists all parent links of an org unit in every hierarchy, oldest first.

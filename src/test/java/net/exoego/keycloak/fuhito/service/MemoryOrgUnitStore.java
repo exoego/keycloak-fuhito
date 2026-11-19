@@ -40,9 +40,21 @@ final class MemoryOrgUnitStore implements OrgUnitStore {
         return "default-hierarchy";
     }
 
+    /** How often one unit, its versions, its parents, or the versions with one code were read. */
+    int oneReads;
+    /** How often the units, the versions, the parents, or the versions with the codes of a list were read. */
+    int manyReads;
+
     @Override
     public Optional<OrgUnit> findUnit(String id) {
+        oneReads++;
         return Optional.ofNullable(units.get(id));
+    }
+
+    @Override
+    public List<OrgUnit> findUnits(Collection<String> ids) {
+        manyReads++;
+        return ids.stream().distinct().map(units::get).filter(java.util.Objects::nonNull).toList();
     }
 
     @Override
@@ -55,7 +67,40 @@ final class MemoryOrgUnitStore implements OrgUnitStore {
 
     @Override
     public List<OrgUnitVersion> versionsWithCode(String code) {
+        oneReads++;
         return versions.stream().filter(v -> code.equals(v.code())).toList();
+    }
+
+    @Override
+    public List<OrgUnitVersion> versionsWithCodes(Collection<String> codes) {
+        manyReads++;
+        return versions.stream().filter(v -> codes.contains(v.code())).toList();
+    }
+
+    @Override
+    public Map<String, List<OrgUnitVersion>> versionsOf(Collection<String> orgUnitIds) {
+        manyReads++;
+        Map<String, List<OrgUnitVersion>> found = new HashMap<>();
+        orgUnitIds.stream().distinct().forEach(id -> {
+            List<OrgUnitVersion> of = stored(id);
+            if (!of.isEmpty()) {
+                found.put(id, of);
+            }
+        });
+        return found;
+    }
+
+    @Override
+    public Map<String, List<OrgUnitLink>> parentLinksOf(String hierarchyId, Collection<String> childIds) {
+        manyReads++;
+        Map<String, List<OrgUnitLink>> found = new HashMap<>();
+        childIds.stream().distinct().forEach(id -> {
+            List<OrgUnitLink> of = parentsOf(hierarchyId, id);
+            if (!of.isEmpty()) {
+                found.put(id, of);
+            }
+        });
+        return found;
     }
 
     @Override
@@ -201,7 +246,7 @@ final class MemoryOrgUnitStore implements OrgUnitStore {
             String workLocationId = null;
             String costCenterId = null;
             for (String unitId : line(defaultHierarchyId(), id, date)) {
-                Optional<OrgUnitVersion> version = versions(unitId).stream()
+                Optional<OrgUnitVersion> version = stored(unitId).stream()
                         .filter(v -> v.period().contains(date))
                         .findFirst();
                 if (version.isEmpty()) {
@@ -274,6 +319,11 @@ final class MemoryOrgUnitStore implements OrgUnitStore {
 
     @Override
     public List<OrgUnitVersion> versions(String orgUnitId) {
+        oneReads++;
+        return stored(orgUnitId);
+    }
+
+    private List<OrgUnitVersion> stored(String orgUnitId) {
         return versions.stream()
                 .filter(v -> v.orgUnitId().equals(orgUnitId))
                 .sorted(Comparator.comparing(v -> v.period().from()))
@@ -292,6 +342,11 @@ final class MemoryOrgUnitStore implements OrgUnitStore {
 
     @Override
     public List<OrgUnitLink> parentLinks(String hierarchyId, String childId) {
+        oneReads++;
+        return parentsOf(hierarchyId, childId);
+    }
+
+    private List<OrgUnitLink> parentsOf(String hierarchyId, String childId) {
         return links.stream()
                 .filter(l -> l.hierarchyId().equals(hierarchyId) && l.childId().equals(childId))
                 .sorted(Comparator.comparing(l -> l.period().from()))
