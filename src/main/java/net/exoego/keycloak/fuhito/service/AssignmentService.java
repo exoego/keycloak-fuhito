@@ -3,7 +3,10 @@ package net.exoego.keycloak.fuhito.service;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -18,7 +21,6 @@ import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.Employment;
 import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
-import net.exoego.keycloak.fuhito.domain.OrgUnitVersion;
 import net.exoego.keycloak.fuhito.domain.RefItem;
 import net.exoego.keycloak.fuhito.domain.RefKind;
 import net.exoego.keycloak.fuhito.domain.ValidPeriod;
@@ -35,6 +37,7 @@ import net.exoego.keycloak.fuhito.store.ReportingLineStore;
 public class AssignmentService {
 
     private final AssignmentStore store;
+    private final ExternalIdStore externalIdStore;
     private final ExternalIdWrites externalIds;
     private final EmploymentStore employments;
     private final OrgUnitStore orgUnits;
@@ -78,10 +81,22 @@ public class AssignmentService {
         this.attributeRules = attributeRules;
         this.reportingLines = reportingLines;
         this.store = store;
+        this.externalIdStore = externalIds;
         this.externalIds = new ExternalIdWrites(externalIds, ExternalId.Kind.ASSIGNMENT);
         this.employments = employments;
         this.orgUnits = orgUnits;
         this.refItems = refItems;
+    }
+
+    /**
+     * Returns the same operations that read the definitions of attributes once for each kind of resource. They
+     * suit a list of writes that changes no definition.
+     *
+     * @return the operations
+     */
+    AssignmentService remembering() {
+        return new AssignmentService(store, externalIdStore, employments, orgUnits, refItems, reportingLines, today,
+                attributeRules.remembering());
     }
 
     /**
@@ -109,38 +124,155 @@ public class AssignmentService {
      *         exist or is of another person
      */
     AssignmentView add(AssignmentValues request, String continuesAssignmentId) {
-        Checks.required("body", request);
-        String employmentId = Checks.required("employmentId", request.employmentId());
-        String orgUnitId = Checks.required("orgUnitId", request.orgUnitId());
-        LocalDate from = Checks.date("validFrom", request.validFrom());
-        LocalDate to = Checks.optionalDate("validTo", request.validTo());
-        Employment employment = employments.find(employmentId).orElseThrow(
-                () -> FuhitoException.invalid("assignment.employment_unknown", Map.of("employmentId", employmentId)));
-        ValidPeriod period = Checks.period(from, to == null ? employment.period().to() : to);
-        if (!employment.period().encloses(period)) {
-            throw FuhitoException.conflict("assignment.outside_employment", Map.of("employmentId", employmentId,
-                    "validFrom", period.from().toString()));
+        NewAssignments adds = new NewAssignments(externalIds);
+        String id = adds.add(request, continuesAssignmentId);
+        adds.insert();
+        return get(id);
+    }
+
+    /**
+     * Starts new assignments of one list of writes.
+     *
+     * @param ids finds the assignment that an ID of a system names
+     * @return the new assignments
+     */
+    NewAssignments newAssignments(ExternalIdWrites.Lookup ids) {
+        return new NewAssignments(new ExternalIdWrites(externalIdStore, ExternalId.Kind.ASSIGNMENT, ids));
+    }
+
+    /**
+     * The new assignments of one list of writes. Each one is checked against the stored assignments and the new
+     * ones before it. All of them are stored together.
+     */
+    final class NewAssignments {
+
+        private final ExternalIdWrites ids;
+        private final Map<String, Optional<Employment>> employmentsById = new HashMap<>();
+        private final Map<String, Optional<ValidPeriod>> lives = new HashMap<>();
+        private final Map<String, List<Assignment>> ofEmployment = new HashMap<>();
+        private final Map<String, Assignment> added = new LinkedHashMap<>();
+        private final List<ExternalId> rows = new ArrayList<>();
+        private final List<String> inserted = new ArrayList<>();
+
+        private NewAssignments(ExternalIdWrites ids) {
+            this.ids = ids;
         }
-        requireOrgUnitCovers(orgUnitId, period);
-        ExternalId.Pair externalId = externalIds.check(null, request.source(), request.externalId());
-        if (continuesAssignmentId != null) {
-            List<Assignment> previous = store.rows(continuesAssignmentId);
-            if (previous.isEmpty()) {
-                throw FuhitoException.invalid("assignment.continues_unknown", Map.of("id", continuesAssignmentId));
+
+        /**
+         * Reads some employments with the rows of their assignments, and the lives of some org units, with one read
+         * for each.
+         *
+         * @param employmentIds the IDs of the employments
+         * @param orgUnitIds the IDs of the org units
+         */
+        void read(Collection<String> employmentIds, Collection<String> orgUnitIds) {
+            List<String> unread = employmentIds.stream().distinct().filter(id -> !ofEmployment.containsKey(id))
+                    .toList();
+            if (!unread.isEmpty()) {
+                unread.forEach(id -> {
+                    employmentsById.put(id, Optional.empty());
+                    ofEmployment.put(id, new ArrayList<>());
+                });
+                employments.findAll(unread).forEach(e -> employmentsById.put(e.id(), Optional.of(e)));
+                store.rowsOfEmployments(unread).forEach(row -> ofEmployment.get(row.employmentId()).add(row));
             }
-            if (!employments.find(previous.getFirst().employmentId()).map(Employment::personId)
-                    .equals(Optional.of(employment.personId()))) {
-                throw FuhitoException.invalid("assignment.continues_other", Map.of("id", continuesAssignmentId));
+            List<String> units = orgUnitIds.stream().distinct().filter(id -> !lives.containsKey(id)).toList();
+            units.forEach(id -> lives.put(id, Optional.empty()));
+            if (!units.isEmpty()) {
+                orgUnits.livesOf(units).forEach((id, life) -> lives.put(id, Optional.of(life)));
             }
         }
 
-        String assignmentId = newId();
-        Assignment row = row(newId(), assignmentId, employmentId, orgUnitId, period, request, null,
-                Checks.optionalCode("source", request.source()), continuesAssignmentId);
-        claimPrimary(row, request);
-        store.insert(row);
-        externalIds.store(assignmentId, externalId);
-        return get(assignmentId);
+        /**
+         * Finds an employment.
+         *
+         * @param id the ID of the employment
+         * @return the employment, or empty when the realm has none with the ID
+         */
+        Optional<Employment> employment(String id) {
+            return employmentsById.computeIfAbsent(id, employments::find);
+        }
+
+        /**
+         * Lets the next new assignment of an employment read its stored rows again, after a write of them.
+         *
+         * @param employmentId the ID of the employment
+         */
+        void forget(String employmentId) {
+            ofEmployment.remove(employmentId);
+        }
+
+        /**
+         * Checks a new assignment as {@link AssignmentService#add(AssignmentValues, String)} does, and keeps it for
+         * {@link #insert}.
+         *
+         * @param request the values of the request
+         * @param continuesAssignmentId the ID of the assignment that the new one continues, or null
+         * @return the ID of the new assignment
+         */
+        String add(AssignmentValues request, String continuesAssignmentId) {
+            Checks.required("body", request);
+            String employmentId = Checks.required("employmentId", request.employmentId());
+            String orgUnitId = Checks.required("orgUnitId", request.orgUnitId());
+            LocalDate from = Checks.date("validFrom", request.validFrom());
+            LocalDate to = Checks.optionalDate("validTo", request.validTo());
+            Employment employment = employment(employmentId).orElseThrow(() -> FuhitoException.invalid(
+                    "assignment.employment_unknown", Map.of("employmentId", employmentId)));
+            ValidPeriod period = Checks.period(from, to == null ? employment.period().to() : to);
+            if (!employment.period().encloses(period)) {
+                throw FuhitoException.conflict("assignment.outside_employment", Map.of("employmentId", employmentId,
+                        "validFrom", period.from().toString()));
+            }
+            requireOrgUnitCovers(orgUnitId, period, lives.computeIfAbsent(orgUnitId, AssignmentService.this::lifeOf));
+            ExternalId.Pair externalId = ids.check(null, request.source(), request.externalId());
+            if (continuesAssignmentId != null) {
+                List<Assignment> previous = added.containsKey(continuesAssignmentId)
+                        ? List.of(added.get(continuesAssignmentId)) : store.rows(continuesAssignmentId);
+                if (previous.isEmpty()) {
+                    throw FuhitoException.invalid("assignment.continues_unknown", Map.of("id", continuesAssignmentId));
+                }
+                if (!employment(previous.getFirst().employmentId()).map(Employment::personId)
+                        .equals(Optional.of(employment.personId()))) {
+                    throw FuhitoException.invalid("assignment.continues_other", Map.of("id", continuesAssignmentId));
+                }
+            }
+
+            String assignmentId = newId();
+            Assignment row = row(newId(), assignmentId, employmentId, orgUnitId, period, request, null,
+                    Checks.optionalCode("source", request.source()), continuesAssignmentId);
+            if (claimPrimary(row, request, rowsOf(employmentId))) {
+                forget(employmentId);
+            }
+            rowsOf(employmentId).add(row);
+            added.put(assignmentId, row);
+            ids.forNew(assignmentId, externalId).ifPresent(rows::add);
+            return assignmentId;
+        }
+
+        private List<Assignment> rowsOf(String employmentId) {
+            return ofEmployment.computeIfAbsent(employmentId,
+                    id -> new ArrayList<>(store.rowsOfEmployment(id)));
+        }
+
+        /**
+         * Stores the new assignments that are not stored yet, with their IDs of other systems.
+         */
+        void insert() {
+            store.insertAll(List.copyOf(added.values()));
+            externalIdStore.insertAll(List.copyOf(rows));
+            inserted.addAll(added.keySet());
+            added.clear();
+            rows.clear();
+        }
+
+        /**
+         * Reads the new assignments that {@link #insert} stored, with one read for each kind of record.
+         *
+         * @return the assignments, by ID
+         */
+        Map<String, AssignmentView> views() {
+            return findAll(inserted);
+        }
     }
 
     /**
@@ -314,13 +446,32 @@ public class AssignmentService {
     public List<AssignmentView> getAll(List<String> ids) {
         Map<String, List<Assignment>> rowsById = store.rowsOf(ids).stream()
                 .collect(Collectors.groupingBy(Assignment::assignmentId));
-        Map<String, LocalDate> dates = new HashMap<>();
         for (String id : ids) {
-            List<Assignment> rows = rowsById.get(id);
-            if (rows == null) {
+            if (!rowsById.containsKey(id)) {
                 throw FuhitoException.notFound("assignment.not_found", Map.of("id", id));
             }
-            dates.put(id, today.ofUnit(rows.getFirst().orgUnitId()));
+        }
+        return views(ids, rowsById);
+    }
+
+    /**
+     * Finds several assignments with their details over time, as {@link #get} returns each.
+     *
+     * @param ids the IDs of the assignments
+     * @return the assignments that the realm has, by ID
+     */
+    Map<String, AssignmentView> findAll(Collection<String> ids) {
+        Map<String, List<Assignment>> rowsById = store.rowsOf(ids).stream()
+                .collect(Collectors.groupingBy(Assignment::assignmentId));
+        Map<String, AssignmentView> found = new HashMap<>();
+        views(List.copyOf(rowsById.keySet()), rowsById).forEach(view -> found.put(view.assignmentId(), view));
+        return found;
+    }
+
+    private List<AssignmentView> views(List<String> ids, Map<String, List<Assignment>> rowsById) {
+        Map<String, LocalDate> dates = new HashMap<>();
+        for (String id : ids) {
+            dates.put(id, today.ofUnit(rowsById.get(id).getFirst().orgUnitId()));
         }
         Map<String, String> userIds = new HashMap<>();
         employments.findAll(rowsById.values().stream().map(rows -> rows.getFirst().employmentId()).toList())
@@ -392,15 +543,22 @@ public class AssignmentService {
 
     // An employment has at most one primary assignment on any date.
     private void claimPrimary(Assignment claimant, AssignmentValues request) {
+        claimPrimary(claimant, request, store.rowsOfEmployment(claimant.employmentId()));
+    }
+
+    // Tells whether the claimant took the flag from rows that held it, which then changed.
+    private boolean claimPrimary(Assignment claimant, AssignmentValues request, List<Assignment> ofEmployment) {
         if (!claimant.primary()) {
-            return;
+            return false;
         }
-        List<Assignment> holders = store.rowsOfEmployment(claimant.employmentId()).stream()
+        List<Assignment> holders = ofEmployment.stream()
                 .filter(other -> other.primary() && !other.assignmentId().equals(claimant.assignmentId())
                         && other.period().overlaps(claimant.period()))
+                .sorted(Comparator.comparing((Assignment other) -> other.period().from())
+                        .thenComparing(Assignment::rowId))
                 .toList();
         if (holders.isEmpty()) {
-            return;
+            return false;
         }
         if (!Boolean.TRUE.equals(request.switchPrimary())) {
             throw FuhitoException.conflict("assignment.primary_exists", Map.of("employmentId",
@@ -408,6 +566,7 @@ public class AssignmentService {
                     claimant.period().from().toString()));
         }
         holders.forEach(holder -> releasePrimary(holder, claimant.period()));
+        return true;
     }
 
     // Splits the holder so that it stays primary before and after the period, and is not primary inside it.
@@ -435,14 +594,18 @@ public class AssignmentService {
         return rows;
     }
 
-    // The org unit must exist on every date of the assignment. Versions of one unit have no gaps.
+    // The org unit must exist on every date of the assignment.
     private void requireOrgUnitCovers(String orgUnitId, ValidPeriod period) {
-        List<OrgUnitVersion> versions = orgUnits.versions(orgUnitId);
-        if (versions.isEmpty()) {
-            throw FuhitoException.invalid("assignment.org_unit_unknown", Map.of("orgUnitId", orgUnitId));
-        }
-        ValidPeriod life = new ValidPeriod(versions.getFirst().period().from(),
-                versions.getLast().period().to());
+        requireOrgUnitCovers(orgUnitId, period, lifeOf(orgUnitId));
+    }
+
+    private Optional<ValidPeriod> lifeOf(String orgUnitId) {
+        return Optional.ofNullable(orgUnits.livesOf(List.of(orgUnitId)).get(orgUnitId));
+    }
+
+    private static void requireOrgUnitCovers(String orgUnitId, ValidPeriod period, Optional<ValidPeriod> unitLife) {
+        ValidPeriod life = unitLife.orElseThrow(() -> FuhitoException.invalid("assignment.org_unit_unknown",
+                Map.of("orgUnitId", orgUnitId)));
         if (!life.encloses(period)) {
             throw FuhitoException.conflict("assignment.org_unit_not_valid",
                     Map.of("orgUnitId", orgUnitId, "validFrom", period.from().toString()));

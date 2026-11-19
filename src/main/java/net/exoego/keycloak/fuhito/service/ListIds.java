@@ -71,8 +71,8 @@ final class ListIds {
     }
 
     /**
-     * Creates a resource with an ID of a system, and notes the ID. A create that fails may have written the ID, so
-     * the ID is read again when a later row names it.
+     * Creates a resource with an ID of a system, and notes the ID. The create finds the ID free as the list read
+     * it. A create that fails may have written the ID, so the ID is read again when a later row names it.
      *
      * @param <T> the type of the new resource
      * @param kind the kind of resource
@@ -85,8 +85,13 @@ final class ListIds {
     <T> T create(ExternalId.Kind kind, String source, String externalId, Supplier<T> create,
             Function<T, String> idOf) {
         Name name = new Name(kind, source, externalId);
-        known.remove(name);
-        T created = create.get();
+        T created;
+        try {
+            created = create.get();
+        } catch (RuntimeException e) {
+            known.remove(name);
+            throw e;
+        }
         if (source != null && externalId != null) {
             known.put(name, Optional.of(idOf.apply(created)));
         }

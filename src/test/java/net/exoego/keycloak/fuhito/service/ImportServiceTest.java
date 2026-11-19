@@ -1426,9 +1426,9 @@ class ImportServiceTest {
                 assignments, people));
 
         assertEquals(List.of(), errors(report));
-        // A new resource checks that its own ID is free. The lists read the people, then the employments and the
-        // people, then the assignments, the employments, and the org units.
-        assertEquals(9, externalIdStore.singleFinds - single);
+        // A new resource finds its own ID free among the IDs that its list read. The lists read the people, then the
+        // employments and the people, then the assignments, the employments, and the org units.
+        assertEquals(0, externalIdStore.singleFinds - single);
         assertEquals(6, externalIdStore.manyFinds - many);
         // An employment that continues one of an earlier row of its list finds it.
         assertEquals(List.of(), errors(importPeople("2027-04-01", List.of(
@@ -1577,10 +1577,39 @@ class ImportServiceTest {
         assertEquals(new Counts(1, 0, 0), report.counts().get("employments"));
         assertEquals(List.of("FUHITO_PERSON", "FUHITO_EMPLOYMENT", "FUHITO_EMPLOYMENT/end"), report.writes().stream()
                 .map(w -> w.resourceType() + (w.path().endsWith("/end") ? "/end" : "")).toList());
+        // The write of the new employment shows it before the end gives it the reason.
+        assertNull(((ImportReport.Write.OfEmployment) report.writes().get(1)).state().endReason());
+        assertEquals("resignation", ((ImportReport.Write.OfEmployment) report.writes().get(2)).state().endReason());
         var stored = employmentStore.find(stored(ExternalId.Kind.EMPLOYMENT, "hr", "E9")).orElseThrow();
         assertEquals(LocalDate.of(2026, 4, 1), stored.period().to());
         assertEquals("r", stored.endReasonId());
         assertEquals(new Counts(0, 0, 1), service.apply(document).counts().get("employments"));
+    }
+
+    @Test
+    void aRowThatChangesAStoredPersonSeesTheNewPeopleBeforeIt() {
+        assertEquals(List.of(), errors(importPersons(ofUser("P1", "nurse", null))));
+
+        ImportReport report = importPersons(ofUser("P2", "doctor", null), ofUser("P1", "doctor", null));
+
+        assertEquals(List.of("people[1] person.user_taken"), errors(report));
+    }
+
+    @Test
+    void aRowOfAssignmentsSeesTheWritesOfTheRowsBeforeIt() {
+        importTwoUnits();
+        importPeople("2026-04-01",
+                List.of(employment("E1", "nurse", null, null, null), employment("E2", "doctor", null, null, null)),
+                List.of(assignment("A1", "E1", "W", false, null), assignment("A2", "E2", "W", false, null)));
+
+        ImportReport report = importPeople("2027-04-01", List.of(), List.of(
+                assignment("A3", "E1", "H", true, null), assignment("A1", "E1", "W", true, null),
+                assignment("A2", "E2", "W", true, null), assignment("A4", "E2", "H", true, null)));
+
+        // A stored assignment cannot take the flag that a new one took before it, and a new one cannot take the
+        // flag that a stored one took before it.
+        assertEquals(List.of("assignments[1] assignment.primary_exists", "assignments[3] assignment.primary_exists"),
+                errors(report));
     }
 
     private static Counts changed(ImportReport report, String list) {

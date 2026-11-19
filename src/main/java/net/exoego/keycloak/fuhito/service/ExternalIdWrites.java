@@ -14,12 +14,41 @@ import net.exoego.keycloak.fuhito.store.ExternalIdStore;
  */
 final class ExternalIdWrites {
 
+    /**
+     * Finds the resource that an ID of a system names.
+     */
+    @FunctionalInterface
+    interface Lookup {
+
+        /**
+         * Finds the resource.
+         *
+         * @param source the name of the system
+         * @param externalId the ID in that system
+         * @return the ID of the resource, or empty when none has the ID
+         */
+        Optional<String> resourceOf(String source, String externalId);
+    }
+
     private final ExternalIdStore store;
     private final ExternalId.Kind kind;
+    private final Lookup lookup;
 
     ExternalIdWrites(ExternalIdStore store, ExternalId.Kind kind) {
+        this(store, kind, (source, externalId) -> store.find(kind, source, externalId).map(ExternalId::resourceId));
+    }
+
+    /**
+     * Creates the writes with a lookup that knows the IDs already, such as the one of a list of an import.
+     *
+     * @param store the storage of the IDs of the realm
+     * @param kind the kind of resource
+     * @param lookup finds the resource that an ID names
+     */
+    ExternalIdWrites(ExternalIdStore store, ExternalId.Kind kind, Lookup lookup) {
         this.store = store;
         this.kind = kind;
+        this.lookup = lookup;
     }
 
     /**
@@ -38,11 +67,23 @@ final class ExternalIdWrites {
             return null;
         }
         Checks.required("source", system);
-        Optional<ExternalId> taken = store.find(kind, system, value);
-        if (taken.isPresent() && !taken.get().resourceId().equals(resourceId)) {
+        Optional<String> taken = lookup.resourceOf(system, value);
+        if (taken.isPresent() && !taken.get().equals(resourceId)) {
             throw FuhitoException.conflict("external_id.taken", Map.of("source", system, "externalId", value));
         }
         return new ExternalId.Pair(system, value);
+    }
+
+    /**
+     * Makes the row of a checked ID for a new resource, which has no IDs yet.
+     *
+     * @param resourceId the ID of the new resource
+     * @param pair the checked ID, or null for none
+     * @return the row to store, or empty when there is none
+     */
+    Optional<ExternalId> forNew(String resourceId, ExternalId.Pair pair) {
+        return Optional.ofNullable(pair).map(checked -> new ExternalId(UUID.randomUUID().toString(), kind,
+                resourceId, checked.source(), checked.externalId(), 1L));
     }
 
     /**

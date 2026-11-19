@@ -76,6 +76,15 @@ public interface ExternalIdStore {
     void insert(ExternalId externalId);
 
     /**
+     * Stores new IDs.
+     *
+     * @param externalIds the rows
+     */
+    default void insertAll(List<ExternalId> externalIds) {
+        externalIds.forEach(this::insert);
+    }
+
+    /**
      * Stores the changed ID of a row.
      *
      * @param externalId the row

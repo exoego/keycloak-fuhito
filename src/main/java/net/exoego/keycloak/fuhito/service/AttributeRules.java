@@ -23,4 +23,14 @@ public interface AttributeRules {
      *         does not fit its definition, or a required one is missing
      */
     Map<String, Object> check(AttributeDefinition.Target target, Map<String, Object> attributes);
+
+    /**
+     * Returns rules that read the definitions of each kind of resource once. They suit a list of writes that
+     * changes no definition.
+     *
+     * @return the rules
+     */
+    default AttributeRules remembering() {
+        return this;
+    }
 }

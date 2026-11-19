@@ -3,6 +3,7 @@ package net.exoego.keycloak.fuhito.service;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
 import java.util.Arrays;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -163,9 +164,21 @@ public class AttributeDefinitionService implements AttributeRules {
 
     @Override
     public Map<String, Object> check(AttributeDefinition.Target target, Map<String, Object> attributes) {
+        return check(target, attributes, store.list(target));
+    }
+
+    @Override
+    public AttributeRules remembering() {
+        Map<AttributeDefinition.Target, List<AttributeDefinition>> read =
+                new EnumMap<>(AttributeDefinition.Target.class);
+        return (target, attributes) -> check(target, attributes, read.computeIfAbsent(target, store::list));
+    }
+
+    private Map<String, Object> check(AttributeDefinition.Target target, Map<String, Object> attributes,
+            List<AttributeDefinition> definitions) {
         Map<String, Object> values = AttributeSize.require(attributes == null ? Map.of() : attributes);
         Map<String, AttributeDefinition> byName = new HashMap<>();
-        store.list(target).forEach(definition -> byName.put(definition.name(), definition));
+        definitions.forEach(definition -> byName.put(definition.name(), definition));
         values.forEach((name, value) -> {
             AttributeDefinition definition = byName.get(name);
             if (definition == null) {

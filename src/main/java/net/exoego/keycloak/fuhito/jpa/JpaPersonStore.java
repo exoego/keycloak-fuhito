@@ -1,5 +1,6 @@
 package net.exoego.keycloak.fuhito.jpa;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -46,6 +47,26 @@ public class JpaPersonStore implements PersonStore {
                 .getResultList())
                 .stream()
                 .findFirst();
+    }
+
+    @Override
+    public List<Person> findAll(Collection<String> ids) {
+        return ids.isEmpty() ? List.of() : withNames(em, realmId, em.createQuery("""
+                        select p from PersonEntity p where p.realmId = :realmId and %s"""
+                        .formatted(ManyIds.has("p.id", "ids")), PersonEntity.class)
+                .setParameter("realmId", realmId)
+                .setParameter("ids", ManyIds.of(ids))
+                .getResultList());
+    }
+
+    @Override
+    public List<Person> findByUsers(Collection<String> userIds) {
+        return userIds.isEmpty() ? List.of() : withNames(em, realmId, em.createQuery("""
+                        select p from PersonEntity p where p.realmId = :realmId and %s"""
+                        .formatted(ManyIds.has("p.userId", "ids")), PersonEntity.class)
+                .setParameter("realmId", realmId)
+                .setParameter("ids", ManyIds.of(userIds))
+                .getResultList());
     }
 
     @Override

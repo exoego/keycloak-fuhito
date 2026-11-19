@@ -1,9 +1,13 @@
 package net.exoego.keycloak.fuhito.service;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Function;
 import java.util.function.Predicate;
 
 import net.exoego.keycloak.fuhito.domain.AttributeDefinition;
@@ -33,6 +37,7 @@ public class PersonService {
     }
 
     private final PersonStore store;
+    private final ExternalIdStore externalIdStore;
     private final ExternalIdWrites externalIds;
     private final UserDirectory users;
     private final Predicate<String> inUse;
@@ -64,9 +69,20 @@ public class PersonService {
             Predicate<String> inUse, AttributeRules attributeRules) {
         this.attributeRules = attributeRules;
         this.store = store;
+        this.externalIdStore = externalIds;
         this.externalIds = new ExternalIdWrites(externalIds, ExternalId.Kind.PERSON);
         this.users = users;
         this.inUse = inUse;
+    }
+
+    /**
+     * Returns the same operations that read the definitions of attributes once for each kind of resource. They
+     * suit a list of writes that changes no definition.
+     *
+     * @return the operations
+     */
+    PersonService remembering() {
+        return new PersonService(store, externalIdStore, users, inUse, attributeRules.remembering());
     }
 
     /**
@@ -108,6 +124,18 @@ public class PersonService {
     }
 
     /**
+     * Finds several people by ID, with one read.
+     *
+     * @param ids the IDs of the people
+     * @return the people that the realm has, by ID
+     */
+    Map<String, Person> findAll(Collection<String> ids) {
+        Map<String, Person> found = new HashMap<>();
+        store.findAll(ids).forEach(person -> found.put(person.id(), person));
+        return found;
+    }
+
+    /**
      * Creates a person.
      *
      * @param request the values of the request. The person keeps the source as the system that made it.
@@ -115,13 +143,99 @@ public class PersonService {
      * @throws FuhitoException when a value is bad, or the user or the external ID belongs to another person
      */
     public PersonView create(PersonValues request) {
-        Checks.required("body", request);
-        ExternalId.Pair externalId = externalIds.check(null, request.source(), request.externalId());
-        Person person = checked(UUID.randomUUID().toString(), request,
-                Checks.optionalCode("source", request.source()), 1);
-        store.insert(person);
-        externalIds.store(person.id(), externalId);
-        return view(person);
+        NewPeople people = new NewPeople(externalIds);
+        PersonView created = people.create(request);
+        people.insert();
+        return created;
+    }
+
+    /**
+     * Starts new people of one list of writes.
+     *
+     * @param ids finds the person that an ID of a system names
+     * @return the new people
+     */
+    NewPeople newPeople(ExternalIdWrites.Lookup ids) {
+        return new NewPeople(new ExternalIdWrites(externalIdStore, ExternalId.Kind.PERSON, ids));
+    }
+
+    /**
+     * The new people of one list of writes. Each one is checked against the stored people and the new people
+     * before it. All of them are stored together.
+     */
+    final class NewPeople {
+
+        private final ExternalIdWrites ids;
+        private final Map<String, Optional<Person>> byUser = new HashMap<>();
+        private final List<Person> people = new ArrayList<>();
+        private final List<ExternalId> rows = new ArrayList<>();
+
+        private NewPeople(ExternalIdWrites ids) {
+            this.ids = ids;
+        }
+
+        /**
+         * Reads the people of some users with one read.
+         *
+         * @param userIds the IDs of the users
+         */
+        void readUsers(Collection<String> userIds) {
+            List<String> unread = userIds.stream().distinct().filter(id -> !byUser.containsKey(id)).toList();
+            unread.forEach(id -> byUser.put(id, Optional.empty()));
+            store.findByUsers(unread).forEach(person -> byUser.put(person.userId(), Optional.of(person)));
+        }
+
+        /**
+         * Finds the person of a user, a new one of the list included.
+         *
+         * @param userId the ID of the user
+         * @return the person, or empty when the user has none
+         */
+        Optional<Person> ofUser(String userId) {
+            return byUser.computeIfAbsent(userId, store::findByUser);
+        }
+
+        /**
+         * Lets the next question about some users read the stored people again.
+         *
+         * @param userIds the IDs of the users, null ones included
+         */
+        void forget(String... userIds) {
+            for (String userId : userIds) {
+                if (userId != null) {
+                    byUser.remove(userId);
+                }
+            }
+        }
+
+        /**
+         * Checks a new person as {@link PersonService#create} does, and keeps it for {@link #insert}.
+         *
+         * @param request the values of the request
+         * @return the new person
+         */
+        PersonView create(PersonValues request) {
+            Checks.required("body", request);
+            ExternalId.Pair externalId = ids.check(null, request.source(), request.externalId());
+            Person person = checked(UUID.randomUUID().toString(), request,
+                    Checks.optionalCode("source", request.source()), 1, this::ofUser);
+            people.add(person);
+            if (person.userId() != null) {
+                byUser.put(person.userId(), Optional.of(person));
+            }
+            ids.forNew(person.id(), externalId).ifPresent(rows::add);
+            return view(person);
+        }
+
+        /**
+         * Stores the new people that are not stored yet.
+         */
+        void insert() {
+            people.forEach(store::insert);
+            externalIdStore.insertAll(List.copyOf(rows));
+            people.clear();
+            rows.clear();
+        }
     }
 
     /**
@@ -138,7 +252,7 @@ public class PersonService {
         Checks.required("body", request);
         Person current = get(id).person();
         ExternalId.Pair externalId = externalIds.check(id, request.source(), request.externalId());
-        store.update(checked(id, request, current.source(), current.version()));
+        store.update(checked(id, request, current.source(), current.version(), store::findByUser));
         externalIds.store(id, externalId);
         return get(id);
     }
@@ -243,7 +357,8 @@ public class PersonService {
         return value == null || value.isBlank() ? null : value.strip();
     }
 
-    private Person checked(String id, PersonValues request, String source, long version) {
+    private Person checked(String id, PersonValues request, String source, long version,
+            Function<String, Optional<Person>> ofUser) {
         Localized<PersonName> names = PersonName.check(request.primaryLanguage(), request.names());
         String userId = request.userId();
         if (userId == null && names == null) {
@@ -253,7 +368,7 @@ public class PersonService {
             if (!users.exists(userId)) {
                 throw FuhitoException.invalid("person.user_unknown", Map.of("userId", userId));
             }
-            Optional<Person> linked = store.findByUser(userId).filter(other -> !other.id().equals(id));
+            Optional<Person> linked = ofUser.apply(userId).filter(other -> !other.id().equals(id));
             if (linked.isPresent()) {
                 throw FuhitoException.conflict("person.user_taken",
                         Map.of("userId", userId, "personId", linked.get().id()));
