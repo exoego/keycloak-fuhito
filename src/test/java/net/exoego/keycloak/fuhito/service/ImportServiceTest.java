@@ -960,6 +960,39 @@ class ImportServiceTest {
                                 null))));
     }
 
+    @Test
+    void aQualificationRowWithNoStartKeepsTheStoredStart() {
+        refItems.insert(new RefItem("license-id", RefKind.QUALIFICATION.name(), "license", ItemNames.of("免許"), 0,
+                Map.of(), true, false, false, false, 1, null, null));
+        service.apply(new ImportDocument("2026-04-01", false, null, null, null, null, null,
+                List.of(new PersonRow(null, "P1", null, null, "ja", japanese("Ann"), null, null))));
+        importQualifications(qualification(null, "Q1", "P1", null, "123", null));
+        String q1 = stored(ExternalId.Kind.QUALIFICATION, "import", "Q1");
+
+        QualificationRow same = new QualificationRow(null, null, "Q1", null, null, null, "license", "123", null, null,
+                null);
+        QualificationRow renewed = new QualificationRow(q1, null, null, null, null, null, "license", "456", null,
+                "2030-04-01", null);
+        ImportReport unchanged = importQualifications(same);
+        ImportReport changed = importQualifications(renewed);
+        ImportReport again = importQualifications(renewed);
+        ImportReport added = importQualifications(new QualificationRow(null, null, "Q2", "P1", null, null, "license",
+                null, null, null, null));
+
+        assertEquals(Map.of("qualifications", new Counts(0, 0, 1)), unchanged.counts());
+        assertEquals(List.of(), unchanged.writes());
+        assertEquals(Map.of("qualifications", new Counts(0, 1, 0)), changed.counts());
+        assertEquals(Map.of("qualifications", new Counts(0, 0, 1)), again.counts());
+        assertEquals(List.of(), again.writes());
+        Qualification renewal = qualificationStore.find(q1).orElseThrow();
+        assertEquals("2020-04-01", renewal.period().from().toString());
+        assertEquals("456", renewal.number());
+        assertEquals("2030-04-01", renewal.period().to().toString());
+        assertEquals(Map.of("qualifications", new Counts(1, 0, 0)), added.counts());
+        assertEquals("2026-04-01", qualificationStore.find(stored(ExternalId.Kind.QUALIFICATION, "import", "Q2"))
+                .orElseThrow().period().from().toString());
+    }
+
     private ImportReport importExternalIds(ExternalIdRow... rows) {
         return service.apply(ImportDocument.of("2026-04-01", false, null, "externalIds", List.of(rows)));
     }

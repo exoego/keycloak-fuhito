@@ -171,7 +171,8 @@ public record ImportDocument(
             String kind,
             @Schema(description = "The number, for example of a license.", maxLength = 255)
             String number,
-            @Schema(description = "The first date. The default is the effective date.", format = "date")
+            @Schema(description = "The first date. A new qualification starts on the effective date by default. A "
+                    + "stored one keeps its start by default.", format = "date")
             String validFrom,
             @Schema(description = "The first date on which it no longer holds. None for no end.", format = "date")
             String validTo,

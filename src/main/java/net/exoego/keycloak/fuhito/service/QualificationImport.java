@@ -64,9 +64,10 @@ final class QualificationImport {
         }
         Optional<QualificationView> stored = stored(row, source);
         String personId = personId(row, source, stored);
-        QualificationValues values = new QualificationValues(personId, row.kind(), row.number(),
-                row.validFrom() == null ? effectiveDate : row.validFrom(), row.validTo(), row.attributes(),
-                row.externalId(), source);
+        String validFrom = row.validFrom() != null ? row.validFrom()
+                : stored.map(view -> view.qualification().period().from().toString()).orElse(effectiveDate);
+        QualificationValues values = new QualificationValues(personId, row.kind(), row.number(), validFrom,
+                row.validTo(), row.attributes(), row.externalId(), source);
         if (stored.isEmpty()) {
             report.write(new Write.OfQualification(true, qualifications.add(values)));
             return Outcome.CREATED;
