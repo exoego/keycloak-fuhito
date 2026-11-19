@@ -219,6 +219,7 @@ final class OrgUnitImport {
         LocalDate date = Checks.date("effectiveDate", effectiveDate);
         LocalDate end = versions.getLast().period().to();
         LocalDate first = versions.getFirst().period().from();
+        ImportMatch.start(id, first, row.validFrom());
         boolean changed = false;
         // A unit that ended by the effective date keeps its details. One that starts later can only come again as
         // it is, for example in the document that made it.

@@ -196,9 +196,9 @@ public record ImportDocument(
     @Schema(
             name = "ImportUnitRoleRow",
             description = "A role that an employment holds over an org unit. It is matched by its ID in the system "
-                    + "of `source`, or by `id`. A row needs one of them. The employment, the org unit, the role, and "
-                    + "`includesDescendants` of a stored role do not change. A row with another value fails. A row "
-                    + "that leaves one out keeps the stored value.")
+                    + "of `source`, or by `id`. A row needs one of them. The employment, the org unit, the role, "
+                    + "`includesDescendants`, and the start of a stored role do not change. A row with another value "
+                    + "fails. A row that leaves one out keeps the stored value.")
     public record UnitRoleRow(
             @Schema(description = "The ID of a stored role. A CSV export has it in every row. A new role has none.")
             String id,
@@ -222,8 +222,9 @@ public record ImportDocument(
             String role,
             @Schema(description = "True when the role also covers the units below.", defaultValue = "false")
             Boolean includesDescendants,
-            @Schema(description = "The first date of a new role. The default is the effective date. A stored role "
-                    + "ignores it.", format = "date")
+            @Schema(description = "The first date of a new role. The default is the effective date. A row of a "
+                    + "stored role can leave it out or give the start of the role. Another date fails.",
+                    format = "date")
             String validFrom,
             @Schema(description = "The first date on which the role no longer holds. The default is the end of the "
                     + "employment.", format = "date")
@@ -233,10 +234,10 @@ public record ImportDocument(
     @Schema(
             name = "ImportReportingLineRow",
             description = "A reporting line from an assignment to a manager. It is matched by its ID in the system "
-                    + "of `source`, or by `id`. A row needs one of them. The assignment, the manager, and the kind of "
-                    + "a stored line do not change. A row with another value fails. A row that leaves one out keeps "
-                    + "the stored value. A new solid line fails while the assignment has a solid line on the same "
-                    + "dates.")
+                    + "of `source`, or by `id`. A row needs one of them. The assignment, the manager, the kind, and "
+                    + "the start of a stored line do not change. A row with another value fails. A row that leaves "
+                    + "one out keeps the stored value. A new solid line fails while the assignment has a solid line "
+                    + "on the same dates.")
     public record ReportingLineRow(
             @Schema(description = "The ID of a stored line. A CSV export has it in every row. A new line has none.")
             String id,
@@ -263,8 +264,9 @@ public record ImportDocument(
             String managerUsername,
             @Schema(enumeration = {"SOLID", "DOTTED"}, defaultValue = "SOLID")
             String kind,
-            @Schema(description = "The first date of a new line. The default is the effective date. A stored line "
-                    + "ignores it.", format = "date")
+            @Schema(description = "The first date of a new line. The default is the effective date. A row of a "
+                    + "stored line can leave it out or give the start of the line. Another date fails.",
+                    format = "date")
             String validFrom,
             @Schema(description = "The first date on which the line no longer holds. The default is the end of the "
                     + "assignment.", format = "date")
@@ -484,8 +486,9 @@ public record ImportDocument(
             @Schema(description = "Free values of the terms.")
             Map<String, Object> attributes,
             @Schema(
-                    description = "The first date of a new employment. The default is the effective date. An "
-                            + "existing employment ignores it.",
+                    description = "The first date of a new employment. The default is the effective date. A row "
+                            + "of a stored employment can leave it out or give the start of the employment, not of "
+                            + "its terms. Another date fails.",
                     format = "date")
             String validFrom,
             @Schema(description = "The first date on which the employment no longer holds.", format = "date")
@@ -548,7 +551,7 @@ public record ImportDocument(
          * @param status the status, or null
          * @param workPercent the share of full-time work in percent, or null
          * @param attributes free values, or null
-         * @param validFrom the first date of a new employment, or null
+         * @param validFrom the first date of the employment, or null
          * @param validTo the first date on which the employment no longer holds, or null
          * @param endReason the code of the end reason, or null
          */
@@ -602,8 +605,9 @@ public record ImportDocument(
             @Schema(description = "Free values that the realm defines.")
             Map<String, Object> attributes,
             @Schema(
-                    description = "The first date of a new assignment. The default is the effective date. An "
-                            + "existing assignment ignores it.",
+                    description = "The first date of a new assignment. The default is the effective date. A row "
+                            + "of a stored assignment can leave it out or give the start of the whole assignment, "
+                            + "not of its details. Another date fails.",
                     format = "date")
             String validFrom,
             @Schema(
@@ -656,7 +660,7 @@ public record ImportDocument(
          * @param allocationPercent the share of the person's work in percent, or null
          * @param displayOrder the position among the members of the org unit, or null
          * @param attributes free values, or null
-         * @param validFrom the first date of a new assignment, or null
+         * @param validFrom the first date of the assignment, or null
          * @param validTo the first date on which the assignment no longer holds, or null
          */
         public AssignmentRow(String source, String externalId, String employmentExternalId,
@@ -773,8 +777,9 @@ public record ImportDocument(
             @Schema(description = "Free values that the realm defines.")
             Map<String, Object> attributes,
             @Schema(
-                    description = "The first date of a new unit. The default is the effective date. An existing "
-                            + "unit ignores it.",
+                    description = "The first date of a new unit. The default is the effective date. A row of a "
+                            + "stored unit can leave it out or give the first date of the unit, not of its details. "
+                            + "Another date fails.",
                     format = "date")
             String validFrom,
             @Schema(description = "The first date on which the unit no longer exists.", format = "date")

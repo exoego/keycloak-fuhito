@@ -19,8 +19,8 @@ import net.exoego.keycloak.fuhito.service.ImportReport.Write;
 
 /**
  * The reporting lines of one document. A row is matched by source and external ID, or by ID. The assignment, the
- * manager, and the kind of a stored line do not change. A new solid line fails while the assignment has a solid line
- * on the same dates, as in {@code POST /reporting-lines}.
+ * manager, the kind, and the start of a stored line do not change. A new solid line fails while the assignment has a
+ * solid line on the same dates, as in {@code POST /reporting-lines}.
  */
 final class ReportingLineImport {
 
@@ -86,6 +86,7 @@ final class ReportingLineImport {
             ImportMatch.fixed(line.id(), "assignmentId", line.assignmentId(), assignmentId);
             ImportMatch.fixed(line.id(), "managerPersonId", line.managerPersonId(), managerId);
             ImportMatch.fixed(line.id(), "kind", line.kind(), kind);
+            ImportMatch.start(line.id(), line.period().from(), row.validFrom());
         });
         return new Line(row, source, assignmentId, managerId, kind, stored);
     }

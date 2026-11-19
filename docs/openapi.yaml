@@ -1300,8 +1300,9 @@ components:
           description: Free values that the realm defines.
         validFrom:
           type: string
-          description: The first date of a new assignment. The default is the effective
-            date. An existing assignment ignores it.
+          description: "The first date of a new assignment. The default is the effective\
+            \ date. A row of a stored assignment can leave it out or give the start\
+            \ of the whole assignment, not of its details. Another date fails."
           format: date
         validTo:
           type: string
@@ -1626,8 +1627,9 @@ components:
           description: Free values of the terms.
         validFrom:
           type: string
-          description: The first date of a new employment. The default is the effective
-            date. An existing employment ignores it.
+          description: "The first date of a new employment. The default is the effective\
+            \ date. A row of a stored employment can leave it out or give the start\
+            \ of the employment, not of its terms. Another date fails."
           format: date
         validTo:
           type: string
@@ -1820,8 +1822,9 @@ components:
           description: Free values that the realm defines.
         validFrom:
           type: string
-          description: The first date of a new unit. The default is the effective
-            date. An existing unit ignores it.
+          description: "The first date of a new unit. The default is the effective\
+            \ date. A row of a stored unit can leave it out or give the first date\
+            \ of the unit, not of its details. Another date fails."
           format: date
         validTo:
           type: string
@@ -2098,10 +2101,10 @@ components:
       type: object
       description: "A reporting line from an assignment to a manager. It is matched\
         \ by its ID in the system of `source`, or by `id`. A row needs one of them.\
-        \ The assignment, the manager, and the kind of a stored line do not change.\
-        \ A row with another value fails. A row that leaves one out keeps the stored\
-        \ value. A new solid line fails while the assignment has a solid line on the\
-        \ same dates."
+        \ The assignment, the manager, the kind, and the start of a stored line do\
+        \ not change. A row with another value fails. A row that leaves one out keeps\
+        \ the stored value. A new solid line fails while the assignment has a solid\
+        \ line on the same dates."
       properties:
         id:
           type: string
@@ -2144,7 +2147,8 @@ components:
         validFrom:
           type: string
           description: The first date of a new line. The default is the effective
-            date. A stored line ignores it.
+            date. A row of a stored line can leave it out or give the start of the
+            line. Another date fails.
           format: date
         validTo:
           type: string
@@ -2187,9 +2191,9 @@ components:
       type: object
       description: "A role that an employment holds over an org unit. It is matched\
         \ by its ID in the system of `source`, or by `id`. A row needs one of them.\
-        \ The employment, the org unit, the role, and `includesDescendants` of a stored\
-        \ role do not change. A row with another value fails. A row that leaves one\
-        \ out keeps the stored value."
+        \ The employment, the org unit, the role, `includesDescendants`, and the start\
+        \ of a stored role do not change. A row with another value fails. A row that\
+        \ leaves one out keeps the stored value."
       properties:
         id:
           type: string
@@ -2227,7 +2231,8 @@ components:
         validFrom:
           type: string
           description: The first date of a new role. The default is the effective
-            date. A stored role ignores it.
+            date. A row of a stored role can leave it out or give the start of the
+            role. Another date fails.
           format: date
         validTo:
           type: string
