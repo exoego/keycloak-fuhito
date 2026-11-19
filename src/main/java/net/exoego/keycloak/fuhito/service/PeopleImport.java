@@ -229,6 +229,7 @@ final class PeopleImport {
         if (continues != null && !continues.equals(employment.continuesEmploymentId())) {
             throw FuhitoException.conflict("import.continues_mismatch", Map.of("externalId", name));
         }
+        ImportMatch.start(id, employment.period().from(), row.validFrom());
         EmploymentView before = people.employmentService().get(id);
         boolean changed = false;
         // An employment that ended by the effective date has no terms to compare. One that starts later can only
@@ -377,6 +378,7 @@ final class PeopleImport {
         if (continues != null && !continues.equals(first.continuesAssignmentId())) {
             throw FuhitoException.conflict("import.continues_mismatch", Map.of("externalId", name));
         }
+        ImportMatch.start(id, before.period().from(), row.validFrom());
         boolean changed = false;
         LocalDate date = Checks.date("effectiveDate", effectiveDate);
         boolean endsBefore = !before.period().endsAfter(date);

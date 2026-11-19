@@ -1001,6 +1001,61 @@ class ImportServiceTest {
                         new UnitRoleRow(null, null, "X9", null, e1, "H", h, "approver", true, null, null))));
     }
 
+    private ImportReport unitAndStaff(String effectiveDate, String name, BigDecimal workPercent, Integer displayOrder,
+            String validFrom) {
+        return service.apply(new ImportDocument(effectiveDate, false, null, null,
+                List.of(new OrgUnitRow(null, "H", null, "ja", ja(name), null, null, null, null, null, validFrom,
+                        null, null)),
+                List.of(new EmploymentRow(null, "E1", "nurse", null, null, null, null, null, null, workPercent, null,
+                        validFrom, null, null, null, null, null, null, null)),
+                List.of(new AssignmentRow(null, "A1", "E1", "H", null, null, null, null, true, null, displayOrder,
+                        null, validFrom, null))));
+    }
+
+    private static ReportingLineRow lineFrom(String validFrom) {
+        return new ReportingLineRow(null, null, "L1", "A1", null, null, null, "doctor", null, validFrom, null);
+    }
+
+    private static UnitRoleRow roleFrom(String validFrom) {
+        return new UnitRoleRow(null, null, "R1", "E1", null, "H", null, "approver", null, validFrom, null);
+    }
+
+    @Test
+    void aRowOfAStoredThingLeavesOutItsStartOrGivesTheStoredOne() {
+        refItems.insert(new RefItem("approver-id", RefKind.UNIT_ROLE.name(), "approver", ItemNames.of("承認者"), 0,
+                Map.of(), true, false, false, false, 1, null, null));
+        assertEquals(List.of(), errors(unitAndStaff("2026-04-01", "Hospital", null, null, "2020-04-01")));
+        assertEquals(List.of(), errors(importLines("2026-04-01", lineFrom("2021-04-01"))));
+        assertEquals(List.of(), errors(importRoles("2026-04-01", roleFrom("2021-04-01"))));
+        // The details of the unit and of the assignment and the terms of the employment of a later date start later
+        // than the things themselves.
+        ImportReport changed = unitAndStaff("2026-05-01", "General Hospital", BigDecimal.valueOf(80), 2, null);
+        assertEquals(List.of(), errors(changed));
+        assertEquals(Map.of("orgUnits", new Counts(0, 1, 0), "employments", new Counts(0, 1, 0),
+                "assignments", new Counts(0, 1, 0)), changed.counts());
+
+        ImportReport same = unitAndStaff("2026-06-01", "General Hospital", BigDecimal.valueOf(80), 2, "2020-04-01");
+        ImportReport other = unitAndStaff("2026-06-01", "General Hospital", BigDecimal.valueOf(80), 2, "2026-05-01");
+
+        assertEquals(List.of(), errors(same));
+        assertEquals(List.of(), same.writes());
+        assertEquals(List.of("orgUnits[0] import.value_fixed", "employments[0] import.value_fixed",
+                "assignments[0] import.value_fixed"), errors(other));
+        assertEquals(List.of(Map.of("id", stored(ExternalId.Kind.ORG_UNIT, "import", "H"), "field", "validFrom"),
+                Map.of("id", stored(ExternalId.Kind.EMPLOYMENT, "import", "E1"), "field", "validFrom"),
+                Map.of("id", stored(ExternalId.Kind.ASSIGNMENT, "import", "A1"), "field", "validFrom")),
+                other.errors().stream().map(e -> e.error().params()).toList());
+        assertEquals(new Counts(0, 0, 1), importLines("2026-06-01", lineFrom("2021-04-01")).counts()
+                .get("reportingLines"));
+        assertEquals(List.of("reportingLines[0] import.value_fixed"),
+                errors(importLines("2026-06-01", lineFrom("2026-04-01"))));
+        assertEquals(new Counts(0, 0, 1), importRoles("2026-06-01", roleFrom("2021-04-01")).counts()
+                .get("unitRoles"));
+        assertEquals(List.of("unitRoles[0] import.value_fixed"),
+                errors(importRoles("2026-06-01", roleFrom("2026-04-01"))));
+        assertEquals(List.of("unitRoles[0] invalid.date"), errors(importRoles("2026-06-01", roleFrom("2021/04/01"))));
+    }
+
     private static QualificationRow qualification(String id, String externalId, String person, String username,
             String number, String validTo) {
         return new QualificationRow(id, null, externalId, person, null, username, "license", number, "2020-04-01",
