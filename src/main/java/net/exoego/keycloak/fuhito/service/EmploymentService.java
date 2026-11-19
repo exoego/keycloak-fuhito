@@ -324,7 +324,7 @@ public class EmploymentService {
             List<String> assignmentIds, List<ReportingLine> lines, List<UnitRole> roles, Map<String, String> gone) {
     }
 
-    // Each read and each write covers every employment at once. Every check comes before the first write.
+    // Every check comes before the first write.
     private List<Transfer> transfer(List<Move> moves, String employerId, LocalDate date, String endReason) {
         Optional<RefItem> reason = Optional.ofNullable(endReason)
                 .flatMap(code -> refItems.findByCode(RefKind.END_REASON, code));
@@ -384,7 +384,6 @@ public class EmploymentService {
                     throw FuhitoException.conflict("employment.staff_number_taken",
                             Map.of("staffNumber", staffNumber));
                 }
-                // An earlier move takes the number before a later one.
                 people.add(old.personId());
             }
             staffNumbers.add(staffNumber);
@@ -416,7 +415,6 @@ public class EmploymentService {
                         .collect(Collectors.groupingBy(ReportingLine::assignmentId)));
     }
 
-    // The new employment gets what the old one has from the date on.
     private Copy copy(Employment old, Employment started, LocalDate date, Holding holding) {
         List<EmploymentTerms> terms = holding.terms().getOrDefault(old.id(), List.of()).stream()
                 .map(t -> t.copy(newId(), started.id(), from(date, t.period())))
@@ -481,7 +479,6 @@ public class EmploymentService {
         return get(id);
     }
 
-    // Each read and each write covers every employment at once.
     private void setEnd(List<Employment> employments, LocalDate to, String endReasonId) {
         // Only the end of the period counts, and it is the same for every employment.
         Set<String> checked = new HashSet<>();
@@ -527,7 +524,6 @@ public class EmploymentService {
         assignments.updateAll(endedRows);
     }
 
-    // The last terms before the end get the same end. Terms that would start on the end or later go.
     private void endTerms(List<String> employmentIds, LocalDate to) {
         Map<String, List<EmploymentTerms>> terms = store.termsOf(employmentIds).stream()
                 .collect(Collectors.groupingBy(EmploymentTerms::employmentId));
@@ -615,7 +611,6 @@ public class EmploymentService {
         return views(store.search(search.toStore(), afterId, page.first(), page.max()));
     }
 
-    // The terms of every employment come with one read, and the code of each reference item with one.
     private List<EmploymentView> views(List<Employment> employments) {
         Map<String, List<EmploymentTerms>> terms = store.termsOf(employments.stream().map(Employment::id).toList())
                 .stream()

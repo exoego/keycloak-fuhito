@@ -200,16 +200,13 @@ public class JpaReportingLineStore implements ReportingLineStore {
     }
 
     @Override
-    public void update(ReportingLine line) {
-        ReportingLineEntity entity = findEntity(line.id()).orElseThrow();
-        entity.validFrom = line.period().from();
-        entity.validTo = line.period().to();
-        entity.countUp();
-    }
-
-    @Override
-    public void delete(String id) {
-        deleteAll(List.of(id));
+    public void updateAll(List<ReportingLine> lines) {
+        for (ReportingLine line : lines) {
+            ReportingLineEntity entity = findEntity(line.id()).orElseThrow();
+            entity.validFrom = line.period().from();
+            entity.validTo = line.period().to();
+            entity.countUp();
+        }
     }
 
     @Override

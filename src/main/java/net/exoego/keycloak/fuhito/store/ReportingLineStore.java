@@ -68,32 +68,32 @@ public interface ReportingLineStore {
      *
      * @param line the line
      */
-    void update(ReportingLine line);
+    default void update(ReportingLine line) {
+        updateAll(List.of(line));
+    }
 
     /**
-     * Stores the new state of existing reporting lines, as {@link #update} does for each.
+     * Stores the new state of several existing reporting lines.
      *
      * @param lines the lines
      */
-    default void updateAll(List<ReportingLine> lines) {
-        lines.forEach(this::update);
-    }
+    void updateAll(List<ReportingLine> lines);
 
     /**
      * Removes a reporting line.
      *
      * @param id the ID
      */
-    void delete(String id);
+    default void delete(String id) {
+        deleteAll(List.of(id));
+    }
 
     /**
-     * Removes reporting lines, as {@link #delete} does for each.
+     * Removes several reporting lines.
      *
      * @param ids the IDs
      */
-    default void deleteAll(Collection<String> ids) {
-        ids.forEach(this::delete);
-    }
+    void deleteAll(Collection<String> ids);
 
     /**
      * Lists a page of the assignments whose person reports to a manager on a date.

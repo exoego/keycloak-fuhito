@@ -186,11 +186,6 @@ public class JpaUnitRoleStore implements UnitRoleStore {
     }
 
     @Override
-    public void insert(UnitRole role) {
-        insertAll(List.of(role));
-    }
-
-    @Override
     public void insertAll(List<UnitRole> roles) {
         for (UnitRole role : roles) {
             UnitRoleEntity entity = new UnitRoleEntity();
@@ -210,16 +205,14 @@ public class JpaUnitRoleStore implements UnitRoleStore {
     }
 
     @Override
-    public void update(UnitRole role) {
-        UnitRoleEntity entity = Rows.require(em, UnitRoleEntity.class, role.id(), realmId, found -> found.realmId);
-        entity.validFrom = role.period().from();
-        entity.validTo = role.period().to();
-        entity.countUp();
-    }
-
-    @Override
-    public void delete(String id) {
-        deleteAll(List.of(id));
+    public void updateAll(List<UnitRole> roles) {
+        for (UnitRole role : roles) {
+            UnitRoleEntity entity = Rows.require(em, UnitRoleEntity.class, role.id(), realmId,
+                    found -> found.realmId);
+            entity.validFrom = role.period().from();
+            entity.validTo = role.period().to();
+            entity.countUp();
+        }
     }
 
     @Override

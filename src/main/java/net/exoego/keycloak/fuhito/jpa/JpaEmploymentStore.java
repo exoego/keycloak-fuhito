@@ -245,11 +245,6 @@ public class JpaEmploymentStore implements EmploymentStore {
     }
 
     @Override
-    public void insert(Employment employment) {
-        insertAll(List.of(employment));
-    }
-
-    @Override
     public void insertAll(List<Employment> employments) {
         for (Employment employment : employments) {
             EmploymentEntity entity = new EmploymentEntity();
@@ -293,11 +288,6 @@ public class JpaEmploymentStore implements EmploymentStore {
     }
 
     @Override
-    public void deleteTerms(String termsId) {
-        deleteAllTerms(List.of(termsId));
-    }
-
-    @Override
     public void deleteAllTerms(Collection<String> termsIds) {
         List<String> employmentIds = new ArrayList<>();
         for (String termsId : termsIds) {
@@ -331,11 +321,6 @@ public class JpaEmploymentStore implements EmploymentStore {
         copy(terms, entity);
         em.persist(entity);
         Versions.employment(em, realmId, terms.employmentId());
-    }
-
-    @Override
-    public void updateTerms(EmploymentTerms terms) {
-        updateAllTerms(List.of(terms));
     }
 
     @Override

@@ -456,7 +456,6 @@ public class EmploymentsResource {
     }
 
     // Every part of a transfer gets its own entry in the admin events and in the change log.
-    // The parts of all transfers are read together, and recorded in the order of the transfers.
     private List<TransferRepresentation> record(List<EmploymentService.Transfer> transfers) {
         Iterator<EmploymentRepresentation> employments = represent(transfers.stream()
                 .flatMap(transfer -> Stream.of(transfer.ended(), transfer.started()))

@@ -67,14 +67,7 @@ public class JpaAssignmentStore implements AssignmentStore {
 
     @Override
     public List<Assignment> rowsOfEmployment(String employmentId) {
-        return em.createQuery("""
-                        select a from AssignmentEntity a where a.realmId = :realmId
-                        and a.employmentId = :employmentId order by a.validFrom, a.id""", AssignmentEntity.class)
-                .setParameter("realmId", realmId)
-                .setParameter("employmentId", employmentId)
-                .getResultStream()
-                .map(JpaAssignmentStore::toDomain)
-                .toList();
+        return rowsOfEmployments(List.of(employmentId));
     }
 
     @Override
@@ -373,11 +366,6 @@ public class JpaAssignmentStore implements AssignmentStore {
     }
 
     @Override
-    public void insert(Assignment row) {
-        insertAll(List.of(row));
-    }
-
-    @Override
     public void insertAll(List<Assignment> rows) {
         // A row of an assignment that has rows already takes their version.
         Map<String, Long> versions = Versions.assignments(em, realmId,
@@ -399,11 +387,6 @@ public class JpaAssignmentStore implements AssignmentStore {
     }
 
     @Override
-    public void update(Assignment row) {
-        updateAll(List.of(row));
-    }
-
-    @Override
     public void updateAll(List<Assignment> rows) {
         Versions.assignments(em, realmId, rows.stream().map(Assignment::assignmentId).collect(Collectors.toSet()));
         for (Assignment row : rows) {
@@ -411,11 +394,6 @@ public class JpaAssignmentStore implements AssignmentStore {
         }
         // A split shortens this row and then inserts the next one. The database must see the shorter row first.
         em.flush();
-    }
-
-    @Override
-    public void delete(String rowId) {
-        deleteAll(List.of(rowId));
     }
 
     @Override

@@ -94,16 +94,16 @@ public interface EmploymentStore {
      *
      * @param employment the employment
      */
-    void insert(Employment employment);
+    default void insert(Employment employment) {
+        insertAll(List.of(employment));
+    }
 
     /**
-     * Stores new employments, as {@link #insert} does for each.
+     * Stores new employments.
      *
      * @param employments the employments
      */
-    default void insertAll(List<Employment> employments) {
-        employments.forEach(this::insert);
-    }
+    void insertAll(List<Employment> employments);
 
     /**
      * Lists all terms of an employment, oldest first.
@@ -125,16 +125,16 @@ public interface EmploymentStore {
      *
      * @param terms the terms
      */
-    void updateTerms(EmploymentTerms terms);
+    default void updateTerms(EmploymentTerms terms) {
+        updateAllTerms(List.of(terms));
+    }
 
     /**
-     * Stores the new state of existing terms, as {@link #updateTerms} does for each.
+     * Stores the new state of several existing terms.
      *
      * @param terms the terms
      */
-    default void updateAllTerms(List<EmploymentTerms> terms) {
-        terms.forEach(this::updateTerms);
-    }
+    void updateAllTerms(List<EmploymentTerms> terms);
 
     /**
      * Stores the new state of an existing employment.
@@ -157,16 +157,16 @@ public interface EmploymentStore {
      *
      * @param termsId the ID of the terms
      */
-    void deleteTerms(String termsId);
+    default void deleteTerms(String termsId) {
+        deleteAllTerms(List.of(termsId));
+    }
 
     /**
-     * Removes terms, as {@link #deleteTerms} does for each.
+     * Removes several terms.
      *
      * @param termsIds the IDs of the terms
      */
-    default void deleteAllTerms(Collection<String> termsIds) {
-        termsIds.forEach(this::deleteTerms);
-    }
+    void deleteAllTerms(Collection<String> termsIds);
 
     /**
      * What a list of employments keeps. A value that is null keeps everything.
