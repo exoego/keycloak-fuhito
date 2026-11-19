@@ -1905,7 +1905,8 @@ components:
           description: "The number, for example of a license."
         validFrom:
           type: string
-          description: The first date. The default is the effective date.
+          description: The first date. A new qualification starts on the effective
+            date by default. A stored one keeps its start by default.
           format: date
         validTo:
           type: string
