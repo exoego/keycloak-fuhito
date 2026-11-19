@@ -63,23 +63,29 @@ public class JpaOrgUnitStore implements OrgUnitStore {
             select a.unitId, a.ancestorId from Above a""".formatted(TreeQuery.onDate("v"), TreeQuery.onDate("l"),
             ManyIds.has("v.orgUnitId", "ids"));
 
-    // Each unit reads its own version and the versions above it, nearest first.
+    // Each unit reads its own version and the versions above it, nearest first. The last row of a unit has no
+    // ancestor. Each step looks up the parent and the version of one unit in the select. While the statistics do not
+    // know a new realm, a join there can read every link of the hierarchy or every version of the realm for each walk.
+    // The versions are found without the realm, for the reason in Rows.inRealm, so the walk checks the realm of its
+    // rows.
     private static final String DEFAULTS = """
             with Above as (
-                select v.orgUnitId as unitId, v.orgUnitId as ancestorId, 0 as depth
+                select v.orgUnitId as unitId, v.orgUnitId as ancestorId, 0 as depth, v.realmId as realmId
                 from OrgUnitVersionEntity v
-                where v.realmId = :realmId and %3$s and v.%1$s
+                where %3$s and v.%4$s
                 union all
-                select a.unitId as unitId, l.parentId as ancestorId, a.depth + 1 as depth
-                from Above a
-                join OrgUnitLinkEntity l on l.childId = a.ancestorId and l.realmId = :realmId
-                    and l.hierarchyId = :hierarchyId and l.%2$s
+                select a.unitId as unitId,
+                    (select l.parentId from OrgUnitLinkEntity l where l.childId = a.ancestorId
+                        and l.realmId = :realmId and l.hierarchyId = :hierarchyId and l.%2$s) as ancestorId,
+                    a.depth + 1 as depth, a.realmId as realmId
+                from Above a where a.ancestorId is not null
             )
-            select a.unitId, v.workLocationId, v.costCenterId from Above a
-            join OrgUnitVersionEntity v on v.orgUnitId = a.ancestorId and v.realmId = :realmId and v.%1$s
-            where v.workLocationId is not null or v.costCenterId is not null
-            order by a.unitId, a.depth""".formatted(TreeQuery.onDate("v"), TreeQuery.onDate("l"),
-            ManyIds.has("v.orgUnitId", "ids"));
+            select a.unitId,
+                (select w.workLocationId from OrgUnitVersionEntity w where w.orgUnitId = a.ancestorId and w.%1$s),
+                (select w.costCenterId from OrgUnitVersionEntity w where w.orgUnitId = a.ancestorId and w.%1$s)
+            from Above a where a.realmId = :realmId and a.ancestorId is not null
+            order by a.unitId, a.depth""".formatted(TreeQuery.onDate("w"), TreeQuery.onDate("l"),
+            ManyIds.has("v.orgUnitId", "ids"), TreeQuery.onDate("v"));
 
     private static final String PATHS = """
             with Above as (
@@ -428,6 +434,7 @@ public class JpaOrgUnitStore implements OrgUnitStore {
                 .setParameter("ids", ManyIds.of(ids))
                 .setParameter("date", date)
                 .getResultStream()
+                .filter(row -> row[1] != null || row[2] != null)
                 .forEach(row -> result.merge((String) row[0], new UnitDefaults((String) row[1], (String) row[2]),
                         (near, far) -> new UnitDefaults(
                                 near.workLocationId() == null ? far.workLocationId() : near.workLocationId(),
@@ -546,11 +553,12 @@ public class JpaOrgUnitStore implements OrgUnitStore {
     @Override
     public List<OrgUnitVersion> versions(String orgUnitId) {
         return withNames(em.createQuery("""
-                        select v from OrgUnitVersionEntity v where v.realmId = :realmId
-                        and v.orgUnitId = :orgUnitId order by v.validFrom""", OrgUnitVersionEntity.class)
-                .setParameter("realmId", realmId)
+                        select v from OrgUnitVersionEntity v where v.orgUnitId = :orgUnitId
+                        order by v.validFrom""", OrgUnitVersionEntity.class)
                 .setParameter("orgUnitId", orgUnitId)
-                .getResultList());
+                .getResultStream()
+                .filter(Rows.inRealm(realmId, v -> v.realmId))
+                .toList());
     }
 
     @Override

@@ -40,11 +40,11 @@ public class JpaAssignmentStore implements AssignmentStore {
     @Override
     public List<Assignment> rows(String assignmentId) {
         return em.createQuery("""
-                        select a from AssignmentEntity a where a.realmId = :realmId
-                        and a.assignmentId = :assignmentId order by a.validFrom""", AssignmentEntity.class)
-                .setParameter("realmId", realmId)
+                        select a from AssignmentEntity a where a.assignmentId = :assignmentId
+                        order by a.validFrom""", AssignmentEntity.class)
                 .setParameter("assignmentId", assignmentId)
                 .getResultStream()
+                .filter(Rows.inRealm(realmId, a -> a.realmId))
                 .map(JpaAssignmentStore::toDomain)
                 .toList();
     }
@@ -55,12 +55,12 @@ public class JpaAssignmentStore implements AssignmentStore {
             return List.of();
         }
         return em.createQuery("""
-                        select a from AssignmentEntity a where a.realmId = :realmId
-                        and %s order by a.assignmentId, a.validFrom"""
+                        select a from AssignmentEntity a where %s
+                        order by a.assignmentId, a.validFrom"""
                         .formatted(ManyIds.has("a.assignmentId", "assignmentIds")), AssignmentEntity.class)
-                .setParameter("realmId", realmId)
                 .setParameter("assignmentIds", ManyIds.of(assignmentIds))
                 .getResultStream()
+                .filter(Rows.inRealm(realmId, a -> a.realmId))
                 .map(JpaAssignmentStore::toDomain)
                 .toList();
     }
@@ -73,12 +73,12 @@ public class JpaAssignmentStore implements AssignmentStore {
     @Override
     public List<Assignment> rowsOfEmployments(Collection<String> employmentIds) {
         return em.createQuery("""
-                        select a from AssignmentEntity a where a.realmId = :realmId
-                        and %s order by a.employmentId, a.validFrom, a.id"""
+                        select a from AssignmentEntity a where %s
+                        order by a.employmentId, a.validFrom, a.id"""
                         .formatted(ManyIds.has("a.employmentId", "employmentIds")), AssignmentEntity.class)
-                .setParameter("realmId", realmId)
                 .setParameter("employmentIds", ManyIds.of(employmentIds))
                 .getResultStream()
+                .filter(Rows.inRealm(realmId, a -> a.realmId))
                 .map(JpaAssignmentStore::toDomain)
                 .toList();
     }
