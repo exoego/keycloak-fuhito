@@ -2,6 +2,7 @@ package net.exoego.keycloak.fuhito.service;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -319,9 +320,11 @@ public class EmploymentService {
             Map<String, List<UnitRole>> roles, Map<String, List<ReportingLine>> lines) {
     }
 
-    // What the new employment of a transfer gets. Gone has each old assignment that the end removes, with its copy.
+    // What the new employment of a transfer gets. Gone has each old resource that the end removes, with its copy, by
+    // kind.
     private record Copy(Employment started, List<EmploymentTerms> terms, List<Assignment> rows,
-            List<String> assignmentIds, List<ReportingLine> lines, List<UnitRole> roles, Map<String, String> gone) {
+            List<String> assignmentIds, List<ReportingLine> lines, List<UnitRole> roles,
+            Map<ExternalId.Kind, Map<String, String>> gone) {
     }
 
     // Every check comes before the first write.
@@ -338,9 +341,11 @@ public class EmploymentService {
                     from(date, old.period()), staffNumbers.get(i), null, null, old.id(), 1), date, holding));
         }
 
-        Map<String, String> gone = new HashMap<>();
-        copies.forEach(copy -> gone.putAll(copy.gone()));
-        moveExternalIds(gone);
+        // The end removes these old resources, so their copies take their external IDs and an import still finds them.
+        Map<ExternalId.Kind, Map<String, String>> gone = new EnumMap<>(ExternalId.Kind.class);
+        copies.forEach(copy -> copy.gone().forEach((kind, copyIds) ->
+                gone.computeIfAbsent(kind, any -> new HashMap<>()).putAll(copyIds)));
+        externalIds.moveAll(gone);
         setEnd(moves.stream().map(Move::employment).toList(), date, reason.map(RefItem::id).orElse(null));
         store.insertAll(copies.stream().map(Copy::started).toList());
         copies.forEach(copy -> copy.terms().forEach(store::insertTerms));
@@ -429,8 +434,8 @@ public class EmploymentService {
         // Each old assignment becomes one new assignment, with every period from the date on.
         Map<String, String> newAssignmentIds = new LinkedHashMap<>();
         moved.forEach(row -> newAssignmentIds.computeIfAbsent(row.assignmentId(), oldId -> newId()));
-        Map<String, String> gone = new LinkedHashMap<>(newAssignmentIds);
-        gone.keySet().removeAll(kept);
+        Map<String, String> goneAssignments = new HashMap<>(newAssignmentIds);
+        goneAssignments.keySet().removeAll(kept);
         List<Assignment> rows = moved.stream().map(row -> {
             boolean stays = kept.contains(row.assignmentId());
             // A copy continues the old assignment that stays. A copy of one that the end removed continues the
@@ -442,15 +447,35 @@ public class EmploymentService {
                     row.workLocationId(), row.costCenterId(), row.head(), row.primary(), row.allocationPercent(),
                     row.displayOrder(), row.attributes(), stays ? null : row.source(), continues, 1);
         }).toList();
-        List<ReportingLine> lines = new ArrayList<>();
-        newAssignmentIds.forEach((oldId, copyId) -> holding.lines().getOrDefault(oldId, List.of()).forEach(line ->
-                lines.add(new ReportingLine(newId(), copyId, line.managerPersonId(), line.managerUserId(),
-                        line.kind(), from(date, line.period()), 1))));
-        List<UnitRole> roles = holding.roles().getOrDefault(old.id(), List.of()).stream()
+        List<ReportingLine> oldLines = newAssignmentIds.keySet().stream()
+                .flatMap(oldId -> holding.lines().getOrDefault(oldId, List.of()).stream())
+                .toList();
+        List<ReportingLine> lines = oldLines.stream()
+                .map(line -> new ReportingLine(newId(), newAssignmentIds.get(line.assignmentId()),
+                        line.managerPersonId(), line.managerUserId(), line.kind(), from(date, line.period()), 1))
+                .toList();
+        List<UnitRole> oldRoles = holding.roles().getOrDefault(old.id(), List.of());
+        List<UnitRole> roles = oldRoles.stream()
                 .map(role -> new UnitRole(newId(), started.id(), started.personId(), started.userId(),
                         role.orgUnitId(), role.roleId(), role.includesDescendants(), from(date, role.period()), 1))
                 .toList();
-        return new Copy(started, terms, rows, List.copyOf(newAssignmentIds.values()), lines, roles, gone);
+        return new Copy(started, terms, rows, List.copyOf(newAssignmentIds.values()), lines, roles, Map.of(
+                ExternalId.Kind.ASSIGNMENT, goneAssignments,
+                ExternalId.Kind.REPORTING_LINE, gone(oldLines, lines, ReportingLine::id, ReportingLine::period, date),
+                ExternalId.Kind.UNIT_ROLE, gone(oldRoles, roles, UnitRole::id, UnitRole::period, date)));
+    }
+
+    // The end removes what starts on the date or later. A line and a role that hold before it stay, with their
+    // external IDs.
+    private static <T> Map<String, String> gone(List<T> old, List<T> copies, Function<T, String> idOf,
+            Function<T, ValidPeriod> periodOf, LocalDate date) {
+        Map<String, String> gone = new HashMap<>();
+        for (int i = 0; i < old.size(); i++) {
+            if (!periodOf.apply(old.get(i)).from().isBefore(date)) {
+                gone.put(idOf.apply(old.get(i)), idOf.apply(copies.get(i)));
+            }
+        }
+        return gone;
     }
 
     // What holds on the date starts on the date. What was stored for later keeps its own start.
@@ -659,16 +684,6 @@ public class EmploymentService {
 
     private static String idOf(RefItem item) {
         return item == null ? null : item.id();
-    }
-
-    // The end removes an assignment that starts on the date or later. Its copy takes its external IDs, so that an
-    // import still finds it.
-    private void moveExternalIds(Map<String, String> copyIds) {
-        externalIds.ofResources(ExternalId.Kind.ASSIGNMENT, copyIds.keySet()).forEach(row -> {
-            externalIds.delete(row.id());
-            externalIds.insert(new ExternalId(row.id(), row.kind(), copyIds.get(row.resourceId()), row.source(),
-                    row.externalId(), row.version() + 1));
-        });
     }
 
     private static String newId() {

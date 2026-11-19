@@ -2,6 +2,7 @@ package net.exoego.keycloak.fuhito.store;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import net.exoego.keycloak.fuhito.domain.ExternalId;
@@ -70,6 +71,15 @@ public interface ExternalIdStore {
      * @param externalId the row
      */
     void update(ExternalId externalId);
+
+    /**
+     * Gives the IDs of resources to other resources of the same kind, with one read and one write.
+     * The version of each moved row counts up. The versions of the resources do not, so it is for resources that a
+     * write removes and for their copies that the same write makes.
+     *
+     * @param newResourceIds the ID of the new resource of each old one, by kind
+     */
+    void moveAll(Map<ExternalId.Kind, Map<String, String>> newResourceIds);
 
     /**
      * Deletes a row.

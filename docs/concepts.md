@@ -144,7 +144,7 @@ An org unit, a person, an employment, an assignment, and a qualification keep `s
 - `GET /external-ids/lookup?resourceType=&source=&externalId=` finds the resource.
 - `GET /external-ids?resourceType=&resourceId=` lists every ID of one resource, the ID of the system that made it first. That one has `own`.
 - The import matches a row by the ID of any system. A file of the payroll system finds a person that the HR system made, when the person has an ID of the payroll system.
-- A resource that goes away takes its IDs with it. A mask and an erase remove the IDs of the person and of the records of the person. These records are the employments, the assignments, the qualifications, the roles over org units, and the reporting lines where the person reports or is the manager.
+- A resource that goes away takes its IDs with it. A transfer to another employer is the one exception. It removes each assignment, reporting line, and role over an org unit that starts on its date or later, and gives their IDs to their copies. A mask and an erase remove the IDs of the person and of the records of the person. These records are the employments, the assignments, the qualifications, the roles over org units, and the reporting lines where the person reports or is the manager.
 - The IDs of an org unit, a reference item, a kind of reference data, a hierarchy, and an attribute definition need the permission to read the org structure. The others need the full read.
 
 ## Free attributes
@@ -300,6 +300,7 @@ Every employment names its employer. The employer is an org unit that is a legal
 - A request can leave the employer out when the realm has exactly one legal entity on that date. With several, the request must name it. Nothing is guessed from the org unit where the person works.
 - The employer of an employment never changes. A move to another employer is the end of one employment and the start of another.
 - `POST /employments/{id}/transfer` does that move in one write. The new employment gets the terms, the assignments, the reporting lines, and the roles over org units of the old one from the date on, and names the old one in `continuesEmploymentId`. So the years of service can be counted across the two.
+- An assignment, a reporting line, or a role over an org unit that starts on the date of the transfer or later goes away from the old employment. Its copy takes its IDs of other systems, so a system that knows it by such an ID still finds it. One that holds before the date only ends and keeps its IDs. Its copy gets none.
 - `POST /employments/transfers` does it for every person of one employer, for a merger of two legal entities. It can end the old employer in the same write.
 - A legal entity stays one while employments name it. Its unit type keeps the mark, the unit does not get a type without the mark from a date on which an employment starts, and the unit does not end before the employments do.
 - A staff number is unique for one employer. Two legal entities can give the same number to two people.

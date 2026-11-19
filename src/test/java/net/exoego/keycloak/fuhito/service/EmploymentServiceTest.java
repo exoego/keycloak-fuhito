@@ -16,6 +16,7 @@ import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.RefItem;
 import net.exoego.keycloak.fuhito.domain.RefKind;
 import net.exoego.keycloak.fuhito.domain.ReportingLine;
+import net.exoego.keycloak.fuhito.domain.UnitRole;
 import net.exoego.keycloak.fuhito.domain.ValidPeriod;
 import org.junit.jupiter.api.Test;
 
@@ -31,10 +32,11 @@ class EmploymentServiceTest {
     private final MemoryRefItemStore refItems = new MemoryRefItemStore();
     private final MemoryReportingLineStore lines = new MemoryReportingLineStore();
     private final MemoryExternalIdStore externalIds = new MemoryExternalIdStore();
+    private final MemoryUnitRoleStore roles = new MemoryUnitRoleStore();
     private final EmploymentService service =
             new EmploymentService(store, externalIds, assignments, refItems,
             MemoryPersonStore.linked(Set.of("alice", "bob")),
-            lines, new MemoryUnitRoleStore(), new AnyEmployer());
+            lines, roles, new AnyEmployer());
 
     private static NewEmployment minimal(String userId, String validFrom) {
         return new NewEmployment(userId, validFrom, null, null, null, null, null, null, null, null, null);
@@ -608,6 +610,43 @@ class EmploymentServiceTest {
         assertEquals("cc", moved.costCenterId());
         assertEquals("hr", moved.source());
         assertEquals(List.of(), externalIds.ofResource(ExternalId.Kind.ASSIGNMENT, first));
+    }
+
+    @Test
+    void aLineAndARoleThatTheTransferRemovesGiveTheirIdsToTheirCopies() {
+        String old = service.start(new NewEmployment("alice", "2020-04-01", null, null, null, null, null, null,
+                null, null, null, null, "company-y")).employment().id();
+        assignment("ward-row", "ward", old, "2020-04-01", null);
+        lines.insert(new ReportingLine("held", "ward", "bob", "bob", ReportingLine.Kind.SOLID,
+                ValidPeriod.startingAt(LocalDate.of(2020, 4, 1)), 1));
+        lines.insert(new ReportingLine("planned", "ward", "bob", "bob", ReportingLine.Kind.DOTTED,
+                ValidPeriod.startingAt(LocalDate.of(2027, 7, 1)), 1));
+        roles.insert(new UnitRole("holds", old, "alice", "alice", "unit", "approver", false,
+                ValidPeriod.startingAt(LocalDate.of(2020, 4, 1)), 1));
+        roles.insert(new UnitRole("starts", old, "alice", "alice", "unit", "approver", false,
+                ValidPeriod.startingAt(LocalDate.of(2027, 4, 1)), 1));
+        externalIds.insert(new ExternalId("x-held", ExternalId.Kind.REPORTING_LINE, "held", "hr", "L-1", 1));
+        externalIds.insert(new ExternalId("x-planned", ExternalId.Kind.REPORTING_LINE, "planned", "hr", "L-2", 1));
+        externalIds.insert(new ExternalId("x-holds", ExternalId.Kind.UNIT_ROLE, "holds", "hr", "R-1", 1));
+        externalIds.insert(new ExternalId("x-starts", ExternalId.Kind.UNIT_ROLE, "starts", "hr", "R-2", 1));
+
+        EmploymentService.Transfer transfer = service.transfer(old, new TransferRequest("company-z", "2027-04-01",
+                null, null));
+
+        List<String> lineCopies = transfer.reportingLines().stream().map(ReportingLine::id).toList();
+        List<String> roleCopies = transfer.unitRoles().stream().map(view -> view.role().id()).toList();
+        // A line and a role that hold before the date are only ended. They keep their IDs, and their copies get none.
+        assertEquals(Optional.of("held"), externalIds.idOf(ExternalId.Kind.REPORTING_LINE, "hr", "L-1"));
+        assertEquals(Optional.of("holds"), externalIds.idOf(ExternalId.Kind.UNIT_ROLE, "hr", "R-1"));
+        assertEquals(List.of(), externalIds.ofResource(ExternalId.Kind.REPORTING_LINE, lineCopies.get(0)));
+        assertEquals(List.of(), externalIds.ofResource(ExternalId.Kind.UNIT_ROLE, roleCopies.get(0)));
+        // The end removes the ones that start on the date or later, so their copies take their IDs.
+        assertTrue(lines.find("planned").isEmpty());
+        assertTrue(roles.find("starts").isEmpty());
+        assertEquals(new ExternalId("x-planned", ExternalId.Kind.REPORTING_LINE, lineCopies.get(1), "hr", "L-2", 2),
+                externalIds.find(ExternalId.Kind.REPORTING_LINE, "hr", "L-2").orElseThrow());
+        assertEquals(new ExternalId("x-starts", ExternalId.Kind.UNIT_ROLE, roleCopies.get(1), "hr", "R-2", 2),
+                externalIds.find(ExternalId.Kind.UNIT_ROLE, "hr", "R-2").orElseThrow());
     }
 
     private Assignment assignment(String rowId, String assignmentId, String employmentId, String from, String to) {

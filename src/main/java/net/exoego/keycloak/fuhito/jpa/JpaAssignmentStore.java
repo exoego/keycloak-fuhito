@@ -407,9 +407,9 @@ public class JpaAssignmentStore implements AssignmentStore {
         }
         em.flush();
         Set<String> kept = Versions.assignments(em, realmId, assignmentIds).keySet();
-        assignmentIds.stream()
+        ExternalIds.deleteOfGoneAssignments(em, realmId, assignmentIds.stream()
                 .filter(id -> !kept.contains(id))
-                .forEach(id -> ExternalIds.deleteOfGoneAssignment(em, realmId, id));
+                .toList());
     }
 
     private static void copy(Assignment row, AssignmentEntity entity) {

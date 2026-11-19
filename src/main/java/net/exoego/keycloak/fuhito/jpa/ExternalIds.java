@@ -1,5 +1,7 @@
 package net.exoego.keycloak.fuhito.jpa;
 
+import java.util.Collection;
+
 import jakarta.persistence.EntityManager;
 
 /**
@@ -29,19 +31,44 @@ final class ExternalIds {
     }
 
     /**
-     * Removes the IDs of an assignment that has no row left.
+     * Removes the IDs of several resources of one kind, with one query.
      *
      * @param em the entity manager of the request
      * @param realmId the ID of the realm
-     * @param assignmentId the ID of the assignment
+     * @param kind the kind of resource, as the table of IDs names it
+     * @param resourceIds the IDs of the resources
      */
-    static void deleteOfGoneAssignment(EntityManager em, String realmId, String assignmentId) {
+    static void deleteOfAll(EntityManager em, String realmId, String kind, Collection<String> resourceIds) {
+        if (resourceIds.isEmpty()) {
+            return;
+        }
+        em.createQuery("""
+                        delete from ExternalIdEntity x where x.realmId = :realmId and x.kind = :kind
+                        and %s""".formatted(ManyIds.has("x.resourceId", "ids")))
+                .setParameter("realmId", realmId)
+                .setParameter("kind", kind)
+                .setParameter("ids", ManyIds.of(resourceIds))
+                .executeUpdate();
+    }
+
+    /**
+     * Removes the IDs of the assignments that have no row left, with one query.
+     *
+     * @param em the entity manager of the request
+     * @param realmId the ID of the realm
+     * @param assignmentIds the IDs of the assignments
+     */
+    static void deleteOfGoneAssignments(EntityManager em, String realmId, Collection<String> assignmentIds) {
+        if (assignmentIds.isEmpty()) {
+            return;
+        }
         em.createQuery("""
                         delete from ExternalIdEntity x where x.realmId = :realmId and x.kind = 'ASSIGNMENT'
-                        and x.resourceId = :id and not exists (select a.id from AssignmentEntity a
-                        where a.realmId = :realmId and a.assignmentId = :id)""")
+                        and %s and not exists (select a.id from AssignmentEntity a
+                        where a.realmId = :realmId and a.assignmentId = x.resourceId)"""
+                        .formatted(ManyIds.has("x.resourceId", "ids")))
                 .setParameter("realmId", realmId)
-                .setParameter("id", assignmentId)
+                .setParameter("ids", ManyIds.of(assignmentIds))
                 .executeUpdate();
     }
 }

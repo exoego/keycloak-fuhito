@@ -217,13 +217,12 @@ public class JpaUnitRoleStore implements UnitRoleStore {
 
     @Override
     public void deleteAll(Collection<String> ids) {
-        for (String id : ids) {
-            UnitRoleEntity entity = em.find(UnitRoleEntity.class, id);
-            if (entity != null && entity.realmId.equals(realmId)) {
-                ExternalIds.deleteOf(em, realmId, "UNIT_ROLE", id);
-                em.remove(entity);
-            }
-        }
+        List<UnitRoleEntity> found = ids.stream()
+                .map(id -> em.find(UnitRoleEntity.class, id))
+                .filter(entity -> entity != null && entity.realmId.equals(realmId))
+                .toList();
+        ExternalIds.deleteOfAll(em, realmId, "UNIT_ROLE", found.stream().map(entity -> entity.id).toList());
+        found.forEach(em::remove);
         em.flush();
     }
 }

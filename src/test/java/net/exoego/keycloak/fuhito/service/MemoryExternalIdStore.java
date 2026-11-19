@@ -81,6 +81,15 @@ final class MemoryExternalIdStore implements ExternalIdStore {
     }
 
     @Override
+    public void moveAll(Map<ExternalId.Kind, Map<String, String>> newResourceIds) {
+        rows.replaceAll(r -> {
+            String moved = newResourceIds.getOrDefault(r.kind(), Map.of()).get(r.resourceId());
+            return moved == null ? r
+                    : new ExternalId(r.id(), r.kind(), moved, r.source(), r.externalId(), r.version() + 1);
+        });
+    }
+
+    @Override
     public void delete(String id) {
         rows.removeIf(r -> r.id().equals(id));
     }
