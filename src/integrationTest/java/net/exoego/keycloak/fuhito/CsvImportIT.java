@@ -30,6 +30,14 @@ class CsvImportIT {
         return report;
     }
 
+    // The code of the error of the first bad row of a file that fails as a whole.
+    private static String failure(Api api, String list, String query, String csv) throws Exception {
+        HttpResponse<String> response = api.postBytes("/imports/csv/" + list + "?" + query, "text/csv; charset=UTF-8",
+                csv.getBytes(StandardCharsets.UTF_8));
+        assertEquals(400, response.statusCode(), response.body());
+        return Api.json(response).get("errors").get(0).get("error").asText();
+    }
+
     @Test
     void anExportOfOrgUnitsLoadsAgainWithNoChange() throws Exception {
         TestRealm realm = TestRealm.withEmployer("csv-export");
@@ -151,8 +159,9 @@ class CsvImportIT {
             HttpResponse<String> exported = api.get("/imports/csv/reporting-lines?asOf=2026-05-01&header=" + header);
             assertEquals(200, exported.statusCode(), exported.body());
             assertTrue(exported.body().startsWith("﻿" + (header.equals("en")
-                    ? "id,assignmentId,managerPersonId,kind,validFrom,validTo\r\n"
-                    : "ID,所属のID,上司の人のID,種類,開始日,終了日\r\n") + line + "," + assignment + ","), exported.body());
+                    ? "id,externalId,source,assignmentId,managerPersonId,kind,validFrom,validTo\r\n"
+                    : "ID,外部ID,ソース,所属のID,上司の人のID,種類,開始日,終了日\r\n") + line + ",,," + assignment + ","),
+                    exported.body());
             assertTrue(exported.body().endsWith(",SOLID,2021-04-01,\r\n"), exported.body());
             JsonNode counts = load(api, "reporting-lines", "effectiveDate=2026-05-01", exported.body())
                     .get("counts").get("reportingLines");
@@ -160,16 +169,21 @@ class CsvImportIT {
         }
         // A new solid manager does not end the stored line. The file ends it in a row of its own.
         realm.user("chief");
-        HttpResponse<String> second = api.postBytes("/imports/csv/reporting-lines?effectiveDate=2026-06-01",
-                "text/csv; charset=UTF-8", ("assignmentId,managerUsername\r\n" + assignment + ",chief\r\n")
-                        .getBytes(StandardCharsets.UTF_8));
-        assertEquals(400, second.statusCode(), second.body());
-        assertEquals("reporting_line.solid_exists", Api.json(second).get("errors").get(0).get("error").asText());
-        load(api, "reporting-lines", "effectiveDate=2026-06-01", "id,assignmentId,managerUsername,validTo\r\n,"
-                + assignment + ",chief,\r\n" + line + ",,,2026-06-01\r\n");
+        assertEquals("reporting_line.solid_exists", failure(api, "reporting-lines", "effectiveDate=2026-06-01",
+                "externalId,assignmentId,managerUsername\r\nL-2," + assignment + ",chief\r\n"));
+        // The manager of a stored line does not change. A different line needs a different external ID.
+        assertEquals("import.value_fixed", failure(api, "reporting-lines", "effectiveDate=2026-06-01",
+                "id,managerUsername\r\n" + line + ",chief\r\n"));
+        load(api, "reporting-lines", "effectiveDate=2026-06-01", "id,externalId,assignmentId,managerUsername,validTo"
+                + "\r\n,L-2," + assignment + ",chief,\r\n" + line + ",,,,2026-06-01\r\n");
         assertTrue(api.get("/imports/csv/reporting-lines?asOf=2026-05-31").body().contains(line + ","));
         assertTrue(api.get("/imports/csv/reporting-lines?asOf=2026-05-31").body().endsWith(",2026-06-01\r\n"));
-        assertFalse(api.get("/imports/csv/reporting-lines?asOf=2026-06-01").body().contains(line + ","));
+        String next = api.get("/imports/csv/reporting-lines?asOf=2026-06-01").body();
+        assertFalse(next.contains(line + ","), next);
+        assertTrue(next.contains(",L-2,import," + assignment + ","), next);
+        JsonNode again = load(api, "reporting-lines", "effectiveDate=2026-06-01", next).get("counts")
+                .get("reportingLines");
+        assertEquals(0, again.get("created").asInt() + again.get("changed").asInt(), again.toString());
     }
 
     @Test
@@ -189,23 +203,24 @@ class CsvImportIT {
             HttpResponse<String> exported = api.get("/imports/csv/unit-roles?asOf=2026-05-01&header=" + header);
             assertEquals(200, exported.statusCode(), exported.body());
             assertEquals("﻿" + (header.equals("en")
-                    ? "id,employmentId,orgUnitId,role,includesDescendants,validFrom,validTo"
-                    : "ID,雇用のID,組織のID,ロール,下位の組織も含む,開始日,終了日") + "\r\n" + role + "," + employment
-                    + "," + ward + ",approver,false,2021-04-01,\r\n", exported.body());
+                    ? "id,externalId,source,employmentId,orgUnitId,role,includesDescendants,validFrom,validTo"
+                    : "ID,外部ID,ソース,雇用のID,組織のID,ロール,下位の組織も含む,開始日,終了日") + "\r\n" + role + ",,,"
+                    + employment + "," + ward + ",approver,false,2021-04-01,\r\n", exported.body());
             JsonNode counts = load(api, "unit-roles", "effectiveDate=2026-05-01", exported.body())
                     .get("counts").get("unitRoles");
             assertEquals(0, counts.get("created").asInt() + counts.get("changed").asInt(), counts.toString());
         }
         // Whether the role covers the units below does not change. The file ends it and adds a new role.
-        HttpResponse<String> wider = api.postBytes("/imports/csv/unit-roles?effectiveDate=2026-06-01",
-                "text/csv; charset=UTF-8", ("id,includesDescendants\r\n" + role + ",true\r\n")
-                        .getBytes(StandardCharsets.UTF_8));
-        assertEquals(400, wider.statusCode(), wider.body());
-        assertEquals("import.unit_role_mismatch", Api.json(wider).get("errors").get(0).get("error").asText());
-        load(api, "unit-roles", "effectiveDate=2026-06-01", "id,employmentId,orgUnitId,role,includesDescendants,"
-                + "validTo\r\n," + employment + "," + ward + ",approver,true,\r\n" + role + ",,,,,2026-06-01\r\n");
+        assertEquals("import.value_fixed", failure(api, "unit-roles", "effectiveDate=2026-06-01",
+                "id,includesDescendants\r\n" + role + ",true\r\n"));
+        load(api, "unit-roles", "effectiveDate=2026-06-01", "id,externalId,employmentId,orgUnitId,role,"
+                + "includesDescendants,validTo\r\n,R-2," + employment + "," + ward + ",approver,true,\r\n" + role
+                + ",,,,,,2026-06-01\r\n");
         assertTrue(api.get("/imports/csv/unit-roles?asOf=2026-05-31").body().endsWith(",false,2021-04-01,2026-06-01\r\n"));
-        assertTrue(api.get("/imports/csv/unit-roles?asOf=2026-06-01").body().endsWith(",true,2026-06-01,\r\n"));
+        String next = api.get("/imports/csv/unit-roles?asOf=2026-06-01").body();
+        assertTrue(next.endsWith(",R-2,import," + employment + "," + ward + ",approver,true,2026-06-01,\r\n"), next);
+        JsonNode again = load(api, "unit-roles", "effectiveDate=2026-06-01", next).get("counts").get("unitRoles");
+        assertEquals(0, again.get("created").asInt() + again.get("changed").asInt(), again.toString());
     }
 
     @Test
@@ -278,46 +293,59 @@ class CsvImportIT {
             HttpResponse<String> exported = api.get("/imports/csv/change-orders?header=" + header);
             assertEquals(200, exported.statusCode(), exported.body());
             assertEquals("﻿" + (header.equals("en")
-                    ? "id,number,kind,title,note,orderDate,effectiveDate,approverUserId,requesterUserId,externalReference"
-                    : "ID,番号,種類,件名,備考,発令日,発効日,承認者のユーザーID,申請者のユーザーID,外部の参照") + "\r\n" + order
-                    + ",2026-01,,\"4月の異動, 本院\",,,2026-04-01," + chief + ",,\r\n", exported.body());
+                    ? "id,externalId,source,number,kind,title,note,orderDate,effectiveDate,approverUserId,"
+                            + "requesterUserId,externalReference"
+                    : "ID,外部ID,ソース,番号,種類,件名,備考,発令日,発効日,承認者のユーザーID,申請者のユーザーID,外部の参照")
+                    + "\r\n" + order + ",,,2026-01,,\"4月の異動, 本院\",,,2026-04-01," + chief + ",,\r\n",
+                    exported.body());
             JsonNode counts = load(api, "change-orders", "effectiveDate=2026-05-01", exported.body())
                     .get("counts").get("changeOrders");
             assertEquals(0, counts.get("created").asInt() + counts.get("changed").asInt(), counts.toString());
         }
-        load(api, "change-orders", "effectiveDate=2026-10-01", String.join("\r\n", "number,title,requesterUsername",
-                "2026-01,4月の異動,chief", "2026-02,10月の異動,"));
+        load(api, "change-orders", "effectiveDate=2026-10-01", String.join("\r\n",
+                "id,externalId,number,title,requesterUsername", order + ",,2026-01,4月の異動,chief",
+                ",O-2,2026-02,10月の異動,"));
         JsonNode orders = Api.json(api.get("/change-orders"));
         assertEquals(List.of("2026-02", "2026-01"), orders.findValuesAsText("number"));
         assertEquals(List.of("2026-10-01", "2026-04-01"), orders.findValuesAsText("effectiveDate"));
         assertEquals(chief, orders.get(1).get("requesterUserId").asText());
+        // The number is a value, so a new order with a taken number fails.
+        assertEquals("change_order.number_taken", failure(api, "change-orders", "effectiveDate=2026-10-01",
+                "externalId,number,title\r\nO-3,2026-02,10月の異動\r\n"));
+        assertTrue(api.get("/imports/csv/change-orders").body().contains(",O-2,import,2026-02,"));
     }
 
     @Test
     void anExportOfKindsLoadsAgainWithNoChange() throws Exception {
         TestRealm realm = TestRealm.create("csv-export-kinds");
         Api api = realm.api;
-        assertEquals(201, api.post("/ref-kinds", "{\"code\": \"site\", \"primaryLanguage\": \"ja\", "
-                + "\"names\": {\"ja\": {\"name\": \"拠点\"}, \"en\": {\"name\": \"Site\"}}}").statusCode());
+        String site = Api.json(api.post("/ref-kinds", "{\"code\": \"site\", \"primaryLanguage\": \"ja\", "
+                + "\"names\": {\"ja\": {\"name\": \"拠点\"}, \"en\": {\"name\": \"Site\"}}}")).get("id").asText();
 
         for (String header : List.of("en", "ja")) {
             HttpResponse<String> exported = api.get("/imports/csv/ref-kinds?header=" + header);
             assertEquals(200, exported.statusCode(), exported.body());
-            assertEquals("﻿" + (header.equals("en") ? "code,primaryLanguage,name,name:en"
-                    : "コード,主言語,名称,名称:en") + "\r\nsite,ja,拠点,Site\r\n", exported.body());
+            assertEquals("﻿" + (header.equals("en") ? "id,externalId,source,code,primaryLanguage,name,name:en"
+                    : "ID,外部ID,ソース,コード,主言語,名称,名称:en") + "\r\n" + site + ",,,site,ja,拠点,Site\r\n",
+                    exported.body());
             JsonNode counts = load(api, "ref-kinds", "effectiveDate=2026-05-01", exported.body()).get("counts")
                     .get("refKinds");
             assertEquals(0, counts.get("created").asInt() + counts.get("changed").asInt(), counts.toString());
         }
         // A file with no column of a language keeps the stored names in it. A blank primary language keeps the
         // stored one.
-        load(api, "ref-kinds", "effectiveDate=2026-05-01",
-                "code,primaryLanguage,name\r\nsite,,勤務地\r\ncost-center,ja,原価センター\r\n");
+        load(api, "ref-kinds", "effectiveDate=2026-05-01", "id,externalId,code,primaryLanguage,name\r\n" + site
+                + ",,,,勤務地\r\n,CC,cost-center,ja,原価センター\r\n");
+        // The code is a value. It does not name a stored kind, and it does not change.
+        assertEquals("ref_kind.code_taken", failure(api, "ref-kinds", "effectiveDate=2026-05-01",
+                "externalId,code,primaryLanguage,name\r\nS,site,ja,拠点\r\n"));
+        assertEquals("import.value_fixed", failure(api, "ref-kinds", "effectiveDate=2026-05-01",
+                "externalId,code\r\nCC,cost\r\n"));
         JsonNode kinds = Api.json(api.get("/ref-kinds"));
-        JsonNode site = kinds.get(kinds.findValuesAsText("code").indexOf("site"));
-        assertEquals("勤務地", site.get("name").asText());
-        assertEquals("ja", site.get("primaryLanguage").asText());
-        assertEquals("Site", site.get("names").get("en").get("name").asText());
+        JsonNode renamed = kinds.get(kinds.findValuesAsText("code").indexOf("site"));
+        assertEquals("勤務地", renamed.get("name").asText());
+        assertEquals("ja", renamed.get("primaryLanguage").asText());
+        assertEquals("Site", renamed.get("names").get("en").get("name").asText());
         assertTrue(kinds.findValuesAsText("code").contains("cost-center"));
         assertEquals(200, api.putWithVersion("/ref-kinds/site", "{\"primaryLanguage\": \"ja\", "
                 + "\"names\": {\"ja\": {\"name\": \"拠点\"}}}").statusCode());
@@ -331,31 +359,31 @@ class CsvImportIT {
         TestRealm realm = TestRealm.create("csv-export-definitions");
         Api api = realm.api;
         assertEquals(201, api.post("/ref-kinds", "{\"code\": \"site\", \"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"拠点\"}}}").statusCode());
-        assertEquals(201, api.post("/attribute-definitions", "{\"target\": \"PERSON\", \"name\": \"site\", "
-                + "\"type\": \"REF_ITEM\", \"refKind\": \"site\"}").statusCode());
-        assertEquals(201, api.post("/attribute-definitions", "{\"target\": \"ORG_UNIT\", \"name\": \"beds\", "
-                + "\"type\": \"NUMBER\"}").statusCode());
-        assertEquals(201, api.post("/attribute-definitions", "{\"target\": \"ORG_UNIT\", \"name\": \"tags\", "
-                + "\"type\": \"STRING\", \"multiple\": true}").statusCode());
+        String site = Api.json(api.post("/attribute-definitions", "{\"target\": \"PERSON\", \"name\": \"site\", "
+                + "\"type\": \"REF_ITEM\", \"refKind\": \"site\"}")).get("id").asText();
+        String beds = Api.json(api.post("/attribute-definitions", "{\"target\": \"ORG_UNIT\", \"name\": \"beds\", "
+                + "\"type\": \"NUMBER\", \"source\": \"hr\", \"externalId\": \"BEDS\"}")).get("id").asText();
+        String tags = Api.json(api.post("/attribute-definitions", "{\"target\": \"ORG_UNIT\", \"name\": \"tags\", "
+                + "\"type\": \"STRING\", \"multiple\": true}")).get("id").asText();
 
         for (String header : List.of("en", "ja")) {
             HttpResponse<String> exported = api.get("/imports/csv/attribute-definitions?header=" + header);
             assertEquals(200, exported.statusCode(), exported.body());
-            assertEquals("﻿" + (header.equals("en") ? "target,name,type,refKind,multiple,required"
-                    : "対象,名称,型,参照の種類,複数,必須") + "\r\nORG_UNIT,beds,NUMBER,,false,false\r\n"
-                    + "ORG_UNIT,tags,STRING,,true,false\r\nPERSON,site,REF_ITEM,site,false,false\r\n",
-                    exported.body());
+            assertEquals("﻿" + (header.equals("en") ? "id,externalId,source,target,name,type,refKind,multiple,required"
+                    : "ID,外部ID,ソース,対象,名称,型,参照の種類,複数,必須") + "\r\n" + beds
+                    + ",BEDS,hr,ORG_UNIT,beds,NUMBER,,false,false\r\n" + tags + ",,,ORG_UNIT,tags,STRING,,true,false\r\n"
+                    + site + ",,,PERSON,site,REF_ITEM,site,false,false\r\n", exported.body());
             JsonNode counts = load(api, "attribute-definitions", "effectiveDate=2026-05-01", exported.body())
                     .get("counts").get("attributeDefinitions");
             assertEquals(0, counts.get("created").asInt() + counts.get("changed").asInt(), counts.toString());
         }
         // A blank cell keeps the stored value.
-        load(api, "attribute-definitions", "effectiveDate=2026-05-01", "target,name,required\r\nORG_UNIT,beds,true\r\n");
-        JsonNode beds = Api.json(api.get("/attribute-definitions?target=ORG_UNIT")).get(0);
-        assertEquals("NUMBER", beds.get("type").asText());
-        assertTrue(beds.get("required").asBoolean());
+        load(api, "attribute-definitions", "effectiveDate=2026-05-01&source=hr", "externalId,required\r\nBEDS,true\r\n");
+        JsonNode kept = Api.json(api.get("/attribute-definitions?target=ORG_UNIT")).get(0);
+        assertEquals("NUMBER", kept.get("type").asText());
+        assertTrue(kept.get("required").asBoolean());
         assertEquals(1, load(api, "attribute-definitions", "effectiveDate=2026-05-01",
-                "target,name,multiple\r\nORG_UNIT,beds,true\r\n").get("counts").get("attributeDefinitions")
+                "id,multiple\r\n" + beds + ",true\r\n").get("counts").get("attributeDefinitions")
                 .get("changed").asInt());
         assertTrue(Api.json(api.get("/attribute-definitions?target=ORG_UNIT")).get(0).get("multiple").asBoolean());
     }
@@ -364,19 +392,24 @@ class CsvImportIT {
     void anExportOfHierarchiesLoadsAgainWithNoChange() throws Exception {
         TestRealm realm = TestRealm.create("csv-export-hierarchies");
         Api api = realm.api;
-        assertEquals(201, api.post("/hierarchies", "{\"code\": \"project\", \"name\": \"プロジェクト\"}")
-                .statusCode());
+        String project = Api.json(api.post("/hierarchies", "{\"code\": \"project\", \"name\": \"プロジェクト\"}"))
+                .get("id").asText();
+        String standard = Api.json(api.get("/hierarchies")).get(0).get("id").asText();
 
         for (String header : List.of("en", "ja")) {
             HttpResponse<String> exported = api.get("/imports/csv/hierarchies?header=" + header);
             assertEquals(200, exported.statusCode(), exported.body());
-            assertEquals("﻿" + (header.equals("en") ? "code,name" : "コード,名称")
-                    + "\r\ndefault,Default\r\nproject,プロジェクト\r\n", exported.body());
+            assertEquals("﻿" + (header.equals("en") ? "id,externalId,source,code,name" : "ID,外部ID,ソース,コード,名称")
+                    + "\r\n" + standard + ",,,default,Default\r\n" + project + ",,,project,プロジェクト\r\n",
+                    exported.body());
             JsonNode counts = load(api, "hierarchies", "effectiveDate=2026-05-01", exported.body()).get("counts")
                     .get("hierarchies");
             assertEquals(0, counts.get("created").asInt() + counts.get("changed").asInt(), counts.toString());
         }
-        load(api, "hierarchies", "effectiveDate=2026-05-01", "code,name\r\ndefault,組織図\r\nfinance,管理会計\r\n");
+        load(api, "hierarchies", "effectiveDate=2026-05-01", "id,externalId,code,name\r\n" + standard
+                + ",,,組織図\r\n,FIN,finance,管理会計\r\n");
+        assertEquals("hierarchy.code_taken", failure(api, "hierarchies", "effectiveDate=2026-05-01",
+                "externalId,code,name\r\nD,default,組織図\r\n"));
         assertEquals(List.of("default", "finance", "project"),
                 Api.json(api.get("/hierarchies")).findValuesAsText("code"));
         assertEquals(List.of("組織図", "管理会計", "プロジェクト"),
@@ -423,9 +456,9 @@ class CsvImportIT {
         assertEquals(201, api.post("/attribute-definitions", "{\"target\": \"REF_ITEM\", \"name\": \"note\", "
                 + "\"type\": \"STRING\"}").statusCode());
         assertEquals(201, api.post("/ref-kinds", "{\"code\": \"site\", \"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"拠点\"}}}").statusCode());
-        assertEquals(201, api.post("/ref-items", "{\"kind\": \"site\", \"code\": \"tokyo\", \"primaryLanguage\": \"ja\", "
-                + "\"names\": {\"ja\": {\"name\": \"東京\"}, \"en\": {\"name\": \"Tokyo\"}}, \"displayOrder\": 2, \"attributes\": {\"note\": \"1F, west\"}}")
-                .statusCode());
+        String tokyo = Api.json(api.post("/ref-items", "{\"kind\": \"site\", \"code\": \"tokyo\", \"primaryLanguage\": \"ja\", "
+                + "\"names\": {\"ja\": {\"name\": \"東京\"}, \"en\": {\"name\": \"Tokyo\"}}, \"displayOrder\": 2, \"attributes\": {\"note\": \"1F, west\"}, "
+                + "\"source\": \"hr\", \"externalId\": \"T-1\"}")).get("id").asText();
         assertEquals(201, api.post("/ref-items", "{\"kind\": \"UNIT_TYPE\", \"code\": \"committee\", "
                 + "\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"委員会\"}}, \"lateral\": true}").statusCode());
         assertEquals(201, api.post("/ref-items", "{\"kind\": \"ASSIGNMENT_KIND\", \"code\": \"acting\", "
@@ -436,11 +469,13 @@ class CsvImportIT {
         for (String header : List.of("en", "ja")) {
             HttpResponse<String> exported = api.get("/imports/csv/ref-items?header=" + header);
             assertEquals(200, exported.statusCode(), exported.body());
-            assertTrue(exported.body().startsWith("﻿" + (header.equals("en") ? "kind,code,primaryLanguage,name,name:en,"
-                    + "displayOrder,active,legalEntity,actingHead,lateral,attributes.note"
-                    : "種類,コード,主言語,名称,名称:en,表示順,有効,法人,代行,横断,attributes.note")), exported.body());
-            assertTrue(exported.body().contains("site,tokyo,ja,東京,Tokyo,2,true,,,,\"1F, west\""), exported.body());
-            assertTrue(exported.body().contains("JOB_TITLE,old,ja,旧役職,,0,false,,,,"), exported.body());
+            assertTrue(exported.body().startsWith("﻿" + (header.equals("en") ? "id,externalId,source,kind,code,"
+                    + "primaryLanguage,name,name:en,displayOrder,active,legalEntity,actingHead,lateral,attributes.note"
+                    : "ID,外部ID,ソース,種類,コード,主言語,名称,名称:en,表示順,有効,法人,代行,横断,attributes.note")),
+                    exported.body());
+            assertTrue(exported.body().contains(tokyo + ",T-1,hr,site,tokyo,ja,東京,Tokyo,2,true,,,,\"1F, west\""),
+                    exported.body());
+            assertTrue(exported.body().contains(old + ",,,JOB_TITLE,old,ja,旧役職,,0,false,,,,"), exported.body());
 
             JsonNode counts = load(api, "ref-items", "effectiveDate=2026-05-01", exported.body()).get("counts")
                     .get("refItems");
@@ -456,7 +491,7 @@ class CsvImportIT {
         assertTrue(api.get("/imports/csv/ref-items?asOf=2026-06-01").body().contains("site,tokyo,ja,東京本社,Tokyo,"));
 
         // A row can name the first date of its names.
-        load(api, "ref-items", "effectiveDate=2026-06-01", "kind,code,name,validFrom\nsite,tokyo,東京本店,2030-04-01\n");
+        load(api, "ref-items", "effectiveDate=2026-06-01", "id,name,validFrom\n" + tokyo + ",東京本店,2030-04-01\n");
         assertEquals("東京本社", Api.json(api.get("/ref-items?kind=site&asOf=2030-03-31")).get(0).get("name").asText());
         assertEquals("東京本店", Api.json(api.get("/ref-items?kind=site&asOf=2030-04-01")).get(0).get("name").asText());
     }
@@ -621,10 +656,10 @@ class CsvImportIT {
         String nurse = realm.user("nurse");
 
         load(api, "ref-items", "effectiveDate=2026-04-01", """
-                ﻿種類,コード,主言語,名称
-                UNIT_TYPE,hospital,ja,病院
-                OCCUPATION,nurse,ja,看護師
-                EMPLOYMENT_TYPE,part-time,ja,非常勤
+                ﻿外部ID,種類,コード,主言語,名称
+                UT-hospital,UNIT_TYPE,hospital,ja,病院
+                OC-nurse,OCCUPATION,nurse,ja,看護師
+                ET-part-time,EMPLOYMENT_TYPE,part-time,ja,非常勤
                 """);
         JsonNode units = load(api, "org-units", "effectiveDate=2026-04-01&source=sheet", ORG_UNITS);
         load(api, "employments", "effectiveDate=2026-04-01&source=sheet", """
@@ -724,9 +759,9 @@ class CsvImportIT {
         String nurse = realm.user("nurse");
 
         load(api, "ref-items", "effectiveDate=2026-04-01", """
-                種類,コード,主言語,名称,法人
-                UNIT_TYPE,company,ja,会社,はい
-                UNIT_TYPE,ward,ja,病棟,
+                外部ID,種類,コード,主言語,名称,法人
+                UT-company,UNIT_TYPE,company,ja,会社,はい
+                UT-ward,UNIT_TYPE,ward,ja,病棟,
                 """);
         load(api, "org-units", "effectiveDate=2026-04-01&source=sheet", """
                 外部ID,主言語,名称,組織種別

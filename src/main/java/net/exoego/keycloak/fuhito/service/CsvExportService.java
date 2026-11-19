@@ -148,14 +148,16 @@ public class CsvExportService {
         SortedSet<String> languages = new TreeSet<>();
         added.forEach(kind -> addOtherLanguages(kind.names(), languages));
         List<String> header = new ArrayList<>();
-        for (String field : List.of("code", "primaryLanguage", "name")) {
+        for (String field : List.of("id", "externalId", "source", "code", "primaryLanguage", "name")) {
             header.add(column(field, japanese));
         }
         languages.forEach(language -> header.add(column("name", japanese) + ":" + language));
         StringBuilder csv = new StringBuilder(BYTE_ORDER_MARK);
         line(csv, header);
+        ExternalIdLists ids = externalIds.lists(ExternalId.Kind.REF_KIND,
+                added.stream().map(RealmKindService.View::id).toList());
         for (RealmKindService.View kind : added) {
-            List<String> cells = new ArrayList<>(List.of(kind.code(), kind.names().primaryLanguage(),
+            List<String> cells = new ArrayList<>(withIds(ids, kind.id(), kind.code(), kind.names().primaryLanguage(),
                     kind.names().primary().name()));
             languages.forEach(language -> cells.add(nameCell(otherLanguage(kind.names(), language))));
             line(csv, cells);
@@ -165,10 +167,13 @@ public class CsvExportService {
 
     private String hierarchies(boolean japanese) {
         StringBuilder csv = new StringBuilder(BYTE_ORDER_MARK);
-        line(csv, List.of(column("code", japanese), column("name", japanese)));
+        line(csv, List.of(column("id", japanese), column("externalId", japanese), column("source", japanese),
+                column("code", japanese), column("name", japanese)));
         for (int first = 0;; first += ROWS_AT_A_TIME) {
             List<Hierarchy> page = hierarchies.list(Page.of(first, ROWS_AT_A_TIME));
-            page.forEach(hierarchy -> line(csv, List.of(hierarchy.code(), hierarchy.name())));
+            ExternalIdLists ids = externalIds.lists(ExternalId.Kind.HIERARCHY,
+                    page.stream().map(Hierarchy::id).toList());
+            page.forEach(hierarchy -> line(csv, withIds(ids, hierarchy.id(), hierarchy.code(), hierarchy.name())));
             if (page.size() < ROWS_AT_A_TIME) {
                 return csv.toString();
             }
@@ -201,14 +206,18 @@ public class CsvExportService {
 
     private String attributeDefinitions(boolean japanese) {
         List<String> header = new ArrayList<>();
-        for (String field : List.of("target", "name", "type", "refKind", "multiple", "required")) {
+        for (String field : List.of("id", "externalId", "source", "target", "name", "type", "refKind", "multiple",
+                "required")) {
             header.add(column(field, japanese));
         }
         StringBuilder csv = new StringBuilder(BYTE_ORDER_MARK);
         line(csv, header);
         for (AttributeDefinition.Target target : AttributeDefinition.Target.values()) {
-            for (AttributeDefinition definition : definitions.apply(target)) {
-                line(csv, List.of(target.name(), definition.name(), definition.type().name(),
+            List<AttributeDefinition> defined = definitions.apply(target);
+            ExternalIdLists ids = externalIds.lists(ExternalId.Kind.ATTRIBUTE_DEFINITION,
+                    defined.stream().map(AttributeDefinition::id).toList());
+            for (AttributeDefinition definition : defined) {
+                line(csv, withIds(ids, definition.id(), target.name(), definition.name(), definition.type().name(),
                         text(definition.refKind()), Boolean.toString(definition.multiple()),
                         Boolean.toString(definition.required())));
             }
@@ -236,7 +245,7 @@ public class CsvExportService {
                 .map(AttributeDefinition::name)
                 .toList();
         List<String> header = new ArrayList<>();
-        for (String field : List.of("kind", "code", "primaryLanguage", "name")) {
+        for (String field : List.of("id", "externalId", "source", "kind", "code", "primaryLanguage", "name")) {
             header.add(column(field, japanese));
         }
         languages.forEach(language -> header.add(column("name", japanese) + ":" + language));
@@ -246,9 +255,10 @@ public class CsvExportService {
         attributes.forEach(attribute -> header.add(CsvImportService.ATTRIBUTE_COLUMN + attribute));
         StringBuilder csv = new StringBuilder(BYTE_ORDER_MARK);
         line(csv, header);
+        ExternalIdLists ids = externalIds.lists(ExternalId.Kind.REF_ITEM, items.stream().map(RefItem::id).toList());
         for (RefItem item : items) {
-            List<String> cells = new ArrayList<>(List.of(item.kind(), item.code(), item.names().primaryLanguage(),
-                    item.names().primary().name()));
+            List<String> cells = new ArrayList<>(withIds(ids, item.id(), item.kind(), item.code(),
+                    item.names().primaryLanguage(), item.names().primary().name()));
             languages.forEach(language -> cells.add(nameCell(otherLanguage(item.names(), language))));
             cells.add(Integer.toString(item.displayOrder()));
             cells.add(Boolean.toString(item.active()));
@@ -398,7 +408,8 @@ public class CsvExportService {
     private String reportingLines(String asOf, boolean japanese) {
         LocalDate date = asOf == null ? today.ofRealm() : Checks.date("asOf", asOf);
         List<String> header = new ArrayList<>();
-        for (String field : List.of("id", "assignmentId", "managerPersonId", "kind", "validFrom", "validTo")) {
+        for (String field : List.of("id", "externalId", "source", "assignmentId", "managerPersonId", "kind",
+                "validFrom", "validTo")) {
             header.add(column(field, japanese));
         }
         StringBuilder csv = new StringBuilder(BYTE_ORDER_MARK);
@@ -406,8 +417,10 @@ public class CsvExportService {
         String after = null;
         while (true) {
             List<ReportingLine> page = reportingLines.listOn(date, after, ROWS_AT_A_TIME);
-            page.forEach(l -> line(csv, List.of(l.id(), l.assignmentId(), l.managerPersonId(), l.kind().name(),
-                    l.period().from().toString(), text(l.period().to()))));
+            ExternalIdLists ids = externalIds.lists(ExternalId.Kind.REPORTING_LINE,
+                    page.stream().map(ReportingLine::id).toList());
+            page.forEach(l -> line(csv, withIds(ids, l.id(), l.assignmentId(), l.managerPersonId(),
+                    l.kind().name(), l.period().from().toString(), text(l.period().to()))));
             if (page.size() < ROWS_AT_A_TIME) {
                 return csv.toString();
             }
@@ -418,15 +431,17 @@ public class CsvExportService {
     // Every order, newest effective date first. The announcement is a fact of its own, so it is not in the file.
     private String changeOrders(boolean japanese) {
         List<String> header = new ArrayList<>();
-        for (String field : List.of("id", "number", "kind", "title", "note", "orderDate", "effectiveDate",
-                "approverUserId", "requesterUserId", "externalReference")) {
+        for (String field : List.of("id", "externalId", "source", "number", "kind", "title", "note", "orderDate",
+                "effectiveDate", "approverUserId", "requesterUserId", "externalReference")) {
             header.add(column(field, japanese));
         }
         StringBuilder csv = new StringBuilder(BYTE_ORDER_MARK);
         line(csv, header);
         for (int first = 0;; first += ROWS_AT_A_TIME) {
             List<ChangeOrder> page = changeOrders.list(null, null, first, ROWS_AT_A_TIME);
-            page.forEach(order -> line(csv, List.of(order.id(), text(order.number()), text(order.kind()),
+            ExternalIdLists ids = externalIds.lists(ExternalId.Kind.CHANGE_ORDER,
+                    page.stream().map(ChangeOrder::id).toList());
+            page.forEach(order -> line(csv, withIds(ids, order.id(), text(order.number()), text(order.kind()),
                     order.title(), text(order.note()), text(order.orderDate()), order.effectiveDate().toString(),
                     text(order.approverUserId()), text(order.requesterUserId()), text(order.externalReference()))));
             if (page.size() < ROWS_AT_A_TIME) {
@@ -493,8 +508,8 @@ public class CsvExportService {
     private String unitRoles(String asOf, boolean japanese) {
         LocalDate date = asOf == null ? today.ofRealm() : Checks.date("asOf", asOf);
         List<String> header = new ArrayList<>();
-        for (String field : List.of("id", "employmentId", "orgUnitId", "role", "includesDescendants", "validFrom",
-                "validTo")) {
+        for (String field : List.of("id", "externalId", "source", "employmentId", "orgUnitId", "role",
+                "includesDescendants", "validFrom", "validTo")) {
             header.add(column(field, japanese));
         }
         StringBuilder csv = new StringBuilder(BYTE_ORDER_MARK);
@@ -502,9 +517,11 @@ public class CsvExportService {
         String after = null;
         while (true) {
             List<UnitRoleService.View> page = unitRoles.listOn(date, after, ROWS_AT_A_TIME);
+            ExternalIdLists ids = externalIds.lists(ExternalId.Kind.UNIT_ROLE,
+                    page.stream().map(view -> view.role().id()).toList());
             for (UnitRoleService.View view : page) {
                 UnitRole role = view.role();
-                line(csv, List.of(role.id(), role.employmentId(), role.orgUnitId(), text(view.code()),
+                line(csv, withIds(ids, role.id(), role.employmentId(), role.orgUnitId(), text(view.code()),
                         Boolean.toString(role.includesDescendants()), role.period().from().toString(),
                         text(role.period().to())));
             }
@@ -588,6 +605,22 @@ public class CsvExportService {
             line(csv, cells);
         }
         return csv.toString();
+    }
+
+    // These kinds keep no system that made them, so a row has the first of their IDs by system. Any ID of the
+    // thing loads again, as the file has its own ID too.
+    private static List<String> withIds(ExternalIdLists ids, String id, String... cells) {
+        List<String> row = new ArrayList<>(List.of(id));
+        row.addAll(firstExternalId(ids, id));
+        row.addAll(List.of(cells));
+        return row;
+    }
+
+    private static List<String> firstExternalId(ExternalIdLists ids, String id) {
+        return ids.of(id, null).stream()
+                .findFirst()
+                .map(row -> List.of(row.externalId(), row.source()))
+                .orElse(List.of("", ""));
     }
 
     // The columns with no language have the primary names. The other languages have columns of their own.

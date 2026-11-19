@@ -23,7 +23,8 @@ public record ImportDocument(
         @Schema(
                 description = "The name of the system that the rows come from. Rows can override it. A row matches "
                         + "a stored record that has the ID of the row in that system, whichever system made the "
-                        + "record. A new record keeps it as the system that made it.",
+                        + "record. A new org unit, person, employment, assignment, or qualification keeps it as the "
+                        + "system that made it.",
                 maxLength = 64,
                 pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$",
                 defaultValue = "import")
@@ -93,13 +94,23 @@ public record ImportDocument(
 
     @Schema(
             name = "ImportChangeOrderRow",
-            description = "A change order. It is matched by number, or by `id`. A row needs one of them. A row of a "
-                    + "stored order replaces its values, as `PUT` does. The announcement is not part of a row.",
+            description = "A change order. It is matched by its ID in the system of `source`, or by `id`. A row "
+                    + "needs one of them. A row of a stored order replaces its values, as `PUT` does. The "
+                    + "announcement is not part of a row.",
             requiredProperties = {"title"})
     public record ChangeOrderRow(
-            @Schema(description = "The ID of a stored order. A CSV export has it in every row.")
+            @Schema(description = "The ID of a stored order. A CSV export has it in every row. A new order has none.")
             String id,
-            @Schema(maxLength = 64, pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$")
+            @Schema(
+                    description = "The name of the system that the row comes from. The default is the source of the "
+                            + "document.",
+                    maxLength = 64,
+                    pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$")
+            String source,
+            @Schema(description = "The ID of the order in that system.")
+            String externalId,
+            @Schema(description = "A number that no other order has.", maxLength = 64,
+                    pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$")
             String number,
             @Schema(maxLength = 64, pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$")
             String kind,
@@ -184,18 +195,21 @@ public record ImportDocument(
 
     @Schema(
             name = "ImportUnitRoleRow",
-            description = "A role that an employment holds over an org unit. It is matched by employment, org unit, "
-                    + "and role, or by `id`. `includesDescendants` of a stored role does not change. A row with "
-                    + "another value is a new role, which fails while the stored role holds on the same dates.")
+            description = "A role that an employment holds over an org unit. It is matched by its ID in the system "
+                    + "of `source`, or by `id`. A row needs one of them. The employment, the org unit, the role, and "
+                    + "`includesDescendants` of a stored role do not change. A row with another value fails. A row "
+                    + "that leaves one out keeps the stored value.")
     public record UnitRoleRow(
             @Schema(description = "The ID of a stored role. A CSV export has it in every row. A new role has none.")
             String id,
             @Schema(
-                    description = "The name of the system that the external IDs come from. The default is the "
-                            + "source of the document.",
+                    description = "The name of the system that the row and its external IDs come from. The default "
+                            + "is the source of the document.",
                     maxLength = 64,
                     pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$")
             String source,
+            @Schema(description = "The ID of the role in that system. A different role needs a different ID.")
+            String externalId,
             @Schema(description = "The external ID of the employment. Give this or `employmentId`.")
             String employmentExternalId,
             @Schema(description = "The ID of the employment.")
@@ -206,8 +220,7 @@ public record ImportDocument(
             String orgUnitId,
             @Schema(description = "The code of a reference item of the kind `UNIT_ROLE`.")
             String role,
-            @Schema(description = "True when the role also covers the units below. A row with `id` that leaves it "
-                    + "out keeps the stored value.", defaultValue = "false")
+            @Schema(description = "True when the role also covers the units below.", defaultValue = "false")
             Boolean includesDescendants,
             @Schema(description = "The first date of a new role. The default is the effective date. A stored role "
                     + "ignores it.", format = "date")
@@ -219,18 +232,22 @@ public record ImportDocument(
 
     @Schema(
             name = "ImportReportingLineRow",
-            description = "A reporting line from an assignment to a manager. It is matched by assignment, manager, "
-                    + "and kind, or by `id`. A new solid line fails while the assignment has a solid line on the same "
+            description = "A reporting line from an assignment to a manager. It is matched by its ID in the system "
+                    + "of `source`, or by `id`. A row needs one of them. The assignment, the manager, and the kind of "
+                    + "a stored line do not change. A row with another value fails. A row that leaves one out keeps "
+                    + "the stored value. A new solid line fails while the assignment has a solid line on the same "
                     + "dates.")
     public record ReportingLineRow(
             @Schema(description = "The ID of a stored line. A CSV export has it in every row. A new line has none.")
             String id,
             @Schema(
-                    description = "The name of the system that the external IDs come from. The default is the "
-                            + "source of the document.",
+                    description = "The name of the system that the row and its external IDs come from. The default "
+                            + "is the source of the document.",
                     maxLength = 64,
                     pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$")
             String source,
+            @Schema(description = "The ID of the line in that system. A different line needs a different ID.")
+            String externalId,
             @Schema(description = "The external ID of the assignment of the person who reports. Give this or "
                     + "`assignmentId`.")
             String assignmentExternalId,
@@ -280,11 +297,23 @@ public record ImportDocument(
 
     @Schema(
             name = "ImportHierarchyRow",
-            description = "A hierarchy. It is matched by code. A row of a stored hierarchy changes its name. The "
-                    + "code `default` names the default hierarchy.",
-            requiredProperties = {"code", "name"})
+            description = "A hierarchy. It is matched by its ID in the system of `source`, or by `id`. A row needs "
+                    + "one of them. A row of a stored hierarchy changes its name. The code does not change.",
+            requiredProperties = {"name"})
     public record HierarchyRow(
-            @Schema(maxLength = 64, pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$")
+            @Schema(description = "The ID of a stored hierarchy. A CSV export has it in every row. A new hierarchy "
+                    + "has none.")
+            String id,
+            @Schema(
+                    description = "The name of the system that the row comes from. The default is the source of the "
+                            + "document.",
+                    maxLength = 64,
+                    pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$")
+            String source,
+            @Schema(description = "The ID of the hierarchy in that system.")
+            String externalId,
+            @Schema(description = "A code that no other hierarchy has. A row of a stored hierarchy may leave it out.",
+                    maxLength = 64, pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$")
             String code,
             @Schema(maxLength = 255)
             String name) {
@@ -292,17 +321,30 @@ public record ImportDocument(
 
     @Schema(
             name = "ImportAttributeDefinitionRow",
-            description = "The definition of a free attribute. It is matched by target and name. A row of a stored "
-                    + "definition changes the type, the kind, whether the value is a list, and whether a value is "
-                    + "required.",
-            requiredProperties = {"target", "name", "type"})
+            description = "The definition of a free attribute. It is matched by its ID in the system of `source`, "
+                    + "or by `id`. A row needs one of them. A row of a stored definition changes the type, the kind, "
+                    + "whether the value is a list, and whether a value is required. The target and the name do not "
+                    + "change.",
+            requiredProperties = {"type"})
     public record AttributeDefinitionRow(
+            @Schema(description = "The ID of a stored definition. A CSV export has it in every row. A new "
+                    + "definition has none.")
+            String id,
             @Schema(
-                    description = "The kind of resource.",
+                    description = "The name of the system that the row comes from. The default is the source of the "
+                            + "document.",
+                    maxLength = 64,
+                    pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$")
+            String source,
+            @Schema(description = "The ID of the definition in that system.")
+            String externalId,
+            @Schema(
+                    description = "The kind of resource. A row of a stored definition may leave it out.",
                     enumeration = {"ORG_UNIT", "PERSON", "EMPLOYMENT_TERMS", "ASSIGNMENT", "QUALIFICATION",
                         "REF_ITEM"})
             String target,
-            @Schema(description = "The name in `attributes`.", maxLength = 64)
+            @Schema(description = "The name in `attributes`, which no other definition of the target has. A row of "
+                    + "a stored definition may leave it out.", maxLength = 64)
             String name,
             @Schema(enumeration = {"STRING", "NUMBER", "BOOLEAN", "DATE", "REF_ITEM"})
             String type,
@@ -342,10 +384,23 @@ public record ImportDocument(
 
     @Schema(
             name = "ImportRefKindRow",
-            description = "A kind of reference data that the realm adds. It is matched by code.",
-            requiredProperties = {"code", "primaryLanguage", "names"})
+            description = "A kind of reference data that the realm adds. It is matched by its ID in the system of "
+                    + "`source`, or by `id`. A row needs one of them. A row of a stored kind changes its names. The "
+                    + "code does not change.",
+            requiredProperties = {"primaryLanguage", "names"})
     public record RefKindRow(
-            @Schema(maxLength = 32, pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$")
+            @Schema(description = "The ID of a stored kind. A CSV export has it in every row. A new kind has none.")
+            String id,
+            @Schema(
+                    description = "The name of the system that the row comes from. The default is the source of the "
+                            + "document.",
+                    maxLength = 64,
+                    pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$")
+            String source,
+            @Schema(description = "The ID of the kind in that system.")
+            String externalId,
+            @Schema(description = "A code that no other kind has. A row of a stored kind may leave it out.",
+                    maxLength = 32, pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$")
             String code,
             @Schema(description = "The language tag of the primary name, such as `ja`. It is a key of `names`.")
             String primaryLanguage,
@@ -616,12 +671,25 @@ public record ImportDocument(
 
     @Schema(
             name = "ImportRefItemRow",
-            description = "A reference item. It is matched by kind and code.",
-            requiredProperties = {"kind", "code", "primaryLanguage", "names"})
+            description = "A reference item. It is matched by its ID in the system of `source`, or by `id`. A row "
+                    + "needs one of them. The kind and the code of a stored item do not change.",
+            requiredProperties = {"primaryLanguage", "names"})
     public record RefItemRow(
-            @Schema(description = "A fixed kind such as `UNIT_TYPE`, or the code of a kind that the realm added.")
+            @Schema(description = "The ID of a stored item. A CSV export has it in every row. A new item has none.")
+            String id,
+            @Schema(
+                    description = "The name of the system that the row comes from. The default is the source of the "
+                            + "document.",
+                    maxLength = 64,
+                    pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$")
+            String source,
+            @Schema(description = "The ID of the item in that system.")
+            String externalId,
+            @Schema(description = "A fixed kind such as `UNIT_TYPE`, or the code of a kind that the realm added. A "
+                    + "row of a stored item may leave it out.")
             String kind,
-            @Schema(maxLength = 64, pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$")
+            @Schema(description = "A code that no other item of the kind has. A row of a stored item may leave it "
+                    + "out.", maxLength = 64, pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$")
             String code,
             @Schema(description = "The language tag of the primary name, such as `ja`. It is a key of `names`.")
             String primaryLanguage,
@@ -650,8 +718,10 @@ public record ImportDocument(
             String validFrom) {
 
         /**
-         * Makes a row that does not speak about the marks, with names from the effective date.
+         * Makes a row of the source of the document that does not speak about the marks, with names from the
+         * effective date.
          *
+         * @param externalId the ID of the item in the source of the document
          * @param kind the kind
          * @param code the code
          * @param primaryLanguage the tag of the language of the primary name
@@ -660,9 +730,10 @@ public record ImportDocument(
          * @param attributes free values, or null
          * @param active false to stop the use of the item for new data, or null
          */
-        public RefItemRow(String kind, String code, String primaryLanguage, Map<String, RefItemName> names,
-                Integer displayOrder, Map<String, Object> attributes, Boolean active) {
-            this(kind, code, primaryLanguage, names, displayOrder, attributes, active, null, null, null, null);
+        public RefItemRow(String externalId, String kind, String code, String primaryLanguage,
+                Map<String, RefItemName> names, Integer displayOrder, Map<String, Object> attributes, Boolean active) {
+            this(null, null, externalId, kind, code, primaryLanguage, names, displayOrder, attributes, active, null,
+                    null, null, null);
         }
     }
 

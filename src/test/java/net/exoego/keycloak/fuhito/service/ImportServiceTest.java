@@ -157,10 +157,11 @@ class ImportServiceTest {
     @Test
     void importsReferenceItemsAndIsIdempotent() {
         List<RefItemRow> rows = List.of(
-                new RefItemRow("UNIT_TYPE", "hospital", "ja",
-                        Map.of("ja", new RefItemName(" 病院 "), "en", new RefItemName("Hospital")), 1, Map.of("k", "v"),
-                        null),
-                new RefItemRow("OCCUPATION", "nurse", "ja", ItemNames.japanese("看護師"), null, null, false));
+                new RefItemRow("hospital", "UNIT_TYPE", "hospital", "ja",
+                        Map.of("ja", new RefItemName(" 病院 "), "en", new RefItemName("Hospital")), 1,
+                        Map.of("k", "v"), null),
+                new RefItemRow("nurse", "OCCUPATION", "nurse", "ja", ItemNames.japanese("看護師"), null, null,
+                        false));
 
         ImportReport first = service.apply(doc("2026-04-01", false, null, rows, null));
         ImportReport second = service.apply(doc("2026-04-01", false, null, rows, null));
@@ -177,19 +178,20 @@ class ImportServiceTest {
         assertEquals(new Localized<>("ja", Map.of("ja", new RefItemName("病院"), "en", new RefItemName("Hospital"))),
                 hospital.names());
         assertEquals(new ImportReport.Write.OfRefItem(true, hospital), first.writes().getFirst());
+        assertEquals(hospital.id(), stored(ExternalId.Kind.REF_ITEM, "import", "hospital"));
         assertFalse(refItems.findByCode(RefKind.OCCUPATION, "nurse").orElseThrow().active());
     }
 
     @Test
     void importsTheKindsOfTheRealmAndRenamesAStoredOne() {
-        List<RefKindRow> rows = List.of(new RefKindRow("site", "ja",
+        List<RefKindRow> rows = List.of(new RefKindRow(null, null, "SITE", "site", "ja",
                 Map.of("ja", new RefKindName("拠点"), "en", new RefKindName("Site"))));
 
         ImportReport first = service.apply(kinds(rows));
         ImportReport second = service.apply(kinds(rows));
         ImportReport renamed = service.apply(kinds(List.of(
-                new RefKindRow("site", "ja", Map.of("ja", new RefKindName("勤務地"))),
-                new RefKindRow("UNIT_TYPE", "ja", Map.of("ja", new RefKindName("組織種別"))))));
+                new RefKindRow(null, null, "SITE", null, "ja", Map.of("ja", new RefKindName("勤務地"))),
+                new RefKindRow(null, null, "UT", "UNIT_TYPE", "ja", Map.of("ja", new RefKindName("組織種別"))))));
 
         assertEquals(Map.of("refKinds", new Counts(1, 0, 0)), first.counts());
         assertEquals("fuhito/ref-kinds/site", first.writes().getFirst().path());
@@ -198,6 +200,35 @@ class ImportServiceTest {
         // A fixed kind is in every realm, so a row cannot add it.
         assertEquals(List.of("refKinds[1] ref_kind.code_taken"), errors(renamed));
         assertEquals(Localized.of("ja", new RefKindName("勤務地")), kinds.get("site").names());
+        assertEquals(kinds.get("site").id(), stored(ExternalId.Kind.REF_KIND, "import", "SITE"));
+    }
+
+    @Test
+    void aRowNamesAStoredKindByItsIdOrExternalIdAndNeverByItsCode() {
+        Map<String, RefKindName> names = Map.of("ja", new RefKindName("拠点"));
+        service.apply(kinds(List.of(new RefKindRow(null, null, "SITE", "site", "ja", names),
+                new RefKindRow(null, null, "AREA", "area", "ja", names))));
+        String site = kinds.get("site").id();
+        String area = kinds.get("area").id();
+
+        ImportReport report = service.apply(kinds(List.of(
+                new RefKindRow(null, null, null, "room", "ja", names),
+                new RefKindRow(null, "hr", "S-1", "site", "ja", names),
+                new RefKindRow(site, null, null, "place", "ja", names),
+                new RefKindRow(area, null, "SITE", null, "ja", names),
+                new RefKindRow("nope", null, null, "room", "ja", names),
+                new RefKindRow(null, null, "SITE", null, "ja", names),
+                new RefKindRow(null, null, "SITE", null, "ja", names))));
+
+        assertEquals(List.of("refKinds[0] invalid.required", "refKinds[1] ref_kind.code_taken",
+                "refKinds[2] import.value_fixed", "refKinds[3] import.id_mismatch", "refKinds[4] import.id_unknown",
+                "refKinds[6] import.duplicate_row"), errors(report));
+        assertEquals("code", report.errors().get(2).error().params().get("field"));
+        assertEquals(Map.of("refKinds", new Counts(0, 0, 1)), report.counts());
+        // An ID of another system names the kind once the kind has it.
+        externalIdStore.insert(new ExternalId("row-s", ExternalId.Kind.REF_KIND, site, "hr", "S-1", 1));
+        assertEquals(Map.of("refKinds", new Counts(0, 0, 1)), service.apply(kinds(List.of(
+                new RefKindRow(null, "hr", "S-1", null, "ja", names)))).counts());
     }
 
     private static ImportDocument kinds(List<RefKindRow> rows) {
@@ -207,21 +238,30 @@ class ImportServiceTest {
     @Test
     void importsTheDefinitionsOfAttributesAndChangesTheRuleOfAStoredOne() {
         List<AttributeDefinitionRow> rows = List.of(
-                new AttributeDefinitionRow("PERSON", "note", "STRING", null, null, null),
-                new AttributeDefinitionRow("ORG_UNIT", "type", "REF_ITEM", "UNIT_TYPE", null, true));
+                new AttributeDefinitionRow(null, null, "NOTE", "PERSON", "note", "STRING", null, null, null),
+                new AttributeDefinitionRow(null, null, "TYPE", "ORG_UNIT", "type", "REF_ITEM", "UNIT_TYPE", null,
+                        true));
 
         ImportReport first = service.apply(definitions(rows));
         ImportReport second = service.apply(definitions(rows));
+        String type = stored(ExternalId.Kind.ATTRIBUTE_DEFINITION, "import", "TYPE");
         ImportReport changed = service.apply(definitions(List.of(
-                new AttributeDefinitionRow("PERSON", "note", "STRING", null, null, true),
-                new AttributeDefinitionRow("PERSON", "bad", "STRING", "UNIT_TYPE", null, null))));
+                new AttributeDefinitionRow(null, null, "NOTE", null, null, "STRING", null, null, true),
+                new AttributeDefinitionRow(null, null, "BAD", "PERSON", "bad", "STRING", "UNIT_TYPE", null, null),
+                new AttributeDefinitionRow(null, null, "NOTE-2", "PERSON", "note", "STRING", null, null, null),
+                new AttributeDefinitionRow(type, null, null, "PERSON", "type", "REF_ITEM", "UNIT_TYPE", null, true),
+                new AttributeDefinitionRow(null, null, null, "PERSON", "memo", "STRING", null, null, null))));
 
         assertEquals(Map.of("attributeDefinitions", new Counts(2, 0, 0)), first.counts());
         assertEquals("fuhito/attribute-definitions/" + first.writes().getFirst().resourceId(),
                 first.writes().getFirst().path());
         assertEquals(Map.of("attributeDefinitions", new Counts(0, 0, 2)), second.counts());
         assertEquals(Map.of("attributeDefinitions", new Counts(0, 1, 0)), changed.counts());
-        assertEquals(List.of("attributeDefinitions[1] attribute.ref_kind"), errors(changed));
+        assertEquals(List.of("attributeDefinitions[1] attribute.ref_kind",
+                "attributeDefinitions[2] attribute.name_taken", "attributeDefinitions[3] import.value_fixed",
+                "attributeDefinitions[4] invalid.required"),
+                errors(changed));
+        assertEquals("target", changed.errors().get(2).error().params().get("field"));
         assertTrue(definitions.list("PERSON").getFirst().required());
     }
 
@@ -230,18 +270,26 @@ class ImportServiceTest {
     }
 
     @Test
-    void importsTheHierarchiesAndRenamesTheDefaultOne() {
-        List<HierarchyRow> rows = List.of(new HierarchyRow("project", "プロジェクト"),
-                new HierarchyRow("default", "組織図"));
+    void importsTheHierarchiesAndRenamesTheDefaultOneByItsId() {
+        String defaultId = hierarchies.find("default").orElseThrow().id();
+        List<HierarchyRow> rows = List.of(new HierarchyRow(null, null, "P", "project", "プロジェクト"),
+                new HierarchyRow(defaultId, null, null, null, "組織図"));
 
         ImportReport first = service.apply(hierarchies(rows));
         ImportReport second = service.apply(hierarchies(rows));
+        ImportReport bad = service.apply(hierarchies(List.of(new HierarchyRow(null, null, "D", "default", "組織図"),
+                new HierarchyRow(defaultId, null, null, "project", "組織図"),
+                new HierarchyRow(null, null, null, "finance", "管理会計"))));
 
         assertEquals(Map.of("hierarchies", new Counts(1, 1, 0)), first.counts());
         assertEquals(Map.of("hierarchies", new Counts(0, 0, 2)), second.counts());
         assertEquals("組織図", hierarchies.find("default").orElseThrow().name());
         assertEquals("fuhito/hierarchies/" + hierarchies.find("project").orElseThrow().id(),
                 first.writes().getFirst().path());
+        assertEquals(hierarchies.find("project").orElseThrow().id(), stored(ExternalId.Kind.HIERARCHY, "import", "P"));
+        // The code "default" is a value too, so it does not name the default hierarchy.
+        assertEquals(List.of("hierarchies[0] hierarchy.code_taken", "hierarchies[1] import.value_fixed",
+                "hierarchies[2] invalid.required"), errors(bad));
     }
 
     private static OrgUnitRow ending(String externalId, String validTo, List<String> successorExternalIds,
@@ -363,9 +411,10 @@ class ImportServiceTest {
     @Test
     void importsTheNamesOfAReferenceItemFromTheirDates() {
         List<RefItemRow> rows = List.of(
-                new RefItemRow("JOB_TITLE", "m1", "en", ItemNames.english("Manager"), null, null, null, null, null, null, "2020-04-01"),
-                new RefItemRow("JOB_TITLE", "m1", "en", ItemNames.english("Senior Manager"), null, null, null, null, null, null,
-                        "2023-04-01"));
+                new RefItemRow(null, null, "M1", "JOB_TITLE", "m1", "en", ItemNames.english("Manager"), null, null,
+                        null, null, null, null, "2020-04-01"),
+                new RefItemRow(null, null, "M1", "JOB_TITLE", "m1", "en", ItemNames.english("Senior Manager"), null,
+                        null, null, null, null, null, "2023-04-01"));
 
         ImportReport first = service.apply(doc("2026-04-01", false, null, rows, null));
         ImportReport again = service.apply(doc("2026-04-01", false, null, rows, null));
@@ -380,23 +429,29 @@ class ImportServiceTest {
 
         // A row without a date changes the names from the effective date.
         service.apply(doc("2026-04-01", false, null,
-                List.of(new RefItemRow("JOB_TITLE", "m1", "en", ItemNames.english("Head"), null, null, null)), null));
+                List.of(new RefItemRow("M1", null, null, "en", ItemNames.english("Head"), null, null, null)), null));
 
         assertEquals(List.of("Manager", "Senior Manager", "Head"),
                 refItems.names(item.id()).stream().map(n -> n.names().primary().name()).toList());
         assertEquals(LocalDate.of(2026, 4, 1), refItems.names(item.id()).getLast().validFrom());
         assertEquals(List.of("refItems[0] invalid.date"), errors(service.apply(doc("2026-04-01", false, null,
-                List.of(new RefItemRow("JOB_TITLE", "m1", "en", ItemNames.english("Head"), null, null, null, null, null, null, "soon")),
+                List.of(new RefItemRow(null, null, "M1", "JOB_TITLE", "m1", "en", ItemNames.english("Head"), null, null,
+                        null, null, null, null, "soon")),
                 null))));
+        // Two rows of the same names of an item would hide one of them.
+        assertEquals(List.of("refItems[1] import.duplicate_row"), errors(service.apply(doc("2026-04-01", false, null,
+                List.of(rows.getFirst(), rows.getFirst()), null))));
     }
 
     @Test
     void changesAReferenceItemThatDiffers() {
         service.apply(doc("2026-04-01", false, null,
-                List.of(new RefItemRow("UNIT_TYPE", "hospital", "ja", ItemNames.japanese("病院"), null, null, null)), null));
+                List.of(new RefItemRow("H", "UNIT_TYPE", "hospital", "ja", ItemNames.japanese("病院"), null, null,
+                        null)), null));
 
         ImportReport report = service.apply(doc("2026-04-01", false, null,
-                List.of(new RefItemRow("UNIT_TYPE", "hospital", "ja", ItemNames.japanese("総合病院"), 3, null, false)), null));
+                List.of(new RefItemRow("H", "UNIT_TYPE", "hospital", "ja", ItemNames.japanese("総合病院"), 3, null,
+                        false)), null));
 
         assertEquals(Map.of("refItems", new Counts(0, 1, 0)), report.counts());
         assertFalse(report.writes().getFirst().created());
@@ -409,12 +464,12 @@ class ImportServiceTest {
     @Test
     void reportsEveryBadReferenceItemAndStillAppliesTheGoodOnes() {
         List<RefItemRow> rows = new ArrayList<>();
-        rows.add(new RefItemRow("UNIT_TYPE", "ok", "en", ItemNames.english("OK"), null, null, null));
-        rows.add(new RefItemRow("NOPE", "x", "en", ItemNames.english("x"), null, null, null));
+        rows.add(new RefItemRow("OK", "UNIT_TYPE", "ok", "en", ItemNames.english("OK"), null, null, null));
+        rows.add(new RefItemRow("X1", "NOPE", "x", "en", ItemNames.english("x"), null, null, null));
         rows.add(null);
-        rows.add(new RefItemRow(null, "x", "en", ItemNames.english("x"), null, null, null));
-        rows.add(new RefItemRow("UNIT_TYPE", "bad code", "en", ItemNames.english("x"), null, null, null));
-        rows.add(new RefItemRow("UNIT_TYPE", "blank", "en", ItemNames.english(" "), null, null, null));
+        rows.add(new RefItemRow("X2", null, "x", "en", ItemNames.english("x"), null, null, null));
+        rows.add(new RefItemRow("X3", "UNIT_TYPE", "bad code", "en", ItemNames.english("x"), null, null, null));
+        rows.add(new RefItemRow("X4", "UNIT_TYPE", "blank", "en", ItemNames.english(" "), null, null, null));
 
         ImportReport report = service.apply(doc("2026-04-01", false, null, rows, null));
 
@@ -422,6 +477,28 @@ class ImportServiceTest {
                 "refItems[3] invalid.required", "refItems[4] invalid.code", "refItems[5] invalid.name"),
                 errors(report));
         assertEquals(Map.of("refItems", new Counts(1, 0, 0)), report.counts());
+    }
+
+    @Test
+    void aRowNamesAStoredReferenceItemByItsIdOrExternalIdAndNeverByItsCode() {
+        service.apply(doc("2026-04-01", false, null,
+                List.of(new RefItemRow("W", "UNIT_TYPE", "ward", "en", ItemNames.english("Ward"), null, null, null)),
+                null));
+        String ward = stored(ExternalId.Kind.REF_ITEM, "import", "W");
+
+        ImportReport report = service.apply(doc("2026-04-01", false, null, List.of(
+                new RefItemRow(null, "UNIT_TYPE", "room", "en", ItemNames.english("Room"), null, null, null),
+                new RefItemRow("W2", "UNIT_TYPE", "ward", "en", ItemNames.english("Ward"), null, null, null),
+                new RefItemRow(ward, null, null, null, null, "en", ItemNames.english("Ward"), null, null, null, null,
+                        null, null, null),
+                new RefItemRow("W", "OCCUPATION", "ward", "en", ItemNames.english("Ward"), null, null, null),
+                new RefItemRow("nope", null, null, "UNIT_TYPE", "x", "en", ItemNames.english("x"), null, null, null,
+                        null, null, null, null)), null));
+
+        assertEquals(List.of("refItems[0] invalid.required", "refItems[1] ref_item.code_taken",
+                "refItems[3] import.value_fixed", "refItems[4] import.id_unknown"), errors(report));
+        assertEquals("kind", report.errors().get(2).error().params().get("field"));
+        assertEquals(Map.of("refItems", new Counts(0, 0, 1)), report.counts());
     }
 
     @Test
@@ -771,10 +848,10 @@ class ImportServiceTest {
                 errors(importAssignments(placement(null, null, null, null, hospital, null, assignment))));
     }
 
-    private static ReportingLineRow line(String id, String assignment, String managerExternalId,
+    private static ReportingLineRow line(String id, String externalId, String assignment, String managerExternalId,
             String managerUsername, String validTo) {
-        return new ReportingLineRow(id, null, assignment, null, managerExternalId, null, managerUsername, null, null,
-                validTo);
+        return new ReportingLineRow(id, null, externalId, assignment, null, managerExternalId, null, managerUsername,
+                null, null, validTo);
     }
 
     private ImportReport importLines(String effectiveDate, ReportingLineRow... rows) {
@@ -789,9 +866,9 @@ class ImportServiceTest {
         service.apply(new ImportDocument("2026-04-01", false, null, null, null, null, null,
                 List.of(new PersonRow(null, "P3", null, null, "ja", japanese("Chief"), null, null))));
 
-        ImportReport first = importLines("2026-04-01", line(null, "A1", null, "doctor", null));
-        ImportReport again = importLines("2026-04-01", line(null, "A1", null, "doctor", null));
-        ImportReport second = importLines("2026-05-01", line(null, "A1", "P3", null, null));
+        ImportReport first = importLines("2026-04-01", line(null, "L1", "A1", null, "doctor", null));
+        ImportReport again = importLines("2026-04-01", line(null, "L1", "A1", null, "doctor", null));
+        ImportReport second = importLines("2026-05-01", line(null, "L2", "A1", "P3", null, null));
 
         assertEquals(List.of(), errors(first));
         assertEquals(Map.of("reportingLines", new Counts(1, 0, 0)), first.counts());
@@ -802,7 +879,8 @@ class ImportServiceTest {
         assertEquals(List.of(), second.writes());
 
         // The row that ends the stored line can come after the new line, and the same file loads again.
-        ReportingLineRow[] change = {line(null, "A1", "P3", null, null), line(doctor, null, null, null, "2026-05-01")};
+        ReportingLineRow[] change = {line(null, "L2", "A1", "P3", null, null),
+            line(null, "L1", null, null, null, "2026-05-01")};
         ImportReport next = importLines("2026-05-01", change);
         ImportReport nextAgain = importLines("2026-05-01", change);
 
@@ -814,35 +892,42 @@ class ImportServiceTest {
                 .toList();
         assertEquals("2026-05-01", stored.getFirst().period().to().toString());
         String chiefLine = stored.getLast().id();
+        assertEquals(chiefLine, stored(ExternalId.Kind.REPORTING_LINE, "import", "L2"));
         assertEquals(stored(ExternalId.Kind.PERSON, "import", "P3"), stored.getLast().managerPersonId());
         assertEquals("fuhito/reporting-lines/" + doctor + "/end", next.writes().getFirst().path());
 
-        ImportReport back = importLines("2026-06-01", line(chiefLine, null, null, null, "2026-06-01"),
-                line(null, "A1", null, "doctor", null));
+        ImportReport back = importLines("2026-06-01", line(chiefLine, null, null, null, null, "2026-06-01"),
+                line(null, "L3", "A1", null, "doctor", null));
         assertEquals(List.of(), errors(back));
         assertEquals(Map.of("reportingLines", new Counts(1, 1, 0)), back.counts());
         assertEquals(3, lineStore.lines.size());
         assertEquals(List.of("reportingLines[0] import.assignment_unknown", "reportingLines[1] import.manager_twice",
                 "reportingLines[2] import.username_unknown", "reportingLines[3] import.id_unknown",
-                "reportingLines[4] import.person_unknown", "reportingLines[5] invalid.required"),
-                errors(importLines("2026-05-01", line(null, "NOPE", "P3", null, null),
-                        line(null, "A1", "P3", "doctor", null), line(null, "A1", null, "nobody", null),
-                        line("nope", null, null, null, null), line(null, "A1", "NOPE", null, null),
-                        line(null, "A1", null, null, null))));
+                "reportingLines[4] import.person_unknown", "reportingLines[5] invalid.required",
+                "reportingLines[6] invalid.required"),
+                errors(importLines("2026-05-01", line(null, "X0", "NOPE", "P3", null, null),
+                        line(null, "X1", "A1", "P3", "doctor", null), line(null, "X2", "A1", null, "nobody", null),
+                        line("nope", null, null, null, null, null), line(null, "X4", "A1", "NOPE", null, null),
+                        line(null, "X5", "A1", null, null, null), line(null, null, "A1", "P3", null, null))));
         String a1 = stored(ExternalId.Kind.ASSIGNMENT, "import", "A1");
-        String chief = stored(ExternalId.Kind.PERSON, "import", "P3");
+        // The assignment, the manager, and the kind of a stored line do not change. A different line has a
+        // different external ID.
+        ImportReport fixed = importLines("2026-05-01",
+                new ReportingLineRow(null, null, "X7", "A1", a1, "P3", null, null, null, null, null),
+                line(chiefLine, "L1", null, null, null, null),
+                line(null, "L2", null, null, "doctor", null),
+                line(null, "L2", null, null, null, null),
+                new ReportingLineRow(doctor, null, null, null, null, null, null, null, "DOTTED", null, null));
         assertEquals(List.of("reportingLines[0] import.assignment_twice", "reportingLines[1] import.id_mismatch",
-                "reportingLines[3] import.duplicate_row"),
-                errors(importLines("2026-05-01",
-                        new ReportingLineRow(null, null, "A1", a1, "P3", null, null, null, null, null),
-                        new ReportingLineRow(chiefLine, null, null, null, null, null, "doctor", null, null, null),
-                        new ReportingLineRow(null, null, null, a1, null, chief, null, null, null, null),
-                        new ReportingLineRow(null, null, null, a1, null, chief, null, null, null, null))));
+                "reportingLines[2] import.value_fixed", "reportingLines[3] import.duplicate_row",
+                "reportingLines[4] import.value_fixed"), errors(fixed));
+        assertEquals("managerPersonId", fixed.errors().get(2).error().params().get("field"));
+        assertEquals("kind", fixed.errors().get(4).error().params().get("field"));
     }
 
-    private static UnitRoleRow role(String id, String employment, String orgUnit, String role, Boolean below,
-            String validTo) {
-        return new UnitRoleRow(id, null, employment, null, orgUnit, null, role, below, null, validTo);
+    private static UnitRoleRow role(String id, String externalId, String employment, String orgUnit, String role,
+            Boolean below, String validTo) {
+        return new UnitRoleRow(id, null, externalId, employment, null, orgUnit, null, role, below, null, validTo);
     }
 
     private ImportReport importRoles(String effectiveDate, UnitRoleRow... rows) {
@@ -856,9 +941,9 @@ class ImportServiceTest {
         refItems.insert(new RefItem("approver-id", RefKind.UNIT_ROLE.name(), "approver", ItemNames.of("承認者"), 0,
                 Map.of(), true, false, false, false, 1, null, null));
 
-        ImportReport first = importRoles("2026-04-01", role(null, "E1", "H", "approver", null, null));
-        ImportReport again = importRoles("2026-04-01", role(null, "E1", "H", "approver", false, null));
-        ImportReport wider = importRoles("2026-05-01", role(null, "E1", "H", "approver", true, null));
+        ImportReport first = importRoles("2026-04-01", role(null, "R1", "E1", "H", "approver", null, null));
+        ImportReport again = importRoles("2026-04-01", role(null, "R1", "E1", "H", "approver", false, null));
+        ImportReport wider = importRoles("2026-05-01", role(null, "R2", "E1", "H", "approver", true, null));
 
         assertEquals(List.of(), errors(first));
         assertEquals(Map.of("unitRoles", new Counts(1, 0, 0)), first.counts());
@@ -867,12 +952,13 @@ class ImportServiceTest {
         assertEquals(List.of("unitRoles[0] unit_role.overlap"), errors(wider));
         assertEquals(narrow, wider.errors().getFirst().error().params().get("id"));
         assertEquals(List.of(), wider.writes());
-        assertEquals(List.of("unitRoles[0] import.unit_role_mismatch"),
-                errors(importRoles("2026-05-01", role(narrow, null, null, null, true, null))));
+        assertEquals(List.of("unitRoles[0] import.value_fixed", "unitRoles[1] import.value_fixed"),
+                errors(importRoles("2026-05-01", role(narrow, null, null, null, null, true, null),
+                        role(null, "R1", "E1", "H", "approver", true, null))));
 
         // The row that ends the stored role can come after the new role, and the same file loads again.
-        UnitRoleRow[] change = {role(null, "E1", "H", "approver", true, null),
-                role(narrow, null, null, null, null, "2026-05-01")};
+        UnitRoleRow[] change = {role(null, "R2", "E1", "H", "approver", true, null),
+            role(null, "R1", null, null, null, null, "2026-05-01")};
         ImportReport changed = importRoles("2026-05-01", change);
         ImportReport changedAgain = importRoles("2026-05-01", change);
 
@@ -885,28 +971,34 @@ class ImportServiceTest {
         assertEquals("2026-05-01", stored.getFirst().period().to().toString());
         assertTrue(stored.getLast().includesDescendants());
         String wide = stored.getLast().id();
+        assertEquals(wide, stored(ExternalId.Kind.UNIT_ROLE, "import", "R2"));
         assertEquals("fuhito/unit-roles/" + narrow + "/end", changed.writes().getFirst().path());
 
-        ImportReport back = importRoles("2026-06-01", role(wide, null, null, null, null, "2026-06-01"),
-                role(null, "E1", "H", "approver", false, null));
+        ImportReport back = importRoles("2026-06-01", role(wide, null, null, null, null, null, "2026-06-01"),
+                role(null, "R3", "E1", "H", "approver", false, null));
         assertEquals(List.of(), errors(back));
         assertEquals(Map.of("unitRoles", new Counts(1, 1, 0)), back.counts());
         assertEquals(3, roleStore.roles.size());
+        ImportReport bad = importRoles("2026-05-01", role(null, "X0", "NOPE", "H", "approver", null, null),
+                role(null, "X1", "E1", "NOPE", "approver", null, null),
+                role("nope", null, null, null, null, null, null),
+                role(null, "X3", "E1", "W", null, null, null),
+                role(wide, null, null, "W", null, true, null),
+                role(null, "R2", null, null, "other", null, null),
+                role(null, "R2", null, null, null, null, null),
+                role(null, null, "E1", "H", "approver", true, null));
         assertEquals(List.of("unitRoles[0] import.employment_unknown", "unitRoles[1] import.org_unit_unknown",
                 "unitRoles[2] import.id_unknown", "unitRoles[3] invalid.required",
-                "unitRoles[4] import.id_mismatch", "unitRoles[6] import.duplicate_row"),
-                errors(importRoles("2026-05-01", role(null, "NOPE", "H", "approver", null, null),
-                        role(null, "E1", "NOPE", "approver", null, null), role("nope", null, null, null, null, null),
-                        role(null, "E1", "W", null, null, null),
-                        role(wide, null, "W", null, true, null),
-                        role(null, "E1", "H", "approver", true, null), role(null, "E1", "H", "approver", true, null))));
+                "unitRoles[4] import.value_fixed", "unitRoles[5] import.value_fixed",
+                "unitRoles[6] import.duplicate_row", "unitRoles[7] invalid.required"), errors(bad));
+        assertEquals("orgUnitId", bad.errors().get(4).error().params().get("field"));
+        assertEquals("role", bad.errors().get(5).error().params().get("field"));
         String e1 = stored(ExternalId.Kind.EMPLOYMENT, "import", "E1");
         String h = stored(ExternalId.Kind.ORG_UNIT, "import", "H");
         assertEquals(List.of("unitRoles[0] import.employment_twice", "unitRoles[1] import.org_unit_twice"),
                 errors(importRoles("2026-05-01",
-                        new UnitRoleRow(null, null, "E1", e1, null, h, "approver", true, null, null),
-                        new UnitRoleRow(null, null, null, e1, "H", h, "approver", true, null, null),
-                        new UnitRoleRow(null, null, null, e1, null, h, "approver", true, null, null))));
+                        new UnitRoleRow(null, null, "X8", "E1", e1, null, h, "approver", true, null, null),
+                        new UnitRoleRow(null, null, "X9", null, e1, "H", h, "approver", true, null, null))));
     }
 
     private static QualificationRow qualification(String id, String externalId, String person, String username,
@@ -1025,10 +1117,10 @@ class ImportServiceTest {
                         new ExternalIdRow("ORG_UNIT", "u-1", "ledger", null))));
     }
 
-    private static ChangeOrderRow order(String id, String number, String title, String approverUserId,
-            String approverUsername) {
-        return new ChangeOrderRow(id, number, null, title, null, null, null, approverUserId, approverUsername, null,
-                null, null);
+    private static ChangeOrderRow order(String id, String externalId, String number, String title,
+            String approverUserId, String approverUsername) {
+        return new ChangeOrderRow(id, null, externalId, number, null, title, null, null, null, approverUserId,
+                approverUsername, null, null, null);
     }
 
     private ImportReport importOrders(ChangeOrderRow... rows) {
@@ -1041,13 +1133,13 @@ class ImportServiceTest {
 
     @Test
     void keepsTheEffectiveDateOfAStoredChangeOrderWhenARowHasNone() {
-        importOrders(order(null, "2026-01", "異動", null, null));
+        importOrders(order(null, "O1", "2026-01", "異動", null, null));
         String id = orderStore.findByNumber("2026-01").orElseThrow().id();
 
-        ImportReport changed = importOrders("2026-05-01", order(null, "2026-01", "人事異動", null, null));
-        ImportReport again = importOrders("2026-05-01", order(null, "2026-01", "人事異動", null, null));
-        ImportReport byId = importOrders("2026-06-01", order(id, "2026-01", "人事異動", null, null));
-        ImportReport created = importOrders("2026-05-01", order(null, "2026-02", "異動", null, null));
+        ImportReport changed = importOrders("2026-05-01", order(null, "O1", "2026-01", "人事異動", null, null));
+        ImportReport again = importOrders("2026-05-01", order(null, "O1", "2026-01", "人事異動", null, null));
+        ImportReport byId = importOrders("2026-06-01", order(id, null, "2026-01", "人事異動", null, null));
+        ImportReport created = importOrders("2026-05-01", order(null, "O2", "2026-02", "異動", null, null));
 
         assertEquals(List.of(), errors(changed));
         assertEquals(Map.of("changeOrders", new Counts(0, 1, 0)), changed.counts());
@@ -1062,10 +1154,10 @@ class ImportServiceTest {
     }
 
     @Test
-    void importsChangeOrdersByNumberAndReplacesAStoredOne() {
-        ImportReport first = importOrders(order(null, "2026-01", "異動", null, "doctor"));
-        ImportReport again = importOrders(order(null, "2026-01", "異動", null, "doctor"));
-        ImportReport changed = importOrders(order(null, "2026-01", "人事異動", "user-doctor", null));
+    void importsChangeOrdersByExternalIdAndReplacesAStoredOne() {
+        ImportReport first = importOrders(order(null, "O1", "2026-01", "異動", null, "doctor"));
+        ImportReport again = importOrders(order(null, "O1", "2026-01", "異動", null, "doctor"));
+        ImportReport changed = importOrders(order(null, "O1", "2026-01", "人事異動", "user-doctor", null));
 
         assertEquals(List.of(), errors(first));
         assertEquals(Map.of("changeOrders", new Counts(1, 0, 0)), first.counts());
@@ -1076,13 +1168,21 @@ class ImportServiceTest {
         assertEquals("user-doctor", stored.approverUserId());
         assertEquals("2026-04-01", stored.effectiveDate().toString());
         assertEquals("fuhito/change-orders/" + stored.id(), changed.writes().getFirst().path());
+        assertEquals(stored.id(), stored(ExternalId.Kind.CHANGE_ORDER, "import", "O1"));
+        // The number is a value. A new order with a taken number fails, and a stored order can take another one.
         assertEquals(List.of("changeOrders[0] invalid.required", "changeOrders[1] import.id_unknown",
                 "changeOrders[2] import.user_twice", "changeOrders[3] import.username_unknown",
-                "changeOrders[5] import.duplicate_row"),
-                errors(importOrders(order(null, null, "X", null, null), order("nope", null, "X", null, null),
-                        order(null, "2026-02", "X", "user-doctor", "doctor"), order(null, "2026-03", "X", null, "nobody"),
-                        order(stored.id(), null, "人事異動", "user-doctor", null),
-                        order(stored.id(), "2026-01", "人事異動", "user-doctor", null))));
+                "changeOrders[5] import.duplicate_row", "changeOrders[6] change_order.number_taken"),
+                errors(importOrders(order(null, null, "2026-09", "X", null, null),
+                        order("nope", null, null, "X", null, null),
+                        order(null, "O2", "2026-02", "X", "user-doctor", "doctor"),
+                        order(null, "O3", "2026-03", "X", null, "nobody"),
+                        order(stored.id(), null, "2026-01", "人事異動", "user-doctor", null),
+                        order(stored.id(), "O1", "2026-01", "人事異動", "user-doctor", null),
+                        order(null, "O4", "2026-01", "X", null, null))));
+        assertEquals(Map.of("changeOrders", new Counts(0, 1, 0)),
+                importOrders(order(null, "O1", "2026-11", "人事異動", "user-doctor", null)).counts());
+        assertEquals("2026-11", orderStore.find(stored.id()).orElseThrow().number());
     }
 
     private static EmploymentRow continuing(String externalId, String continuesExternalId, String continuesId) {
@@ -1564,16 +1664,19 @@ class ImportServiceTest {
 
     @Test
     void aReferenceItemIsComparedByItsAttributesAndByWhetherItIsActive() {
-        RefItemRow base = new RefItemRow("UNIT_TYPE", "ward", "en", ItemNames.english("Ward"), null, Map.of("k", "v"), true);
+        RefItemRow base = new RefItemRow("W", "UNIT_TYPE", "ward", "en", ItemNames.english("Ward"), null,
+                Map.of("k", "v"), true);
         service.apply(doc("2026-04-01", false, null, List.of(base), null));
 
         assertEquals(new Counts(0, 0, 1),
                 service.apply(doc("2026-04-01", false, null, List.of(base), null)).counts().get("refItems"));
         assertEquals(new Counts(0, 1, 0), service.apply(doc("2026-04-01", false, null,
-                List.of(new RefItemRow("UNIT_TYPE", "ward", "en", ItemNames.english("Ward"), null, Map.of("k", "w"), true)), null))
+                List.of(new RefItemRow("W", "UNIT_TYPE", "ward", "en", ItemNames.english("Ward"), null,
+                        Map.of("k", "w"), true)), null))
                 .counts().get("refItems"));
         assertEquals(new Counts(0, 1, 0), service.apply(doc("2026-04-01", false, null,
-                List.of(new RefItemRow("UNIT_TYPE", "ward", "en", ItemNames.english("Ward"), null, Map.of("k", "w"), false)), null))
+                List.of(new RefItemRow("W", "UNIT_TYPE", "ward", "en", ItemNames.english("Ward"), null,
+                        Map.of("k", "w"), false)), null))
                 .counts().get("refItems"));
     }
 

@@ -1,26 +1,10 @@
 package net.exoego.keycloak.fuhito.service;
 
 import java.time.LocalDate;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
 import java.util.function.Consumer;
-import java.util.function.Function;
 
-import net.exoego.keycloak.fuhito.domain.AttributeDefinition;
 import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
-import net.exoego.keycloak.fuhito.domain.Hierarchy;
-import net.exoego.keycloak.fuhito.domain.RefItem;
-import net.exoego.keycloak.fuhito.domain.RefItemName;
-import net.exoego.keycloak.fuhito.domain.RefKindName;
-import net.exoego.keycloak.fuhito.service.ImportDocument.AttributeDefinitionRow;
-import net.exoego.keycloak.fuhito.service.ImportDocument.HierarchyRow;
-import net.exoego.keycloak.fuhito.service.ImportDocument.RefItemRow;
-import net.exoego.keycloak.fuhito.service.ImportDocument.RefKindRow;
-import net.exoego.keycloak.fuhito.service.ImportReport.Outcome;
-import net.exoego.keycloak.fuhito.service.ImportReport.Write;
 import net.exoego.keycloak.fuhito.store.AssignmentStore;
 import net.exoego.keycloak.fuhito.store.EmploymentStore;
 import net.exoego.keycloak.fuhito.store.OrgUnitStore;
@@ -38,11 +22,6 @@ public class ImportService {
      * The source of rows that name none.
      */
     public static final String DEFAULT_SOURCE = "import";
-
-    private static final String REF_ITEMS = "refItems";
-    private static final String REF_KINDS = "refKinds";
-    private static final String ATTRIBUTE_DEFINITIONS = "attributeDefinitions";
-    private static final String HIERARCHIES = "hierarchies";
 
     /**
      * The services that an import of the setup of a realm needs.
@@ -145,25 +124,26 @@ public class ImportService {
         Checks.required("body", document);
         LocalDate effectiveDate = Checks.date("effectiveDate", document.effectiveDate());
         String source = Checks.optionalCode("source", document.source());
+        String defaultSource = source == null ? DEFAULT_SOURCE : source;
         ImportReport report = new ImportReport();
         if (document.changeOrders() != null) {
-            new ChangeOrderImport(records.changeOrders(), people.users(), document.effectiveDate(), report)
-                    .run(document.changeOrders());
+            new ChangeOrderImport(records.changeOrders(), people.users(), records.externalIds(),
+                    document.effectiveDate(), defaultSource, report).run(document.changeOrders());
         }
+        SetupImport setupImport = new SetupImport(setup, refItemService, refItems, records.externalIds(),
+                effectiveDate, defaultSource, report);
         if (document.refKinds() != null) {
-            each(REF_KINDS, document.refKinds(), report, row -> importRefKind(row, report));
+            setupImport.refKinds(document.refKinds());
         }
         if (document.attributeDefinitions() != null) {
-            each(ATTRIBUTE_DEFINITIONS, document.attributeDefinitions(), report,
-                    row -> importAttributeDefinition(row, report));
+            setupImport.attributeDefinitions(document.attributeDefinitions());
         }
         if (document.refItems() != null) {
-            each(REF_ITEMS, document.refItems(), report, row -> importRefItem(row, effectiveDate, report));
+            setupImport.refItems(document.refItems());
         }
         if (document.hierarchies() != null) {
-            each(HIERARCHIES, document.hierarchies(), report, row -> importHierarchy(row, report));
+            setupImport.hierarchies(document.hierarchies());
         }
-        String defaultSource = source == null ? DEFAULT_SOURCE : source;
         if (document.orgUnits() != null) {
             new OrgUnitImport(orgUnitService, orgUnits, records.externalIds(), organizations,
                     document.effectiveDate(), defaultSource, document.orgUnits(), report).run();
@@ -200,97 +180,5 @@ public class ImportService {
             new ExternalIdImport(records.externalIds(), defaultSource, report).run(document.externalIds());
         }
         return report;
-    }
-
-    private static <R> void each(String list, List<R> rows, ImportReport report, Function<R, Outcome> apply) {
-        report.startList(list);
-        for (int i = 0; i < rows.size(); i++) {
-            try {
-                report.count(list, apply.apply(Checks.required("row", rows.get(i))));
-            } catch (FuhitoException e) {
-                report.error(list, i, e);
-            }
-        }
-    }
-
-    private Outcome importRefKind(RefKindRow row, ImportReport report) {
-        String code = Checks.required("code", row.code());
-        Optional<RealmKindService.View> stored = setup.kinds().find(code);
-        if (stored.isEmpty()) {
-            report.write(new Write.OfRefKind(true, setup.kinds().create(code, row.primaryLanguage(), row.names())));
-            return Outcome.CREATED;
-        }
-        if (RefKindName.check(row.primaryLanguage(), row.names()).equals(stored.get().names())) {
-            return Outcome.UNCHANGED;
-        }
-        report.write(new Write.OfRefKind(false, setup.kinds().rename(code, row.primaryLanguage(), row.names())));
-        return Outcome.CHANGED;
-    }
-
-    private Outcome importAttributeDefinition(AttributeDefinitionRow row, ImportReport report) {
-        AttributeDefinitionService definitions = setup.definitions();
-        String name = Checks.required("name", row.name());
-        Optional<AttributeDefinition> stored = definitions.list(Checks.required("target", row.target())).stream()
-                .filter(definition -> definition.name().equals(name))
-                .findFirst();
-        if (stored.isEmpty()) {
-            report.write(new Write.OfAttributeDefinition(true, definitions.create(row.target(), name, row.type(),
-                    row.refKind(), row.multiple(), row.required())));
-            return Outcome.CREATED;
-        }
-        AttributeDefinition before = stored.get();
-        if (before.type().name().equals(row.type()) && Objects.equals(before.refKind(), row.refKind())
-                && before.multiple() == Boolean.TRUE.equals(row.multiple())
-                && before.required() == Boolean.TRUE.equals(row.required())) {
-            return Outcome.UNCHANGED;
-        }
-        report.write(new Write.OfAttributeDefinition(false, definitions.replace(before.id(), row.type(),
-                row.refKind(), row.multiple(), row.required())));
-        return Outcome.CHANGED;
-    }
-
-    private Outcome importHierarchy(HierarchyRow row, ImportReport report) {
-        Optional<Hierarchy> stored = setup.hierarchies().find(Checks.required("code", row.code()));
-        if (stored.isEmpty()) {
-            report.write(new Write.OfHierarchy(true, setup.hierarchies().create(row.code(), row.name())));
-            return Outcome.CREATED;
-        }
-        if (Checks.name("name", row.name()).equals(stored.get().name())) {
-            return Outcome.UNCHANGED;
-        }
-        report.write(new Write.OfHierarchy(false, setup.hierarchies().rename(stored.get().id(), row.name())));
-        return Outcome.CHANGED;
-    }
-
-    // A row compares with the names of its date, so the same row on the same date changes nothing.
-    private Outcome importRefItem(RefItemRow row, LocalDate effectiveDate, ImportReport report) {
-        String kind = Checks.required("kind", row.kind());
-        String code = Checks.code("code", row.code());
-        LocalDate validFrom = Checks.optionalDate("validFrom", row.validFrom());
-        LocalDate date = validFrom == null ? effectiveDate : validFrom;
-        Optional<RefItem> stored = refItems.findByCode(kind, code, date);
-        if (stored.isEmpty()) {
-            RefItemService.Marks marks = new RefItemService.Marks(row.legalEntity(), row.actingHead(), row.lateral());
-            RefItem item = refItemService.create(kind, code, row.primaryLanguage(), row.names(), row.displayOrder(),
-                    row.attributes(), marks, !Boolean.FALSE.equals(row.active()), row.validFrom());
-            report.write(new Write.OfRefItem(true, item));
-            return Outcome.CREATED;
-        }
-        RefItem before = stored.get();
-        RefItem wanted = new RefItem(before.id(), kind, code, RefItemName.check(row.primaryLanguage(), row.names()),
-                row.displayOrder() == null ? 0 : row.displayOrder(),
-                row.attributes() == null ? Map.of() : row.attributes(), row.active() == null || row.active(),
-                row.legalEntity() == null ? before.legalEntity() : row.legalEntity(),
-                row.actingHead() == null ? before.actingHead() : row.actingHead(),
-                row.lateral() == null ? before.lateral() : row.lateral(), before.version(), before.validFrom(),
-                before.validTo());
-        if (wanted.equals(before)) {
-            return Outcome.UNCHANGED;
-        }
-        RefItem item = refItemService.update(before.id(), row.primaryLanguage(), row.names(), row.displayOrder(),
-                row.attributes(), row.active(), new RefItemService.Marks(wanted.legalEntity(), wanted.actingHead(),
-                        wanted.lateral()), date.toString());
-        report.write(new Write.OfRefItem(false, item));
-        return Outcome.CHANGED;
     }
 }

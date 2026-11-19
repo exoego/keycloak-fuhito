@@ -19,27 +19,40 @@ Every bad row is reported, not only the first one.
 
 | List | Matched by |
 |---|---|
-| Kinds of reference data | Code |
-| Attribute definitions | Target and name |
-| Hierarchies | Code |
-| Reference items | Kind and code |
+| Kinds of reference data | ID in the system of the source, or ID |
+| Attribute definitions | ID in the system of the source, or ID |
+| Hierarchies | ID in the system of the source, or ID |
+| Reference items | ID in the system of the source, or ID |
 | Org units | ID in the system of the source, or ID |
 | Parents in hierarchies | Hierarchy and org unit |
 | People | ID in the system of the source, or ID |
 | Employments | ID in the system of the source, or ID |
 | Assignments | ID in the system of the source, or ID |
-| Reporting lines | Assignment, manager, and kind, or ID |
-| Roles over org units | Employment, org unit, and role, or ID |
+| Reporting lines | ID in the system of the source, or ID |
+| Roles over org units | ID in the system of the source, or ID |
 | Qualifications | ID in the system of the source, or ID |
 | IDs of other systems | Type of resource, resource, and source |
-| Change orders | Number, or ID |
+| Change orders | ID in the system of the source, or ID |
 
 The source is the name of the system or the sheet that the rows come from.
 It keeps the external IDs of two systems apart. The default is `import`.
 A row matches a stored thing that has the external ID of the row in the system of the source, whichever system made the thing. So a file of the payroll system finds a person that the HR system made, once the person has an ID of the payroll system. `PUT /external-ids` and the list of IDs of other systems give those IDs.
 A row that matches nothing makes a new thing. Its `source` is the system of the row, and its external ID is stored as the ID of that system.
 References such as `parentExternalId` and `personExternalId` are matched the same way, with the source of the row.
-A row can name a stored thing by `id` in place of the external ID, also when the thing has no external ID. An external ID beside it must be one of that thing in the system of the source. A CSV export has `id` in every row. A new thing has no ID.
+A row can name a stored thing by `id` in place of the external ID, also when the thing has no external ID. An external ID beside it must be one of that thing in the system of the source, or the row fails with `import.id_mismatch`. An `id` that names nothing fails with `import.id_unknown`. A row with neither fails with `invalid.required`. A CSV export has `id` in every row. A new thing has no ID.
+
+A row never finds a stored thing by its values, such as a code or the manager of a line. A system that has no ID for a thing derives one by its own rule before it sends the file, for example from the kind and the code of a reference item. Codes and numbers stay values that no other thing has, so a new row with a taken code fails.
+
+Some values tell what a thing is, so they never change. A row of a stored thing that leaves one out keeps it. Another value fails with `import.value_fixed`. A different thing needs a different external ID. These values are the following.
+
+- The code of a kind of reference data.
+- The target and the name of an attribute definition.
+- The code of a hierarchy.
+- The kind and the code of a reference item.
+- The assignment, the manager, and the kind of a reporting line.
+- The employment, the org unit, the role, and `includesDescendants` of a role over an org unit.
+
+Parents in hierarchies and the IDs of other systems have no ID of their own, so they keep their keys. How a row names another thing does not change either. For example, an assignment names its job title by code and its employment by `employmentExternalId`.
 
 ## People
 
@@ -61,7 +74,8 @@ The lists are applied in the order change orders, kinds of reference data, attri
   "dryRun": false,
   "source": "sheet",
   "refItems": [
-    {"kind": "OCCUPATION", "code": "nurse", "primaryLanguage": "en", "names": {"en": {"name": "Nurse"}}}
+    {"externalId": "OCCUPATION.nurse", "kind": "OCCUPATION", "code": "nurse", "primaryLanguage": "en",
+     "names": {"en": {"name": "Nurse"}}}
   ],
   "orgUnits": [
     {"externalId": "H", "primaryLanguage": "en", "names": {"en": {"name": "X Hospital"}},
@@ -79,9 +93,9 @@ The lists are applied in the order change orders, kinds of reference data, attri
 ```
 
 - A row of a reference item has `primaryLanguage` and `names`, as `POST /ref-items` has them. It can have `validFrom`, the first date of its names. A new item without it has names that hold for every date. A stored item without it gets the names of the row from the effective date, and keeps its old names for the dates before. A row compares with the names of its date, so the same row changes nothing the second time. Two rows of one item with two dates load two periods of names, for example the names of a job title from a system that kept them.
-- The list `refKinds` adds kinds of reference data to the realm. A row has `code`, `primaryLanguage`, and `names`, as `POST /ref-kinds` has them. A row of a stored kind changes its names. A fixed kind such as `UNIT_TYPE` is in every realm and cannot be a row.
-- The list `attributeDefinitions` defines free attributes. A row has `target`, `name`, `type`, `refKind`, `multiple`, and `required`. A row of a stored definition changes the type, the kind, `multiple`, and `required`, as `PUT /attribute-definitions/{id}` does. Stored values stay as they are. The definitions come before the reference items, so that a row of a reference item can set an attribute that the same document defines.
-- The list `hierarchies` adds hierarchies. A row has `code` and `name`. A row of a stored hierarchy changes its name. The code `default` names the default hierarchy.
+- The list `refKinds` adds kinds of reference data to the realm. A row has `code`, `primaryLanguage`, and `names`, as `POST /ref-kinds` has them. A row of a stored kind changes its names and keeps its code. A fixed kind such as `UNIT_TYPE` is in every realm and cannot be a row.
+- The list `attributeDefinitions` defines free attributes. A row has `target`, `name`, `type`, `refKind`, `multiple`, and `required`. A row of a stored definition changes the type, the kind, `multiple`, and `required`, as `PUT /attribute-definitions/{id}` does. The target and the name stay. Stored values stay as they are. The definitions come before the reference items, so that a row of a reference item can set an attribute that the same document defines.
+- The list `hierarchies` adds hierarchies. A row has `code` and `name`. A row of a stored hierarchy changes its name and keeps its code. A row names the default hierarchy by its `id`, which the CSV export has, or by an ID that the list of IDs of other systems gave it. The code `default` in a row of a new hierarchy fails, as the code is taken.
 - Rows of org units can come in any order. A parent is applied before its children.
 - A parent with no external ID of the same source can be named by `parentId`, the ID of the unit. A row gives `parentExternalId` or `parentId`, not both.
 - The list `orgUnitParents` gives the parent of an org unit in a hierarchy from the effective date. A row has `hierarchy`, the unit by `orgUnitExternalId` or `orgUnitId`, and the parent by `parentExternalId` or `parentId`. A row with no parent takes the unit out of the hierarchy. The parent in the default hierarchy is in the row of the org unit, but a row of this list can name the default hierarchy too.
@@ -89,11 +103,11 @@ The lists are applied in the order change orders, kinds of reference data, attri
 - A row of a stored employment or assignment can name it by `id` the same way.
 - A row of an employment can name its person by `personId` and its employer by `employerId`. A row gives the external ID or the ID, not both.
 - A row of an assignment can name its employment by `employmentId` and its org unit by `orgUnitId` the same way. A row of a stored assignment that names neither keeps the stored ones.
-- The list `reportingLines` gives the manager of an assignment. A row names the assignment by `assignmentExternalId` or `assignmentId`, and the manager by `managerPersonExternalId`, `managerPersonId`, or `managerUsername`. `kind` is `SOLID` or `DOTTED`, and the default is `SOLID`. A new solid line fails with `reporting_line.solid_exists` while the assignment has a solid line on the same dates, as `POST /reporting-lines` does. The error names that line. So a change of the manager is two rows. One row names the stored line by `id` and ends it with `validTo`, and one row adds the new line. The two rows can come in any order. With no `validTo`, a line lasts as long as the assignment.
-- The list `unitRoles` gives the roles that employments hold over org units. A row names the employment by `employmentExternalId` or `employmentId`, the unit by `orgUnitExternalId` or `orgUnitId`, and the role by the code of a reference item of the kind `UNIT_ROLE`. `includesDescendants` of a stored role does not change. A row with another value is a new role, so it fails with `unit_role.overlap` while the stored role holds on the same dates, as `POST /unit-roles` does. The error names that role. So a change of `includesDescendants` is two rows. One row names the stored role by `id` and ends it with `validTo`, and one row adds the new role. The two rows can come in any order. A row that names a role by `id` with another value fails with `import.unit_role_mismatch`. A row with `id` that leaves the value out keeps the stored one. With no `validTo`, a role lasts as long as the employment.
+- The list `reportingLines` gives the manager of an assignment. A row names the line by `externalId` or `id`, the assignment by `assignmentExternalId` or `assignmentId`, and the manager by `managerPersonExternalId`, `managerPersonId`, or `managerUsername`. `kind` is `SOLID` or `DOTTED`, and the default is `SOLID`. The assignment, the manager, and the kind of a stored line do not change. A new solid line fails with `reporting_line.solid_exists` while the assignment has a solid line on the same dates, as `POST /reporting-lines` does. The error names that line. So a change of the manager is two rows. One row ends the stored line with `validTo`, and one row adds the new line with another external ID. The two rows can come in any order. With no `validTo`, a line lasts as long as the assignment.
+- The list `unitRoles` gives the roles that employments hold over org units. A row names the role by `externalId` or `id`, the employment by `employmentExternalId` or `employmentId`, the unit by `orgUnitExternalId` or `orgUnitId`, and the role by the code of a reference item of the kind `UNIT_ROLE`. The employment, the unit, the role, and `includesDescendants` of a stored role do not change. A new role fails with `unit_role.overlap` while the employment holds the same role over the unit on the same dates, as `POST /unit-roles` does. The error names that role. So a change of `includesDescendants` is two rows. One row ends the stored role with `validTo`, and one row adds the new role with another external ID. The two rows can come in any order. With no `validTo`, a role lasts as long as the employment.
 - The list `qualifications` gives qualifications such as licenses. A row names the person by `personExternalId`, `personId`, or `username`. A row of a stored qualification may name nobody. A qualification has dates of its own, so a row replaces the kind, the number, the dates, and the attributes of a stored one, as `PUT /qualifications/{id}` does. A row of a stored qualification with no `validFrom` keeps the stored start, as a blank cell of a CSV file does. A new qualification with no `validFrom` starts on the effective date.
 - The list `externalIds` gives the IDs that systems have for resources, as `PUT /external-ids` does. A row has `resourceType`, `resourceId`, `source`, and `externalId`. `resourceType` is any type that `PUT /external-ids` takes. Another external ID replaces the stored one, and an empty text removes it. A resource keeps its `source` when the ID of that system is removed.
-- The list `changeOrders` gives change orders. A row has the values of `POST /change-orders`. It can name the approver and the requester by `approverUsername` and `requesterUsername` too. A row of a stored order replaces its values, as `PUT /change-orders/{id}` does. A row of a new order with no `effectiveDate` takes the effective date of the import. A row of a stored order with no `effectiveDate` keeps the stored date, as a blank cell of a CSV file does. The announcement is a fact of its own, so it is not part of a row. Record it with `POST /change-orders/{id}/announce`.
+- The list `changeOrders` gives change orders. A row has the values of `POST /change-orders`. It can name the approver and the requester by `approverUsername` and `requesterUsername` too. A row of a stored order replaces its values, as `PUT /change-orders/{id}` does, the number too. A new order with a taken number fails with `change_order.number_taken`. A row of a new order with no `effectiveDate` takes the effective date of the import. A row of a stored order with no `effectiveDate` keeps the stored date, as a blank cell of a CSV file does. The announcement is a fact of its own, so it is not part of a row. Record it with `POST /change-orders/{id}/announce`.
 - A new row can have its own `validFrom`. An existing row ignores it.
 - A row with `validTo` ends the thing on that date. An employment can also carry `endReason`.
 - A row of an org unit can link the unit to a Keycloak organization by `organizationAlias`. A row that leaves it out keeps the link, and an empty text removes it. As `PUT /org-units/{id}/organization` does, the import asks for the permission to manage the old and the new organization. An unknown alias fails with `import.organization_unknown`.
@@ -118,8 +132,9 @@ The lists are applied in the order change orders, kinds of reference data, attri
 `GET /imports/csv/org-units?asOf=` gives the org units of a date as such a file, for a change in a spreadsheet. Each row has the column `id`, so a unit with no external ID loads again too. The columns `source` and `externalId` hold the system that made the unit and the ID that the unit has there, as the other files of records do. The IDs of other systems are in the file of `external-ids`. The parent is in the column `parentId`. A unit that ends has `validTo`, and its successors are in `successorIds`. A linked unit has the alias of its Keycloak organization in `organizationAlias`. In a file, `#CLEAR` there removes the link. The file has `timeZone` and `dayStart` too, and `#CLEAR` removes one. With `header=ja`, the names of the columns are in Japanese. The file is UTF-8 with a byte order mark, which spreadsheets need to read it as UTF-8. The same file loaded on the same date changes nothing.
 
 `GET /imports/csv/ref-kinds` gives the kinds that the realm added the same way. It takes no `asOf`. `GET /imports/csv/attribute-definitions` gives the definitions of attributes the same way. `GET /imports/csv/hierarchies` gives the hierarchies the same way, the default one too.
+Kinds, definitions, hierarchies, reference items, reporting lines, roles over org units, and change orders keep no system that made them. So the columns `source` and `externalId` of their files hold the first of their IDs, by the name of the system. The row loads again by its `id` all the same.
 
-`GET /imports/csv/ref-items?asOf=` gives the reference items of every kind the same way, the inactive ones too, with the names of the date. An item is matched by kind and code, so the file has no `id`. A mark such as `legalEntity` is blank for a kind that cannot have it. The file has no `validFrom`, so a name changed in it loads as names from the effective date. A file to load can have the column `validFrom`, and blank cells of a row then keep the stored values of that date.
+`GET /imports/csv/ref-items?asOf=` gives the reference items of every kind the same way, the inactive ones too, with the names of the date. Each row has `id`, `source`, and `externalId`. A mark such as `legalEntity` is blank for a kind that cannot have it. The file has no `validFrom`, so a name changed in it loads as names from the effective date. A file to load can have the column `validFrom`, and blank cells of a row then keep the stored values of that date.
 
 `GET /imports/csv/org-unit-parents?asOf=` gives the parents of the date in every hierarchy but the default one. It names the units by `orgUnitId` and `parentId`. In a file, blank cells of the parent keep the stored parent, and `#CLEAR` takes the unit out of the hierarchy.
 
@@ -169,6 +184,9 @@ Kinds of reference data.
 
 | English | Japanese |
 |---|---|
+| `id` | `ID` |
+| `externalId` | `外部ID` |
+| `source` | `ソース` |
 | `code` | `コード` |
 | `primaryLanguage` | `主言語` |
 | `name` | `名称` |
@@ -177,6 +195,9 @@ Attribute definitions.
 
 | English | Japanese |
 |---|---|
+| `id` | `ID` |
+| `externalId` | `外部ID` |
+| `source` | `ソース` |
 | `target` | `対象` |
 | `name` | `名称` |
 | `type` | `型` |
@@ -188,6 +209,9 @@ Hierarchies.
 
 | English | Japanese |
 |---|---|
+| `id` | `ID` |
+| `externalId` | `外部ID` |
+| `source` | `ソース` |
 | `code` | `コード` |
 | `name` | `名称` |
 
@@ -195,6 +219,9 @@ Reference items.
 
 | English | Japanese |
 |---|---|
+| `id` | `ID` |
+| `externalId` | `外部ID` |
+| `source` | `ソース` |
 | `kind` | `種類` |
 | `code` | `コード` |
 | `primaryLanguage` | `主言語` |
@@ -320,6 +347,7 @@ Reporting lines.
 | English | Japanese |
 |---|---|
 | `id` | `ID` |
+| `externalId` | `外部ID` |
 | `source` | `ソース` |
 | `assignmentExternalId` | `所属の外部ID` |
 | `assignmentId` | `所属のID` |
@@ -335,6 +363,7 @@ Roles over org units.
 | English | Japanese |
 |---|---|
 | `id` | `ID` |
+| `externalId` | `外部ID` |
 | `source` | `ソース` |
 | `employmentExternalId` | `雇用の外部ID` |
 | `employmentId` | `雇用のID` |
@@ -374,6 +403,8 @@ Change orders.
 | English | Japanese |
 |---|---|
 | `id` | `ID` |
+| `externalId` | `外部ID` |
+| `source` | `ソース` |
 | `number` | `番号` |
 | `kind` | `種類` |
 | `title` | `件名` |

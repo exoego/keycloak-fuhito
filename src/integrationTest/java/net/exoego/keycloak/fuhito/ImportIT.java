@@ -15,10 +15,10 @@ class ImportIT {
 
     private static final String HOSPITAL = """
             {"effectiveDate": "2026-04-01", "source": "sheet", %s
-             "attributeDefinitions": [{"target": "ORG_UNIT", "name": "beds", "type": "NUMBER"}],
+             "attributeDefinitions": [{"externalId": "beds", "target": "ORG_UNIT", "name": "beds", "type": "NUMBER"}],
              "refItems": [
-               {"kind": "UNIT_TYPE", "code": "hospital", "primaryLanguage": "ja", "names": {"ja": {"name": "病院"}, "en": {"name": "Hospital"}}},
-               {"kind": "UNIT_TYPE", "code": "department", "primaryLanguage": "ja", "names": {"ja": {"name": "部"}}}
+               {"externalId": "UNIT_TYPE.hospital", "kind": "UNIT_TYPE", "code": "hospital", "primaryLanguage": "ja", "names": {"ja": {"name": "病院"}, "en": {"name": "Hospital"}}},
+               {"externalId": "UNIT_TYPE.department", "kind": "UNIT_TYPE", "code": "department", "primaryLanguage": "ja", "names": {"ja": {"name": "部"}}}
              ],
              "orgUnits": [
                {"externalId": "W1", "primaryLanguage": "ja", "names": {"ja": {"name": "1病棟", "phoneticName": "いちびょうとう"}}, "parentExternalId": "N"},
@@ -48,8 +48,8 @@ class ImportIT {
         Api api = realm.api;
         String document = """
                 {"effectiveDate": "2026-04-01", "refItems": [
-                  {"kind": "JOB_TITLE", "code": "m1", "primaryLanguage": "ja", "names": {"ja": {"name": "課長"}}, "validFrom": "2015-04-01"},
-                  {"kind": "JOB_TITLE", "code": "m1", "primaryLanguage": "ja", "names": {"ja": {"name": "マネージャー"}, "en": {"name": "Manager"}}, "validFrom": "2023-04-01"}
+                  {"externalId": "JOB_TITLE.m1", "kind": "JOB_TITLE", "code": "m1", "primaryLanguage": "ja", "names": {"ja": {"name": "課長"}}, "validFrom": "2015-04-01"},
+                  {"externalId": "JOB_TITLE.m1", "kind": "JOB_TITLE", "code": "m1", "primaryLanguage": "ja", "names": {"ja": {"name": "マネージャー"}, "en": {"name": "Manager"}}, "validFrom": "2023-04-01"}
                 ]}
                 """;
 
@@ -117,7 +117,7 @@ class ImportIT {
         TestRealm realm = TestRealm.create("import-parents");
         String document = """
                 {"effectiveDate": "2026-04-01", "source": "sheet",
-                 "hierarchies": [{"code": "project", "name": "プロジェクト"}],
+                 "hierarchies": [{"externalId": "project", "code": "project", "name": "プロジェクト"}],
                  "orgUnits": [{"externalId": "P", "primaryLanguage": "ja", "names": {"ja": {"name": "P"}}}, {"externalId": "C", "primaryLanguage": "ja", "names": {"ja": {"name": "C"}}}],
                  "orgUnitParents": [{"hierarchy": "project", "orgUnitExternalId": "C", "parentExternalId": "P"}]}
                 """;
@@ -213,9 +213,9 @@ class ImportIT {
         JsonNode first = ok(api.post("/imports", """
                 {"effectiveDate": "2026-04-01", "source": "sheet",
                  "refItems": [
-                   {"kind": "OCCUPATION", "code": "nurse", "primaryLanguage": "ja", "names": {"ja": {"name": "看護師"}}},
-                   {"kind": "EMPLOYMENT_TYPE", "code": "part-time", "primaryLanguage": "ja", "names": {"ja": {"name": "非常勤"}}},
-                   {"kind": "END_REASON", "code": "resignation", "primaryLanguage": "ja", "names": {"ja": {"name": "退職"}}}
+                   {"externalId": "OCCUPATION.nurse", "kind": "OCCUPATION", "code": "nurse", "primaryLanguage": "ja", "names": {"ja": {"name": "看護師"}}},
+                   {"externalId": "EMPLOYMENT_TYPE.part-time", "kind": "EMPLOYMENT_TYPE", "code": "part-time", "primaryLanguage": "ja", "names": {"ja": {"name": "非常勤"}}},
+                   {"externalId": "END_REASON.resignation", "kind": "END_REASON", "code": "resignation", "primaryLanguage": "ja", "names": {"ja": {"name": "退職"}}}
                  ],
                  "orgUnits": [
                    {"externalId": "H", "primaryLanguage": "ja", "names": {"ja": {"name": "X病院"}}},
@@ -286,7 +286,7 @@ class ImportIT {
         realm.user("suzuki");
         ok(api.post("/imports", """
                 {"effectiveDate": "2020-04-01", "source": "sheet",
-                 "refItems": [{"kind": "UNIT_TYPE", "code": "company", "primaryLanguage": "ja", "names": {"ja": {"name": "会社"}}, "legalEntity": true}],
+                 "refItems": [{"externalId": "UNIT_TYPE.company", "kind": "UNIT_TYPE", "code": "company", "primaryLanguage": "ja", "names": {"ja": {"name": "会社"}}, "legalEntity": true}],
                  "orgUnits": [
                    {"externalId": "X", "primaryLanguage": "ja", "names": {"ja": {"name": "医療法人X会"}}, "unitType": "company"},
                    {"externalId": "Y", "primaryLanguage": "ja", "names": {"ja": {"name": "株式会社Yサービス"}}, "unitType": "company"},
@@ -389,7 +389,7 @@ class ImportIT {
         String suzuki = realm.user("suzuki");
         String document = """
                 {"effectiveDate": "2026-04-01", "source": "sheet",
-                 "refItems": [{"kind": "UNIT_TYPE", "code": "company", "primaryLanguage": "ja", "names": {"ja": {"name": "会社"}}, "legalEntity": true}],
+                 "refItems": [{"externalId": "UNIT_TYPE.company", "kind": "UNIT_TYPE", "code": "company", "primaryLanguage": "ja", "names": {"ja": {"name": "会社"}}, "legalEntity": true}],
                  "orgUnits": [
                    {"externalId": "X", "primaryLanguage": "ja", "names": {"ja": {"name": "医療法人X会"}}, "unitType": "company"},
                    {"externalId": "Y", "primaryLanguage": "ja", "names": {"ja": {"name": "株式会社Yサービス"}}, "unitType": "company"},

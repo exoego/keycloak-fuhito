@@ -59,6 +59,17 @@ public class HierarchyService {
     }
 
     /**
+     * Finds a hierarchy by ID. The default hierarchy is always there.
+     *
+     * @param id the ID
+     * @return the hierarchy, or empty when the realm has none with the ID
+     */
+    public Optional<Hierarchy> findById(String id) {
+        store.defaultId();
+        return store.find(id);
+    }
+
+    /**
      * Finds a hierarchy by code. The default hierarchy is always there.
      *
      * @param code the code
