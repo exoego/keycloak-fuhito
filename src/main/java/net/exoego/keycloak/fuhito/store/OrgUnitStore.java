@@ -2,7 +2,6 @@ package net.exoego.keycloak.fuhito.store;
 
 import java.time.LocalDate;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -49,9 +48,7 @@ public interface OrgUnitStore {
      * @param ids the IDs
      * @return the units that exist in the realm, in no order
      */
-    default List<OrgUnit> findUnits(Collection<String> ids) {
-        return ids.stream().distinct().map(this::findUnit).flatMap(Optional::stream).toList();
-    }
+    List<OrgUnit> findUnits(Collection<String> ids);
 
     /**
      * Finds the org unit that has a code on a date.
@@ -76,9 +73,7 @@ public interface OrgUnitStore {
      * @param codes the codes
      * @return the details, in no order
      */
-    default List<OrgUnitVersion> versionsWithCodes(Collection<String> codes) {
-        return codes.stream().distinct().flatMap(code -> versionsWithCode(code).stream()).toList();
-    }
+    List<OrgUnitVersion> versionsWithCodes(Collection<String> codes);
 
     /**
      * Finds the org unit that is linked to a Keycloak organization.
@@ -308,16 +303,7 @@ public interface OrgUnitStore {
      * @param ids the IDs of the units
      * @return the life of each unit that has versions, by its ID
      */
-    default Map<String, ValidPeriod> livesOf(Collection<String> ids) {
-        Map<String, ValidPeriod> lives = new HashMap<>();
-        ids.stream().distinct().forEach(id -> {
-            List<OrgUnitVersion> versions = versions(id);
-            if (!versions.isEmpty()) {
-                lives.put(id, new ValidPeriod(versions.getFirst().period().from(), versions.getLast().period().to()));
-            }
-        });
-        return lives;
-    }
+    Map<String, ValidPeriod> livesOf(Collection<String> ids);
 
     /**
      * Returns some units as they are on a date. A unit that does not exist on the date is left out.
@@ -341,9 +327,7 @@ public interface OrgUnitStore {
      *
      * @param units the units
      */
-    default void insertUnits(List<OrgUnit> units) {
-        units.forEach(this::insertUnit);
-    }
+    void insertUnits(List<OrgUnit> units);
 
     /**
      * Lists all versions of an org unit, oldest first.
@@ -359,16 +343,7 @@ public interface OrgUnitStore {
      * @param orgUnitIds the IDs of the units
      * @return the versions of each unit that has some, by the ID of the unit
      */
-    default Map<String, List<OrgUnitVersion>> versionsOf(Collection<String> orgUnitIds) {
-        Map<String, List<OrgUnitVersion>> found = new HashMap<>();
-        orgUnitIds.stream().distinct().forEach(id -> {
-            List<OrgUnitVersion> versions = versions(id);
-            if (!versions.isEmpty()) {
-                found.put(id, versions);
-            }
-        });
-        return found;
-    }
+    Map<String, List<OrgUnitVersion>> versionsOf(Collection<String> orgUnitIds);
 
     /**
      * Stores a new version.
@@ -400,16 +375,7 @@ public interface OrgUnitStore {
      * @param childIds the IDs of the units
      * @return the links of each unit that has some, by the ID of the unit
      */
-    default Map<String, List<OrgUnitLink>> parentLinksOf(String hierarchyId, Collection<String> childIds) {
-        Map<String, List<OrgUnitLink>> found = new HashMap<>();
-        childIds.stream().distinct().forEach(id -> {
-            List<OrgUnitLink> links = parentLinks(hierarchyId, id);
-            if (!links.isEmpty()) {
-                found.put(id, links);
-            }
-        });
-        return found;
-    }
+    Map<String, List<OrgUnitLink>> parentLinksOf(String hierarchyId, Collection<String> childIds);
 
     /**
      * Lists all parent links of an org unit in every hierarchy, oldest first.

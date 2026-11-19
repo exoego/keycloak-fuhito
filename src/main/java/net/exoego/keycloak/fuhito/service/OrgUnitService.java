@@ -222,22 +222,19 @@ public class OrgUnitService {
         }
 
         /**
-         * Returns a stored unit as it is on a date, as {@link OrgUnitService#get} does. Its work location and its
-         * cost center are those of its own version, with none that apply from above.
+         * Returns a stored unit as it is on a date on which it exists, as {@link OrgUnitService#get} does. Its work
+         * location and its cost center are those of its own version, with none that apply from above.
          *
          * @param id the ID of the unit
          * @param date the date
          * @return the unit on the date
-         * @throws FuhitoException when the unit does not exist, or does not exist on the date
          */
         OrgUnitState stateOn(String id, LocalDate date) {
-            OrgUnit unit = unit(id)
-                    .orElseThrow(() -> FuhitoException.notFound("org_unit.not_found", Map.of("id", id)));
+            OrgUnit unit = unit(id).orElseThrow();
             OrgUnitVersion version = versions(id).stream()
                     .filter(v -> v.period().contains(date))
                     .findFirst()
-                    .orElseThrow(() -> FuhitoException.notFound("org_unit.not_valid_on",
-                            Map.of("id", id, "date", date.toString())));
+                    .orElseThrow();
             RefItem unitType = version.unitTypeId() == null ? null
                     : items.byId().apply(version.unitTypeId()).orElse(null);
             String parentId = parents.computeIfAbsent(id, key -> store.parentLinks(hierarchyId(), key)).stream()

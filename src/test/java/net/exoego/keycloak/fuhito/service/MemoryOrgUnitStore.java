@@ -10,6 +10,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -20,6 +21,7 @@ import net.exoego.keycloak.fuhito.domain.OrgUnitSuccession;
 import net.exoego.keycloak.fuhito.domain.OrgUnitVersion;
 import net.exoego.keycloak.fuhito.domain.PlacedOrgUnit;
 import net.exoego.keycloak.fuhito.domain.UnitDefaults;
+import net.exoego.keycloak.fuhito.domain.ValidPeriod;
 import net.exoego.keycloak.fuhito.store.OrgUnitStore;
 
 final class MemoryOrgUnitStore implements OrgUnitStore {
@@ -54,7 +56,7 @@ final class MemoryOrgUnitStore implements OrgUnitStore {
     @Override
     public List<OrgUnit> findUnits(Collection<String> ids) {
         manyReads++;
-        return ids.stream().distinct().map(units::get).filter(java.util.Objects::nonNull).toList();
+        return ids.stream().distinct().map(units::get).filter(Objects::nonNull).toList();
     }
 
     @Override
@@ -88,6 +90,14 @@ final class MemoryOrgUnitStore implements OrgUnitStore {
             }
         });
         return found;
+    }
+
+    @Override
+    public Map<String, ValidPeriod> livesOf(Collection<String> ids) {
+        Map<String, ValidPeriod> lives = new HashMap<>();
+        versionsOf(ids).forEach((id, of) -> lives.put(id, new ValidPeriod(of.getFirst().period().from(),
+                of.getLast().period().to())));
+        return lives;
     }
 
     @Override
@@ -315,6 +325,11 @@ final class MemoryOrgUnitStore implements OrgUnitStore {
     @Override
     public void insertUnit(OrgUnit unit) {
         units.put(unit.id(), unit);
+    }
+
+    @Override
+    public void insertUnits(List<OrgUnit> list) {
+        list.forEach(this::insertUnit);
     }
 
     @Override

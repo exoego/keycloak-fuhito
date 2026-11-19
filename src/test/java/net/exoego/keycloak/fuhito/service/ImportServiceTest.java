@@ -377,12 +377,14 @@ class ImportServiceTest {
     void setsTheTimeOfAUnitAndKeepsWhatARowLeavesOut() {
         ImportReport first = importUnits("2026-04-01", timed("H", "Asia/Tokyo", "05:00"));
         ImportReport again = importUnits("2026-04-01", timed("H", null, null));
+        ImportReport same = importUnits("2026-04-01", timed("H", "Asia/Tokyo", null));
         ImportReport cleared = importUnits("2026-04-01", timed("H", null, ""));
 
         String h = stored(ExternalId.Kind.ORG_UNIT, "import", "H");
         assertEquals(List.of(), errors(first));
         assertEquals("fuhito/org-units/" + h + "/time-settings", first.writes().getLast().path());
         assertEquals(Map.of("orgUnits", new Counts(0, 0, 1)), again.counts());
+        assertEquals(Map.of("orgUnits", new Counts(0, 0, 1)), same.counts());
         assertEquals(Map.of("orgUnits", new Counts(0, 1, 0)), cleared.counts());
         assertEquals("Asia/Tokyo", orgUnitStore.findUnit(h).orElseThrow().timeZone());
         assertEquals(null, orgUnitStore.findUnit(h).orElseThrow().dayStart());

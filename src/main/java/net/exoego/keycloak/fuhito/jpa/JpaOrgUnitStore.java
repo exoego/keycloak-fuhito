@@ -175,11 +175,9 @@ public class JpaOrgUnitStore implements OrgUnitStore {
         return entity != null && entity.realmId.equals(realmId) ? Optional.of(toDomain(entity)) : Optional.empty();
     }
 
+    // The units are found by their IDs alone, for the reason in Rows.inRealm.
     @Override
     public List<OrgUnit> findUnits(Collection<String> ids) {
-        if (ids.isEmpty()) {
-            return List.of();
-        }
         return em.createQuery("select u from OrgUnitEntity u where %s".formatted(ManyIds.has("u.id", "ids")),
                         OrgUnitEntity.class)
                 .setParameter("ids", ManyIds.of(ids))
@@ -603,9 +601,6 @@ public class JpaOrgUnitStore implements OrgUnitStore {
     @Override
     public Map<String, List<OrgUnitVersion>> versionsOf(Collection<String> orgUnitIds) {
         Map<String, List<OrgUnitVersion>> found = new HashMap<>();
-        if (orgUnitIds.isEmpty()) {
-            return found;
-        }
         withNames(em.createQuery("""
                         select v from OrgUnitVersionEntity v where %s
                         order by v.validFrom""".formatted(ManyIds.has("v.orgUnitId", "ids")),
@@ -669,9 +664,6 @@ public class JpaOrgUnitStore implements OrgUnitStore {
     @Override
     public Map<String, List<OrgUnitLink>> parentLinksOf(String hierarchyId, Collection<String> childIds) {
         Map<String, List<OrgUnitLink>> found = new HashMap<>();
-        if (childIds.isEmpty()) {
-            return found;
-        }
         em.createQuery("""
                         select l from OrgUnitLinkEntity l where l.hierarchyId = :hierarchyId and %s
                         order by l.validFrom""".formatted(ManyIds.has("l.childId", "ids")), OrgUnitLinkEntity.class)
