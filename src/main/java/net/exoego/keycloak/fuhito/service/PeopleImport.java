@@ -16,6 +16,7 @@ import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.Employment;
 import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
+import net.exoego.keycloak.fuhito.domain.PersonName;
 import net.exoego.keycloak.fuhito.service.ImportDocument.AssignmentRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.EmploymentRow;
 import net.exoego.keycloak.fuhito.service.ImportReport.Outcome;
@@ -93,9 +94,7 @@ final class PeopleImport {
         String linked = userId != null ? userId : person.userId();
         PersonValues wanted = values(row, linked, source);
         boolean same = Objects.equals(linked, person.userId())
-                && Objects.equals(Checks.optionalName("name", wanted.name()), person.name())
-                && Checks.localizedNames("names", wanted.names()).equals(person.names())
-                && Objects.equals(Checks.optionalName("phoneticName", wanted.phoneticName()), person.phoneticName())
+                && Objects.equals(PersonName.check(wanted.primaryLanguage(), wanted.names()), person.names())
                 && (wanted.attributes() == null ? Map.of() : wanted.attributes()).equals(person.attributes());
         if (same) {
             return Outcome.UNCHANGED;
@@ -119,8 +118,8 @@ final class PeopleImport {
     }
 
     private static PersonValues values(PersonRow row, String userId, String source) {
-        return new PersonValues(userId, row.name(), row.names(), row.phoneticName(), row.attributes(),
-                row.externalId(), source);
+        return new PersonValues(userId, row.primaryLanguage(), row.names(), row.attributes(), row.externalId(),
+                source);
     }
 
     void employments(List<EmploymentRow> rows) {

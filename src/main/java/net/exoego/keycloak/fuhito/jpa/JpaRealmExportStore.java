@@ -158,7 +158,8 @@ public class JpaRealmExportStore implements RealmExportStore {
 
     @Override
     public Page<Person> people() {
-        return page(PersonEntity.class, "id", JpaPersonStore::toDomain);
+        Page<PersonEntity> rows = page(PersonEntity.class, "id", Function.identity());
+        return (afterId, max) -> JpaPersonStore.withNames(em, realmId, rows.read(afterId, max));
     }
 
     @Override

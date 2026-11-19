@@ -14,7 +14,7 @@ class RealmRemovalIT {
             "fuhito_attribute_definition", "fuhito_ref_kind", "fuhito_external_id", "fuhito_job_run", "fuhito_org_unit",
             "fuhito_org_unit_version", "fuhito_org_unit_version_name", "fuhito_org_unit_link", "fuhito_org_unit_succession", "fuhito_employment", "fuhito_employment_terms",
             "fuhito_assignment", "fuhito_change_order", "fuhito_change_log", "fuhito_change_log_counter", "fuhito_qualification",
-            "fuhito_reporting_line", "fuhito_unit_role", "fuhito_user_mask", "fuhito_person", "fuhito_erasure",
+            "fuhito_reporting_line", "fuhito_unit_role", "fuhito_user_mask", "fuhito_person", "fuhito_person_name", "fuhito_erasure",
             "fuhito_projected_member");
 
     // A new table must be added to this test and to the cleanup. This test fails until that is done.
@@ -63,8 +63,8 @@ class RealmRemovalIT {
         assertEquals(200, succession.statusCode(), succession.body());
         assertEquals(201, api.post("/change-orders",
                 "{\"title\": \"Order\", \"effectiveDate\": \"2026-04-01\"}").statusCode());
-        assertEquals(201, api.post("/people", "{\"name\": \"Visitor\"}").statusCode());
-        var erased = api.post("/people", "{\"name\": \"Erased\"}");
+        assertEquals(201, api.post("/people", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"Visitor\"}}}").statusCode());
+        var erased = api.post("/people", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"Erased\"}}}");
         assertEquals(201, erased.statusCode(), erased.body());
         assertEquals(204, api.deleteWithVersion("/people/" + Api.json(erased).get("id").asText() + "/data").statusCode());
         String staff = realm.user("staff");
@@ -89,7 +89,7 @@ class RealmRemovalIT {
         assertEquals(200, api.putWithVersion("/external-ids", "{\"resourceType\": \"ORG_UNIT\", \"resourceId\": \""
                 + Api.json(parent).get("id").asText() + "\", \"source\": \"payroll\", \"externalId\": \"P-1\"}")
                 .statusCode());
-        assertEquals(201, api.post("/people", "{\"name\": \"Guest\"}").statusCode());
+        assertEquals(201, api.post("/people", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"Guest\"}}}").statusCode());
         assertEquals(201, api.post("/ref-kinds", "{\"code\": \"site\", \"name\": \"Site\"}").statusCode());
         // The rebuild records its run, and the staff as a member that it added to the organization.
         assertEquals(200, api.putWithVersion("/org-units/" + Api.json(parent).get("id").asText() + "/organization",

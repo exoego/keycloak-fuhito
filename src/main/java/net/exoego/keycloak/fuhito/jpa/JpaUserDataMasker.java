@@ -83,10 +83,7 @@ public class JpaUserDataMasker implements UserDataMasker {
             qualification.countUp();
         }
         PersonEntity person = Rows.require(em, PersonEntity.class, personId, realmId, found -> found.realmId);
-        person.name = null;
-        person.names = new LinkedHashMap<>();
-        person.phoneticName = null;
-        person.searchNames = null;
+        PersonNames.replace(em, realmId, personId, null);
         person.attributes = new LinkedHashMap<>();
         person.countUp();
         removeExternalIds("PERSON", List.of(personId));

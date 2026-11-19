@@ -351,8 +351,7 @@ class AttributeSyncServiceTest {
         Employment first = employmentStore.findByUser("alice").getFirst();
         // The person of alice loses the link to the Keycloak user.
         Person person = people.find(first.personId()).orElseThrow();
-        people.update(new Person(person.id(), null, person.name(), person.names(), person.phoneticName(),
-                person.attributes(), person.source(), 1));
+        people.update(new Person(person.id(), null, person.names(), person.attributes(), person.source(), 1));
         employmentStore.employments.put(first.id(), new Employment(first.id(), first.personId(), null,
                 first.employerId(), first.period(), first.staffNumber(), first.endReasonId(), first.source(),
                 first.continuesEmploymentId(), 1));

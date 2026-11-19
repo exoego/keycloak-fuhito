@@ -456,8 +456,8 @@ class CsvImportIT {
         assertEquals(201, api.post("/attribute-definitions", "{\"target\": \"EMPLOYMENT_TERMS\", \"name\": \"shift\", "
                 + "\"type\": \"STRING\"}").statusCode());
         // People and employments made through REST have no external ID.
-        String hanako = Api.json(api.post("/people", "{\"name\": \"山田 花子\"}")).get("id").asText();
-        String taro = Api.json(api.post("/people", "{\"name\": \"Taro\"}")).get("id").asText();
+        String hanako = Api.json(api.post("/people", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"山田 花子\"}}}")).get("id").asText();
+        String taro = Api.json(api.post("/people", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"Taro\"}}}")).get("id").asText();
         String employment = Api.json(api.post("/employments", "{\"personId\": \"" + hanako + "\", \"staffNumber\": "
                 + "\"N-1\", \"grade\": \"g1\", \"status\": \"ON_LEAVE\", \"leaveReason\": \"parental\", "
                 + "\"workPercent\": 80.5, \"contractEndDate\": \"2027-03-31\", "
@@ -510,7 +510,7 @@ class CsvImportIT {
                 .get("id").asText();
         String lab = Api.json(api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"検査室\"}}, \"workLocation\": \"tokyo\", "
                 + "\"costCenter\": \"cc-lab\", \"validFrom\": \"2020-04-01\"}")).get("id").asText();
-        String hanako = Api.json(api.post("/people", "{\"name\": \"山田 花子\"}")).get("id").asText();
+        String hanako = Api.json(api.post("/people", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"山田 花子\"}}}")).get("id").asText();
         String employment = Api.json(api.post("/employments", "{\"personId\": \"" + hanako + "\", "
                 + "\"validFrom\": \"2020-04-01\"}")).get("id").asText();
         String main = Api.json(api.post("/assignments", "{\"employmentId\": \"" + employment + "\", \"orgUnitId\": \""
@@ -568,10 +568,11 @@ class CsvImportIT {
                 + "\"type\": \"STRING\"}").statusCode());
         assertEquals(201, api.post("/attribute-definitions", "{\"target\": \"PERSON\", \"name\": \"languages\", "
                 + "\"type\": \"STRING\", \"multiple\": true}").statusCode());
-        String hanako = Api.json(api.post("/people", "{\"name\": \"山田 花子\", \"names\": {\"en\": \"Hanako Yamada\"}, "
-                + "\"phoneticName\": \"やまだ はなこ\", \"attributes\": {\"desk\": \"3F, east\", "
+        String hanako = Api.json(api.post("/people", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": "
+                + "{\"name\": \"山田 花子\", \"phoneticName\": \"やまだ はなこ\"}, \"en\": {\"name\": \"Hanako Yamada\", "
+                + "\"phoneticName\": \"HY\"}}, \"attributes\": {\"desk\": \"3F, east\", "
                 + "\"languages\": [\"ja\", \"en\"]}}")).get("id").asText();
-        assertEquals(201, api.post("/people", "{\"name\": \"Taro\", \"externalId\": \"P-1\", \"source\": \"hr\"}")
+        assertEquals(201, api.post("/people", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"Taro\"}}, \"externalId\": \"P-1\", \"source\": \"hr\"}")
                 .statusCode());
         // A person who takes the name of the Keycloak user, and keeps the link.
         String user = realm.user("linked", "Ichiro", "Suzuki");
@@ -580,6 +581,10 @@ class CsvImportIT {
         for (String header : List.of("en", "ja")) {
             HttpResponse<String> exported = api.get("/imports/csv/people?header=" + header);
             assertEquals(200, exported.statusCode(), exported.body());
+            assertTrue(exported.body().startsWith("﻿" + (header.equals("en")
+                    ? "id,externalId,source,primaryLanguage,name,phoneticName,name:en,phoneticName:en,attributes."
+                    : "ID,外部ID,ソース,主言語,名称,よみがな,名称:en,よみがな:en,attributes.")), exported.body());
+            assertTrue(exported.body().contains(",ja,山田 花子,やまだ はなこ,Hanako Yamada,HY,"), exported.body());
             assertTrue(exported.body().contains("\"3F, east\""), exported.body());
             assertTrue(exported.body().contains("\"[\"\"ja\"\",\"\"en\"\"]\""), exported.body());
 

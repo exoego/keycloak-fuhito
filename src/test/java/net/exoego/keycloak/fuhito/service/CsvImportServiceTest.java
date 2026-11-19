@@ -12,6 +12,7 @@ import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.Localized;
 import net.exoego.keycloak.fuhito.domain.OrgUnitName;
+import net.exoego.keycloak.fuhito.domain.PersonName;
 import net.exoego.keycloak.fuhito.domain.RefItem;
 import net.exoego.keycloak.fuhito.domain.RefKind;
 import net.exoego.keycloak.fuhito.service.ImportReport.Counts;
@@ -338,8 +339,8 @@ class CsvImportServiceTest {
         load("orgUnits", "2026-04-01", "外部ID,主言語,名称\nH,ja,X病院\n");
 
         assertEquals(List.of(), errors(load("people", "2026-04-01", """
-                外部ID,名称,名称:en,よみがな
-                P1,山田 花子,Hanako Yamada,やまだ はなこ
+                外部ID,主言語,名称,名称:en,よみがな
+                P1,ja,山田 花子,Hanako Yamada,やまだ はなこ
                 """)));
         assertEquals(List.of(), errors(load("employments", "2026-04-01", """
                 外部ID,人の外部ID,開始日,終了日
@@ -349,17 +350,26 @@ class CsvImportServiceTest {
         assertEquals(List.of(), errors(load("people", "2026-04-01", "外部ID,よみがな\nP1,やまだ\n")));
 
         var person = personStore.find(stored(ExternalId.Kind.PERSON, "import", "P1")).orElseThrow();
-        assertEquals("山田 花子", person.name());
-        assertEquals("やまだ", person.phoneticName());
-        assertEquals(Map.of("en", "Hanako Yamada"), person.names());
+        assertEquals(new Localized<>("ja", Map.of("ja", new PersonName("山田 花子", "やまだ"),
+                "en", new PersonName("Hanako Yamada", null))), person.names());
         assertEquals(person.id(), employmentStore.find(stored(ExternalId.Kind.EMPLOYMENT, "import", "E1")).orElseThrow().personId());
         assertEquals(new Counts(0, 0, 1), load("employments", "2026-04-01", "外部ID,終了日\nE1,2000-04-01\n")
                 .report().counts().get("employments"));
+
+        // A column of a language sets the names of that language. #CLEAR in its name removes the language.
+        assertEquals(List.of(), errors(load("people", "2026-04-01",
+                "外部ID,名称:en,名称:zh-Hant,よみがな:zh-Hant\nP1,#CLEAR,山田花子,shān tián\n")));
+        assertEquals(new Localized<>("ja", Map.of("ja", new PersonName("山田 花子", "やまだ"),
+                "zh-Hant", new PersonName("山田花子", "shān tián"))),
+                personStore.find(person.id()).orElseThrow().names());
+        // The names of a new person need the primary language.
+        assertEquals(List.of("line 2 row 0 invalid.required"), errors(load("people", "2026-04-01",
+                "外部ID,名称\nP2,山田 太郎\n")));
     }
 
     @Test
     void aFileOfAnotherSystemFindsAPersonByTheIdThatSystemHasForIt() {
-        assertEquals(List.of(), errors(load("people", "2026-04-01", "外部ID,名称,よみがな\nP1,山田 花子,やまだ\n")));
+        assertEquals(List.of(), errors(load("people", "2026-04-01", "外部ID,主言語,名称,よみがな\nP1,ja,山田 花子,やまだ\n")));
         String person = stored(ExternalId.Kind.PERSON, "import", "P1");
         externalIdStore.insert(new ExternalId("row-pay", ExternalId.Kind.PERSON, person, "payroll", "PAY-1", 1));
 
@@ -368,9 +378,8 @@ class CsvImportServiceTest {
 
         assertEquals(new Counts(0, 1, 0), result.report().counts().get("people"));
         var renamed = personStore.find(person).orElseThrow();
-        assertEquals("山田 華子", renamed.name());
         // A blank cell keeps what is stored, also for a row of another system.
-        assertEquals("やまだ", renamed.phoneticName());
+        assertEquals(Localized.of("ja", new PersonName("山田 華子", "やまだ")), renamed.names());
         assertEquals("import", renamed.source());
     }
 

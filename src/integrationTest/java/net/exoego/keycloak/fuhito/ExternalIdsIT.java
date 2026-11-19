@@ -58,11 +58,12 @@ class ExternalIdsIT {
             assertEquals("external_id.taken", errorOf(409, api.post("/org-units",
                     "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"2病棟\"}}, \"validFrom\": \"2020-04-01\", " + taken + "}")));
         }
-        String other = Api.json(api.post("/people", "{\"name\": \"Other\"}")).get("id").asText();
+        String other = Api.json(api.post("/people", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"Other\"}}}")).get("id").asText();
         ok(api.putWithVersion("/external-ids", "{\"resourceType\": \"PERSON\", \"resourceId\": \"" + other
                 + "\", \"source\": \"payroll\", \"externalId\": \"E-1\"}"));
         assertEquals("external_id.taken", errorOf(409, api.post("/people",
-                "{\"name\": \"New\", \"externalId\": \"E-1\", \"source\": \"payroll\"}")));
+                "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"New\"}}, \"externalId\": \"E-1\", "
+                        + "\"source\": \"payroll\"}")));
         String third = Api.json(api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"3病棟\"}}, \"validFrom\": \"2020-04-01\"}"))
                 .get("id").asText();
         assertEquals("external_id.taken", errorOf(409, api.putWithVersion("/external-ids", "{\"resourceType\": \"ORG_UNIT\", "
@@ -138,14 +139,14 @@ class ExternalIdsIT {
         realm.refItem("QUALIFICATION", "license", "免許");
         String lookup = "/external-ids/lookup?resourceType=";
 
-        String person = Api.json(api.post("/people", "{\"name\": \"Temp\", \"externalId\": \"P-1\", "
+        String person = Api.json(api.post("/people", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"Temp\"}}, \"externalId\": \"P-1\", "
                 + "\"source\": \"hr\"}")).get("id").asText();
         assertEquals(204, api.deleteWithVersion("/people/" + person).statusCode());
         assertEquals("external_id.unknown", errorOf(404, api.get(lookup + "PERSON&source=hr&externalId=P-1")));
-        assertEquals(201, api.post("/people", "{\"name\": \"Next\", \"externalId\": \"P-1\", \"source\": \"hr\"}")
+        assertEquals(201, api.post("/people", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"Next\"}}, \"externalId\": \"P-1\", \"source\": \"hr\"}")
                 .statusCode());
 
-        String holder = Api.json(api.post("/people", "{\"name\": \"Holder\"}")).get("id").asText();
+        String holder = Api.json(api.post("/people", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"Holder\"}}}")).get("id").asText();
         String license = Api.json(api.post("/qualifications", "{\"personId\": \"" + holder + "\", \"kind\": "
                 + "\"license\", \"validFrom\": \"2020-04-01\", \"externalId\": \"Q-1\", \"source\": \"hr\"}"))
                 .get("id").asText();

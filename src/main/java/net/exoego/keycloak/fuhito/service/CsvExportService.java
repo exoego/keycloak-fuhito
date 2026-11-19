@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.function.Consumer;
@@ -23,11 +24,13 @@ import net.exoego.keycloak.fuhito.domain.Employment;
 import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.Hierarchy;
+import net.exoego.keycloak.fuhito.domain.Localized;
 import net.exoego.keycloak.fuhito.domain.OrgUnitLink;
 import net.exoego.keycloak.fuhito.domain.OrgUnitName;
 import net.exoego.keycloak.fuhito.domain.OrgUnitSuccession;
 import net.exoego.keycloak.fuhito.domain.OrgUnitVersion;
 import net.exoego.keycloak.fuhito.domain.Person;
+import net.exoego.keycloak.fuhito.domain.PersonName;
 import net.exoego.keycloak.fuhito.domain.RefItem;
 import net.exoego.keycloak.fuhito.domain.Qualification;
 import net.exoego.keycloak.fuhito.domain.RefKind;
@@ -257,27 +260,31 @@ public class CsvExportService {
     // to a Keycloak user is left out: a blank cell keeps it, and the ID of a removed user would not load again.
     private String people(boolean japanese) {
         SortedSet<String> languages = new TreeSet<>();
-        eachPage(page -> page.forEach(person -> languages.addAll(person.names().keySet())));
+        eachPage(page -> page.stream().map(Person::names).filter(Objects::nonNull)
+                .forEach(names -> addOtherLanguages(names, languages)));
         List<String> attributes = definitions.apply(AttributeDefinition.Target.PERSON).stream()
                 .map(AttributeDefinition::name)
                 .toList();
+        List<String> nameFields = List.of("name", "phoneticName");
         List<String> header = new ArrayList<>();
-        for (String field : List.of("id", "externalId", "source", "name")) {
+        for (String field : List.of("id", "externalId", "source", "primaryLanguage", "name", "phoneticName")) {
             header.add(column(field, japanese));
         }
-        languages.forEach(language -> header.add(column("name", japanese) + ":" + language));
-        header.add(column("phoneticName", japanese));
+        languages.forEach(language -> nameFields.forEach(field -> header.add(column(field, japanese) + ":"
+                + language)));
         attributes.forEach(attribute -> header.add(CsvImportService.ATTRIBUTE_COLUMN + attribute));
         StringBuilder csv = new StringBuilder(BYTE_ORDER_MARK);
         line(csv, header);
         eachPage(page -> {
             ExternalIdLists ids = externalIds.lists(ExternalId.Kind.PERSON, page.stream().map(Person::id).toList());
             for (Person person : page) {
+                Localized<PersonName> names = person.names();
                 List<String> cells = new ArrayList<>(List.of(person.id(),
                         text(ids.externalIdOf(person.id(), person.source())), text(person.source()),
-                        text(person.name())));
-                languages.forEach(language -> cells.add(text(person.names().get(language))));
-                cells.add(text(person.phoneticName()));
+                        names == null ? "" : names.primaryLanguage()));
+                cells.addAll(nameCells(names == null ? null : names.primary()));
+                languages.forEach(language -> cells.addAll(nameCells(names == null ? null
+                        : otherLanguage(names, language))));
                 attributes.forEach(attribute -> cells.add(text(Optional.ofNullable(person.attributes())
                         .map(values -> values.get(attribute)).orElse(null))));
                 line(csv, cells);
@@ -523,16 +530,8 @@ public class CsvExportService {
                 break;
             }
         }
-        // The columns with no language have the primary names. The other languages have columns of their own.
         SortedSet<String> languages = new TreeSet<>();
-        for (OrgUnitState unit : units) {
-            String primary = unit.version().names().primaryLanguage();
-            for (String language : unit.version().names().byLanguage().keySet()) {
-                if (!language.equals(primary)) {
-                    languages.add(language);
-                }
-            }
-        }
+        units.forEach(unit -> addOtherLanguages(unit.version().names(), languages));
         List<String> nameFields = List.of("name", "shortName", "phoneticName");
         List<String> attributes = definitions.apply(AttributeDefinition.Target.ORG_UNIT).stream()
                 .map(AttributeDefinition::name)
@@ -561,11 +560,7 @@ public class CsvExportService {
                     text(ids.externalIdOf(unit.unit().id(), unit.unit().source())), text(unit.unit().source()),
                     text(version.code()), version.names().primaryLanguage()));
             cells.addAll(nameCells(version.names().primary()));
-            for (String language : languages) {
-                OrgUnitName names = language.equals(version.names().primaryLanguage()) ? null
-                        : version.names().byLanguage().get(language);
-                cells.addAll(nameCells(names));
-            }
+            languages.forEach(language -> cells.addAll(nameCells(otherLanguage(version.names(), language))));
             cells.add(text(unit.unitType()));
             cells.add(text(unit.places().workLocation()));
             cells.add(text(unit.places().costCenter()));
@@ -588,9 +583,25 @@ public class CsvExportService {
         return csv.toString();
     }
 
+    // The columns with no language have the primary names. The other languages have columns of their own.
+    private static void addOtherLanguages(Localized<?> names, Set<String> languages) {
+        names.byLanguage().keySet().stream()
+                .filter(language -> !language.equals(names.primaryLanguage()))
+                .forEach(languages::add);
+    }
+
+    // A file leaves the columns of a language empty for a resource whose primary language it is.
+    private static <T> T otherLanguage(Localized<T> names, String language) {
+        return language.equals(names.primaryLanguage()) ? null : names.byLanguage().get(language);
+    }
+
     private static List<String> nameCells(OrgUnitName names) {
         return names == null ? List.of("", "", "")
                 : List.of(names.name(), text(names.shortName()), text(names.phoneticName()));
+    }
+
+    private static List<String> nameCells(PersonName names) {
+        return names == null ? List.of("", "") : List.of(names.name(), text(names.phoneticName()));
     }
 
     private static String column(String field, boolean japanese) {

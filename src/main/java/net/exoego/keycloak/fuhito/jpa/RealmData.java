@@ -27,6 +27,7 @@ public final class RealmData {
             AssignmentEntity.class,
             EmploymentTermsEntity.class,
             EmploymentEntity.class,
+            PersonNameEntity.class,
             PersonEntity.class,
             OrgUnitSuccessionEntity.class,
             OrgUnitLinkEntity.class,
@@ -123,7 +124,7 @@ public final class RealmData {
 
     /**
      * Deletes every row about one person. These are the employments of the person with their terms, assignments, and roles over
-     * org units, the qualifications, the reporting lines, and the person record itself.
+     * org units, the qualifications, the reporting lines, and the person record itself with its names.
      * The entries of the change log stay, because they hold only IDs.
      *
      * @param em the entity manager
@@ -163,6 +164,7 @@ public final class RealmData {
                 "delete from QualificationEntity q where q.realmId = :realmId and q.personId = :personId",
                 "delete from UserMaskEntity m where m.realmId = :realmId and m.personId = :personId",
                 "delete from EmploymentEntity e where e.realmId = :realmId and e.personId = :personId",
+                "delete from PersonNameEntity n where n.realmId = :realmId and n.personId = :personId",
                 "delete from PersonEntity p where p.realmId = :realmId and p.id = :personId")
                 .forEach(query -> em.createQuery(query)
                         .setParameter("realmId", realmId)

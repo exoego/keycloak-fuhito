@@ -25,7 +25,7 @@ The parent lives in dated parent links, one set for each hierarchy.
 
 ## People
 
-A person has a record of its own. It has a name, names in other languages, and a phonetic name.
+A person has a record of its own. It has names in one or more languages, each with a phonetic name. See [Languages](#languages).
 A person can be linked to a Keycloak user, and does not need one.
 So staff who never log in, and people who left long ago, can be stored too.
 The free attributes of a person stay in the extension for the same reason. See [Values of people and user attributes of Keycloak](#values-of-people-and-user-attributes-of-keycloak).
@@ -33,7 +33,7 @@ The free attributes of a person stay in the extension for the same reason. See [
 An employment and a qualification belong to a person. The manager of a reporting line is a person.
 A write can name the person by the ID of a Keycloak user. The person of that user is then used, and created when the user has none.
 Reads, the mask, and the erase work by person. Each has a shortcut by the ID of a Keycloak user.
-`GET /people?q=` finds people by a part of a name, the phonetic name, or a name in another language, in any case. A person with a Keycloak user is also found by the first name, the last name, the username, or the email of the user. `GET /people?staffNumber=` finds the people with an employment that has the number. A masked person has no name to find.
+`GET /people?q=` finds people by a part of the name or the phonetic name of any language, in any case. A person with a Keycloak user is also found by the first name, the last name, the username, or the email of the user. `GET /people?staffNumber=` finds the people with an employment that has the number. A masked person has no name to find.
 
 | Term | Japanese | Meaning |
 |---|---|---|
@@ -174,7 +174,7 @@ User attributes of Keycloak are for what login and tokens need.
 ## Languages
 
 Names can have text in several languages, for example Japanese and English.
-An org unit also has a phonetic name (よみがな) for sorting.
+An org unit and a person also have a phonetic name (よみがな) for sorting.
 It is not a translation.
 
 An org unit keeps its names for each language, with a name, a short name, and a phonetic name.
@@ -203,6 +203,26 @@ One language of each version is the primary one.
 - Lists sort siblings by the primary phonetic name and the primary name, whatever the language of the reader.
 - A search matches the name, the short name, or the phonetic name of any language.
 - A change of the default language of the realm changes no name. A unit can have its own primary language.
+
+A person keeps its names the same way, with a name and a phonetic name for each language.
+A person has no short name.
+
+```json
+{
+  "name": "Taro Yamada",
+  "nameSource": "RECORD",
+  "primaryLanguage": "ja",
+  "names": {
+    "ja": {"name": "山田 太郎", "phoneticName": "やまだ たろう"},
+    "en": {"name": "Taro Yamada"}
+  }
+}
+```
+
+- A write and a read of a person work as for an org unit, with `name` and `phoneticName` in the language of the reader.
+- A person with a linked Keycloak user can have no names. A response then has the name of the user in `name`, and an empty `names`. A person with no linked user needs names.
+- A search matches the name or the phonetic name of any language. It also matches the user of a person, as [People](#people) says.
+- A mask and an erase remove the names of every language.
 
 ## Examples
 

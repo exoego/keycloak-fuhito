@@ -81,7 +81,7 @@ final class Writes {
             case Write.OfAttributeDefinition definition -> AttributeDefinitionRepresentation.of(definition.state());
             case Write.OfHierarchy hierarchy -> HierarchyRepresentation.of(hierarchy.state());
             case Write.OfPerson person -> PersonRepresentation.of(person.state(),
-                    ids.apply(ExternalId.Kind.PERSON));
+                    ids.apply(ExternalId.Kind.PERSON), language);
             case Write.OfOrgUnit unit -> OrgUnitRepresentation.of(unit.state(),
                     ids.apply(ExternalId.Kind.ORG_UNIT), language);
             case Write.OfSuccession succession -> OrgUnitSuccessionsRepresentation.of(succession.state());

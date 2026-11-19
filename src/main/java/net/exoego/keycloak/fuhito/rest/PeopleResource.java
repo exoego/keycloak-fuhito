@@ -79,9 +79,9 @@ public class PeopleResource {
     public Response list(
             @Parameter(description = "The ID of a Keycloak user, to return only the person that is linked to it.")
             @QueryParam("userId") String userId,
-            @Parameter(description = "A text that the name, the phonetic name, or a name in another language has, in "
-                    + "any case. For a person with a Keycloak user, also the first name, the last name, the username, "
-                    + "or the email of the user.")
+            @Parameter(description = "A text that the name or the phonetic name of any language has, in any case. For "
+                    + "a person with a Keycloak user, also the first name, the last name, the username, or the email "
+                    + "of the user.")
             @QueryParam("q") String q,
             @Parameter(description = "A staff number that an employment of the person has.")
             @QueryParam("staffNumber") String staffNumber,
@@ -110,9 +110,9 @@ public class PeopleResource {
     public CountRepresentation count(
             @Parameter(description = "The ID of a Keycloak user, to count only the person that is linked to it.")
             @QueryParam("userId") String userId,
-            @Parameter(description = "A text that the name, the phonetic name, or a name in another language has, in "
-                    + "any case. For a person with a Keycloak user, also the first name, the last name, the username, "
-                    + "or the email of the user.")
+            @Parameter(description = "A text that the name or the phonetic name of any language has, in any case. For "
+                    + "a person with a Keycloak user, also the first name, the last name, the username, or the email "
+                    + "of the user.")
             @QueryParam("q") String q,
             @Parameter(description = "A staff number that an employment of the person has.")
             @QueryParam("staffNumber") String staffNumber) {
@@ -124,7 +124,8 @@ public class PeopleResource {
     @Operation(
             operationId = "createPerson",
             summary = "Creates a person.",
-            description = "The body needs `name`, or `userId` of a Keycloak user that has a name.")
+            description = "The body needs `primaryLanguage` and `names`, or `userId` of a Keycloak user that has a "
+                    + "name.")
     @Parameter(ref = "changeOrder")
     @APIResponse(
             responseCode = "201",
@@ -473,7 +474,8 @@ public class PeopleResource {
     private List<PersonRepresentation> represent(List<PersonView> views) {
         ExternalIdLists ids = reads.externalIds().lists(ExternalId.Kind.PERSON,
                 views.stream().map(view -> view.person().id()).toList());
-        return views.stream().map(view -> PersonRepresentation.of(view, ids)).toList();
+        Locale language = context.nameLanguage();
+        return views.stream().map(view -> PersonRepresentation.of(view, ids, language)).toList();
     }
 
     private PersonRepresentation represent(PersonView view) {

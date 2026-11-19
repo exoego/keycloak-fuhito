@@ -361,7 +361,7 @@ class MembershipServiceTest {
         assertEquals("clerk", history.userId());
         assertEquals("clerk", history.personId());
         // The same history is read by person.
-        Person clerk = new Person("clerk", "clerk", null, Map.of(), null, Map.of(), null, 1);
+        Person clerk = new Person("clerk", "clerk", null, Map.of(), null, 1);
         assertEquals(history, service.historyOfPerson(clerk, employments, assignments));
         assertEquals(service.assignmentsOf("clerk", "2026-06-01", true),
                 service.assignmentsOfPerson("clerk", "2026-06-01", true));

@@ -107,8 +107,8 @@ class WriteLocksIT {
     void anIdOfAnotherSystemReadsItsResourceAfterAnotherWrite() throws Exception {
         TestRealm realm = TestRealm.withEmployer("locks-external-ids");
         Api api = realm.api;
-        String person = ok(api.post("/people", "{\"name\": \"Ann\"}")).get("id").asText();
-        String hold = "update fuhito_person set version = version + 1, name = 'Bob' where id = ?";
+        String person = ok(api.post("/people", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"Ann\"}}}")).get("id").asText();
+        String hold = "update fuhito_person set version = version + 1, attributes = '{\"desk\": \"Bob\"}' where id = ?";
 
         ok(afterHolding(hold, person, () -> api.put("/external-ids", "{\"resourceType\": \"PERSON\", "
                 + "\"resourceId\": \"" + person + "\", \"source\": \"payroll\", \"externalId\": \"X-1\"}")));
@@ -117,14 +117,14 @@ class WriteLocksIT {
 
         JsonNode read = ok(api.get("/people/" + person));
         assertEquals(5, read.get("version").asLong());
-        assertEquals("Bob", read.get("name").asText());
+        assertEquals("Bob", read.get("attributes").get("desk").asText());
     }
 
     @Test
     void aMaskReadsTheRecordsOfThePersonAfterAnotherWrite() throws Exception {
         TestRealm realm = TestRealm.withEmployer("locks-mask");
         Api api = realm.api;
-        String person = ok(api.post("/people", "{\"name\": \"Ann\"}")).get("id").asText();
+        String person = ok(api.post("/people", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"Ann\"}}}")).get("id").asText();
         String employment = ok(api.post("/employments", "{\"personId\": \"" + person + "\", "
                 + "\"validFrom\": \"2020-04-01\", \"validTo\": \"2021-04-01\"}")).get("id").asText();
         String user = realm.user("leaver");

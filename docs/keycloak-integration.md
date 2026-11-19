@@ -576,7 +576,7 @@ The build generates it from the annotations of the REST resources.
 
 ## People and their names
 
-A person record can have a name of its own.
+A person record can have names of its own, one for each language. See [Languages](concepts.md#languages).
 When it has none and it is linked to a Keycloak user, a response has the name that Keycloak keeps for the user.
 The field `nameSource` says which one it is, `RECORD` or `KEYCLOAK`.
 So a product does not need to ask Keycloak for the name.
@@ -587,7 +587,7 @@ Keycloak keeps a first name and a last name. The extension joins them with a spa
 |---|---|---|
 | `fuhito.nameOrder` | `given-first` or `family-first` | `given-first` |
 
-A person with no linked user must have a name in the record.
+A person with no linked user must have names in the record.
 
 An employment and a qualification have `personId`. They also have `userId` when the person is linked to a user.
 A reporting line has `managerPersonId`, and `managerUserId` in the same way.

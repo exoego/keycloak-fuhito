@@ -10,8 +10,9 @@ import net.exoego.keycloak.fuhito.domain.AttributeDefinition;
 import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
+import net.exoego.keycloak.fuhito.domain.Localized;
 import net.exoego.keycloak.fuhito.domain.Person;
-import net.exoego.keycloak.fuhito.service.PersonView.NameSource;
+import net.exoego.keycloak.fuhito.domain.PersonName;
 import net.exoego.keycloak.fuhito.store.ExternalIdStore;
 import net.exoego.keycloak.fuhito.store.PersonStore;
 import net.exoego.keycloak.fuhito.store.UserDirectory;
@@ -82,7 +83,7 @@ public class PersonService {
         if (linked.isPresent()) {
             return new Resolved(linked.get(), null);
         }
-        PersonView created = create(new PersonValues(userId, null, null, null, null, null, null));
+        PersonView created = create(new PersonValues(userId, null, null, null, null, null));
         return new Resolved(created.person(), created);
     }
 
@@ -243,9 +244,9 @@ public class PersonService {
     }
 
     private Person checked(String id, PersonValues request, String source, long version) {
-        String name = Checks.optionalName("name", request.name());
+        Localized<PersonName> names = PersonName.check(request.primaryLanguage(), request.names());
         String userId = request.userId();
-        if (userId == null && name == null) {
+        if (userId == null && names == null) {
             throw FuhitoException.invalid("person.name_required", Map.of());
         }
         if (userId != null) {
@@ -258,18 +259,14 @@ public class PersonService {
                         Map.of("userId", userId, "personId", linked.get().id()));
             }
         }
-        return new Person(id, userId, name, Checks.localizedNames("names", request.names()),
-                Checks.optionalName("phoneticName", request.phoneticName()),
+        return new Person(id, userId, names,
                 attributeRules.check(AttributeDefinition.Target.PERSON, request.attributes()), source, version);
     }
 
     private PersonView view(Person person) {
-        if (person.name() != null) {
-            return new PersonView(person, person.name(), NameSource.RECORD);
+        if (person.names() != null || person.userId() == null) {
+            return new PersonView(person, null);
         }
-        return Optional.ofNullable(person.userId())
-                .flatMap(users::displayName)
-                .map(name -> new PersonView(person, name, NameSource.KEYCLOAK))
-                .orElseGet(() -> new PersonView(person, null, null));
+        return new PersonView(person, users.displayName(person.userId()).orElse(null));
     }
 }

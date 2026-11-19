@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Map;
 
 import net.exoego.keycloak.fuhito.domain.OrgUnitName;
+import net.exoego.keycloak.fuhito.domain.PersonName;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 
 /**
@@ -117,8 +118,8 @@ public record RealmExport(
     }
 
     @Schema(name = "ExportPerson", description = "A person. It names its Keycloak user by username.")
-    public record PersonRow(String id, Long version, String username, String name, Map<String, String> names,
-            String phoneticName, Map<String, Object> attributes, String source,
+    public record PersonRow(String id, Long version, String username, String primaryLanguage,
+            Map<String, PersonName> names, Map<String, Object> attributes, String source,
             @Schema(description = "The time of the mask, for a person who was masked.")
             String maskedAt) {
     }
