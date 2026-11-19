@@ -209,11 +209,18 @@ public class JpaReportingLineStore implements ReportingLineStore {
 
     @Override
     public void delete(String id) {
-        findEntity(id).ifPresent(entity -> {
-            ExternalIds.deleteOf(em, realmId, "REPORTING_LINE", id);
-            em.remove(entity);
-            em.flush();
-        });
+        deleteAll(List.of(id));
+    }
+
+    @Override
+    public void deleteAll(Collection<String> ids) {
+        for (String id : ids) {
+            findEntity(id).ifPresent(entity -> {
+                ExternalIds.deleteOf(em, realmId, "REPORTING_LINE", id);
+                em.remove(entity);
+            });
+        }
+        em.flush();
     }
 
     // The realm filter keeps one realm from reaching the rows of another by ID.

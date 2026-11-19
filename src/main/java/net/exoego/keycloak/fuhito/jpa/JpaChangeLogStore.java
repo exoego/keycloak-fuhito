@@ -39,31 +39,34 @@ public class JpaChangeLogStore implements ChangeLogStore {
     }
 
     @Override
-    public void append(ChangeLogEntry entry) {
-        ChangeLogEntity entity = new ChangeLogEntity();
-        entity.id = entry.id();
-        entity.realmId = realmId;
-        entity.sequence = nextSequence();
-        entity.recordedAt = entry.recordedAt();
-        entity.actorUserId = entry.actorUserId();
-        entity.resourceType = entry.resourceType();
-        entity.resourceId = entry.resourceId();
-        entity.operation = entry.operation();
-        entity.resourcePath = entry.resourcePath();
-        entity.changeOrderId = entry.changeOrderId();
-        em.persist(entity);
+    public void appendAll(List<ChangeLogEntry> entries) {
+        long sequence = lastSequence(entries.size()) - entries.size();
+        for (ChangeLogEntry entry : entries) {
+            ChangeLogEntity entity = new ChangeLogEntity();
+            entity.id = entry.id();
+            entity.realmId = realmId;
+            entity.sequence = ++sequence;
+            entity.recordedAt = entry.recordedAt();
+            entity.actorUserId = entry.actorUserId();
+            entity.resourceType = entry.resourceType();
+            entity.resourceId = entry.resourceId();
+            entity.operation = entry.operation();
+            entity.resourcePath = entry.resourcePath();
+            entity.changeOrderId = entry.changeOrderId();
+            em.persist(entity);
+        }
     }
 
     // The update locks the counter of the realm until the transaction ends. So the entries of a realm become
     // visible in the order of their numbers, and a reader that goes on after the last number it saw misses none.
-    private long nextSequence() {
-        if (increment() == 0) {
+    private long lastSequence(int count) {
+        if (increment(count) == 0) {
             em.createQuery("""
                             insert into ChangeLogCounterEntity (realmId, lastSequence) values (:realmId, 0L)
                             on conflict (realmId) do nothing""")
                     .setParameter("realmId", realmId)
                     .executeUpdate();
-            increment();
+            increment(count);
         }
         return em.createQuery("select c.lastSequence from ChangeLogCounterEntity c where c.realmId = :realmId",
                         Long.class)
@@ -71,10 +74,11 @@ public class JpaChangeLogStore implements ChangeLogStore {
                 .getSingleResult();
     }
 
-    private int increment() {
+    private int increment(int count) {
         return em.createQuery("""
-                        update ChangeLogCounterEntity c set c.lastSequence = c.lastSequence + 1
+                        update ChangeLogCounterEntity c set c.lastSequence = c.lastSequence + :count
                         where c.realmId = :realmId""")
+                .setParameter("count", (long) count)
                 .setParameter("realmId", realmId)
                 .executeUpdate();
     }

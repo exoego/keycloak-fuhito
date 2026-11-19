@@ -8,6 +8,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.TypedQuery;
@@ -71,6 +72,19 @@ public class JpaAssignmentStore implements AssignmentStore {
                         and a.employmentId = :employmentId order by a.validFrom, a.id""", AssignmentEntity.class)
                 .setParameter("realmId", realmId)
                 .setParameter("employmentId", employmentId)
+                .getResultStream()
+                .map(JpaAssignmentStore::toDomain)
+                .toList();
+    }
+
+    @Override
+    public List<Assignment> rowsOfEmployments(Collection<String> employmentIds) {
+        return em.createQuery("""
+                        select a from AssignmentEntity a where a.realmId = :realmId
+                        and %s order by a.employmentId, a.validFrom, a.id"""
+                        .formatted(ManyIds.has("a.employmentId", "employmentIds")), AssignmentEntity.class)
+                .setParameter("realmId", realmId)
+                .setParameter("employmentIds", ManyIds.of(employmentIds))
                 .getResultStream()
                 .map(JpaAssignmentStore::toDomain)
                 .toList();
@@ -360,37 +374,64 @@ public class JpaAssignmentStore implements AssignmentStore {
 
     @Override
     public void insert(Assignment row) {
-        AssignmentEntity entity = new AssignmentEntity();
-        entity.id = row.rowId();
-        entity.realmId = realmId;
-        entity.assignmentId = row.assignmentId();
-        entity.employmentId = row.employmentId();
-        entity.orgUnitId = row.orgUnitId();
-        entity.source = row.source();
-        entity.continuesAssignmentId = row.continuesAssignmentId();
+        insertAll(List.of(row));
+    }
+
+    @Override
+    public void insertAll(List<Assignment> rows) {
         // A row of an assignment that has rows already takes their version.
-        entity.version = Versions.assignment(em, realmId, row.assignmentId()).orElse(row.version());
-        entity.counted = true;
-        copy(row, entity);
-        em.persist(entity);
+        Map<String, Long> versions = Versions.assignments(em, realmId,
+                rows.stream().map(Assignment::assignmentId).collect(Collectors.toSet()));
+        for (Assignment row : rows) {
+            AssignmentEntity entity = new AssignmentEntity();
+            entity.id = row.rowId();
+            entity.realmId = realmId;
+            entity.assignmentId = row.assignmentId();
+            entity.employmentId = row.employmentId();
+            entity.orgUnitId = row.orgUnitId();
+            entity.source = row.source();
+            entity.continuesAssignmentId = row.continuesAssignmentId();
+            entity.version = versions.computeIfAbsent(row.assignmentId(), id -> row.version());
+            entity.counted = true;
+            copy(row, entity);
+            em.persist(entity);
+        }
     }
 
     @Override
     public void update(Assignment row) {
-        AssignmentEntity entity = Rows.require(em, AssignmentEntity.class, row.rowId(), realmId, found -> found.realmId);
-        Versions.assignment(em, realmId, row.assignmentId());
-        copy(row, entity);
+        updateAll(List.of(row));
+    }
+
+    @Override
+    public void updateAll(List<Assignment> rows) {
+        Versions.assignments(em, realmId, rows.stream().map(Assignment::assignmentId).collect(Collectors.toSet()));
+        for (Assignment row : rows) {
+            copy(row, Rows.require(em, AssignmentEntity.class, row.rowId(), realmId, found -> found.realmId));
+        }
         // A split shortens this row and then inserts the next one. The database must see the shorter row first.
         em.flush();
     }
 
     @Override
     public void delete(String rowId) {
-        AssignmentEntity entity = Rows.require(em, AssignmentEntity.class, rowId, realmId, found -> found.realmId);
-        em.remove(entity);
+        deleteAll(List.of(rowId));
+    }
+
+    @Override
+    public void deleteAll(Collection<String> rowIds) {
+        Set<String> assignmentIds = new LinkedHashSet<>();
+        for (String rowId : rowIds) {
+            AssignmentEntity entity = Rows.require(em, AssignmentEntity.class, rowId, realmId,
+                    found -> found.realmId);
+            em.remove(entity);
+            assignmentIds.add(entity.assignmentId);
+        }
         em.flush();
-        Versions.assignment(em, realmId, entity.assignmentId);
-        ExternalIds.deleteOfGoneAssignment(em, realmId, entity.assignmentId);
+        Set<String> kept = Versions.assignments(em, realmId, assignmentIds).keySet();
+        assignmentIds.stream()
+                .filter(id -> !kept.contains(id))
+                .forEach(id -> ExternalIds.deleteOfGoneAssignment(em, realmId, id));
     }
 
     private static void copy(Assignment row, AssignmentEntity entity) {

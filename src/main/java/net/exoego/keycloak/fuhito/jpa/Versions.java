@@ -1,7 +1,10 @@
 package net.exoego.keycloak.fuhito.jpa;
 
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
-import java.util.OptionalLong;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 import jakarta.persistence.EntityManager;
 import net.exoego.keycloak.fuhito.domain.ExternalId;
@@ -66,25 +69,41 @@ final class Versions {
      * @param em the entity manager of the transaction
      * @param realmId the ID of the realm
      * @param assignmentId the ID of the assignment
-     * @return the version, or empty when the assignment has no row yet
      */
-    static OptionalLong assignment(EntityManager em, String realmId, String assignmentId) {
-        List<AssignmentEntity> rows = em.createQuery("""
-                        select a from AssignmentEntity a where a.realmId = :realmId
-                        and a.assignmentId = :assignmentId""", AssignmentEntity.class)
-                .setParameter("realmId", realmId)
-                .setParameter("assignmentId", assignmentId)
-                .getResultList();
-        if (rows.isEmpty()) {
-            return OptionalLong.empty();
+    static void assignment(EntityManager em, String realmId, String assignmentId) {
+        assignments(em, realmId, List.of(assignmentId));
+    }
+
+    /**
+     * Counts up the version on every row of several assignments, once in a transaction for each.
+     *
+     * @param em the entity manager of the transaction
+     * @param realmId the ID of the realm
+     * @param assignmentIds the IDs of the assignments
+     * @return the version of each assignment that has a row
+     */
+    static Map<String, Long> assignments(EntityManager em, String realmId, Collection<String> assignmentIds) {
+        Map<String, Long> versions = new HashMap<>();
+        if (assignmentIds.isEmpty()) {
+            return versions;
         }
-        long current = rows.stream().mapToLong(row -> row.version).max().orElseThrow();
-        long version = rows.stream().anyMatch(row -> row.counted) ? current : current + 1;
-        rows.forEach(row -> {
-            row.version = version;
-            row.counted = true;
+        Map<String, List<AssignmentEntity>> rowsById = em.createQuery("""
+                        select a from AssignmentEntity a where a.realmId = :realmId
+                        and %s""".formatted(ManyIds.has("a.assignmentId", "ids")), AssignmentEntity.class)
+                .setParameter("realmId", realmId)
+                .setParameter("ids", ManyIds.of(assignmentIds))
+                .getResultStream()
+                .collect(Collectors.groupingBy(row -> row.assignmentId));
+        rowsById.forEach((id, rows) -> {
+            long current = rows.stream().mapToLong(row -> row.version).max().orElseThrow();
+            long version = rows.stream().anyMatch(row -> row.counted) ? current : current + 1;
+            rows.forEach(row -> {
+                row.version = version;
+                row.counted = true;
+            });
+            versions.put(id, version);
         });
-        return OptionalLong.of(version);
+        return versions;
     }
 
     // The IDs that systems have for a resource are part of it.

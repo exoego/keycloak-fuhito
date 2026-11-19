@@ -14,7 +14,16 @@ public interface ChangeLogStore {
      *
      * @param entry the entry. Its sequence number is ignored.
      */
-    void append(ChangeLogEntry entry);
+    default void append(ChangeLogEntry entry) {
+        appendAll(List.of(entry));
+    }
+
+    /**
+     * Adds entries in their order. The store gives them the next sequence numbers of the realm.
+     *
+     * @param entries the entries. Their sequence numbers are ignored.
+     */
+    void appendAll(List<ChangeLogEntry> entries);
 
     /**
      * Lists the entries of the realm, oldest first.

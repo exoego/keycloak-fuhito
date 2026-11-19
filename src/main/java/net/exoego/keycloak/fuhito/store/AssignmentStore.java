@@ -40,6 +40,16 @@ public interface AssignmentStore {
     List<Assignment> rowsOfEmployment(String employmentId);
 
     /**
+     * Lists all rows of all assignments of several employments. The rows of one employment come oldest first.
+     *
+     * @param employmentIds the IDs of the employments
+     * @return the rows
+     */
+    default List<Assignment> rowsOfEmployments(Collection<String> employmentIds) {
+        return employmentIds.stream().distinct().flatMap(id -> rowsOfEmployment(id).stream()).toList();
+    }
+
+    /**
      * Counts the assignments to an org unit that hold on a date or after it.
      *
      * @param orgUnitId the ID of the org unit
@@ -105,6 +115,15 @@ public interface AssignmentStore {
     void insert(Assignment row);
 
     /**
+     * Stores new rows, as {@link #insert} does for each in their order.
+     *
+     * @param rows the rows
+     */
+    default void insertAll(List<Assignment> rows) {
+        rows.forEach(this::insert);
+    }
+
+    /**
      * Stores the new state of an existing row.
      * The link to the assignment that it continues never changes, so only {@link #insert} writes it.
      *
@@ -113,11 +132,29 @@ public interface AssignmentStore {
     void update(Assignment row);
 
     /**
+     * Stores the new state of existing rows, as {@link #update} does for each.
+     *
+     * @param rows the rows
+     */
+    default void updateAll(List<Assignment> rows) {
+        rows.forEach(this::update);
+    }
+
+    /**
      * Removes a row. The IDs that systems have for the assignment go with its last row.
      *
      * @param rowId the ID of the row
      */
     void delete(String rowId);
+
+    /**
+     * Removes rows, as {@link #delete} does for each.
+     *
+     * @param rowIds the IDs of the rows
+     */
+    default void deleteAll(Collection<String> rowIds) {
+        rowIds.forEach(this::delete);
+    }
 
     /**
      * What a list of assignments across the realm keeps. A value that is null keeps everything.

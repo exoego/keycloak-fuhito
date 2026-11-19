@@ -1,6 +1,7 @@
 package net.exoego.keycloak.fuhito.store;
 
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -26,6 +27,16 @@ public interface UnitRoleStore {
      * @return the roles
      */
     List<UnitRole> findByEmployment(String employmentId);
+
+    /**
+     * Lists the roles of several employments over all time. The roles of one employment come oldest first.
+     *
+     * @param employmentIds the IDs of the employments
+     * @return the roles
+     */
+    default List<UnitRole> findByEmployments(Collection<String> employmentIds) {
+        return employmentIds.stream().distinct().flatMap(id -> findByEmployment(id).stream()).toList();
+    }
 
     /**
      * Lists a page of the roles over an org unit on a date. These are the roles over the unit, and the roles over
@@ -83,6 +94,15 @@ public interface UnitRoleStore {
     void insert(UnitRole role);
 
     /**
+     * Stores new roles, as {@link #insert} does for each.
+     *
+     * @param roles the roles
+     */
+    default void insertAll(List<UnitRole> roles) {
+        roles.forEach(this::insert);
+    }
+
+    /**
      * What a list of the roles of a date across the realm keeps. A value that is null keeps everything.
      *
      * @param roleId the ID of the role
@@ -119,9 +139,27 @@ public interface UnitRoleStore {
     void update(UnitRole role);
 
     /**
+     * Stores the new periods of roles, as {@link #update} does for each.
+     *
+     * @param roles the roles with their new periods
+     */
+    default void updateAll(List<UnitRole> roles) {
+        roles.forEach(this::update);
+    }
+
+    /**
      * Deletes a role.
      *
      * @param id the ID
      */
     void delete(String id);
+
+    /**
+     * Deletes roles, as {@link #delete} does for each.
+     *
+     * @param ids the IDs
+     */
+    default void deleteAll(Collection<String> ids) {
+        ids.forEach(this::delete);
+    }
 }

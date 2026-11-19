@@ -2,6 +2,7 @@ package net.exoego.keycloak.fuhito.keycloak;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -206,16 +207,21 @@ final class KeycloakRequestContext implements RequestContext {
     }
 
     @Override
-    public void recordChange(Change change, String resourceType, String resourceId, String resourcePath,
-            Object representation) {
-        adminEvent.operation(OperationType.valueOf(change.name()))
-                .resource(resourceType)
-                .resourcePath(resourcePath)
-                .representation(representation)
-                .success();
-        new JpaChangeLogStore(entityManager, realm.getId()).append(new ChangeLogEntry(UUID.randomUUID().toString(),
-                0, Instant.now().truncatedTo(ChronoUnit.MILLIS), callerUserId(), resourceType,
-                resourceId, change.name(), resourcePath, changeOrderId()));
+    public void recordChanges(List<ChangeRecord> changes) {
+        String actorUserId = callerUserId();
+        String changeOrderId = changeOrderId();
+        List<ChangeLogEntry> entries = new ArrayList<>();
+        for (ChangeRecord change : changes) {
+            adminEvent.operation(OperationType.valueOf(change.change().name()))
+                    .resource(change.resourceType())
+                    .resourcePath(change.resourcePath())
+                    .representation(change.representation())
+                    .success();
+            entries.add(new ChangeLogEntry(UUID.randomUUID().toString(), 0,
+                    Instant.now().truncatedTo(ChronoUnit.MILLIS), actorUserId, change.resourceType(),
+                    change.resourceId(), change.change().name(), change.resourcePath(), changeOrderId));
+        }
+        new JpaChangeLogStore(entityManager, realm.getId()).appendAll(entries);
     }
 
     @Override

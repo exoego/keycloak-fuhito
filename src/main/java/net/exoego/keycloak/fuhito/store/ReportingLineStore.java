@@ -1,6 +1,7 @@
 package net.exoego.keycloak.fuhito.store;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -70,11 +71,29 @@ public interface ReportingLineStore {
     void update(ReportingLine line);
 
     /**
+     * Stores the new state of existing reporting lines, as {@link #update} does for each.
+     *
+     * @param lines the lines
+     */
+    default void updateAll(List<ReportingLine> lines) {
+        lines.forEach(this::update);
+    }
+
+    /**
      * Removes a reporting line.
      *
      * @param id the ID
      */
     void delete(String id);
+
+    /**
+     * Removes reporting lines, as {@link #delete} does for each.
+     *
+     * @param ids the IDs
+     */
+    default void deleteAll(Collection<String> ids) {
+        ids.forEach(this::delete);
+    }
 
     /**
      * Lists a page of the assignments whose person reports to a manager on a date.
@@ -104,19 +123,23 @@ public interface ReportingLineStore {
     long countReportsOn(String hierarchyId, String managerPersonId, LocalDate date);
 
     /**
-     * Ends the reporting lines of an assignment that hold on or after a date.
+     * Ends the reporting lines of assignments that hold on or after a date.
      * A line that would start on or after the date is removed.
      *
-     * @param assignmentId the ID of the assignment
-     * @param to the first date on which no line of the assignment holds
+     * @param assignmentIds the IDs of the assignments
+     * @param to the first date on which no line of the assignments holds
      */
-    default void truncate(String assignmentId, LocalDate to) {
-        for (ReportingLine line : findByAssignment(assignmentId)) {
+    default void truncate(Collection<String> assignmentIds, LocalDate to) {
+        List<String> removed = new ArrayList<>();
+        List<ReportingLine> ended = new ArrayList<>();
+        for (ReportingLine line : findByAssignments(assignmentIds)) {
             if (!line.period().from().isBefore(to)) {
-                delete(line.id());
+                removed.add(line.id());
             } else if (line.period().endsAfter(to)) {
-                update(line.withPeriod(line.period().endingAt(to)));
+                ended.add(line.withPeriod(line.period().endingAt(to)));
             }
         }
+        deleteAll(removed);
+        updateAll(ended);
     }
 }

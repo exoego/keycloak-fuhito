@@ -28,7 +28,7 @@ class ChangeOrderServiceTest {
     private final Set<String> ordersWithWrites = new HashSet<>();
     private final ChangeLogStore changeLog = new ChangeLogStore() {
         @Override
-        public void append(ChangeLogEntry entry) {
+        public void appendAll(List<ChangeLogEntry> entries) {
             throw new UnsupportedOperationException();
         }
 

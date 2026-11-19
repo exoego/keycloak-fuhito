@@ -30,6 +30,16 @@ public interface EmploymentStore {
     List<Employment> findByStaffNumber(String staffNumber);
 
     /**
+     * Lists the employments that use one of several staff numbers.
+     *
+     * @param staffNumbers the staff numbers
+     * @return the employments
+     */
+    default List<Employment> findByStaffNumbers(Collection<String> staffNumbers) {
+        return staffNumbers.stream().distinct().flatMap(number -> findByStaffNumber(number).stream()).toList();
+    }
+
+    /**
      * Lists the employments of a user, oldest first.
      *
      * @param userId the ID of the user
@@ -87,6 +97,15 @@ public interface EmploymentStore {
     void insert(Employment employment);
 
     /**
+     * Stores new employments, as {@link #insert} does for each.
+     *
+     * @param employments the employments
+     */
+    default void insertAll(List<Employment> employments) {
+        employments.forEach(this::insert);
+    }
+
+    /**
      * Lists all terms of an employment, oldest first.
      *
      * @param employmentId the ID of the employment
@@ -107,6 +126,15 @@ public interface EmploymentStore {
      * @param terms the terms
      */
     void updateTerms(EmploymentTerms terms);
+
+    /**
+     * Stores the new state of existing terms, as {@link #updateTerms} does for each.
+     *
+     * @param terms the terms
+     */
+    default void updateAllTerms(List<EmploymentTerms> terms) {
+        terms.forEach(this::updateTerms);
+    }
 
     /**
      * Stores the new state of an existing employment.
@@ -130,6 +158,15 @@ public interface EmploymentStore {
      * @param termsId the ID of the terms
      */
     void deleteTerms(String termsId);
+
+    /**
+     * Removes terms, as {@link #deleteTerms} does for each.
+     *
+     * @param termsIds the IDs of the terms
+     */
+    default void deleteAllTerms(Collection<String> termsIds) {
+        termsIds.forEach(this::deleteTerms);
+    }
 
     /**
      * What a list of employments keeps. A value that is null keeps everything.

@@ -1,6 +1,7 @@
 package net.exoego.keycloak.fuhito.jpa;
 
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -72,6 +73,13 @@ public class JpaUnitRoleStore implements UnitRoleStore {
     public List<UnitRole> findByEmployment(String employmentId) {
         return list(em.createQuery(WITH_PERSON.formatted("r.employmentId = :employmentId order by r.validFrom, r.id"),
                 Object[].class).setParameter("employmentId", employmentId));
+    }
+
+    @Override
+    public List<UnitRole> findByEmployments(Collection<String> employmentIds) {
+        return list(em.createQuery(WITH_PERSON.formatted(ManyIds.has("r.employmentId", "employmentIds")
+                + " order by r.employmentId, r.validFrom, r.id"), Object[].class)
+                .setParameter("employmentIds", ManyIds.of(employmentIds)));
     }
 
     @Override
@@ -179,18 +187,25 @@ public class JpaUnitRoleStore implements UnitRoleStore {
 
     @Override
     public void insert(UnitRole role) {
-        UnitRoleEntity entity = new UnitRoleEntity();
-        entity.id = role.id();
-        entity.realmId = realmId;
-        entity.employmentId = role.employmentId();
-        entity.orgUnitId = role.orgUnitId();
-        entity.roleId = role.roleId();
-        entity.includesDescendants = role.includesDescendants();
-        entity.validFrom = role.period().from();
-        entity.validTo = role.period().to();
-        entity.version = role.version();
-        entity.counted = true;
-        em.persist(entity);
+        insertAll(List.of(role));
+    }
+
+    @Override
+    public void insertAll(List<UnitRole> roles) {
+        for (UnitRole role : roles) {
+            UnitRoleEntity entity = new UnitRoleEntity();
+            entity.id = role.id();
+            entity.realmId = realmId;
+            entity.employmentId = role.employmentId();
+            entity.orgUnitId = role.orgUnitId();
+            entity.roleId = role.roleId();
+            entity.includesDescendants = role.includesDescendants();
+            entity.validFrom = role.period().from();
+            entity.validTo = role.period().to();
+            entity.version = role.version();
+            entity.counted = true;
+            em.persist(entity);
+        }
         em.flush();
     }
 
@@ -204,11 +219,18 @@ public class JpaUnitRoleStore implements UnitRoleStore {
 
     @Override
     public void delete(String id) {
-        UnitRoleEntity entity = em.find(UnitRoleEntity.class, id);
-        if (entity != null && entity.realmId.equals(realmId)) {
-            ExternalIds.deleteOf(em, realmId, "UNIT_ROLE", id);
-            em.remove(entity);
-            em.flush();
+        deleteAll(List.of(id));
+    }
+
+    @Override
+    public void deleteAll(Collection<String> ids) {
+        for (String id : ids) {
+            UnitRoleEntity entity = em.find(UnitRoleEntity.class, id);
+            if (entity != null && entity.realmId.equals(realmId)) {
+                ExternalIds.deleteOf(em, realmId, "UNIT_ROLE", id);
+                em.remove(entity);
+            }
         }
+        em.flush();
     }
 }
