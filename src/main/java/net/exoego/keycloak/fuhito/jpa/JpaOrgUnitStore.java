@@ -1,23 +1,26 @@
 package net.exoego.keycloak.fuhito.jpa;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
+import java.util.stream.IntStream;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.TypedQuery;
 import net.exoego.keycloak.fuhito.domain.Hierarchy;
+import net.exoego.keycloak.fuhito.domain.Localized;
 import net.exoego.keycloak.fuhito.domain.OrgUnit;
 import net.exoego.keycloak.fuhito.domain.OrgUnitLink;
+import net.exoego.keycloak.fuhito.domain.OrgUnitName;
 import net.exoego.keycloak.fuhito.domain.OrgUnitSuccession;
 import net.exoego.keycloak.fuhito.domain.OrgUnitVersion;
 import net.exoego.keycloak.fuhito.domain.PlacedOrgUnit;
@@ -78,24 +81,25 @@ public class JpaOrgUnitStore implements OrgUnitStore {
             order by a.unitId, a.depth""".formatted(TreeQuery.onDate("v"), TreeQuery.onDate("l"),
             ManyIds.has("v.orgUnitId", "ids"));
 
-    private static final String PATH = """
+    private static final String PATHS = """
             with Above as (
-                select v.orgUnitId as id, v.id as versionId, 0 as depth
+                select v.orgUnitId as startId, v.orgUnitId as id, v.id as versionId, 0 as depth
                 from OrgUnitVersionEntity v
-                where v.realmId = :realmId and v.orgUnitId = :id and v.%1$s
+                where v.realmId = :realmId and %4$s and v.%1$s
                 union all
-                select p.orgUnitId as id, p.id as versionId, a.depth + 1 as depth
+                select a.startId as startId, p.orgUnitId as id, p.id as versionId, a.depth + 1 as depth
                 from Above a
                 join OrgUnitLinkEntity l on l.childId = a.id and l.realmId = :realmId
                     and l.hierarchyId = :hierarchyId and l.%2$s
                 join OrgUnitVersionEntity p on p.orgUnitId = l.parentId and p.realmId = :realmId and p.%3$s
             )
             select u, v, (select l.parentId from OrgUnitLinkEntity l where l.realmId = :realmId
-                and l.hierarchyId = :hierarchyId and l.childId = v.orgUnitId and l.%2$s)
+                and l.hierarchyId = :hierarchyId and l.childId = v.orgUnitId and l.%2$s), a.startId
             from Above a
             join OrgUnitVersionEntity v on v.id = a.versionId
             join OrgUnitEntity u on u.id = a.id
-            order by a.depth desc""".formatted(TreeQuery.onDate("v"), TreeQuery.onDate("l"), TreeQuery.onDate("p"));
+            order by a.startId, a.depth desc""".formatted(TreeQuery.onDate("v"), TreeQuery.onDate("l"),
+            TreeQuery.onDate("p"), ManyIds.has("v.orgUnitId", "ids"));
 
     private static final String LINE = """
             with Above as (
@@ -125,7 +129,7 @@ public class JpaOrgUnitStore implements OrgUnitStore {
     }
 
     private static final String SIBLINGS = """
-             from OrgUnitVersionEntity v join OrgUnitEntity u on u.id = v.orgUnitId
+             from OrgUnitVersionEntity v join OrgUnitEntity u on u.id = v.orgUnitId%%s
             where v.realmId = :realmId and v.%s and %%s%%s""".formatted(TreeQuery.onDate("v"));
 
     private static final String CHILD_OF = """
@@ -181,14 +185,12 @@ public class JpaOrgUnitStore implements OrgUnitStore {
 
     @Override
     public List<OrgUnitVersion> versionsWithCode(String code) {
-        return em.createQuery("""
+        return withNames(em.createQuery("""
                         select v from OrgUnitVersionEntity v where v.realmId = :realmId and v.code = :code
                         order by v.validFrom, v.orgUnitId""", OrgUnitVersionEntity.class)
                 .setParameter("realmId", realmId)
                 .setParameter("code", code)
-                .getResultStream()
-                .map(JpaOrgUnitStore::toDomain)
-                .toList();
+                .getResultList());
     }
 
     @Override
@@ -223,15 +225,13 @@ public class JpaOrgUnitStore implements OrgUnitStore {
 
     @Override
     public List<OrgUnitVersion> versionsOn(LocalDate date) {
-        return em.createQuery("""
+        return withNames(em.createQuery("""
                         select v from OrgUnitVersionEntity v where v.realmId = :realmId
                         and v.validFrom <= :date and (v.validTo is null or v.validTo > :date)""",
                         OrgUnitVersionEntity.class)
                 .setParameter("realmId", realmId)
                 .setParameter("date", date)
-                .getResultStream()
-                .map(JpaOrgUnitStore::toDomain)
-                .toList();
+                .getResultList());
     }
 
     @Override
@@ -252,13 +252,10 @@ public class JpaOrgUnitStore implements OrgUnitStore {
     @Override
     public List<PlacedOrgUnit> treeOn(String hierarchyId, String rootId, Boolean lateral, LocalDate date, int first,
             int max) {
-        return treeQuery(hierarchyId, rootId, lateral, date, false, Object[].class)
+        return placed(treeQuery(hierarchyId, rootId, lateral, date, false, Object[].class)
                 .setFirstResult(first)
                 .setMaxResults(max)
-                .getResultStream()
-                .map(row -> new PlacedOrgUnit(toDomain((OrgUnitEntity) row[0]),
-                        toDomain((OrgUnitVersionEntity) row[1]), (String) row[2]))
-                .toList();
+                .getResultList(), row -> (String) row[2]);
     }
 
     @Override
@@ -279,16 +276,20 @@ public class JpaOrgUnitStore implements OrgUnitStore {
                 .setParameter("rootId", rootId);
     }
 
+    // The order of siblings, by the primary names p of the versions v.
+    private static final String SIBLING_ORDER = " order by v.displayOrder, p.phoneticName nulls last, p.name,"
+            + " v.orgUnitId";
+
     // The units after the unit of the cursor, in the order of siblings. A unit with no phonetic name comes after
     // the ones that have it, so the cursor of such a unit needs a text of its own.
     private static final String AFTER = """
-             and (v.displayOrder > :afterOrder or v.displayOrder = :afterOrder and (v.phoneticName > :afterPhonetic
-            or v.phoneticName is null or v.phoneticName = :afterPhonetic and (v.name > :afterName
-            or v.name = :afterName and v.orgUnitId > :afterId)))""";
+             and (v.displayOrder > :afterOrder or v.displayOrder = :afterOrder and (p.phoneticName > :afterPhonetic
+            or p.phoneticName is null or p.phoneticName = :afterPhonetic and (p.name > :afterName
+            or p.name = :afterName and v.orgUnitId > :afterId)))""";
 
     private static final String AFTER_NO_PHONETIC = """
-             and (v.displayOrder > :afterOrder or v.displayOrder = :afterOrder and v.phoneticName is null
-            and (v.name > :afterName or v.name = :afterName and v.orgUnitId > :afterId))""";
+             and (v.displayOrder > :afterOrder or v.displayOrder = :afterOrder and p.phoneticName is null
+            and (p.name > :afterName or p.name = :afterName and v.orgUnitId > :afterId))""";
 
     // Each piece is a fixed text. The values of the search go in as parameters.
     private static String searchText(OrgUnitStore.Search search, OrgUnitVersion after, boolean count) {
@@ -296,13 +297,14 @@ public class JpaOrgUnitStore implements OrgUnitStore {
                 select u, v, (select l.parentId from OrgUnitLinkEntity l where l.realmId = :realmId
                     and l.hierarchyId = :hierarchyId and l.childId = v.orgUnitId and l.%s)""".formatted(
                 TreeQuery.onDate("l")));
-        text.append("""
-                 from OrgUnitVersionEntity v join OrgUnitEntity u on u.id = v.orgUnitId
-                where v.realmId = :realmId and v.""").append(TreeQuery.onDate("v"));
+        text.append(" from OrgUnitVersionEntity v join OrgUnitEntity u on u.id = v.orgUnitId")
+                .append(count ? "" : OrgUnitNames.JOIN_PRIMARY)
+                .append(" where v.realmId = :realmId and v.").append(TreeQuery.onDate("v"));
         if (search.text() != null) {
             text.append("""
-                     and (lower(v.name) like :text escape '!' or lower(v.shortName) like :text escape '!'
-                    or lower(v.phoneticName) like :text escape '!' or v.searchNames like :text escape '!')""");
+                     and exists (select 1 from OrgUnitVersionNameEntity n where n.versionId = v.id
+                    and (lower(n.name) like :text escape '!' or lower(n.shortName) like :text escape '!'
+                    or lower(n.phoneticName) like :text escape '!'))""");
         }
         if (search.code() != null) {
             text.append(" and v.code = :code");
@@ -316,10 +318,10 @@ public class JpaOrgUnitStore implements OrgUnitStore {
             text.append(" and ").append(search.roots() == OrgUnitStore.Roots.LINKED ? LINKED_ROOT : NO_PARENT);
         }
         if (after != null) {
-            text.append(after.phoneticName() == null ? AFTER_NO_PHONETIC : AFTER);
+            text.append(after.names().primary().phoneticName() == null ? AFTER_NO_PHONETIC : AFTER);
         }
         if (!count) {
-            text.append(" order by v.displayOrder, v.phoneticName nulls last, v.name, v.orgUnitId");
+            text.append(SIBLING_ORDER);
         }
         return text.toString();
     }
@@ -344,11 +346,12 @@ public class JpaOrgUnitStore implements OrgUnitStore {
             query.setParameter("unitTypeId", search.unitTypeId());
         }
         if (after != null) {
+            OrgUnitName names = after.names().primary();
             query.setParameter("afterOrder", after.displayOrder())
-                    .setParameter("afterName", after.name())
+                    .setParameter("afterName", names.name())
                     .setParameter("afterId", after.orgUnitId());
-            if (after.phoneticName() != null) {
-                query.setParameter("afterPhonetic", after.phoneticName());
+            if (names.phoneticName() != null) {
+                query.setParameter("afterPhonetic", names.phoneticName());
             }
         }
         return query;
@@ -357,11 +360,8 @@ public class JpaOrgUnitStore implements OrgUnitStore {
     @Override
     public List<PlacedOrgUnit> searchOn(String hierarchyId, OrgUnitStore.Search search, LocalDate date,
             OrgUnitVersion after, int first, int max) {
-        return searchQuery(hierarchyId, search, date, after, false, Object[].class)
-                .setFirstResult(first).setMaxResults(max).getResultStream()
-                .map(row -> new PlacedOrgUnit(toDomain((OrgUnitEntity) row[0]),
-                        toDomain((OrgUnitVersionEntity) row[1]), (String) row[2]))
-                .toList();
+        return placed(searchQuery(hierarchyId, search, date, after, false, Object[].class)
+                .setFirstResult(first).setMaxResults(max).getResultList(), row -> (String) row[2]);
     }
 
     @Override
@@ -436,16 +436,19 @@ public class JpaOrgUnitStore implements OrgUnitStore {
     }
 
     @Override
-    public List<PlacedOrgUnit> pathOn(String hierarchyId, String id, LocalDate date) {
-        return em.createQuery(PATH, Object[].class)
+    public Map<String, List<PlacedOrgUnit>> pathsOn(String hierarchyId, Collection<String> ids, LocalDate date) {
+        List<Object[]> rows = em.createQuery(PATHS, Object[].class)
                 .setParameter("realmId", realmId)
                 .setParameter("hierarchyId", hierarchyId)
-                .setParameter("id", id)
+                .setParameter("ids", ManyIds.of(ids))
                 .setParameter("date", date)
-                .getResultStream()
-                .map(row -> new PlacedOrgUnit(toDomain((OrgUnitEntity) row[0]),
-                        toDomain((OrgUnitVersionEntity) row[1]), (String) row[2]))
-                .toList();
+                .getResultList();
+        List<PlacedOrgUnit> placed = placed(rows, row -> (String) row[2]);
+        Map<String, List<PlacedOrgUnit>> paths = new HashMap<>();
+        for (int i = 0; i < rows.size(); i++) {
+            paths.computeIfAbsent((String) rows.get(i)[3], id -> new ArrayList<>()).add(placed.get(i));
+        }
+        return paths;
     }
 
     @Override
@@ -474,25 +477,19 @@ public class JpaOrgUnitStore implements OrgUnitStore {
         if (ids.isEmpty()) {
             return List.of();
         }
-        return em.createQuery(PLACED, Object[].class)
+        return placed(em.createQuery(PLACED, Object[].class)
                 .setParameter("realmId", realmId)
                 .setParameter("hierarchyId", hierarchyId)
                 .setParameter("ids", ManyIds.of(ids))
                 .setParameter("date", date)
-                .getResultStream()
-                .map(row -> new PlacedOrgUnit(toDomain((OrgUnitEntity) row[0]),
-                        toDomain((OrgUnitVersionEntity) row[1]), (String) row[2]))
-                .toList();
+                .getResultList(), row -> (String) row[2]);
     }
 
     @Override
     public List<PlacedOrgUnit> childrenOn(String hierarchyId, String parentId, Boolean lateral, LocalDate date,
             int first, int max) {
-        return childrenQuery(hierarchyId, parentId, lateral, date, false, Object[].class)
-                .setFirstResult(first).setMaxResults(max).getResultStream()
-                .map(row -> new PlacedOrgUnit(toDomain((OrgUnitEntity) row[0]),
-                        toDomain((OrgUnitVersionEntity) row[1]), parentId))
-                .toList();
+        return placed(childrenQuery(hierarchyId, parentId, lateral, date, false, Object[].class)
+                .setFirstResult(first).setMaxResults(max).getResultList(), row -> parentId);
     }
 
     @Override
@@ -502,10 +499,9 @@ public class JpaOrgUnitStore implements OrgUnitStore {
 
     private <T> TypedQuery<T> childrenQuery(String hierarchyId, String parentId, Boolean lateral, LocalDate date,
             boolean count, Class<T> type) {
-        return em.createQuery((count ? "select count(v)" : "select u, v") + SIBLINGS.formatted(CHILD_OF,
-                        nature(lateral))
-                        + (count ? "" : " order by v.displayOrder, v.phoneticName nulls last, v.name, v.orgUnitId"),
-                        type)
+        return em.createQuery((count ? "select count(v)" : "select u, v") + SIBLINGS.formatted(
+                        count ? "" : OrgUnitNames.JOIN_PRIMARY, CHILD_OF, nature(lateral))
+                        + (count ? "" : SIBLING_ORDER), type)
                 .setParameter("realmId", realmId)
                 .setParameter("hierarchyId", hierarchyId)
                 .setParameter("date", date)
@@ -531,14 +527,12 @@ public class JpaOrgUnitStore implements OrgUnitStore {
 
     @Override
     public List<OrgUnitVersion> versions(String orgUnitId) {
-        return em.createQuery("""
+        return withNames(em.createQuery("""
                         select v from OrgUnitVersionEntity v where v.realmId = :realmId
                         and v.orgUnitId = :orgUnitId order by v.validFrom""", OrgUnitVersionEntity.class)
                 .setParameter("realmId", realmId)
                 .setParameter("orgUnitId", orgUnitId)
-                .getResultStream()
-                .map(JpaOrgUnitStore::toDomain)
-                .toList();
+                .getResultList());
     }
 
     @Override
@@ -549,6 +543,7 @@ public class JpaOrgUnitStore implements OrgUnitStore {
         entity.orgUnitId = version.orgUnitId();
         copy(version, entity);
         em.persist(entity);
+        OrgUnitNames.insert(em, realmId, version.id(), version.names());
         Versions.orgUnit(em, realmId, version.orgUnitId());
     }
 
@@ -556,6 +551,7 @@ public class JpaOrgUnitStore implements OrgUnitStore {
     public void updateVersion(OrgUnitVersion version) {
         OrgUnitVersionEntity entity = Rows.require(em, OrgUnitVersionEntity.class, version.id(), realmId, found -> found.realmId);
         copy(version, entity);
+        OrgUnitNames.replace(em, realmId, version.id(), version.names());
         // A split shortens this row and then inserts the next one. The database must see the shorter row first.
         em.flush();
         Versions.orgUnit(em, realmId, version.orgUnitId());
@@ -565,16 +561,6 @@ public class JpaOrgUnitStore implements OrgUnitStore {
         entity.validFrom = version.period().from();
         entity.validTo = version.period().to();
         entity.code = version.code();
-        entity.name = version.name();
-        entity.names = version.names();
-        entity.shortName = version.shortName();
-        entity.shortNames = version.shortNames();
-        entity.phoneticName = version.phoneticName();
-        entity.searchNames = Stream.of(version.names(), version.shortNames())
-                .filter(Objects::nonNull)
-                .flatMap(names -> names.values().stream())
-                .map(value -> value.toLowerCase(Locale.ROOT))
-                .collect(Collectors.joining("\n"));
         entity.unitTypeId = version.unitTypeId();
         entity.workLocationId = version.workLocationId();
         entity.costCenterId = version.costCenterId();
@@ -705,9 +691,35 @@ public class JpaOrgUnitStore implements OrgUnitStore {
         return new OrgUnit(e.id, e.source, e.keycloakOrganizationId, e.timeZone, e.dayStart, e.version);
     }
 
-    static OrgUnitVersion toDomain(OrgUnitVersionEntity e) {
-        return new OrgUnitVersion(e.id, e.orgUnitId, new ValidPeriod(e.validFrom, e.validTo), e.code, e.name, e.names,
-                e.shortName, e.shortNames, e.phoneticName, e.unitTypeId, e.workLocationId, e.costCenterId,
-                e.displayOrder, e.attributes);
+    private List<OrgUnitVersion> withNames(List<OrgUnitVersionEntity> entities) {
+        return withNames(em, realmId, entities);
+    }
+
+    /**
+     * Reads the names of versions in one query, and gives each version its names.
+     *
+     * @param em the entity manager
+     * @param realmId the ID of the realm
+     * @param entities the rows of the versions
+     * @return the versions in the same order
+     */
+    static List<OrgUnitVersion> withNames(EntityManager em, String realmId, List<OrgUnitVersionEntity> entities) {
+        Map<String, Localized<OrgUnitName>> names = OrgUnitNames.of(em, realmId,
+                entities.stream().map(e -> e.id).toList());
+        return entities.stream().map(e -> toDomain(e, names.get(e.id))).toList();
+    }
+
+    // Each row has the unit and the version.
+    private List<PlacedOrgUnit> placed(List<Object[]> rows, Function<Object[], String> parentId) {
+        List<OrgUnitVersion> versions = withNames(rows.stream().map(row -> (OrgUnitVersionEntity) row[1]).toList());
+        return IntStream.range(0, rows.size())
+                .mapToObj(i -> new PlacedOrgUnit(toDomain((OrgUnitEntity) rows.get(i)[0]), versions.get(i),
+                        parentId.apply(rows.get(i))))
+                .toList();
+    }
+
+    private static OrgUnitVersion toDomain(OrgUnitVersionEntity e, Localized<OrgUnitName> names) {
+        return new OrgUnitVersion(e.id, e.orgUnitId, new ValidPeriod(e.validFrom, e.validTo), e.code, names,
+                e.unitTypeId, e.workLocationId, e.costCenterId, e.displayOrder, e.attributes);
     }
 }

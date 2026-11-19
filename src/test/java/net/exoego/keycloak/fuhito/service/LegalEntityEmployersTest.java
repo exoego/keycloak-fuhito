@@ -14,6 +14,7 @@ import net.exoego.keycloak.fuhito.domain.ValidPeriod;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import static net.exoego.keycloak.fuhito.service.UnitNames.ja;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -37,7 +38,7 @@ class LegalEntityEmployersTest {
     }
 
     private String unit(String name, String unitType, String validFrom) {
-        return orgUnits.create(new NewOrgUnit(null, name, null, null, null, null, unitType, null, validFrom, null,
+        return orgUnits.create(new NewOrgUnit(null, "ja", ja(name), unitType, null, validFrom, null,
                 null, null, null)).unit().id();
     }
 
@@ -95,7 +96,7 @@ class LegalEntityEmployersTest {
         assertEquals("employment.employer_unknown", rejected(company, LocalDate.of(2019, 4, 1)).code());
 
         // The ward becomes a company of its own in 2027.
-        orgUnits.changeDetails(ward, new OrgUnitChange("2027-04-01", null, "Ward Inc.", null, null, null, null, "company",
+        orgUnits.changeDetails(ward, new OrgUnitChange("2027-04-01", null, "ja", ja("Ward Inc."), "company",
                 null, null));
         assertEquals(ward, employers.of(ward, LocalDate.of(2027, 4, 1)));
         assertEquals("employment.employer_not_legal_entity", rejected(ward, LocalDate.of(2027, 3, 31)).code());

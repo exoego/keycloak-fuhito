@@ -44,7 +44,7 @@ The projection into organization groups works the same way, for the same reasons
 
 For each user with a department attribute:
 
-1. Match the department to an org unit that exists today. Try the code first, then the name.
+1. Match the department to an org unit that exists today. Try the code first, then the primary name.
 2. Match the title to a job title. Try the code first, then the name of today.
 3. Give the user an employment that starts today, if the user has none today. It has the source `scim` and no external ID, because the sync finds it by the user. So a user who left and comes back gets a new employment, as in "A person who comes back" in [history.md](history.md).
 4. Keep one assignment for the user that the sync owns. It is marked with the source `scim`.

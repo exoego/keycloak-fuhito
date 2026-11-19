@@ -43,6 +43,9 @@ public class JpaResourceRemoval implements ResourceRemoval {
     private static final Map<Kind, List<String>> REMOVALS = Map.of(
             Kind.ORG_UNIT, List.of(
                     "delete from OrgUnitLinkEntity x where x.realmId = :realmId and x.childId = :id",
+                    """
+                    delete from OrgUnitVersionNameEntity x where x.realmId = :realmId and x.versionId in
+                    (select v.id from OrgUnitVersionEntity v where v.realmId = :realmId and v.orgUnitId = :id)""",
                     "delete from OrgUnitVersionEntity x where x.realmId = :realmId and x.orgUnitId = :id",
                     """
                     delete from ExternalIdEntity x where x.realmId = :realmId and x.kind = 'ORG_UNIT'

@@ -17,6 +17,7 @@ import net.exoego.keycloak.fuhito.domain.RefKind;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import static net.exoego.keycloak.fuhito.service.UnitNames.ja;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -72,7 +73,7 @@ class MembershipServiceTest {
     }
 
     private String unit(String name, String parentId) {
-        return orgUnits.create(new NewOrgUnit(null, name, null, null, null, null, null, parentId, "2026-04-01", null,
+        return orgUnits.create(new NewOrgUnit(null, "ja", ja(name), null, parentId, "2026-04-01", null,
                 null, null, null)).unit().id();
     }
 
@@ -200,7 +201,7 @@ class MembershipServiceTest {
         assertEquals("D-1", doctor.employment().staffNumber());
         assertNull(doctor.employmentType());
         assertNull(doctor.grade());
-        assertEquals("Ward", doctor.orgUnit().version().name());
+        assertEquals("Ward", doctor.orgUnit().version().names().primary().name());
         assertNull(doctor.orgUnitPath());
         Member nurse = spring.get(1);
         assertEquals("part-time", nurse.employmentType());
@@ -332,9 +333,9 @@ class MembershipServiceTest {
         assertEquals(List.of(ward, otherHospital), today.stream().map(m -> m.assignment().orgUnitId()).toList());
         assertEquals(primary, today.getFirst().assignment().assignmentId());
         assertEquals(List.of("Hospital", "Nursing", "Ward"),
-                today.getFirst().orgUnitPath().stream().map(s -> s.version().name()).toList());
+                today.getFirst().orgUnitPath().stream().map(s -> s.version().names().primary().name()).toList());
         assertEquals(List.of("Other Hospital"),
-                today.get(1).orgUnitPath().stream().map(s -> s.version().name()).toList());
+                today.get(1).orgUnitPath().stream().map(s -> s.version().names().primary().name()).toList());
         assertNull(service.assignmentsOf("doctor", "2026-06-15", false).getFirst().orgUnitPath());
         assertEquals(1, service.assignmentsOf("doctor", "2026-04-15", false).size());
         assertEquals(3, service.assignmentsOf("doctor", "2027-04-01", false).size());
@@ -382,7 +383,7 @@ class MembershipServiceTest {
         String sales = placedUnit("Sales", company, null, "cc-sales");
         String branch = placedUnit("Branch", sales, "nagoya", null);
         String team = placedUnit("Team", sales, null, null);
-        orgUnits.changeDetails(company, new OrgUnitChange("2026-10-01", null, "Company", null, null, null, null, null,
+        orgUnits.changeDetails(company, new OrgUnitChange("2026-10-01", null, "ja", ja("Company"), null,
                 "osaka", "cc-hq", null, null));
         String idleEmployment = employ("idle", null, null, null);
         String atTop = assignAt(doctorEmployment, company, null, null, false, 0);
@@ -454,7 +455,7 @@ class MembershipServiceTest {
     }
 
     private String placedUnit(String name, String parentId, String workLocation, String costCenter) {
-        return orgUnits.create(new NewOrgUnit(null, name, null, null, null, null, null, workLocation, costCenter,
+        return orgUnits.create(new NewOrgUnit(null, "ja", ja(name), null, workLocation, costCenter,
                 parentId, "2026-04-01", null, null, null, null)).unit().id();
     }
 
@@ -504,7 +505,7 @@ class MembershipServiceTest {
         // The one in New York holds until its June 30 ends. The one in Tokyo started on its July 1.
         assertEquals(List.of(startsInJuly, endsInJune),
                 today.stream().map(m -> m.assignment().assignmentId()).toList());
-        assertEquals(List.of("Hospital"), today.getFirst().orgUnitPath().stream().map(s -> s.version().name()).toList());
+        assertEquals(List.of("Hospital"), today.getFirst().orgUnitPath().stream().map(s -> s.version().names().primary().name()).toList());
         assertEquals(List.of(startsInJuly),
                 zoned.assignmentsOf("doctor", "2026-07-01", false).stream()
                         .map(m -> m.assignment().assignmentId()).toList());

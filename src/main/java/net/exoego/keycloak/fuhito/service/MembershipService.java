@@ -193,12 +193,10 @@ public class MembershipService {
         List<Member> members = new ArrayList<>();
         rowsByDate.forEach((date, rows) ->
         {
-            // A person has few assignments, so the way up from each org unit is read by itself.
-            String hierarchy = orgUnits.defaultHierarchyId();
-            Map<String, List<OrgUnitState>> paths = new HashMap<>();
-            Function<String, List<OrgUnitState>> pathOf = id -> paths.computeIfAbsent(id,
-                    unit -> OrgUnitPaths.on(orgUnits, refItems, hierarchy, unit, date));
-            members.addAll(toMembers(rows, date, id -> pathOf.apply(id).getLast(), includePath ? pathOf : null));
+            // The ways up from all the org units of the date are read together, with the names of their units.
+            Map<String, List<OrgUnitState>> paths = OrgUnitPaths.of(orgUnits, refItems,
+                    orgUnits.defaultHierarchyId(), rows.stream().map(Assignment::orgUnitId).distinct().toList(), date);
+            members.addAll(toMembers(rows, date, id -> paths.get(id).getLast(), includePath ? paths::get : null));
         });
         // Each employment can have a primary assignment. The one of the oldest employment is the first.
         members.sort(Comparator.comparing((Member member) -> !member.assignment().primary())

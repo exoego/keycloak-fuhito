@@ -50,7 +50,7 @@ class PermissionsIT {
         TestRealm.withTimeZone(master);
         admin.realm(REALM).update(master);
         Api all = new Api(REALM, admin.tokenManager().getAccessTokenString());
-        var created = all.post("/org-units", "{\"name\": \"Permissions\", \"validFrom\": \"2020-04-01\"}");
+        var created = all.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"Permissions\"}}, \"validFrom\": \"2020-04-01\"}");
         assertEquals(201, created.statusCode(), created.body());
         unit = Api.json(created).get("id").asText();
 
@@ -124,7 +124,7 @@ class PermissionsIT {
         for (String path : peopleReads()) {
             assertEquals(403, structureReader.get(path).statusCode(), path);
         }
-        assertEquals(403, structureReader.post("/org-units", "{\"name\": \"x\", \"validFrom\": \"2020-04-01\"}").statusCode());
+        assertEquals(403, structureReader.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"x\"}}, \"validFrom\": \"2020-04-01\"}").statusCode());
     }
 
     @Test
@@ -135,7 +135,7 @@ class PermissionsIT {
         for (String path : peopleReads()) {
             assertEquals(200, reader.get(path).statusCode(), path);
         }
-        assertEquals(403, reader.post("/org-units", "{\"name\": \"x\", \"validFrom\": \"2020-04-01\"}").statusCode());
+        assertEquals(403, reader.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"x\"}}, \"validFrom\": \"2020-04-01\"}").statusCode());
     }
 
     @Test
@@ -145,7 +145,7 @@ class PermissionsIT {
             Api caller = administrator(admin, REALM, "master-realm", "keycloak-" + role, role);
             assertEquals(403, caller.get("/org-units").statusCode(), role);
             assertEquals(403, caller.get("/people").statusCode(), role);
-            assertEquals(403, caller.post("/org-units", "{\"name\": \"x\", \"validFrom\": \"2020-04-01\"}")
+            assertEquals(403, caller.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"x\"}}, \"validFrom\": \"2020-04-01\"}")
                     .statusCode(), role);
         }
     }
@@ -173,7 +173,7 @@ class PermissionsIT {
             Api realmAdmin = administrator(admin, realm.name, "realm-management", "realm-admin", "realm-admin");
             assertEquals(200, realmAdmin.get("/people").statusCode());
             HttpResponse<String> created = realmAdmin.post("/org-units",
-                    "{\"name\": \"x\", \"validFrom\": \"2020-04-01\"}");
+                    "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"x\"}}, \"validFrom\": \"2020-04-01\"}");
             assertEquals(201, created.statusCode(), created.body());
         } finally {
             realm.remove();
@@ -238,7 +238,7 @@ class PermissionsIT {
             assertFalse(Api.json(limited.get("/org-units/" + unit + "/path?asOf=" + lastDay)).get(0).has("validTo"));
 
             // A unit that starts after the limit is unknown to the limited caller, also by an ID of another system.
-            HttpResponse<String> later = realm.api.post("/org-units", "{\"name\": \"Later\", \"validFrom\": \""
+            HttpResponse<String> later = realm.api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"Later\"}}, \"validFrom\": \""
                     + lastDay.plusDays(5) + "\", \"externalId\": \"L-1\", \"source\": \"hr\"}");
             assertEquals(201, later.statusCode(), later.body());
             String lookup = "/external-ids/lookup?resourceType=ORG_UNIT&source=hr&externalId=L-1";
@@ -279,7 +279,7 @@ class PermissionsIT {
             assertEquals(200, all.putWithVersion(link, body).statusCode());
             assertEquals(403, userAdmin.deleteWithVersion(link).statusCode());
             // The other writes need the role of the extension only.
-            assertEquals(201, userAdmin.post("/org-units", "{\"name\": \"Other\", \"validFrom\": \"2020-04-01\"}")
+            assertEquals(201, userAdmin.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"Other\"}}, \"validFrom\": \"2020-04-01\"}")
                     .statusCode());
             assertEquals(200, all.deleteWithVersion(link).statusCode());
         } finally {
@@ -355,7 +355,7 @@ class PermissionsIT {
     }
 
     private static String unit(Api api, String name) throws Exception {
-        var created = api.post("/org-units", "{\"name\": \"" + name + "\", \"validFrom\": \"2020-04-01\"}");
+        var created = api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"" + name + "\"}}, \"validFrom\": \"2020-04-01\"}");
         assertEquals(201, created.statusCode(), created.body());
         return Api.json(created).get("id").asText();
     }

@@ -2,6 +2,7 @@ package net.exoego.keycloak.fuhito.rest;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
@@ -31,7 +32,7 @@ public record MemberRepresentation(
         @Schema(description = "The number that the legal entity gives to the person.")
         String staffNumber,
         String orgUnitId,
-        @Schema(description = "The name of the org unit on the date.")
+        @Schema(description = "The name of the org unit on the date, in the language of the request.")
         String orgUnitName,
         @Schema(description = "The units from the root down to the org unit. Only present when asked for.")
         List<PathEntry> orgUnitPath,
@@ -92,22 +93,23 @@ public record MemberRepresentation(
             requiredProperties = {"id", "name"})
     public record PathEntry(
             String id,
-            @Schema(description = "The name of the org unit on the date.")
+            @Schema(description = "The name of the org unit on the date, in the language of the request.")
             String name) {
 
-        static PathEntry of(OrgUnitState state) {
-            return new PathEntry(state.unit().id(), state.version().name());
+        static PathEntry of(OrgUnitState state, Locale language) {
+            return new PathEntry(state.unit().id(), state.version().names().in(language).name());
         }
     }
 
-    static MemberRepresentation of(Member member) {
+    static MemberRepresentation of(Member member, Locale language) {
         var row = member.assignment();
         var terms = member.terms();
         return new MemberRepresentation(row.assignmentId(), row.version(), row.employmentId(),
                 member.employment().personId(), member.employment().userId(), member.employment().employerId(),
                 member.seconded(),
-                member.employment().staffNumber(), row.orgUnitId(), member.orgUnit().version().name(),
-                member.orgUnitPath() == null ? null : member.orgUnitPath().stream().map(PathEntry::of).toList(),
+                member.employment().staffNumber(), row.orgUnitId(),
+                member.orgUnit().version().names().in(language).name(), member.orgUnitPath() == null ? null
+                        : member.orgUnitPath().stream().map(unit -> PathEntry.of(unit, language)).toList(),
                 row.period().from().toString(), Objects.toString(row.period().to(), null),
                 member.jobTitle(), member.occupation(), member.kind(), member.places().workLocation(),
                 member.places().costCenter(), member.places().effectiveWorkLocation(),

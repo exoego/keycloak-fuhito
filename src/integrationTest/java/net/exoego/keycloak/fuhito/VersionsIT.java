@@ -105,7 +105,7 @@ class VersionsIT {
         assertEquals(2, version(api.get("/qualifications/" + qualificationId)));
         assertEquals(6, version(api.get("/people/" + personId)));
 
-        String unit = id(api.post("/org-units", "{\"name\": \"病院\", \"validFrom\": \"2020-04-01\"}"));
+        String unit = id(api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"病院\"}}, \"validFrom\": \"2020-04-01\"}"));
         JsonNode nurse = ok(api.post("/staff", "{\"userId\": \"" + realm.user("nurse") + "\", \"orgUnitId\": \""
                 + unit + "\", \"validFrom\": \"2020-04-01\"}"));
         realm.refItem("UNIT_ROLE", "approver", "承認者");
@@ -133,15 +133,15 @@ class VersionsIT {
     void aChangeOfAPeriodOrOfAParentCountsUpTheOrgUnitOnce() throws Exception {
         TestRealm realm = TestRealm.withEmployer("versions-unit");
         Api api = realm.api;
-        String hospital = id(api.post("/org-units", "{\"name\": \"病院\", \"validFrom\": \"2020-04-01\"}"));
-        String other = id(api.post("/org-units", "{\"name\": \"別院\", \"validFrom\": \"2020-04-01\"}"));
-        HttpResponse<String> created = api.post("/org-units", "{\"name\": \"病棟\", \"parentId\": \"" + hospital
+        String hospital = id(api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"病院\"}}, \"validFrom\": \"2020-04-01\"}"));
+        String other = id(api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"別院\"}}, \"validFrom\": \"2020-04-01\"}"));
+        HttpResponse<String> created = api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"病棟\"}}, \"parentId\": \"" + hospital
                 + "\", \"validFrom\": \"2020-04-01\", \"source\": \"hr\", \"externalId\": \"W\"}");
         String ward = id(created);
         assertEquals(1, version(created));
 
         // The new name splits the period in two rows. It is one write.
-        assertEquals(2, version(api.putWithVersion("/org-units/" + ward, "{\"name\": \"第1病棟\", \"validFrom\": \"2027-04-01\"}")));
+        assertEquals(2, version(api.putWithVersion("/org-units/" + ward, "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"第1病棟\"}}, \"validFrom\": \"2027-04-01\"}")));
         assertEquals(2, version(api.get("/org-units/" + ward + "?asOf=2020-05-01")));
         assertEquals(2, version(api.get("/org-units/" + ward + "?asOf=2027-05-01")));
         JsonNode history = ok(api.get("/org-units/" + ward + "/history"));
@@ -177,8 +177,8 @@ class VersionsIT {
     void aChangeOfTheTermsOrOfAPeriodCountsUpTheEmploymentOrTheAssignmentOnce() throws Exception {
         TestRealm realm = TestRealm.withEmployer("versions-employment");
         Api api = realm.api;
-        String hospital = id(api.post("/org-units", "{\"name\": \"病院\", \"validFrom\": \"2020-04-01\"}"));
-        String other = id(api.post("/org-units", "{\"name\": \"別院\", \"validFrom\": \"2020-04-01\"}"));
+        String hospital = id(api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"病院\"}}, \"validFrom\": \"2020-04-01\"}"));
+        String other = id(api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"別院\"}}, \"validFrom\": \"2020-04-01\"}"));
         realm.refItem("GRADE", "g2", "2級");
         realm.refItem("JOB_TITLE", "chief", "主任");
         JsonNode staff = ok(api.post("/staff", "{\"userId\": \"" + realm.user("nurse") + "\", \"orgUnitId\": \""
@@ -229,7 +229,7 @@ class VersionsIT {
     void writesThatDoNotComeThroughTheApiCountUpToo() throws Exception {
         TestRealm realm = TestRealm.withEmployer("versions-outside");
         Api api = realm.api;
-        String unit = id(api.post("/org-units", "{\"name\": \"病院\", \"validFrom\": \"2020-04-01\"}"));
+        String unit = id(api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"病院\"}}, \"validFrom\": \"2020-04-01\"}"));
         realm.refItem("QUALIFICATION", "license", "免許");
 
         // A mask writes the person and everything that names it.
@@ -266,15 +266,15 @@ class VersionsIT {
         // and of its parent is one write.
         ok(api.post("/imports", """
                 {"effectiveDate": "2026-04-01", "source": "sheet", "orgUnits": [
-                  {"externalId": "H", "name": "本院"},
-                  {"externalId": "W", "name": "病棟", "parentExternalId": "H", "timeZone": "Asia/Tokyo"}
+                  {"externalId": "H", "primaryLanguage": "ja", "names": {"ja": {"name": "本院"}}},
+                  {"externalId": "W", "primaryLanguage": "ja", "names": {"ja": {"name": "病棟"}}, "parentExternalId": "H", "timeZone": "Asia/Tokyo"}
                 ]}"""));
         String imported = ok(api.get("/external-ids/lookup?resourceType=ORG_UNIT&source=sheet&externalId=W"))
                 .get("resourceId").asText();
         assertEquals(1, version(api.get("/org-units/" + imported)));
         ok(api.post("/imports", """
                 {"effectiveDate": "2027-04-01", "source": "sheet", "orgUnits": [
-                  {"externalId": "W", "name": "東病棟", "parentId": "%s"}
+                  {"externalId": "W", "primaryLanguage": "ja", "names": {"ja": {"name": "東病棟"}}, "parentId": "%s"}
                 ]}""".formatted(unit)));
         JsonNode changed = ok(api.get("/org-units/" + imported + "?asOf=2027-04-01"));
         assertEquals("東病棟", changed.get("name").asText());
@@ -286,10 +286,10 @@ class VersionsIT {
     void everyListHasTheVersionOfEachEntry() throws Exception {
         TestRealm realm = TestRealm.withEmployer("versions-lists");
         Api api = realm.api;
-        String hospital = id(api.post("/org-units", "{\"name\": \"病院\", \"validFrom\": \"2020-04-01\"}"));
-        String ward = id(api.post("/org-units", "{\"name\": \"病棟\", \"parentId\": \"" + hospital
+        String hospital = id(api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"病院\"}}, \"validFrom\": \"2020-04-01\"}"));
+        String ward = id(api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"病棟\"}}, \"parentId\": \"" + hospital
                 + "\", \"validFrom\": \"2020-04-01\"}"));
-        ok(api.putWithVersion("/org-units/" + ward, "{\"name\": \"第1病棟\", \"validFrom\": \"2020-04-01\"}"));
+        ok(api.putWithVersion("/org-units/" + ward, "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"第1病棟\"}}, \"validFrom\": \"2020-04-01\"}"));
         String nurse = realm.user("nurse");
         JsonNode staff = ok(api.post("/staff", "{\"userId\": \"" + nurse + "\", \"orgUnitId\": \"" + ward
                 + "\", \"validFrom\": \"2020-04-01\"}"));
@@ -360,8 +360,8 @@ class VersionsIT {
         ok(api.putWithVersion("/attribute-definitions/" + definition, "{\"type\": \"STRING\"}"));
         String hierarchy = id(api.post("/hierarchies", "{\"code\": \"project\", \"name\": \"P\"}"));
         ok(api.putWithVersion("/hierarchies/" + hierarchy, "{\"name\": \"プロジェクト\"}"));
-        String unit = id(api.post("/org-units", "{\"name\": \"病院\", \"validFrom\": \"2020-04-01\"}"));
-        ok(api.putWithVersion("/org-units/" + unit, "{\"name\": \"本院\", \"validFrom\": \"2024-04-01\"}"));
+        String unit = id(api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"病院\"}}, \"validFrom\": \"2020-04-01\"}"));
+        ok(api.putWithVersion("/org-units/" + unit, "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"本院\"}}, \"validFrom\": \"2024-04-01\"}"));
         JsonNode nurse = ok(api.post("/staff", "{\"userId\": \"" + nurseUser + "\", \"orgUnitId\": \"" + unit
                 + "\", \"validFrom\": \"2020-04-01\"}"));
         String employment = nurse.get("employment").get("id").asText();

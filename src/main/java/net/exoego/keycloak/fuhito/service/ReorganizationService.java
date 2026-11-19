@@ -110,9 +110,8 @@ public class ReorganizationService {
         String op = Checks.required("op", step.op());
         return switch (op) {
             case "create" -> {
-                OrgUnitState unit = orgUnits.create(new NewOrgUnit(step.code(), step.name(), step.names(),
-                        step.shortName(), step.shortNames(), step.phoneticName(), step.unitType(),
-                        step.workLocation(), step.costCenter(),
+                OrgUnitState unit = orgUnits.create(new NewOrgUnit(step.code(), step.primaryLanguage(),
+                        step.names(), step.unitType(), step.workLocation(), step.costCenter(),
                         resolve("parent", step.parentId(), step.parentRef(), created), date, step.displayOrder(),
                         step.attributes(), null, null));
                 if (step.ref() != null && created.put(step.ref(), unit.unit().id()) != null) {
@@ -121,9 +120,8 @@ public class ReorganizationService {
                 yield new Result(op, unit);
             }
             case "change" -> new Result(op, orgUnits.changeDetails(target(step, created), new OrgUnitChange(date,
-                    step.code(), step.name(), step.names(), step.shortName(), step.shortNames(), step.phoneticName(),
-                    step.unitType(), step.workLocation(), step.costCenter(), step.displayOrder(),
-                    step.attributes())));
+                    step.code(), step.primaryLanguage(), step.names(), step.unitType(), step.workLocation(),
+                    step.costCenter(), step.displayOrder(), step.attributes())));
             case "move" -> new Result(op, orgUnits.move(target(step, created),
                     resolve("parent", step.parentId(), step.parentRef(), created), date));
             case "end" -> new Result(op, orgUnits.end(target(step, created), date));

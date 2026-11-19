@@ -2,6 +2,7 @@ package net.exoego.keycloak.fuhito.rest;
 
 import java.util.EnumMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
@@ -34,7 +35,8 @@ final class Writes {
         PersonService.Resolved resolved = people.forUser(userId);
         if (resolved.created() != null) {
             // A person made for a user has no IDs of other systems yet.
-            record(context, kind -> ExternalIdLists.NONE, new Write.OfPerson(resolved.created()));
+            record(context, kind -> ExternalIdLists.NONE, new Write.OfPerson(resolved.created()),
+                    context.nameLanguage());
         }
         return resolved.person().id();
     }
@@ -53,7 +55,8 @@ final class Writes {
                     .distinct()
                     .toList()));
         }
-        writes.forEach(write -> record(context, ids::get, write));
+        Locale language = context.nameLanguage();
+        writes.forEach(write -> record(context, ids::get, write, language));
     }
 
     private static String recordOf(Write write, ExternalId.Kind kind) {
@@ -71,7 +74,7 @@ final class Writes {
     }
 
     private static void record(RequestContext context, Function<ExternalId.Kind, ExternalIdLists> ids,
-            Write write) {
+            Write write, Locale language) {
         Object representation = switch (write) {
             case Write.OfRefItem item -> RefItemRepresentation.of(item.state());
             case Write.OfRefKind kind -> RefKindRepresentation.of(kind.state());
@@ -80,7 +83,7 @@ final class Writes {
             case Write.OfPerson person -> PersonRepresentation.of(person.state(),
                     ids.apply(ExternalId.Kind.PERSON));
             case Write.OfOrgUnit unit -> OrgUnitRepresentation.of(unit.state(),
-                    ids.apply(ExternalId.Kind.ORG_UNIT));
+                    ids.apply(ExternalId.Kind.ORG_UNIT), language);
             case Write.OfSuccession succession -> OrgUnitSuccessionsRepresentation.of(succession.state());
             case Write.OfTimeSettings time -> new TimeSettingsRepresentation(time.orgUnitId(), time.version(),
                     time.timeZone(), time.dayStart());

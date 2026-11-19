@@ -177,6 +177,33 @@ Names can have text in several languages, for example Japanese and English.
 An org unit also has a phonetic name (よみがな) for sorting.
 It is not a translation.
 
+An org unit keeps its names for each language, with a name, a short name, and a phonetic name.
+A language is a BCP 47 tag, such as `ja`, `en`, or `zh-Hant`.
+One language of each version is the primary one.
+
+```json
+{
+  "name": "Sales Division",
+  "shortName": "Sales",
+  "primaryLanguage": "ja",
+  "names": {
+    "ja": {"name": "営業部", "shortName": "営業", "phoneticName": "えいぎょうぶ"},
+    "en": {"name": "Sales Division", "shortName": "Sales"}
+  }
+}
+```
+
+- A write sends `primaryLanguage` and `names`. `primaryLanguage` must be a key of `names`.
+- A read gives `name`, `shortName`, and `phoneticName` in the language of the reader, and every language in `names`.
+- The names of a language come from that tag, then from the language with no region, such as `en` for `en-US`, then from the primary language.
+- A read of the API takes the first language of `Accept-Language`. With no `Accept-Language`, it gives the primary names.
+- Other reads that name a unit, such as the path of a member or a list of role holders, give the name in the language of the request too.
+- A token gives the names in the language that the user picked, else in the default language of the realm. A realm with no languages turned on gives English.
+- The Keycloak group of a unit has the primary name. So do the check of the names of siblings and the match of the attribute sync.
+- Lists sort siblings by the primary phonetic name and the primary name, whatever the language of the reader.
+- A search matches the name, the short name, or the phonetic name of any language.
+- A change of the default language of the realm changes no name. A unit can have its own primary language.
+
 ## Examples
 
 ### A small clinic

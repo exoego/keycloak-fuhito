@@ -212,7 +212,7 @@ class PeopleIT {
     void findsPeopleByNameAndByStaffNumber() throws Exception {
         TestRealm scratch = TestRealm.withEmployer("people-search");
         Api scratchApi = scratch.api;
-        String unit = created(scratchApi.post("/org-units", "{\"name\": \"1病棟\", \"validFrom\": \"2020-04-01\"}"))
+        String unit = created(scratchApi.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"1病棟\"}}, \"validFrom\": \"2020-04-01\"}"))
                 .get("id").asText();
         String hanako = created(scratchApi.post("/people", "{\"name\": \"山田 花子\", \"phoneticName\": "
                 + "\"やまだ はなこ\", \"names\": {\"en\": \"Hanako Yamada\"}}")).get("id").asText();
@@ -287,7 +287,7 @@ class PeopleIT {
     void aPersonWithNoUserCanBeEmployedAndAssigned() throws Exception {
         TestRealm scratch = TestRealm.withEmployer("people-employed");
         Api scratchApi = scratch.api;
-        String unit = created(scratchApi.post("/org-units", "{\"name\": \"1病棟\", \"validFrom\": \"2020-04-01\"}"))
+        String unit = created(scratchApi.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"1病棟\"}}, \"validFrom\": \"2020-04-01\"}"))
                 .get("id").asText();
         String cleaner = created(scratchApi.post("/people", "{\"name\": \"清掃 花子\"}")).get("id").asText();
         String nurse = scratch.user("nurse");
@@ -333,7 +333,7 @@ class PeopleIT {
         TestRealm scratch = TestRealm.withEmployer("people-lines");
         Api scratchApi = scratch.api;
         scratch.refItem("QUALIFICATION", "license", "免許");
-        String unit = created(scratchApi.post("/org-units", "{\"name\": \"外科\", \"validFrom\": \"2020-04-01\"}"))
+        String unit = created(scratchApi.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"外科\"}}, \"validFrom\": \"2020-04-01\"}"))
                 .get("id").asText();
         String visiting = created(scratchApi.post("/people", "{\"name\": \"応援 医師\"}")).get("id").asText();
         String advisor = created(scratchApi.post("/people", "{\"name\": \"顧問\"}")).get("id").asText();
@@ -399,7 +399,7 @@ class PeopleIT {
         TestRealm scratch = TestRealm.withEmployer("people-reads");
         Api scratchApi = scratch.api;
         scratch.refItem("QUALIFICATION", "license", "免許");
-        String unit = created(scratchApi.post("/org-units", "{\"name\": \"外科\", \"validFrom\": \"2020-04-01\"}"))
+        String unit = created(scratchApi.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"外科\"}}, \"validFrom\": \"2020-04-01\"}"))
                 .get("id").asText();
         String chief = created(scratchApi.post("/people", "{\"name\": \"部長\", \"phoneticName\": \"ぶちょう\"}"))
                 .get("id").asText();

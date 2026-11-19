@@ -45,7 +45,7 @@ class WriteLocksIT {
         TestRealm realm = TestRealm.create("locks-transfers");
         Api api = realm.api;
         String first = realm.legalEntity("法人");
-        String unit = ok(api.post("/org-units", "{\"name\": \"病棟\", \"validFrom\": \"2026-04-01\"}")).get("id")
+        String unit = ok(api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"病棟\"}}, \"validFrom\": \"2026-04-01\"}")).get("id")
                 .asText();
         JsonNode staff = ok(api.post("/staff", "{\"userId\": \"" + realm.user("nurse") + "\", \"orgUnitId\": \""
                 + unit + "\", \"validFrom\": \"2026-04-01\"}"));
@@ -70,7 +70,7 @@ class WriteLocksIT {
     void anEndOfAnEmploymentReadsItsAssignmentsAfterAnotherWrite() throws Exception {
         TestRealm realm = TestRealm.withEmployer("locks-end");
         Api api = realm.api;
-        String unit = ok(api.post("/org-units", "{\"name\": \"病棟\", \"validFrom\": \"2026-04-01\"}")).get("id")
+        String unit = ok(api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"病棟\"}}, \"validFrom\": \"2026-04-01\"}")).get("id")
                 .asText();
         JsonNode staff = ok(api.post("/staff", "{\"userId\": \"" + realm.user("nurse") + "\", \"orgUnitId\": \""
                 + unit + "\", \"validFrom\": \"2026-04-01\"}"));
@@ -87,7 +87,7 @@ class WriteLocksIT {
     void aSwitchOfThePrimaryAssignmentReadsTheOtherAssignmentsAfterAnotherWrite() throws Exception {
         TestRealm realm = TestRealm.withEmployer("locks-primary");
         Api api = realm.api;
-        String unit = ok(api.post("/org-units", "{\"name\": \"病棟\", \"validFrom\": \"2026-04-01\"}")).get("id")
+        String unit = ok(api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"病棟\"}}, \"validFrom\": \"2026-04-01\"}")).get("id")
                 .asText();
         String employment = ok(api.post("/employments", "{\"userId\": \"" + realm.user("nurse")
                 + "\", \"validFrom\": \"2026-04-01\"}")).get("id").asText();
@@ -161,12 +161,12 @@ class WriteLocksIT {
         Api api = realm.api;
         List<String> units = new ArrayList<>();
         for (String name : List.of("A", "B")) {
-            units.add(ok(api.post("/org-units", "{\"name\": \"" + name + "\", \"validFrom\": \"2026-04-01\"}"))
+            units.add(ok(api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"" + name + "\"}}, \"validFrom\": \"2026-04-01\"}"))
                     .get("id").asText());
         }
         String low = Collections.min(units);
         String high = Collections.max(units);
-        String change = "{\"op\": \"change\", \"id\": \"%s\", \"version\": 1, \"name\": \"C\"}";
+        String change = "{\"op\": \"change\", \"id\": \"%s\", \"version\": 1, \"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"C\"}}}";
 
         CompletableFuture<HttpResponse<String>> reorganization;
         try (Connection first = KeycloakEnvironment.connection()) {

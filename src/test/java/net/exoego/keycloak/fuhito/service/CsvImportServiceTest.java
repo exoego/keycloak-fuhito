@@ -10,12 +10,15 @@ import java.util.Optional;
 
 import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
+import net.exoego.keycloak.fuhito.domain.Localized;
+import net.exoego.keycloak.fuhito.domain.OrgUnitName;
 import net.exoego.keycloak.fuhito.domain.RefItem;
 import net.exoego.keycloak.fuhito.domain.RefKind;
 import net.exoego.keycloak.fuhito.service.ImportReport.Counts;
 import net.exoego.keycloak.fuhito.store.UserDirectory;
 import org.junit.jupiter.api.Test;
 
+import static net.exoego.keycloak.fuhito.service.UnitNames.ja;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -125,40 +128,48 @@ class CsvImportServiceTest {
     void aBlankCellKeepsTheStoredValueAndClearRemovesIt() {
         item(RefKind.UNIT_TYPE, "ward");
         load("orgUnits", "2026-04-01", """
-                外部ID,名称,名称:en,略称,よみがな,組織種別,親の外部ID,表示順
-                H,X病院,X Hospital,X,えっくす,,,1
-                W,1病棟,Ward 1,1病,いちびょうとう,ward,H,5
+                外部ID,主言語,名称,略称,よみがな,名称:en,略称:EN,組織種別,親の外部ID,表示順
+                H,ja,X病院,X,えっくす,X Hospital,,,,1
+                W,JA,1病棟,1病,いちびょうとう,Ward 1,W1,ward,H,5
                 """);
 
         CsvImportService.Result result = load("orgUnits", "2027-04-01", """
-                externalId,name,name:en,name:ja,shortName,phoneticName,unitType,parentExternalId,displayOrder
-                W,東病棟,,ひがし,#CLEAR,,#CLEAR,,
+                externalId,name,name:en,name:zh-hant,shortName,phoneticName:en,unitType,parentExternalId,displayOrder
+                W,東病棟,,東病房,#CLEAR,ward one,#CLEAR,,
                 H,,,,,,,,
                 """);
 
         assertEquals(List.of(), errors(result));
         assertEquals(new Counts(0, 1, 1), result.report().counts().get("orgUnits"));
         OrgUnitState ward = unit("W", "2027-04-01");
-        assertEquals("東病棟", ward.version().name());
-        assertEquals(Map.of("en", "Ward 1", "ja", "ひがし"), ward.version().names());
-        assertNull(ward.version().shortName());
-        assertEquals("いちびょうとう", ward.version().phoneticName());
+        assertEquals(new Localized<>("ja", Map.of("ja", new OrgUnitName("東病棟", null, "いちびょうとう"),
+                "en", new OrgUnitName("Ward 1", "W1", "ward one"), "zh-Hant", new OrgUnitName("東病房", null, null))),
+                ward.version().names());
         assertNull(ward.unitType());
         assertEquals(unit("H", "2027-04-01").unit().id(), ward.parentId());
         assertEquals(5, ward.version().displayOrder());
-        assertEquals("1病棟", unit("W", "2027-03-31").version().name());
+        assertEquals("1病棟", unit("W", "2027-03-31").version().names().primary().name());
 
-        // Clearing the parent makes the unit a root. Clearing one language removes only that language.
-        load("orgUnits", "2028-04-01", "外部ID,親の外部ID,名称:en\nW,#CLEAR,#CLEAR\n");
+        // Clearing the parent makes the unit a root. Clearing the name of a language removes that language.
+        load("orgUnits", "2028-04-01", "外部ID,親の外部ID,名称:en,よみがな:zh-Hant\nW,#CLEAR,#CLEAR,#CLEAR\n");
         assertNull(unit("W", "2028-04-01").parentId());
-        assertEquals(Map.of("ja", "ひがし"), unit("W", "2028-04-01").version().names());
+        assertEquals(new Localized<>("ja", Map.of("ja", new OrgUnitName("東病棟", null, "いちびょうとう"),
+                "zh-Hant", new OrgUnitName("東病房", null, null))), unit("W", "2028-04-01").version().names());
+
+        // The columns with no language set the names of the primary language.
+        load("orgUnits", "2029-04-01", "外部ID,主言語,名称\nW,zh-Hant,東翼病房\n");
+        assertEquals(new Localized<>("zh-Hant", Map.of("ja", new OrgUnitName("東病棟", null, "いちびょうとう"),
+                "zh-Hant", new OrgUnitName("東翼病房", null, null))), unit("W", "2029-04-01").version().names());
+
+        assertEquals(List.of("line 2 row 0 invalid.language_tag", "line 3 row 1 invalid.language_tag"),
+                errors(load("orgUnits", "2030-04-01", "外部ID,主言語,名称:x_y\nW,ja,West\nH,x_y,\n")));
     }
 
     @Test
     void loadsStaffAndATransferFromCsv() {
         item(RefKind.OCCUPATION, "nurse");
         item(RefKind.EMPLOYMENT_TYPE, "part-time");
-        load("orgUnits", "2026-04-01", "外部ID,名称\nH,X病院\nW,1病棟\n");
+        load("orgUnits", "2026-04-01", "外部ID,主言語,名称\nH,ja,X病院\nW,ja,1病棟\n");
         load("employments", "2026-04-01", """
                 外部ID,ユーザー名,職員番号,雇用形態,勤務割合,契約期間満了日,開始日
                 E1,nurse,N-001,part-time,50,2028-03-31,2020-04-01
@@ -197,14 +208,14 @@ class CsvImportServiceTest {
 
     @Test
     void aBlankParentKeepsAParentThatHasNoExternalIdOfTheSource() {
-        String hospital = orgUnits.create(new NewOrgUnit(null, "Hospital", null, null, null, null, null, null,
+        String hospital = orgUnits.create(new NewOrgUnit(null, "ja", ja("Hospital"), null, null,
                 "2026-04-01", null, null, null, null)).unit().id();
         // A parent with an ID of another system, which a unit of the source has too.
-        String clinic = orgUnits.create(new NewOrgUnit(null, "Clinic", null, null, null, null, null, null,
+        String clinic = orgUnits.create(new NewOrgUnit(null, "ja", ja("Clinic"), null, null,
                 "2026-04-01", null, null, "X", "hr")).unit().id();
-        orgUnits.create(new NewOrgUnit(null, "Not the parent", null, null, null, null, null, null, "2026-04-01",
+        orgUnits.create(new NewOrgUnit(null, "ja", ja("Not the parent"), null, null, "2026-04-01",
                 null, null, "X", "sheet"));
-        load("orgUnits", "2026-04-01", "外部ID,名称,ソース\nW1,1病棟,sheet\nW2,2病棟,sheet\n");
+        load("orgUnits", "2026-04-01", "外部ID,主言語,名称,ソース\nW1,ja,1病棟,sheet\nW2,ja,2病棟,sheet\n");
         String first = stored(ExternalId.Kind.ORG_UNIT, "sheet", "W1");
         String second = stored(ExternalId.Kind.ORG_UNIT, "sheet", "W2");
         orgUnits.move(first, hospital, "2026-04-01");
@@ -215,7 +226,7 @@ class CsvImportServiceTest {
 
         assertEquals(List.of(), errors(renamed));
         assertEquals(hospital, orgUnits.get(first, "2026-10-01").parentId());
-        assertEquals("第1病棟", orgUnits.get(first, "2026-10-01").version().name());
+        assertEquals("第1病棟", orgUnits.get(first, "2026-10-01").version().names().primary().name());
         assertEquals(clinic, orgUnits.get(second, "2026-10-01").parentId());
         // The cell #CLEAR still makes it a root.
         load("orgUnits", "2027-04-01", "外部ID,親の外部ID,ソース\nW1,#CLEAR,sheet\n");
@@ -225,21 +236,21 @@ class CsvImportServiceTest {
     @Test
     void aRowWithMoreCellsThanTheHeaderIsReported() {
         CsvImportService.Result result = load("orgUnits", "2026-04-01", """
-                外部ID,名称,よみがな
-                W1,1病棟, 東館,いちびょうとう
-                W2,2病棟,にびょうとう,
+                外部ID,主言語,名称,よみがな
+                W1,ja,1病棟, 東館,いちびょうとう
+                W2,ja,2病棟,にびょうとう,
                 """);
 
         assertEquals(List.of("line 2 row 0 csv.too_many_cells"), errors(result));
-        assertEquals(Map.of("columns", "3", "cells", "4"), result.errors().getFirst().error().params());
+        assertEquals(Map.of("columns", "4", "cells", "5"), result.errors().getFirst().error().params());
         // An empty cell at the end is fine.
-        assertEquals("にびょうとう", unit("W2", "2026-04-01").version().phoneticName());
+        assertEquals("にびょうとう", unit("W2", "2026-04-01").version().names().primary().phoneticName());
     }
 
     @Test
     void aReasonStaysWithTheLeaveAndGoesWithTheReturn() {
         item(RefKind.LEAVE_REASON, "parental");
-        load("orgUnits", "2026-04-01", "外部ID,名称\nH,X病院\n");
+        load("orgUnits", "2026-04-01", "外部ID,主言語,名称\nH,ja,X病院\n");
         load("employments", "2026-04-01", "外部ID,ユーザー名,開始日\nE1,nurse,2020-04-01\n");
 
         assertEquals(List.of(), errors(load("employments", "2027-04-01", "外部ID,状態,休職理由\nE1,ON_LEAVE,parental\n")));
@@ -257,7 +268,7 @@ class CsvImportServiceTest {
         new AttributeDefinitionService(definitions, refItems).create("ORG_UNIT", "beds", "NUMBER", null, null, null);
         new AttributeDefinitionService(definitions, refItems).create("ORG_UNIT", "open", "BOOLEAN", null,
                 null, null);
-        orgUnits.create(new NewOrgUnit(null, "1病棟", null, null, null, null, null, null, "2026-04-01", null,
+        orgUnits.create(new NewOrgUnit(null, "ja", ja("1病棟"), null, null, "2026-04-01", null,
                 Map.of("note", "kept"), "W", "import"));
 
         assertEquals(List.of(), errors(load("orgUnits", "2026-05-01", """
@@ -302,7 +313,7 @@ class CsvImportServiceTest {
     @Test
     void aColumnOfAListAttributeTakesAJsonArray() {
         new AttributeDefinitionService(definitions, refItems).create("ORG_UNIT", "tags", "STRING", null, true, null);
-        load("orgUnits", "2026-04-01", "外部ID,名称\nW,1病棟\n");
+        load("orgUnits", "2026-04-01", "外部ID,主言語,名称\nW,ja,1病棟\n");
 
         assertEquals(List.of(), errors(load("orgUnits", "2026-05-01", """
                 外部ID,attributes.tags
@@ -324,7 +335,7 @@ class CsvImportServiceTest {
 
     @Test
     void loadsPeopleWithNoUserFromCsv() {
-        load("orgUnits", "2026-04-01", "外部ID,名称\nH,X病院\n");
+        load("orgUnits", "2026-04-01", "外部ID,主言語,名称\nH,ja,X病院\n");
 
         assertEquals(List.of(), errors(load("people", "2026-04-01", """
                 外部ID,名称,名称:en,よみがな
@@ -365,16 +376,16 @@ class CsvImportServiceTest {
 
     @Test
     void reportsBadRowsWithTheirLines() {
-        load("orgUnits", "2026-04-01", "外部ID,名称\nH,X病院\n");
+        load("orgUnits", "2026-04-01", "外部ID,主言語,名称\nH,ja,X病院\n");
 
         CsvImportService.Result result = load("orgUnits", "2026-04-01", """
-                外部ID,名称,表示順,親の外部ID
+                外部ID,主言語,名称,表示順,親の外部ID
 
-                A,A課,x,H
-                "B","two
+                A,ja,A課,x,H
+                "B",ja,"two
                 lines",1,NOPE
-                C,,,H
-                D,D課,2,H
+                C,ja,,,H
+                D,ja,D課,2,H
                 """);
 
         assertEquals(List.of("line 3 row 0 csv.bad_number", "line 4 row 1 import.parent_unknown",
@@ -414,20 +425,20 @@ class CsvImportServiceTest {
 
     @Test
     void headersIgnoreCaseAndSpacesAndTheSourceCanBeSet() {
-        CsvImportService.Result result = service.apply("orgUnits", " EXTERNALID , Name ,SOURCE\nH,X,\nK,Y,other\n",
+        CsvImportService.Result result = service.apply("orgUnits", " EXTERNALID , PrimaryLanguage, Name ,SOURCE\nH,ja,X,\nK,ja,Y,other\n",
                 "2026-04-01", false, "sheet");
 
         assertEquals(List.of(), errors(result));
         assertEquals("X", orgUnits.get(stored(ExternalId.Kind.ORG_UNIT, "sheet", "H"),
-                "2026-04-01").version().name());
+                "2026-04-01").version().names().primary().name());
         assertTrue(externalIdStore.idOf(ExternalId.Kind.ORG_UNIT, "other", "K").isPresent());
     }
 
     @Test
     void aRowForAUnitThatDoesNotExistOnTheDateIsReported() {
         load("orgUnits", "2026-04-01", """
-                externalId,name,shortName
-                H,Hospital,Hosp
+                externalId,primaryLanguage,name,shortName
+                H,en,Hospital,Hosp
                 """);
 
         // The unit starts in 2026. On a date in 2025 it has no stored values to keep.
@@ -453,7 +464,7 @@ class CsvImportServiceTest {
 
     @Test
     void aRowCanNameItsSourceAndAUserById() {
-        load("orgUnits", "2026-04-01", "source,externalId,name\nhr-2,W,Ward\n");
+        load("orgUnits", "2026-04-01", "source,externalId,primaryLanguage,name\nhr-2,W,en,Ward\n");
         CsvImportService.Result people = load("employments", "2026-04-01", """
                 source,externalId,userId
                 hr-2,E1,user-nurse

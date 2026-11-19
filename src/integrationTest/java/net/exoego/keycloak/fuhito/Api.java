@@ -227,6 +227,13 @@ final class Api {
         return MAPPER.readTree(response.body());
     }
 
+    // The name of each record of a list. An org unit also has a name in each of its languages, which this leaves out.
+    static List<String> names(JsonNode records) {
+        List<String> names = new ArrayList<>();
+        records.forEach(record -> names.add(record.get("name").asText()));
+        return names;
+    }
+
     // The IDs that systems have for a record, as "source=externalId", in the order of the response.
     static List<String> externalIds(JsonNode record) {
         List<String> ids = new ArrayList<>();

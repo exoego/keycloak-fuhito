@@ -92,16 +92,16 @@ class RealmExportIT {
         // The default hierarchy goes with its ID and its name.
         line = defaultHierarchy(api).get("id").asText();
         ok(api.putWithVersion("/hierarchies/" + line, "{\"name\": \"組織図\"}"));
-        String hospital = id(api.post("/org-units", "{\"name\": \"病院\", \"workLocation\": \"tokyo\", "
+        String hospital = id(api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"病院\"}}, \"workLocation\": \"tokyo\", "
                 + "\"validFrom\": \"2020-04-01\", \"externalId\": \"H-1\", \"source\": \"hr\"}"));
         ok(api.putWithVersion("/org-units/" + hospital + "/organization", "{\"organizationId\": \""
                 + source.organization("x-hospital") + "\"}"));
-        String ward = id(api.post("/org-units", "{\"name\": \"1病棟\", \"parentId\": \"" + hospital
+        String ward = id(api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"1病棟\"}}, \"parentId\": \"" + hospital
                 + "\", \"validFrom\": \"2020-04-01\"}"));
-        ok(api.putWithVersion("/org-units/" + ward, "{\"code\": \"W1\", \"name\": \"第1病棟\", \"validFrom\": \"2024-04-01\"}"));
+        ok(api.putWithVersion("/org-units/" + ward, "{\"code\": \"W1\", \"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"第1病棟\"}}, \"validFrom\": \"2024-04-01\"}"));
         ok(api.putWithVersion("/org-units/" + ward + "/parent?hierarchy=project", "{\"parentId\": \"" + hospital
                 + "\", \"validFrom\": \"2021-04-01\"}"));
-        String old = id(api.post("/org-units", "{\"name\": \"旧病棟\", \"validFrom\": \"2020-04-01\"}"));
+        String old = id(api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"旧病棟\"}}, \"validFrom\": \"2020-04-01\"}"));
         ok(api.postWithVersion("/reorganizations", "{\"effectiveDate\": \"2023-04-01\", \"steps\": [{\"op\": \"succeed\", "
                 + "\"id\": \"" + old + "\", \"successorIds\": [\"" + ward + "\"]}]}"));
         JsonNode nurse = Api.json(api.post("/staff", "{\"userId\": \"" + ids.get("nurse") + "\", \"orgUnitId\": \""
@@ -217,7 +217,7 @@ class RealmExportIT {
         TestRealm realm = TestRealm.withEmployer("export-replace", Map.of("fuhito.projection.enabled", "true"));
         Api api = realm.api;
         String nurse = realm.user("nurse");
-        String hospital = id(api.post("/org-units", "{\"name\": \"病院\", \"validFrom\": \"2020-04-01\", "
+        String hospital = id(api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"病院\"}}, \"validFrom\": \"2020-04-01\", "
                 + "\"externalId\": \"H-1\", \"source\": \"hr\"}"));
         ok(api.putWithVersion("/external-ids", "{\"resourceType\": \"ORG_UNIT\", \"resourceId\": \"" + hospital
                 + "\", \"source\": \"payroll\", \"externalId\": \"P-1\"}"));
@@ -236,8 +236,8 @@ class RealmExportIT {
         assertIdsAreApart(before, hospital);
 
         // Changes by mistake after the export.
-        ok(api.post("/org-units", "{\"name\": \"新病棟\", \"validFrom\": \"2020-04-01\"}"));
-        ok(api.putWithVersion("/org-units/" + hospital, "{\"name\": \"誤った名前\", \"validFrom\": \"2025-04-01\"}"));
+        ok(api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"新病棟\"}}, \"validFrom\": \"2020-04-01\"}"));
+        ok(api.putWithVersion("/org-units/" + hospital, "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"誤った名前\"}}, \"validFrom\": \"2025-04-01\"}"));
         ok(api.deleteWithVersion("/qualifications/" + license));
         ok(api.deleteWithVersion("/org-units/" + hospital + "/organization"));
         ok(api.deleteWithVersion("/external-ids?resourceType=ORG_UNIT&resourceId=" + hospital + "&source=hr"));
@@ -259,7 +259,7 @@ class RealmExportIT {
     @Test
     void aRestoreDoesNotBringBackErasedDataAndKeepsTheMasksOfTheExport() throws Exception {
         TestRealm realm = TestRealm.withEmployer("export-erased");
-        String hospital = id(realm.api.post("/org-units", "{\"name\": \"病院\", \"validFrom\": \"2020-04-01\"}"));
+        String hospital = id(realm.api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"病院\"}}, \"validFrom\": \"2020-04-01\"}"));
         List<String> users = List.of("erased", "masked");
         Map<String, String> people = new HashMap<>();
         for (String username : users) {
@@ -313,7 +313,7 @@ class RealmExportIT {
 
         ObjectNode located = JSON.createObjectNode().put("format", "fuhito.export.v1");
         ObjectNode placed = located.putArray("orgUnits").addObject().put("id", "u-0");
-        placed.putArray("versions").addObject().put("id", "v-0").put("validFrom", "2020-04-01").put("name", "X")
+        named(placed.putArray("versions").addObject().put("id", "v-0").put("validFrom", "2020-04-01"))
                 .put("workLocationId", "l-1");
         placed.putArray("parents");
         placed.putArray("successors");
@@ -328,8 +328,7 @@ class RealmExportIT {
             ArrayNode units = ids.putArray("orgUnits");
             for (String unitId : List.of("u-3", "u-4")) {
                 ObjectNode row = units.addObject().put("id", unitId).put("source", "hr");
-                row.putArray("versions").addObject().put("id", "v-" + unitId).put("validFrom", "2020-04-01")
-                        .put("name", "X");
+                named(row.putArray("versions").addObject().put("id", "v-" + unitId).put("validFrom", "2020-04-01"));
                 row.putArray("parents");
                 row.putArray("successors");
             }
@@ -344,7 +343,7 @@ class RealmExportIT {
         // A date that cannot be read, and a unit with no list of versions.
         ObjectNode badDate = JSON.createObjectNode().put("format", "fuhito.export.v1");
         ObjectNode unit = badDate.putArray("orgUnits").addObject().put("id", "u-1");
-        unit.putArray("versions").addObject().put("id", "v-1").put("validFrom", "someday").put("name", "X");
+        named(unit.putArray("versions").addObject().put("id", "v-1").put("validFrom", "someday"));
         unit.putArray("parents");
         unit.putArray("successors");
         assertEquals("restore.bad_value", error(target.api.post("/restore", JSON.writeValueAsString(badDate))));
@@ -353,6 +352,12 @@ class RealmExportIT {
         assertEquals("restore.bad_value", error(target.api.post("/restore", JSON.writeValueAsString(noVersions))));
         // Nothing was written.
         assertEquals(0, Api.json(target.api.get("/export/org-units")).size());
+    }
+
+    // Gives a version of an org unit in a document of a restore its names.
+    private static ObjectNode named(ObjectNode version) {
+        version.put("primaryLanguage", "ja").putObject("names").putObject("ja").put("name", "X");
+        return version;
     }
 
     private static String error(HttpResponse<String> response) throws Exception {
@@ -389,7 +394,7 @@ class RealmExportIT {
 
         ObjectNode linked = JSON.createObjectNode().put("format", "fuhito.export.v1");
         ObjectNode unit = linked.putArray("orgUnits").addObject().put("id", "u-1").put("organizationAlias", "nope");
-        unit.putArray("versions").addObject().put("id", "v-1").put("validFrom", "2020-04-01").put("name", "X");
+        named(unit.putArray("versions").addObject().put("id", "v-1").put("validFrom", "2020-04-01"));
         unit.putArray("parents");
         unit.putArray("successors");
         HttpResponse<String> unknown = target.api.post("/restore", JSON.writeValueAsString(linked));

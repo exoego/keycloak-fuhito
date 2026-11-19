@@ -33,7 +33,7 @@ class ListsIT {
         realm.refItem("QUALIFICATION", "license", "免許");
         realm.refItem("OCCUPATION", "nurse", "看護師");
         realm.refItem("ASSIGNMENT_KIND", "regular", "本務");
-        String ward = Api.json(api.post("/org-units", "{\"name\": \"1病棟\", \"validFrom\": \"2026-04-01\"}"))
+        String ward = Api.json(api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"1病棟\"}}, \"validFrom\": \"2026-04-01\"}"))
                 .get("id").asText();
         List<String> users = new ArrayList<>();
         for (int i = 0; i < 3; i++) {

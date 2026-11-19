@@ -101,7 +101,7 @@ class ProjectionScheduleIT {
                         + "/admin/realms/" + realm + "/organizations/" + organization + "/groups"))
                 .header("Authorization", "Bearer " + token(admin)).build(), HttpResponse.BodyHandlers.ofString());
         assertEquals(200, response.statusCode(), response.body());
-        return Api.json(response).findValuesAsText("name").stream().sorted().toList();
+        return Api.names(Api.json(response)).stream().sorted().toList();
     }
 
     // The last run that is done, from a call or from the timer, or null when none is done.
@@ -157,9 +157,9 @@ class ProjectionScheduleIT {
         createRealm(admin, "a-failing", "UTC");
         String organization = OrganizationLinkIT.createOrganization(admin, "a-failing", "failing");
         Api api = new Api(keycloak.getAuthServerUrl(), "a-failing", token(admin));
-        String clinic = post(api, "/org-units", "{\"name\": \"Clinic\", \"validFrom\": \"2020-04-01\"}");
+        String clinic = post(api, "/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"Clinic\"}}, \"validFrom\": \"2020-04-01\"}");
         for (int i = 0; i < 2; i++) {
-            post(api, "/org-units", "{\"name\": \"Office\", \"parentId\": \"" + clinic
+            post(api, "/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"Office\"}}, \"parentId\": \"" + clinic
                     + "\", \"validFrom\": \"2020-04-01\"}");
         }
         assertEquals(200, api.putWithVersion("/org-units/" + clinic + "/organization",
@@ -173,8 +173,8 @@ class ProjectionScheduleIT {
         createRealm(admin, "a-crashing", "UTC");
         String organization = OrganizationLinkIT.createOrganization(admin, "a-crashing", "crashing");
         Api api = new Api(keycloak.getAuthServerUrl(), "a-crashing", token(admin));
-        String lost = post(api, "/org-units", "{\"name\": \"Lost\", \"validFrom\": \"2020-04-01\"}");
-        post(api, "/org-units", "{\"name\": \"Below\", \"parentId\": \"" + lost
+        String lost = post(api, "/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"Lost\"}}, \"validFrom\": \"2020-04-01\"}");
+        post(api, "/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"Below\"}}, \"parentId\": \"" + lost
                 + "\", \"validFrom\": \"2020-04-01\"}");
         assertEquals(200, api.putWithVersion("/org-units/" + lost + "/organization",
                 "{\"organizationId\": \"" + organization + "\"}").statusCode());
@@ -189,8 +189,8 @@ class ProjectionScheduleIT {
         String organization = OrganizationLinkIT.createOrganization(admin, "b-working", "hospital");
         Api api = new Api(keycloak.getAuthServerUrl(), "b-working", token(admin));
         TestRealm.legalEntity(api, "法人");
-        String hospital = post(api, "/org-units", "{\"name\": \"Hospital\", \"validFrom\": \"2020-04-01\"}");
-        String nursing = post(api, "/org-units", "{\"name\": \"Nursing\", \"parentId\": \"" + hospital
+        String hospital = post(api, "/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"Hospital\"}}, \"validFrom\": \"2020-04-01\"}");
+        String nursing = post(api, "/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"Nursing\"}}, \"parentId\": \"" + hospital
                 + "\", \"validFrom\": \"2020-04-01\"}");
         var user = new UserRepresentation();
         user.setUsername("nurse");

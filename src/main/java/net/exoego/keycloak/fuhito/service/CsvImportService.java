@@ -29,7 +29,10 @@ import net.exoego.keycloak.fuhito.domain.EmploymentStatus;
 import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.Hierarchy;
+import net.exoego.keycloak.fuhito.domain.Localized;
+import net.exoego.keycloak.fuhito.domain.OrgUnitName;
 import net.exoego.keycloak.fuhito.domain.OrgUnitSuccession;
+import net.exoego.keycloak.fuhito.domain.OrgUnitVersion;
 import net.exoego.keycloak.fuhito.domain.Person;
 import net.exoego.keycloak.fuhito.domain.Qualification;
 import net.exoego.keycloak.fuhito.domain.RefItem;
@@ -114,7 +117,7 @@ public class CsvImportService {
             Map.entry("approverUserId", "承認者のユーザーID"), Map.entry("approverUsername", "承認者のユーザー名"),
             Map.entry("requesterUserId", "申請者のユーザーID"), Map.entry("requesterUsername", "申請者のユーザー名"),
             Map.entry("externalReference", "外部の参照"), Map.entry("timeZone", "タイムゾーン"),
-            Map.entry("dayStart", "日の始まり"),
+            Map.entry("dayStart", "日の始まり"), Map.entry("primaryLanguage", "主言語"),
             Map.entry("continuesEmploymentExternalId", "引き継ぎ元の雇用の外部ID"),
             Map.entry("continuesEmploymentId", "引き継ぎ元の雇用のID"),
             Map.entry("continuesAssignmentExternalId", "引き継ぎ元の所属の外部ID"),
@@ -173,9 +176,9 @@ public class CsvImportService {
                     "managerPersonExternalId", "managerPersonId", "managerUsername", "kind", "validFrom", "validTo")),
             Map.entry(Kind.REF_ITEMS, Set.of("kind", "code", "name", "displayOrder", "active", "legalEntity",
                     "actingHead", "lateral", "validFrom")),
-            Map.entry(Kind.ORG_UNITS, Set.of("id", "externalId", "source", "code", "name", "shortName",
-                    "phoneticName", "unitType", "workLocation", "costCenter", "parentExternalId", "parentId",
-                    "displayOrder", "validFrom", "validTo", "successorExternalIds", "successorIds",
+            Map.entry(Kind.ORG_UNITS, Set.of("id", "externalId", "source", "code", "primaryLanguage", "name",
+                    "shortName", "phoneticName", "unitType", "workLocation", "costCenter", "parentExternalId",
+                    "parentId", "displayOrder", "validFrom", "validTo", "successorExternalIds", "successorIds",
                     "organizationAlias", "timeZone", "dayStart")),
             Map.entry(Kind.EMPLOYMENTS, Set.of("id", "externalId", "source", "username", "userId", "staffNumber",
                     "employmentType", "grade", "status", "leaveReason", "workPercent", "contractEndDate", "validFrom",
@@ -188,7 +191,8 @@ public class CsvImportService {
                     "costCenter", "head", "primary", "allocationPercent", "displayOrder", "validFrom", "validTo",
                     "continuesAssignmentExternalId", "continuesAssignmentId")));
 
-    private static final Set<String> LOCALIZED = Set.of("name", "shortName");
+    private static final Set<String> LOCALIZED = Set.of("name");
+    private static final Set<String> UNIT_NAMES = Set.of("name", "shortName", "phoneticName");
     static final String ATTRIBUTE_COLUMN = "attributes.";
     private static final Set<String> TRUE = Set.of("true", "1", "yes", "y", "はい", "○", "〇");
     private static final Set<String> FALSE = Set.of("false", "0", "no", "n", "いいえ", "×");
@@ -238,7 +242,8 @@ public class CsvImportService {
             throw FuhitoException.invalid("csv.no_header", Map.of());
         }
         List<AttributeDefinition> defined = kind.target == null ? List.of() : definitions.apply(kind.target);
-        List<String> columns = columns(rows.getFirst().cells(), FIELDS.get(kind), defined);
+        List<String> columns = columns(rows.getFirst().cells(), FIELDS.get(kind),
+                kind == Kind.ORG_UNITS ? UNIT_NAMES : LOCALIZED, defined);
         List<Csv.Row> data = rows.subList(1, rows.size());
 
         // Each list has its own type of row, so the rows keep that type from the cells to the import.
@@ -288,7 +293,8 @@ public class CsvImportService {
         return new Result(report, errors);
     }
 
-    private static List<String> columns(List<String> header, Set<String> fields, List<AttributeDefinition> defined) {
+    private static List<String> columns(List<String> header, Set<String> fields, Set<String> localizedFields,
+            List<AttributeDefinition> defined) {
         Map<String, String> byName = new HashMap<>();
         HEADERS.forEach((field, japanese) -> {
             byName.put(field.toLowerCase(Locale.ROOT), field);
@@ -313,7 +319,7 @@ public class CsvImportService {
                 field = byName.get(base.toLowerCase(Locale.ROOT));
             }
             boolean localized = colon >= 0;
-            if (field == null || !fields.contains(field) || (localized && !LOCALIZED.contains(field))
+            if (field == null || !fields.contains(field) || (localized && !localizedFields.contains(field))
                     || columns.contains(localized ? field + name.substring(colon) : field)) {
                 throw FuhitoException.invalid("csv.bad_column", Map.of("column", name));
             }
@@ -480,6 +486,13 @@ public class CsvImportService {
                     .flatMap(unit -> quietly(() -> orgUnitService.get(unit, date.toString())));
         }
         var version = stored.map(OrgUnitState::version);
+        Optional<Localized<OrgUnitName>> names = version.map(OrgUnitVersion::names);
+        String primaryLanguage = cells.text("primaryLanguage", names.map(Localized::primaryLanguage).orElse(null));
+        if (primaryLanguage != null) {
+            primaryLanguage = Checks.languageTag("primaryLanguage", primaryLanguage);
+        }
+        Map<String, OrgUnitName> rowNames = cells.unitNames(primaryLanguage,
+                names.map(Localized::byLanguage).orElse(Map.of()));
         String rowSource = source == null ? defaultSource : source;
         Optional<String> parent = stored.map(OrgUnitState::parentId);
         // A blank cell keeps the stored parent. One with no external ID of the source is kept by its ID.
@@ -493,11 +506,7 @@ public class CsvImportService {
             keptParentId = cells.text("parentId", null);
         }
         return new OrgUnitRow(source, externalId, cells.text("code", version.map(v -> v.code()).orElse(null)),
-                cells.text("name", version.map(v -> v.name()).orElse(null)),
-                cells.localized("name", version.map(v -> v.names()).orElse(Map.of())),
-                cells.text("shortName", version.map(v -> v.shortName()).orElse(null)),
-                cells.localized("shortName", version.map(v -> v.shortNames()).orElse(Map.of())),
-                cells.text("phoneticName", version.map(v -> v.phoneticName()).orElse(null)),
+                primaryLanguage, rowNames,
                 cells.text("unitType", stored.map(OrgUnitState::unitType).orElse(null)),
                 parentExternalId, keptParentId,
                 cells.integer("displayOrder", version.map(v -> v.displayOrder()).orElse(null)),
@@ -752,6 +761,47 @@ public class CsvImportService {
             } catch (NumberFormatException e) {
                 throw FuhitoException.invalid("csv.bad_number", Map.of("field", field, "value", value)).causedBy(e);
             }
+        }
+
+        // The columns with no language set the primary names. A column like "name:en" sets the names of one
+        // language, and "name:en" with #CLEAR removes them. The other languages keep what is stored.
+        Map<String, OrgUnitName> unitNames(String primaryLanguage, Map<String, OrgUnitName> stored) {
+            Map<String, OrgUnitName> result = new LinkedHashMap<>(stored);
+            values.forEach((column, value) -> {
+                int colon = column.indexOf(':');
+                if (colon < 0 || value.isEmpty() || column.startsWith(ATTRIBUTE_COLUMN)) {
+                    return;
+                }
+                String field = column.substring(0, colon);
+                String language = Checks.languageTag(column, column.substring(colon + 1));
+                if (field.equals("name") && value.equals(CLEAR)) {
+                    result.remove(language);
+                } else {
+                    result.put(language, with(result.get(language), field, value));
+                }
+            });
+            if (primaryLanguage != null) {
+                OrgUnitName primary = result.getOrDefault(primaryLanguage, new OrgUnitName(null, null, null));
+                for (String field : List.of("name", "shortName", "phoneticName")) {
+                    String value = values.getOrDefault(field, "");
+                    if (!value.isEmpty()) {
+                        primary = with(primary, field, value);
+                    }
+                }
+                // With no name, the row fails as a row with a missing name.
+                result.put(primaryLanguage, primary);
+            }
+            return result;
+        }
+
+        private static OrgUnitName with(OrgUnitName names, String field, String value) {
+            String text = value.equals(CLEAR) ? null : value;
+            OrgUnitName base = names == null ? new OrgUnitName(null, null, null) : names;
+            return switch (field) {
+                case "name" -> new OrgUnitName(text, base.shortName(), base.phoneticName());
+                case "shortName" -> new OrgUnitName(base.name(), text, base.phoneticName());
+                default -> new OrgUnitName(base.name(), base.shortName(), text);
+            };
         }
 
         // A column like "name:en" sets one language. The other languages keep what is stored.

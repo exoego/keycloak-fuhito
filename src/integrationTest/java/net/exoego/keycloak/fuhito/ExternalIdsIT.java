@@ -26,7 +26,7 @@ class ExternalIdsIT {
     void aUnitHasTheIdsOfSeveralSystems() throws Exception {
         TestRealm realm = TestRealm.withEmployer("external-ids");
         Api api = realm.api;
-        HttpResponse<String> unit = api.post("/org-units", "{\"name\": \"1病棟\", \"validFrom\": \"2020-04-01\", "
+        HttpResponse<String> unit = api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"1病棟\"}}, \"validFrom\": \"2020-04-01\", "
                 + "\"externalId\": \"W-1\", \"source\": \"hr\"}");
         assertEquals(201, unit.statusCode(), unit.body());
         String ward = Api.json(unit).get("id").asText();
@@ -50,20 +50,20 @@ class ExternalIdsIT {
         assertFalse(Api.json(api.get("/change-log?resourceType=FUHITO_EXTERNAL_ID")).isEmpty());
         // A change of the details can give the unit the ID of one more system.
         assertEquals(List.of("hr=W-1", "budget=B-3", "ledger=L-1", "payroll=P-9"), Api.externalIds(ok(api.putWithVersion(
-                "/org-units/" + ward, "{\"name\": \"1病棟\", \"validFrom\": \"2020-04-01\", \"source\": \"ledger\", "
+                "/org-units/" + ward, "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"1病棟\"}}, \"validFrom\": \"2020-04-01\", \"source\": \"ledger\", "
                         + "\"externalId\": \"L-1\"}"))));
         // A new unit or person cannot take an ID that names another one, whichever system made that one.
         for (String taken : List.of("\"externalId\": \"W-1\", \"source\": \"hr\"",
                 "\"externalId\": \"P-9\", \"source\": \"payroll\"")) {
             assertEquals("external_id.taken", errorOf(409, api.post("/org-units",
-                    "{\"name\": \"2病棟\", \"validFrom\": \"2020-04-01\", " + taken + "}")));
+                    "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"2病棟\"}}, \"validFrom\": \"2020-04-01\", " + taken + "}")));
         }
         String other = Api.json(api.post("/people", "{\"name\": \"Other\"}")).get("id").asText();
         ok(api.putWithVersion("/external-ids", "{\"resourceType\": \"PERSON\", \"resourceId\": \"" + other
                 + "\", \"source\": \"payroll\", \"externalId\": \"E-1\"}"));
         assertEquals("external_id.taken", errorOf(409, api.post("/people",
                 "{\"name\": \"New\", \"externalId\": \"E-1\", \"source\": \"payroll\"}")));
-        String third = Api.json(api.post("/org-units", "{\"name\": \"3病棟\", \"validFrom\": \"2020-04-01\"}"))
+        String third = Api.json(api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"3病棟\"}}, \"validFrom\": \"2020-04-01\"}"))
                 .get("id").asText();
         assertEquals("external_id.taken", errorOf(409, api.putWithVersion("/external-ids", "{\"resourceType\": \"ORG_UNIT\", "
                 + "\"resourceId\": \"" + third + "\", \"source\": \"hr\", \"externalId\": \"W-1\"}")));
@@ -87,7 +87,7 @@ class ExternalIdsIT {
     void aMaskRemovesTheIdsOfAPersonAndEveryKindHasTheIdsOfEverySystem() throws Exception {
         TestRealm realm = TestRealm.withEmployer("external-ids-kinds");
         Api api = realm.api;
-        String ward = Api.json(api.post("/org-units", "{\"name\": \"1病棟\", \"validFrom\": \"2020-04-01\"}"))
+        String ward = Api.json(api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"1病棟\"}}, \"validFrom\": \"2020-04-01\"}"))
                 .get("id").asText();
         // A person who left is masked, and the IDs of the person in other systems go away.
         String user = realm.user("former");
@@ -152,7 +152,7 @@ class ExternalIdsIT {
         assertEquals(204, api.deleteWithVersion("/qualifications/" + license).statusCode());
         assertEquals("external_id.unknown", errorOf(404, api.get(lookup + "QUALIFICATION&source=hr&externalId=Q-1")));
 
-        String unit = Api.json(api.post("/org-units", "{\"name\": \"病棟\", \"validFrom\": \"2020-04-01\"}"))
+        String unit = Api.json(api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"病棟\"}}, \"validFrom\": \"2020-04-01\"}"))
                 .get("id").asText();
         String employment = Api.json(api.post("/employments", "{\"personId\": \"" + holder + "\", \"validFrom\": "
                 + "\"2020-04-01\", \"externalId\": \"E-1\", \"source\": \"hr\"}")).get("id").asText();

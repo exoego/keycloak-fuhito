@@ -47,7 +47,7 @@ class AssignmentsIT {
 
     private static String unit(String name, String parentId) throws Exception {
         String parent = parentId == null ? "" : ", \"parentId\": \"" + parentId + "\"";
-        return id(api.post("/org-units", "{\"name\": \"" + name + "\"" + parent + ", \"validFrom\": \"2026-04-01\"}"));
+        return id(api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"" + name + "\"}}" + parent + ", \"validFrom\": \"2026-04-01\"}"));
     }
 
     private static String id(HttpResponse<String> response) throws Exception {
@@ -219,8 +219,8 @@ class AssignmentsIT {
         Api scratchApi = scratch.api;
         scratch.refItem("JOB_TITLE", "staff", "医員");
         scratch.refItem("JOB_TITLE", "director", "部長");
-        String medicine = id(scratchApi.post("/org-units", "{\"name\": \"内科\", \"validFrom\": \"2020-04-01\"}"));
-        String surgery = id(scratchApi.post("/org-units", "{\"name\": \"外科\", \"validFrom\": \"2020-04-01\"}"));
+        String medicine = id(scratchApi.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"内科\"}}, \"validFrom\": \"2020-04-01\"}"));
+        String surgery = id(scratchApi.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"外科\"}}, \"validFrom\": \"2020-04-01\"}"));
         String doctor = scratch.user("doctor");
         JsonNode hired = Api.json(scratchApi.post("/staff", "{\"userId\": \"" + doctor + "\", \"orgUnitId\": \"" + medicine
                 + "\", \"jobTitle\": \"staff\", \"validFrom\": \"2020-04-01\"}"));

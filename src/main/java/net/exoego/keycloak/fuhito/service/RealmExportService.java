@@ -26,6 +26,7 @@ import net.exoego.keycloak.fuhito.domain.EmploymentTerms;
 import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.Hierarchy;
+import net.exoego.keycloak.fuhito.domain.Localized;
 import net.exoego.keycloak.fuhito.domain.OrgUnit;
 import net.exoego.keycloak.fuhito.domain.OrgUnitLink;
 import net.exoego.keycloak.fuhito.domain.OrgUnitSuccession;
@@ -193,9 +194,8 @@ public class RealmExportService {
                 unit.timeZone(), unit.dayStart(),
                 versions.getOrDefault(unit.id(), List.of()).stream()
                         .map(v -> new RealmExport.Version(v.id(), from(v.period()), to(v.period()), v.code(),
-                                v.name(), v.names(), v.shortName(), v.shortNames(), v.phoneticName(),
-                                v.unitTypeId(), v.workLocationId(), v.costCenterId(), v.displayOrder(),
-                                v.attributes()))
+                                v.names().primaryLanguage(), v.names().byLanguage(), v.unitTypeId(),
+                                v.workLocationId(), v.costCenterId(), v.displayOrder(), v.attributes()))
                         .toList(),
                 // The ID of the default hierarchy differs between realms, so the code gives the order.
                 links.getOrDefault(unit.id(), List.of()).stream()
@@ -413,8 +413,9 @@ public class RealmExportService {
                 u.dayStart(), version(u.version()))));
         for (RealmExport.Unit u : units) {
             u.versions().forEach(v -> store.insertVersion(new OrgUnitVersion(v.id(), u.id(), period(v.validFrom(),
-                    v.validTo()), v.code(), v.name(), v.names(), v.shortName(), v.shortNames(), v.phoneticName(),
-                    v.unitTypeId(), v.workLocationId(), v.costCenterId(), v.displayOrder(), v.attributes())));
+                    v.validTo()), v.code(), Localized.check(v.primaryLanguage(), v.names(),
+                    (field, name) -> name.checked(field)), v.unitTypeId(),
+                    v.workLocationId(), v.costCenterId(), v.displayOrder(), v.attributes())));
         }
         for (RealmExport.Unit u : units) {
             for (RealmExport.Parent p : u.parents()) {

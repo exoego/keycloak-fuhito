@@ -49,7 +49,7 @@ class OrgUnitTreeIT {
         assertEquals(200, api.putWithVersion("/org-units/" + ward1 + "/parent",
                 "{\"parentId\": \"" + yHospital + "\", \"validFrom\": \"2027-04-01\"}").statusCode());
         assertEquals(200, api.putWithVersion("/org-units/" + ward1,
-                "{\"name\": \"東病棟\", \"phoneticName\": \"ひがしびょうとう\", \"validFrom\": \"2027-04-01\"}").statusCode());
+                "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"東病棟\", \"phoneticName\": \"ひがしびょうとう\"}}, \"validFrom\": \"2027-04-01\"}").statusCode());
         assertEquals(200, api.putWithVersion("/org-units/" + surgery + "/end", "{\"validTo\": \"2027-04-01\"}").statusCode());
     }
 
@@ -66,8 +66,9 @@ class OrgUnitTreeIT {
             throws Exception {
         String parent = parentId == null ? "" : ", \"parentId\": \"" + parentId + "\"";
         String type = unitType == null ? "" : ", \"unitType\": \"" + unitType + "\"";
-        HttpResponse<String> response = api.post("/org-units", "{\"name\": \"" + name + "\", \"phoneticName\": \""
-                + phoneticName + "\", \"displayOrder\": " + displayOrder + parent + type
+        HttpResponse<String> response = api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": "
+                + "{\"name\": \"" + name + "\", \"phoneticName\": \"" + phoneticName + "\"}}, \"displayOrder\": "
+                + displayOrder + parent + type
                 + ", \"validFrom\": \"2026-04-01\"}");
         assertEquals(201, response.statusCode(), response.body());
         return Api.json(response).get("id").asText();
@@ -75,15 +76,15 @@ class OrgUnitTreeIT {
 
     private static List<String> names(HttpResponse<String> response) throws Exception {
         assertEquals(200, response.statusCode(), response.body());
-        return Api.json(response).findValuesAsText("name");
+        return Api.names(Api.json(response));
     }
 
     @Test
     void listsTheWholeTreeOnTwoDates() throws Exception {
         assertEquals(List.of("X病院", "診療部", "看護部", "1病棟", "2病棟", "Y病院", "外科"),
-                api.tree("asOf=2027-03-31").findValuesAsText("name"));
+                Api.names(api.tree("asOf=2027-03-31")));
         assertEquals(List.of("X病院", "診療部", "看護部", "2病棟", "Y病院", "東病棟"),
-                api.tree("asOf=2027-04-01").findValuesAsText("name"));
+                Api.names(api.tree("asOf=2027-04-01")));
         assertEquals(List.of("看護部", "1病棟"), names(api.get("/org-units/" + xHospital + "/subtree?asOf=2027-03-31&first=2&max=2")));
         assertEquals(List.of("Y病院"), names(api.get("/org-units?roots=true&asOf=2027-03-31&first=1")));
         assertEquals(List.of("X病院", "Y病院"), names(api.get("/org-units?roots=true&asOf=2027-03-31")));
@@ -115,7 +116,7 @@ class OrgUnitTreeIT {
                 names(realm.api.get("/org-units?" + on)));
 
         List<String> tree = List.of("Root", "総務", "眼科", "外科", "内科", "第一内科", "第二内科", "Alpha", "Zebra", "Other");
-        assertEquals(tree, realm.api.tree(on).findValuesAsText("name"));
+        assertEquals(tree, Api.names(realm.api.tree(on)));
         List<String> paged = new ArrayList<>();
         for (int first = 0; first < 9; first += 3) {
             paged.addAll(names(realm.api.get("/org-units/" + root + "/subtree?first=" + first + "&max=3&" + on)));
@@ -133,7 +134,8 @@ class OrgUnitTreeIT {
             throws Exception {
         String phonetic = phoneticName == null ? "" : ", \"phoneticName\": \"" + phoneticName + "\"";
         String parent = parentId == null ? "" : ", \"parentId\": \"" + parentId + "\"";
-        HttpResponse<String> response = realm.api.post("/org-units", "{\"name\": \"" + name + "\"" + phonetic + parent
+        HttpResponse<String> response = realm.api.post("/org-units", "{\"primaryLanguage\": \"ja\", "
+                + "\"names\": {\"ja\": {\"name\": \"" + name + "\"" + phonetic + "}}" + parent
                 + ", \"displayOrder\": " + displayOrder + ", \"validFrom\": \"2026-04-01\"}");
         assertEquals(201, response.statusCode(), response.body());
         return Api.json(response).get("id").asText();
@@ -143,7 +145,7 @@ class OrgUnitTreeIT {
     void listsRootsWithTheirUnitType() throws Exception {
         JsonNode roots = Api.json(api.get("/org-units?roots=true&asOf=2026-04-01"));
 
-        assertEquals(List.of("X病院", "Y病院"), roots.findValuesAsText("name"));
+        assertEquals(List.of("X病院", "Y病院"), Api.names(roots));
         assertEquals(List.of("hospital", "hospital"), roots.findValuesAsText("unitType"));
         assertFalse(roots.get(0).has("parentId"));
     }
@@ -167,7 +169,7 @@ class OrgUnitTreeIT {
         assertEquals(200, response.statusCode(), response.body());
         JsonNode history = Api.json(response);
         assertEquals(ward1, history.get("id").asText());
-        assertEquals(List.of("1病棟", "東病棟"), history.get("versions").findValuesAsText("name"));
+        assertEquals(List.of("1病棟", "東病棟"), Api.names(history.get("versions")));
         assertEquals("2027-04-01", history.get("versions").get(0).get("validTo").asText());
         assertFalse(history.get("versions").get(1).has("validTo"));
         assertEquals(List.of(nursing, yHospital), history.get("parents").findValuesAsText("parentId"));

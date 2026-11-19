@@ -33,30 +33,30 @@ class ReorganizationIT {
 
     private static String unit(String name, String parentId, int displayOrder) throws Exception {
         String parent = parentId == null ? "" : ", \"parentId\": \"" + parentId + "\"";
-        HttpResponse<String> response = api.post("/org-units", "{\"name\": \"" + name + "\"" + parent
+        HttpResponse<String> response = api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"" + name + "\"}}" + parent
                 + ", \"displayOrder\": " + displayOrder + ", \"validFrom\": \"2026-04-01\"}");
         assertEquals(201, response.statusCode(), response.body());
         return Api.json(response).get("id").asText();
     }
 
     private static List<String> names(String asOf) throws Exception {
-        return api.tree("asOf=" + asOf).findValuesAsText("name");
+        return Api.names(api.tree("asOf=" + asOf));
     }
 
     @Test
     void aMergerLinksTheOldUnitsToTheNewOne() throws Exception {
         Api own = TestRealm.create("succession").api;
-        String root = Api.json(own.post("/org-units", "{\"name\": \"Y病院\", \"validFrom\": \"2026-04-01\"}"))
+        String root = Api.json(own.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"Y病院\"}}, \"validFrom\": \"2026-04-01\"}"))
                 .get("id").asText();
-        String east = Api.json(own.post("/org-units", "{\"name\": \"東病棟\", \"parentId\": \"" + root
+        String east = Api.json(own.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"東病棟\"}}, \"parentId\": \"" + root
                 + "\", \"validFrom\": \"2026-04-01\"}")).get("id").asText();
-        String west = Api.json(own.post("/org-units", "{\"name\": \"西病棟\", \"parentId\": \"" + root
+        String west = Api.json(own.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"西病棟\"}}, \"parentId\": \"" + root
                 + "\", \"validFrom\": \"2026-04-01\"}")).get("id").asText();
 
         // A failed step writes no link.
         HttpResponse<String> bad = own.postWithVersion("/reorganizations", """
                 {"effectiveDate": "2027-04-01", "steps": [
-                  {"op": "create", "ref": "merged", "name": "中央病棟", "parentId": "%s"},
+                  {"op": "create", "ref": "merged", "primaryLanguage": "ja", "names": {"ja": {"name": "中央病棟"}}, "parentId": "%s"},
                   {"op": "succeed", "id": "%s", "successorRefs": ["merged"]},
                   {"op": "succeed", "id": "%s"}
                 ]}
@@ -68,7 +68,7 @@ class ReorganizationIT {
 
         HttpResponse<String> response = own.postWithVersion("/reorganizations", """
                 {"effectiveDate": "2027-04-01", "steps": [
-                  {"op": "create", "ref": "merged", "name": "中央病棟", "parentId": "%s"},
+                  {"op": "create", "ref": "merged", "primaryLanguage": "ja", "names": {"ja": {"name": "中央病棟"}}, "parentId": "%s"},
                   {"op": "succeed", "id": "%s", "successorRefs": ["merged"]},
                   {"op": "succeed", "id": "%s", "successorRefs": ["merged"]}
                 ]}
@@ -81,7 +81,7 @@ class ReorganizationIT {
         assertEquals(1, results.get(1).get("successorIds").size());
         assertEquals(merged, results.get(1).get("successorIds").get(0).asText());
         assertEquals("2027-04-01", results.get(1).get("unit").get("validTo").asText());
-        assertEquals(List.of("Y病院", "中央病棟"), own.tree("asOf=2027-04-01").findValuesAsText("name"));
+        assertEquals(List.of("Y病院", "中央病棟"), Api.names(own.tree("asOf=2027-04-01")));
 
         JsonNode ofMerged = Api.json(own.get("/org-units/" + merged + "/succession"));
         // Links of one date come in the order of their IDs.
@@ -104,8 +104,8 @@ class ReorganizationIT {
 
         HttpResponse<String> response = api.postWithVersion("/reorganizations?changeOrder=" + order, """
                 {"effectiveDate": "2027-04-01", "steps": [
-                  {"op": "change", "id": "%s", "name": "X総合病院"},
-                  {"op": "create", "ref": "clinical", "name": "診療部", "parentId": "%s", "displayOrder": 1},
+                  {"op": "change", "id": "%s", "primaryLanguage": "ja", "names": {"ja": {"name": "X総合病院"}}},
+                  {"op": "create", "ref": "clinical", "primaryLanguage": "ja", "names": {"ja": {"name": "診療部"}}, "parentId": "%s", "displayOrder": 1},
                   {"op": "move", "id": "%s", "parentRef": "clinical"},
                   {"op": "move", "id": "%s", "parentRef": "clinical"},
                   {"op": "end", "id": "%s"}
@@ -122,7 +122,7 @@ class ReorganizationIT {
         assertEquals(List.of("X病院", "内科", "外科", "旧事務室"), names("2027-03-31"));
         assertEquals(List.of("X総合病院", "診療部", "内科", "外科"), names("2027-04-01"));
         assertEquals(List.of("X総合病院", "診療部", "内科"),
-                Api.json(api.get("/org-units/" + medicine + "/path?asOf=2027-04-01")).findValuesAsText("name"));
+                Api.names(Api.json(api.get("/org-units/" + medicine + "/path?asOf=2027-04-01"))));
 
         JsonNode changes = Api.json(api.get("/change-orders/" + order + "/changes"));
         assertEquals(List.of(hospital, clinical, medicine, surgery, oldOffice), changes.findValuesAsText("resourceId"));
@@ -134,8 +134,8 @@ class ReorganizationIT {
     @Test
     void aFailedStepWritesNothing() throws Exception {
         TestRealm scratch = TestRealm.create("reorganization-failed");
-        String root = Api.json(scratch.api.post("/org-units", "{\"name\": \"Root\", \"validFrom\": \"2026-04-01\"}")).get("id").asText();
-        String child = Api.json(scratch.api.post("/org-units", "{\"name\": \"Child\", \"parentId\": \"" + root + "\", \"validFrom\": \"2026-04-01\"}")).get("id").asText();
+        String root = Api.json(scratch.api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"Root\"}}, \"validFrom\": \"2026-04-01\"}")).get("id").asText();
+        String child = Api.json(scratch.api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"Child\"}}, \"parentId\": \"" + root + "\", \"validFrom\": \"2026-04-01\"}")).get("id").asText();
         String before = scratch.api.tree("asOf=2030-01-01").toString();
         String rows = "select count(*) from fuhito_org_unit_version where realm_id = '" + scratch.id() + "'";
         String logRows = "select count(*) from fuhito_change_log where realm_id = '" + scratch.id() + "'";
@@ -145,8 +145,8 @@ class ReorganizationIT {
         // The last step fails, because the root still has a child.
         HttpResponse<String> response = scratch.api.postWithVersion("/reorganizations", """
                 {"effectiveDate": "2027-04-01", "steps": [
-                  {"op": "change", "id": "%s", "name": "Renamed"},
-                  {"op": "create", "ref": "new", "name": "New"},
+                  {"op": "change", "id": "%s", "primaryLanguage": "ja", "names": {"ja": {"name": "Renamed"}}},
+                  {"op": "create", "ref": "new", "primaryLanguage": "ja", "names": {"ja": {"name": "New"}}},
                   {"op": "end", "id": "%s"}
                 ]}
                 """.formatted(child, root));
@@ -163,12 +163,12 @@ class ReorganizationIT {
     @Test
     void aStepOfAStoredUnitNamesItsVersion() throws Exception {
         Api own = TestRealm.create("reorganization-versions").api;
-        String root = Api.json(own.post("/org-units", "{\"name\": \"Root\", \"validFrom\": \"2026-04-01\"}"))
+        String root = Api.json(own.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"Root\"}}, \"validFrom\": \"2026-04-01\"}"))
                 .get("id").asText();
         String steps = """
                 {"effectiveDate": "2027-04-01", "steps": [
-                  {"op": "create", "ref": "new", "name": "New"},
-                  {"op": "change", "id": "%s", "name": "Renamed"%s},
+                  {"op": "create", "ref": "new", "primaryLanguage": "ja", "names": {"ja": {"name": "New"}}},
+                  {"op": "change", "id": "%s", "primaryLanguage": "ja", "names": {"ja": {"name": "Renamed"}}%s},
                   {"op": "move", "unitRef": "new", "parentId": "%s"}
                 ]}""";
 
@@ -181,12 +181,12 @@ class ReorganizationIT {
         assertEquals("version.conflict", Api.json(old).get("error").asText());
         assertEquals("1", Api.json(old).get("params").get("version").asText());
         assertEquals("1", Api.json(old).get("params").get("step").asText());
-        assertEquals(List.of("Root"), own.tree("asOf=2027-04-01").findValuesAsText("name"));
+        assertEquals(List.of("Root"), Api.names(own.tree("asOf=2027-04-01")));
 
         // A unit of a create step of the same request needs no version.
         HttpResponse<String> done = own.post("/reorganizations", steps.formatted(root, ", \"version\": 1", root));
         assertEquals(200, done.statusCode(), done.body());
-        assertEquals(List.of("Renamed", "New"), own.tree("asOf=2027-04-01").findValuesAsText("name"));
+        assertEquals(List.of("Renamed", "New"), Api.names(own.tree("asOf=2027-04-01")));
         assertEquals(2, Api.json(own.get("/org-units/" + root + "/history")).get("version").asLong());
     }
 
@@ -195,7 +195,7 @@ class ReorganizationIT {
         assertEquals(400, api.postWithVersion("/reorganizations", "{\"steps\": [{\"op\": \"end\", \"id\": \"" + oldOffice + "\"}]}").statusCode());
         assertEquals(400, api.post("/reorganizations", "{\"effectiveDate\": \"2027-04-01\", \"steps\": []}").statusCode());
         HttpResponse<String> badRef = api.post("/reorganizations",
-                "{\"effectiveDate\": \"2028-04-01\", \"steps\": [{\"op\": \"create\", \"name\": \"x\", \"parentRef\": \"nope\"}]}");
+                "{\"effectiveDate\": \"2028-04-01\", \"steps\": [{\"op\": \"create\", \"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"x\"}}, \"parentRef\": \"nope\"}]}");
         assertEquals(400, badRef.statusCode());
         assertEquals("reorganization.ref_unknown", Api.json(badRef).get("error").asText());
         HttpResponse<String> badOp = api.postWithVersion("/reorganizations",

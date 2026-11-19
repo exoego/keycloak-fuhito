@@ -52,7 +52,7 @@ class ReportingLinesIT {
 
     private static String unit(String name, String parentId) throws Exception {
         String parent = parentId == null ? "" : ", \"parentId\": \"" + parentId + "\"";
-        return id(api.post("/org-units", "{\"name\": \"" + name + "\"" + parent + ", \"validFrom\": \"2026-04-01\"}"));
+        return id(api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"" + name + "\"}}" + parent + ", \"validFrom\": \"2026-04-01\"}"));
     }
 
     private static String staff(String userId, String orgUnitId, boolean head) throws Exception {
@@ -169,7 +169,7 @@ class ReportingLinesIT {
         TestRealm scratch = TestRealm.withEmployer("reporting-removal");
         Api scratchApi = scratch.api;
         String today = LocalDate.now(ZoneOffset.UTC).toString();
-        String unit = Api.json(scratchApi.post("/org-units", "{\"name\": \"課\", \"validFrom\": \"2025-04-01\"}")).get("id").asText();
+        String unit = Api.json(scratchApi.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"課\"}}, \"validFrom\": \"2025-04-01\"}")).get("id").asText();
         String manager = scratch.user("manager");
         String keptManager = scratch.user("kept-manager");
         String report = scratch.user("report");
@@ -214,8 +214,8 @@ class ReportingLinesIT {
         Api scratchApi = scratch.api;
         assertEquals(201, scratchApi.post("/ref-items", "{\"kind\": \"ASSIGNMENT_KIND\", \"code\": \"acting\", "
                 + "\"name\": \"事務取扱\", \"actingHead\": true}").statusCode());
-        String hospital = id(scratchApi.post("/org-units", "{\"name\": \"病院\", \"validFrom\": \"2026-04-01\"}"));
-        String nursing = id(scratchApi.post("/org-units", "{\"name\": \"看護部\", \"parentId\": \"" + hospital
+        String hospital = id(scratchApi.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"病院\"}}, \"validFrom\": \"2026-04-01\"}"));
+        String nursing = id(scratchApi.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"看護部\"}}, \"parentId\": \"" + hospital
                 + "\", \"validFrom\": \"2026-04-01\"}"));
         Map<String, String> users = new LinkedHashMap<>();
         for (String[] person : new String[][] {{"director", hospital, "true"}, {"head-nurse", nursing, "true"},
@@ -266,7 +266,8 @@ class ReportingLinesIT {
                 {"受付", "事務部"}}) {
             String parent = unit[1] == null ? "" : ", \"parentId\": \"" + units.get(unit[1]) + "\"";
             units.put(unit[0], id(scratchApi.post("/org-units",
-                    "{\"name\": \"" + unit[0] + "\"" + parent + ", \"validFrom\": \"2026-04-01\"}")));
+                    "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"" + unit[0] + "\"}}" + parent
+                            + ", \"validFrom\": \"2026-04-01\"}")));
         }
         Map<String, String> users = new LinkedHashMap<>();
         Map<String, String> assignments = new LinkedHashMap<>();

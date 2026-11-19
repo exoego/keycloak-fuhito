@@ -28,17 +28,16 @@ class AttributeDefinitionsIT {
         Api api = realm.api;
         JsonNode beds = created(api.post("/attribute-definitions", "{\"target\": \"ORG_UNIT\", \"name\": \"beds\", "
                 + "\"type\": \"NUMBER\", \"required\": true}"));
-        assertEquals(List.of("beds"), Api.json(api.get("/attribute-definitions?target=ORG_UNIT"))
-                .findValuesAsText("name"));
+        assertEquals(List.of("beds"), Api.json(api.get("/attribute-definitions?target=ORG_UNIT")).findValuesAsText("name"));
         assertEquals(beds, Api.json(api.get("/attribute-definitions/" + beds.get("id").asText())));
         assertEquals(List.of("fuhito/attribute-definitions/" + beds.get("id").asText()), Api.json(api.get(
                 "/change-log?resourceType=FUHITO_ATTRIBUTE_DEFINITION")).findValuesAsText("resourcePath"));
 
         assertEquals("attribute.required", errorOf(400, api.post("/org-units",
-                "{\"name\": \"1病棟\", \"validFrom\": \"2026-04-01\"}")));
+                "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"1病棟\"}}, \"validFrom\": \"2026-04-01\"}")));
         assertEquals("attribute.bad_value", errorOf(400, api.post("/org-units",
-                "{\"name\": \"1病棟\", \"validFrom\": \"2026-04-01\", \"attributes\": {\"beds\": \"many\"}}")));
-        JsonNode ward = created(api.post("/org-units", "{\"name\": \"1病棟\", \"validFrom\": \"2026-04-01\", "
+                "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"1病棟\"}}, \"validFrom\": \"2026-04-01\", \"attributes\": {\"beds\": \"many\"}}")));
+        JsonNode ward = created(api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"1病棟\"}}, \"validFrom\": \"2026-04-01\", "
                 + "\"externalId\": \"W\", \"source\": \"import\", \"attributes\": {\"beds\": 30}}"));
         assertEquals(30, ward.get("attributes").get("beds").asInt());
 
@@ -57,7 +56,7 @@ class AttributeDefinitionsIT {
 
         assertEquals(200, api.putWithVersion("/attribute-definitions/" + beds.get("id").asText(),
                 "{\"type\": \"NUMBER\", \"required\": false}").statusCode());
-        assertEquals(201, api.post("/org-units", "{\"name\": \"2病棟\", \"validFrom\": \"2026-04-01\"}").statusCode());
+        assertEquals(201, api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"2病棟\"}}, \"validFrom\": \"2026-04-01\"}").statusCode());
         assertEquals(204, api.deleteWithVersion("/attribute-definitions/" + beds.get("id").asText()).statusCode());
     }
 

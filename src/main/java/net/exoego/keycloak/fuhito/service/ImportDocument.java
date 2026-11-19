@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 
+import net.exoego.keycloak.fuhito.domain.OrgUnitName;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 
 @Schema(
@@ -663,7 +664,7 @@ public record ImportDocument(
             name = "ImportOrgUnitRow",
             description = "An org unit. It is matched by its ID in the system of `source`, whichever system made "
                     + "it, or by `id`. A row needs one of them.",
-            requiredProperties = {"name"})
+            requiredProperties = {"primaryLanguage", "names"})
     public record OrgUnitRow(
             @Schema(
                     description = "The name of the system that the row comes from. The default is the source of the "
@@ -679,16 +680,10 @@ public record ImportDocument(
                     maxLength = 64,
                     pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$")
             String code,
-            @Schema(description = "The default name.", maxLength = 255)
-            String name,
-            @Schema(description = "Names in other languages, by language tag.")
-            Map<String, String> names,
-            @Schema(description = "The default short name.", maxLength = 255)
-            String shortName,
-            @Schema(description = "The short names in other languages, by language tag.")
-            Map<String, String> shortNames,
-            @Schema(description = "The reading of the name for sorting.", maxLength = 255)
-            String phoneticName,
+            @Schema(description = "The language tag of the primary names, such as `ja`. It is a key of `names`.")
+            String primaryLanguage,
+            @Schema(description = "The names by language tag, such as `ja`, `en`, or `zh-Hant`.")
+            Map<String, OrgUnitName> names,
             @Schema(description = "The code of the unit type.")
             String unitType,
             @Schema(description = "The external ID of the parent with the same source. A root has none.")
@@ -729,13 +724,11 @@ public record ImportDocument(
             @Schema(description = "The code of the cost center that the unit gives its members.")
             String costCenter) {
 
-        public OrgUnitRow(String source, String externalId, String code, String name, Map<String, String> names,
-                String shortName, Map<String, String> shortNames, String phoneticName, String unitType,
-                String parentExternalId, String parentId, Integer displayOrder, Map<String, Object> attributes,
-                String validFrom, String validTo, String id) {
-            this(source, externalId, code, name, names, shortName, shortNames, phoneticName, unitType,
-                    parentExternalId, parentId, displayOrder, attributes, validFrom, validTo, id, null, null, null,
-                    null, null, null, null);
+        public OrgUnitRow(String source, String externalId, String code, String primaryLanguage,
+                Map<String, OrgUnitName> names, String unitType, String parentExternalId, String parentId,
+                Integer displayOrder, Map<String, Object> attributes, String validFrom, String validTo, String id) {
+            this(source, externalId, code, primaryLanguage, names, unitType, parentExternalId, parentId,
+                    displayOrder, attributes, validFrom, validTo, id, null, null, null, null, null, null, null);
         }
     }
 }

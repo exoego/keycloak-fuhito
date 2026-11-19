@@ -41,7 +41,7 @@ class OrganizationLinkIT {
     }
 
     private static String unit(Api api, String name) throws Exception {
-        HttpResponse<String> response = api.post("/org-units", "{\"name\": \"" + name + "\", \"validFrom\": \"2026-04-01\"}");
+        HttpResponse<String> response = api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"" + name + "\"}}, \"validFrom\": \"2026-04-01\"}");
         assertEquals(201, response.statusCode(), response.body());
         return Api.json(response).get("id").asText();
     }

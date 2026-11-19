@@ -4,6 +4,7 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -104,8 +105,9 @@ final class MemoryOrgUnitStore implements OrgUnitStore {
 
     // The order of siblings that the database uses.
     private static final Comparator<OrgUnitVersion> ORDER = Comparator.comparingInt(OrgUnitVersion::displayOrder)
-            .thenComparing(OrgUnitVersion::phoneticName, Comparator.nullsLast(Comparator.naturalOrder()))
-            .thenComparing(OrgUnitVersion::name)
+            .thenComparing((OrgUnitVersion v) -> v.names().primary().phoneticName(),
+                    Comparator.nullsLast(Comparator.naturalOrder()))
+            .thenComparing(v -> v.names().primary().name())
             .thenComparing(OrgUnitVersion::orgUnitId);
 
     @Override
@@ -127,12 +129,9 @@ final class MemoryOrgUnitStore implements OrgUnitStore {
         List<OrgUnitState> units = search.roots() == null ? tree.all()
                 : search.roots() == Roots.LINKED ? tree.linkedRoots() : tree.roots();
         return of(search.lateral(), units).stream()
-                .filter(state -> text == null || java.util.stream.Stream.of(
-                                java.util.stream.Stream.of(state.version().name(), state.version().shortName(),
-                                        state.version().phoneticName()),
-                                state.version().names().values().stream(),
-                                state.version().shortNames().values().stream())
-                        .flatMap(names -> names)
+                .filter(state -> text == null || state.version().names().byLanguage().values().stream()
+                        .flatMap(names -> java.util.stream.Stream.of(names.name(), names.shortName(),
+                                names.phoneticName()))
                         .anyMatch(name -> name != null && name.toLowerCase(Locale.ROOT).contains(text)))
                 .filter(state -> search.code() == null || search.code().equals(state.version().code()))
                 .filter(state -> search.unitTypeId() == null
@@ -184,9 +183,11 @@ final class MemoryOrgUnitStore implements OrgUnitStore {
     }
 
     @Override
-    public List<PlacedOrgUnit> pathOn(String hierarchyId, String id, LocalDate date) {
+    public Map<String, List<PlacedOrgUnit>> pathsOn(String hierarchyId, Collection<String> ids, LocalDate date) {
         OrgUnitTree tree = new OrgUnitTree(this, new MemoryRefItemStore(), date, hierarchyId);
-        return tree.exists(id) ? placed(tree.path(id), 0, Integer.MAX_VALUE) : List.of();
+        Map<String, List<PlacedOrgUnit>> paths = new HashMap<>();
+        ids.stream().filter(tree::exists).forEach(id -> paths.put(id, placed(tree.path(id), 0, Integer.MAX_VALUE)));
+        return paths;
     }
 
     /** How often the work locations and the cost centers that apply were read. */

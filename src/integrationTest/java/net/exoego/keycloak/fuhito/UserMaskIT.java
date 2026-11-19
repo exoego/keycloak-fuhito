@@ -54,7 +54,7 @@ class UserMaskIT {
     void maskingKeepsEveryRecordAndClearsWhatIdentifiesThePerson() throws Exception {
         TestRealm realm = realm();
         Api api = realm.api;
-        String unit = created(api.post("/org-units", "{\"name\": \"1病棟\", \"validFrom\": \"2020-04-01\"}")).get("id").asText();
+        String unit = created(api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"1病棟\"}}, \"validFrom\": \"2020-04-01\"}")).get("id").asText();
         String left = realm.user("left");
         String other = realm.user("other");
         List<String> ids = hire(realm, left, unit, "N-001");
@@ -168,7 +168,7 @@ class UserMaskIT {
     void aRemovedUserCanBeMaskedAndAnEmployedUserCannot() throws Exception {
         TestRealm realm = realm();
         Api api = realm.api;
-        String unit = created(api.post("/org-units", "{\"name\": \"1病棟\", \"validFrom\": \"2020-04-01\"}")).get("id").asText();
+        String unit = created(api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"1病棟\"}}, \"validFrom\": \"2020-04-01\"}")).get("id").asText();
         String removed = realm.user("removed");
         String employed = realm.user("employed");
         List<String> removedIds = hire(realm, removed, unit, "N-010");

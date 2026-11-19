@@ -142,7 +142,7 @@ class EmploymentsIT {
         String user = realm.user("leaver-" + System.nanoTime());
         String id = created(api.post("/employments", "{\"userId\": \"" + user + "\", \"validFrom\": \"2026-04-01\"}"))
                 .get("id").asText();
-        String unit = created(api.post("/org-units", "{\"name\": \"総務課\", \"validFrom\": \"2026-04-01\"}")).get("id").asText();
+        String unit = created(api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"総務課\"}}, \"validFrom\": \"2026-04-01\"}")).get("id").asText();
         String assignment = "{\"employmentId\": \"" + id + "\", \"orgUnitId\": \"" + unit + "\", \"validFrom\": \"";
         String open = created(api.post("/assignments", assignment + "2026-04-01\"}")).get("id").asText();
         String future = created(api.post("/assignments", assignment + "2028-04-01\"}")).get("id").asText();
@@ -280,7 +280,7 @@ class EmploymentsIT {
 
         // With two, it must.
         String company = group.legalEntity("株式会社Yサービス");
-        String ward = created(groupApi.post("/org-units", "{\"name\": \"1病棟\", \"parentId\": \"" + corporation
+        String ward = created(groupApi.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"1病棟\"}}, \"parentId\": \"" + corporation
                 + "\", " + start + "}")).get("id").asText();
         assertEquals("employment.employer_required",
                 errorOf(400, groupApi.post("/employments", "{\"userId\": \"" + jiro + "\", " + start + "}")));
@@ -338,11 +338,11 @@ class EmploymentsIT {
         assertEquals("ref_item.legal_entity_in_use", errorOf(409, scratchApi.putWithVersion("/ref-items/" + type, "{\"name\": \"法人\"}")));
         assertEquals(200, scratchApi.putWithVersion("/ref-items/" + type, "{\"name\": \"会社\", \"legalEntity\": true}").statusCode());
         assertEquals("org_unit.is_employer", errorOf(409, scratchApi.putWithVersion("/org-units/" + company,
-                "{\"name\": \"株式会社Z\", \"unitType\": \"department\", \"validFrom\": \"2026-01-01\"}")));
+                "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"株式会社Z\"}}, \"unitType\": \"department\", \"validFrom\": \"2026-01-01\"}")));
         assertEquals("org_unit.is_employer", errorOf(409, scratchApi.putWithVersion("/org-units/" + company,
-                "{\"name\": \"株式会社Z\", \"validFrom\": \"2026-01-01\"}")));
+                "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"株式会社Z\"}}, \"validFrom\": \"2026-01-01\"}")));
         assertEquals(200, scratchApi.putWithVersion("/org-units/" + company,
-                "{\"name\": \"Z社\", \"unitType\": \"legal-entity\", \"validFrom\": \"2026-01-01\"}").statusCode());
+                "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"Z社\"}}, \"unitType\": \"legal-entity\", \"validFrom\": \"2026-01-01\"}").statusCode());
         assertEquals("org_unit.has_employments",
                 errorOf(409, scratchApi.putWithVersion("/org-units/" + company + "/end", "{\"validTo\": \"2028-03-31\"}")));
         assertEquals(company, Api.json(scratchApi.get("/employments/" + employment)).get("employerId").asText());
@@ -376,7 +376,7 @@ class EmploymentsIT {
         String company = group.legalEntity("株式会社Yサービス");
         group.refItem("END_REASON", "transfer", "転籍");
         group.refItem("UNIT_ROLE", "hr-contact", "人事担当");
-        String kitchen = created(groupApi.post("/org-units", "{\"name\": \"栄養科\", \"parentId\": \"" + corporation
+        String kitchen = created(groupApi.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"栄養科\"}}, \"parentId\": \"" + corporation
                 + "\", \"validFrom\": \"2020-04-01\"}")).get("id").asText();
         String suzuki = group.user("suzuki");
         String chief = group.user("chief");
@@ -459,7 +459,7 @@ class EmploymentsIT {
         Api groupApi = group.api;
         String corporation = group.legalEntity("医療法人X会");
         String company = group.legalEntity("株式会社Yサービス");
-        String kitchen = created(groupApi.post("/org-units", "{\"name\": \"栄養科\", \"parentId\": \"" + corporation
+        String kitchen = created(groupApi.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"栄養科\"}}, \"parentId\": \"" + corporation
                 + "\", \"validFrom\": \"2020-04-01\"}")).get("id").asText();
         String sato = group.user("sato");
         String suzuki = group.user("suzuki");
@@ -502,7 +502,7 @@ class EmploymentsIT {
         assertTrue(before.get(0).get("seconded").asBoolean());
         assertFalse(after.get(0).get("seconded").asBoolean());
         assertEquals(List.of("医療法人X会"),
-                Api.json(groupApi.get("/org-units?legalEntity=true&asOf=2028-04-01")).findValuesAsText("name"));
+                Api.names(Api.json(groupApi.get("/org-units?legalEntity=true&asOf=2028-04-01"))));
         assertEquals(List.of("CREATE", "UPDATE"), Api.json(groupApi.get(
                 "/change-log?resourceType=FUHITO_ORG_UNIT&resourceId=" + company)).findValuesAsText("operation"));
     }

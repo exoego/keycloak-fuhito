@@ -81,6 +81,13 @@ public interface RequestContext {
     Locale locale();
 
     /**
+     * Returns the language that the caller reads names in. It is the first language of {@code Accept-Language}.
+     *
+     * @return the locale, or null when the request names no language. The caller then reads the primary names.
+     */
+    Locale nameLanguage();
+
+    /**
      * Locks the stored rows of the resource that the path of the request names, and of other resources, until the
      * end of the transaction. A second write to one of them then waits for the first one.
      * The rows are locked in one fixed order, as {@link #lock(Map)} does.

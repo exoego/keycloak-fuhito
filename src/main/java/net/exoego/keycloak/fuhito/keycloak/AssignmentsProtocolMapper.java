@@ -4,6 +4,7 @@ import java.time.Clock;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import jakarta.persistence.EntityManager;
@@ -117,19 +118,21 @@ public class AssignmentsProtocolMapper extends AbstractOIDCProtocolMapper
         MembershipService membership = new MembershipService(new JpaAssignmentStore(em, realmId),
                 new JpaEmploymentStore(em, realmId), orgUnits, new JpaRefItemStore(em, realmId), userId -> true,
                 new UnitDays(orgUnits, RealmTime.ruleOrUtc(userSession.getRealm()), Clock.systemUTC()));
+        Locale language = session.getContext().resolveLocale(userSession.getUser());
         return membership.assignmentsOf(userSession.getUser().getId(), null, true).stream()
-                .map(member -> entry(member, staffNumber, status))
+                .map(member -> entry(member, language, staffNumber, status))
                 .toList();
     }
 
-    private static Map<String, Object> entry(Member member, boolean staffNumber, boolean status) {
+    private static Map<String, Object> entry(Member member, Locale language, boolean staffNumber,
+            boolean status) {
         Map<String, Object> entry = new LinkedHashMap<>();
         var row = member.assignment();
         entry.put("assignmentId", row.assignmentId());
         entry.put("orgUnitId", row.orgUnitId());
-        entry.put("orgUnitName", member.orgUnit().version().name());
+        entry.put("orgUnitName", member.orgUnit().version().names().in(language).name());
         entry.put("orgUnitPath", member.orgUnitPath().stream()
-                .map(unit -> Map.of("id", unit.unit().id(), "name", unit.version().name()))
+                .map(unit -> Map.of("id", unit.unit().id(), "name", unit.version().names().in(language).name()))
                 .toList());
         putIfPresent(entry, "orgUnitCode", member.orgUnit().version().code());
         putIfPresent(entry, "jobTitle", member.jobTitle());

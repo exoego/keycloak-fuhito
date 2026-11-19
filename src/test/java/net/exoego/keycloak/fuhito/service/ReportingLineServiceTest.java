@@ -16,6 +16,7 @@ import net.exoego.keycloak.fuhito.domain.ValidPeriod;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import static net.exoego.keycloak.fuhito.service.UnitNames.ja;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -69,7 +70,7 @@ class ReportingLineServiceTest {
     }
 
     private String unit(String name, String parentId) {
-        return orgUnits.create(new NewOrgUnit(null, name, null, null, null, null, null, parentId, "2026-04-01", null,
+        return orgUnits.create(new NewOrgUnit(null, "ja", ja(name), null, parentId, "2026-04-01", null,
                 null, null, null)).unit().id();
     }
 
@@ -209,7 +210,7 @@ class ReportingLineServiceTest {
         refItems.insert(new RefItem("committee", RefKind.UNIT_TYPE, "committee", "Committee", Map.of(), 0, Map.of(),
                 true, false, false, true));
         orgUnitStore.refItems = refItems;
-        String committee = orgUnits.create(new NewOrgUnit(null, "Safety", null, null, null, null, "committee",
+        String committee = orgUnits.create(new NewOrgUnit(null, "ja", ja("Safety"), "committee",
                 hospital, "2026-04-01", null, null, null, null)).unit().id();
         assign(employ("idle"), committee, true);
         assign(nurseAEmployment, committee, false);

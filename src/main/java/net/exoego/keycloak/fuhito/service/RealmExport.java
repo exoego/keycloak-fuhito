@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 
+import net.exoego.keycloak.fuhito.domain.OrgUnitName;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 
 /**
@@ -97,10 +98,9 @@ public record RealmExport(
     }
 
     @Schema(name = "ExportOrgUnitVersion")
-    public record Version(String id, String validFrom, String validTo, String code, String name,
-            Map<String, String> names, String shortName, Map<String, String> shortNames, String phoneticName,
-            String unitTypeId, String workLocationId, String costCenterId, int displayOrder,
-            Map<String, Object> attributes) {
+    public record Version(String id, String validFrom, String validTo, String code, String primaryLanguage,
+            Map<String, OrgUnitName> names, String unitTypeId, String workLocationId, String costCenterId,
+            int displayOrder, Map<String, Object> attributes) {
     }
 
     @Schema(name = "ExportOrgUnitParent", description = "A parent link. It names its hierarchy by code.")

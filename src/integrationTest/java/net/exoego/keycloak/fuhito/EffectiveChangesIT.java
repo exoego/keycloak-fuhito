@@ -30,10 +30,10 @@ class EffectiveChangesIT {
         api = realm.api;
         realm.refItem("QUALIFICATION", "license", "免許");
         String nurse = realm.user("nurse");
-        hospital = id(api.post("/org-units", "{\"name\": \"病院\", \"validFrom\": \"2030-04-01\"}"));
-        ward = id(api.post("/org-units", "{\"name\": \"1病棟\", \"parentId\": \"" + hospital
+        hospital = id(api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"病院\"}}, \"validFrom\": \"2030-04-01\"}"));
+        ward = id(api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"1病棟\"}}, \"parentId\": \"" + hospital
                 + "\", \"validFrom\": \"2030-04-01\"}"));
-        assertEquals(200, api.putWithVersion("/org-units/" + ward, "{\"name\": \"東病棟\", \"validFrom\": \"2030-10-01\"}").statusCode());
+        assertEquals(200, api.putWithVersion("/org-units/" + ward, "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"東病棟\"}}, \"validFrom\": \"2030-10-01\"}").statusCode());
         JsonNode added = Api.json(api.post("/staff", "{\"userId\": \"" + nurse + "\", \"orgUnitId\": \"" + ward
                 + "\", \"validFrom\": \"2030-04-01\"}"));
         employment = added.get("employment").get("id").asText();

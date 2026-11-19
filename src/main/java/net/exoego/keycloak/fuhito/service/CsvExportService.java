@@ -24,6 +24,7 @@ import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.Hierarchy;
 import net.exoego.keycloak.fuhito.domain.OrgUnitLink;
+import net.exoego.keycloak.fuhito.domain.OrgUnitName;
 import net.exoego.keycloak.fuhito.domain.OrgUnitSuccession;
 import net.exoego.keycloak.fuhito.domain.OrgUnitVersion;
 import net.exoego.keycloak.fuhito.domain.Person;
@@ -522,24 +523,29 @@ public class CsvExportService {
                 break;
             }
         }
-        SortedSet<String> names = new TreeSet<>();
-        SortedSet<String> shortNames = new TreeSet<>();
+        // The columns with no language have the primary names. The other languages have columns of their own.
+        SortedSet<String> languages = new TreeSet<>();
         for (OrgUnitState unit : units) {
-            names.addAll(unit.version().names().keySet());
-            shortNames.addAll(unit.version().shortNames().keySet());
+            String primary = unit.version().names().primaryLanguage();
+            for (String language : unit.version().names().byLanguage().keySet()) {
+                if (!language.equals(primary)) {
+                    languages.add(language);
+                }
+            }
         }
+        List<String> nameFields = List.of("name", "shortName", "phoneticName");
         List<String> attributes = definitions.apply(AttributeDefinition.Target.ORG_UNIT).stream()
                 .map(AttributeDefinition::name)
                 .toList();
 
         List<String> header = new ArrayList<>();
-        for (String field : List.of("id", "externalId", "source", "code", "name")) {
+        for (String field : List.of("id", "externalId", "source", "code", "primaryLanguage", "name", "shortName",
+                "phoneticName")) {
             header.add(column(field, japanese));
         }
-        names.forEach(language -> header.add(column("name", japanese) + ":" + language));
-        header.add(column("shortName", japanese));
-        shortNames.forEach(language -> header.add(column("shortName", japanese) + ":" + language));
-        for (String field : List.of("phoneticName", "unitType", "workLocation", "costCenter", "parentId",
+        languages.forEach(language -> nameFields.forEach(field -> header.add(column(field, japanese) + ":"
+                + language)));
+        for (String field : List.of("unitType", "workLocation", "costCenter", "parentId",
                 "displayOrder", "validTo", "successorIds", "organizationAlias", "timeZone", "dayStart")) {
             header.add(column(field, japanese));
         }
@@ -553,11 +559,13 @@ public class CsvExportService {
             OrgUnitVersion version = unit.version();
             List<String> cells = new ArrayList<>(List.of(unit.unit().id(),
                     text(ids.externalIdOf(unit.unit().id(), unit.unit().source())), text(unit.unit().source()),
-                    text(version.code()), version.name()));
-            names.forEach(language -> cells.add(text(version.names().get(language))));
-            cells.add(text(version.shortName()));
-            shortNames.forEach(language -> cells.add(text(version.shortNames().get(language))));
-            cells.add(text(version.phoneticName()));
+                    text(version.code()), version.names().primaryLanguage()));
+            cells.addAll(nameCells(version.names().primary()));
+            for (String language : languages) {
+                OrgUnitName names = language.equals(version.names().primaryLanguage()) ? null
+                        : version.names().byLanguage().get(language);
+                cells.addAll(nameCells(names));
+            }
             cells.add(text(unit.unitType()));
             cells.add(text(unit.places().workLocation()));
             cells.add(text(unit.places().costCenter()));
@@ -578,6 +586,11 @@ public class CsvExportService {
             line(csv, cells);
         }
         return csv.toString();
+    }
+
+    private static List<String> nameCells(OrgUnitName names) {
+        return names == null ? List.of("", "", "")
+                : List.of(names.name(), text(names.shortName()), text(names.phoneticName()));
     }
 
     private static String column(String field, boolean japanese) {

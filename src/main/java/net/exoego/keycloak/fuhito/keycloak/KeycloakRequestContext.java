@@ -8,6 +8,7 @@ import java.util.HashSet;
 import java.util.Locale;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.OptionalInt;
 import java.util.UUID;
@@ -183,10 +184,15 @@ final class KeycloakRequestContext implements RequestContext {
 
     @Override
     public Locale locale() {
+        return Objects.requireNonNullElse(nameLanguage(), Locale.ENGLISH);
+    }
+
+    @Override
+    public Locale nameLanguage() {
         return session.getContext().getHttpRequest().getHttpHeaders().getAcceptableLanguages().stream()
                 .filter(locale -> !"*".equals(locale.getLanguage()))
                 .findFirst()
-                .orElse(Locale.ENGLISH);
+                .orElse(null);
     }
 
     @Override

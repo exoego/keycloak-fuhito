@@ -10,6 +10,8 @@ import java.util.UUID;
 import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.Employment;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
+import net.exoego.keycloak.fuhito.domain.Localized;
+import net.exoego.keycloak.fuhito.domain.OrgUnitName;
 import net.exoego.keycloak.fuhito.domain.OrgUnitVersion;
 import net.exoego.keycloak.fuhito.domain.RefItem;
 import net.exoego.keycloak.fuhito.domain.RefKind;
@@ -39,9 +41,10 @@ public class UnitRoleService {
      *
      * @param view the role with the code of its reference item
      * @param roleName the name of the role on the date, or null when the role is unknown
-     * @param orgUnitName the name of the org unit on the date, or null when the unit does not exist on the date
+     * @param orgUnitNames the names of the org unit on the date, or null when the unit does not exist on the
+     *        date
      */
-    public record Holder(View view, String roleName, String orgUnitName) {
+    public record Holder(View view, String roleName, Localized<OrgUnitName> orgUnitNames) {
     }
 
     /**
@@ -193,10 +196,10 @@ public class UnitRoleService {
         List<UnitRole> roles = store.searchOn(filter, afterId, page.first(), page.max());
         Map<String, RefItem> items = new HashMap<>();
         sources.refItems().list(RefKind.UNIT_ROLE, true, filter.date()).forEach(item -> items.put(item.id(), item));
-        Map<String, String> unitNames = new HashMap<>();
+        Map<String, Localized<OrgUnitName>> unitNames = new HashMap<>();
         sources.orgUnits().placedOn(sources.orgUnits().defaultHierarchyId(),
                         roles.stream().map(UnitRole::orgUnitId).distinct().toList(), filter.date())
-                .forEach(placed -> unitNames.put(placed.unit().id(), placed.version().name()));
+                .forEach(placed -> unitNames.put(placed.unit().id(), placed.version().names()));
         return roles.stream().map(role -> {
             Optional<RefItem> item = Optional.ofNullable(items.get(role.roleId()));
             return new Holder(new View(role, item.map(RefItem::code).orElse(null)),

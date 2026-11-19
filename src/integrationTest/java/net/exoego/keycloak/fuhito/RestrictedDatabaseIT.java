@@ -79,7 +79,7 @@ class RestrictedDatabaseIT {
         TestRealm.withTimeZone(realm);
         TestRealm.createRealm(admin, realm);
         Api api = new Api(keycloak.getAuthServerUrl(), "no-organizations", admin.tokenManager().getAccessTokenString());
-        HttpResponse<String> unit = api.post("/org-units", "{\"name\": \"Clinic\", \"validFrom\": \"2020-04-01\"}");
+        HttpResponse<String> unit = api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"Clinic\"}}, \"validFrom\": \"2020-04-01\"}");
         assertEquals(201, unit.statusCode(), unit.body());
 
         HttpResponse<String> linked = api.putWithVersion("/org-units/" + Api.json(unit).get("id").asText() + "/organization",

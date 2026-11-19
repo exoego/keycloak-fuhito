@@ -24,8 +24,8 @@ class RemovalsIT {
     void aResourceMadeByMistakeGoesWhenNothingRefersToIt() throws Exception {
         TestRealm realm = TestRealm.withEmployer("removals");
         Api api = realm.api;
-        String parent = id(api.post("/org-units", "{\"name\": \"病院\", \"validFrom\": \"2026-04-01\"}"));
-        String unit = id(api.post("/org-units", "{\"name\": \"誤り\", \"parentId\": \"" + parent
+        String parent = id(api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"病院\"}}, \"validFrom\": \"2026-04-01\"}"));
+        String unit = id(api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"誤り\"}}, \"parentId\": \"" + parent
                 + "\", \"validFrom\": \"2026-04-01\", \"externalId\": \"X\", \"source\": \"hr\"}"));
         String employment = id(api.post("/employments", "{\"userId\": \"" + realm.user("nurse")
                 + "\", \"validFrom\": \"2026-04-01\"}"));

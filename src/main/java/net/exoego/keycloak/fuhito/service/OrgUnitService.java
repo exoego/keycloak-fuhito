@@ -17,6 +17,7 @@ import net.exoego.keycloak.fuhito.domain.BusinessDay;
 import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
+import net.exoego.keycloak.fuhito.domain.Localized;
 import net.exoego.keycloak.fuhito.domain.OrgUnit;
 import net.exoego.keycloak.fuhito.domain.OrgUnitLink;
 import net.exoego.keycloak.fuhito.domain.OrgUnitSuccession;
@@ -113,9 +114,9 @@ public class OrgUnitService {
         }
 
         OrgUnitVersion version = version(newId(), unit.id(), period, new OrgUnitChange(request.validFrom(),
-                request.code(), request.name(), request.names(), request.shortName(), request.shortNames(),
-                request.phoneticName(), request.unitType(), request.workLocation(), request.costCenter(),
-                request.displayOrder(), request.attributes()), unitType, null);
+                request.code(), request.primaryLanguage(), request.names(), request.unitType(),
+                request.workLocation(), request.costCenter(), request.displayOrder(), request.attributes()),
+                unitType, null);
         store.insertUnit(unit);
         externalIds.store(unit.id(), externalId);
         store.insertVersion(version);
@@ -188,7 +189,7 @@ public class OrgUnitService {
             List<ValidPeriod> parts = current.period().splitAt(from);
             // Build the new version first, so that a bad value fails before anything is written.
             OrgUnitVersion next = version(newId(), id, parts.get(1), request, unitType, current);
-            store.updateVersion(withPeriod(current, parts.getFirst()));
+            store.updateVersion(current.withPeriod(parts.getFirst()));
             store.insertVersion(next);
         }
         return get(id, request.validFrom());
@@ -324,7 +325,7 @@ public class OrgUnitService {
                     Map.of("id", id, "validTo", validTo, "count", Long.toString(roles)));
         }
 
-        store.updateVersion(withPeriod(last, last.period().endingAt(to)));
+        store.updateVersion(last.withPeriod(last.period().endingAt(to)));
         parentLinks.stream()
                 .filter(l -> l.period().isOpenEnded() || l.period().to().equals(current))
                 .forEach(l -> store.updateLink(new OrgUnitLink(l.id(), l.hierarchyId(), l.childId(), l.parentId(),
@@ -365,7 +366,7 @@ public class OrgUnitService {
                         natures(link.parentId()), added);
             }
         }
-        store.updateVersion(withPeriod(last, last.period().endingAt(to)));
+        store.updateVersion(last.withPeriod(last.period().endingAt(to)));
         ending.forEach(l -> store.updateLink(new OrgUnitLink(l.id(), l.hierarchyId(), l.childId(), l.parentId(),
                 l.period().endingAt(to))));
     }
@@ -603,7 +604,7 @@ public class OrgUnitService {
 
     /**
      * Lists a page of the org units of a date that match a search, at any depth, each with its parent in the
-     * hierarchy of the search. They follow the display order, then the phonetic name, then the name, then the ID.
+     * hierarchy of the search. They follow the display order, then the primary names, then the ID.
      * Every unit is in the default hierarchy. The roots of another hierarchy are the units with no parent and with
      * a child in it.
      *
@@ -780,22 +781,12 @@ public class OrgUnitService {
             RefItem unitType, OrgUnitVersion current) {
         return new OrgUnitVersion(versionId, unitId, period,
                 Checks.optionalCode("code", details.code()),
-                Checks.name("name", details.name()),
-                Checks.localizedNames("names", details.names()),
-                Checks.optionalName("shortName", details.shortName()),
-                Checks.localizedNames("shortNames", details.shortNames()),
-                Checks.optionalName("phoneticName", details.phoneticName()),
+                Localized.check(details.primaryLanguage(), details.names(), (field, name) -> name.checked(field)),
                 unitType == null ? null : unitType.id(),
                 idOf(RefKind.WORK_LOCATION, details.workLocation(), current == null ? null : current.workLocationId()),
                 idOf(RefKind.COST_CENTER, details.costCenter(), current == null ? null : current.costCenterId()),
                 details.displayOrder() == null ? 0 : details.displayOrder(),
                 attributeRules.check(AttributeDefinition.Target.ORG_UNIT, details.attributes()));
-    }
-
-    private static OrgUnitVersion withPeriod(OrgUnitVersion v, ValidPeriod period) {
-        return new OrgUnitVersion(v.id(), v.orgUnitId(), period, v.code(), v.name(), v.names(), v.shortName(),
-                v.shortNames(), v.phoneticName(), v.unitTypeId(), v.workLocationId(), v.costCenterId(),
-                v.displayOrder(), v.attributes());
     }
 
     private String idOf(RefKind kind, String code, String currentId) {

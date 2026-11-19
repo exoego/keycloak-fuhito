@@ -9,7 +9,8 @@ package net.exoego.keycloak.fuhito.jpa;
 final class TreeQuery {
 
     /**
-     * Walks from one unit down. The query also needs the parameter {@code rootId}.
+     * Walks from one unit down. Siblings follow the display order, then the primary names.
+     * The query also needs the parameter {@code rootId}.
      * Each step finds the version of a child in two lookups that only plain indexes can serve. The first takes
      * the latest version that started, by the org unit and the first date. The second reads it by its ID.
      * One lookup by the org unit and the dates would leave the choice of the index to the database, and the
@@ -82,12 +83,13 @@ final class TreeQuery {
                     select v.orgUnitId as id, v.id as versionId,
                         (select l.parentId from OrgUnitLinkEntity l where l.realmId = :realmId
                             and l.hierarchyId = :hierarchyId and l.childId = v.orgUnitId and l.%1$s) as parentId,
-                        v.displayOrder as displayOrder, v.phoneticName as phoneticName, v.name as name%3$s
+                        v.displayOrder as displayOrder, n.phoneticName as phoneticName, n.name as name%3$s
                     from OrgUnitVersionEntity v
+                    join OrgUnitVersionNameEntity n on n.versionId = v.id and n.primary = true
                     where v.realmId = :realmId and v.%2$s and v.orgUnitId = :rootId
                     union all
                     select v.orgUnitId as id, v.id as versionId, l.parentId as parentId,
-                        v.displayOrder as displayOrder, v.phoneticName as phoneticName, v.name as name%4$s
+                        v.displayOrder as displayOrder, n.phoneticName as phoneticName, n.name as name%4$s
                     from Tree p
                     join OrgUnitLinkEntity l on l.parentId = p.id and l.realmId = :realmId
                         and l.hierarchyId = :hierarchyId and l.%1$s
@@ -95,6 +97,7 @@ final class TreeQuery {
                             where x.orgUnitId = l.childId and x.validFrom <= :date
                             order by x.validFrom desc fetch first 1 rows only)
                         and v.realmId = :realmId and (v.validTo is null or v.validTo > :date)
+                    join OrgUnitVersionNameEntity n on n.versionId = v.id and n.primary = true
                 ) search depth first by displayOrder, phoneticName, name, id set position
                 """.formatted(onDate("l"), onDate("v"), rootColumns, childColumns);
     }

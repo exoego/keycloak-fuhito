@@ -1,6 +1,7 @@
 package net.exoego.keycloak.fuhito.rest;
 
 import java.util.List;
+import java.util.Locale;
 
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.DELETE;
@@ -233,9 +234,9 @@ public class OrgUnitsResource {
             summary = "Lists the org units of a date that match the filters, at any depth.",
             description = "With no filter, the list has every org unit of the date. The filters apply together. "
                     + "Each unit comes with its parent in `hierarchy`. The order is the display order, then the "
-                    + "phonetic name, then the name. To read every unit, follow the `Link` header of each response. "
-                    + "The list is not in tree order. For the tree, start from the roots, then read the children of "
-                    + "an org unit or one branch with its subtree.")
+                    + "phonetic name and the name of the primary language. To read every unit, follow the `Link` "
+                    + "header of each response. The list is not in tree order. For the tree, start from the roots, "
+                    + "then read the children of an org unit or one branch with its subtree.")
     @APIResponse(
             responseCode = "200",
             description = "The units that match.",
@@ -646,7 +647,9 @@ public class OrgUnitsResource {
         return Calls.run(context, () -> {
             MemberQuery query = new MemberQuery(asOf, includeDescendants, occupation, jobTitle, status, first, max,
                     hierarchy, after, seconded, workLocation, costCenter);
-            return Pages.of(context, membership.members(id, query).stream().map(MemberRepresentation::of).toList(),
+            Locale language = context.nameLanguage();
+            return Pages.of(context, membership.members(id, query).stream()
+                            .map(member -> MemberRepresentation.of(member, language)).toList(),
                     Page.of(first, max).max(),
                     // The values that the order of the list uses, as MembershipService reads them back.
                     member -> Cursor.encode(Cursor.MEMBERS, member.orgUnitId(),
@@ -829,17 +832,19 @@ public class OrgUnitsResource {
     private List<OrgUnitRepresentation> represent(List<OrgUnitState> states) {
         ExternalIdLists ids = externalIds.lists(ExternalId.Kind.ORG_UNIT,
                 states.stream().map(state -> state.unit().id()).toList());
-        return states.stream().map(limit::readable).map(state -> OrgUnitRepresentation.of(state, ids)).toList();
+        Locale language = context.nameLanguage();
+        return states.stream().map(limit::readable).map(state -> OrgUnitRepresentation.of(state, ids, language))
+                .toList();
     }
 
     private OrgUnitRepresentation represent(OrgUnitState state) {
         return OrgUnitRepresentation.of(state,
-                externalIds.lists(ExternalId.Kind.ORG_UNIT, List.of(state.unit().id())));
+                externalIds.lists(ExternalId.Kind.ORG_UNIT, List.of(state.unit().id())), context.nameLanguage());
     }
 
     private OrgUnitHistoryRepresentation history(OrgUnitHistory history) {
         return OrgUnitHistoryRepresentation.of(history,
-                externalIds.lists(ExternalId.Kind.ORG_UNIT, List.of(history.unit().id())));
+                externalIds.lists(ExternalId.Kind.ORG_UNIT, List.of(history.unit().id())), context.nameLanguage());
     }
 
     @GET

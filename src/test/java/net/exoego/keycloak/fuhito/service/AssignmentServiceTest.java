@@ -19,6 +19,7 @@ import net.exoego.keycloak.fuhito.domain.ValidPeriod;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import static net.exoego.keycloak.fuhito.service.UnitNames.ja;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -54,7 +55,7 @@ class AssignmentServiceTest {
     }
 
     private String unit(String name, String parentId) {
-        return orgUnitService.create(new NewOrgUnit(null, name, null, null, null, null, null, parentId, "2026-04-01",
+        return orgUnitService.create(new NewOrgUnit(null, "ja", ja(name), null, parentId, "2026-04-01",
                 null, null, null, null)).unit().id();
     }
 
@@ -159,7 +160,7 @@ class AssignmentServiceTest {
     void aMoveIsRejectedWhenItCannotHappen() {
         String old = service.add(new AssignmentValues(employment, ward, "2026-04-01", "2030-04-01", null, null, null,
                 null, null, null, null, null, null, null, null)).assignmentId();
-        String late = orgUnitService.create(new NewOrgUnit(null, "Late", null, null, null, null, null, null,
+        String late = orgUnitService.create(new NewOrgUnit(null, "ja", ja("Late"), null, null,
                 "2029-04-01", null, null, null, null)).unit().id();
 
         assertEquals("assignment.same_org_unit", assertThrows(FuhitoException.class,
@@ -255,7 +256,7 @@ class AssignmentServiceTest {
 
     @Test
     void rejectsAnOrgUnitThatDoesNotCoverThePeriod() {
-        String later = orgUnitService.create(new NewOrgUnit(null, "Later", null, null, null, null, null, null,
+        String later = orgUnitService.create(new NewOrgUnit(null, "ja", ja("Later"), null, null,
                 "2027-04-01", null, null, null, null)).unit().id();
         String ending = unit("Ending", null);
         orgUnitService.end(ending, "2027-04-01");
@@ -576,7 +577,7 @@ class AssignmentServiceTest {
     }
 
     private void giveUnit(String id, String name, String validFrom, String workLocation, String costCenter) {
-        orgUnitService.changeDetails(id, new OrgUnitChange(validFrom, null, name, null, null, null, null, null,
+        orgUnitService.changeDetails(id, new OrgUnitChange(validFrom, null, "ja", ja(name), null,
                 workLocation, costCenter, null, null));
     }
 

@@ -3,6 +3,7 @@ package net.exoego.keycloak.fuhito.service;
 import java.util.List;
 import java.util.Map;
 
+import net.exoego.keycloak.fuhito.domain.OrgUnitName;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 
 @Schema(name = "ReorganizationStep", description = "One operation of a reorganization.", requiredProperties = {"op"})
@@ -30,16 +31,11 @@ public record ReorganizationStep(
                 maxLength = 64,
                 pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$")
         String code,
-        @Schema(description = "The default name, for a create or a change.", maxLength = 255)
-        String name,
-        @Schema(description = "Names in other languages, by language tag.")
-        Map<String, String> names,
-        @Schema(description = "The default short name.", maxLength = 255)
-        String shortName,
-        @Schema(description = "The short names in other languages, by language tag.")
-        Map<String, String> shortNames,
-        @Schema(description = "The reading of the name for sorting.", maxLength = 255)
-        String phoneticName,
+        @Schema(description = "The language tag of the primary names, for a create or a change. It is a key of "
+                + "`names`.")
+        String primaryLanguage,
+        @Schema(description = "The names by language tag, for a create or a change.")
+        Map<String, OrgUnitName> names,
         @Schema(description = "The code of the unit type.")
         String unitType,
         @Schema(description = "The code of the work location that the unit gives its members.")

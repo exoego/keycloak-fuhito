@@ -35,28 +35,6 @@ public class OrgUnitVersionEntity {
     @Column(name = "CODE", length = 64)
     String code;
 
-    @Column(name = "NAME", nullable = false, length = 255)
-    String name;
-
-    @Column(name = "NAMES_I18N", nullable = false)
-    @Convert(converter = JsonConverters.TextMap.class)
-    Map<String, String> names;
-
-    @Column(name = "SHORT_NAME", length = 255)
-    String shortName;
-
-    @Column(name = "SHORT_NAMES_I18N", nullable = false)
-    @Convert(converter = JsonConverters.TextMap.class)
-    Map<String, String> shortNames;
-
-    @Column(name = "PHONETIC_NAME", length = 255)
-    String phoneticName;
-
-    // The names in other languages and the short names, in lowercase with one on each line. The search reads
-    // these, so that it never matches the keys of the JSON.
-    @Column(name = "SEARCH_NAMES")
-    String searchNames;
-
     @Column(name = "UNIT_TYPE_ID", length = 36)
     String unitTypeId;
 
