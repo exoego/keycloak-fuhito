@@ -12,7 +12,7 @@ import net.exoego.keycloak.fuhito.domain.ExternalId;
 public interface ExternalIdStore {
 
     /**
-     * Returns the system that made a resource.
+     * Returns the system that made a resource. A kind of resource that keeps no system gives one with no name.
      *
      * @param kind the kind of resource
      * @param resourceId the ID of the resource

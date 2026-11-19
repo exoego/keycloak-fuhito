@@ -12,8 +12,11 @@ import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import net.exoego.keycloak.fuhito.domain.Checks;
+import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.rest.RequestContext.Change;
 import net.exoego.keycloak.fuhito.service.Cursor;
+import net.exoego.keycloak.fuhito.service.ExternalIdLists;
+import net.exoego.keycloak.fuhito.service.ExternalIdService;
 import net.exoego.keycloak.fuhito.service.Page;
 import net.exoego.keycloak.fuhito.service.UnitRoleService;
 import org.eclipse.microprofile.openapi.annotations.Operation;
@@ -25,6 +28,7 @@ import org.eclipse.microprofile.openapi.annotations.parameters.Parameter;
 import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
 import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 
+import java.util.List;
 import java.util.Locale;
 
 /**
@@ -42,16 +46,19 @@ public class UnitRolesResource {
 
     private final RequestContext context;
     private final UnitRoleService service;
+    private final ExternalIdService externalIds;
 
     /**
      * Creates the resource for one request.
      *
      * @param context the request and its caller
      * @param service the operations on the realm of the request
+     * @param externalIds the IDs that systems have for the resources of the realm
      */
-    public UnitRolesResource(RequestContext context, UnitRoleService service) {
+    public UnitRolesResource(RequestContext context, UnitRoleService service, ExternalIdService externalIds) {
         this.context = context;
         this.service = service;
+        this.externalIds = externalIds;
     }
 
     @GET
@@ -146,8 +153,10 @@ public class UnitRolesResource {
         context.requireWrite();
         return Calls.run(context, () -> {
             Checks.required("body", body);
-            var role = UnitRoleRepresentation.of(service.add(body.employmentId(), body.orgUnitId(), body.role(),
-                    body.includesDescendants(), body.validFrom(), body.validTo()));
+            var role = represent(externalIds.create(ExternalId.Kind.UNIT_ROLE, body.source(), body.externalId(),
+                    () -> service.add(body.employmentId(), body.orgUnitId(), body.role(), body.includesDescendants(),
+                            body.validFrom(), body.validTo()),
+                    view -> view.role().id()));
             context.recordChange(Change.CREATE, RESOURCE_TYPE, role.id(), path(role.id()), role);
             return Response.status(Response.Status.CREATED).entity(role).build();
         });
@@ -163,7 +172,7 @@ public class UnitRolesResource {
             @Parameter(description = "The ID of the resource.")
             @PathParam("id") String id) {
         context.requireRead();
-        return Calls.run(context, () -> UnitRoleRepresentation.of(service.get(id)));
+        return Calls.run(context, () -> represent(service.get(id)));
     }
 
     @PUT
@@ -180,7 +189,7 @@ public class UnitRolesResource {
             EndRepresentation body) {
         context.requireWrite();
         return Calls.guarded(context, body, () -> version(id), () -> {
-            var role = UnitRoleRepresentation.of(service.end(id, body.validTo()));
+            var role = represent(service.end(id, body.validTo()));
             context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, path(id) + "/end", role);
             return role;
         });
@@ -215,6 +224,17 @@ public class UnitRolesResource {
 
     private static String path(String id) {
         return "fuhito/unit-roles/" + id;
+    }
+
+    // The IDs of every role of a list are read with one query.
+    static List<UnitRoleRepresentation> represent(List<UnitRoleService.View> roles, ExternalIdService externalIds) {
+        ExternalIdLists ids = externalIds.lists(ExternalId.Kind.UNIT_ROLE,
+                roles.stream().map(view -> view.role().id()).toList());
+        return roles.stream().map(view -> UnitRoleRepresentation.of(view, ids)).toList();
+    }
+
+    private UnitRoleRepresentation represent(UnitRoleService.View role) {
+        return represent(List.of(role), externalIds).getFirst();
     }
 
     private long version(String id) {

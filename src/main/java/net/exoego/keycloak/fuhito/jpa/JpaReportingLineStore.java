@@ -195,6 +195,7 @@ public class JpaReportingLineStore implements ReportingLineStore {
         entity.validFrom = line.period().from();
         entity.validTo = line.period().to();
         entity.version = line.version();
+        entity.counted = true;
         em.persist(entity);
     }
 
@@ -203,13 +204,13 @@ public class JpaReportingLineStore implements ReportingLineStore {
         ReportingLineEntity entity = findEntity(line.id()).orElseThrow();
         entity.validFrom = line.period().from();
         entity.validTo = line.period().to();
-        // JPA counts up the version when it writes the row. A read after the write gives the new one.
-        em.flush();
+        entity.countUp();
     }
 
     @Override
     public void delete(String id) {
         findEntity(id).ifPresent(entity -> {
+            ExternalIds.deleteOf(em, realmId, "REPORTING_LINE", id);
             em.remove(entity);
             em.flush();
         });

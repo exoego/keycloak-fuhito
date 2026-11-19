@@ -1,11 +1,13 @@
 package net.exoego.keycloak.fuhito.rest;
 
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
 import net.exoego.keycloak.fuhito.domain.RefItem;
 import net.exoego.keycloak.fuhito.domain.RefItemName;
+import net.exoego.keycloak.fuhito.service.ExternalIdLists;
 import net.exoego.keycloak.fuhito.service.RefItemService;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 
@@ -16,8 +18,9 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
 public record RefItemRepresentation(
         @Schema(readOnly = true)
         String id,
-        @Schema(description = "The version of the item. A new item has 1. Each write counts it up by one. A write "
-                + "of a stored item sends the version that the caller read. A create needs none.")
+        @Schema(description = "The version of the item. A new item has 1. Each write counts it up by one, also a "
+                + "change of an ID of another system. A write of a stored item sends the version that the caller "
+                + "read. A create needs none.")
         Long version,
         @Schema(description = "A fixed kind such as `UNIT_TYPE`, or the code of a kind that the realm added. Only a "
                 + "create request reads it.")
@@ -73,18 +76,33 @@ public record RefItemRepresentation(
                 description = "The first date after the names. It is missing for no end.",
                 format = "date",
                 readOnly = true)
-        String validTo) implements Versioned {
+        String validTo,
+        @Schema(
+                description = "The ID of the item in the system that `source` names. Only a create reads it. "
+                        + "A read gives every ID in `externalIds`.",
+                maxLength = 255,
+                writeOnly = true)
+        String externalId,
+        @Schema(
+                description = "The name of the system of `externalId`. Only a create reads it.",
+                maxLength = 64,
+                pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$",
+                writeOnly = true)
+        String source,
+        @Schema(description = "Every ID that a system has for the item, by system.", readOnly = true)
+        List<ExternalIdPairRepresentation> externalIds) implements Versioned {
 
     RefItemService.Marks marks() {
         return new RefItemService.Marks(legalEntity, actingHead, lateral);
     }
 
-    static RefItemRepresentation of(RefItem item, Locale language) {
+    static RefItemRepresentation of(RefItem item, ExternalIdLists ids, Locale language) {
         return new RefItemRepresentation(item.id(), item.version(), item.kind(), item.code(),
                 item.names().in(language).name(), item.names().primaryLanguage(), item.names().byLanguage(),
                 item.displayOrder(), item.attributes(), item.active(),
                 item.legalEntity() ? Boolean.TRUE : null, item.actingHead() ? Boolean.TRUE : null,
                 item.lateral() ? Boolean.TRUE : null, Objects.toString(item.validFrom(), null),
-                Objects.toString(item.validTo(), null));
+                Objects.toString(item.validTo(), null), null, null,
+                ExternalIdPairRepresentation.of(ids.of(item.id(), null)));
     }
 }

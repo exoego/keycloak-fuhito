@@ -4,7 +4,7 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
-import jakarta.persistence.Version;
+import jakarta.persistence.Transient;
 
 /**
  * A named tree of org units in a realm.
@@ -26,9 +26,12 @@ public class HierarchyEntity {
     @Column(name = "NAME", nullable = false, length = 255)
     private String name;
 
-    @Version
     @Column(name = "VERSION", nullable = false)
     private long version;
+
+    // True once a write of this session counted up the version. A session of Keycloak has one transaction.
+    @Transient
+    private boolean counted;
 
     /**
      * Creates an empty entity for JPA.
@@ -118,11 +121,20 @@ public class HierarchyEntity {
     }
 
     /**
-     * Sets the version of a new row.
+     * Sets the version of a new row. A later write in the same session keeps it.
      *
      * @param version the version
      */
     public void setVersion(long version) {
         this.version = version;
+        counted = true;
+    }
+
+    // A write and a change of its IDs of other systems count up the version once.
+    void countUp() {
+        if (!counted) {
+            version++;
+            counted = true;
+        }
     }
 }

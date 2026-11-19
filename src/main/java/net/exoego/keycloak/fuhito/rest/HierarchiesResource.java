@@ -14,7 +14,11 @@ import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import net.exoego.keycloak.fuhito.domain.Checks;
+import net.exoego.keycloak.fuhito.domain.ExternalId;
+import net.exoego.keycloak.fuhito.domain.Hierarchy;
 import net.exoego.keycloak.fuhito.rest.RequestContext.Change;
+import net.exoego.keycloak.fuhito.service.ExternalIdLists;
+import net.exoego.keycloak.fuhito.service.ExternalIdService;
 import net.exoego.keycloak.fuhito.service.HierarchyService;
 import net.exoego.keycloak.fuhito.service.Page;
 import org.eclipse.microprofile.openapi.annotations.Operation;
@@ -41,16 +45,19 @@ public class HierarchiesResource {
 
     private final RequestContext context;
     private final HierarchyService service;
+    private final ExternalIdService externalIds;
 
     /**
      * Creates the resource for one request.
      *
      * @param context the request and its caller
      * @param service the operations on the realm of the request
+     * @param externalIds the IDs that systems have for the resources of the realm
      */
-    public HierarchiesResource(RequestContext context, HierarchyService service) {
+    public HierarchiesResource(RequestContext context, HierarchyService service, ExternalIdService externalIds) {
         this.context = context;
         this.service = service;
+        this.externalIds = externalIds;
     }
 
     @GET
@@ -67,8 +74,7 @@ public class HierarchiesResource {
                     schema = @Schema(minimum = "0", maximum = "1000", defaultValue = "100"))
             @QueryParam("max") Integer max) {
         context.requireReadStructure();
-        return Calls.run(context,
-                () -> service.list(Page.of(first, max)).stream().map(HierarchyRepresentation::of).toList());
+        return Calls.run(context, () -> represent(service.list(Page.of(first, max))));
     }
 
     @GET
@@ -91,7 +97,7 @@ public class HierarchiesResource {
             @Parameter(description = "The ID of the resource.")
             @PathParam("id") String id) {
         context.requireReadStructure();
-        return Calls.run(context, () -> HierarchyRepresentation.of(service.get(id)));
+        return Calls.run(context, () -> represent(service.get(id)));
     }
 
     @POST
@@ -112,7 +118,8 @@ public class HierarchiesResource {
         context.requireWrite();
         return Calls.run(context, () -> {
             Checks.required("body", body);
-            var hierarchy = HierarchyRepresentation.of(service.create(body.code(), body.name()));
+            var hierarchy = represent(externalIds.create(ExternalId.Kind.HIERARCHY, body.source(), body.externalId(),
+                    () -> service.create(body.code(), body.name()), Hierarchy::id));
             context.recordChange(Change.CREATE, RESOURCE_TYPE, hierarchy.id(), path(hierarchy.id()), hierarchy);
             return Response.status(Response.Status.CREATED).entity(hierarchy).build();
         });
@@ -137,7 +144,7 @@ public class HierarchiesResource {
             HierarchyRepresentation body) {
         context.requireWrite();
         return Calls.guarded(context, body, () -> version(id), () -> {
-            var hierarchy = HierarchyRepresentation.of(service.rename(id, body.name()));
+            var hierarchy = represent(service.rename(id, body.name()));
             context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, path(id), hierarchy);
             return hierarchy;
         });
@@ -173,6 +180,17 @@ public class HierarchiesResource {
 
     private static String path(String id) {
         return "fuhito/hierarchies/" + id;
+    }
+
+    // The IDs of every hierarchy of a list are read with one query.
+    private List<HierarchyRepresentation> represent(List<Hierarchy> hierarchies) {
+        ExternalIdLists ids = externalIds.lists(ExternalId.Kind.HIERARCHY,
+                hierarchies.stream().map(Hierarchy::id).toList());
+        return hierarchies.stream().map(hierarchy -> HierarchyRepresentation.of(hierarchy, ids)).toList();
+    }
+
+    private HierarchyRepresentation represent(Hierarchy hierarchy) {
+        return represent(List.of(hierarchy)).getFirst();
     }
 
     private long version(String id) {

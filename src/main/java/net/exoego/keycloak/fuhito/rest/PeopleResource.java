@@ -277,10 +277,8 @@ public class PeopleResource {
                     schema = @Schema(minimum = "0", maximum = "1000", defaultValue = "100"))
             @QueryParam("max") Integer max) {
         context.requireRead();
-        return Calls.run(context, () -> reads.unitRoles()
-                .ofPerson(service.get(id).person().id(), asOf, Page.of(first, max)).stream()
-                .map(UnitRoleRepresentation::of)
-                .toList());
+        return Calls.run(context, () -> UnitRolesResource.represent(reads.unitRoles()
+                .ofPerson(service.get(id).person().id(), asOf, Page.of(first, max)), reads.externalIds()));
     }
 
     @GET

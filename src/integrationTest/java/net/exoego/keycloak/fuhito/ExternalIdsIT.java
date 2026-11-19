@@ -1,7 +1,9 @@
 package net.exoego.keycloak.fuhito;
 
 import java.net.http.HttpResponse;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import org.junit.jupiter.api.Test;
@@ -167,5 +169,182 @@ class ExternalIdsIT {
         assertEquals("external_id.unknown", errorOf(404, api.get(lookup + "ASSIGNMENT&source=hr&externalId=A-1")));
         assertEquals(204, api.deleteWithVersion("/employments/" + employment).statusCode());
         assertEquals("external_id.unknown", errorOf(404, api.get(lookup + "EMPLOYMENT&source=hr&externalId=E-1")));
+    }
+
+    // Creates a resource with the ID of the system hr, and returns its ID.
+    private static String created(Api api, String path, String body, String externalId) throws Exception {
+        HttpResponse<String> response = api.post(path, body.substring(0, body.length() - 1)
+                + ", \"source\": \"hr\", \"externalId\": \"" + externalId + "\"}");
+        assertEquals(201, response.statusCode(), response.body());
+        JsonNode resource = Api.json(response);
+        assertEquals(List.of("hr=" + externalId), Api.externalIds(resource));
+        // The create and its ID are one write.
+        assertEquals(1, resource.get("version").asLong());
+        // The same request again fails, before it writes anything.
+        assertEquals("external_id.taken", errorOf(409, api.post(path, body.substring(0, body.length() - 1)
+                + ", \"source\": \"hr\", \"externalId\": \"" + externalId + "\"}")));
+        return resource.get("id").asText();
+    }
+
+    @Test
+    void everyResourceWithAnIdHasTheIdsOfEverySystem() throws Exception {
+        TestRealm realm = TestRealm.withEmployer("external-ids-every-kind");
+        Api api = realm.api;
+        String unit = Api.json(api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"病棟\"}}, \"validFrom\": \"2020-04-01\"}"))
+                .get("id").asText();
+        JsonNode staff = Api.json(api.post("/staff", "{\"userId\": \"" + realm.user("nurse") + "\", \"orgUnitId\": \""
+                + unit + "\", \"validFrom\": \"2020-04-01\"}"));
+        realm.refItem("UNIT_ROLE", "approver", "承認者");
+        String kind = created(api, "/ref-kinds", "{\"code\": \"site\", \"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"拠点\"}}}", "K-1");
+        String item = created(api, "/ref-items", "{\"kind\": \"site\", \"code\": \"tokyo\", \"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"東京\"}}}", "I-1");
+        String definition = created(api, "/attribute-definitions", "{\"target\": \"PERSON\", \"name\": \"beds\", \"type\": \"NUMBER\"}", "D-1");
+        String hierarchy = created(api, "/hierarchies", "{\"code\": \"project\", \"name\": \"P\"}", "H-1");
+        String order = created(api, "/change-orders", "{\"title\": \"異動\", \"effectiveDate\": \"2026-04-01\"}", "O-1");
+        String role = created(api, "/unit-roles", "{\"employmentId\": \"" + staff.get("employment").get("id").asText()
+                + "\", \"orgUnitId\": \"" + unit + "\", \"role\": \"approver\", \"validFrom\": \"2020-04-01\"}", "R-1");
+        String line = created(api, "/reporting-lines", "{\"assignmentId\": \"" + staff.get("assignment").get("id").asText()
+                + "\", \"managerUserId\": \"" + realm.user("boss") + "\", \"validFrom\": \"2021-04-01\"}", "L-1");
+
+        String[][] resources = {{"REF_KIND", kind, "/ref-kinds/site"}, {"REF_ITEM", item, "/ref-items/" + item},
+                {"ATTRIBUTE_DEFINITION", definition, "/attribute-definitions/" + definition},
+                {"HIERARCHY", hierarchy, "/hierarchies/" + hierarchy}, {"CHANGE_ORDER", order, "/change-orders/" + order},
+                {"UNIT_ROLE", role, "/unit-roles/" + role}, {"REPORTING_LINE", line, "/reporting-lines/" + line}};
+        for (int i = 0; i < resources.length; i++) {
+            String type = resources[i][0];
+            String id = resources[i][1];
+            String path = resources[i][2];
+            JsonNode found = ok(api.get("/external-ids/lookup?resourceType=" + type + "&source=hr&externalId="
+                    + Api.externalIds(read(api, path)).getFirst().substring("hr=".length())));
+            assertEquals(id, found.get("resourceId").asText(), type);
+            assertFalse(found.get("own").asBoolean(), type);
+
+            // A change of an ID is a write of its resource.
+            String payroll = "{\"resourceType\": \"" + type + "\", \"resourceId\": \"" + id
+                    + "\", \"source\": \"payroll\", \"externalId\": \"P-" + i + "\"}";
+            ok(api.putWithVersion("/external-ids", payroll));
+            JsonNode changed = read(api, path);
+            assertEquals(2, changed.get("version").asLong(), type);
+            assertEquals("payroll=P-" + i, Api.externalIds(changed).getLast(), type);
+            assertEquals(List.of("hr", "payroll"), ok(api.get("/external-ids?resourceType=" + type + "&resourceId="
+                    + id)).findValuesAsText("source"), type);
+            assertEquals(204, api.deleteWithVersion("/external-ids?resourceType=" + type + "&resourceId=" + id
+                    + "&source=payroll").statusCode(), type);
+            assertEquals(3, read(api, path).get("version").asLong(), type);
+            assertEquals("external_id.resource_unknown", errorOf(404, api.putWithVersion("/external-ids",
+                    payroll.replace(id, "nope"))), type);
+        }
+
+        // A list reads the IDs of every entry at once.
+        String person = staff.get("employment").get("personId").asText();
+        Map<String, String> lists = Map.of("/ref-kinds", "K-1", "/ref-items?kind=site", "I-1",
+                "/attribute-definitions", "D-1", "/hierarchies", "H-1", "/change-orders", "O-1",
+                "/people/" + person + "/unit-roles", "R-1", "/org-units/" + unit + "/role-holders", "R-1");
+        for (Map.Entry<String, String> list : lists.entrySet()) {
+            List<String> ids = new ArrayList<>();
+            ok(api.get(list.getKey())).forEach(entry -> entry.path("externalIds")
+                    .forEach(id -> ids.add(id.get("externalId").asText())));
+            assertEquals(List.of(list.getValue()), ids, list.getKey());
+        }
+
+        // An import that changes a hierarchy and gives it an ID writes it once.
+        HttpResponse<String> imported = api.post("/imports", """
+                {"effectiveDate": "2026-04-01", "source": "sheet", "hierarchies": [{"code": "project", "name": "Q"}],
+                 "externalIds": [{"resourceType": "HIERARCHY", "resourceId": "%s", "externalId": "S-1"}]}"""
+                .formatted(hierarchy));
+        assertEquals(200, imported.statusCode(), imported.body());
+        JsonNode renamed = ok(api.get("/hierarchies/" + hierarchy));
+        assertEquals("Q", renamed.get("name").asText());
+        assertEquals(4, renamed.get("version").asLong());
+        assertEquals(List.of("hr=H-1", "sheet=S-1"), Api.externalIds(renamed));
+
+        // A resource that goes away takes its IDs with it.
+        for (int i = resources.length - 1; i >= 0; i--) {
+            String path = resources[i][2];
+            String externalId = Api.externalIds(read(api, path)).getFirst().substring("hr=".length());
+            assertEquals(204, api.deleteWithVersion(path).statusCode(), path);
+            assertEquals("external_id.unknown", errorOf(404, api.get("/external-ids/lookup?resourceType="
+                    + resources[i][0] + "&source=hr&externalId=" + externalId)));
+        }
+        assertEquals(201, api.post("/hierarchies", "{\"code\": \"project\", \"name\": \"P\", \"source\": \"hr\", "
+                + "\"externalId\": \"H-1\"}").statusCode());
+    }
+
+    @Test
+    void aMaskAndAnEraseRemoveTheIdsOfTheLinesAndTheRolesOfThePerson() throws Exception {
+        TestRealm realm = TestRealm.withEmployer("external-ids-person-data");
+        Api api = realm.api;
+        String unit = Api.json(api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"病棟\"}}, \"validFrom\": \"2020-04-01\"}"))
+                .get("id").asText();
+        realm.refItem("UNIT_ROLE", "approver", "承認者");
+        String boss = realm.user("boss");
+        String lookup = "/external-ids/lookup?resourceType=";
+        for (String name : List.of("masked", "erased")) {
+            JsonNode staff = Api.json(api.post("/staff", "{\"userId\": \"" + realm.user(name) + "\", \"orgUnitId\": \""
+                    + unit + "\", \"validFrom\": \"2020-04-01\"}"));
+            String employment = staff.get("employment").get("id").asText();
+            String person = staff.get("employment").get("personId").asText();
+            String role = created(api, "/unit-roles", "{\"employmentId\": \"" + employment + "\", \"orgUnitId\": \""
+                    + unit + "\", \"role\": \"approver\", \"validFrom\": \"2020-04-01\"}", "R-" + name);
+            String line = created(api, "/reporting-lines", "{\"assignmentId\": \""
+                    + staff.get("assignment").get("id").asText() + "\", \"managerUserId\": \"" + boss
+                    + "\", \"validFrom\": \"2020-04-01\"}", "L-" + name);
+            assertEquals(200, api.putWithVersion("/employments/" + employment + "/end",
+                    "{\"validTo\": \"2021-04-01\"}").statusCode());
+            long roleVersion = ok(api.get("/unit-roles/" + role)).get("version").asLong();
+            long lineVersion = ok(api.get("/reporting-lines/" + line)).get("version").asLong();
+
+            if (name.equals("masked")) {
+                assertEquals(200, api.postWithVersion("/people/" + person + "/mask", "").statusCode());
+                // The line and the role stay, and lose their IDs.
+                assertEquals(List.of(), Api.externalIds(ok(api.get("/unit-roles/" + role))));
+                assertEquals(roleVersion + 1, ok(api.get("/unit-roles/" + role)).get("version").asLong());
+                assertEquals(lineVersion + 1, ok(api.get("/reporting-lines/" + line)).get("version").asLong());
+            } else {
+                assertEquals(204, api.deleteWithVersion("/people/" + person + "/data").statusCode());
+            }
+            assertEquals("external_id.unknown", errorOf(404, api.get(lookup + "UNIT_ROLE&source=hr&externalId=R-"
+                    + name)));
+            assertEquals("external_id.unknown", errorOf(404, api.get(lookup + "REPORTING_LINE&source=hr&externalId=L-"
+                    + name)));
+        }
+    }
+
+    @Test
+    void aRestoreKeepsTheIdsOfEveryKind() throws Exception {
+        TestRealm source = TestRealm.create("external-ids-export");
+        String hierarchy = created(source.api, "/hierarchies", "{\"code\": \"project\", \"name\": \"P\"}", "H-1");
+        String order = created(source.api, "/change-orders", "{\"title\": \"異動\", \"effectiveDate\": \"2026-04-01\"}", "O-1");
+        String kind = created(source.api, "/ref-kinds", "{\"code\": \"site\", \"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"拠点\"}}}", "K-1");
+        var export = RealmExportIT.export(source.api);
+
+        TestRealm target = TestRealm.create("external-ids-restore");
+        source.remove();
+        HttpResponse<String> restored = target.api.post("/restore", export.toString());
+        assertEquals(200, restored.statusCode(), restored.body());
+
+        String lookup = "/external-ids/lookup?resourceType=";
+        assertEquals(hierarchy, ok(target.api.get(lookup + "HIERARCHY&source=hr&externalId=H-1")).get("resourceId")
+                .asText());
+        assertEquals(order, ok(target.api.get(lookup + "CHANGE_ORDER&source=hr&externalId=O-1")).get("resourceId")
+                .asText());
+        assertEquals(kind, ok(target.api.get(lookup + "REF_KIND&source=hr&externalId=K-1")).get("resourceId")
+                .asText());
+        // A restore writes no resource again.
+        assertEquals(1, ok(target.api.get("/change-orders/" + order)).get("version").asLong());
+        assertEquals(1, ok(target.api.get("/hierarchies/" + hierarchy)).get("version").asLong());
+        assertEquals(export, RealmExportIT.export(target.api));
+    }
+
+    // A kind of reference data is read from the list of kinds.
+    private static JsonNode read(Api api, String path) throws Exception {
+        if (path.startsWith("/ref-kinds/")) {
+            for (JsonNode kind : ok(api.get("/ref-kinds"))) {
+                if (kind.get("code").asText().equals(path.substring("/ref-kinds/".length()))) {
+                    return kind;
+                }
+            }
+            throw new AssertionError(path);
+        }
+        return ok(api.get(path));
     }
 }

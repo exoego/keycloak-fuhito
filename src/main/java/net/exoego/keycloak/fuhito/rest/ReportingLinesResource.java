@@ -1,5 +1,7 @@
 package net.exoego.keycloak.fuhito.rest;
 
+import java.util.List;
+
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.DELETE;
 import jakarta.ws.rs.GET;
@@ -12,7 +14,11 @@ import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import net.exoego.keycloak.fuhito.domain.Checks;
+import net.exoego.keycloak.fuhito.domain.ExternalId;
+import net.exoego.keycloak.fuhito.domain.ReportingLine;
 import net.exoego.keycloak.fuhito.rest.RequestContext.Change;
+import net.exoego.keycloak.fuhito.service.ExternalIdLists;
+import net.exoego.keycloak.fuhito.service.ExternalIdService;
 import net.exoego.keycloak.fuhito.service.PersonService;
 import net.exoego.keycloak.fuhito.service.ReportingLineService;
 import org.eclipse.microprofile.openapi.annotations.Operation;
@@ -39,6 +45,7 @@ public class ReportingLinesResource {
     private final RequestContext context;
     private final ReportingLineService service;
     private final PersonService people;
+    private final ExternalIdService externalIds;
 
     /**
      * Creates the resource for one request.
@@ -46,11 +53,14 @@ public class ReportingLinesResource {
      * @param context the request and its caller
      * @param service the operations on the realm of the request
      * @param people the operations on people of the realm
+     * @param externalIds the IDs that systems have for the resources of the realm
      */
-    public ReportingLinesResource(RequestContext context, ReportingLineService service, PersonService people) {
+    public ReportingLinesResource(RequestContext context, ReportingLineService service, PersonService people,
+            ExternalIdService externalIds) {
         this.context = context;
         this.service = service;
         this.people = people;
+        this.externalIds = externalIds;
     }
 
     @POST
@@ -68,10 +78,11 @@ public class ReportingLinesResource {
         context.requireWrite();
         return Calls.run(context, () -> {
             Checks.required("body", body);
-            var line = ReportingLineRepresentation.of(service.add(body.assignmentId(),
-                    Writes.personId(context, people, "managerPersonId", body.managerPersonId(),
-                            body.managerUserId()),
-                    body.kind(), body.validFrom(), body.validTo()));
+            String manager = Writes.personId(context, people, "managerPersonId", body.managerPersonId(),
+                    body.managerUserId());
+            var line = represent(externalIds.create(ExternalId.Kind.REPORTING_LINE, body.source(), body.externalId(),
+                    () -> service.add(body.assignmentId(), manager, body.kind(), body.validFrom(), body.validTo()),
+                    ReportingLine::id));
             context.recordChange(Change.CREATE, RESOURCE_TYPE, line.id(), path(line.id()), line);
             return Response.status(Response.Status.CREATED).entity(line).build();
         });
@@ -87,7 +98,7 @@ public class ReportingLinesResource {
             @Parameter(description = "The ID of the resource.")
             @PathParam("id") String id) {
         context.requireRead();
-        return Calls.run(context, () -> ReportingLineRepresentation.of(service.get(id)));
+        return Calls.run(context, () -> represent(service.get(id)));
     }
 
     @PUT
@@ -104,7 +115,7 @@ public class ReportingLinesResource {
             EndRepresentation body) {
         context.requireWrite();
         return Calls.guarded(context, body, () -> version(id), () -> {
-            var line = ReportingLineRepresentation.of(service.end(id, body.validTo()));
+            var line = represent(service.end(id, body.validTo()));
             context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, path(id) + "/end", line);
             return line;
         });
@@ -138,6 +149,17 @@ public class ReportingLinesResource {
 
     private static String path(String id) {
         return "fuhito/reporting-lines/" + id;
+    }
+
+    // The IDs of every line of a list are read with one query.
+    static List<ReportingLineRepresentation> represent(List<ReportingLine> lines, ExternalIdService externalIds) {
+        ExternalIdLists ids = externalIds.lists(ExternalId.Kind.REPORTING_LINE,
+                lines.stream().map(ReportingLine::id).toList());
+        return lines.stream().map(line -> ReportingLineRepresentation.of(line, ids)).toList();
+    }
+
+    private ReportingLineRepresentation represent(ReportingLine line) {
+        return represent(List.of(line), externalIds).getFirst();
     }
 
     private long version(String id) {

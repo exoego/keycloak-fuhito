@@ -468,10 +468,10 @@ public class EmploymentsResource {
         newAssignments.forEach(assignment -> context.recordChange(Change.CREATE,
                 AssignmentsResource.RESOURCE_TYPE, assignment.id(), "fuhito/assignments/" + assignment.id(),
                 assignment));
-        var newLines = transfer.reportingLines().stream().map(ReportingLineRepresentation::of).toList();
+        var newLines = ReportingLinesResource.represent(transfer.reportingLines(), externalIds);
         newLines.forEach(line -> context.recordChange(Change.CREATE, ReportingLinesResource.RESOURCE_TYPE,
                 line.id(), "fuhito/reporting-lines/" + line.id(), line));
-        var newRoles = transfer.unitRoles().stream().map(UnitRoleRepresentation::of).toList();
+        var newRoles = UnitRolesResource.represent(transfer.unitRoles(), externalIds);
         newRoles.forEach(role -> context.recordChange(Change.CREATE, UnitRolesResource.RESOURCE_TYPE, role.id(),
                 "fuhito/unit-roles/" + role.id(), role));
         return TransferRepresentation.of(ended, started, newAssignments, newLines, newRoles);

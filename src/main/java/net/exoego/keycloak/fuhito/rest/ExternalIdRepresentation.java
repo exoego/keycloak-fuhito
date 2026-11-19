@@ -11,7 +11,8 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
         description = "The ID that one system has for one resource.",
         requiredProperties = {"resourceType", "resourceId", "source", "externalId"})
 public record ExternalIdRepresentation(
-        @Schema(enumeration = {"ORG_UNIT", "PERSON", "EMPLOYMENT", "ASSIGNMENT", "QUALIFICATION"})
+        @Schema(enumeration = {"ORG_UNIT", "PERSON", "EMPLOYMENT", "ASSIGNMENT", "QUALIFICATION", "REPORTING_LINE",
+                "UNIT_ROLE", "CHANGE_ORDER", "REF_ITEM", "REF_KIND", "HIERARCHY", "ATTRIBUTE_DEFINITION"})
         String resourceType,
         String resourceId,
         @Schema(description = "The name of the system.", maxLength = 64, pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$")
