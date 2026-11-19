@@ -158,10 +158,15 @@ class CsvImportIT {
                     .get("counts").get("reportingLines");
             assertEquals(0, counts.get("created").asInt() + counts.get("changed").asInt(), counts.toString());
         }
-        // A new solid manager ends the line of the manager before.
+        // A new solid manager does not end the stored line. The file ends it in a row of its own.
         realm.user("chief");
-        load(api, "reporting-lines", "effectiveDate=2026-06-01", "assignmentId,managerUsername\r\n" + assignment
-                + ",chief\r\n");
+        HttpResponse<String> second = api.postBytes("/imports/csv/reporting-lines?effectiveDate=2026-06-01",
+                "text/csv; charset=UTF-8", ("assignmentId,managerUsername\r\n" + assignment + ",chief\r\n")
+                        .getBytes(StandardCharsets.UTF_8));
+        assertEquals(400, second.statusCode(), second.body());
+        assertEquals("reporting_line.solid_exists", Api.json(second).get("errors").get(0).get("error").asText());
+        load(api, "reporting-lines", "effectiveDate=2026-06-01", "id,assignmentId,managerUsername,validTo\r\n,"
+                + assignment + ",chief,\r\n" + line + ",,,2026-06-01\r\n");
         assertTrue(api.get("/imports/csv/reporting-lines?asOf=2026-05-31").body().contains(line + ","));
         assertTrue(api.get("/imports/csv/reporting-lines?asOf=2026-05-31").body().endsWith(",2026-06-01\r\n"));
         assertFalse(api.get("/imports/csv/reporting-lines?asOf=2026-06-01").body().contains(line + ","));
@@ -191,8 +196,14 @@ class CsvImportIT {
                     .get("counts").get("unitRoles");
             assertEquals(0, counts.get("created").asInt() + counts.get("changed").asInt(), counts.toString());
         }
-        // A role that now covers the units below starts again on the date.
-        load(api, "unit-roles", "effectiveDate=2026-06-01", "id,includesDescendants\r\n" + role + ",true\r\n");
+        // Whether the role covers the units below does not change. The file ends it and adds a new role.
+        HttpResponse<String> wider = api.postBytes("/imports/csv/unit-roles?effectiveDate=2026-06-01",
+                "text/csv; charset=UTF-8", ("id,includesDescendants\r\n" + role + ",true\r\n")
+                        .getBytes(StandardCharsets.UTF_8));
+        assertEquals(400, wider.statusCode(), wider.body());
+        assertEquals("import.unit_role_mismatch", Api.json(wider).get("errors").get(0).get("error").asText());
+        load(api, "unit-roles", "effectiveDate=2026-06-01", "id,employmentId,orgUnitId,role,includesDescendants,"
+                + "validTo\r\n," + employment + "," + ward + ",approver,true,\r\n" + role + ",,,,,2026-06-01\r\n");
         assertTrue(api.get("/imports/csv/unit-roles?asOf=2026-05-31").body().endsWith(",false,2021-04-01,2026-06-01\r\n"));
         assertTrue(api.get("/imports/csv/unit-roles?asOf=2026-06-01").body().endsWith(",true,2026-06-01,\r\n"));
     }
