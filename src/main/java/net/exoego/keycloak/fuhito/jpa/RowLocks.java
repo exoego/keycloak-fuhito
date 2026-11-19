@@ -1,67 +1,103 @@
 package net.exoego.keycloak.fuhito.jpa;
 
+import java.util.Collection;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.SequencedMap;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
+import jakarta.persistence.criteria.CriteriaBuilder;
+import jakarta.persistence.criteria.CriteriaQuery;
+import jakarta.persistence.criteria.Root;
 
 /**
- * Keeps two writes of one resource apart. It locks the stored row of a resource until the end of the transaction,
+ * Keeps two writes of one resource apart. It locks the stored rows of resources until the end of the transaction,
  * and sends the writes of a request before the commit, so that a conflict fails the request.
+ *
+ * <p>Every write locks in one order. The kinds come in the order in which an import applies its lists, and the
+ * resources of one kind in the order of their IDs. So two writes that change the same resources never wait for
+ * each other at once.
  */
 public final class RowLocks {
 
-    // The first part of the path of each resource, and the table of its row.
-    private static final Map<String, Class<?>> ROWS = Map.ofEntries(
-            Map.entry("org-units", OrgUnitEntity.class),
-            Map.entry("employments", EmploymentEntity.class),
-            Map.entry("people", PersonEntity.class),
-            Map.entry("qualifications", QualificationEntity.class),
-            Map.entry("unit-roles", UnitRoleEntity.class),
-            Map.entry("reporting-lines", ReportingLineEntity.class),
-            Map.entry("ref-items", RefItemEntity.class),
-            Map.entry("hierarchies", HierarchyEntity.class),
-            Map.entry("attribute-definitions", AttributeDefinitionEntity.class),
-            Map.entry("change-orders", ChangeOrderEntity.class));
+    private record Rows(Class<?> entity, String key) {
+    }
+
+    // The first part of the path of each resource, with its table and the field that the path names, in the order
+    // of the locks. Each kind comes after the kinds that it refers to.
+    private static final SequencedMap<String, Rows> ROWS = new LinkedHashMap<>();
+
+    static {
+        ROWS.put("change-orders", new Rows(ChangeOrderEntity.class, "id"));
+        // The path names a kind of the realm by its code.
+        ROWS.put("ref-kinds", new Rows(RealmKindEntity.class, "code"));
+        ROWS.put("attribute-definitions", new Rows(AttributeDefinitionEntity.class, "id"));
+        ROWS.put("ref-items", new Rows(RefItemEntity.class, "id"));
+        ROWS.put("hierarchies", new Rows(HierarchyEntity.class, "id"));
+        ROWS.put("org-units", new Rows(OrgUnitEntity.class, "id"));
+        ROWS.put("people", new Rows(PersonEntity.class, "id"));
+        ROWS.put("qualifications", new Rows(QualificationEntity.class, "id"));
+        ROWS.put("employments", new Rows(EmploymentEntity.class, "id"));
+        ROWS.put("unit-roles", new Rows(UnitRoleEntity.class, "id"));
+        // An assignment has no row of its own, only one row for each of its periods.
+        ROWS.put("assignments", new Rows(AssignmentEntity.class, "assignmentId"));
+        ROWS.put("reporting-lines", new Rows(ReportingLineEntity.class, "id"));
+    }
+
+    // Oracle takes at most 1,000 values after in.
+    private static final int IDS_AT_A_TIME = 1000;
 
     private RowLocks() {
     }
 
     /**
-     * Locks the row of a resource, so that a second write to it waits until the first one ends.
-     * A path of no known resource locks nothing.
+     * Tells whether a path names a kind of resource that has stored rows to lock.
+     *
+     * @param collection the first part of the path, for example {@code org-units}
+     * @return true for a known kind
+     */
+    public static boolean knows(String collection) {
+        return ROWS.containsKey(collection);
+    }
+
+    /**
+     * Locks the rows of resources, so that a second write to one of them waits until the first one ends.
+     * It reads the rows, so a write calls it before it reads them itself. A row that the session holds already keeps
+     * the values that it had then.
+     * A resource that the realm does not have locks nothing.
      *
      * @param em the entity manager of the request
      * @param realmId the ID of the realm
-     * @param collection the first part of the path of the resource, for example {@code org-units}
-     * @param id the ID of the resource
+     * @param ids the IDs of the resources by the first part of their path, for example {@code org-units}
+     * @throws IllegalArgumentException when a kind is unknown
      */
-    public static void lock(EntityManager em, String realmId, String collection, String id) {
-        // An assignment has no row of its own, only one row for each of its periods.
-        if (collection.equals("assignments")) {
-            em.createQuery("""
-                            select a from AssignmentEntity a where a.realmId = :realmId
-                            and a.assignmentId = :id""", AssignmentEntity.class)
-                    .setParameter("realmId", realmId)
-                    .setParameter("id", id)
-                    .setLockMode(LockModeType.PESSIMISTIC_WRITE)
-                    .getResultList();
-            return;
+    public static void lock(EntityManager em, String realmId, Map<String, ? extends Collection<String>> ids) {
+        for (String collection : ids.keySet()) {
+            if (!knows(collection)) {
+                throw new IllegalArgumentException("No rows to lock for " + collection);
+            }
         }
-        // The path names a kind of the realm by its code.
-        if (collection.equals("ref-kinds")) {
-            em.createQuery("select k from RealmKindEntity k where k.realmId = :realmId and k.code = :code",
-                            RealmKindEntity.class)
-                    .setParameter("realmId", realmId)
-                    .setParameter("code", id)
-                    .setLockMode(LockModeType.PESSIMISTIC_WRITE)
-                    .getResultList();
-            return;
-        }
-        Class<?> row = ROWS.get(collection);
-        if (row != null) {
-            em.find(row, id, LockModeType.PESSIMISTIC_WRITE);
-        }
+        ROWS.forEach((collection, rows) -> {
+            Collection<String> of = ids.get(collection);
+            List<String> sorted = of == null ? List.of() : of.stream().distinct().sorted().toList();
+            for (int start = 0; start < sorted.size(); start += IDS_AT_A_TIME) {
+                lock(em, realmId, rows.entity(), rows.key(),
+                        sorted.subList(start, Math.min(start + IDS_AT_A_TIME, sorted.size())));
+            }
+        });
+    }
+
+    // The criteria API names the entity by its class, so no query text is put together.
+    private static <T> void lock(EntityManager em, String realmId, Class<T> entity, String key, List<String> ids) {
+        CriteriaBuilder builder = em.getCriteriaBuilder();
+        CriteriaQuery<T> query = builder.createQuery(entity);
+        Root<T> row = query.from(entity);
+        query.select(row)
+                .where(builder.equal(row.get("realmId"), realmId), row.get(key).in(ids))
+                .orderBy(builder.asc(row.get(key)), builder.asc(row.get("id")));
+        em.createQuery(query).setLockMode(LockModeType.PESSIMISTIC_WRITE).getResultList();
     }
 
     /**

@@ -1,8 +1,8 @@
 package net.exoego.keycloak.fuhito.rest;
 
-import java.util.List;
-
 import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.POST;
@@ -64,7 +64,7 @@ public class ReorganizationsResource {
             List<ReorganizationRepresentation.Result> results = new ArrayList<>();
             // A second request that changes the same unit waits for the first one.
             List<ReorganizationService.Result> applied = service.apply(body.effectiveDate(), body.steps(),
-                    id -> context.lock("org-units", id));
+                    ids -> context.lock(Map.of("org-units", ids)));
             ExternalIdLists ids = externalIds.lists(ExternalId.Kind.ORG_UNIT,
                     applied.stream().map(result -> result.unit().unit().id()).distinct().toList());
             for (ReorganizationService.Result result : applied) {

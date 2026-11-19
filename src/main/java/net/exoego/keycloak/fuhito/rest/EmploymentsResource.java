@@ -1,6 +1,9 @@
 package net.exoego.keycloak.fuhito.rest;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.DELETE;
@@ -32,6 +35,7 @@ import net.exoego.keycloak.fuhito.service.TermsChange;
 import net.exoego.keycloak.fuhito.service.Today;
 import net.exoego.keycloak.fuhito.service.RemovalService;
 import net.exoego.keycloak.fuhito.store.ResourceRemoval;
+import net.exoego.keycloak.fuhito.store.WriteScopes;
 import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.enums.SchemaType;
 import org.eclipse.microprofile.openapi.annotations.headers.Header;
@@ -64,6 +68,7 @@ public class EmploymentsResource {
     private final LeaveService leaves;
     private final RemovalService removals;
     private final Today today;
+    private final WriteScopes scopes;
 
     /**
      * Creates the resource for one request.
@@ -78,10 +83,12 @@ public class EmploymentsResource {
      * @param leaves the start and the end of a leave in the realm
      * @param removals the removal of resources that were made by mistake
      * @param today the date of the realm
+     * @param scopes finds the other resources that a write changes, to lock them
      */
     public EmploymentsResource(RequestContext context, EmploymentService service, ExternalIdService externalIds,
             PersonService people, AssignmentService assignments, OrgUnitService orgUnits, PromotionService promotions,
-            LeaveService leaves, RemovalService removals, Today today) {
+            LeaveService leaves, RemovalService removals, Today today, WriteScopes scopes) {
+        this.scopes = scopes;
         this.externalIds = externalIds;
         this.today = today;
         this.removals = removals;
@@ -275,7 +282,7 @@ public class EmploymentsResource {
             @PathParam("id") String id,
             EndRepresentation body) {
         context.requireWrite();
-        return Calls.guarded(context, body, () -> version(id), () -> {
+        return Calls.guarded(context, body, () -> version(id), () -> scopes.employment(id), () -> {
             var employment = represent(service.end(id, body.validTo(), body.endReason()));
             context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, "fuhito/employments/" + id + "/end", employment);
             return employment;
@@ -304,7 +311,7 @@ public class EmploymentsResource {
             @PathParam("id") String id,
             PromotionRepresentation body) {
         context.requireWrite();
-        return Calls.guarded(context, body, () -> version(id), () -> {
+        return Calls.guarded(context, body, () -> version(id), () -> scopes.employment(id), () -> {
             PromotionService.Promotion promotion = promotions.promote(id, body.toRequest());
             var employment = represent(promotion.employment());
             context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, "fuhito/employments/" + id + "/promotion",
@@ -392,7 +399,7 @@ public class EmploymentsResource {
             @PathParam("id") String id,
             TransferRepresentation body) {
         context.requireWrite();
-        return Calls.guarded(context, body, () -> version(id), () -> {
+        return Calls.guarded(context, body, () -> version(id), () -> scopes.employment(id), () -> {
             return Response.status(Response.Status.CREATED)
                     .entity(record(service.transfer(id, body.toRequest())))
                     .build();
@@ -420,6 +427,11 @@ public class EmploymentsResource {
         context.requireWrite();
         return Calls.run(context, () -> {
             Checks.required("body", body);
+            Map<String, Set<String>> changed = new HashMap<>(scopes.employer(body.fromEmployerId()));
+            if (Boolean.TRUE.equals(body.endEmployer()) && body.fromEmployerId() != null) {
+                changed.put("org-units", Set.of(body.fromEmployerId()));
+            }
+            context.lock(changed);
             List<TransfersRepresentation.Moved> moved = service.transferAll(body.toRequest()).stream()
                     .map(this::record)
                     .map(transfer -> new TransfersRepresentation.Moved(transfer.started().personId(),

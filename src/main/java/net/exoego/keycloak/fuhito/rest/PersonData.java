@@ -1,7 +1,9 @@
 package net.exoego.keycloak.fuhito.rest;
 
 import java.time.Instant;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Consumer;
 
 import net.exoego.keycloak.fuhito.domain.Person;
@@ -10,6 +12,7 @@ import net.exoego.keycloak.fuhito.rest.UsersResource.MaskRepresentation;
 import net.exoego.keycloak.fuhito.service.PersonService;
 import net.exoego.keycloak.fuhito.service.UserMaskingService;
 import net.exoego.keycloak.fuhito.store.UserDirectory;
+import net.exoego.keycloak.fuhito.store.WriteScopes;
 
 /**
  * Masks and erases the personal data of one person, and records it.
@@ -23,14 +26,25 @@ final class PersonData {
     private final UserDirectory users;
     private final Consumer<String> erase;
     private final PersonService people;
+    private final WriteScopes scopes;
 
     PersonData(RequestContext context, UserMaskingService masking, UserDirectory users, Consumer<String> erase,
-            PersonService people) {
+            PersonService people, WriteScopes scopes) {
+        this.scopes = scopes;
         this.context = context;
         this.masking = masking;
         this.users = users;
         this.erase = erase;
         this.people = people;
+    }
+
+    // A mask and an erase change the person and the records of the person.
+    Map<String, Set<String>> ofPerson(String personId) {
+        return scopes.personData(personId);
+    }
+
+    Map<String, Set<String>> ofUser(String userId) {
+        return scopes.userData(userId);
     }
 
     MaskRepresentation mask(Person person, boolean clearKeycloakName) {

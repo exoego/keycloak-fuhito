@@ -1,7 +1,9 @@
 package net.exoego.keycloak.fuhito.service;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -57,29 +59,33 @@ public class ReorganizationService {
      *
      * @param effectiveDate the date of every step, as {@code YYYY-MM-DD}
      * @param steps the steps
-     * @param lock locks a stored unit until the end of the transaction, before its version is read
+     * @param lock locks the stored units until the end of the transaction, before their versions are read
      * @return what each step did, in the same order
      * @throws FuhitoException when a step fails, or names no version or an old one. Its values hold the position
      *         of the step, counted from 0, under the key "step".
      */
-    public List<Result> apply(String effectiveDate, List<ReorganizationStep> steps, Consumer<String> lock) {
+    public List<Result> apply(String effectiveDate, List<ReorganizationStep> steps,
+            Consumer<Collection<String>> lock) {
         Checks.date("effectiveDate", effectiveDate);
         Checks.required("steps", steps);
         if (steps.isEmpty()) {
             throw FuhitoException.invalid("invalid.required", Map.of("field", "steps"));
         }
-        // Every version is checked before the first step counts one up.
+        Map<Integer, ReorganizationStep> stored = new LinkedHashMap<>();
         for (int i = 0; i < steps.size(); i++) {
             ReorganizationStep step = steps.get(i);
             if (step != null && step.op() != null && CHANGES.contains(step.op()) && step.unitRef() == null
                     && step.id() != null) {
-                atStep(i, () -> {
-                    lock.accept(step.id());
-                    Checks.version(step.version(), orgUnits.version(step.id()));
-                    return step;
-                });
+                stored.put(i, step);
             }
         }
+        // All units are locked at once, so that two reorganizations of the same units lock them in the same order.
+        lock.accept(stored.values().stream().map(ReorganizationStep::id).distinct().toList());
+        // Every version is checked before the first step counts one up.
+        stored.forEach((i, step) -> atStep(i, () -> {
+            Checks.version(step.version(), orgUnits.version(step.id()));
+            return step;
+        }));
         Map<String, String> created = new HashMap<>();
         List<Result> results = new ArrayList<>();
         for (int i = 0; i < steps.size(); i++) {
