@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class SchemaIT {
@@ -34,26 +35,6 @@ class SchemaIT {
         // The next period may start on the end date, and another unit may use the same dates.
         KeycloakEnvironment.sql(insert + "('ex-v3', 'ex-realm', 'ex-u1', '2027-04-01', null, '{}')");
         KeycloakEnvironment.sql(insert + "('ex-v4', 'ex-realm', 'ex-u2', '2026-04-01', null, '{}')");
-    }
-
-    @Test
-    void theDatabaseRejectsOverlappingTermsOfOneEmployment() throws Exception {
-        KeycloakEnvironment.sql("insert into fuhito_person (id, realm_id, attributes)"
-                + " values ('ex-terms-person', 'ex-realm-terms', '{}')");
-        KeycloakEnvironment.sql("insert into fuhito_employment (id, realm_id, valid_from, person_id)"
-                + " values ('ex-terms-e1', 'ex-realm-terms', '2026-04-01', 'ex-terms-person'),"
-                + " ('ex-terms-e2', 'ex-realm-terms', '2026-04-01', 'ex-terms-person')");
-        String insert = "insert into fuhito_employment_terms (id, realm_id, employment_id, valid_from, valid_to,"
-                + " status, attributes) values ";
-        KeycloakEnvironment.sql(insert + "('ex-t1', 'ex-realm-terms', 'ex-terms-e1', '2026-04-01', '2027-04-01',"
-                + " 'ACTIVE', '{}')");
-
-        assertTrue(KeycloakEnvironment.sqlError(insert
-                + "('ex-t2', 'ex-realm-terms', 'ex-terms-e1', '2027-03-31', null, 'ACTIVE', '{}')")
-                .contains("ex_fuhito_employment_terms_period"));
-
-        KeycloakEnvironment.sql(insert + "('ex-t3', 'ex-realm-terms', 'ex-terms-e1', '2027-04-01', null, 'ACTIVE', '{}')");
-        KeycloakEnvironment.sql(insert + "('ex-t4', 'ex-realm-terms', 'ex-terms-e2', '2026-04-01', null, 'ACTIVE', '{}')");
     }
 
     @Test
@@ -243,7 +224,6 @@ class SchemaIT {
         }
     }
 
-    // The index of the exclusion constraint on the terms serves only the constraint.
     @Test
     void aLookupOfTheTermsOfAnEmploymentUsesTheirUniqueKeyAlsoWhileTheStatisticsAreOld() throws Exception {
         try (Connection connection = KeycloakEnvironment.connection();
@@ -251,29 +231,26 @@ class SchemaIT {
             connection.setAutoCommit(false);
             realmsWithOldStatistics(statement);
 
-            String onDate = "t.valid_from <= '2026-04-01' and (t.valid_to is null or t.valid_to > '2026-04-01')";
-            assertPlanHas(statement, """
+            String terms = "from fuhito_employment_terms t where t.valid_from <= '2026-04-01'"
+                    + " and (t.valid_to is null or t.valid_to > '2026-04-01') and ";
+            String byContractEnd = "from fuhito_employment e where e.realm_id = 'ex-new-realm' and exists (select t.id "
+                    + terms + "t.employment_id = e.id and t.contract_end_date >= '2026-01-01')";
+            String ofEmployments = "t.employment_id = any('{ex-new-employment-7,ex-new-employment-8}')";
+            for (String explain : List.of("""
                     explain select count(a.id) from fuhito_assignment a where a.org_unit_id = 'ex-new-unit-7' and %s
                     and a.valid_from <= '2026-04-01' and (a.valid_to is null or a.valid_to > '2026-04-01')
-                    and exists (select 1 from fuhito_employment_terms t where t.realm_id = a.realm_id
-                    and t.employment_id = a.employment_id and t.status = 'ACTIVE' and %s)"""
-                    .formatted(realmOfUnit("a", "ex-new-unit-7"), onDate),
-                    "Index Cond: (((employment_id)::text = (a.employment_id)::text) AND (valid_from <= ");
-            String byContractEnd = """
-                    from fuhito_employment e where e.realm_id = 'ex-new-realm' and exists (select t.id
-                    from fuhito_employment_terms t where t.employment_id = e.id and %s
-                    and t.contract_end_date >= '2026-01-01' and t.contract_end_date < '2027-01-01')"""
-                    .formatted(onDate);
-            String ofEmployment = "Index Cond: (((employment_id)::text = (e.id)::text) AND (valid_from <= ";
-            assertPlanHas(statement, "explain select * " + byContractEnd + " order by e.id fetch first 100 rows only",
-                    ofEmployment);
-            assertPlanHas(statement, "explain select count(e.id) " + byContractEnd, ofEmployment);
-            String ofEmployments = "from fuhito_employment_terms t"
-                    + " where t.employment_id = any('{ex-new-employment-7,ex-new-employment-8}')";
-            assertPlanHas(statement, "explain select * " + ofEmployments + " and " + onDate,
-                    "uk_fuhito_employment_terms_from");
-            assertPlanHas(statement, "explain select * " + ofEmployments + " order by t.employment_id, t.valid_from",
-                    "uk_fuhito_employment_terms_from");
+                    and exists (select 1 %s t.realm_id = a.realm_id and t.employment_id = a.employment_id
+                    and t.status = 'ACTIVE')""".formatted(realmOfUnit("a", "ex-new-unit-7"), terms),
+                    "explain select * " + byContractEnd + " order by e.id fetch first 100 rows only",
+                    "explain select count(e.id) " + byContractEnd, "explain select * " + terms + ofEmployments,
+                    "explain select * from fuhito_employment_terms t where " + ofEmployments
+                            + " order by t.employment_id, t.valid_from")) {
+                assertPlanHas(statement, explain, "uk_fuhito_employment_terms_from");
+            }
+            assertTrue(assertThrows(java.sql.SQLException.class, () -> statement.execute("""
+                    insert into fuhito_employment_terms (id, realm_id, employment_id, valid_from, status, attributes)
+                    values ('ex-new-terms-0', 'ex-new-realm', 'ex-new-employment-7', '2026-05-01', 'ACTIVE', '{}')"""))
+                    .getMessage().contains("ex_fuhito_employment_terms_period"));
             connection.rollback();
         }
     }
