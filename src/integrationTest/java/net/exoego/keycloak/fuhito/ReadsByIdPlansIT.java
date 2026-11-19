@@ -55,8 +55,10 @@ class ReadsByIdPlansIT {
                     "idx_fuhito_assignment_org_unit");
             assertIndexes(statement, realms + "fuhito_employment x where x.employer_id = 'ex-new-unit-2'",
                     "idx_fuhito_employment_employer");
-            assertIndexes(statement, realms + "fuhito_org_unit x where x.id = 'ex-new-unit-7'"
-                    + " and x.kc_org_id is not null", "pk_fuhito_org_unit");
+            assertIndexes(statement, realms + """
+                    fuhito_org_unit x where x.id = 'ex-new-unit-7'
+                    and x.kc_org_id is not null""",
+                    "pk_fuhito_org_unit");
             assertIndexes(statement, realms + "fuhito_assignment x where x.employment_id = 'ex-new-employment-7'",
                     "idx_fuhito_assignment_employment");
             assertIndexes(statement, realms
@@ -266,13 +268,14 @@ class ReadsByIdPlansIT {
     // The rows of OldStatistics, and a qualification for each person, a reporting line and an ID of another system
     // for each assignment, and an entry of the change log for each employment.
     private static void oldStatistics(Statement statement) throws Exception {
-        String tables = """
-                fuhito_ref_item, fuhito_qualification, fuhito_reporting_line, fuhito_external_id, fuhito_change_order,
-                fuhito_change_log""";
-        KeycloakEnvironment.sql("vacuum " + tables);
+        KeycloakEnvironment.sql("""
+                vacuum fuhito_ref_item, fuhito_qualification, fuhito_reporting_line, fuhito_external_id,
+                fuhito_change_order, fuhito_change_log""");
         OldStatistics.realmsWithOldStatistics(statement);
         moreRows(statement, "ex-old", 20);
-        statement.execute("analyze " + tables);
+        statement.execute("""
+                analyze fuhito_ref_item, fuhito_qualification, fuhito_reporting_line, fuhito_external_id,
+                fuhito_change_order, fuhito_change_log""");
         moreRows(statement, "ex-new", 3000);
     }
 
