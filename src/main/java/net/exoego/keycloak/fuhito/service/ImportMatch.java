@@ -1,5 +1,6 @@
 package net.exoego.keycloak.fuhito.service;
 
+import java.time.LocalDate;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
@@ -9,6 +10,7 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
+import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 
@@ -107,5 +109,17 @@ final class ImportMatch {
             throw FuhitoException.conflict("import.value_fixed", Map.of("id", id, "field", field));
         }
         return stored;
+    }
+
+    /**
+     * Checks the {@code validFrom} of a row of a stored thing. A row that leaves it out keeps the stored start.
+     *
+     * @param id the ID of the stored thing
+     * @param stored the first date of the whole thing
+     * @param given the {@code validFrom} of the row, or null
+     * @throws FuhitoException when the row gives a bad date or another date
+     */
+    static void start(String id, LocalDate stored, String given) {
+        fixed(id, "validFrom", stored, Checks.optionalDate("validFrom", given));
     }
 }

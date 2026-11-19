@@ -83,6 +83,11 @@ class CsvImportIT {
         assertEquals(1, load(api, "org-units", "effectiveDate=2026-06-01", changed).get("counts").get("orgUnits")
                 .get("changed").asInt());
         assertEquals("X病院", Api.json(api.get("/org-units/" + hospital + "?asOf=2026-06-01")).get("name").asText());
+        // A file can give the start of a stored unit. It is the first date of the unit, not of its details of the date.
+        assertEquals(0, load(api, "org-units", "effectiveDate=2026-06-01", "id,validFrom\r\n" + hospital
+                + ",2020-04-01\r\n").get("counts").get("orgUnits").get("changed").asInt());
+        assertEquals("import.value_fixed", failure(api, "org-units", "effectiveDate=2026-06-01", "id,validFrom\r\n"
+                + hospital + ",2026-06-01\r\n"));
         // A cell of a code that is no item fails.
         HttpResponse<String> unknown = api.postBytes("/imports/csv/org-units?effectiveDate=2026-06-01",
                 "text/csv; charset=UTF-8", ("ID,名称,勤務地\r\n" + hospital + ",X病院,osaka\r\n")
@@ -167,6 +172,8 @@ class CsvImportIT {
                     .get("counts").get("reportingLines");
             assertEquals(0, counts.get("created").asInt() + counts.get("changed").asInt(), counts.toString());
         }
+        assertEquals("import.value_fixed", failure(api, "reporting-lines", "effectiveDate=2026-06-01",
+                "id,validFrom\r\n" + line + ",2022-04-01\r\n"));
         // A new solid manager does not end the stored line. The file ends it in a row of its own.
         realm.user("chief");
         assertEquals("reporting_line.solid_exists", failure(api, "reporting-lines", "effectiveDate=2026-06-01",
@@ -210,6 +217,8 @@ class CsvImportIT {
                     .get("counts").get("unitRoles");
             assertEquals(0, counts.get("created").asInt() + counts.get("changed").asInt(), counts.toString());
         }
+        assertEquals("import.value_fixed", failure(api, "unit-roles", "effectiveDate=2026-06-01",
+                "id,validFrom\r\n" + role + ",2022-04-01\r\n"));
         // Whether the role covers the units below does not change. The file ends it and adds a new role.
         assertEquals("import.value_fixed", failure(api, "unit-roles", "effectiveDate=2026-06-01",
                 "id,includesDescendants\r\n" + role + ",true\r\n"));
@@ -543,6 +552,13 @@ class CsvImportIT {
                 .get("employments").get("changed").asInt());
         JsonNode terms = Api.json(api.get("/employments/" + employment)).get("terms");
         assertEquals("g2", terms.get(terms.size() - 1).get("grade").asText());
+        // The file has the start of the employment, not of its terms of the date. So it loads again after a change.
+        String next = api.get("/imports/csv/employments?asOf=2026-06-01").body();
+        assertTrue(next.contains(",g2,ON_LEAVE,parental,80.5,2027-03-31,2020-04-01,,,,"), next);
+        JsonNode again = load(api, "employments", "effectiveDate=2026-06-01", next).get("counts").get("employments");
+        assertEquals(0, again.get("created").asInt() + again.get("changed").asInt(), again.toString());
+        assertEquals("import.value_fixed", failure(api, "employments", "effectiveDate=2026-06-01",
+                "id,validFrom\r\n" + employment + ",2026-06-01\r\n"));
     }
 
     @Test
@@ -609,6 +625,14 @@ class CsvImportIT {
         assertTrue(last.path("workLocation").isMissingNode(), last.toString());
         assertEquals("tokyo", last.get("effectiveWorkLocation").asText());
         assertEquals("home", periods.get(0).get("workLocation").asText());
+        // The file has the start of the whole assignment, not of its details of the date. So it loads again after
+        // a change.
+        String next = api.get("/imports/csv/assignments?asOf=2026-07-01").body();
+        assertTrue(next.contains(",concurrent,,,false,false,40,0,2021-04-01,2027-04-01,"), next);
+        JsonNode again = load(api, "assignments", "effectiveDate=2026-07-01", next).get("counts").get("assignments");
+        assertEquals(0, again.get("created").asInt() + again.get("changed").asInt(), again.toString());
+        assertEquals("import.value_fixed", failure(api, "assignments", "effectiveDate=2026-07-01",
+                "id,validFrom\r\n" + concurrent + ",2026-06-01\r\n"));
     }
 
     @Test

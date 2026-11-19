@@ -17,8 +17,8 @@ import net.exoego.keycloak.fuhito.service.ImportReport.Write;
 
 /**
  * The roles over org units of one document. A row is matched by source and external ID, or by ID. The employment,
- * the org unit, the role, and whether it covers the units below do not change for a stored role. A new role fails
- * while another role of the same employment, org unit, and role holds on the same dates, as in
+ * the org unit, the role, whether it covers the units below, and the start do not change for a stored role. A new
+ * role fails while another role of the same employment, org unit, and role holds on the same dates, as in
  * {@code POST /unit-roles}.
  */
 final class UnitRoleImport {
@@ -87,6 +87,7 @@ final class UnitRoleImport {
             ImportMatch.fixed(id, "orgUnitId", view.role().orgUnitId(), orgUnitId);
             ImportMatch.fixed(id, "role", view.code(), role);
             ImportMatch.fixed(id, "includesDescendants", view.role().includesDescendants(), below);
+            ImportMatch.start(id, view.role().period().from(), row.validFrom());
         });
         return new Role(row, source, employmentId, orgUnitId, role, below, stored.map(UnitRoleService.View::role));
     }
