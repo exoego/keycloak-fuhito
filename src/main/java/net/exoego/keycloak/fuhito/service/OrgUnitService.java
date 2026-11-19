@@ -326,7 +326,7 @@ public class OrgUnitService {
         }
 
         private List<OrgUnitVersion> holdersOf(String code) {
-            return holders.computeIfAbsent(code, key -> new ArrayList<>(store.versionsWithCode(key)));
+            return holders.computeIfAbsent(code, key -> new ArrayList<>(store.versionsWithCodes(List.of(key))));
         }
 
         /**
@@ -1047,7 +1047,7 @@ public class OrgUnitService {
 
     private void requireFreeCode(String code, String unitId, ValidPeriod period) {
         if (code != null) {
-            requireFreeCode(store.versionsWithCode(code), code, unitId, period);
+            requireFreeCode(store.versionsWithCodes(List.of(code)), code, unitId, period);
         }
     }
 

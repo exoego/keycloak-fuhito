@@ -202,16 +202,6 @@ public class JpaOrgUnitStore implements OrgUnitStore {
     }
 
     @Override
-    public List<OrgUnitVersion> versionsWithCode(String code) {
-        return withNames(em.createQuery("""
-                        select v from OrgUnitVersionEntity v where v.realmId = :realmId and v.code = :code
-                        order by v.validFrom, v.orgUnitId""", OrgUnitVersionEntity.class)
-                .setParameter("realmId", realmId)
-                .setParameter("code", code)
-                .getResultList());
-    }
-
-    @Override
     public List<OrgUnitVersion> versionsWithCodes(Collection<String> codes) {
         if (codes.isEmpty()) {
             return List.of();

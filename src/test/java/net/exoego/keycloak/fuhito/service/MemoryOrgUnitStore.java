@@ -42,9 +42,9 @@ final class MemoryOrgUnitStore implements OrgUnitStore {
         return "default-hierarchy";
     }
 
-    /** How often one unit, its versions, its parents, or the versions with one code were read. */
+    /** How often one unit, its versions, or its parents were read. */
     int oneReads;
-    /** How often the units, the versions, the parents, or the versions with the codes of a list were read. */
+    /** How often the units, the versions, or the parents of a list, or the versions with some codes were read. */
     int manyReads;
 
     @Override
@@ -68,15 +68,9 @@ final class MemoryOrgUnitStore implements OrgUnitStore {
     }
 
     @Override
-    public List<OrgUnitVersion> versionsWithCode(String code) {
-        oneReads++;
-        return versions.stream().filter(v -> code.equals(v.code())).toList();
-    }
-
-    @Override
     public List<OrgUnitVersion> versionsWithCodes(Collection<String> codes) {
         manyReads++;
-        return versions.stream().filter(v -> codes.contains(v.code())).toList();
+        return versions.stream().filter(v -> v.code() != null && codes.contains(v.code())).toList();
     }
 
     @Override

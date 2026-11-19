@@ -60,18 +60,10 @@ public interface OrgUnitStore {
     Optional<OrgUnit> findUnitByCode(String code, LocalDate date);
 
     /**
-     * Lists the details of every org unit that have a code, over all time.
-     *
-     * @param code the code
-     * @return the details, oldest first
-     */
-    List<OrgUnitVersion> versionsWithCode(String code);
-
-    /**
      * Lists the details of every org unit that have one of some codes, over all time.
      *
      * @param codes the codes
-     * @return the details, in no order
+     * @return the details, oldest first
      */
     List<OrgUnitVersion> versionsWithCodes(Collection<String> codes);
 
