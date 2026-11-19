@@ -59,7 +59,8 @@ Parents in hierarchies and the IDs of other systems have no ID of their own, so 
 The list `people` loads people, also those with no Keycloak user, such as staff who left long ago or never log in. It comes before the employments.
 
 - A row has `primaryLanguage`, `names`, and the attributes, as `POST /people` has them. It can link a user with `username` or `userId`. A row that names no user keeps the link that is stored. A row that links a user can leave out the names.
-- A row that links a user whose person the import made earlier gives that person the external ID of the row, as the ID of the system of the row. A user whose person has another ID of that system fails with `import.user_mismatch`.
+- A row never finds a person by its user. A row with an external ID that names nothing makes a new person. If its user has a person already, the row fails with `import.user_taken`, and the error names that person by `personId`. A row of that person names it by `id` or by an external ID that it has. The list `externalIds` gives it the ID of another system.
+- A row of a stored person that names another user links the person to that user, as `PUT /people/{id}` does. A user who has another person fails with `person.user_taken`.
 - A row of an employment can name its person by `personExternalId`, with the same source. A person with no user is named this way. With a user as well, the user must be the one of that person.
 - A row for a stored employment may name no person and no user. The employment keeps its person.
 
