@@ -7,17 +7,23 @@ import java.util.stream.Stream;
 
 import org.junit.jupiter.api.Test;
 
+import static net.exoego.keycloak.fuhito.OldStatistics.freshStatistics;
 import static net.exoego.keycloak.fuhito.OldStatistics.plan;
 import static net.exoego.keycloak.fuhito.OldStatistics.realmOfUnit;
 import static net.exoego.keycloak.fuhito.OldStatistics.realmsWithOldStatistics;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.fail;
 
-// The plans of the walks of JpaOrgUnitStore and TreeQuery, while the statistics do not know a new realm.
+// The plans of the walks of JpaOrgUnitStore and TreeQuery, while the statistics do not know a new realm, and after
+// they do.
 class TreeWalkPlanIT {
 
     // Both start with the hierarchy and the child. PostgreSQL takes either, depending on their sizes.
     private static final String LINK_OF_CHILD = "(uk_fuhito_org_unit_link_from|ex_fuhito_org_unit_link_period)";
+
+    private static final String VERSION_OF_UNIT = "uk_fuhito_org_unit_version_from";
+
+    private static final String IDS = "any('{ex-new-unit-2999,ex-new-unit-777}')";
 
     // Each step looks up the parent of one unit, with or without a version on the date.
     @Test
@@ -27,17 +33,13 @@ class TreeWalkPlanIT {
             connection.setAutoCommit(false);
             realmsWithOldStatistics(statement);
 
-            String ids = "any('{ex-new-unit-2999,ex-new-unit-777}')";
-            String ancestors = walk(statement, """
-                    with recursive above (unit_id, ancestor_id, realm_id) as (
-                        select v.org_unit_id, v.org_unit_id, v.realm_id from fuhito_org_unit_version v
-                        where v.org_unit_id = %s and %s
-                        union all
-                        select a.unit_id, %s, a.realm_id from above a where a.ancestor_id is not null)
-                    select a.unit_id, a.ancestor_id from above a
-                    where a.realm_id = 'ex-new-realm' and a.ancestor_id is not null"""
-                    .formatted(ids, onDate("v"), parentOf("a.ancestor_id", false)));
+            String ancestors = walk(statement, ancestors());
             assertIndexFinds(ancestors, LINK_OF_CHILD, "child_id", "\\(a(_\\d+)?\\.ancestor_id\\)");
+            assertIndexFinds(ancestors, VERSION_OF_UNIT, "org_unit_id", "ANY");
+
+            String defaults = walk(statement, defaults());
+            assertIndexFinds(defaults, LINK_OF_CHILD, "child_id", "\\(a(_\\d+)?\\.ancestor_id\\)");
+            assertIndexFinds(defaults, VERSION_OF_UNIT, "org_unit_id", "\\(a(_\\d+)?\\.ancestor_id\\)");
 
             String line = walk(statement, """
                     with recursive above (id, depth, realm_id) as (
@@ -49,31 +51,38 @@ class TreeWalkPlanIT {
             assertIndexFinds(line, "pk_fuhito_org_unit", "'ex-new-unit-2999'");
             assertIndexFinds(line, LINK_OF_CHILD, "child_id", "\\(a(_\\d+)?\\.id\\)");
 
-            String paths = walk(statement, """
-                    with recursive above (start_id, id, depth, realm_id) as (
-                        select v.org_unit_id, v.org_unit_id, 0, v.realm_id from fuhito_org_unit_version v
-                        where v.org_unit_id = %s and %s
-                        union all
-                        select a.start_id, %s, a.depth + 1, a.realm_id from above a where a.id is not null)
-                    select u.*, v.*, %s, a.start_id from above a
-                    join fuhito_org_unit_version v on v.org_unit_id = a.id and %s
-                    join fuhito_org_unit u on u.id = a.id
-                    where a.realm_id = 'ex-new-realm' and a.id is not null order by a.start_id, a.depth desc"""
-                    .formatted(ids, onDate("v"), parentOf("a.id", true), parentOf("v.org_unit_id", false),
-                            onDate("v")));
+            String paths = walk(statement, paths());
             assertIndexFinds(paths, LINK_OF_CHILD, "child_id", "\\(a(_\\d+)?\\.id\\)");
+            assertIndexFinds(paths, VERSION_OF_UNIT, "org_unit_id", "\\(l(_\\d+)?\\.parent_id\\)");
+            // The unit of the row and its version join by the same ID.
+            assertIndexFinds(paths, VERSION_OF_UNIT, "org_unit_id", "\\((a|u)(_\\d+)?\\.id\\)");
 
-            // The read of the members of one unit by a work location. Only the first 20 units have members.
-            String places = walk(statement, "with recursive " + places("""
-                    from fuhito_org_unit_version v where v.org_unit_id = 'ex-new-unit-15' and %s and %s"""
-                    .formatted(realmOfUnit("v", "ex-new-unit-15"), onDate("v"))) + """
-                    select a.* from fuhito_assignment a where a.org_unit_id = 'ex-new-unit-15' and %s and %s
-                    and (a.work_location_id = 'ex-new-place' or (a.work_location_id is null and a.org_unit_id in
-                    (select u.unit_id from places u where u.work_location_id = 'ex-new-place')))
-                    order by a.display_order, a.valid_from, a.assignment_id fetch first 100 rows only"""
-                    .formatted(realmOfUnit("a", "ex-new-unit-15"), onDate("a")));
+            String places = walk(statement, membersOfOneUnitByPlace());
             assertIndexFinds(places, LINK_OF_CHILD, "child_id", "\\(u(_\\d+)?\\.above_id\\)");
+            assertIndexFinds(places, VERSION_OF_UNIT, "org_unit_id", "\\(u(_\\d+)?\\.above_id\\)");
             assertIndexFinds(places, "idx_fuhito_assignment_org_unit", "'ex-new-unit-15'");
+            connection.rollback();
+        }
+    }
+
+    // After an analyze, PostgreSQL took the index of the exclusion constraint for these lookups too.
+    @Test
+    void eachWalkLooksUpTheVersionOfAUnitByTheUnitAlsoWithFreshStatistics() throws Exception {
+        try (Connection connection = KeycloakEnvironment.connection();
+                Statement statement = connection.createStatement()) {
+            connection.setAutoCommit(false);
+            realmsWithOldStatistics(statement);
+            freshStatistics(statement);
+
+            assertIndexFinds(walk(statement, ancestors()), VERSION_OF_UNIT, "org_unit_id", "ANY");
+            assertIndexFinds(walk(statement, defaults()), VERSION_OF_UNIT, "org_unit_id",
+                    "\\(a(_\\d+)?\\.ancestor_id\\)");
+            assertIndexFinds(walk(statement, paths()), VERSION_OF_UNIT, "org_unit_id", "\\(l(_\\d+)?\\.parent_id\\)");
+            assertIndexFinds(walk(statement, membersOfOneUnitByPlace()), VERSION_OF_UNIT, "org_unit_id",
+                    "\\(u(_\\d+)?\\.above_id\\)");
+            String page = walk(statement, treePage());
+            assertIndexFinds(page, VERSION_OF_UNIT, "org_unit_id", "'ex-new-unit-1'");
+            assertIndexFinds(page, VERSION_OF_UNIT, "org_unit_id", "\\(l(_\\d+)?\\.child_id\\)");
             connection.rollback();
         }
     }
@@ -89,12 +98,11 @@ class TreeWalkPlanIT {
             realmsWithOldStatistics(statement);
 
             String[] children = {"parent_id", "\\(p(_\\d+)?\\.id\\)", "\\(p(_\\d+)?\\.hierarchy_id\\)"};
-            String page = walk(statement, "with recursive " + tree() + """
-                    select u.*, v.*, t.parent_id from tree t join fuhito_org_unit u on u.id = t.id
-                    join fuhito_org_unit_version v on v.id = t.version_id
-                    order by t.position offset 0 rows fetch first 100 rows only""");
+            String page = walk(statement, treePage());
             assertIndexFinds(page, LINK_OF_CHILD, "child_id", "\\(v(_\\d+)?\\.org_unit_id\\)");
             assertIndexOrHashFinds(page, "idx_fuhito_org_unit_link_parent", children);
+            assertIndexFinds(page, VERSION_OF_UNIT, "org_unit_id", "'ex-new-unit-1'");
+            assertIndexFinds(page, VERSION_OF_UNIT, "org_unit_id", "\\(l(_\\d+)?\\.child_id\\)");
 
             String members = """
                      select a.* from fuhito_assignment a join tree t on t.id = a.org_unit_id where %s and %s%s
@@ -121,6 +129,7 @@ class TreeWalkPlanIT {
                     (select u.unit_id from places u where u.work_location_id = 'ex-new-place')))"""));
             assertIndexOrHashFinds(withPlaces, "idx_fuhito_org_unit_link_parent", children);
             assertIndexFinds(withPlaces, LINK_OF_CHILD, "child_id", "\\(u(_\\d+)?\\.above_id\\)");
+            assertIndexFinds(withPlaces, VERSION_OF_UNIT, "org_unit_id", "\\(u(_\\d+)?\\.above_id\\)");
 
             // The members of one unit by a secondment. Each employer of the realm walks down, so the walk starts
             // from every employment of the realm.
@@ -150,12 +159,14 @@ class TreeWalkPlanIT {
     }
 
     // An index scan with only one of the columns reads every row of the new realm, or every link of its hierarchy.
+    // The index of the exclusion constraint on the versions is slower than their unique key.
     private static String walk(Statement statement, String query, String columns) throws Exception {
         // Without analyze, PostgreSQL does not show the lookups in the recursive part.
         String plan = plan(statement, "explain (analyze, costs off) " + query);
         String onlyOne = "Index Cond: \\(+\\((" + columns + ")_id\\)::text = '[^']*'::text\\)"
                 + "( AND \\(valid_\\w+ [^)]*\\))?\\)?";
         assertFalse(plan.lines().map(String::strip).anyMatch(line -> line.matches(onlyOne)), plan);
+        assertFalse(plan.contains("ex_fuhito_org_unit_version_period"), plan);
         return plan;
     }
 
@@ -204,6 +215,68 @@ class TreeWalkPlanIT {
                 and l.hierarchy_id = 'ex-new-hierarchy' and %s%s)""".formatted(unit, onDate("l"), living ? """
                  and exists (select 1 from fuhito_org_unit_version living where living.org_unit_id = l.parent_id
                 and %s)""".formatted(onDate("living")) : "");
+    }
+
+    // JpaOrgUnitStore.ANCESTORS.
+    private static String ancestors() {
+        return """
+                with recursive above (unit_id, ancestor_id, realm_id) as (
+                    select v.org_unit_id, v.org_unit_id, v.realm_id from fuhito_org_unit_version v
+                    where v.org_unit_id = %s and %s
+                    union all
+                    select a.unit_id, %s, a.realm_id from above a where a.ancestor_id is not null)
+                select a.unit_id, a.ancestor_id from above a
+                where a.realm_id = 'ex-new-realm' and a.ancestor_id is not null"""
+                .formatted(IDS, onDate("v"), parentOf("a.ancestor_id", false));
+    }
+
+    // JpaOrgUnitStore.DEFAULTS, with the work location and the cost center of each step.
+    private static String defaults() {
+        String value = "(select w.%1$s from fuhito_org_unit_version w where w.org_unit_id = a.ancestor_id and %2$s)";
+        return """
+                with recursive above (unit_id, ancestor_id, depth, realm_id) as (
+                    select v.org_unit_id, v.org_unit_id, 0, v.realm_id from fuhito_org_unit_version v
+                    where v.org_unit_id = %s and %s
+                    union all
+                    select a.unit_id, %s, a.depth + 1, a.realm_id from above a where a.ancestor_id is not null)
+                select a.unit_id, %s, %s from above a where a.realm_id = 'ex-new-realm' and a.ancestor_id is not null
+                order by a.unit_id, a.depth""".formatted(IDS, onDate("v"), parentOf("a.ancestor_id", false),
+                value.formatted("work_location_id", onDate("w")), value.formatted("cost_center_id", onDate("w")));
+    }
+
+    // JpaOrgUnitStore.PATHS.
+    private static String paths() {
+        return """
+                with recursive above (start_id, id, depth, realm_id) as (
+                    select v.org_unit_id, v.org_unit_id, 0, v.realm_id from fuhito_org_unit_version v
+                    where v.org_unit_id = %s and %s
+                    union all
+                    select a.start_id, %s, a.depth + 1, a.realm_id from above a where a.id is not null)
+                select u.*, v.*, %s, a.start_id from above a
+                join fuhito_org_unit_version v on v.org_unit_id = a.id and %s
+                join fuhito_org_unit u on u.id = a.id
+                where a.realm_id = 'ex-new-realm' and a.id is not null order by a.start_id, a.depth desc"""
+                .formatted(IDS, onDate("v"), parentOf("a.id", true), parentOf("v.org_unit_id", false), onDate("v"));
+    }
+
+    // The read of the members of one unit by a work location. Only the first 20 units have members.
+    private static String membersOfOneUnitByPlace() {
+        return "with recursive " + places("""
+                from fuhito_org_unit_version v where v.org_unit_id = 'ex-new-unit-15' and %s and %s"""
+                .formatted(realmOfUnit("v", "ex-new-unit-15"), onDate("v"))) + """
+                select a.* from fuhito_assignment a where a.org_unit_id = 'ex-new-unit-15' and %s and %s
+                and (a.work_location_id = 'ex-new-place' or (a.work_location_id is null and a.org_unit_id in
+                (select u.unit_id from places u where u.work_location_id = 'ex-new-place')))
+                order by a.display_order, a.valid_from, a.assignment_id fetch first 100 rows only"""
+                .formatted(realmOfUnit("a", "ex-new-unit-15"), onDate("a"));
+    }
+
+    // The first page of the tree from the first unit.
+    private static String treePage() {
+        return "with recursive " + tree() + """
+                select u.*, v.*, t.parent_id from tree t join fuhito_org_unit u on u.id = t.id
+                join fuhito_org_unit_version v on v.id = t.version_id
+                order by t.position offset 0 rows fetch first 100 rows only""";
     }
 
     // TreeQuery.TREE from the first unit.

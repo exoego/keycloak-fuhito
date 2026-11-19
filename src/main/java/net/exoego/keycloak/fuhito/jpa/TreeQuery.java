@@ -11,10 +11,8 @@ final class TreeQuery {
     /**
      * Walks from one unit down. Siblings follow the display order, then the primary names.
      * The query also needs the parameter {@code rootId}.
-     * Each step finds the version of a child in two lookups that only plain indexes can serve. The first takes
-     * the latest version that started, by the org unit and the first date. The second reads it by its ID.
-     * One lookup by the org unit and the dates would leave the choice of the index to the database, and the
-     * index of the exclusion constraint is about ten times slower for it.
+     * Each step finds the version of a child in two lookups. The first takes the latest version that started, by
+     * the org unit and the first date. The second reads it by its ID.
      * The versions of one org unit have no gaps, so the latest one that started is the one of the date, or the
      * org unit has ended.
      * It is one part of a {@code with} clause.
