@@ -186,13 +186,14 @@ erDiagram
         bigint VERSION
     }
     FUHITO_REF_ITEM_NAME {
-        varchar(36) ID PK
+        varchar(36) PERIOD_ID PK
+        varchar(64) LANGUAGE PK
         varchar(36) REALM_ID
         varchar(36) REF_ITEM_ID FK
         date VALID_FROM
         date VALID_TO
+        boolean IS_PRIMARY
         varchar(255) NAME
-        text NAMES_I18N
     }
     FUHITO_REPORTING_LINE {
         varchar(36) ID PK

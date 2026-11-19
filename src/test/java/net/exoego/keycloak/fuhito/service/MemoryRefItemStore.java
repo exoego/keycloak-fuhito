@@ -11,12 +11,12 @@ import java.util.Optional;
 import java.util.Set;
 
 import net.exoego.keycloak.fuhito.domain.RefItem;
-import net.exoego.keycloak.fuhito.domain.RefItemName;
+import net.exoego.keycloak.fuhito.domain.RefItemPeriod;
 import net.exoego.keycloak.fuhito.store.RefItemStore;
 
 final class MemoryRefItemStore implements RefItemStore {
     private final Map<String, RefItem> items = new LinkedHashMap<>();
-    private final Map<String, List<RefItemName>> names = new LinkedHashMap<>();
+    private final Map<String, List<RefItemPeriod>> names = new LinkedHashMap<>();
     final Set<String> inUse = new HashSet<>();
 
     @Override
@@ -33,7 +33,7 @@ final class MemoryRefItemStore implements RefItemStore {
         return list(kind, includeInactive).stream()
                 .skip(first)
                 .limit(max)
-                .map(i -> i.withNames(RefItemName.on(names(i.id()), date)))
+                .map(i -> i.withNames(RefItemPeriod.on(names(i.id()), date)))
                 .toList();
     }
 
@@ -49,7 +49,7 @@ final class MemoryRefItemStore implements RefItemStore {
 
     @Override
     public Optional<RefItem> find(String id, LocalDate date) {
-        return Optional.ofNullable(items.get(id)).map(i -> i.withNames(RefItemName.on(names(id), date)));
+        return Optional.ofNullable(items.get(id)).map(i -> i.withNames(RefItemPeriod.on(names(id), date)));
     }
 
     @Override
@@ -67,9 +67,9 @@ final class MemoryRefItemStore implements RefItemStore {
     }
 
     @Override
-    public List<RefItemName> names(String id) {
+    public List<RefItemPeriod> names(String id) {
         return names.getOrDefault(id, List.of()).stream()
-                .sorted(Comparator.comparing(RefItemName::validFrom, Comparator.nullsFirst(Comparator.naturalOrder())))
+                .sorted(Comparator.comparing(RefItemPeriod::validFrom, Comparator.nullsFirst(Comparator.naturalOrder())))
                 .toList();
     }
 
@@ -86,8 +86,13 @@ final class MemoryRefItemStore implements RefItemStore {
         return inUse.contains(id);
     }
 
+    /** Stores a new item whose names hold for every date. */
+    void insert(RefItem item) {
+        insert(item, List.of(new RefItemPeriod(item.id(), item.id(), null, null, item.names())));
+    }
+
     @Override
-    public void insert(RefItem item, List<RefItemName> periods) {
+    public void insert(RefItem item, List<RefItemPeriod> periods) {
         items.put(item.id(), item);
         names.put(item.id(), new ArrayList<>(periods));
     }
@@ -98,13 +103,13 @@ final class MemoryRefItemStore implements RefItemStore {
     }
 
     @Override
-    public void insertNames(RefItemName period) {
+    public void insertNames(RefItemPeriod period) {
         names.get(period.refItemId()).add(period);
     }
 
     @Override
-    public void updateNames(RefItemName period) {
-        List<RefItemName> stored = names.get(period.refItemId());
+    public void updateNames(RefItemPeriod period) {
+        List<RefItemPeriod> stored = names.get(period.refItemId());
         stored.replaceAll(n -> n.id().equals(period.id()) ? period : n);
     }
 

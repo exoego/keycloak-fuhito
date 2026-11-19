@@ -224,6 +224,26 @@ A person has no short name.
 - A search matches the name or the phonetic name of any language. It also matches the user of a person, as [People](#people) says.
 - A mask and an erase remove the names of every language.
 
+A reference item keeps its names the same way, with only a name for each language.
+Each period of the names of an item has its own languages and its own primary language. See [Reference items keep their old names](history.md#reference-items-keep-their-old-names).
+
+```json
+{
+  "code": "manager",
+  "name": "Manager",
+  "primaryLanguage": "ja",
+  "names": {
+    "ja": {"name": "部長"},
+    "en": {"name": "Manager"}
+  }
+}
+```
+
+- A write and a read of an item work as for an org unit, with `name` in the language of the reader.
+- Other reads that name an item, such as the role names of `GET /unit-roles`, give the name in the language of the request too.
+- A token has the codes of items, not their names.
+- The attribute sync matches a job title by its code or by its primary name.
+
 ## Examples
 
 ### A small clinic

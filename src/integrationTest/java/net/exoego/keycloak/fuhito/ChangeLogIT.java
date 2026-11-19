@@ -150,7 +150,8 @@ class ChangeLogIT {
         try (var executor = Executors.newFixedThreadPool(8)) {
             List<Future<Integer>> results = new ArrayList<>();
             for (int i = 0; i < writes; i++) {
-                String body = "{\"kind\": \"UNIT_TYPE\", \"code\": \"c" + i + "\", \"name\": \"x\"}";
+                String body = "{\"kind\": \"UNIT_TYPE\", \"code\": \"c" + i + "\", \"primaryLanguage\": \"en\", "
+                        + "\"names\": {\"en\": {\"name\": \"x\"}}}";
                 results.add(executor.submit(() -> busy.api.post("/ref-items", body).statusCode()));
             }
             for (Future<Integer> result : results) {

@@ -9,8 +9,7 @@ import java.util.Map;
  * @param id the ID
  * @param kind the name of a fixed kind, or the code of a kind that the realm added
  * @param code the code, which is unique in the realm for the kind and never changes
- * @param name the default name on the date of the read
- * @param names the names in other languages on the date of the read, by language tag
+ * @param names the names on the date of the read, by language tag
  * @param displayOrder the position in lists, lowest first
  * @param attributes free values that the realm defines
  * @param active false when the item must not be used for new data
@@ -22,8 +21,8 @@ import java.util.Map;
  * @param validFrom the first date of the names, or null when they hold from the start
  * @param validTo the first date after the names, or null when they have no end
  */
-public record RefItem(String id, String kind, String code, String name, Map<String, String> names,
-        int displayOrder, Map<String, Object> attributes, boolean active, boolean legalEntity, boolean actingHead,
+public record RefItem(String id, String kind, String code, Localized<RefItemName> names, int displayOrder,
+        Map<String, Object> attributes, boolean active, boolean legalEntity, boolean actingHead,
         boolean lateral, long version, LocalDate validFrom, LocalDate validTo) {
 
     /**
@@ -32,8 +31,7 @@ public record RefItem(String id, String kind, String code, String name, Map<Stri
      * @param id the ID
      * @param kind the kind
      * @param code the code
-     * @param name the default name
-     * @param names the names in other languages, by language tag
+     * @param names the names by language tag
      * @param displayOrder the position in lists, lowest first
      * @param attributes free values that the realm defines
      * @param active false when the item must not be used for new data
@@ -41,9 +39,9 @@ public record RefItem(String id, String kind, String code, String name, Map<Stri
      * @param actingHead true for an assignment kind whose heads stand in for an absent head
      * @param lateral true for a unit type whose org units are lateral units outside the line organization
      */
-    public RefItem(String id, RefKind kind, String code, String name, Map<String, String> names, int displayOrder,
+    public RefItem(String id, RefKind kind, String code, Localized<RefItemName> names, int displayOrder,
             Map<String, Object> attributes, boolean active, boolean legalEntity, boolean actingHead, boolean lateral) {
-        this(id, kind.name(), code, name, names, displayOrder, attributes, active, legalEntity, actingHead, lateral,
+        this(id, kind.name(), code, names, displayOrder, attributes, active, legalEntity, actingHead, lateral,
                 1, null, null);
     }
 
@@ -53,8 +51,8 @@ public record RefItem(String id, String kind, String code, String name, Map<Stri
      * @param period the names and their dates
      * @return the item with those names
      */
-    public RefItem withNames(RefItemName period) {
-        return new RefItem(id, kind, code, period.name(), period.names(), displayOrder, attributes, active,
+    public RefItem withNames(RefItemPeriod period) {
+        return new RefItem(id, kind, code, period.names(), displayOrder, attributes, active,
                 legalEntity, actingHead, lateral, version, period.validFrom(), period.validTo());
     }
 
@@ -74,17 +72,16 @@ public record RefItem(String id, String kind, String code, String name, Map<Stri
      * @param id the ID
      * @param kind the kind
      * @param code the code
-     * @param name the default name
-     * @param names the names in other languages, by language tag
+     * @param names the names by language tag
      * @param displayOrder the position in lists, lowest first
      * @param attributes free values that the realm defines
      * @param active false when the item must not be used for new data
      * @param legalEntity true for a unit type whose org units are legal entities, such as a company
      * @param actingHead true for an assignment kind whose heads stand in for an absent head
      */
-    public RefItem(String id, RefKind kind, String code, String name, Map<String, String> names, int displayOrder,
+    public RefItem(String id, RefKind kind, String code, Localized<RefItemName> names, int displayOrder,
             Map<String, Object> attributes, boolean active, boolean legalEntity, boolean actingHead) {
-        this(id, kind, code, name, names, displayOrder, attributes, active, legalEntity, actingHead, false);
+        this(id, kind, code, names, displayOrder, attributes, active, legalEntity, actingHead, false);
     }
 
     /**
@@ -93,16 +90,15 @@ public record RefItem(String id, String kind, String code, String name, Map<Stri
      * @param id the ID
      * @param kind the kind
      * @param code the code
-     * @param name the default name
-     * @param names the names in other languages, by language tag
+     * @param names the names by language tag
      * @param displayOrder the position in lists, lowest first
      * @param attributes free values that the realm defines
      * @param active false when the item must not be used for new data
      * @param legalEntity true for a unit type whose org units are legal entities, such as a company
      */
-    public RefItem(String id, RefKind kind, String code, String name, Map<String, String> names, int displayOrder,
+    public RefItem(String id, RefKind kind, String code, Localized<RefItemName> names, int displayOrder,
             Map<String, Object> attributes, boolean active, boolean legalEntity) {
-        this(id, kind, code, name, names, displayOrder, attributes, active, legalEntity, false, false);
+        this(id, kind, code, names, displayOrder, attributes, active, legalEntity, false, false);
     }
 
     /**
@@ -111,14 +107,13 @@ public record RefItem(String id, String kind, String code, String name, Map<Stri
      * @param id the ID
      * @param kind the kind
      * @param code the code
-     * @param name the default name
-     * @param names the names in other languages, by language tag
+     * @param names the names by language tag
      * @param displayOrder the position in lists, lowest first
      * @param attributes free values that the realm defines
      * @param active false when the item must not be used for new data
      */
-    public RefItem(String id, RefKind kind, String code, String name, Map<String, String> names, int displayOrder,
+    public RefItem(String id, RefKind kind, String code, Localized<RefItemName> names, int displayOrder,
             Map<String, Object> attributes, boolean active) {
-        this(id, kind, code, name, names, displayOrder, attributes, active, false, false, false);
+        this(id, kind, code, names, displayOrder, attributes, active, false, false, false);
     }
 }

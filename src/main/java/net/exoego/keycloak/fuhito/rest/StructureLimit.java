@@ -11,7 +11,7 @@ import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.OrgUnitSuccession;
 import net.exoego.keycloak.fuhito.domain.OrgUnitVersion;
 import net.exoego.keycloak.fuhito.domain.RefItem;
-import net.exoego.keycloak.fuhito.domain.RefItemName;
+import net.exoego.keycloak.fuhito.domain.RefItemPeriod;
 import net.exoego.keycloak.fuhito.domain.ValidPeriod;
 import net.exoego.keycloak.fuhito.service.OrgUnitState;
 import net.exoego.keycloak.fuhito.service.OrgUnitSuccessions;
@@ -105,7 +105,7 @@ final class StructureLimit {
         if (to == null || lastDay.isEmpty() || !to.isAfter(lastDay.get())) {
             return item;
         }
-        return item.withNames(new RefItemName(null, item.id(), item.validFrom(), null, item.name(), item.names()));
+        return item.withNames(new RefItemPeriod(null, item.id(), item.validFrom(), null, item.names()));
     }
 
     /**

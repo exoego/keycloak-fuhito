@@ -50,10 +50,10 @@ class VersionsIT {
         assertEquals(2, entry(ok(api.get("/ref-kinds")), "code", "site").get("version").asLong());
         assertFalse(entry(ok(api.get("/ref-kinds")), "code", "UNIT_TYPE").has("version"));
 
-        HttpResponse<String> item = api.post("/ref-items", "{\"kind\": \"site\", \"code\": \"tokyo\", \"name\": \"東京\"}");
+        HttpResponse<String> item = api.post("/ref-items", "{\"kind\": \"site\", \"code\": \"tokyo\", \"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"東京\"}}}");
         String itemId = id(item);
         assertEquals(1, version(item));
-        assertEquals(2, version(api.putWithVersion("/ref-items/" + itemId, "{\"name\": \"東京本社\"}")));
+        assertEquals(2, version(api.putWithVersion("/ref-items/" + itemId, "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"東京本社\"}}}")));
         assertEquals(2, version(api.get("/ref-items/" + itemId)));
 
         HttpResponse<String> hierarchy = api.post("/hierarchies", "{\"code\": \"project\", \"name\": \"P\"}");
@@ -354,8 +354,8 @@ class VersionsIT {
         String bossUser = source.user("boss");
         ok(api.post("/ref-kinds", "{\"code\": \"site\", \"name\": \"拠点\"}"));
         ok(api.putWithVersion("/ref-kinds/site", "{\"name\": \"事業所\"}"));
-        String item = id(api.post("/ref-items", "{\"kind\": \"site\", \"code\": \"tokyo\", \"name\": \"東京\"}"));
-        ok(api.putWithVersion("/ref-items/" + item, "{\"name\": \"東京本社\"}"));
+        String item = id(api.post("/ref-items", "{\"kind\": \"site\", \"code\": \"tokyo\", \"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"東京\"}}}"));
+        ok(api.putWithVersion("/ref-items/" + item, "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"東京本社\"}}}"));
         String definition = id(api.post("/attribute-definitions",
                 "{\"target\": \"PERSON\", \"name\": \"beds\", \"type\": \"NUMBER\"}"));
         ok(api.putWithVersion("/attribute-definitions/" + definition, "{\"type\": \"STRING\"}"));

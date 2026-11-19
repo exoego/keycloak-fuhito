@@ -14,6 +14,7 @@ import net.exoego.keycloak.fuhito.domain.Localized;
 import net.exoego.keycloak.fuhito.domain.OrgUnitName;
 import net.exoego.keycloak.fuhito.domain.PersonName;
 import net.exoego.keycloak.fuhito.domain.RefItem;
+import net.exoego.keycloak.fuhito.domain.RefItemName;
 import net.exoego.keycloak.fuhito.domain.RefKind;
 import net.exoego.keycloak.fuhito.service.ImportReport.Counts;
 import net.exoego.keycloak.fuhito.store.UserDirectory;
@@ -87,29 +88,29 @@ class CsvImportServiceTest {
     }
 
     private void item(RefKind kind, String code) {
-        refItems.insert(new RefItem(kind + "-" + code, kind, code, code, Map.of(), 0, Map.of(), true));
+        refItems.insert(new RefItem(kind + "-" + code, kind, code, ItemNames.of(code), 0, Map.of(), true));
     }
 
     @Test
     void loadsReferenceItemsWithJapaneseHeaders() {
         CsvImportService.Result result = load("refItems", "2026-04-01", """
-                ﻿種類,コード,名称,名称:en,表示順,有効
-                OCCUPATION,nurse,看護師,Nurse,2,はい
-                OCCUPATION,old,旧職種,,,いいえ
+                ﻿種類,コード,主言語,名称,名称:en,表示順,有効
+                OCCUPATION,nurse,ja,看護師,Nurse,2,はい
+                OCCUPATION,old,ja,旧職種,,,いいえ
                 """);
 
         assertEquals(List.of(), errors(result));
         assertEquals(new Counts(2, 0, 0), result.report().counts().get("refItems"));
         RefItem nurse = refItems.findByCode(RefKind.OCCUPATION, "nurse").orElseThrow();
-        assertEquals("看護師", nurse.name());
-        assertEquals(Map.of("en", "Nurse"), nurse.names());
+        assertEquals(new Localized<>("ja", Map.of("ja", new RefItemName("看護師"), "en", new RefItemName("Nurse"))),
+                nurse.names());
         assertEquals(2, nurse.displayOrder());
         assertFalse(refItems.findByCode(RefKind.OCCUPATION, "old").orElseThrow().active());
     }
 
     @Test
     void loadsTheNamesOfAReferenceItemFromTheDateOfTheRow() {
-        load("refItems", "2026-04-01", "kind,code,name,name:en\nJOB_TITLE,chief,主任,Chief\n");
+        load("refItems", "2026-04-01", "kind,code,primaryLanguage,name,name:en\nJOB_TITLE,chief,ja,主任,Chief\n");
 
         // A blank name keeps the names of the date of the row.
         CsvImportService.Result result = load("refItems", "2026-04-01", """
@@ -121,8 +122,23 @@ class CsvImportServiceTest {
         assertEquals(List.of("line 3 row 1 invalid.date"), errors(result));
         RefItem item = refItems.findByCode(RefKind.JOB_TITLE, "chief").orElseThrow();
         assertEquals(List.of("null 主任 Chief", "2027-04-01 主任 Senior Chief"), refItems.names(item.id()).stream()
-                .map(n -> n.validFrom() + " " + n.name() + " " + n.names().get("en"))
+                .map(n -> n.validFrom() + " " + n.names().primary().name() + " "
+                        + n.names().byLanguage().get("en").name())
                 .toList());
+    }
+
+    @Test
+    void aNewReferenceItemNeedsAPrimaryLanguageAndClearRemovesALanguage() {
+        assertEquals(List.of("line 2 row 0 invalid.required"),
+                errors(load("refItems", "2026-04-01", "kind,code,name\nJOB_TITLE,chief,主任\n")));
+        load("refItems", "2026-04-01", "kind,code,primaryLanguage,name,name:en\nJOB_TITLE,chief,ja,主任,Chief\n");
+
+        CsvImportService.Result result = load("refItems", "2026-04-01",
+                "kind,code,name,name:en\nJOB_TITLE,chief,主任,#CLEAR\n");
+
+        assertEquals(List.of(), errors(result));
+        assertEquals(Localized.of("ja", new RefItemName("主任")),
+                refItems.findByCode(RefKind.JOB_TITLE, "chief").orElseThrow().names());
     }
 
     @Test
@@ -514,7 +530,7 @@ class CsvImportServiceTest {
         assertEquals(List.of(), errors(result));
         assertEquals(List.of(), errors(kept));
         var changed = refItems.findByCode(RefKind.UNIT_TYPE, "ward").orElseThrow();
-        assertEquals("East ward", changed.name());
+        assertEquals(ItemNames.of("East ward"), changed.names());
         assertEquals(0, changed.displayOrder());
         assertTrue(changed.active());
     }

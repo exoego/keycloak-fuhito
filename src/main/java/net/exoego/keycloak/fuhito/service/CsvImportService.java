@@ -37,6 +37,7 @@ import net.exoego.keycloak.fuhito.domain.Person;
 import net.exoego.keycloak.fuhito.domain.PersonName;
 import net.exoego.keycloak.fuhito.domain.Qualification;
 import net.exoego.keycloak.fuhito.domain.RefItem;
+import net.exoego.keycloak.fuhito.domain.RefItemName;
 import net.exoego.keycloak.fuhito.service.ImportDocument.AssignmentRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.AttributeDefinitionRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.ChangeOrderRow;
@@ -175,8 +176,8 @@ public class CsvImportService {
                     "orgUnitExternalId", "orgUnitId", "role", "includesDescendants", "validFrom", "validTo")),
             Map.entry(Kind.REPORTING_LINES, Set.of("id", "source", "assignmentExternalId", "assignmentId",
                     "managerPersonExternalId", "managerPersonId", "managerUsername", "kind", "validFrom", "validTo")),
-            Map.entry(Kind.REF_ITEMS, Set.of("kind", "code", "name", "displayOrder", "active", "legalEntity",
-                    "actingHead", "lateral", "validFrom")),
+            Map.entry(Kind.REF_ITEMS, Set.of("kind", "code", "primaryLanguage", "name", "displayOrder", "active",
+                    "legalEntity", "actingHead", "lateral", "validFrom")),
             Map.entry(Kind.ORG_UNITS, Set.of("id", "externalId", "source", "code", "primaryLanguage", "name",
                     "shortName", "phoneticName", "unitType", "workLocation", "costCenter", "parentExternalId",
                     "parentId", "displayOrder", "validFrom", "validTo", "successorExternalIds", "successorIds",
@@ -195,6 +196,7 @@ public class CsvImportService {
     private static final Set<String> LOCALIZED = Set.of("name");
     private static final List<String> UNIT_NAMES = List.of("name", "shortName", "phoneticName");
     private static final List<String> PERSON_NAMES = List.of("name", "phoneticName");
+    private static final List<String> ITEM_NAMES = List.of("name");
     static final String ATTRIBUTE_COLUMN = "attributes.";
     private static final Set<String> TRUE = Set.of("true", "1", "yes", "y", "はい", "○", "〇");
     private static final Set<String> FALSE = Set.of("false", "0", "no", "n", "いいえ", "×");
@@ -471,8 +473,11 @@ public class CsvImportService {
         // The import reports an unknown kind. Here it only means that nothing is stored.
         Optional<RefItem> stored = code == null || kind == null ? Optional.empty()
                 : refItems.findByCode(kind, code, date);
-        return new RefItemRow(kind, code, cells.text("name", stored.map(RefItem::name).orElse(null)),
-                cells.localized("name", stored.map(RefItem::names).orElse(Map.of())),
+        Optional<Localized<RefItemName>> names = stored.map(RefItem::names);
+        String primaryLanguage = cells.primaryLanguage(names);
+        return new RefItemRow(kind, code, primaryLanguage, cells.names(primaryLanguage,
+                        names.map(Localized::byLanguage).orElse(Map.of()), ITEM_NAMES,
+                        (name, field, text) -> new RefItemName(text)),
                 cells.integer("displayOrder", stored.map(RefItem::displayOrder).orElse(null)),
                 cells.attributes(stored.map(RefItem::attributes).orElse(null)),
                 cells.bool("active", stored.map(RefItem::active).orElse(null)),

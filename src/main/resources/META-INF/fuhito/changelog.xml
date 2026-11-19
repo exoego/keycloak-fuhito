@@ -913,10 +913,14 @@
         <dropColumn tableName="FUHITO_REF_ITEM" columnName="NAMES_I18N"/>
     </changeSet>
 
-    <!-- The same as 0.1.0-no-overlap, for the names of a reference item. -->
+    <!-- The same as 0.1.0-no-overlap, for the names of a reference item. 0.1.0-ref-item-names-by-language
+         gives the table one row for each language, which this constraint does not fit. A precondition is not part
+         of the checksum. -->
     <changeSet id="0.1.0-ref-item-names-no-overlap" author="keycloak-fuhito" dbms="postgresql">
         <preConditions onFail="CONTINUE">
             <sqlCheck expectedResult="1">SELECT count(*) FROM pg_extension WHERE extname = 'btree_gist'</sqlCheck>
+            <sqlCheck expectedResult="1">SELECT count(*) FROM information_schema.columns
+                WHERE table_name = 'fuhito_ref_item_name' AND column_name = 'names_i18n'</sqlCheck>
         </preConditions>
         <sql>
             ALTER TABLE FUHITO_REF_ITEM_NAME ADD CONSTRAINT EX_FUHITO_REF_ITEM_NAME_PERIOD
@@ -1031,5 +1035,56 @@
         <dropColumn tableName="FUHITO_PERSON" columnName="NAMES_I18N"/>
         <dropColumn tableName="FUHITO_PERSON" columnName="PHONETIC_NAME"/>
         <dropColumn tableName="FUHITO_PERSON" columnName="SEARCH_NAMES"/>
+    </changeSet>
+
+    <!-- The names of a reference item get one row for each language of a period, and one row of each period is
+         the primary one. A row of a period held only the dates once the names left it, so the rows of the
+         languages take its place with the dates on each row. Nothing was released, so the stored names do not
+         move. -->
+    <changeSet id="0.1.0-ref-item-names-by-language" author="keycloak-fuhito">
+        <dropTable tableName="FUHITO_REF_ITEM_NAME"/>
+        <createTable tableName="FUHITO_REF_ITEM_NAME">
+            <column name="PERIOD_ID" type="VARCHAR(36)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="LANGUAGE" type="VARCHAR(64)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="REALM_ID" type="VARCHAR(36)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="REF_ITEM_ID" type="VARCHAR(36)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="VALID_FROM" type="DATE"/>
+            <column name="VALID_TO" type="DATE"/>
+            <column name="IS_PRIMARY" type="BOOLEAN" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+            <column name="NAME" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        <addPrimaryKey tableName="FUHITO_REF_ITEM_NAME" columnNames="PERIOD_ID, LANGUAGE"
+                       constraintName="PK_FUHITO_REF_ITEM_NAME"/>
+        <addUniqueConstraint tableName="FUHITO_REF_ITEM_NAME" columnNames="REF_ITEM_ID, VALID_FROM, LANGUAGE"
+                             constraintName="UK_FUHITO_REF_ITEM_NAME_FROM"/>
+        <addForeignKeyConstraint baseTableName="FUHITO_REF_ITEM_NAME" baseColumnNames="REF_ITEM_ID"
+                                 referencedTableName="FUHITO_REF_ITEM" referencedColumnNames="ID"
+                                 constraintName="FK_FUHITO_REF_ITEM_NAME_ITEM"/>
+        <sql dbms="postgresql">
+            CREATE UNIQUE INDEX UK_FUHITO_REF_ITEM_NAME_PRIMARY ON FUHITO_REF_ITEM_NAME (PERIOD_ID) WHERE IS_PRIMARY
+        </sql>
+    </changeSet>
+
+    <!-- The same as 0.1.0-no-overlap, for the names of a reference item. Every period has one primary row. -->
+    <changeSet id="0.1.0-ref-item-names-by-language-no-overlap" author="keycloak-fuhito" dbms="postgresql">
+        <preConditions onFail="CONTINUE">
+            <sqlCheck expectedResult="1">SELECT count(*) FROM pg_extension WHERE extname = 'btree_gist'</sqlCheck>
+        </preConditions>
+        <sql>
+            ALTER TABLE FUHITO_REF_ITEM_NAME ADD CONSTRAINT EX_FUHITO_REF_ITEM_NAME_PERIOD
+            EXCLUDE USING gist (REF_ITEM_ID WITH =, daterange(VALID_FROM, VALID_TO) WITH &amp;&amp;) WHERE (IS_PRIMARY)
+        </sql>
     </changeSet>
 </databaseChangeLog>

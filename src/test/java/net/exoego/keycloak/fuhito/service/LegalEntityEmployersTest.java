@@ -31,9 +31,9 @@ class LegalEntityEmployersTest {
 
     @BeforeEach
     void defineTheUnitTypes() {
-        refItems.insert(new RefItem("type-company", RefKind.UNIT_TYPE, "company", "Company", Map.of(), 0, Map.of(),
+        refItems.insert(new RefItem("type-company", RefKind.UNIT_TYPE, "company", ItemNames.of("Company"), 0, Map.of(),
                 true, true));
-        refItems.insert(new RefItem("type-ward", RefKind.UNIT_TYPE, "ward", "Ward", Map.of(), 0, Map.of(), true));
+        refItems.insert(new RefItem("type-ward", RefKind.UNIT_TYPE, "ward", ItemNames.of("Ward"), 0, Map.of(), true));
         store.legalEntityTypes.add("type-company");
     }
 

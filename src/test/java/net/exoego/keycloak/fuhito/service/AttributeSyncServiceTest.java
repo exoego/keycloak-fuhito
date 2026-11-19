@@ -85,8 +85,8 @@ class AttributeSyncServiceTest {
         surgery = orgUnits.create(unit(null, "Surgery", hospital)).unit().id();
         orgUnits.create(unit(null, "Office", hospital));
         orgUnits.create(unit(null, "Office", medicine));
-        refItems.insert(new RefItem("t1", RefKind.JOB_TITLE, "director", "Director", Map.of(), 0, Map.of(), true));
-        refItems.insert(new RefItem("t2", RefKind.JOB_TITLE, "staff", "Staff", Map.of(), 0, Map.of(), true));
+        refItems.insert(new RefItem("t1", RefKind.JOB_TITLE, "director", ItemNames.of("Director"), 0, Map.of(), true));
+        refItems.insert(new RefItem("t2", RefKind.JOB_TITLE, "staff", ItemNames.of("Staff"), 0, Map.of(), true));
     }
 
     private static NewOrgUnit unit(String code, String name, String parentId) {
@@ -405,8 +405,8 @@ class AttributeSyncServiceTest {
 
     @Test
     void aNewTitleKeepsTheWorkLocationAndTheCostCenterOfTheAssignment() {
-        refItems.insert(new RefItem("home", RefKind.WORK_LOCATION, "home", "Home", Map.of(), 0, Map.of(), true));
-        refItems.insert(new RefItem("cc", RefKind.COST_CENTER, "cc", "CC", Map.of(), 0, Map.of(), true));
+        refItems.insert(new RefItem("home", RefKind.WORK_LOCATION, "home", ItemNames.of("Home"), 0, Map.of(), true));
+        refItems.insert(new RefItem("cc", RefKind.COST_CENTER, "cc", ItemNames.of("CC"), 0, Map.of(), true));
         set("boss", "med", null, null, null);
         run();
         Assignment row = assignmentStore.rowsOfEmployment(employmentStore.findByUser("boss").getFirst().id())
@@ -710,7 +710,7 @@ class AttributeSyncServiceTest {
 
     @Test
     void aTitleWithANameThatTwoJobTitlesShareMatchesTheFirst() {
-        refItems.insert(new RefItem("t3", RefKind.JOB_TITLE, "staff-2", "Staff", Map.of(), 0, Map.of(), true));
+        refItems.insert(new RefItem("t3", RefKind.JOB_TITLE, "staff-2", ItemNames.of("Staff"), 0, Map.of(), true));
         set("alice", "med", "Staff", null, null);
 
         run();
@@ -724,7 +724,7 @@ class AttributeSyncServiceTest {
         set("bob", "med", "Staff", null, null);
         set("carol", "med", "staff", null, null);
         run();
-        refItems.update(new RefItem("t2", RefKind.JOB_TITLE, "staff", "Staff", Map.of(), 0, Map.of(), false));
+        refItems.update(new RefItem("t2", RefKind.JOB_TITLE, "staff", ItemNames.of("Staff"), 0, Map.of(), false));
         nextDay();
         set("carol", "Surgery", "staff", null, null);
         set("dave", "med", "Staff", null, null);

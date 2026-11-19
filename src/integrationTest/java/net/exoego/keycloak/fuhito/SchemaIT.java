@@ -63,16 +63,35 @@ class SchemaIT {
     void theDatabaseRejectsOverlappingNamesOfOneReferenceItem() throws Exception {
         KeycloakEnvironment.sql("insert into fuhito_ref_item (id, realm_id, kind, code, attributes)"
                 + " values ('ex-r1', 'ex-realm-3', 'JOB_TITLE', 'a', '{}')");
-        String insert = "insert into fuhito_ref_item_name (id, realm_id, ref_item_id, valid_from, valid_to, name,"
-                + " names_i18n) values ";
-        KeycloakEnvironment.sql(insert + "('ex-n1', 'ex-realm-3', 'ex-r1', null, '2027-04-01', 'a', '{}')");
+        String insert = "insert into fuhito_ref_item_name (period_id, language, realm_id, ref_item_id, valid_from,"
+                + " valid_to, is_primary, name) values ";
+        KeycloakEnvironment.sql(insert + "('ex-n1', 'ja', 'ex-realm-3', 'ex-r1', null, '2027-04-01', true, '主任')");
+        // The other languages of a period overlap its primary row.
+        KeycloakEnvironment.sql(insert + "('ex-n1', 'en', 'ex-realm-3', 'ex-r1', null, '2027-04-01', false, 'Chief')");
 
         // Names with no first date hold from the start, so they overlap any earlier names.
         assertTrue(KeycloakEnvironment.sqlError(insert
-                + "('ex-n2', 'ex-realm-3', 'ex-r1', '2020-04-01', '2021-04-01', 'b', '{}')")
+                + "('ex-n2', 'ja', 'ex-realm-3', 'ex-r1', '2020-04-01', '2021-04-01', true, 'b')")
                 .contains("ex_fuhito_ref_item_name_period"));
 
-        KeycloakEnvironment.sql(insert + "('ex-n3', 'ex-realm-3', 'ex-r1', '2027-04-01', null, 'c', '{}')");
+        KeycloakEnvironment.sql(insert + "('ex-n3', 'ja', 'ex-realm-3', 'ex-r1', '2027-04-01', null, true, 'c')");
+    }
+
+    @Test
+    void theDatabaseRejectsASecondPrimaryNameOfOnePeriodOfAReferenceItem() throws Exception {
+        KeycloakEnvironment.sql("insert into fuhito_ref_item (id, realm_id, kind, code, attributes)"
+                + " values ('ex-r2', 'ex-realm-6', 'JOB_TITLE', 'a', '{}')");
+        String insert = "insert into fuhito_ref_item_name (period_id, language, realm_id, ref_item_id, valid_from,"
+                + " valid_to, is_primary, name) values ";
+        KeycloakEnvironment.sql(insert + "('ex-n4', 'ja', 'ex-realm-6', 'ex-r2', null, null, true, '部長')");
+        KeycloakEnvironment.sql(insert + "('ex-n4', 'en', 'ex-realm-6', 'ex-r2', null, null, false, 'Manager')");
+
+        assertTrue(KeycloakEnvironment.sqlError(insert
+                + "('ex-n4', 'zh-Hant', 'ex-realm-6', 'ex-r2', null, null, true, '部長')")
+                .contains("uk_fuhito_ref_item_name_primary"));
+        assertTrue(KeycloakEnvironment.sqlError(insert
+                + "('ex-n4', 'en', 'ex-realm-6', 'ex-r2', null, null, false, 'Director')")
+                .contains("pk_fuhito_ref_item_name"));
     }
 
     @Test

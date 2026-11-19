@@ -5,13 +5,17 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
+import net.exoego.keycloak.fuhito.domain.Localized;
 import net.exoego.keycloak.fuhito.domain.RefItem;
+import net.exoego.keycloak.fuhito.domain.RefItemName;
 import net.exoego.keycloak.fuhito.domain.RefKind;
 import org.junit.jupiter.api.Test;
 
+import static net.exoego.keycloak.fuhito.service.ItemNames.english;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -24,7 +28,11 @@ class RefItemServiceTest {
     private final RefItemService service = new RefItemService(store);
 
     private RefItem create(String code, Integer displayOrder) {
-        return service.create(RefKind.UNIT_TYPE, code, code + " name", null, displayOrder, null);
+        return service.create(RefKind.UNIT_TYPE, code, "en", english(code + " name"), displayOrder, null);
+    }
+
+    private static String name(RefItem item) {
+        return item.names().primary().name();
     }
 
     @Test
@@ -35,8 +43,7 @@ class RefItemServiceTest {
         assertEquals("UNIT_TYPE", item.kind());
         assertTrue(item.is(RefKind.UNIT_TYPE));
         assertEquals("hospital", item.code());
-        assertEquals("hospital name", item.name());
-        assertEquals(Map.of(), item.names());
+        assertEquals(ItemNames.of("hospital name"), item.names());
         assertEquals(0, item.displayOrder());
         assertEquals(Map.of(), item.attributes());
         assertTrue(item.active());
@@ -44,10 +51,14 @@ class RefItemServiceTest {
     }
 
     @Test
-    void keepsLocalizedNamesAndAttributes() {
-        RefItem item = service.create(RefKind.UNIT_TYPE, "ward", "病棟", Map.of("en", "Ward"), 3, Map.of("beds", true));
+    void keepsTheNamesOfEachLanguageAndAttributes() {
+        RefItem item = service.create(RefKind.UNIT_TYPE, "ward", "ja",
+                Map.of("ja", new RefItemName(" 病棟 "), "en-us", new RefItemName("Ward")), 3, Map.of("beds", true));
 
-        assertEquals(Map.of("en", "Ward"), item.names());
+        assertEquals(new Localized<>("ja", Map.of("ja", new RefItemName("病棟"), "en-US", new RefItemName("Ward"))),
+                item.names());
+        assertEquals("Ward", item.names().in(Locale.US).name());
+        assertEquals("病棟", item.names().in(Locale.FRENCH).name());
         assertEquals(3, item.displayOrder());
         assertEquals(Map.of("beds", true), item.attributes());
     }
@@ -66,11 +77,16 @@ class RefItemServiceTest {
     @Test
     void rejectsBadValues() {
         assertEquals("invalid.required", assertThrows(FuhitoException.class,
-                () -> service.create(null, "a", "A", null, null, null)).code());
+                () -> service.create(null, "a", "en", english("A"), null, null)).code());
         assertEquals("invalid.code", assertThrows(FuhitoException.class,
-                () -> service.create(RefKind.UNIT_TYPE, "bad code", "A", null, null, null)).code());
+                () -> service.create(RefKind.UNIT_TYPE, "bad code", "en", english("A"), null, null)).code());
         assertEquals("invalid.name", assertThrows(FuhitoException.class,
-                () -> service.create(RefKind.UNIT_TYPE, "a", " ", null, null, null)).code());
+                () -> service.create(RefKind.UNIT_TYPE, "a", "en", english(" "), null, null)).code());
+        assertEquals("invalid.required", assertThrows(FuhitoException.class,
+                () -> service.create(RefKind.UNIT_TYPE, "a", "en", null, null, null)).code());
+        FuhitoException primary = assertThrows(FuhitoException.class,
+                () -> service.create(RefKind.UNIT_TYPE, "a", "ja", english("A"), null, null));
+        assertEquals("invalid.primary_language", primary.code());
         assertEquals("invalid.required", assertThrows(FuhitoException.class,
                 () -> service.list((String) null, false, null, Page.of(null, null))).code());
     }
@@ -81,7 +97,7 @@ class RefItemServiceTest {
         RefItem a = create("a", 1);
         RefItem first = create("z", 0);
         RefItem inactive = create("off", 0);
-        service.update(inactive.id(), "off", null, 0, null, false);
+        service.update(inactive.id(), "en", english("off"), 0, null, false);
 
         assertEquals(List.of(first, a, b), service.list(RefKind.UNIT_TYPE, false, Page.of(null, null)));
         assertEquals(4, service.list(RefKind.UNIT_TYPE, true, Page.of(null, null)).size());
@@ -91,13 +107,13 @@ class RefItemServiceTest {
     @Test
     void updatesEverythingButKindAndCode() {
         RefItem item = create("dept", 5);
+        Map<String, RefItemName> names = Map.of("ja", new RefItemName("部"), "en", new RefItemName("Department"));
 
-        RefItem changed = service.update(item.id(), "Department", Map.of("ja", "部"), 7, Map.of("k", "v"), false);
+        RefItem changed = service.update(item.id(), "ja", names, 7, Map.of("k", "v"), false);
 
         assertEquals(item.id(), changed.id());
         assertEquals("dept", changed.code());
-        assertEquals("Department", changed.name());
-        assertEquals(Map.of("ja", "部"), changed.names());
+        assertEquals(new Localized<>("ja", names), changed.names());
         assertEquals(7, changed.displayOrder());
         assertEquals(Map.of("k", "v"), changed.attributes());
         assertFalse(changed.active());
@@ -106,11 +122,12 @@ class RefItemServiceTest {
 
     @Test
     void updateFallsBackToDefaults() {
-        RefItem item = service.create(RefKind.UNIT_TYPE, "dept", "部", Map.of("en", "Dept"), 5, Map.of("k", "v"));
+        RefItem item = service.create(RefKind.UNIT_TYPE, "dept", "ja",
+                Map.of("ja", new RefItemName("部"), "en", new RefItemName("Dept")), 5, Map.of("k", "v"));
 
-        RefItem changed = service.update(item.id(), "部", null, null, null, null);
+        RefItem changed = service.update(item.id(), "ja", Map.of("ja", new RefItemName("部")), null, null, null);
 
-        assertEquals(Map.of(), changed.names());
+        assertEquals(Localized.of("ja", new RefItemName("部")), changed.names());
         assertEquals(0, changed.displayOrder());
         assertEquals(Map.of(), changed.attributes());
         assertTrue(changed.active());
@@ -118,44 +135,44 @@ class RefItemServiceTest {
 
     @Test
     void onlyAUnitTypeCanBeMarkedAsALegalEntity() {
-        RefItem company = service.create(RefKind.UNIT_TYPE, "company", "Company", null, null, null, new RefItemService.Marks(true, null, null));
-        RefItem ward = service.create(RefKind.UNIT_TYPE, "ward", "Ward", null, null, null, new RefItemService.Marks(null, null, null));
+        RefItem company = service.create(RefKind.UNIT_TYPE, "company", "en", english("Company"), null, null, new RefItemService.Marks(true, null, null));
+        RefItem ward = service.create(RefKind.UNIT_TYPE, "ward", "en", english("Ward"), null, null, new RefItemService.Marks(null, null, null));
 
         assertTrue(company.legalEntity());
         assertFalse(ward.legalEntity());
         assertTrue(service.get(company.id()).legalEntity());
 
         // A change that does not speak about the mark keeps it. A change that does can take it away.
-        assertTrue(service.update(company.id(), "Corporation", null, null, null, null).legalEntity());
-        assertFalse(service.update(company.id(), "Corporation", null, null, null, null, new RefItemService.Marks(null, null, null), null).legalEntity());
-        assertTrue(service.update(ward.id(), "Ward", null, null, null, null, new RefItemService.Marks(true, null, null), null).legalEntity());
+        assertTrue(service.update(company.id(), "en", english("Corporation"), null, null, null).legalEntity());
+        assertFalse(service.update(company.id(), "en", english("Corporation"), null, null, null, new RefItemService.Marks(null, null, null), null).legalEntity());
+        assertTrue(service.update(ward.id(), "en", english("Ward"), null, null, null, new RefItemService.Marks(true, null, null), null).legalEntity());
 
         FuhitoException wrongKind = assertThrows(FuhitoException.class,
-                () -> service.create(RefKind.OCCUPATION, "nurse", "Nurse", null, null, null, new RefItemService.Marks(true, null, null)));
+                () -> service.create(RefKind.OCCUPATION, "nurse", "en", english("Nurse"), null, null, new RefItemService.Marks(true, null, null)));
         assertEquals(FuhitoException.Reason.INVALID, wrongKind.reason());
         assertEquals("ref_item.legal_entity_kind", wrongKind.code());
-        RefItem grade = service.create(RefKind.GRADE, "g1", "G1", null, null, null, new RefItemService.Marks(false, null, null));
+        RefItem grade = service.create(RefKind.GRADE, "g1", "en", english("G1"), null, null, new RefItemService.Marks(false, null, null));
         assertEquals("ref_item.legal_entity_kind", assertThrows(FuhitoException.class,
-                () -> service.update(grade.id(), "G1", null, null, null, null, new RefItemService.Marks(true, null, null), null)).code());
+                () -> service.update(grade.id(), "en", english("G1"), null, null, null, new RefItemService.Marks(true, null, null), null)).code());
     }
 
     @Test
     void aUnitTypeKeepsItsMarkWhileItMakesAnEmployerALegalEntity() {
-        RefItem company = service.create(RefKind.UNIT_TYPE, "company", "Company", null, null, null, new RefItemService.Marks(true, null, null));
+        RefItem company = service.create(RefKind.UNIT_TYPE, "company", "en", english("Company"), null, null, new RefItemService.Marks(true, null, null));
         store.typesOfEmployers.add(company.id());
 
         FuhitoException e = assertThrows(FuhitoException.class,
-                () -> service.update(company.id(), "Company", null, null, null, null, new RefItemService.Marks(false, null, null), null));
+                () -> service.update(company.id(), "en", english("Company"), null, null, null, new RefItemService.Marks(false, null, null), null));
         assertEquals(FuhitoException.Reason.CONFLICT, e.reason());
         assertEquals("ref_item.legal_entity_in_use", e.code());
         assertEquals("ref_item.legal_entity_in_use", assertThrows(FuhitoException.class,
-                () -> service.update(company.id(), "Company", null, null, null, null, new RefItemService.Marks(null, null, null), null)).code());
+                () -> service.update(company.id(), "en", english("Company"), null, null, null, new RefItemService.Marks(null, null, null), null)).code());
         // Every other change still works.
-        assertTrue(service.update(company.id(), "Corporation", null, 5, null, null, new RefItemService.Marks(true, null, null), null).legalEntity());
-        assertTrue(service.update(company.id(), "Corporation", null, null, null, null).legalEntity());
+        assertTrue(service.update(company.id(), "en", english("Corporation"), 5, null, null, new RefItemService.Marks(true, null, null), null).legalEntity());
+        assertTrue(service.update(company.id(), "en", english("Corporation"), null, null, null).legalEntity());
 
         store.typesOfEmployers.clear();
-        assertFalse(service.update(company.id(), "Company", null, null, null, null, new RefItemService.Marks(false, null, null), null).legalEntity());
+        assertFalse(service.update(company.id(), "en", english("Company"), null, null, null, new RefItemService.Marks(false, null, null), null).legalEntity());
     }
 
     @Test
@@ -184,7 +201,7 @@ class RefItemServiceTest {
     @Test
     void rejectsAnUnknownId() {
         assertEquals("ref_item.not_found",
-                assertThrows(FuhitoException.class, () -> service.update("nope", "x", null, null, null, null)).code());
+                assertThrows(FuhitoException.class, () -> service.update("nope", "en", english("x"), null, null, null)).code());
         assertEquals("ref_item.not_found",
                 assertThrows(FuhitoException.class, () -> service.delete("nope")).code());
     }
@@ -193,40 +210,40 @@ class RefItemServiceTest {
     void anUpdateCanSayThatTheItemStaysActive() {
         RefItem item = create("dept", 5);
 
-        assertTrue(service.update(item.id(), "Department", null, null, Map.of("k", "v"), true).active());
+        assertTrue(service.update(item.id(), "en", english("Department"), null, Map.of("k", "v"), true).active());
     }
 
     @Test
     void onlyAnAssignmentKindMarksActingHeads() {
-        RefItem acting = service.create(RefKind.ASSIGNMENT_KIND, "acting", "Acting", null, null, null, new RefItemService.Marks(null, true, null));
+        RefItem acting = service.create(RefKind.ASSIGNMENT_KIND, "acting", "en", english("Acting"), null, null, new RefItemService.Marks(null, true, null));
 
         assertTrue(acting.actingHead());
-        assertTrue(service.update(acting.id(), "Acting", null, null, null, null).actingHead());
-        assertFalse(service.update(acting.id(), "Acting", null, null, null, null, new RefItemService.Marks(null, null, null), null).actingHead());
+        assertTrue(service.update(acting.id(), "en", english("Acting"), null, null, null).actingHead());
+        assertFalse(service.update(acting.id(), "en", english("Acting"), null, null, null, new RefItemService.Marks(null, null, null), null).actingHead());
         assertEquals("ref_item.acting_head_kind", assertThrows(FuhitoException.class,
-                () -> service.create(RefKind.JOB_TITLE, "chief", "Chief", null, null, null, new RefItemService.Marks(null, true, null))).code());
+                () -> service.create(RefKind.JOB_TITLE, "chief", "en", english("Chief"), null, null, new RefItemService.Marks(null, true, null))).code());
     }
 
     @Test
     void aLateralUnitTypeIsNoLegalEntityAndKeepsItsMarkWhileInUse() {
-        RefItem committee = service.create(RefKind.UNIT_TYPE, "committee", "Committee", null, null, null,
+        RefItem committee = service.create(RefKind.UNIT_TYPE, "committee", "en", english("Committee"), null, null,
                 new RefItemService.Marks(null, null, true));
 
         assertTrue(committee.lateral());
         assertEquals("ref_item.lateral_kind", assertThrows(FuhitoException.class,
-                () -> service.create(RefKind.JOB_TITLE, "chair", "Chair", null, null, null,
+                () -> service.create(RefKind.JOB_TITLE, "chair", "en", english("Chair"), null, null,
                         new RefItemService.Marks(null, null, true))).code());
         assertEquals("ref_item.lateral_legal_entity", assertThrows(FuhitoException.class,
-                () -> service.create(RefKind.UNIT_TYPE, "union", "Union", null, null, null,
+                () -> service.create(RefKind.UNIT_TYPE, "union", "en", english("Union"), null, null,
                         new RefItemService.Marks(true, null, true))).code());
-        assertFalse(service.update(committee.id(), "Committee", null, null, null, null, RefItemService.Marks.NONE, null)
+        assertFalse(service.update(committee.id(), "en", english("Committee"), null, null, null, RefItemService.Marks.NONE, null)
                 .lateral());
 
         store.inUse.add(committee.id());
         assertEquals("ref_item.lateral_in_use", assertThrows(FuhitoException.class,
-                () -> service.update(committee.id(), "Committee", null, null, null, null,
+                () -> service.update(committee.id(), "en", english("Committee"), null, null, null,
                         new RefItemService.Marks(null, null, true), null)).code());
-        assertEquals("Board", service.update(committee.id(), "Board", null, null, null, null).name());
+        assertEquals("Board", name(service.update(committee.id(), "en", english("Board"), null, null, null)));
     }
 
     // Today is 2026-06-15 for the tests of dated names.
@@ -234,17 +251,18 @@ class RefItemServiceTest {
             Today.of(Clock.fixed(Instant.parse("2026-06-15T03:00:00Z"), ZoneOffset.UTC)));
 
     private RefItem title(String validFrom) {
-        return dated.create("JOB_TITLE", "chief", "Chief", Map.of("ja", "主任"), null, null, RefItemService.Marks.NONE,
-                true, validFrom);
+        return dated.create("JOB_TITLE", "chief", "en",
+                Map.of("en", new RefItemName("Chief"), "ja", new RefItemName("主任")), null, null,
+                RefItemService.Marks.NONE, true, validFrom);
     }
 
     private RefItem rename(RefItem item, String name, String validFrom) {
-        return dated.update(item.id(), name, null, null, null, null, RefItemService.Marks.NONE, validFrom);
+        return dated.update(item.id(), "en", english(name), null, null, null, RefItemService.Marks.NONE, validFrom);
     }
 
     private List<String> periods(RefItem item) {
         return dated.history(item.id()).names().stream()
-                .map(n -> n.validFrom() + ".." + n.validTo() + " " + n.name())
+                .map(n -> n.validFrom() + ".." + n.validTo() + " " + n.names().primary().name())
                 .toList();
     }
 
@@ -254,7 +272,7 @@ class RefItemServiceTest {
 
         assertNull(item.validFrom());
         assertNull(item.validTo());
-        assertEquals("Chief", dated.get(item.id(), "1900-01-01").name());
+        assertEquals("Chief", name(dated.get(item.id(), "1900-01-01")));
         assertEquals(List.of("null..null Chief"), periods(item));
     }
 
@@ -264,18 +282,18 @@ class RefItemServiceTest {
 
         RefItem renamed = rename(item, "Senior Chief", "2027-04-01");
 
-        assertEquals("Senior Chief", renamed.name());
+        assertEquals("Senior Chief", name(renamed));
         assertEquals(LocalDate.of(2027, 4, 1), renamed.validFrom());
-        assertEquals("Chief", dated.get(item.id(), "2027-03-31").name());
-        assertEquals(Map.of("ja", "主任"), dated.get(item.id(), "2027-03-31").names());
-        assertEquals("Senior Chief", dated.get(item.id(), "2027-04-01").name());
-        assertEquals(Map.of(), dated.get(item.id(), "2027-04-01").names());
-        assertEquals("Chief", dated.get(item.id()).name());
+        assertEquals("Chief", name(dated.get(item.id(), "2027-03-31")));
+        assertEquals("主任", dated.get(item.id(), "2027-03-31").names().in(Locale.JAPANESE).name());
+        assertEquals("Senior Chief", name(dated.get(item.id(), "2027-04-01")));
+        assertEquals(ItemNames.of("Senior Chief"), dated.get(item.id(), "2027-04-01").names());
+        assertEquals("Chief", name(dated.get(item.id())));
         assertEquals(LocalDate.of(2027, 4, 1), dated.get(item.id()).validTo());
         assertEquals(List.of("Chief"), dated.list("JOB_TITLE", false, "2027-03-31", Page.of(null, null))
-                .stream().map(RefItem::name).toList());
+                .stream().map(RefItemServiceTest::name).toList());
         assertEquals(List.of("Senior Chief"), dated.list("JOB_TITLE", false, "2027-04-01", Page.of(null, null))
-                .stream().map(RefItem::name).toList());
+                .stream().map(RefItemServiceTest::name).toList());
         assertEquals(List.of("null..2027-04-01 Chief", "2027-04-01..null Senior Chief"), periods(item));
     }
 
@@ -307,7 +325,7 @@ class RefItemServiceTest {
 
         RefItem renamed = rename(item, "Head", null);
 
-        assertEquals("Head", renamed.name());
+        assertEquals("Head", name(renamed));
         assertEquals(List.of("null..2027-04-01 Head", "2027-04-01..null C"), periods(item));
     }
 
@@ -317,7 +335,7 @@ class RefItemServiceTest {
 
         assertEquals(LocalDate.of(2026, 4, 1), item.validFrom());
         // The item has no dates of its own, so an earlier date gets the first names.
-        assertEquals("Chief", dated.get(item.id(), "2020-01-01").name());
+        assertEquals("Chief", name(dated.get(item.id(), "2020-01-01")));
         assertEquals(List.of("2026-04-01..null Chief"), periods(item));
     }
 
@@ -328,17 +346,28 @@ class RefItemServiceTest {
         rename(item, "Assistant", "2020-04-01");
 
         assertEquals(List.of("2020-04-01..2026-04-01 Assistant", "2026-04-01..null Chief"), periods(item));
-        assertEquals("Assistant", dated.get(item.id(), "2019-01-01").name());
+        assertEquals("Assistant", name(dated.get(item.id(), "2019-01-01")));
     }
 
     @Test
     void theSameNamesMakeNoNewPeriod() {
         RefItem item = title(null);
 
-        dated.update(item.id(), "Chief", Map.of("ja", "主任"), 3, null, null, RefItemService.Marks.NONE, "2027-04-01");
+        dated.update(item.id(), "en", Map.of("ja", new RefItemName("主任"), "en", new RefItemName("Chief")), 3, null,
+                null, RefItemService.Marks.NONE, "2027-04-01");
 
         assertEquals(List.of("null..null Chief"), periods(item));
         assertEquals(3, dated.get(item.id()).displayOrder());
+    }
+
+    @Test
+    void anotherPrimaryLanguageIsANewName() {
+        RefItem item = title(null);
+
+        dated.update(item.id(), "ja", Map.of("ja", new RefItemName("主任"), "en", new RefItemName("Chief")), null,
+                null, null, RefItemService.Marks.NONE, "2027-04-01");
+
+        assertEquals(List.of("null..2027-04-01 Chief", "2027-04-01..null 主任"), periods(item));
     }
 
     @Test

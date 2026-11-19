@@ -213,7 +213,7 @@ class PermissionsIT {
 
             // A rename of a job title after the limit is a later change too.
             String title = realm.refItem("JOB_TITLE", "chief", "主任");
-            assertEquals(200, realm.api.putWithVersion("/ref-items/" + title, "{\"name\": \"主任補佐\", "
+            assertEquals(200, realm.api.putWithVersion("/ref-items/" + title, "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"主任補佐\"}}, "
                     + "\"validFrom\": \"" + lastDay.plusDays(1) + "\"}").statusCode());
             assertEquals(403, limited.get("/ref-items/" + title + "?asOf=" + lastDay.plusDays(1)).statusCode());
             assertEquals(403, limited.get("/ref-items?kind=JOB_TITLE&asOf=" + lastDay.plusDays(1)).statusCode());

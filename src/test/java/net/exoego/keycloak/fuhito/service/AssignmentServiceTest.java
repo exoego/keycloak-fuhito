@@ -60,7 +60,7 @@ class AssignmentServiceTest {
     }
 
     private RefItem item(RefKind kind, String code, boolean active) {
-        RefItem item = new RefItem(kind + "-" + code, kind, code, code, Map.of(), 0, Map.of(), active);
+        RefItem item = new RefItem(kind + "-" + code, kind, code, ItemNames.of(code), 0, Map.of(), active);
         refItems.insert(item);
         return item;
     }
@@ -342,7 +342,7 @@ class AssignmentServiceTest {
         item(RefKind.OCCUPATION, "retired", false);
         String id = service.add(new AssignmentValues(employment, ward, "2026-04-01", null, "old-title", null, null,
                 null, null, null, null, null, null, null, null)).assignmentId();
-        refItems.update(new RefItem(old.id(), RefKind.JOB_TITLE, "old-title", "old", Map.of(), 0, Map.of(), false));
+        refItems.update(new RefItem(old.id(), RefKind.JOB_TITLE, "old-title", ItemNames.of("old"), 0, Map.of(), false));
 
         assertEquals("old-title", service.changeDetails(id, details("2026-10-01", "old-title", true)).rows().get(1)
                 .jobTitle());

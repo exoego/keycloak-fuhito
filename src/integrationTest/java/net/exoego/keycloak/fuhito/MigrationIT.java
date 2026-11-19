@@ -64,11 +64,13 @@ class MigrationIT {
 
             update(jar, database, null);
 
-            // An item keeps its names for every date.
-            assertEquals(List.of("item-1 item-1 null null 主任 {\"en\":\"Chief\"}",
-                    "item-2 item-2 null null 病棟 {}"), rows(statement, """
-                    select id, ref_item_id, valid_from, valid_to, name, names_i18n
-                    from fuhito_ref_item_name order by id"""));
+            // The items stay. Nothing was released, so their names do not move to the rows of each language.
+            assertEquals(List.of("item-1 chief", "item-2 ward"), rows(statement,
+                    "select id, code from fuhito_ref_item order by id"));
+            assertEquals(List.of("is_primary language name period_id"), rows(statement, """
+                    select string_agg(column_name, ' ' order by column_name) from information_schema.columns
+                    where table_name = 'fuhito_ref_item_name' and column_name in ('period_id', 'language',
+                    'is_primary', 'name', 'names_i18n')"""));
             assertEquals(List.of("0"), rows(statement, """
                     select count(*) from information_schema.columns
                     where table_name = 'fuhito_ref_item' and column_name in ('name', 'names_i18n')"""));

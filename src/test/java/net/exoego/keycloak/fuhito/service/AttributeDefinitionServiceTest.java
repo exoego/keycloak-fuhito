@@ -30,7 +30,7 @@ class AttributeDefinitionServiceTest {
 
     @Test
     void definesChecksAndChangesAttributes() {
-        refItems.insert(new RefItem("site-1", RefKind.OCCUPATION, "nurse", "Nurse", Map.of(), 0, Map.of(), true));
+        refItems.insert(new RefItem("site-1", RefKind.OCCUPATION, "nurse", ItemNames.of("Nurse"), 0, Map.of(), true));
         AttributeDefinition shift = service.create("ASSIGNMENT", "shift", "STRING", null, null, true);
         service.create("ASSIGNMENT", "beds", "NUMBER", null, null, null);
         service.create("ASSIGNMENT", "night", "BOOLEAN", null, null, null);
@@ -68,8 +68,8 @@ class AttributeDefinitionServiceTest {
 
     @Test
     void checksEachElementOfAList() {
-        refItems.insert(new RefItem("site-1", RefKind.OCCUPATION, "nurse", "Nurse", Map.of(), 0, Map.of(), true));
-        refItems.insert(new RefItem("site-2", RefKind.OCCUPATION, "clerk", "Clerk", Map.of(), 1, Map.of(), true));
+        refItems.insert(new RefItem("site-1", RefKind.OCCUPATION, "nurse", ItemNames.of("Nurse"), 0, Map.of(), true));
+        refItems.insert(new RefItem("site-2", RefKind.OCCUPATION, "clerk", ItemNames.of("Clerk"), 1, Map.of(), true));
         AttributeDefinition sites = service.create("ASSIGNMENT", "sites", "REF_ITEM", "OCCUPATION", true, true);
         service.create("ASSIGNMENT", "days", "NUMBER", null, true, null);
         service.create("ASSIGNMENT", "note", "STRING", null, false, null);

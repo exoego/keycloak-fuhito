@@ -112,8 +112,8 @@ class ReorganizationServiceTest {
 
     @Test
     void aStepGivesAUnitItsWorkLocationAndItsCostCenter() {
-        refItems.insert(new RefItem("tokyo", RefKind.WORK_LOCATION, "tokyo", "Tokyo", Map.of(), 0, Map.of(), true));
-        refItems.insert(new RefItem("cc", RefKind.COST_CENTER, "cc", "CC", Map.of(), 0, Map.of(), true));
+        refItems.insert(new RefItem("tokyo", RefKind.WORK_LOCATION, "tokyo", ItemNames.of("Tokyo"), 0, Map.of(), true));
+        refItems.insert(new RefItem("cc", RefKind.COST_CENTER, "cc", ItemNames.of("CC"), 0, Map.of(), true));
         String hospital = unit("Hospital", null);
 
         List<ReorganizationService.Result> results = apply("2027-04-01", List.of(

@@ -32,6 +32,7 @@ import net.exoego.keycloak.fuhito.domain.OrgUnitVersion;
 import net.exoego.keycloak.fuhito.domain.Person;
 import net.exoego.keycloak.fuhito.domain.PersonName;
 import net.exoego.keycloak.fuhito.domain.RefItem;
+import net.exoego.keycloak.fuhito.domain.RefItemName;
 import net.exoego.keycloak.fuhito.domain.Qualification;
 import net.exoego.keycloak.fuhito.domain.RefKind;
 import net.exoego.keycloak.fuhito.domain.ReportingLine;
@@ -225,12 +226,12 @@ public class CsvExportService {
             }
         }
         SortedSet<String> languages = new TreeSet<>();
-        items.forEach(item -> languages.addAll(item.names().keySet()));
+        items.forEach(item -> addOtherLanguages(item.names(), languages));
         List<String> attributes = definitions.apply(AttributeDefinition.Target.REF_ITEM).stream()
                 .map(AttributeDefinition::name)
                 .toList();
         List<String> header = new ArrayList<>();
-        for (String field : List.of("kind", "code", "name")) {
+        for (String field : List.of("kind", "code", "primaryLanguage", "name")) {
             header.add(column(field, japanese));
         }
         languages.forEach(language -> header.add(column("name", japanese) + ":" + language));
@@ -241,8 +242,9 @@ public class CsvExportService {
         StringBuilder csv = new StringBuilder(BYTE_ORDER_MARK);
         line(csv, header);
         for (RefItem item : items) {
-            List<String> cells = new ArrayList<>(List.of(item.kind(), item.code(), item.name()));
-            languages.forEach(language -> cells.add(text(item.names().get(language))));
+            List<String> cells = new ArrayList<>(List.of(item.kind(), item.code(), item.names().primaryLanguage(),
+                    item.names().primary().name()));
+            languages.forEach(language -> cells.add(nameCell(otherLanguage(item.names(), language))));
             cells.add(Integer.toString(item.displayOrder()));
             cells.add(Boolean.toString(item.active()));
             boolean unitType = item.is(RefKind.UNIT_TYPE);
@@ -602,6 +604,10 @@ public class CsvExportService {
 
     private static List<String> nameCells(PersonName names) {
         return names == null ? List.of("", "") : List.of(names.name(), text(names.phoneticName()));
+    }
+
+    private static String nameCell(RefItemName name) {
+        return name == null ? "" : name.name();
     }
 
     private static String column(String field, boolean japanese) {

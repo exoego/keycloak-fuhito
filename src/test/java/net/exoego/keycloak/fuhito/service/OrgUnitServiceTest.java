@@ -64,7 +64,7 @@ class OrgUnitServiceTest {
     }
 
     private RefItem unitType(String code, boolean active) {
-        RefItem item = new RefItem("type-" + code, RefKind.UNIT_TYPE, code, code, Map.of(), 0, Map.of(), active);
+        RefItem item = new RefItem("type-" + code, RefKind.UNIT_TYPE, code, ItemNames.of(code), 0, Map.of(), active);
         refItems.insert(item);
         return item;
     }
@@ -113,7 +113,7 @@ class OrgUnitServiceTest {
     @Test
     void aLateralUnitMaySitAnywhereButNoLineUnitIsBelowIt() {
         store.refItems = refItems;
-        refItems.insert(new RefItem("type-committee", RefKind.UNIT_TYPE, "committee", "committee", Map.of(), 0,
+        refItems.insert(new RefItem("type-committee", RefKind.UNIT_TYPE, "committee", ItemNames.of("committee"), 0,
                 Map.of(), true, false, false, true));
         unitType("department", true);
         String hospital = unitOfType("Hospital", null, null);
@@ -411,7 +411,7 @@ class OrgUnitServiceTest {
         unitType("retired", false);
         String id = service.create(new NewOrgUnit(null, "ja", ja("Ward"), "ward", null, "2026-04-01",
                 null, null, null, null)).unit().id();
-        refItems.update(new RefItem(ward.id(), RefKind.UNIT_TYPE, "ward", "ward", Map.of(), 0, Map.of(), false));
+        refItems.update(new RefItem(ward.id(), RefKind.UNIT_TYPE, "ward", ItemNames.of("ward"), 0, Map.of(), false));
 
         assertEquals("ward", service.changeDetails(id, new OrgUnitChange("2026-10-01", null, "ja", ja("Ward 2"),
                 "ward", null, null)).unitType());
@@ -836,10 +836,10 @@ class OrgUnitServiceTest {
     @Test
     void theFiltersOfTheListGoTogether() {
         store.refItems = refItems;
-        refItems.insert(new RefItem("type-company", RefKind.UNIT_TYPE, "company", "Company", Map.of(), 0, Map.of(),
+        refItems.insert(new RefItem("type-company", RefKind.UNIT_TYPE, "company", ItemNames.of("Company"), 0, Map.of(),
                 true, true));
         store.legalEntityTypes.add("type-company");
-        refItems.insert(new RefItem("type-committee", RefKind.UNIT_TYPE, "committee", "committee", Map.of(), 0,
+        refItems.insert(new RefItem("type-committee", RefKind.UNIT_TYPE, "committee", ItemNames.of("committee"), 0,
                 Map.of(), true, false, false, true));
         String company = unitOfType("Company", "company", null);
         unitOfType("Sales", null, company);
@@ -984,7 +984,7 @@ class OrgUnitServiceTest {
 
     @Test
     void anOrgUnitIsALegalEntityWhenItsUnitTypeSaysSo() {
-        refItems.insert(new RefItem("type-company", RefKind.UNIT_TYPE, "company", "Company", Map.of(), 0, Map.of(),
+        refItems.insert(new RefItem("type-company", RefKind.UNIT_TYPE, "company", ItemNames.of("Company"), 0, Map.of(),
                 true, true));
         store.legalEntityTypes.add("type-company");
         unitType("department", true);
@@ -1020,7 +1020,7 @@ class OrgUnitServiceTest {
 
     @Test
     void anEmployerStaysALegalEntityAndDoesNotEndWhileEmploymentsNameIt() {
-        refItems.insert(new RefItem("type-company", RefKind.UNIT_TYPE, "company", "Company", Map.of(), 0, Map.of(),
+        refItems.insert(new RefItem("type-company", RefKind.UNIT_TYPE, "company", ItemNames.of("Company"), 0, Map.of(),
                 true, true));
         unitType("department", true);
         MemoryEmploymentStore employments = new MemoryEmploymentStore();
@@ -1125,7 +1125,7 @@ class OrgUnitServiceTest {
     }
 
     private void place(RefKind kind, String code, boolean active) {
-        refItems.insert(new RefItem(kind + "-" + code, kind, code, code, Map.of(), 0, Map.of(), active));
+        refItems.insert(new RefItem(kind + "-" + code, kind, code, ItemNames.of(code), 0, Map.of(), active));
     }
 
     private String placed(String name, String parentId, String workLocation, String costCenter) {
@@ -1189,7 +1189,7 @@ class OrgUnitServiceTest {
         place(RefKind.COST_CENTER, "cc-old", false);
         place(RefKind.JOB_TITLE, "chief", true);
         String unit = placed("Unit", null, "closed", null);
-        refItems.insert(new RefItem("WORK_LOCATION-closed", RefKind.WORK_LOCATION, "closed", "closed", Map.of(), 0,
+        refItems.insert(new RefItem("WORK_LOCATION-closed", RefKind.WORK_LOCATION, "closed", ItemNames.of("closed"), 0,
                 Map.of(), false));
 
         FuhitoException wrongKind = failure(new NewOrgUnit(null, "ja", ja("A"), null, "chief", null,

@@ -1,73 +1,40 @@
 package net.exoego.keycloak.fuhito.domain;
 
-import java.time.LocalDate;
-import java.util.List;
 import java.util.Map;
 
+import org.eclipse.microprofile.openapi.annotations.media.Schema;
+
 /**
- * The names of a reference item for a period. The periods of one item have no gaps, and the last one has no end.
+ * The name of a reference item in one language.
  *
- * @param id the ID
- * @param refItemId the ID of the item
- * @param validFrom the first date of the names, or null when they hold from the start
- * @param validTo the first date after the names, or null when they have no end
- * @param name the default name
- * @param names the names in other languages, by language tag
+ * @param name the name
  */
-public record RefItemName(String id, String refItemId, LocalDate validFrom, LocalDate validTo, String name,
-        Map<String, String> names) {
+@Schema(name = "RefItemName", description = "The name of a reference item in one language.",
+        requiredProperties = {"name"})
+public record RefItemName(
+        @Schema(maxLength = 255)
+        String name) {
 
     /**
-     * Creates the names of a period.
+     * Checks the name of a request.
      *
-     * @throws IllegalArgumentException when {@code validTo} is not after {@code validFrom}
+     * @param field the name of the field, for the error
+     * @return the name without spaces around it
+     * @throws FuhitoException when the name is missing, blank, or too long
      */
-    public RefItemName {
-        if (validFrom != null && validTo != null && !validTo.isAfter(validFrom)) {
-            throw new IllegalArgumentException("validTo must be after validFrom: " + validFrom + " to " + validTo);
-        }
+    public RefItemName checked(String field) {
+        return new RefItemName(Checks.name(field + ".name", name));
     }
 
     /**
-     * Tells whether the names hold on a date.
+     * Checks the names of a reference item in a request.
      *
-     * @param date the date
-     * @return true when the date is in the period
+     * @param primaryLanguage the tag of the primary language
+     * @param names the names by language tag
+     * @return the checked names
+     * @throws FuhitoException when a name or a tag is missing or bad, or no name has the primary language
      */
-    public boolean holdsOn(LocalDate date) {
-        return (validFrom == null || !date.isBefore(validFrom)) && (validTo == null || date.isBefore(validTo));
-    }
-
-    /**
-     * Returns these names with a new end.
-     *
-     * @param to the first date after the names, or null for no end
-     * @return the names with the new end
-     */
-    public RefItemName endingAt(LocalDate to) {
-        return new RefItemName(id, refItemId, validFrom, to, name, names);
-    }
-
-    /**
-     * Returns other names for the same period.
-     *
-     * @param newName the default name
-     * @param newNames the names in other languages
-     * @return the names of the period
-     */
-    public RefItemName renamed(String newName, Map<String, String> newNames) {
-        return new RefItemName(id, refItemId, validFrom, validTo, newName, newNames);
-    }
-
-    /**
-     * Picks the names that a read of a date shows. An item has no dates of its own, and data of any date may use
-     * it. So a date before the first period shows the first names.
-     *
-     * @param all every period of one item, oldest first
-     * @param date the date
-     * @return the names of the date
-     */
-    public static RefItemName on(List<RefItemName> all, LocalDate date) {
-        return all.stream().filter(names -> names.holdsOn(date)).findFirst().orElse(all.getFirst());
+    public static Localized<RefItemName> check(String primaryLanguage, Map<String, RefItemName> names) {
+        return Localized.check(primaryLanguage, names, (field, name) -> name.checked(field));
     }
 }

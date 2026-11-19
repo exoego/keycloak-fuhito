@@ -52,7 +52,7 @@ class UnitRoleServiceTest {
         store.refItems = refItems;
         orgUnitStore.unitRoles = store;
         for (String code : List.of("hr-contact", "approver")) {
-            refItems.insert(new RefItem(code, RefKind.UNIT_ROLE, code, code, Map.of(), 0, Map.of(), true));
+            refItems.insert(new RefItem(code, RefKind.UNIT_ROLE, code, ItemNames.of(code), 0, Map.of(), true));
         }
         division = unit("Division", null);
         ward = unit("Ward", division);
@@ -115,7 +115,7 @@ class UnitRoleServiceTest {
 
     @Test
     void listsTheRolesOfADateAcrossTheRealmByIdWithTheirNames() {
-        refItems.insert(new RefItem("safety", RefKind.UNIT_ROLE, "safety-officer", "Safety officer", Map.of(), 0,
+        refItems.insert(new RefItem("safety", RefKind.UNIT_ROLE, "safety-officer", ItemNames.of("Safety officer"), 0,
                 Map.of(), true));
         String contact = service.add(alice, division, "hr-contact", true, "2026-04-01", null).role().id();
         String officer = service.add(bob, ward, "safety-officer", null, "2026-04-01", null).role().id();
@@ -127,7 +127,7 @@ class UnitRoleServiceTest {
         assertEquals(sorted(contact, officer), ids(listed));
         UnitRoleService.Holder safety = listed.get(ids(listed).indexOf(officer));
         assertEquals("safety-officer", safety.view().code());
-        assertEquals("Safety officer", safety.roleName());
+        assertEquals("Safety officer", safety.roleNames().primary().name());
         assertEquals("Ward", safety.orgUnitNames().primary().name());
         assertEquals("bob", safety.view().role().userId());
         assertEquals(2, service.count(today));
@@ -161,15 +161,15 @@ class UnitRoleServiceTest {
     void theNameOfARoleIsTheNameOfTheDate() {
         String role = service.add(alice, division, "approver", null, "2026-04-01", null).role().id();
         RefItem approver = refItems.findByCode(RefKind.UNIT_ROLE, "approver").orElseThrow();
-        new RefItemService(refItems).update(approver.id(), "Head approver", null, null, null, null,
-                RefItemService.Marks.NONE, "2026-07-01");
+        new RefItemService(refItems).update(approver.id(), "en", ItemNames.english("Head approver"), null, null,
+                null, RefItemService.Marks.NONE, "2026-07-01");
 
         assertEquals(List.of("approver"), service.list(new UnitRoleService.Search(null, null, "2026-06-30"),
                 Page.of(null, null), null).stream().filter(h -> h.view().role().id().equals(role))
-                .map(UnitRoleService.Holder::roleName).toList());
+                .map(h -> h.roleNames().primary().name()).toList());
         assertEquals(List.of("Head approver"), service.list(new UnitRoleService.Search(null, null, "2026-07-01"),
                 Page.of(null, null), null).stream().filter(h -> h.view().role().id().equals(role))
-                .map(UnitRoleService.Holder::roleName).toList());
+                .map(h -> h.roleNames().primary().name()).toList());
     }
 
     @Test

@@ -30,7 +30,7 @@ class OrgUnitsIT {
         api = new Api(createRealm(admin), token);
         otherRealmApi = new Api(createRealm(admin), token);
         assertEquals(201, api.post("/ref-items",
-                "{\"kind\": \"UNIT_TYPE\", \"code\": \"hospital\", \"name\": \"病院\"}").statusCode());
+                "{\"kind\": \"UNIT_TYPE\", \"code\": \"hospital\", \"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"病院\"}}}").statusCode());
     }
 
     private static String createRealm(Keycloak admin) {
@@ -117,7 +117,7 @@ class OrgUnitsIT {
         Api units = realm.api;
         realm.refItem("UNIT_TYPE", "department", "部");
         JsonNode type = created(units.post("/ref-items", "{\"kind\": \"UNIT_TYPE\", \"code\": \"committee\", "
-                + "\"name\": \"委員会\", \"lateral\": true}"));
+                + "\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"委員会\"}}, \"lateral\": true}"));
         assertTrue(type.get("lateral").asBoolean());
         String hospital = created(units.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"病院\"}}, \"validFrom\": \"2026-04-01\"}"))
                 .get("id").asText();
@@ -154,7 +154,7 @@ class OrgUnitsIT {
         assertEquals("org_unit.line_below_lateral", errorOf(409, units.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"分科会\"}}, "
                 + "\"parentId\": \"" + committee.get("id").asText() + "\", \"validFrom\": \"2026-04-01\"}")));
         assertEquals("ref_item.lateral_in_use", errorOf(409, units.putWithVersion("/ref-items/" + type.get("id").asText(),
-                "{\"name\": \"委員会\"}")));
+                "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"委員会\"}}}")));
     }
 
     @Test
@@ -432,11 +432,11 @@ class OrgUnitsIT {
     @Test
     void aUnitTypeInUseCannotBeDeleted() throws Exception {
         String typeId = created(api.post("/ref-items",
-                "{\"kind\": \"UNIT_TYPE\", \"code\": \"in-use\", \"name\": \"In use\"}")).get("id").asText();
+                "{\"kind\": \"UNIT_TYPE\", \"code\": \"in-use\", \"primaryLanguage\": \"en\", \"names\": {\"en\": {\"name\": \"In use\"}}}")).get("id").asText();
         created(api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"x\"}}, \"unitType\": \"in-use\", \"validFrom\": \"2026-04-01\"}"));
 
         assertEquals("ref_item.in_use", errorOf(409, api.deleteWithVersion("/ref-items/" + typeId)));
-        assertEquals(200, api.putWithVersion("/ref-items/" + typeId, "{\"name\": \"In use\", \"active\": false}").statusCode());
+        assertEquals(200, api.putWithVersion("/ref-items/" + typeId, "{\"primaryLanguage\": \"en\", \"names\": {\"en\": {\"name\": \"In use\"}}, \"active\": false}").statusCode());
         assertEquals("org_unit.unit_type_unknown", errorOf(400, api.post("/org-units",
                 "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"y\"}}, \"unitType\": \"in-use\", \"validFrom\": \"2026-04-01\"}")));
     }
@@ -543,7 +543,7 @@ class OrgUnitsIT {
         created(matrixApi.post("/hierarchies", "{\"code\": \"matrix\", \"name\": \"Matrix\"}"));
         // The line is the company, so that the realm can store the employment below.
         created(matrixApi.post("/ref-items",
-                "{\"kind\": \"UNIT_TYPE\", \"code\": \"company\", \"name\": \"Company\", \"legalEntity\": true}"));
+                "{\"kind\": \"UNIT_TYPE\", \"code\": \"company\", \"primaryLanguage\": \"en\", \"names\": {\"en\": {\"name\": \"Company\"}}, \"legalEntity\": true}"));
         String line = created(matrixApi.post("/org-units",
                 "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"Line\"}}, \"unitType\": \"company\", \"validFrom\": \"2026-04-01\"}")).get("id").asText();
         String project = created(matrixApi.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"Project\"}}, \"validFrom\": \"2026-04-01\"}")).get("id").asText();
@@ -608,13 +608,13 @@ class OrgUnitsIT {
         TestRealm realm = TestRealm.create("org-units-legal-entity");
         Api entityApi = realm.api;
         JsonNode company = created(entityApi.post("/ref-items",
-                "{\"kind\": \"UNIT_TYPE\", \"code\": \"company\", \"name\": \"株式会社\", \"legalEntity\": true}"));
+                "{\"kind\": \"UNIT_TYPE\", \"code\": \"company\", \"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"株式会社\"}}, \"legalEntity\": true}"));
         assertTrue(company.get("legalEntity").asBoolean());
         JsonNode department = created(entityApi.post("/ref-items",
-                "{\"kind\": \"UNIT_TYPE\", \"code\": \"department\", \"name\": \"部\"}"));
+                "{\"kind\": \"UNIT_TYPE\", \"code\": \"department\", \"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"部\"}}}"));
         assertFalse(department.has("legalEntity"));
         HttpResponse<String> wrongKind = entityApi.post("/ref-items",
-                "{\"kind\": \"GRADE\", \"code\": \"g1\", \"name\": \"G1\", \"legalEntity\": true}");
+                "{\"kind\": \"GRADE\", \"code\": \"g1\", \"primaryLanguage\": \"en\", \"names\": {\"en\": {\"name\": \"G1\"}}, \"legalEntity\": true}");
         assertEquals(400, wrongKind.statusCode(), wrongKind.body());
         assertEquals("ref_item.legal_entity_kind", Api.json(wrongKind).get("error").asText());
 
@@ -647,7 +647,7 @@ class OrgUnitsIT {
 
         // A change that leaves the mark out takes it away.
         String companyId = company.get("id").asText();
-        assertFalse(Api.json(entityApi.putWithVersion("/ref-items/" + companyId, "{\"name\": \"株式会社\"}")).has("legalEntity"));
+        assertFalse(Api.json(entityApi.putWithVersion("/ref-items/" + companyId, "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"株式会社\"}}}")).has("legalEntity"));
         assertEquals(List.of(), namesOf(entityApi.get("/org-units?legalEntity=true&asOf=2027-04-01")));
     }
 

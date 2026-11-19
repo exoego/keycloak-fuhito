@@ -135,8 +135,8 @@ class TokenMapperIT {
         String medicine = post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"内科\"}}, \"parentId\": \"" + hospital + "\", \"validFrom\": \"2020-04-01\"}");
         String committee = post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"医療安全委員会\"}}, \"parentId\": \"" + hospital + "\", \"validFrom\": \"2020-04-01\"}");
         String ended = post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"旧部署\"}}, \"parentId\": \"" + hospital + "\", \"validFrom\": \"2020-04-01\"}");
-        assertEquals(201, api.post("/ref-items", "{\"kind\": \"OCCUPATION\", \"code\": \"physician\", \"name\": \"医師\"}").statusCode());
-        assertEquals(201, api.post("/ref-items", "{\"kind\": \"JOB_TITLE\", \"code\": \"chair\", \"name\": \"委員長\"}").statusCode());
+        assertEquals(201, api.post("/ref-items", "{\"kind\": \"OCCUPATION\", \"code\": \"physician\", \"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"医師\"}}}").statusCode());
+        assertEquals(201, api.post("/ref-items", "{\"kind\": \"JOB_TITLE\", \"code\": \"chair\", \"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"委員長\"}}}").statusCode());
         String employment = post("/employments", "{\"userId\": \"" + physician + "\", \"validFrom\": \"2020-04-01\", \"staffNumber\": \"D-1\"}");
         String start = "{\"employmentId\": \"" + employment + "\", \"validFrom\": \"2020-04-01\", \"orgUnitId\": \"";
         post("/assignments", start + committee + "\", \"jobTitle\": \"chair\", \"head\": true}");
@@ -203,8 +203,8 @@ class TokenMapperIT {
         String commuter = user("commuter");
         for (String[] item : new String[][] {{"WORK_LOCATION", "main-site"}, {"COST_CENTER", "cc-admin"},
                 {"COST_CENTER", "cc-care"}}) {
-            post("/ref-items", "{\"kind\": \"" + item[0] + "\", \"code\": \"" + item[1] + "\", \"name\": \""
-                    + item[1] + "\"}");
+            post("/ref-items", "{\"kind\": \"" + item[0] + "\", \"code\": \"" + item[1] + "\", "
+                    + "\"primaryLanguage\": \"en\", \"names\": {\"en\": {\"name\": \"" + item[1] + "\"}}}");
         }
         String clinic = post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"Zクリニック\"}}, \"workLocation\": \"main-site\", "
                 + "\"costCenter\": \"cc-admin\", \"validFrom\": \"2020-04-01\"}");

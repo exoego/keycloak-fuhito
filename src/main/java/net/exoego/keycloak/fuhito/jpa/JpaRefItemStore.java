@@ -1,14 +1,21 @@
 package net.exoego.keycloak.fuhito.jpa;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.TypedQuery;
+import net.exoego.keycloak.fuhito.domain.Localized;
 import net.exoego.keycloak.fuhito.domain.RefItem;
 import net.exoego.keycloak.fuhito.domain.RefItemName;
+import net.exoego.keycloak.fuhito.domain.RefItemPeriod;
 import net.exoego.keycloak.fuhito.store.RefItemStore;
 
 /**
@@ -33,12 +40,14 @@ public class JpaRefItemStore implements RefItemStore {
             "select count(e) from QualificationEntity e where e.kindId = :id and e.realmId = :realmId",
             "select count(e) from UnitRoleEntity e where e.roleId = :id and e.realmId = :realmId");
 
-    // Each item with one row of its names.
-    static final String ITEMS = "select r, n from RefItemEntity r join RefItemNameEntity n on n.refItemId = r.id"
-            + " where r.realmId = :realmId";
+    // Each item with the rows of the names of one period, one row for each language.
+    private static final String ITEMS = "select r, n from RefItemEntity r join RefItemNameEntity n"
+            + " on n.refItemId = r.id where r.realmId = :realmId";
+
+    private static final String ENTITIES = "select r from RefItemEntity r where r.realmId = :realmId";
 
     // The names of the last period, which has no end.
-    static final String LAST_NAMES = " and n.validTo is null";
+    private static final String LAST_NAMES = " and n.validTo is null";
 
     // The names of the date. A date before the first period gets the first names.
     private static final String NAMES_ON_DATE = " and (n.validTo is null or n.validTo > :date)"
@@ -65,19 +74,21 @@ public class JpaRefItemStore implements RefItemStore {
 
     @Override
     public List<RefItem> list(String kind, boolean includeInactive) {
-        return items(ofKind(LAST_NAMES, kind, includeInactive));
+        return items(ofKind(ITEMS + OF_KIND + LAST_NAMES + ORDER, Object[].class, kind, includeInactive)
+                .getResultList());
     }
 
+    // An item has a row for each language, so the page is of the items alone. Their names come next.
     @Override
     public List<RefItem> list(String kind, boolean includeInactive, LocalDate date, int first, int max) {
-        return items(ofKind(NAMES_ON_DATE, kind, includeInactive)
-                .setParameter("date", date)
+        return withNames(em, realmId, ofKind(ENTITIES + OF_KIND + ORDER, RefItemEntity.class, kind, includeInactive)
                 .setFirstResult(first)
-                .setMaxResults(max));
+                .setMaxResults(max)
+                .getResultList(), date);
     }
 
-    private TypedQuery<Object[]> ofKind(String names, String kind, boolean includeInactive) {
-        return em.createQuery(ITEMS + OF_KIND + names + ORDER, Object[].class)
+    private <T> TypedQuery<T> ofKind(String query, Class<T> type, String kind, boolean includeInactive) {
+        return em.createQuery(query, type)
                 .setParameter("realmId", realmId)
                 .setParameter("kind", kind)
                 .setParameter("includeInactive", includeInactive);
@@ -94,49 +105,40 @@ public class JpaRefItemStore implements RefItemStore {
 
     @Override
     public Optional<RefItem> find(String id) {
-        return first(byId(LAST_NAMES, id));
+        return find(id, null);
     }
 
     @Override
     public Optional<RefItem> find(String id, LocalDate date) {
-        return first(byId(NAMES_ON_DATE, id).setParameter("date", date));
-    }
-
-    private TypedQuery<Object[]> byId(String names, String id) {
-        return em.createQuery(ITEMS + " and r.id = :id" + names, Object[].class)
-                .setParameter("realmId", realmId)
-                .setParameter("id", id);
+        return first(onDate(ITEMS + " and r.id = :id", date).setParameter("id", id));
     }
 
     @Override
     public Optional<RefItem> findByCode(String kind, String code) {
-        return first(byCode(LAST_NAMES, kind, code));
+        return findByCode(kind, code, null);
     }
 
     @Override
     public Optional<RefItem> findByCode(String kind, String code, LocalDate date) {
-        return first(byCode(NAMES_ON_DATE, kind, code).setParameter("date", date));
+        return first(onDate(ITEMS + " and r.kind = :kind and r.code = :code", date)
+                .setParameter("kind", kind)
+                .setParameter("code", code));
     }
 
-    private TypedQuery<Object[]> byCode(String names, String kind, String code) {
-        return em.createQuery(ITEMS + " and r.kind = :kind and r.code = :code" + names, Object[].class)
-                .setParameter("realmId", realmId)
-                .setParameter("kind", kind)
-                .setParameter("code", code);
+    // With no date, the names of the last period.
+    private TypedQuery<Object[]> onDate(String query, LocalDate date) {
+        String names = date == null ? LAST_NAMES : NAMES_ON_DATE;
+        TypedQuery<Object[]> typed = em.createQuery(query + names, Object[].class).setParameter("realmId", realmId);
+        return date == null ? typed : typed.setParameter("date", date);
+    }
+
+    private static Optional<RefItem> first(TypedQuery<Object[]> query) {
+        return items(query.getResultList()).stream().findFirst();
     }
 
     @Override
-    public List<RefItemName> names(String id) {
-        return em.createQuery("""
-                        select n from RefItemNameEntity n where n.realmId = :realmId
-                        and n.refItemId = :id""", RefItemNameEntity.class)
-                .setParameter("realmId", realmId)
-                .setParameter("id", id)
-                .getResultStream()
-                .map(JpaRefItemStore::toDomain)
-                // A database puts a missing date first or last by its own rule. The names of one item are few.
-                .sorted(Comparator.comparing(RefItemName::validFrom, Comparator.nullsFirst(Comparator.naturalOrder())))
-                .toList();
+    public List<RefItemPeriod> names(String id) {
+        return periodsOf(em, realmId, List.of(id));
     }
 
     @Override
@@ -161,7 +163,7 @@ public class JpaRefItemStore implements RefItemStore {
     }
 
     @Override
-    public void insert(RefItem item, List<RefItemName> names) {
+    public void insert(RefItem item, List<RefItemPeriod> names) {
         RefItemEntity entity = new RefItemEntity();
         entity.id = item.id();
         entity.realmId = realmId;
@@ -174,7 +176,7 @@ public class JpaRefItemStore implements RefItemStore {
         // Other rows refer to this one. Hibernate groups inserts by entity type, so this row goes to the
         // database now, before a row that needs it.
         em.flush();
-        names.forEach(period -> em.persist(entity(period)));
+        names.forEach(this::insertRows);
     }
 
     @Override
@@ -185,22 +187,43 @@ public class JpaRefItemStore implements RefItemStore {
     }
 
     @Override
-    public void insertNames(RefItemName names) {
-        em.persist(entity(names));
+    public void insertNames(RefItemPeriod names) {
         Versions.refItem(em, realmId, names.refItemId());
+        insertRows(names);
     }
 
     @Override
-    public void updateNames(RefItemName names) {
-        RefItemNameEntity entity = Rows.require(em, RefItemNameEntity.class, names.id(), realmId,
-                found -> found.realmId);
-        entity.validFrom = names.validFrom();
-        entity.validTo = names.validTo();
-        entity.name = names.name();
-        entity.names = names.names();
-        // A split shortens this row and then inserts the next one. The database must see the shorter row first.
-        em.flush();
+    public void updateNames(RefItemPeriod names) {
         Versions.refItem(em, realmId, names.refItemId());
+        em.createQuery("""
+                        select n from RefItemNameEntity n where n.realmId = :realmId and n.refItemId = :refItemId
+                        and n.periodId = :periodId""", RefItemNameEntity.class)
+                .setParameter("realmId", realmId)
+                .setParameter("refItemId", names.refItemId())
+                .setParameter("periodId", names.id())
+                .getResultList()
+                .forEach(em::remove);
+        // A new row can have the key of an old one, and only one row of a period is primary.
+        em.flush();
+        insertRows(names);
+        // A split shortens this period and then inserts the next one. The database must see the shorter one
+        // first.
+        em.flush();
+    }
+
+    private void insertRows(RefItemPeriod period) {
+        period.names().byLanguage().forEach((language, name) -> {
+            RefItemNameEntity row = new RefItemNameEntity();
+            row.periodId = period.id();
+            row.language = language;
+            row.realmId = realmId;
+            row.refItemId = period.refItemId();
+            row.validFrom = period.validFrom();
+            row.validTo = period.validTo();
+            row.primary = language.equals(period.names().primaryLanguage());
+            row.name = name.name();
+            em.persist(row);
+        });
     }
 
     @Override
@@ -220,18 +243,6 @@ public class JpaRefItemStore implements RefItemStore {
         return entity != null && entity.realmId.equals(realmId) ? Optional.of(entity) : Optional.empty();
     }
 
-    private RefItemNameEntity entity(RefItemName names) {
-        RefItemNameEntity entity = new RefItemNameEntity();
-        entity.id = names.id();
-        entity.realmId = realmId;
-        entity.refItemId = names.refItemId();
-        entity.validFrom = names.validFrom();
-        entity.validTo = names.validTo();
-        entity.name = names.name();
-        entity.names = names.names();
-        return entity;
-    }
-
     private static void copyChangeable(RefItem item, RefItemEntity entity) {
         entity.displayOrder = item.displayOrder();
         entity.attributes = item.attributes();
@@ -241,22 +252,86 @@ public class JpaRefItemStore implements RefItemStore {
         entity.lateralUnit = item.lateral();
     }
 
-    private static List<RefItem> items(TypedQuery<Object[]> query) {
-        return query.getResultStream().map(JpaRefItemStore::toDomain).toList();
+    /**
+     * Gives items the names of a date. It reads the names of all of them in one query.
+     *
+     * @param em the entity manager
+     * @param realmId the ID of the realm
+     * @param items the items, in the order to return them
+     * @param date the date of the names, or null for the names of the last period
+     * @return the items with their names
+     */
+    static List<RefItem> withNames(EntityManager em, String realmId, List<RefItemEntity> items, LocalDate date) {
+        if (items.isEmpty()) {
+            return List.of();
+        }
+        TypedQuery<RefItemNameEntity> query = rows(em, realmId, items.stream().map(item -> item.id).toList(),
+                date == null ? LAST_NAMES : NAMES_ON_DATE);
+        if (date != null) {
+            query.setParameter("date", date);
+        }
+        return withPeriods(items, periods(query.getResultList()));
     }
 
-    private static Optional<RefItem> first(TypedQuery<Object[]> query) {
-        return query.getResultStream().findFirst().map(JpaRefItemStore::toDomain);
+    private static List<RefItem> items(List<Object[]> rows) {
+        Map<String, RefItemEntity> items = new LinkedHashMap<>();
+        List<RefItemNameEntity> names = new ArrayList<>();
+        for (Object[] row : rows) {
+            RefItemEntity item = (RefItemEntity) row[0];
+            items.putIfAbsent(item.id, item);
+            names.add((RefItemNameEntity) row[1]);
+        }
+        return withPeriods(items.values(), periods(names));
     }
 
-    static RefItem toDomain(Object[] row) {
-        RefItemEntity e = (RefItemEntity) row[0];
-        RefItemNameEntity n = (RefItemNameEntity) row[1];
-        return new RefItem(e.id, e.kind, e.code, n.name, n.names, e.displayOrder, e.attributes,
-                e.active, e.legalEntity, e.actingHead, e.lateralUnit, e.version, n.validFrom, n.validTo);
+    private static List<RefItem> withPeriods(Collection<RefItemEntity> items, List<RefItemPeriod> periods) {
+        Map<String, RefItemPeriod> byItem = new HashMap<>();
+        periods.forEach(period -> byItem.put(period.refItemId(), period));
+        return items.stream()
+                .map(e -> new RefItem(e.id, e.kind, e.code, null, e.displayOrder, e.attributes, e.active,
+                        e.legalEntity, e.actingHead, e.lateralUnit, e.version, null, null).withNames(byItem.get(e.id)))
+                .toList();
     }
 
-    static RefItemName toDomain(RefItemNameEntity n) {
-        return new RefItemName(n.id, n.refItemId, n.validFrom, n.validTo, n.name, n.names);
+    /**
+     * Reads every period of the names of some items in one query.
+     *
+     * @param em the entity manager
+     * @param realmId the ID of the realm
+     * @param refItemIds the IDs of the items
+     * @return the periods, oldest first
+     */
+    static List<RefItemPeriod> periodsOf(EntityManager em, String realmId, Collection<String> refItemIds) {
+        return periods(rows(em, realmId, refItemIds, "").getResultList());
+    }
+
+    private static TypedQuery<RefItemNameEntity> rows(EntityManager em, String realmId,
+            Collection<String> refItemIds, String filter) {
+        return em.createQuery("""
+                        select n from RefItemNameEntity n where n.realmId = :realmId and %s%s"""
+                        .formatted(ManyIds.has("n.refItemId", "ids"), filter), RefItemNameEntity.class)
+                .setParameter("realmId", realmId)
+                .setParameter("ids", ManyIds.of(refItemIds));
+    }
+
+    // The rows of one period share its ID. A database puts a missing date first or last by its own rule.
+    private static List<RefItemPeriod> periods(List<RefItemNameEntity> rows) {
+        Map<String, Map<String, RefItemName>> names = new LinkedHashMap<>();
+        Map<String, RefItemNameEntity> primary = new HashMap<>();
+        for (RefItemNameEntity row : rows) {
+            names.computeIfAbsent(row.periodId, id -> new HashMap<>()).put(row.language, new RefItemName(row.name));
+            if (row.primary) {
+                primary.put(row.periodId, row);
+            }
+        }
+        return names.entrySet().stream()
+                .map(period -> {
+                    RefItemNameEntity row = primary.get(period.getKey());
+                    return new RefItemPeriod(row.periodId, row.refItemId, row.validFrom, row.validTo,
+                            new Localized<>(row.language, period.getValue()));
+                })
+                .sorted(Comparator.comparing(RefItemPeriod::validFrom,
+                        Comparator.nullsFirst(Comparator.naturalOrder())))
+                .toList();
     }
 }

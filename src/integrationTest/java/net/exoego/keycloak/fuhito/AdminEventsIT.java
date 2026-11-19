@@ -28,8 +28,8 @@ class AdminEventsIT {
         Api api = new Api(realm.getRealm(), admin.tokenManager().getAccessTokenString());
 
         String typeId = Api.json(api.post("/ref-items",
-                "{\"kind\": \"UNIT_TYPE\", \"code\": \"dept\", \"name\": \"部\"}")).get("id").asText();
-        api.putWithVersion("/ref-items/" + typeId, "{\"name\": \"部門\"}");
+                "{\"kind\": \"UNIT_TYPE\", \"code\": \"dept\", \"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"部\"}}}")).get("id").asText();
+        api.putWithVersion("/ref-items/" + typeId, "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"部門\"}}}");
         String parentId = Api.json(api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"本部\"}}, \"validFrom\": \"2026-04-01\"}")).get("id").asText();
         String unitId = Api.json(api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"経理部\"}}, \"validFrom\": \"2026-04-01\"}")).get("id").asText();
         api.putWithVersion("/org-units/" + unitId, "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"財務部\"}}, \"validFrom\": \"2027-04-01\"}");

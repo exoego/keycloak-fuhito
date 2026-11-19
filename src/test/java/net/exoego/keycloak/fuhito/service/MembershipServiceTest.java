@@ -60,7 +60,7 @@ class MembershipServiceTest {
                 {"ASSIGNMENT_KIND", "regular"}, {"WORK_LOCATION", "tokyo"}, {"WORK_LOCATION", "osaka"},
                 {"WORK_LOCATION", "nagoya"}, {"WORK_LOCATION", "home"}, {"COST_CENTER", "cc-hq"},
                 {"COST_CENTER", "cc-sales"}}) {
-            refItems.insert(new RefItem(item[0] + "-" + item[1], RefKind.valueOf(item[0]), item[1], item[1], Map.of(),
+            refItems.insert(new RefItem(item[0] + "-" + item[1], RefKind.valueOf(item[0]), item[1], ItemNames.of(item[1]),
                     0, Map.of(), true));
         }
         hospital = unit("Hospital", null);

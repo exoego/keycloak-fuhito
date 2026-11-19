@@ -29,7 +29,7 @@ import net.exoego.keycloak.fuhito.domain.Person;
 import net.exoego.keycloak.fuhito.domain.Qualification;
 import net.exoego.keycloak.fuhito.domain.RealmKind;
 import net.exoego.keycloak.fuhito.domain.RefItem;
-import net.exoego.keycloak.fuhito.domain.RefItemName;
+import net.exoego.keycloak.fuhito.domain.RefItemPeriod;
 import net.exoego.keycloak.fuhito.domain.ReportingLine;
 import net.exoego.keycloak.fuhito.domain.UnitRole;
 import net.exoego.keycloak.fuhito.domain.ValidPeriod;
@@ -74,26 +74,13 @@ public class JpaRealmExportStore implements RealmExportStore {
 
     @Override
     public Page<RefItem> refItems() {
-        return (afterId, max) -> em.createQuery(JpaRefItemStore.ITEMS + JpaRefItemStore.LAST_NAMES
-                        + " and r.id > :after order by r.id", Object[].class)
-                .setParameter("realmId", realmId)
-                .setParameter("after", afterId == null ? "" : afterId)
-                .setMaxResults(max)
-                .getResultStream()
-                .map(JpaRefItemStore::toDomain)
-                .toList();
+        Page<RefItemEntity> rows = page(RefItemEntity.class, "id", Function.identity());
+        return (afterId, max) -> JpaRefItemStore.withNames(em, realmId, rows.read(afterId, max), null);
     }
 
     @Override
-    public List<RefItemName> namesOf(Collection<String> refItemIds) {
-        return em.createQuery("""
-                        select n from RefItemNameEntity n where n.realmId = :realmId
-                        and %s""".formatted(ManyIds.has("n.refItemId", "ids")), RefItemNameEntity.class)
-                .setParameter("realmId", realmId)
-                .setParameter("ids", ManyIds.of(refItemIds))
-                .getResultStream()
-                .map(JpaRefItemStore::toDomain)
-                .toList();
+    public List<RefItemPeriod> namesOf(Collection<String> refItemIds) {
+        return JpaRefItemStore.periodsOf(em, realmId, refItemIds);
     }
 
     @Override
@@ -261,14 +248,18 @@ public class JpaRealmExportStore implements RealmExportStore {
             Map.entry("external-ids", ExternalIdEntity.class),
             Map.entry("change-orders", ChangeOrderEntity.class));
 
+    // The rows of the names of one period share the ID of the period.
+    private static final Map<Class<?>, String> ID_FIELDS = Map.of(RefItemNameEntity.class, "periodId");
+
     @Override
     public Optional<String> takenId(String list, Collection<String> ids) {
         Class<?> table = TABLES.get(list);
         if (table == null || ids.isEmpty()) {
             return Optional.empty();
         }
-        return em.createQuery("select x.id from %s x where %s".formatted(table.getSimpleName(),
-                        ManyIds.has("x.id", "ids")), String.class)
+        String id = "x." + ID_FIELDS.getOrDefault(table, "id");
+        return em.createQuery("select %s from %s x where %s".formatted(id, table.getSimpleName(),
+                        ManyIds.has(id, "ids")), String.class)
                 .setParameter("ids", ManyIds.of(ids))
                 .setMaxResults(1)
                 .getResultStream()

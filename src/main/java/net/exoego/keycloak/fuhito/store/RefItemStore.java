@@ -5,7 +5,7 @@ import java.util.List;
 import java.util.Optional;
 
 import net.exoego.keycloak.fuhito.domain.RefItem;
-import net.exoego.keycloak.fuhito.domain.RefItemName;
+import net.exoego.keycloak.fuhito.domain.RefItemPeriod;
 import net.exoego.keycloak.fuhito.domain.RefKind;
 
 /**
@@ -122,7 +122,7 @@ public interface RefItemStore {
      * @param id the ID of the item
      * @return the names, oldest first, or an empty list when the realm has no such item
      */
-    List<RefItemName> names(String id);
+    List<RefItemPeriod> names(String id);
 
     /**
      * Tells whether an employment names an org unit that had this unit type on the first date of the employment.
@@ -146,16 +146,7 @@ public interface RefItemStore {
      * @param item the item
      * @param names the names, oldest first
      */
-    void insert(RefItem item, List<RefItemName> names);
-
-    /**
-     * Stores a new item whose names hold for every date. The row of the names has the ID of the item.
-     *
-     * @param item the item
-     */
-    default void insert(RefItem item) {
-        insert(item, List.of(new RefItemName(item.id(), item.id(), null, null, item.name(), item.names())));
-    }
+    void insert(RefItem item, List<RefItemPeriod> names);
 
     /**
      * Stores the values of an existing item that have no dates, and counts up its version. The names stay.
@@ -169,14 +160,14 @@ public interface RefItemStore {
      *
      * @param names the names
      */
-    void insertNames(RefItemName names);
+    void insertNames(RefItemPeriod names);
 
     /**
      * Stores new names or new dates of a stored period, and counts up the version of the item.
      *
      * @param names the names
      */
-    void updateNames(RefItemName names);
+    void updateNames(RefItemPeriod names);
 
     /**
      * Removes an item with its names.

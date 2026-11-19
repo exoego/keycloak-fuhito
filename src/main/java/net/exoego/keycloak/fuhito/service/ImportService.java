@@ -13,6 +13,7 @@ import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.Hierarchy;
 import net.exoego.keycloak.fuhito.domain.RefItem;
+import net.exoego.keycloak.fuhito.domain.RefItemName;
 import net.exoego.keycloak.fuhito.service.ImportDocument.AttributeDefinitionRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.HierarchyRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.RefItemRow;
@@ -271,14 +272,14 @@ public class ImportService {
         Optional<RefItem> stored = refItems.findByCode(kind, code, date);
         if (stored.isEmpty()) {
             RefItemService.Marks marks = new RefItemService.Marks(row.legalEntity(), row.actingHead(), row.lateral());
-            RefItem item = refItemService.create(kind, code, row.name(), row.names(), row.displayOrder(),
+            RefItem item = refItemService.create(kind, code, row.primaryLanguage(), row.names(), row.displayOrder(),
                     row.attributes(), marks, !Boolean.FALSE.equals(row.active()), row.validFrom());
             report.write(new Write.OfRefItem(true, item));
             return Outcome.CREATED;
         }
         RefItem before = stored.get();
-        RefItem wanted = new RefItem(before.id(), kind, code, Checks.name("name", row.name()),
-                Checks.localizedNames("names", row.names()), row.displayOrder() == null ? 0 : row.displayOrder(),
+        RefItem wanted = new RefItem(before.id(), kind, code, RefItemName.check(row.primaryLanguage(), row.names()),
+                row.displayOrder() == null ? 0 : row.displayOrder(),
                 row.attributes() == null ? Map.of() : row.attributes(), row.active() == null || row.active(),
                 row.legalEntity() == null ? before.legalEntity() : row.legalEntity(),
                 row.actingHead() == null ? before.actingHead() : row.actingHead(),
@@ -287,7 +288,7 @@ public class ImportService {
         if (wanted.equals(before)) {
             return Outcome.UNCHANGED;
         }
-        RefItem item = refItemService.update(before.id(), row.name(), row.names(), row.displayOrder(),
+        RefItem item = refItemService.update(before.id(), row.primaryLanguage(), row.names(), row.displayOrder(),
                 row.attributes(), row.active(), new RefItemService.Marks(wanted.legalEntity(), wanted.actingHead(),
                         wanted.lateral()), date.toString());
         report.write(new Write.OfRefItem(false, item));

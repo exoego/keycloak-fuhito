@@ -53,28 +53,35 @@ class RefItemsIT {
                 + "\"type\": \"BOOLEAN\"}"));
         created(api.post("/attribute-definitions", "{\"target\": \"REF_ITEM\", \"name\": \"note\", \"type\": \"STRING\"}"));
         JsonNode item = created(api.post("/ref-items", """
-                {"kind": "UNIT_TYPE", "code": "ward", "name": "病棟", "names": {"en": "Ward", "JA": "病棟"},
+                {"kind": "UNIT_TYPE", "code": "ward", "primaryLanguage": "JA",
+                 "names": {"JA": {"name": "病棟"}, "en-us": {"name": "Ward"}},
                  "displayOrder": 2, "attributes": {"hasBeds": true, "note": "夜勤あり"}}
                 """));
 
         assertEquals(36, item.get("id").asText().length());
         assertEquals("UNIT_TYPE", item.get("kind").asText());
         assertEquals("病棟", item.get("name").asText());
-        assertEquals("Ward", item.get("names").get("en").asText());
-        assertEquals("病棟", item.get("names").get("ja").asText());
+        assertEquals("ja", item.get("primaryLanguage").asText());
+        assertEquals("Ward", item.get("names").get("en-US").get("name").asText());
+        assertEquals("病棟", item.get("names").get("ja").get("name").asText());
         assertTrue(item.get("active").asBoolean());
 
         JsonNode read = Api.json(api.get("/ref-items/" + item.get("id").asText()));
         assertEquals(item, read);
+        String id = item.get("id").asText();
+        assertEquals("Ward", Api.json(api.withAcceptLanguage("en-US").get("/ref-items/" + id)).get("name").asText());
+        assertTrue(Api.names(Api.json(api.withAcceptLanguage("en-US,ja;q=0.5").get("/ref-items?kind=UNIT_TYPE")))
+                .contains("Ward"));
+        assertEquals("病棟", Api.json(api.withAcceptLanguage("fr").get("/ref-items/" + id)).get("name").asText());
         assertEquals("夜勤あり", read.get("attributes").get("note").asText());
         assertTrue(read.get("attributes").get("hasBeds").asBoolean());
     }
 
     @Test
     void listsByDisplayOrderThenCode() throws Exception {
-        created(api.post("/ref-items", "{\"kind\": \"UNIT_TYPE\", \"code\": \"list-b\", \"name\": \"B\", \"displayOrder\": 91}"));
-        created(api.post("/ref-items", "{\"kind\": \"UNIT_TYPE\", \"code\": \"list-a\", \"name\": \"A\", \"displayOrder\": 91}"));
-        created(api.post("/ref-items", "{\"kind\": \"UNIT_TYPE\", \"code\": \"list-z\", \"name\": \"Z\", \"displayOrder\": 90}"));
+        created(api.post("/ref-items", "{\"kind\": \"UNIT_TYPE\", \"code\": \"list-b\", \"primaryLanguage\": \"en\", \"names\": {\"en\": {\"name\": \"B\"}}, \"displayOrder\": 91}"));
+        created(api.post("/ref-items", "{\"kind\": \"UNIT_TYPE\", \"code\": \"list-a\", \"primaryLanguage\": \"en\", \"names\": {\"en\": {\"name\": \"A\"}}, \"displayOrder\": 91}"));
+        created(api.post("/ref-items", "{\"kind\": \"UNIT_TYPE\", \"code\": \"list-z\", \"primaryLanguage\": \"en\", \"names\": {\"en\": {\"name\": \"Z\"}}, \"displayOrder\": 90}"));
 
         List<String> codes = codes(api.get("/ref-items?kind=UNIT_TYPE"));
 
@@ -87,9 +94,9 @@ class RefItemsIT {
         for (String kind : List.of("UNIT_TYPE", "JOB_TITLE", "OCCUPATION", "EMPLOYMENT_TYPE", "GRADE", "END_REASON",
                 "ASSIGNMENT_KIND", "QUALIFICATION")) {
             JsonNode item = created(api.post("/ref-items",
-                    "{\"kind\": \"" + kind + "\", \"code\": \"same-code\", \"name\": \"" + kind + "\"}"));
+                    "{\"kind\": \"" + kind + "\", \"code\": \"same-code\", \"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"" + kind + "\"}}}"));
             assertEquals(kind, item.get("kind").asText());
-            assertEquals(List.of(kind), Api.json(api.get("/ref-items?kind=" + kind)).findValuesAsText("name").stream()
+            assertEquals(List.of(kind), Api.names(Api.json(api.get("/ref-items?kind=" + kind))).stream()
                     .filter(kind::equals).toList());
         }
         assertEquals(List.of("OCCUPATION"),
@@ -98,7 +105,8 @@ class RefItemsIT {
 
     @Test
     void rejectsACodeThatIsTaken() throws Exception {
-        String body = "{\"kind\": \"UNIT_TYPE\", \"code\": \"taken\", \"name\": \"Taken\"}";
+        String body = "{\"kind\": \"UNIT_TYPE\", \"code\": \"taken\", \"primaryLanguage\": \"en\", "
+                + "\"names\": {\"en\": {\"name\": \"Taken\"}}}";
         created(api.post("/ref-items", body));
 
         HttpResponse<String> response = api.post("/ref-items", body);
@@ -113,13 +121,21 @@ class RefItemsIT {
     @Test
     void rejectsBadValues() throws Exception {
         assertEquals("invalid.code", errorOf(400, api.post("/ref-items",
-                "{\"kind\": \"UNIT_TYPE\", \"code\": \"bad code\", \"name\": \"x\"}")));
+                "{\"kind\": \"UNIT_TYPE\", \"code\": \"bad code\", \"primaryLanguage\": \"en\", \"names\": {\"en\": {\"name\": \"x\"}}}")));
         assertEquals("invalid.name", errorOf(400, api.post("/ref-items",
-                "{\"kind\": \"UNIT_TYPE\", \"code\": \"blank-name\", \"name\": \" \"}")));
+                "{\"kind\": \"UNIT_TYPE\", \"code\": \"blank-name\", \"primaryLanguage\": \"en\", \"names\": {\"en\": {\"name\": \" \"}}}")));
         assertEquals("invalid.kind", errorOf(400, api.post("/ref-items",
-                "{\"kind\": \"NOPE\", \"code\": \"x\", \"name\": \"x\"}")));
+                "{\"kind\": \"NOPE\", \"code\": \"x\", \"primaryLanguage\": \"en\", \"names\": {\"en\": {\"name\": \"x\"}}}")));
         assertEquals("invalid.language_tag", errorOf(400, api.post("/ref-items",
-                "{\"kind\": \"UNIT_TYPE\", \"code\": \"bad-tag\", \"name\": \"x\", \"names\": {\"ja_JP\": \"x\"}}")));
+                "{\"kind\": \"UNIT_TYPE\", \"code\": \"bad-tag\", \"primaryLanguage\": \"en\", "
+                        + "\"names\": {\"en\": {\"name\": \"x\"}, \"ja_JP\": {\"name\": \"x\"}}}")));
+        assertEquals("invalid.primary_language", errorOf(400, api.post("/ref-items",
+                "{\"kind\": \"UNIT_TYPE\", \"code\": \"no-primary\", \"primaryLanguage\": \"ja\", "
+                        + "\"names\": {\"en\": {\"name\": \"x\"}}}")));
+        HttpResponse<String> noName = api.post("/ref-items", "{\"kind\": \"UNIT_TYPE\", \"code\": \"no-name\", "
+                + "\"primaryLanguage\": \"en\", \"names\": {\"en\": {}}}");
+        assertEquals("invalid.required", errorOf(400, noName));
+        assertTrue(Api.json(noName).get("message").asText().contains("names.en.name"), noName.body());
         assertEquals("invalid.required", errorOf(400, api.get("/ref-items")));
         assertEquals("invalid.kind", errorOf(400, api.get("/ref-items?kind=NOPE")));
         assertEquals("invalid.required", errorOf(400, api.get("/ref-items/count")));
@@ -149,7 +165,8 @@ class RefItemsIT {
     @Test
     void aFailedRequestWritesNothing() throws Exception {
         assertEquals(400, api.post("/ref-items",
-                "{\"kind\": \"UNIT_TYPE\", \"code\": \"rolled-back\", \"name\": \"x\", \"names\": {\"??\": \"x\"}}").statusCode());
+                "{\"kind\": \"UNIT_TYPE\", \"code\": \"rolled-back\", \"primaryLanguage\": \"en\", "
+                        + "\"names\": {\"en\": {\"name\": \"x\"}, \"??\": {\"name\": \"x\"}}}").statusCode());
 
         assertFalse(codes(api.get("/ref-items?kind=UNIT_TYPE&includeInactive=true")).contains("rolled-back"));
     }
@@ -157,17 +174,18 @@ class RefItemsIT {
     @Test
     void updatesAndDeactivatesAnItem() throws Exception {
         String id = created(api.post("/ref-items",
-                "{\"kind\": \"UNIT_TYPE\", \"code\": \"to-update\", \"name\": \"Old\", \"names\": {\"ja\": \"旧\"}}")).get("id").asText();
+                "{\"kind\": \"UNIT_TYPE\", \"code\": \"to-update\", \"primaryLanguage\": \"en\", "
+                        + "\"names\": {\"en\": {\"name\": \"Old\"}, \"ja\": {\"name\": \"旧\"}}}")).get("id").asText();
 
         HttpResponse<String> response = api.putWithVersion("/ref-items/" + id,
-                "{\"kind\": \"IGNORED\", \"code\": \"ignored\", \"name\": \"New\", \"displayOrder\": 5, \"active\": false}");
+                "{\"kind\": \"IGNORED\", \"code\": \"ignored\", \"primaryLanguage\": \"en\", \"names\": {\"en\": {\"name\": \"New\"}}, \"displayOrder\": 5, \"active\": false}");
 
         assertEquals(200, response.statusCode(), response.body());
         JsonNode changed = Api.json(response);
         assertEquals("to-update", changed.get("code").asText());
         assertEquals("UNIT_TYPE", changed.get("kind").asText());
         assertEquals("New", changed.get("name").asText());
-        assertEquals(0, changed.get("names").size());
+        assertEquals(1, changed.get("names").size());
         assertEquals(5, changed.get("displayOrder").asInt());
         assertFalse(changed.get("active").asBoolean());
         assertEquals(changed, Api.json(api.get("/ref-items/" + id)));
@@ -184,11 +202,13 @@ class RefItemsIT {
     @Test
     void aRenameFromADateKeepsTheOldNameForEarlierDates() throws Exception {
         String id = created(api.post("/ref-items", """
-                {"kind": "JOB_TITLE", "code": "dated-chief", "name": "主任", "names": {"en": "Chief"}}
+                {"kind": "JOB_TITLE", "code": "dated-chief", "primaryLanguage": "ja",
+                 "names": {"ja": {"name": "主任"}, "en": {"name": "Chief"}}}
                 """)).get("id").asText();
 
         HttpResponse<String> response = api.putWithVersion("/ref-items/" + id,
-                "{\"name\": \"主任補佐\", \"names\": {\"en\": \"Senior Chief\"}, \"validFrom\": \"2027-04-01\"}");
+                "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"主任補佐\"}, "
+                        + "\"en\": {\"name\": \"Senior Chief\"}}, \"validFrom\": \"2027-04-01\"}");
 
         assertEquals(200, response.statusCode(), response.body());
         JsonNode renamed = Api.json(response);
@@ -198,7 +218,9 @@ class RefItemsIT {
         assertEquals(2, renamed.get("version").asLong());
         JsonNode before = Api.json(api.get("/ref-items/" + id + "?asOf=2027-03-31"));
         assertEquals("主任", before.get("name").asText());
-        assertEquals("Chief", before.get("names").get("en").asText());
+        assertEquals("Chief", before.get("names").get("en").get("name").asText());
+        assertEquals("Chief", Api.json(api.withAcceptLanguage("en").get("/ref-items/" + id + "?asOf=2027-03-31"))
+                .get("name").asText());
         assertFalse(before.has("validFrom"));
         assertEquals("2027-04-01", before.get("validTo").asText());
         assertEquals(renamed, Api.json(api.get("/ref-items/" + id + "?asOf=2027-04-01")));
@@ -208,19 +230,24 @@ class RefItemsIT {
 
         // A rename on the first date of the new names corrects them, and a write without a date renames today.
         assertEquals(200, api.putWithVersion("/ref-items/" + id,
-                "{\"name\": \"係長\", \"validFrom\": \"2027-04-01\"}").statusCode());
+                "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"係長\"}}, \"validFrom\": \"2027-04-01\"}").statusCode());
         assertEquals(200, api.putWithVersion("/ref-items/" + id,
-                "{\"name\": \"主任A\", \"names\": {\"en\": \"Chief\"}}").statusCode());
+                "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"主任A\"}, "
+                        + "\"en\": {\"name\": \"Chief\"}}}").statusCode());
 
         HttpResponse<String> history = api.get("/ref-items/" + id + "/history");
         assertEquals(200, history.statusCode(), history.body());
         assertEquals(Api.json(api.get("/ref-items/" + id)).get("version"), Api.json(history).get("version"));
         assertEquals("dated-chief", Api.json(history).get("code").asText());
         JsonNode versions = Api.json(history).get("versions");
-        assertEquals(List.of("主任A", "係長"), versions.findValuesAsText("name"));
+        assertEquals(List.of("主任A", "係長"), List.of(versions.get(0).get("name").asText(),
+                versions.get(1).get("name").asText()));
         assertFalse(versions.get(0).has("validFrom"));
         assertEquals("2027-04-01", versions.get(0).get("validTo").asText());
-        assertEquals("Chief", versions.get(0).get("names").get("en").asText());
+        assertEquals("ja", versions.get(0).get("primaryLanguage").asText());
+        assertEquals("Chief", versions.get(0).get("names").get("en").get("name").asText());
+        assertEquals("Chief", Api.json(api.withAcceptLanguage("en").get("/ref-items/" + id + "/history"))
+                .get("versions").get(0).get("name").asText());
         assertEquals("2027-04-01", versions.get(1).get("validFrom").asText());
         assertFalse(versions.get(1).has("validTo"));
         assertEquals(4, Api.json(history).get("version").asLong());
@@ -231,13 +258,13 @@ class RefItemsIT {
         assertEquals("ref_item.not_found", errorOf(404, api.get("/ref-items/nope/history")));
         assertEquals("invalid.date", errorOf(400, api.get("/ref-items/" + id + "?asOf=soon")));
         assertEquals("invalid.date", errorOf(400, api.putWithVersion("/ref-items/" + id,
-                "{\"name\": \"x\", \"validFrom\": \"soon\"}")));
+                "{\"primaryLanguage\": \"en\", \"names\": {\"en\": {\"name\": \"x\"}}, \"validFrom\": \"soon\"}")));
     }
 
     @Test
     void createsAnItemWithNamesFromADate() throws Exception {
         JsonNode item = created(api.post("/ref-items",
-                "{\"kind\": \"JOB_TITLE\", \"code\": \"dated-new\", \"name\": \"部長\", \"validFrom\": \"2026-04-01\"}"));
+                "{\"kind\": \"JOB_TITLE\", \"code\": \"dated-new\", \"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"部長\"}}, \"validFrom\": \"2026-04-01\"}"));
 
         assertEquals("2026-04-01", item.get("validFrom").asText());
         assertEquals(1, item.get("version").asLong());
@@ -252,7 +279,7 @@ class RefItemsIT {
     @Test
     void createsAnInactiveItem() throws Exception {
         JsonNode item = created(api.post("/ref-items",
-                "{\"kind\": \"UNIT_TYPE\", \"code\": \"created-inactive\", \"name\": \"x\", \"active\": false}"));
+                "{\"kind\": \"UNIT_TYPE\", \"code\": \"created-inactive\", \"primaryLanguage\": \"en\", \"names\": {\"en\": {\"name\": \"x\"}}, \"active\": false}"));
 
         assertFalse(item.get("active").asBoolean());
         assertFalse(Api.json(api.get("/ref-items/" + item.get("id").asText())).get("active").asBoolean());
@@ -262,7 +289,7 @@ class RefItemsIT {
     @Test
     void createsAnActiveItemWhenTheBodyLeavesActiveOut() throws Exception {
         JsonNode item = created(api.post("/ref-items",
-                "{\"kind\": \"UNIT_TYPE\", \"code\": \"created-active\", \"name\": \"x\"}"));
+                "{\"kind\": \"UNIT_TYPE\", \"code\": \"created-active\", \"primaryLanguage\": \"en\", \"names\": {\"en\": {\"name\": \"x\"}}}"));
 
         assertTrue(item.get("active").asBoolean());
         assertTrue(Api.json(api.get("/ref-items/" + item.get("id").asText())).get("active").asBoolean());
@@ -281,23 +308,24 @@ class RefItemsIT {
     @Test
     void deletesAnItem() throws Exception {
         String id = created(api.post("/ref-items",
-                "{\"kind\": \"UNIT_TYPE\", \"code\": \"to-delete\", \"name\": \"x\"}")).get("id").asText();
+                "{\"kind\": \"UNIT_TYPE\", \"code\": \"to-delete\", \"primaryLanguage\": \"en\", \"names\": {\"en\": {\"name\": \"x\"}}}")).get("id").asText();
 
         assertEquals(204, api.deleteWithVersion("/ref-items/" + id).statusCode());
 
         assertEquals("ref_item.not_found", errorOf(404, api.get("/ref-items/" + id)));
         assertEquals("ref_item.not_found", errorOf(404, api.deleteWithVersion("/ref-items/" + id)));
-        assertEquals("ref_item.not_found", errorOf(404, api.putWithVersion("/ref-items/" + id, "{\"name\": \"x\"}")));
+        assertEquals("ref_item.not_found", errorOf(404, api.putWithVersion("/ref-items/" + id, "{\"primaryLanguage\": \"en\", \"names\": {\"en\": {\"name\": \"x\"}}}")));
     }
 
     @Test
     void oneRealmDoesNotSeeTheItemsOfAnother() throws Exception {
-        String body = "{\"kind\": \"UNIT_TYPE\", \"code\": \"per-realm\", \"name\": \"x\"}";
+        String body = "{\"kind\": \"UNIT_TYPE\", \"code\": \"per-realm\", \"primaryLanguage\": \"en\", "
+                + "\"names\": {\"en\": {\"name\": \"x\"}}}";
         String id = created(api.post("/ref-items", body)).get("id").asText();
 
         assertFalse(codes(otherRealmApi.get("/ref-items?kind=UNIT_TYPE")).contains("per-realm"));
         assertEquals(404, otherRealmApi.get("/ref-items/" + id).statusCode());
-        assertEquals(404, otherRealmApi.putWithVersion("/ref-items/" + id, "{\"name\": \"stolen\"}").statusCode());
+        assertEquals(404, otherRealmApi.putWithVersion("/ref-items/" + id, "{\"primaryLanguage\": \"en\", \"names\": {\"en\": {\"name\": \"stolen\"}}}").statusCode());
         assertEquals(404, otherRealmApi.deleteWithVersion("/ref-items/" + id).statusCode());
         created(otherRealmApi.post("/ref-items", body));
         assertEquals("x", Api.json(api.get("/ref-items/" + id)).get("name").asText());

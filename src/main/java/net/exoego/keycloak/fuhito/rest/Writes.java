@@ -76,7 +76,7 @@ final class Writes {
     private static void record(RequestContext context, Function<ExternalId.Kind, ExternalIdLists> ids,
             Write write, Locale language) {
         Object representation = switch (write) {
-            case Write.OfRefItem item -> RefItemRepresentation.of(item.state());
+            case Write.OfRefItem item -> RefItemRepresentation.of(item.state(), language);
             case Write.OfRefKind kind -> RefKindRepresentation.of(kind.state());
             case Write.OfAttributeDefinition definition -> AttributeDefinitionRepresentation.of(definition.state());
             case Write.OfHierarchy hierarchy -> HierarchyRepresentation.of(hierarchy.state());
