@@ -31,29 +31,6 @@ public final class JsonConverters {
     }
 
     /**
-     * Converts a map of text, such as names by language tag.
-     */
-    @Converter
-    public static class TextMap implements AttributeConverter<Map<String, String>, String> {
-
-        /**
-         * Creates the converter.
-         */
-        public TextMap() {
-        }
-
-        @Override
-        public String convertToDatabaseColumn(Map<String, String> attribute) {
-            return write(attribute);
-        }
-
-        @Override
-        public Map<String, String> convertToEntityAttribute(String dbData) {
-            return read(dbData, new TypeReference<>() { });
-        }
-    }
-
-    /**
      * Converts a map of free values.
      */
     @Converter

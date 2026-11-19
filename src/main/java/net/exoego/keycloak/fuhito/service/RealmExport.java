@@ -7,6 +7,7 @@ import java.util.Map;
 import net.exoego.keycloak.fuhito.domain.OrgUnitName;
 import net.exoego.keycloak.fuhito.domain.PersonName;
 import net.exoego.keycloak.fuhito.domain.RefItemName;
+import net.exoego.keycloak.fuhito.domain.RefKindName;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 
 /**
@@ -61,7 +62,8 @@ public record RealmExport(
             "qualifications", "external-ids", "change-orders", "erasures");
 
     @Schema(name = "ExportRefKind")
-    public record Kind(String id, Long version, String code, String name, Map<String, String> names) {
+    public record Kind(String id, Long version, String code, String primaryLanguage,
+            Map<String, RefKindName> names) {
     }
 
     @Schema(name = "ExportRefItem", description = "A reference item with every period of its names.")

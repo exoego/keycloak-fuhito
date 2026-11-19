@@ -69,7 +69,8 @@ public class JpaRealmExportStore implements RealmExportStore {
 
     @Override
     public Page<RealmKind> refKinds() {
-        return page(RealmKindEntity.class, "id", JpaRealmKindStore::toDomain);
+        Page<RealmKindEntity> rows = page(RealmKindEntity.class, "id", Function.identity());
+        return (afterId, max) -> JpaRealmKindStore.withNames(em, realmId, rows.read(afterId, max));
     }
 
     @Override

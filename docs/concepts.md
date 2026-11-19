@@ -244,6 +244,23 @@ Each period of the names of an item has its own languages and its own primary la
 - A token has the codes of items, not their names.
 - The attribute sync matches a job title by its code or by its primary name.
 
+A kind of reference data that a realm added keeps its names the same way, with only a name for each language.
+
+```json
+{
+  "code": "work-location",
+  "name": "Work location",
+  "primaryLanguage": "ja",
+  "names": {
+    "ja": {"name": "勤務地"},
+    "en": {"name": "Work location"}
+  }
+}
+```
+
+- A write and a read of a kind work as for an org unit, with `name` in the language of the reader.
+- A fixed kind such as `UNIT_TYPE` has no names.
+
 ## Examples
 
 ### A small clinic

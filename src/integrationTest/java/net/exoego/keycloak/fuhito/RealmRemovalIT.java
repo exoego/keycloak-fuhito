@@ -11,7 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 class RealmRemovalIT {
 
     private static final List<String> TABLES = List.of("fuhito_hierarchy", "fuhito_ref_item", "fuhito_ref_item_name",
-            "fuhito_attribute_definition", "fuhito_ref_kind", "fuhito_external_id", "fuhito_job_run", "fuhito_org_unit",
+            "fuhito_attribute_definition", "fuhito_ref_kind", "fuhito_ref_kind_name", "fuhito_external_id", "fuhito_job_run", "fuhito_org_unit",
             "fuhito_org_unit_version", "fuhito_org_unit_version_name", "fuhito_org_unit_link", "fuhito_org_unit_succession", "fuhito_employment", "fuhito_employment_terms",
             "fuhito_assignment", "fuhito_change_order", "fuhito_change_log", "fuhito_change_log_counter", "fuhito_qualification",
             "fuhito_reporting_line", "fuhito_unit_role", "fuhito_user_mask", "fuhito_person", "fuhito_person_name", "fuhito_erasure",
@@ -90,7 +90,7 @@ class RealmRemovalIT {
                 + Api.json(parent).get("id").asText() + "\", \"source\": \"payroll\", \"externalId\": \"P-1\"}")
                 .statusCode());
         assertEquals(201, api.post("/people", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"Guest\"}}}").statusCode());
-        assertEquals(201, api.post("/ref-kinds", "{\"code\": \"site\", \"name\": \"Site\"}").statusCode());
+        assertEquals(201, api.post("/ref-kinds", "{\"code\": \"site\", \"primaryLanguage\": \"en\", \"names\": {\"en\": {\"name\": \"Site\"}}}").statusCode());
         // The rebuild records its run, and the staff as a member that it added to the organization.
         assertEquals(200, api.putWithVersion("/org-units/" + Api.json(parent).get("id").asText() + "/organization",
                 "{\"organizationId\": \"" + realm.organization("removal") + "\"}").statusCode());

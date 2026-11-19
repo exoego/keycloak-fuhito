@@ -77,7 +77,7 @@ final class Writes {
             Write write, Locale language) {
         Object representation = switch (write) {
             case Write.OfRefItem item -> RefItemRepresentation.of(item.state(), language);
-            case Write.OfRefKind kind -> RefKindRepresentation.of(kind.state());
+            case Write.OfRefKind kind -> RefKindRepresentation.of(kind.state(), language);
             case Write.OfAttributeDefinition definition -> AttributeDefinitionRepresentation.of(definition.state());
             case Write.OfHierarchy hierarchy -> HierarchyRepresentation.of(hierarchy.state());
             case Write.OfPerson person -> PersonRepresentation.of(person.state(),

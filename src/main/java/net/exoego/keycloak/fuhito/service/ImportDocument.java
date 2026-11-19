@@ -7,6 +7,7 @@ import java.util.Map;
 import net.exoego.keycloak.fuhito.domain.OrgUnitName;
 import net.exoego.keycloak.fuhito.domain.PersonName;
 import net.exoego.keycloak.fuhito.domain.RefItemName;
+import net.exoego.keycloak.fuhito.domain.RefKindName;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 
 @Schema(
@@ -338,14 +339,14 @@ public record ImportDocument(
     @Schema(
             name = "ImportRefKindRow",
             description = "A kind of reference data that the realm adds. It is matched by code.",
-            requiredProperties = {"code", "name"})
+            requiredProperties = {"code", "primaryLanguage", "names"})
     public record RefKindRow(
             @Schema(maxLength = 32, pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$")
             String code,
-            @Schema(description = "The default name.", maxLength = 255)
-            String name,
-            @Schema(description = "Names in other languages, by language tag.")
-            Map<String, String> names) {
+            @Schema(description = "The language tag of the primary name, such as `ja`. It is a key of `names`.")
+            String primaryLanguage,
+            @Schema(description = "The names by language tag, such as `ja`, `en`, or `zh-Hant`.")
+            Map<String, RefKindName> names) {
     }
 
     @Schema(

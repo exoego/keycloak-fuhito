@@ -14,6 +14,7 @@ import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.Hierarchy;
 import net.exoego.keycloak.fuhito.domain.RefItem;
 import net.exoego.keycloak.fuhito.domain.RefItemName;
+import net.exoego.keycloak.fuhito.domain.RefKindName;
 import net.exoego.keycloak.fuhito.service.ImportDocument.AttributeDefinitionRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.HierarchyRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.RefItemRow;
@@ -216,15 +217,13 @@ public class ImportService {
         String code = Checks.required("code", row.code());
         Optional<RealmKindService.View> stored = setup.kinds().find(code);
         if (stored.isEmpty()) {
-            report.write(new Write.OfRefKind(true, setup.kinds().create(code, row.name(), row.names())));
+            report.write(new Write.OfRefKind(true, setup.kinds().create(code, row.primaryLanguage(), row.names())));
             return Outcome.CREATED;
         }
-        RealmKindService.View before = stored.get();
-        if (Checks.name("name", row.name()).equals(before.name())
-                && Checks.localizedNames("names", row.names()).equals(before.names())) {
+        if (RefKindName.check(row.primaryLanguage(), row.names()).equals(stored.get().names())) {
             return Outcome.UNCHANGED;
         }
-        report.write(new Write.OfRefKind(false, setup.kinds().rename(code, row.name(), row.names())));
+        report.write(new Write.OfRefKind(false, setup.kinds().rename(code, row.primaryLanguage(), row.names())));
         return Outcome.CHANGED;
     }
 

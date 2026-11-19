@@ -10,8 +10,10 @@ import java.util.UUID;
 
 import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
+import net.exoego.keycloak.fuhito.domain.Localized;
 import net.exoego.keycloak.fuhito.domain.RealmKind;
 import net.exoego.keycloak.fuhito.domain.RefKind;
+import net.exoego.keycloak.fuhito.domain.RefKindName;
 import net.exoego.keycloak.fuhito.store.RealmKindStore;
 import net.exoego.keycloak.fuhito.store.RefItemStore;
 
@@ -27,16 +29,15 @@ public class RealmKindService {
      * A kind of reference data.
      *
      * @param code the code that items name as their kind
-     * @param name the default name, or null for a fixed kind
-     * @param names the names in other languages
+     * @param names the names in each language, or null for a fixed kind
      * @param fixed true for a kind that every realm has
      * @param version the number that each write of the kind counts up, or null for a fixed kind, which never
      *        changes
      */
-    public record View(String code, String name, Map<String, String> names, boolean fixed, Long version) {
+    public record View(String code, Localized<RefKindName> names, boolean fixed, Long version) {
 
         static View of(RealmKind kind) {
-            return new View(kind.code(), kind.name(), kind.names(), false, kind.version());
+            return new View(kind.code(), kind.names(), false, kind.version());
         }
     }
 
@@ -61,7 +62,7 @@ public class RealmKindService {
      */
     public List<View> list() {
         List<View> kinds = new ArrayList<>(Arrays.stream(RefKind.values())
-                .map(kind -> new View(kind.name(), null, Map.of(), true, null))
+                .map(kind -> new View(kind.name(), null, true, null))
                 .toList());
         store.list().forEach(kind -> kinds.add(View.of(kind)));
         return kinds;
@@ -71,12 +72,12 @@ public class RealmKindService {
      * Adds a kind to the realm.
      *
      * @param code the code
-     * @param name the default name
-     * @param names the names in other languages, or null
+     * @param primaryLanguage the tag of the language of the primary name
+     * @param names the names by language tag
      * @return the new kind
      * @throws FuhitoException when a value is bad, or the code is a fixed kind or taken
      */
-    public View create(String code, String name, Map<String, String> names) {
+    public View create(String code, String primaryLanguage, Map<String, RefKindName> names) {
         Checks.code("code", code);
         if (code.length() > MAX_CODE_LENGTH) {
             throw FuhitoException.invalid("invalid.code", Map.of("field", "code"));
@@ -86,8 +87,8 @@ public class RealmKindService {
         if (fixed || store.findByCode(code).isPresent()) {
             throw FuhitoException.conflict("ref_kind.code_taken", Map.of("code", code));
         }
-        RealmKind kind = new RealmKind(UUID.randomUUID().toString(), code, Checks.name("name", name),
-                Checks.localizedNames("names", names), 1);
+        RealmKind kind = new RealmKind(UUID.randomUUID().toString(), code,
+                RefKindName.check(primaryLanguage, names), 1);
         store.insert(kind);
         return View.of(kind);
     }
@@ -117,17 +118,15 @@ public class RealmKindService {
      * Changes the names of a kind that the realm added. The code never changes.
      *
      * @param code the code
-     * @param name the default name
-     * @param names the names in other languages, or null
+     * @param primaryLanguage the tag of the language of the primary name
+     * @param names the names by language tag
      * @return the changed kind
      * @throws FuhitoException when a name is bad, or the realm added no such kind
      */
-    public View rename(String code, String name, Map<String, String> names) {
+    public View rename(String code, String primaryLanguage, Map<String, RefKindName> names) {
         RealmKind kind = store.findByCode(code)
                 .orElseThrow(() -> FuhitoException.notFound("ref_kind.not_found", Map.of("code", code)));
-        RealmKind renamed = new RealmKind(kind.id(), code, Checks.name("name", name),
-                Checks.localizedNames("names", names), kind.version());
-        store.update(renamed);
+        store.update(new RealmKind(kind.id(), code, RefKindName.check(primaryLanguage, names), kind.version()));
         return get(code);
     }
 

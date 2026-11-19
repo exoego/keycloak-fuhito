@@ -286,27 +286,32 @@ class CsvImportIT {
     void anExportOfKindsLoadsAgainWithNoChange() throws Exception {
         TestRealm realm = TestRealm.create("csv-export-kinds");
         Api api = realm.api;
-        assertEquals(201, api.post("/ref-kinds", "{\"code\": \"site\", \"name\": \"拠点\", "
-                + "\"names\": {\"en\": \"Site\"}}").statusCode());
+        assertEquals(201, api.post("/ref-kinds", "{\"code\": \"site\", \"primaryLanguage\": \"ja\", "
+                + "\"names\": {\"ja\": {\"name\": \"拠点\"}, \"en\": {\"name\": \"Site\"}}}").statusCode());
 
         for (String header : List.of("en", "ja")) {
             HttpResponse<String> exported = api.get("/imports/csv/ref-kinds?header=" + header);
             assertEquals(200, exported.statusCode(), exported.body());
-            assertEquals("﻿" + (header.equals("en") ? "code,name,name:en" : "コード,名称,名称:en")
-                    + "\r\nsite,拠点,Site\r\n", exported.body());
+            assertEquals("﻿" + (header.equals("en") ? "code,primaryLanguage,name,name:en"
+                    : "コード,主言語,名称,名称:en") + "\r\nsite,ja,拠点,Site\r\n", exported.body());
             JsonNode counts = load(api, "ref-kinds", "effectiveDate=2026-05-01", exported.body()).get("counts")
                     .get("refKinds");
             assertEquals(0, counts.get("created").asInt() + counts.get("changed").asInt(), counts.toString());
         }
-        // A file with no column of a language keeps the stored names in it.
-        load(api, "ref-kinds", "effectiveDate=2026-05-01", "code,name\r\nsite,勤務地\r\ncost-center,原価センター\r\n");
+        // A file with no column of a language keeps the stored names in it. A blank primary language keeps the
+        // stored one.
+        load(api, "ref-kinds", "effectiveDate=2026-05-01",
+                "code,primaryLanguage,name\r\nsite,,勤務地\r\ncost-center,ja,原価センター\r\n");
         JsonNode kinds = Api.json(api.get("/ref-kinds"));
         JsonNode site = kinds.get(kinds.findValuesAsText("code").indexOf("site"));
         assertEquals("勤務地", site.get("name").asText());
-        assertEquals("Site", site.get("names").get("en").asText());
+        assertEquals("ja", site.get("primaryLanguage").asText());
+        assertEquals("Site", site.get("names").get("en").get("name").asText());
         assertTrue(kinds.findValuesAsText("code").contains("cost-center"));
-        assertEquals(200, api.putWithVersion("/ref-kinds/site", "{\"name\": \"拠点\"}").statusCode());
-        assertEquals(404, api.putWithVersion("/ref-kinds/UNIT_TYPE", "{\"name\": \"組織種別\"}").statusCode());
+        assertEquals(200, api.putWithVersion("/ref-kinds/site", "{\"primaryLanguage\": \"ja\", "
+                + "\"names\": {\"ja\": {\"name\": \"拠点\"}}}").statusCode());
+        assertEquals(404, api.putWithVersion("/ref-kinds/UNIT_TYPE", "{\"primaryLanguage\": \"ja\", "
+                + "\"names\": {\"ja\": {\"name\": \"組織種別\"}}}").statusCode());
         assertEquals(204, api.deleteWithVersion("/ref-kinds/cost-center").statusCode());
     }
 
@@ -314,7 +319,7 @@ class CsvImportIT {
     void anExportOfAttributeDefinitionsLoadsAgainWithNoChange() throws Exception {
         TestRealm realm = TestRealm.create("csv-export-definitions");
         Api api = realm.api;
-        assertEquals(201, api.post("/ref-kinds", "{\"code\": \"site\", \"name\": \"拠点\"}").statusCode());
+        assertEquals(201, api.post("/ref-kinds", "{\"code\": \"site\", \"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"拠点\"}}}").statusCode());
         assertEquals(201, api.post("/attribute-definitions", "{\"target\": \"PERSON\", \"name\": \"site\", "
                 + "\"type\": \"REF_ITEM\", \"refKind\": \"site\"}").statusCode());
         assertEquals(201, api.post("/attribute-definitions", "{\"target\": \"ORG_UNIT\", \"name\": \"beds\", "
@@ -406,7 +411,7 @@ class CsvImportIT {
         Api api = realm.api;
         assertEquals(201, api.post("/attribute-definitions", "{\"target\": \"REF_ITEM\", \"name\": \"note\", "
                 + "\"type\": \"STRING\"}").statusCode());
-        assertEquals(201, api.post("/ref-kinds", "{\"code\": \"site\", \"name\": \"拠点\"}").statusCode());
+        assertEquals(201, api.post("/ref-kinds", "{\"code\": \"site\", \"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"拠点\"}}}").statusCode());
         assertEquals(201, api.post("/ref-items", "{\"kind\": \"site\", \"code\": \"tokyo\", \"primaryLanguage\": \"ja\", "
                 + "\"names\": {\"ja\": {\"name\": \"東京\"}, \"en\": {\"name\": \"Tokyo\"}}, \"displayOrder\": 2, \"attributes\": {\"note\": \"1F, west\"}}")
                 .statusCode());

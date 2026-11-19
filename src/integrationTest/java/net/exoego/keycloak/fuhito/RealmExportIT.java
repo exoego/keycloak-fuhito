@@ -78,7 +78,7 @@ class RealmExportIT {
         Api api = source.api;
         Map<String, String> ids = new HashMap<>();
         USERS.forEach(username -> ids.put(username, source.user(username)));
-        ok(api.post("/ref-kinds", "{\"code\": \"site\", \"name\": \"拠点\"}"));
+        ok(api.post("/ref-kinds", "{\"code\": \"site\", \"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"拠点\"}, \"en\": {\"name\": \"Site\"}}}"));
         ok(api.post("/ref-items", "{\"kind\": \"site\", \"code\": \"tokyo\", \"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"東京\"}}}"));
         source.refItem("JOB_TITLE", "chief", "主任");
         source.refItem("LEAVE_REASON", "parental", "育児休業");

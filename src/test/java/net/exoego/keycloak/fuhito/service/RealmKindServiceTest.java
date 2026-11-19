@@ -7,8 +7,10 @@ import java.util.Optional;
 
 import net.exoego.keycloak.fuhito.domain.AttributeDefinition.Target;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
+import net.exoego.keycloak.fuhito.domain.Localized;
 import net.exoego.keycloak.fuhito.domain.RealmKind;
 import net.exoego.keycloak.fuhito.domain.RefKind;
+import net.exoego.keycloak.fuhito.domain.RefKindName;
 import net.exoego.keycloak.fuhito.store.RealmKindStore;
 import org.junit.jupiter.api.Test;
 
@@ -56,9 +58,12 @@ class RealmKindServiceTest {
 
     @Test
     void aRealmAddsAKindAndItsItemsAreReferenceItems() {
-        RealmKindService.View location = kinds.create("work-location", "勤務地", Map.of("en", "Work location"));
+        RealmKindService.View location = kinds.create("work-location", "ja",
+                Map.of("ja", new RefKindName("勤務地"), "en-us", new RefKindName("Work location")));
 
         assertFalse(location.fixed());
+        assertEquals(new Localized<>("ja", Map.of("ja", new RefKindName("勤務地"), "en-US",
+                new RefKindName("Work location"))), location.names());
         assertEquals(RefKind.values().length + 1, kinds.list().size());
         assertTrue(kinds.list().getFirst().fixed());
         assertEquals("work-location", kinds.list().getLast().code());
@@ -93,14 +98,33 @@ class RealmKindServiceTest {
     }
 
     @Test
-    void rejectsABadKind() {
-        kinds.create("site", "拠点", null);
+    void aRenameGivesTheKindOtherNames() {
+        kinds.create("site", "ja", japanese("拠点"));
 
-        assertEquals("ref_kind.code_taken", code(() -> kinds.create("site", "拠点", null)));
-        assertEquals("ref_kind.code_taken", code(() -> kinds.create("grade", "等級", null)));
-        assertEquals("invalid.code", code(() -> kinds.create("a b", "X", null)));
-        assertEquals("invalid.code", code(() -> kinds.create("x".repeat(33), "X", null)));
-        assertEquals("invalid.name", code(() -> kinds.create("other", " ", null)));
+        RealmKindService.View renamed = kinds.rename("site", "en",
+                Map.of("en", new RefKindName(" Site "), "ja", new RefKindName("拠点")));
+
+        assertEquals(new Localized<>("en", Map.of("en", new RefKindName("Site"), "ja", new RefKindName("拠点"))),
+                renamed.names());
+        assertEquals(renamed, kinds.get("site"));
+        assertEquals("ref_kind.not_found", code(() -> kinds.rename("nope", "ja", japanese("X"))));
+        assertEquals("invalid.primary_language", code(() -> kinds.rename("site", "en", japanese("拠点"))));
+    }
+
+    @Test
+    void rejectsABadKind() {
+        kinds.create("site", "ja", japanese("拠点"));
+
+        assertEquals("ref_kind.code_taken", code(() -> kinds.create("site", "ja", japanese("拠点"))));
+        assertEquals("ref_kind.code_taken", code(() -> kinds.create("grade", "ja", japanese("等級"))));
+        assertEquals("invalid.code", code(() -> kinds.create("a b", "ja", japanese("X"))));
+        assertEquals("invalid.code", code(() -> kinds.create("x".repeat(33), "ja", japanese("X"))));
+        assertEquals("invalid.name", code(() -> kinds.create("other", "ja", japanese(" "))));
+        assertEquals("invalid.required", code(() -> kinds.create("other", null, japanese("X"))));
         assertEquals("ref_kind.not_found", code(() -> kinds.delete("nope")));
+    }
+
+    private static Map<String, RefKindName> japanese(String name) {
+        return Map.of("ja", new RefKindName(name));
     }
 }

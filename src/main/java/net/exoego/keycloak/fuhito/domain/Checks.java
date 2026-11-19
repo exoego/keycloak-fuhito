@@ -4,7 +4,6 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
 import java.util.IllformedLocaleException;
-import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Pattern;
@@ -211,23 +210,6 @@ public final class Checks {
         } catch (IllegalArgumentException e) {
             throw FuhitoException.invalid("invalid.choice", Map.of("field", field, "value", value)).causedBy(e);
         }
-    }
-
-    /**
-     * Checks names in several languages. The keys are language tags, for example {@code ja} and {@code en}.
-     *
-     * @param field the name of the field, for the error
-     * @param names the names by language tag, or null for none
-     * @return the names with normalized language tags, in the order given
-     * @throws FuhitoException when a language tag or a name is bad
-     */
-    public static Map<String, String> localizedNames(String field, Map<String, String> names) {
-        Map<String, String> result = new LinkedHashMap<>();
-        if (names == null) {
-            return result;
-        }
-        names.forEach((tag, text) -> result.put(languageTag(field, tag), name(field + "." + tag, text)));
-        return result;
     }
 
     /**

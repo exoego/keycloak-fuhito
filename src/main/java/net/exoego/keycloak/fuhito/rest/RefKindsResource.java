@@ -60,7 +60,9 @@ public class RefKindsResource {
     @ApiErrors
     public List<RefKindRepresentation> list() {
         context.requireReadStructure();
-        return Calls.run(context, () -> service.list().stream().map(RefKindRepresentation::of).toList());
+        return Calls.run(context, () -> service.list().stream()
+                .map(kind -> RefKindRepresentation.of(kind, context.nameLanguage()))
+                .toList());
     }
 
     @POST
@@ -68,8 +70,8 @@ public class RefKindsResource {
             operationId = "createRefKind",
             summary = "Adds a kind of reference data to the realm, such as a working time system or a collective "
                     + "agreement.",
-            description = "Its items are reference items with the code as their kind. Attributes of the type "
-                    + "`REF_ITEM` can point to it.")
+            description = "The body needs `code`, `primaryLanguage`, and `names`. Its items are reference items with "
+                    + "the code as their kind. Attributes of the type `REF_ITEM` can point to it.")
     @Parameter(ref = "changeOrder")
     @APIResponse(
             responseCode = "201",
@@ -82,7 +84,8 @@ public class RefKindsResource {
         context.requireWrite();
         return Calls.run(context, () -> {
             Checks.required("body", body);
-            var kind = RefKindRepresentation.of(service.create(body.code(), body.name(), body.names()));
+            var kind = RefKindRepresentation.of(service.create(body.code(), body.primaryLanguage(), body.names()),
+                    context.nameLanguage());
             context.recordChange(Change.CREATE, RESOURCE_TYPE, kind.code(), path(kind.code()), kind);
             return Response.status(Response.Status.CREATED).entity(kind).build();
         });
@@ -107,7 +110,8 @@ public class RefKindsResource {
             RefKindRepresentation body) {
         context.requireWrite();
         return Calls.guarded(context, body, () -> version(code), () -> {
-            var kind = RefKindRepresentation.of(service.rename(code, body.name(), body.names()));
+            var kind = RefKindRepresentation.of(service.rename(code, body.primaryLanguage(), body.names()),
+                    context.nameLanguage());
             context.recordChange(Change.UPDATE, RESOURCE_TYPE, code, path(code), kind);
             return kind;
         });

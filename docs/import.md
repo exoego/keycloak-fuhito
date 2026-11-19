@@ -79,7 +79,7 @@ The lists are applied in the order change orders, kinds of reference data, attri
 ```
 
 - A row of a reference item has `primaryLanguage` and `names`, as `POST /ref-items` has them. It can have `validFrom`, the first date of its names. A new item without it has names that hold for every date. A stored item without it gets the names of the row from the effective date, and keeps its old names for the dates before. A row compares with the names of its date, so the same row changes nothing the second time. Two rows of one item with two dates load two periods of names, for example the names of a job title from a system that kept them.
-- The list `refKinds` adds kinds of reference data to the realm. A row has `code`, `name`, and `names`. A row of a stored kind changes its names. A fixed kind such as `UNIT_TYPE` is in every realm and cannot be a row.
+- The list `refKinds` adds kinds of reference data to the realm. A row has `code`, `primaryLanguage`, and `names`, as `POST /ref-kinds` has them. A row of a stored kind changes its names. A fixed kind such as `UNIT_TYPE` is in every realm and cannot be a row.
 - The list `attributeDefinitions` defines free attributes. A row has `target`, `name`, `type`, `refKind`, `multiple`, and `required`. A row of a stored definition changes the type, the kind, `multiple`, and `required`, as `PUT /attribute-definitions/{id}` does. Stored values stay as they are. The definitions come before the reference items, so that a row of a reference item can set an attribute that the same document defines.
 - The list `hierarchies` adds hierarchies. A row has `code` and `name`. A row of a stored hierarchy changes its name. The code `default` names the default hierarchy.
 - Rows of org units can come in any order. A parent is applied before its children.
@@ -160,6 +160,7 @@ curl -X POST \
 - In a file of org units, `name`, `shortName`, and `phoneticName` are the names of the primary language, which `primaryLanguage` names. A new unit needs `primaryLanguage`. `name:en`, `shortName:en`, and `phoneticName:en` are the names of one language. `name:en` with `#CLEAR` removes that language. A CSV export leaves the columns of a language empty for a unit whose primary language it is.
 - A file of people has the names in the same way, with `primaryLanguage`, `name`, `phoneticName`, `name:en`, and `phoneticName:en`. A row with a name needs `primaryLanguage`, unless the person has a primary language already.
 - A file of reference items has the names in the same way, with `primaryLanguage`, `name`, and `name:en`. A new item needs `primaryLanguage`. A row for a stored item keeps the primary language of the names of its date when the cell is blank.
+- A file of kinds of reference data has the names in the same way, with `primaryLanguage`, `name`, and `name:en`. A new kind needs `primaryLanguage`. A row for a stored kind keeps its primary language when the cell is blank.
 - A column `attributes.<name>` sets an attribute that the realm defined for the resource of the list, for example `attributes.beds`. The cell is read by the type of the definition. The cell of a definition with `multiple` is a JSON array, for example `["night","icu"]`, which the CSV writes as `"[""night"",""icu""]"`. Other attributes keep what is stored. A column of an attribute with no definition is rejected.
 
 ### Columns
@@ -169,6 +170,7 @@ Kinds of reference data.
 | English | Japanese |
 |---|---|
 | `code` | `コード` |
+| `primaryLanguage` | `主言語` |
 | `name` | `名称` |
 
 Attribute definitions.
