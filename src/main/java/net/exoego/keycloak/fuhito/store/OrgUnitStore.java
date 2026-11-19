@@ -2,7 +2,6 @@ package net.exoego.keycloak.fuhito.store;
 
 import java.time.LocalDate;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -44,6 +43,14 @@ public interface OrgUnitStore {
     Optional<OrgUnit> findUnit(String id);
 
     /**
+     * Lists the org units with the given IDs.
+     *
+     * @param ids the IDs
+     * @return the units that exist in the realm, in no order
+     */
+    List<OrgUnit> findUnits(Collection<String> ids);
+
+    /**
      * Finds the org unit that has a code on a date.
      *
      * @param code the code
@@ -53,12 +60,12 @@ public interface OrgUnitStore {
     Optional<OrgUnit> findUnitByCode(String code, LocalDate date);
 
     /**
-     * Lists the details of every org unit that have a code, over all time.
+     * Lists the details of every org unit that have one of some codes, over all time.
      *
-     * @param code the code
+     * @param codes the codes
      * @return the details, oldest first
      */
-    List<OrgUnitVersion> versionsWithCode(String code);
+    List<OrgUnitVersion> versionsWithCodes(Collection<String> codes);
 
     /**
      * Finds the org unit that is linked to a Keycloak organization.
@@ -288,16 +295,7 @@ public interface OrgUnitStore {
      * @param ids the IDs of the units
      * @return the life of each unit that has versions, by its ID
      */
-    default Map<String, ValidPeriod> livesOf(Collection<String> ids) {
-        Map<String, ValidPeriod> lives = new HashMap<>();
-        ids.stream().distinct().forEach(id -> {
-            List<OrgUnitVersion> versions = versions(id);
-            if (!versions.isEmpty()) {
-                lives.put(id, new ValidPeriod(versions.getFirst().period().from(), versions.getLast().period().to()));
-            }
-        });
-        return lives;
-    }
+    Map<String, ValidPeriod> livesOf(Collection<String> ids);
 
     /**
      * Returns some units as they are on a date. A unit that does not exist on the date is left out.
@@ -317,12 +315,27 @@ public interface OrgUnitStore {
     void insertUnit(OrgUnit unit);
 
     /**
+     * Stores new org units.
+     *
+     * @param units the units
+     */
+    void insertUnits(List<OrgUnit> units);
+
+    /**
      * Lists all versions of an org unit, oldest first.
      *
      * @param orgUnitId the ID of the unit
      * @return the versions
      */
     List<OrgUnitVersion> versions(String orgUnitId);
+
+    /**
+     * Lists all versions of some org units, oldest first for each unit.
+     *
+     * @param orgUnitIds the IDs of the units
+     * @return the versions of each unit that has some, by the ID of the unit
+     */
+    Map<String, List<OrgUnitVersion>> versionsOf(Collection<String> orgUnitIds);
 
     /**
      * Stores a new version.
@@ -346,6 +359,15 @@ public interface OrgUnitStore {
      * @return the links
      */
     List<OrgUnitLink> parentLinks(String hierarchyId, String childId);
+
+    /**
+     * Lists all parent links of some org units in a hierarchy, oldest first for each unit.
+     *
+     * @param hierarchyId the ID of the hierarchy
+     * @param childIds the IDs of the units
+     * @return the links of each unit that has some, by the ID of the unit
+     */
+    Map<String, List<OrgUnitLink>> parentLinksOf(String hierarchyId, Collection<String> childIds);
 
     /**
      * Lists all parent links of an org unit in every hierarchy, oldest first.

@@ -332,8 +332,8 @@ class ImportServiceTest {
         ImportReport report = service.apply(doc("2026-04-01", false, null, null, units));
 
         assertEquals(List.of("orgUnits[2] import.parent_unknown"), errors(report));
-        // One for each row and one for the end of the unit with successors.
-        assertEquals(4, rowsDone);
+        // One for each row, one for the new units, and one for the end of the unit with successors.
+        assertEquals(5, rowsDone);
         assertFalse(running);
     }
 
@@ -377,12 +377,14 @@ class ImportServiceTest {
     void setsTheTimeOfAUnitAndKeepsWhatARowLeavesOut() {
         ImportReport first = importUnits("2026-04-01", timed("H", "Asia/Tokyo", "05:00"));
         ImportReport again = importUnits("2026-04-01", timed("H", null, null));
+        ImportReport same = importUnits("2026-04-01", timed("H", "Asia/Tokyo", null));
         ImportReport cleared = importUnits("2026-04-01", timed("H", null, ""));
 
         String h = stored(ExternalId.Kind.ORG_UNIT, "import", "H");
         assertEquals(List.of(), errors(first));
         assertEquals("fuhito/org-units/" + h + "/time-settings", first.writes().getLast().path());
         assertEquals(Map.of("orgUnits", new Counts(0, 0, 1)), again.counts());
+        assertEquals(Map.of("orgUnits", new Counts(0, 0, 1)), same.counts());
         assertEquals(Map.of("orgUnits", new Counts(0, 1, 0)), cleared.counts());
         assertEquals("Asia/Tokyo", orgUnitStore.findUnit(h).orElseThrow().timeZone());
         assertEquals(null, orgUnitStore.findUnit(h).orElseThrow().dayStart());
@@ -627,6 +629,51 @@ class ImportServiceTest {
 
         assertEquals(List.of(), errors(importUnits("2026-10-01", unit("N", "Nursing", "H"))));
         assertEquals(List.of("Hospital", "Nursing < Hospital"), tree("2026-10-01"));
+    }
+
+    private static OrgUnitRow coded(String externalId, String code, String parentExternalId) {
+        return new OrgUnitRow(null, externalId, code, "ja", ja(externalId), null, parentExternalId, null, null, null,
+                null, null, null);
+    }
+
+    // The reads of one unit, of the units of a list, of the work locations and cost centers that apply, and of one
+    // ID of another system.
+    private List<Integer> reads(Supplier<ImportReport> run) {
+        int one = orgUnitStore.oneReads;
+        int many = orgUnitStore.manyReads;
+        int defaults = orgUnitStore.defaultsReads;
+        int single = externalIdStore.singleFinds;
+        assertEquals(List.of(), errors(run.get()));
+        return List.of(orgUnitStore.oneReads - one, orgUnitStore.manyReads - many,
+                orgUnitStore.defaultsReads - defaults, externalIdStore.singleFinds - single);
+    }
+
+    @Test
+    void readsWhatTheRowsOfAListOfUnitsNameWithOneReadForEachKind() {
+        OrgUnitRow[] rows = {coded("H", "h", null), coded("N", "n", "H"), coded("W", "w", "N")};
+
+        // The new units read the codes of the list, and then what applies to them on their first date.
+        assertEquals(List.of(0, 1, 1, 0), reads(() -> importUnits("2026-04-01", rows)));
+        // The same units again read the units, their versions, their parents, and the codes.
+        assertEquals(List.of(0, 4, 0, 0), reads(() -> importUnits("2026-04-01", rows)));
+        assertEquals(List.of("H", "N < H", "W < N"), tree("2026-04-01"));
+        assertEquals(new Counts(0, 0, 3), importUnits("2026-04-01", rows).counts().get("orgUnits"));
+    }
+
+    @Test
+    void aRowOfUnitsSeesTheCodesOfTheRowsBeforeIt() {
+        importUnits("2026-04-01", coded("S", "s", null), coded("R", "r", null));
+
+        ImportReport report = importUnits("2027-04-01", coded("A", "a", null), coded("B", "a", null),
+                coded("S", "t", null), coded("D", "s", null), coded("E", "t", null), coded("F", "u", null),
+                coded("R", "u", null));
+
+        // A new unit cannot take the code of a new one before it or the code that a stored one took before it. It
+        // can take the code that a stored one gave up before it. A stored unit cannot take the code of a new one
+        // before it.
+        assertEquals(List.of("orgUnits[1] org_unit.code_taken", "orgUnits[4] org_unit.code_taken",
+                "orgUnits[6] org_unit.code_taken"), errors(report));
+        assertEquals(new Counts(3, 1, 0), report.counts().get("orgUnits"));
     }
 
     @Test

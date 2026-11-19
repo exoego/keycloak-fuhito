@@ -175,6 +175,18 @@ public class JpaOrgUnitStore implements OrgUnitStore {
         return entity != null && entity.realmId.equals(realmId) ? Optional.of(toDomain(entity)) : Optional.empty();
     }
 
+    // The units are found by their IDs alone, for the reason in Rows.inRealm.
+    @Override
+    public List<OrgUnit> findUnits(Collection<String> ids) {
+        return em.createQuery("select u from OrgUnitEntity u where %s".formatted(ManyIds.has("u.id", "ids")),
+                        OrgUnitEntity.class)
+                .setParameter("ids", ManyIds.of(ids))
+                .getResultStream()
+                .filter(Rows.inRealm(realmId, u -> u.realmId))
+                .map(JpaOrgUnitStore::toDomain)
+                .toList();
+    }
+
     @Override
     public Optional<OrgUnit> findUnitByCode(String code, LocalDate date) {
         return em.createQuery("""
@@ -190,12 +202,16 @@ public class JpaOrgUnitStore implements OrgUnitStore {
     }
 
     @Override
-    public List<OrgUnitVersion> versionsWithCode(String code) {
+    public List<OrgUnitVersion> versionsWithCodes(Collection<String> codes) {
+        if (codes.isEmpty()) {
+            return List.of();
+        }
         return withNames(em.createQuery("""
-                        select v from OrgUnitVersionEntity v where v.realmId = :realmId and v.code = :code
-                        order by v.validFrom, v.orgUnitId""", OrgUnitVersionEntity.class)
+                        select v from OrgUnitVersionEntity v where v.realmId = :realmId and %s
+                        order by v.validFrom, v.orgUnitId""".formatted(ManyIds.has("v.code", "codes")),
+                        OrgUnitVersionEntity.class)
                 .setParameter("realmId", realmId)
-                .setParameter("code", code)
+                .setParameter("codes", ManyIds.of(codes))
                 .getResultList());
     }
 
@@ -535,18 +551,28 @@ public class JpaOrgUnitStore implements OrgUnitStore {
 
     @Override
     public void insertUnit(OrgUnit unit) {
-        OrgUnitEntity entity = new OrgUnitEntity();
-        entity.id = unit.id();
-        entity.realmId = realmId;
-        entity.source = unit.source();
-        entity.keycloakOrganizationId = unit.keycloakOrganizationId();
-        entity.timeZone = unit.timeZone();
-        entity.dayStart = unit.dayStart();
-        entity.version = unit.version();
-        entity.counted = true;
-        em.persist(entity);
-        // Other rows refer to this one. Hibernate groups inserts by entity type, so this row goes to the
-        // database now, before a row that needs it.
+        insertUnits(List.of(unit));
+    }
+
+    @Override
+    public void insertUnits(List<OrgUnit> units) {
+        if (units.isEmpty()) {
+            return;
+        }
+        for (OrgUnit unit : units) {
+            OrgUnitEntity entity = new OrgUnitEntity();
+            entity.id = unit.id();
+            entity.realmId = realmId;
+            entity.source = unit.source();
+            entity.keycloakOrganizationId = unit.keycloakOrganizationId();
+            entity.timeZone = unit.timeZone();
+            entity.dayStart = unit.dayStart();
+            entity.version = unit.version();
+            entity.counted = true;
+            em.persist(entity);
+        }
+        // Other rows refer to these. Hibernate groups inserts by entity type, so these rows go to the
+        // database now, before a row that needs them.
         em.flush();
     }
 
@@ -559,6 +585,22 @@ public class JpaOrgUnitStore implements OrgUnitStore {
                 .getResultStream()
                 .filter(Rows.inRealm(realmId, v -> v.realmId))
                 .toList());
+    }
+
+    // The versions are found by their units alone, for the reason in Rows.inRealm.
+    @Override
+    public Map<String, List<OrgUnitVersion>> versionsOf(Collection<String> orgUnitIds) {
+        Map<String, List<OrgUnitVersion>> found = new HashMap<>();
+        withNames(em.createQuery("""
+                        select v from OrgUnitVersionEntity v where %s
+                        order by v.validFrom""".formatted(ManyIds.has("v.orgUnitId", "ids")),
+                        OrgUnitVersionEntity.class)
+                .setParameter("ids", ManyIds.of(orgUnitIds))
+                .getResultStream()
+                .filter(Rows.inRealm(realmId, v -> v.realmId))
+                .toList())
+                .forEach(version -> found.computeIfAbsent(version.orgUnitId(), id -> new ArrayList<>()).add(version));
+        return found;
     }
 
     @Override
@@ -606,6 +648,22 @@ public class JpaOrgUnitStore implements OrgUnitStore {
                 .getResultStream()
                 .map(JpaOrgUnitStore::toDomain)
                 .toList();
+    }
+
+    // The links are found by the hierarchy and their units, for the reason in Rows.inRealm.
+    @Override
+    public Map<String, List<OrgUnitLink>> parentLinksOf(String hierarchyId, Collection<String> childIds) {
+        Map<String, List<OrgUnitLink>> found = new HashMap<>();
+        em.createQuery("""
+                        select l from OrgUnitLinkEntity l where l.hierarchyId = :hierarchyId and %s
+                        order by l.validFrom""".formatted(ManyIds.has("l.childId", "ids")), OrgUnitLinkEntity.class)
+                .setParameter("hierarchyId", hierarchyId)
+                .setParameter("ids", ManyIds.of(childIds))
+                .getResultStream()
+                .filter(Rows.inRealm(realmId, l -> l.realmId))
+                .map(JpaOrgUnitStore::toDomain)
+                .forEach(link -> found.computeIfAbsent(link.childId(), id -> new ArrayList<>()).add(link));
+        return found;
     }
 
     @Override

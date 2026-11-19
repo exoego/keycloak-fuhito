@@ -155,7 +155,7 @@ public class ImportService {
             setupImport.hierarchies(document.hierarchies());
         }
         if (document.orgUnits() != null) {
-            new OrgUnitImport(orgUnitService, orgUnits, records.externalIds(), organizations,
+            new OrgUnitImport(orgUnitService, records.externalIds(), organizations,
                     document.effectiveDate(), defaultSource, document.orgUnits(), report, rowDone).run();
         }
         if (document.orgUnitParents() != null) {
