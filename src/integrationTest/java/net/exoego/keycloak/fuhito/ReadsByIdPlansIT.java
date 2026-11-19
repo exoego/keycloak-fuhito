@@ -36,14 +36,12 @@ class ReadsByIdPlansIT {
     @Test
     void theCountsOfTheEmploymentsOfAnEmployerUseItsIndex() throws Exception {
         withOldStatistics(statement -> {
-            String employer = "from fuhito_employment e where e.employer_id = 'ex-new-unit-2' and "
-                    + ofRecord("e", "fuhito_org_unit", "id", "ex-new-unit-2");
-            assertIndexes(statement, "select count(e.id) " + employer
-                    + " and e.valid_from >= '2026-01-01' and e.valid_from < '9999-12-31'",
-                    "pk_fuhito_org_unit", "idx_fuhito_employment_employer");
-            assertIndexes(statement, "select count(e.id) " + employer
-                    + " and (e.valid_to is null or e.valid_to > '2026-04-01')",
-                    "pk_fuhito_org_unit", "idx_fuhito_employment_employer");
+            String employer = "select e.realm_id, count(e.id) from fuhito_employment e"
+                    + " where e.employer_id = 'ex-new-unit-2' and ";
+            assertIndexes(statement, employer + "e.valid_from >= '2026-01-01' and e.valid_from < '9999-12-31'"
+                    + " group by e.realm_id", "idx_fuhito_employment_employer");
+            assertIndexes(statement, employer + "(e.valid_to is null or e.valid_to > '2026-04-01') group by e.realm_id",
+                    "idx_fuhito_employment_employer");
         });
     }
 
@@ -99,8 +97,8 @@ class ReadsByIdPlansIT {
                         .formatted(table[0], table[1]), "pk_fuhito_" + table[0]);
             }
             assertIndexes(statement, """
-                    delete from fuhito_external_id x where x.realm_id = 'ex-new-realm'
-                    and x.resource_kind = 'ASSIGNMENT' and x.resource_id = any('{ex-new-assignment-7,ex-new-assignment-8}')
+                    delete from fuhito_external_id x where x.realm_id = 'ex-new-realm' and x.resource_kind = 'ASSIGNMENT'
+                    and x.resource_id = any('{ex-new-assignment-7,ex-new-assignment-8}')
                     and not exists (select a.id from fuhito_assignment a where a.assignment_id = x.resource_id)""",
                     "uk_fuhito_external_id_source", BY_ASSIGNMENT);
         });

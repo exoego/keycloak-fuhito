@@ -383,29 +383,31 @@ public class JpaOrgUnitStore implements OrgUnitStore {
         return searchQuery(hierarchyId, search, date, null, true, Long.class).getSingleResult();
     }
 
+    // The employments are found by the employer alone and counted for each realm, for the reason in Rows.inRealm.
     @Override
     public long employmentsStartingIn(String employerId, LocalDate from, LocalDate to) {
-        return em.createQuery("""
-                        select count(e) from EmploymentEntity e where e.employerId = :employerId and %s
-                        and e.validFrom >= :from and e.validFrom < :to"""
-                        .formatted(Rows.ofUnit("e.realmId", "employerId")), Long.class)
-                .setParameter("realmId", realmId)
+        return countInRealm(em.createQuery("""
+                        select e.realmId, count(e) from EmploymentEntity e where e.employerId = :employerId
+                        and e.validFrom >= :from and e.validFrom < :to group by e.realmId""", Object[].class)
                 .setParameter("employerId", employerId)
                 .setParameter("from", from)
-                .setParameter("to", to == null ? LocalDate.of(9999, 12, 31) : to)
-                .getSingleResult();
+                .setParameter("to", to == null ? LocalDate.of(9999, 12, 31) : to));
     }
 
     @Override
     public long employmentsHoldingFrom(String employerId, LocalDate date) {
-        return em.createQuery("""
-                        select count(e) from EmploymentEntity e where e.employerId = :employerId and %s
-                        and (e.validTo is null or e.validTo > :date)"""
-                        .formatted(Rows.ofUnit("e.realmId", "employerId")), Long.class)
-                .setParameter("realmId", realmId)
+        return countInRealm(em.createQuery("""
+                        select e.realmId, count(e) from EmploymentEntity e where e.employerId = :employerId
+                        and (e.validTo is null or e.validTo > :date) group by e.realmId""", Object[].class)
                 .setParameter("employerId", employerId)
-                .setParameter("date", date)
-                .getSingleResult();
+                .setParameter("date", date));
+    }
+
+    private long countInRealm(TypedQuery<Object[]> counts) {
+        return counts.getResultStream()
+                .filter(Rows.inRealm(realmId, row -> (String) row[0]))
+                .mapToLong(row -> (Long) row[1])
+                .sum();
     }
 
     @Override
