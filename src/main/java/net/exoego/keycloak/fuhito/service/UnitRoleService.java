@@ -14,6 +14,7 @@ import net.exoego.keycloak.fuhito.domain.Localized;
 import net.exoego.keycloak.fuhito.domain.OrgUnitName;
 import net.exoego.keycloak.fuhito.domain.OrgUnitVersion;
 import net.exoego.keycloak.fuhito.domain.RefItem;
+import net.exoego.keycloak.fuhito.domain.RefItemName;
 import net.exoego.keycloak.fuhito.domain.RefKind;
 import net.exoego.keycloak.fuhito.domain.UnitRole;
 import net.exoego.keycloak.fuhito.domain.ValidPeriod;
@@ -40,11 +41,11 @@ public class UnitRoleService {
      * A role on a date, with the names that show it.
      *
      * @param view the role with the code of its reference item
-     * @param roleName the name of the role on the date, or null when the role is unknown
+     * @param roleNames the names of the role on the date, or null when the role is unknown
      * @param orgUnitNames the names of the org unit on the date, or null when the unit does not exist on the
      *        date
      */
-    public record Holder(View view, String roleName, Localized<OrgUnitName> orgUnitNames) {
+    public record Holder(View view, Localized<RefItemName> roleNames, Localized<OrgUnitName> orgUnitNames) {
     }
 
     /**
@@ -203,7 +204,7 @@ public class UnitRoleService {
         return roles.stream().map(role -> {
             Optional<RefItem> item = Optional.ofNullable(items.get(role.roleId()));
             return new Holder(new View(role, item.map(RefItem::code).orElse(null)),
-                    item.map(RefItem::name).orElse(null), unitNames.get(role.orgUnitId()));
+                    item.map(RefItem::names).orElse(null), unitNames.get(role.orgUnitId()));
         }).toList();
     }
 

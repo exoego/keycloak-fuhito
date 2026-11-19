@@ -335,8 +335,8 @@ class EmploymentsIT {
         String employment = created(scratchApi.post("/employments", "{\"userId\": \"" + scratch.user("taro")
                 + "\", \"validFrom\": \"2026-04-01\", \"validTo\": \"2028-04-01\"}")).get("id").asText();
 
-        assertEquals("ref_item.legal_entity_in_use", errorOf(409, scratchApi.putWithVersion("/ref-items/" + type, "{\"name\": \"法人\"}")));
-        assertEquals(200, scratchApi.putWithVersion("/ref-items/" + type, "{\"name\": \"会社\", \"legalEntity\": true}").statusCode());
+        assertEquals("ref_item.legal_entity_in_use", errorOf(409, scratchApi.putWithVersion("/ref-items/" + type, "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"法人\"}}}")));
+        assertEquals(200, scratchApi.putWithVersion("/ref-items/" + type, "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"会社\"}}, \"legalEntity\": true}").statusCode());
         assertEquals("org_unit.is_employer", errorOf(409, scratchApi.putWithVersion("/org-units/" + company,
                 "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"株式会社Z\"}}, \"unitType\": \"department\", \"validFrom\": \"2026-01-01\"}")));
         assertEquals("org_unit.is_employer", errorOf(409, scratchApi.putWithVersion("/org-units/" + company,

@@ -6,6 +6,7 @@ import java.util.Map;
 
 import net.exoego.keycloak.fuhito.domain.OrgUnitName;
 import net.exoego.keycloak.fuhito.domain.PersonName;
+import net.exoego.keycloak.fuhito.domain.RefItemName;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 
 @Schema(
@@ -611,16 +612,16 @@ public record ImportDocument(
     @Schema(
             name = "ImportRefItemRow",
             description = "A reference item. It is matched by kind and code.",
-            requiredProperties = {"kind", "code", "name"})
+            requiredProperties = {"kind", "code", "primaryLanguage", "names"})
     public record RefItemRow(
             @Schema(description = "A fixed kind such as `UNIT_TYPE`, or the code of a kind that the realm added.")
             String kind,
             @Schema(maxLength = 64, pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$")
             String code,
-            @Schema(description = "The default name.", maxLength = 255)
-            String name,
-            @Schema(description = "Names in other languages, by language tag.")
-            Map<String, String> names,
+            @Schema(description = "The language tag of the primary name, such as `ja`. It is a key of `names`.")
+            String primaryLanguage,
+            @Schema(description = "The names by language tag, such as `ja`, `en`, or `zh-Hant`.")
+            Map<String, RefItemName> names,
             @Schema(description = "The position in lists.", defaultValue = "0")
             Integer displayOrder,
             @Schema(description = "Free values that the realm defines.")
@@ -648,15 +649,15 @@ public record ImportDocument(
          *
          * @param kind the kind
          * @param code the code
-         * @param name the default name
-         * @param names the names in other languages, or null
+         * @param primaryLanguage the tag of the language of the primary name
+         * @param names the names by language tag
          * @param displayOrder the position in lists, or null
          * @param attributes free values, or null
          * @param active false to stop the use of the item for new data, or null
          */
-        public RefItemRow(String kind, String code, String name, Map<String, String> names, Integer displayOrder,
-                Map<String, Object> attributes, Boolean active) {
-            this(kind, code, name, names, displayOrder, attributes, active, null, null, null, null);
+        public RefItemRow(String kind, String code, String primaryLanguage, Map<String, RefItemName> names,
+                Integer displayOrder, Map<String, Object> attributes, Boolean active) {
+            this(kind, code, primaryLanguage, names, displayOrder, attributes, active, null, null, null, null);
         }
     }
 

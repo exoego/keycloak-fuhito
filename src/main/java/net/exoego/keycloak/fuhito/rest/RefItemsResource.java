@@ -85,7 +85,7 @@ public class RefItemsResource {
         context.requireReadStructure();
         return Calls.run(context, () -> service.list(kind, includeInactive, limit.checked(asOf), Page.of(first, max))
                 .stream()
-                .map(item -> RefItemRepresentation.of(limit.readable(item)))
+                .map(item -> RefItemRepresentation.of(limit.readable(item), context.nameLanguage()))
                 .toList());
     }
 
@@ -121,7 +121,8 @@ public class RefItemsResource {
                     schema = @Schema(format = "date"))
             @QueryParam("asOf") String asOf) {
         context.requireReadStructure();
-        return Calls.run(context, () -> RefItemRepresentation.of(limit.readable(service.get(id, limit.checked(asOf)))));
+        return Calls.run(context, () -> RefItemRepresentation.of(
+                limit.readable(service.get(id, limit.checked(asOf))), context.nameLanguage()));
     }
 
     @GET
@@ -140,7 +141,7 @@ public class RefItemsResource {
         context.requireReadStructure();
         return Calls.run(context, () -> {
             limit.requireEveryDate();
-            return RefItemHistoryRepresentation.of(service.history(id));
+            return RefItemHistoryRepresentation.of(service.history(id), context.nameLanguage());
         });
     }
 
@@ -148,8 +149,8 @@ public class RefItemsResource {
     @Operation(
             operationId = "createRefItem",
             summary = "Creates an item.",
-            description = "The body needs `kind`, `code`, and `name`. With `validFrom`, the names hold from that "
-                    + "date. Without it, they hold for every date.")
+            description = "The body needs `kind`, `code`, `primaryLanguage`, and `names`. With `validFrom`, the names "
+                    + "hold from that date. Without it, they hold for every date.")
     @Parameter(ref = "changeOrder")
     @APIResponse(
             responseCode = "201",
@@ -162,9 +163,9 @@ public class RefItemsResource {
         context.requireWrite();
         return Calls.run(context, () -> {
             Checks.required("body", body);
-            var item = RefItemRepresentation.of(service.create(body.kind(), body.code(), body.name(),
+            var item = RefItemRepresentation.of(service.create(body.kind(), body.code(), body.primaryLanguage(),
                     body.names(), body.displayOrder(), body.attributes(), body.marks(),
-                    !Boolean.FALSE.equals(body.active()), body.validFrom()));
+                    !Boolean.FALSE.equals(body.active()), body.validFrom()), context.nameLanguage());
             context.recordChange(Change.CREATE, RESOURCE_TYPE, item.id(), path(item.id()), item);
             return Response.status(Response.Status.CREATED).entity(item).build();
         });
@@ -193,8 +194,9 @@ public class RefItemsResource {
             RefItemRepresentation body) {
         context.requireWrite();
         return Calls.guarded(context, body, () -> service.version(id), () -> {
-            var item = RefItemRepresentation.of(service.update(id, body.name(), body.names(), body.displayOrder(),
-                    body.attributes(), body.active(), body.marks(), body.validFrom()));
+            var item = RefItemRepresentation.of(service.update(id, body.primaryLanguage(), body.names(),
+                    body.displayOrder(), body.attributes(), body.active(), body.marks(), body.validFrom()),
+                    context.nameLanguage());
             context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, path(id), item);
             return item;
         });

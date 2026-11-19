@@ -11,8 +11,10 @@ import java.util.function.Predicate;
 import net.exoego.keycloak.fuhito.domain.AttributeDefinition;
 import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
+import net.exoego.keycloak.fuhito.domain.Localized;
 import net.exoego.keycloak.fuhito.domain.RefItem;
 import net.exoego.keycloak.fuhito.domain.RefItemName;
+import net.exoego.keycloak.fuhito.domain.RefItemPeriod;
 import net.exoego.keycloak.fuhito.domain.RefKind;
 import net.exoego.keycloak.fuhito.store.RefItemStore;
 
@@ -28,7 +30,7 @@ public class RefItemService {
      * @param item the item with the names of today
      * @param names the names, oldest first
      */
-    public record History(RefItem item, List<RefItemName> names) {
+    public record History(RefItem item, List<RefItemPeriod> names) {
     }
 
     private final RefItemStore store;
@@ -210,16 +212,16 @@ public class RefItemService {
      *
      * @param kind the kind
      * @param code the code, which must be new for the kind
-     * @param name the default name
-     * @param names the names in other languages, or null
+     * @param primaryLanguage the tag of the language of the primary name
+     * @param names the names by language tag
      * @param displayOrder the position in lists, or null for 0
      * @param attributes free values, or null
      * @return the new item
      * @throws FuhitoException when a value is bad or the code is taken
      */
-    public RefItem create(RefKind kind, String code, String name, Map<String, String> names, Integer displayOrder,
-            Map<String, Object> attributes) {
-        return create(kind, code, name, names, displayOrder, attributes, Marks.NONE);
+    public RefItem create(RefKind kind, String code, String primaryLanguage, Map<String, RefItemName> names,
+            Integer displayOrder, Map<String, Object> attributes) {
+        return create(kind, code, primaryLanguage, names, displayOrder, attributes, Marks.NONE);
     }
 
     /**
@@ -227,17 +229,18 @@ public class RefItemService {
      *
      * @param kind the kind
      * @param code the code
-     * @param name the default name
-     * @param names the names in other languages, or null
+     * @param primaryLanguage the tag of the language of the primary name
+     * @param names the names by language tag
      * @param displayOrder the position in lists, or null for 0
      * @param attributes free values, or null
      * @param marks the marks
      * @return the new item
      * @throws FuhitoException when a value is bad, the code is taken, or the kind cannot have a mark
      */
-    public RefItem create(RefKind kind, String code, String name, Map<String, String> names, Integer displayOrder,
-            Map<String, Object> attributes, Marks marks) {
-        return create(Checks.required("kind", kind).name(), code, name, names, displayOrder, attributes, marks);
+    public RefItem create(RefKind kind, String code, String primaryLanguage, Map<String, RefItemName> names,
+            Integer displayOrder, Map<String, Object> attributes, Marks marks) {
+        return create(Checks.required("kind", kind).name(), code, primaryLanguage, names, displayOrder, attributes,
+                marks);
     }
 
     /**
@@ -245,8 +248,8 @@ public class RefItemService {
      *
      * @param kind the code of the kind
      * @param code the code
-     * @param name the default name
-     * @param names the names in other languages, or null
+     * @param primaryLanguage the tag of the language of the primary name
+     * @param names the names by language tag
      * @param displayOrder the position in lists, or null for 0
      * @param attributes free values, or null
      * @param marks the marks
@@ -254,9 +257,9 @@ public class RefItemService {
      * @throws FuhitoException when a value is bad, the kind is unknown, the code is taken, or the kind cannot have a
      *         mark
      */
-    public RefItem create(String kind, String code, String name, Map<String, String> names, Integer displayOrder,
-            Map<String, Object> attributes, Marks marks) {
-        return create(kind, code, name, names, displayOrder, attributes, marks, true, null);
+    public RefItem create(String kind, String code, String primaryLanguage, Map<String, RefItemName> names,
+            Integer displayOrder, Map<String, Object> attributes, Marks marks) {
+        return create(kind, code, primaryLanguage, names, displayOrder, attributes, marks, true, null);
     }
 
     /**
@@ -265,8 +268,8 @@ public class RefItemService {
      *
      * @param kind the code of the kind
      * @param code the code
-     * @param name the default name
-     * @param names the names in other languages, or null
+     * @param primaryLanguage the tag of the language of the primary name
+     * @param names the names by language tag
      * @param displayOrder the position in lists, or null for 0
      * @param attributes free values, or null
      * @param marks the marks
@@ -277,16 +280,16 @@ public class RefItemService {
      * @throws FuhitoException when a value is bad, the kind is unknown, the code is taken, or the kind cannot have a
      *         mark
      */
-    public RefItem create(String kind, String code, String name, Map<String, String> names, Integer displayOrder,
-            Map<String, Object> attributes, Marks marks, boolean active, String validFrom) {
+    public RefItem create(String kind, String code, String primaryLanguage, Map<String, RefItemName> names,
+            Integer displayOrder, Map<String, Object> attributes, Marks marks, boolean active, String validFrom) {
         knownKind(kind);
         Checks.code("code", code);
         LocalDate from = Checks.optionalDate("validFrom", validFrom);
         if (store.findByCode(kind, code).isPresent()) {
             throw FuhitoException.conflict("ref_item.code_taken", Map.of("kind", kind, "code", code));
         }
-        RefItem item = item(newId(), kind, code, name, names, displayOrder, attributes, active, marks, 1);
-        RefItemName first = new RefItemName(newId(), item.id(), from, null, item.name(), item.names());
+        RefItem item = item(newId(), kind, code, primaryLanguage, names, displayOrder, attributes, active, marks, 1);
+        RefItemPeriod first = new RefItemPeriod(newId(), item.id(), from, null, item.names());
         store.insert(item, List.of(first));
         return item.withNames(first);
     }
@@ -296,17 +299,17 @@ public class RefItemService {
      * never change.
      *
      * @param id the ID
-     * @param name the default name
-     * @param names the names in other languages, or null for none
+     * @param primaryLanguage the tag of the language of the primary name
+     * @param names the names by language tag
      * @param displayOrder the position in lists, or null for 0
      * @param attributes free values, or null for none
      * @param active false to stop the use of the item for new data, or null for true
      * @return the changed item
      * @throws FuhitoException when the item does not exist or a value is bad
      */
-    public RefItem update(String id, String name, Map<String, String> names, Integer displayOrder,
+    public RefItem update(String id, String primaryLanguage, Map<String, RefItemName> names, Integer displayOrder,
             Map<String, Object> attributes, Boolean active) {
-        return update(id, name, names, displayOrder, attributes, active, Marks.of(stored(id)), null);
+        return update(id, primaryLanguage, names, displayOrder, attributes, active, Marks.of(stored(id)), null);
     }
 
     /**
@@ -315,8 +318,8 @@ public class RefItemService {
      * of a period correct that period. New names before the first period hold until it starts.
      *
      * @param id the ID
-     * @param name the default name
-     * @param names the names in other languages, or null for none
+     * @param primaryLanguage the tag of the language of the primary name
+     * @param names the names by language tag
      * @param displayOrder the position in lists, or null for 0
      * @param attributes free values, or null for none
      * @param active false to stop the use of the item for new data, or null for true
@@ -326,38 +329,38 @@ public class RefItemService {
      * @throws FuhitoException when the item does not exist, a value is bad, the kind cannot have a mark, or the
      *         mark of a legal entity is in use
      */
-    public RefItem update(String id, String name, Map<String, String> names, Integer displayOrder,
+    public RefItem update(String id, String primaryLanguage, Map<String, RefItemName> names, Integer displayOrder,
             Map<String, Object> attributes, Boolean active, Marks marks, String validFrom) {
         LocalDate from = Checks.optionalDate("validFrom", validFrom);
         RefItem current = stored(id);
         if (current.legalEntity() && !Boolean.TRUE.equals(marks.legalEntity()) && store.isTypeOfAnEmployer(id)) {
             throw FuhitoException.conflict("ref_item.legal_entity_in_use", Map.of("id", id, "code", current.code()));
         }
-        RefItem changed = item(current.id(), current.kind(), current.code(), name, names, displayOrder, attributes,
-                active == null || active, marks, current.version());
+        RefItem changed = item(current.id(), current.kind(), current.code(), primaryLanguage, names, displayOrder,
+                attributes, active == null || active, marks, current.version());
         // Only org units refer to a unit type, so an item in use is the type of an org unit.
         if (changed.lateral() != current.lateral() && store.isInUse(id)) {
             throw FuhitoException.conflict("ref_item.lateral_in_use", Map.of("id", id, "code", current.code()));
         }
         store.update(changed);
         LocalDate date = from == null ? today.ofRealm() : from;
-        rename(id, from, date, changed.name(), changed.names());
+        rename(id, from, date, changed.names());
         return store.find(id, date).orElseThrow();
     }
 
     // Names that are the same as the ones of the date change nothing, so they split no period.
-    private void rename(String id, LocalDate from, LocalDate date, String name, Map<String, String> names) {
-        RefItemName held = RefItemName.on(store.names(id), date);
-        if (held.name().equals(name) && held.names().equals(names)) {
+    private void rename(String id, LocalDate from, LocalDate date, Localized<RefItemName> names) {
+        RefItemPeriod held = RefItemPeriod.on(store.names(id), date);
+        if (held.names().equals(names)) {
             return;
         }
         if (from == null || from.equals(held.validFrom())) {
-            store.updateNames(held.renamed(name, names));
+            store.updateNames(held.renamed(names));
         } else if (held.holdsOn(from)) {
             store.updateNames(held.endingAt(from));
-            store.insertNames(new RefItemName(newId(), id, from, held.validTo(), name, names));
+            store.insertNames(new RefItemPeriod(newId(), id, from, held.validTo(), names));
         } else {
-            store.insertNames(new RefItemName(newId(), id, from, held.validFrom(), name, names));
+            store.insertNames(new RefItemPeriod(newId(), id, from, held.validFrom(), names));
         }
     }
 
@@ -375,18 +378,18 @@ public class RefItemService {
         store.delete(id);
     }
 
-    private RefItem item(String id, String kind, String code, String name, Map<String, String> names,
-            Integer displayOrder, Map<String, Object> attributes, boolean active, Marks marks, long version) {
+    private RefItem item(String id, String kind, String code, String primaryLanguage,
+            Map<String, RefItemName> names, Integer displayOrder, Map<String, Object> attributes, boolean active,
+            Marks marks, long version) {
         boolean legalEntity = mark(kind, RefKind.UNIT_TYPE, marks.legalEntity(), "ref_item.legal_entity_kind");
         boolean actingHead = mark(kind, RefKind.ASSIGNMENT_KIND, marks.actingHead(), "ref_item.acting_head_kind");
         boolean lateral = mark(kind, RefKind.UNIT_TYPE, marks.lateral(), "ref_item.lateral_kind");
         if (legalEntity && lateral) {
             throw FuhitoException.invalid("ref_item.lateral_legal_entity", Map.of("code", code));
         }
-        return new RefItem(id, kind, code, Checks.name("name", name), Checks.localizedNames("names", names),
-                displayOrder == null ? 0 : displayOrder,
-                attributeRules.check(AttributeDefinition.Target.REF_ITEM, attributes), active,
-                legalEntity, actingHead, lateral, version, null, null);
+        return new RefItem(id, kind, code, RefItemName.check(primaryLanguage, names),
+                displayOrder == null ? 0 : displayOrder, attributeRules.check(AttributeDefinition.Target.REF_ITEM, attributes),
+                active, legalEntity, actingHead, lateral, version, null, null);
     }
 
     private static boolean mark(String kind, RefKind allowed, Boolean value, String error) {

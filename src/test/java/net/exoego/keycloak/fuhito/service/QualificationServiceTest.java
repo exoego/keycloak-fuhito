@@ -38,7 +38,7 @@ class QualificationServiceTest {
     @BeforeEach
     void defineKinds() {
         for (String code : List.of("physician-license", "narcotics-license", "specialist")) {
-            refItems.insert(new RefItem("kind-" + code, RefKind.QUALIFICATION, code, code, Map.of(), 0, Map.of(),
+            refItems.insert(new RefItem("kind-" + code, RefKind.QUALIFICATION, code, ItemNames.of(code), 0, Map.of(),
                     true));
         }
     }
@@ -53,9 +53,9 @@ class QualificationServiceTest {
 
     @Test
     void listsQualificationsByKindAndDate() {
-        refItems.insert(new RefItem("license", RefKind.QUALIFICATION, "license", "License", Map.of(), 0, Map.of(),
+        refItems.insert(new RefItem("license", RefKind.QUALIFICATION, "license", ItemNames.of("License"), 0, Map.of(),
                 true));
-        refItems.insert(new RefItem("course", RefKind.QUALIFICATION, "course", "Course", Map.of(), 0, Map.of(),
+        refItems.insert(new RefItem("course", RefKind.QUALIFICATION, "course", ItemNames.of("Course"), 0, Map.of(),
                 true));
         service.add(of("doctor", "license", "1", "2010-05-01", null));
         service.add(of("nurse", "license", "2", "2020-05-01", "2025-05-01"));
@@ -143,7 +143,7 @@ class QualificationServiceTest {
     @Test
     void aQualificationMayKeepADeactivatedKindButNotTakeANewOne() {
         String id = service.add(of("doctor", "specialist", null, "2018-04-01", null)).qualification().id();
-        refItems.update(new RefItem("kind-specialist", RefKind.QUALIFICATION, "specialist", "x", Map.of(), 0,
+        refItems.update(new RefItem("kind-specialist", RefKind.QUALIFICATION, "specialist", ItemNames.of("x"), 0,
                 Map.of(), false));
 
         assertEquals("specialist", service.replace(id, of(null, "specialist", "N", "2018-04-01", null)).kind());

@@ -93,7 +93,7 @@ class AttributeSyncIT {
         String hospital = unit("X病院", null, null);
         String medicine = unit("内科", "naika", hospital);
         String surgery = unit("外科", null, hospital);
-        assertEquals(201, api.post("/ref-items", "{\"kind\": \"JOB_TITLE\", \"code\": \"director\", \"name\": \"部長\"}").statusCode());
+        assertEquals(201, api.post("/ref-items", "{\"kind\": \"JOB_TITLE\", \"code\": \"director\", \"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"部長\"}}}").statusCode());
         String boss = user("boss", Map.of("department", "naika", "title", "部長", "employeeNumber", "E-001"));
         String chief = user("chief", Map.of("department", "外科"));
         String alice = user("alice", Map.of("department", "内科", "manager", boss, "employeeNumber", "E-002"));
@@ -150,7 +150,7 @@ class AttributeSyncIT {
         // A new title changes the assignment of the boss. The sync names no version, and counts it up.
         String bossAssignment = "/assignments/" + assignmentsOf(boss).get(0).get("assignmentId").asText();
         long before = Api.json(api.get(bossAssignment)).get("version").asLong();
-        assertEquals(201, api.post("/ref-items", "{\"kind\": \"JOB_TITLE\", \"code\": \"head\", \"name\": \"院長\"}").statusCode());
+        assertEquals(201, api.post("/ref-items", "{\"kind\": \"JOB_TITLE\", \"code\": \"head\", \"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"院長\"}}}").statusCode());
         setAttributes(boss, Map.of("department", "naika", "title", "院長", "employeeNumber", "E-001"));
         assertEquals(1, run("").get("assignmentsChanged").asInt());
         assertEquals(before + 1, Api.json(api.get(bossAssignment)).get("version").asLong());
@@ -221,7 +221,7 @@ class AttributeSyncIT {
         createRealm(Map.of("fuhito.sync.enabled", "true", "fuhito.sync.attribute.department", "busho",
                 "fuhito.sync.attribute.title", "yakushoku"));
         String section = unit("総務課", null, null);
-        assertEquals(201, api.post("/ref-items", "{\"kind\": \"JOB_TITLE\", \"code\": \"kacho\", \"name\": \"課長\"}").statusCode());
+        assertEquals(201, api.post("/ref-items", "{\"kind\": \"JOB_TITLE\", \"code\": \"kacho\", \"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"課長\"}}}").statusCode());
         String user = user("kacho", Map.of("busho", "総務課", "yakushoku", "kacho", "department", "ignored"));
 
         JsonNode report = run("");

@@ -17,8 +17,8 @@ class ImportIT {
             {"effectiveDate": "2026-04-01", "source": "sheet", %s
              "attributeDefinitions": [{"target": "ORG_UNIT", "name": "beds", "type": "NUMBER"}],
              "refItems": [
-               {"kind": "UNIT_TYPE", "code": "hospital", "name": "病院", "names": {"en": "Hospital"}},
-               {"kind": "UNIT_TYPE", "code": "department", "name": "部"}
+               {"kind": "UNIT_TYPE", "code": "hospital", "primaryLanguage": "ja", "names": {"ja": {"name": "病院"}, "en": {"name": "Hospital"}}},
+               {"kind": "UNIT_TYPE", "code": "department", "primaryLanguage": "ja", "names": {"ja": {"name": "部"}}}
              ],
              "orgUnits": [
                {"externalId": "W1", "primaryLanguage": "ja", "names": {"ja": {"name": "1病棟", "phoneticName": "いちびょうとう"}}, "parentExternalId": "N"},
@@ -48,8 +48,8 @@ class ImportIT {
         Api api = realm.api;
         String document = """
                 {"effectiveDate": "2026-04-01", "refItems": [
-                  {"kind": "JOB_TITLE", "code": "m1", "name": "課長", "validFrom": "2015-04-01"},
-                  {"kind": "JOB_TITLE", "code": "m1", "name": "マネージャー", "validFrom": "2023-04-01"}
+                  {"kind": "JOB_TITLE", "code": "m1", "primaryLanguage": "ja", "names": {"ja": {"name": "課長"}}, "validFrom": "2015-04-01"},
+                  {"kind": "JOB_TITLE", "code": "m1", "primaryLanguage": "ja", "names": {"ja": {"name": "マネージャー"}, "en": {"name": "Manager"}}, "validFrom": "2023-04-01"}
                 ]}
                 """;
 
@@ -61,10 +61,12 @@ class ImportIT {
         assertEquals(2, again.get("counts").get("refItems").get("unchanged").asInt());
         String id = Api.json(api.get("/ref-items?kind=JOB_TITLE")).get(0).get("id").asText();
         JsonNode versions = Api.json(api.get("/ref-items/" + id + "/history")).get("versions");
-        assertEquals(List.of("課長", "マネージャー"), versions.findValuesAsText("name"));
+        assertEquals(List.of("課長", "マネージャー"), Api.names(versions));
         assertEquals(List.of("2015-04-01", "2023-04-01"), versions.findValuesAsText("validFrom"));
         assertEquals("課長", Api.json(api.get("/ref-items/" + id + "?asOf=2020-01-01")).get("name").asText());
         assertEquals("マネージャー", Api.json(api.get("/ref-items/" + id + "?asOf=2023-04-01")).get("name").asText());
+        assertEquals("Manager", Api.json(api.withAcceptLanguage("en").get("/ref-items/" + id + "?asOf=2023-04-01"))
+                .get("name").asText());
     }
 
     @Test
@@ -211,9 +213,9 @@ class ImportIT {
         JsonNode first = ok(api.post("/imports", """
                 {"effectiveDate": "2026-04-01", "source": "sheet",
                  "refItems": [
-                   {"kind": "OCCUPATION", "code": "nurse", "name": "看護師"},
-                   {"kind": "EMPLOYMENT_TYPE", "code": "part-time", "name": "非常勤"},
-                   {"kind": "END_REASON", "code": "resignation", "name": "退職"}
+                   {"kind": "OCCUPATION", "code": "nurse", "primaryLanguage": "ja", "names": {"ja": {"name": "看護師"}}},
+                   {"kind": "EMPLOYMENT_TYPE", "code": "part-time", "primaryLanguage": "ja", "names": {"ja": {"name": "非常勤"}}},
+                   {"kind": "END_REASON", "code": "resignation", "primaryLanguage": "ja", "names": {"ja": {"name": "退職"}}}
                  ],
                  "orgUnits": [
                    {"externalId": "H", "primaryLanguage": "ja", "names": {"ja": {"name": "X病院"}}},
@@ -284,7 +286,7 @@ class ImportIT {
         realm.user("suzuki");
         ok(api.post("/imports", """
                 {"effectiveDate": "2020-04-01", "source": "sheet",
-                 "refItems": [{"kind": "UNIT_TYPE", "code": "company", "name": "会社", "legalEntity": true}],
+                 "refItems": [{"kind": "UNIT_TYPE", "code": "company", "primaryLanguage": "ja", "names": {"ja": {"name": "会社"}}, "legalEntity": true}],
                  "orgUnits": [
                    {"externalId": "X", "primaryLanguage": "ja", "names": {"ja": {"name": "医療法人X会"}}, "unitType": "company"},
                    {"externalId": "Y", "primaryLanguage": "ja", "names": {"ja": {"name": "株式会社Yサービス"}}, "unitType": "company"},
@@ -387,7 +389,7 @@ class ImportIT {
         String suzuki = realm.user("suzuki");
         String document = """
                 {"effectiveDate": "2026-04-01", "source": "sheet",
-                 "refItems": [{"kind": "UNIT_TYPE", "code": "company", "name": "会社", "legalEntity": true}],
+                 "refItems": [{"kind": "UNIT_TYPE", "code": "company", "primaryLanguage": "ja", "names": {"ja": {"name": "会社"}}, "legalEntity": true}],
                  "orgUnits": [
                    {"externalId": "X", "primaryLanguage": "ja", "names": {"ja": {"name": "医療法人X会"}}, "unitType": "company"},
                    {"externalId": "Y", "primaryLanguage": "ja", "names": {"ja": {"name": "株式会社Yサービス"}}, "unitType": "company"},

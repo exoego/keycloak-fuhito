@@ -66,12 +66,13 @@ class RealmKindServiceTest {
         assertTrue(kinds.isKnown("GRADE"));
         assertFalse(kinds.isKnown("cost-center"));
 
-        refItems.create("work-location", "tokyo", "東京", null, null, null, RefItemService.Marks.NONE);
+        refItems.create("work-location", "tokyo", "ja", ItemNames.japanese("東京"), null, null,
+                RefItemService.Marks.NONE);
         assertEquals(List.of("tokyo"), refItems.list("work-location", false, null, Page.of(null, null)).stream()
                 .map(item -> item.code()).toList());
-        assertEquals("invalid.kind", code(() -> refItems.create("cost-center", "c1", "C1", null, null, null,
+        assertEquals("invalid.kind", code(() -> refItems.create("cost-center", "c1", "en", ItemNames.english("C1"), null, null,
                 RefItemService.Marks.NONE)));
-        assertEquals("ref_item.lateral_kind", code(() -> refItems.create("work-location", "osaka", "大阪", null, null,
+        assertEquals("ref_item.lateral_kind", code(() -> refItems.create("work-location", "osaka", "ja", ItemNames.japanese("大阪"), null,
                 null, new RefItemService.Marks(null, null, true))));
 
         // An attribute can point to the kind of the realm.

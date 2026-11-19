@@ -171,7 +171,7 @@ final class TestRealm {
     static String legalEntity(Api api, String entityName) {
         try {
             var type = api.post("/ref-items", "{\"kind\": \"UNIT_TYPE\", \"code\": \"legal-entity\", "
-                    + "\"name\": \"法人\", \"legalEntity\": true}");
+                    + "\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"法人\"}}, \"legalEntity\": true}");
             // The type is there already when the realm has a legal entity.
             assertTrue(type.statusCode() == 201 || type.statusCode() == 409, type.body());
             var response = api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \""
@@ -186,7 +186,7 @@ final class TestRealm {
     /** Creates a reference item and returns its ID. */
     String refItem(String kind, String code, String itemName) throws Exception {
         var response = api.post("/ref-items",
-                "{\"kind\": \"" + kind + "\", \"code\": \"" + code + "\", \"name\": \"" + itemName + "\"}");
+                "{\"kind\": \"" + kind + "\", \"code\": \"" + code + "\", \"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"" + itemName + "\"}}}");
         assertEquals(201, response.statusCode(), response.body());
         return Api.json(response).get("id").asText();
     }

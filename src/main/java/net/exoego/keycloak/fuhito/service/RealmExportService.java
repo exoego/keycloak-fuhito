@@ -37,6 +37,7 @@ import net.exoego.keycloak.fuhito.domain.Qualification;
 import net.exoego.keycloak.fuhito.domain.RealmKind;
 import net.exoego.keycloak.fuhito.domain.RefItem;
 import net.exoego.keycloak.fuhito.domain.RefItemName;
+import net.exoego.keycloak.fuhito.domain.RefItemPeriod;
 import net.exoego.keycloak.fuhito.domain.ReportingLine;
 import net.exoego.keycloak.fuhito.domain.UnitRole;
 import net.exoego.keycloak.fuhito.domain.ValidPeriod;
@@ -168,13 +169,12 @@ public class RealmExportService {
         }
         Map<String, List<RealmExport.ItemNames>> names = stores.export()
                 .namesOf(items.stream().map(RefItem::id).toList()).stream()
-                .sorted(Comparator.comparing(RefItemName::validFrom, Comparator.nullsFirst(Comparator.naturalOrder())))
-                .collect(Collectors.groupingBy(RefItemName::refItemId, Collectors.mapping(
-                        n -> new RealmExport.ItemNames(n.id(), text(n.validFrom()), text(n.validTo()), n.name(),
-                                n.names()),
+                .collect(Collectors.groupingBy(RefItemPeriod::refItemId, Collectors.mapping(
+                        n -> new RealmExport.ItemNames(n.id(), text(n.validFrom()), text(n.validTo()),
+                                n.names().primaryLanguage(), n.names().byLanguage()),
                         Collectors.toList())));
         return new ExportPage(items.stream()
-                .map(i -> new RealmExport.Item(i.id(), i.version(), i.kind(), i.code(), null, null, i.displayOrder(),
+                .map(i -> new RealmExport.Item(i.id(), i.version(), i.kind(), i.code(), i.displayOrder(),
                         i.attributes(), i.active(), i.legalEntity(), i.actingHead(), i.lateral(), names.get(i.id())))
                 .toList(), items.getLast().id());
     }
@@ -393,17 +393,12 @@ public class RealmExportService {
         return ids;
     }
 
-    // An export from before names had periods has one name for every date.
     private void restoreRefItem(RealmExport.Item i) {
-        RefItem item = new RefItem(i.id(), i.kind(), i.code(), i.name(), i.names(), i.displayOrder(), i.attributes(),
-                i.active(), i.legalEntity(), i.actingHead(), i.lateral(), version(i.version()), null, null);
-        if (i.versions() == null) {
-            stores.refItems().insert(item);
-            return;
-        }
-        stores.refItems().insert(item, i.versions().stream()
-                .map(n -> new RefItemName(n.id(), i.id(), date(n.validFrom()), date(n.validTo()), n.name(),
-                        n.names()))
+        RefItem item = new RefItem(i.id(), i.kind(), i.code(), null, i.displayOrder(), i.attributes(), i.active(),
+                i.legalEntity(), i.actingHead(), i.lateral(), version(i.version()), null, null);
+        stores.refItems().insert(item, Checks.required("versions", i.versions()).stream()
+                .map(n -> new RefItemPeriod(n.id(), i.id(), date(n.validFrom()), date(n.validTo()),
+                        RefItemName.check(n.primaryLanguage(), n.names())))
                 .toList());
     }
 

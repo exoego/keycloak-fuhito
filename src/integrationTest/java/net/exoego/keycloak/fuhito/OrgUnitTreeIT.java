@@ -35,7 +35,7 @@ class OrgUnitTreeIT {
         api = new Api(createRealm(admin), token);
         emptyRealmApi = new Api(createRealm(admin), token);
         assertEquals(201, api.post("/ref-items",
-                "{\"kind\": \"UNIT_TYPE\", \"code\": \"hospital\", \"name\": \"病院\"}").statusCode());
+                "{\"kind\": \"UNIT_TYPE\", \"code\": \"hospital\", \"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"病院\"}}}").statusCode());
 
         xHospital = create("X病院", "えっくすびょういん", null, 1, "hospital");
         yHospital = create("Y病院", "わいびょういん", null, 2, "hospital");

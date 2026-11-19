@@ -79,7 +79,7 @@ class RealmExportIT {
         Map<String, String> ids = new HashMap<>();
         USERS.forEach(username -> ids.put(username, source.user(username)));
         ok(api.post("/ref-kinds", "{\"code\": \"site\", \"name\": \"拠点\"}"));
-        ok(api.post("/ref-items", "{\"kind\": \"site\", \"code\": \"tokyo\", \"name\": \"東京\"}"));
+        ok(api.post("/ref-items", "{\"kind\": \"site\", \"code\": \"tokyo\", \"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"東京\"}}}"));
         source.refItem("JOB_TITLE", "chief", "主任");
         source.refItem("LEAVE_REASON", "parental", "育児休業");
         source.refItem("UNIT_ROLE", "approver", "承認者");
@@ -167,8 +167,9 @@ class RealmExportIT {
         TestRealm source = TestRealm.create("export-names");
         Api api = source.api;
         String chief = source.refItem("JOB_TITLE", "chief", "主任");
-        ok(api.putWithVersion("/ref-items/" + chief, "{\"name\": \"主任看護師\", \"validFrom\": \"2024-04-01\"}"));
-        String head = id(api.post("/ref-items", "{\"kind\": \"JOB_TITLE\", \"code\": \"head\", \"name\": \"師長\", "
+        ok(api.putWithVersion("/ref-items/" + chief, "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"主任看護師\"}}, \"validFrom\": \"2024-04-01\"}"));
+        String head = id(api.post("/ref-items", "{\"kind\": \"JOB_TITLE\", \"code\": \"head\", \"primaryLanguage\": \"ja\", "
+                + "\"names\": {\"ja\": {\"name\": \"師長\"}, \"en\": {\"name\": \"Head nurse\"}}, "
                 + "\"validFrom\": \"2021-04-01\"}"));
         ObjectNode first = export(api);
         TestRealm target = TestRealm.create("export-names-target");
@@ -183,21 +184,15 @@ class RealmExportIT {
         assertEquals(2, Api.json(target.api.get("/ref-items/" + chief + "/history")).get("versions").size());
         assertEquals("2021-04-01", Api.json(target.api.get("/ref-items/" + head + "/history")).get("versions").get(0)
                 .get("validFrom").asText());
-
-        // An export from before names had periods has one name for each item. It holds for every date.
-        ObjectNode older = first.deepCopy();
-        older.get("refItems").forEach(row -> {
-            ObjectNode item = (ObjectNode) row;
-            JsonNode versions = item.remove("versions");
-            item.set("name", versions.get(versions.size() - 1).get("name"));
-            item.set("names", versions.get(versions.size() - 1).get("names"));
-        });
-        ok(target.api.post("/restore?replace=true", JSON.writeValueAsString(older)));
-        assertEquals("主任看護師", Api.json(target.api.get("/ref-items/" + chief + "?asOf=2000-01-01")).get("name")
+        assertEquals("Head nurse", Api.json(target.api.withAcceptLanguage("en").get("/ref-items/" + head)).get("name")
                 .asText());
-        JsonNode one = Api.json(target.api.get("/ref-items/" + chief + "/history")).get("versions");
-        assertEquals(1, one.size());
-        assertFalse(one.get(0).has("validFrom"));
+
+        // Every item has names on every date, so a restore needs the periods of its names.
+        ObjectNode nameless = first.deepCopy();
+        nameless.get("refItems").forEach(row -> ((ObjectNode) row).remove("versions"));
+        assertEquals("invalid.required", Api.json(target.api.post("/restore?replace=true",
+                JSON.writeValueAsString(nameless))).get("error").asText());
+        assertEquals("主任", Api.json(target.api.get("/ref-items/" + chief + "?asOf=2024-03-31")).get("name").asText());
     }
 
     // A unit names only the system that made it. Every ID is in the list of IDs.

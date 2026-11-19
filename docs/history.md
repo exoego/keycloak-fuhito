@@ -34,14 +34,14 @@ The ID is the key that never changes. So is `source`, the name of the system tha
 ### Reference items keep their old names
 
 A reference item, such as a job title or a unit type, keeps its old names for old dates.
-Only `name` and `names` have valid periods. The code never changes. The display order, the attributes, `active`, and the marks have no dates.
+Only the names have valid periods. The code never changes. The display order, the attributes, `active`, and the marks have no dates.
 The item itself has no dates either. Data of any date may use it.
 
 - `POST /ref-items` takes `validFrom`. Without it, the first names hold for every date.
 - `PUT /ref-items/{id}` with `validFrom` keeps the old names for the dates before it. A date inside stored names, a date in the past, and the first date of stored names follow the rules of a change on a date below.
 - `PUT /ref-items/{id}` without `validFrom` changes the names of today. This fits a fix of a typo.
 - A date before the first names of an item gets its first names. A write on such a date gives names from that date until the first names start.
-- Names that are the same as the names of the date make no new period.
+- Names that are the same as the names of the date make no new period. Another primary language is a change of the names.
 - `GET /ref-items`, `GET /ref-items/{id}`, the role names of `GET /unit-roles`, and the CSV file of `GET /imports/csv/ref-items` show the names of their date. `GET /ref-items/count` takes no date, because every item has names on every date.
 - `GET /ref-items/{id}/history` lists the names of every period, oldest first.
 - A write of names counts up the version of the item, and adds an entry to the change log.

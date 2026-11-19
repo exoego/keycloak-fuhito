@@ -33,7 +33,7 @@ class LeaveServiceTest {
     void employTheNurse() {
         for (String[] item : new String[][] {{"EMPLOYMENT_TYPE", "part-time"}, {"GRADE", "g1"}, {"GRADE", "g2"},
                 {"LEAVE_REASON", "parental"}}) {
-            refItems.insert(new RefItem(item[0] + "-" + item[1], RefKind.valueOf(item[0]), item[1], item[1], Map.of(),
+            refItems.insert(new RefItem(item[0] + "-" + item[1], RefKind.valueOf(item[0]), item[1], ItemNames.of(item[1]),
                     0, Map.of(), true));
         }
         employment = employments.start(new NewEmployment("nurse", "2026-04-01", "2028-04-01", null, "part-time",

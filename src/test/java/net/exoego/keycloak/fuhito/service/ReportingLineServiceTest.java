@@ -176,7 +176,7 @@ class ReportingLineServiceTest {
 
     @Test
     void anActingHeadLeadsWhileItHoldsAndAHeadOnLeaveIsNoManager() {
-        refItems.insert(new RefItem("acting", RefKind.ASSIGNMENT_KIND, "acting", "Acting", Map.of(), 0, Map.of(),
+        refItems.insert(new RefItem("acting", RefKind.ASSIGNMENT_KIND, "acting", ItemNames.of("Acting"), 0, Map.of(),
                 true, false, true));
         String headNurse = employmentStore.findByPerson("head-nurse").getFirst().id();
         String acting = assignments.add(new AssignmentValues(employ("idle"), nursing, "2026-04-01", null, null,
@@ -207,7 +207,7 @@ class ReportingLineServiceTest {
 
     @Test
     void aLateralUnitGivesNoManager() {
-        refItems.insert(new RefItem("committee", RefKind.UNIT_TYPE, "committee", "Committee", Map.of(), 0, Map.of(),
+        refItems.insert(new RefItem("committee", RefKind.UNIT_TYPE, "committee", ItemNames.of("Committee"), 0, Map.of(),
                 true, false, false, true));
         orgUnitStore.refItems = refItems;
         String committee = orgUnits.create(new NewOrgUnit(null, "ja", ja("Safety"), "committee",

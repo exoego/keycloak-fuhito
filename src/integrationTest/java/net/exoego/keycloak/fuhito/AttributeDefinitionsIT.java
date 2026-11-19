@@ -122,9 +122,9 @@ class AttributeDefinitionsIT {
         assertEquals("ref_kind.code_taken", errorOf(409, api.post("/ref-kinds",
                 "{\"code\": \"GRADE\", \"name\": \"等級\"}")));
 
-        created(api.post("/ref-items", "{\"kind\": \"work-location\", \"code\": \"tokyo\", \"name\": \"東京\"}"));
+        created(api.post("/ref-items", "{\"kind\": \"work-location\", \"code\": \"tokyo\", \"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"東京\"}}}"));
         HttpResponse<String> csv = api.postBytes("/imports/csv/ref-items?effectiveDate=2026-04-01",
-                "text/csv; charset=UTF-8", "kind,code,name\nwork-location,osaka,大阪\n".getBytes(StandardCharsets.UTF_8));
+                "text/csv; charset=UTF-8", "kind,code,primaryLanguage,name\nwork-location,osaka,ja,大阪\n".getBytes(StandardCharsets.UTF_8));
         assertEquals(200, csv.statusCode(), csv.body());
         assertEquals(List.of("osaka", "tokyo"), Api.json(api.get("/ref-items?kind=work-location"))
                 .findValuesAsText("code"));

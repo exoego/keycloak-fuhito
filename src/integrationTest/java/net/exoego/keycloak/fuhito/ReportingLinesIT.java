@@ -213,7 +213,7 @@ class ReportingLinesIT {
         TestRealm scratch = TestRealm.withEmployer("reporting-acting");
         Api scratchApi = scratch.api;
         assertEquals(201, scratchApi.post("/ref-items", "{\"kind\": \"ASSIGNMENT_KIND\", \"code\": \"acting\", "
-                + "\"name\": \"事務取扱\", \"actingHead\": true}").statusCode());
+                + "\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"事務取扱\"}}, \"actingHead\": true}").statusCode());
         String hospital = id(scratchApi.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"病院\"}}, \"validFrom\": \"2026-04-01\"}"));
         String nursing = id(scratchApi.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"看護部\"}}, \"parentId\": \"" + hospital
                 + "\", \"validFrom\": \"2026-04-01\"}"));

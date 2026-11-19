@@ -12,11 +12,13 @@ import net.exoego.keycloak.fuhito.domain.ChangeOrder;
 import net.exoego.keycloak.fuhito.domain.Employment;
 import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
+import net.exoego.keycloak.fuhito.domain.Localized;
 import net.exoego.keycloak.fuhito.domain.OrgUnitName;
 import net.exoego.keycloak.fuhito.domain.Person;
 import net.exoego.keycloak.fuhito.domain.PersonName;
 import net.exoego.keycloak.fuhito.domain.Qualification;
 import net.exoego.keycloak.fuhito.domain.RefItem;
+import net.exoego.keycloak.fuhito.domain.RefItemName;
 import net.exoego.keycloak.fuhito.domain.RefKind;
 import net.exoego.keycloak.fuhito.domain.ReportingLine;
 import net.exoego.keycloak.fuhito.domain.UnitRole;
@@ -154,8 +156,10 @@ class ImportServiceTest {
     @Test
     void importsReferenceItemsAndIsIdempotent() {
         List<RefItemRow> rows = List.of(
-                new RefItemRow("UNIT_TYPE", "hospital", " 病院 ", Map.of("en", "Hospital"), 1, Map.of("k", "v"), null),
-                new RefItemRow("OCCUPATION", "nurse", "看護師", null, null, null, false));
+                new RefItemRow("UNIT_TYPE", "hospital", "ja",
+                        Map.of("ja", new RefItemName(" 病院 "), "en", new RefItemName("Hospital")), 1, Map.of("k", "v"),
+                        null),
+                new RefItemRow("OCCUPATION", "nurse", "ja", ItemNames.japanese("看護師"), null, null, false));
 
         ImportReport first = service.apply(doc("2026-04-01", false, null, rows, null));
         ImportReport second = service.apply(doc("2026-04-01", false, null, rows, null));
@@ -169,7 +173,8 @@ class ImportServiceTest {
         assertEquals("fuhito/ref-items/" + first.writes().getFirst().resourceId(), first.writes().getFirst().path());
         assertEquals(List.of(), second.writes());
         RefItem hospital = refItems.findByCode(RefKind.UNIT_TYPE, "hospital").orElseThrow();
-        assertEquals("病院", hospital.name());
+        assertEquals(new Localized<>("ja", Map.of("ja", new RefItemName("病院"), "en", new RefItemName("Hospital"))),
+                hospital.names());
         assertEquals(new ImportReport.Write.OfRefItem(true, hospital), first.writes().getFirst());
         assertFalse(refItems.findByCode(RefKind.OCCUPATION, "nurse").orElseThrow().active());
     }
@@ -356,8 +361,8 @@ class ImportServiceTest {
     @Test
     void importsTheNamesOfAReferenceItemFromTheirDates() {
         List<RefItemRow> rows = List.of(
-                new RefItemRow("JOB_TITLE", "m1", "Manager", null, null, null, null, null, null, null, "2020-04-01"),
-                new RefItemRow("JOB_TITLE", "m1", "Senior Manager", null, null, null, null, null, null, null,
+                new RefItemRow("JOB_TITLE", "m1", "en", ItemNames.english("Manager"), null, null, null, null, null, null, "2020-04-01"),
+                new RefItemRow("JOB_TITLE", "m1", "en", ItemNames.english("Senior Manager"), null, null, null, null, null, null,
                         "2023-04-01"));
 
         ImportReport first = service.apply(doc("2026-04-01", false, null, rows, null));
@@ -367,33 +372,34 @@ class ImportServiceTest {
         assertEquals(Map.of("refItems", new Counts(0, 0, 2)), again.counts());
         RefItem item = refItems.findByCode(RefKind.JOB_TITLE, "m1").orElseThrow();
         assertEquals(List.of("2020-04-01..2023-04-01 Manager", "2023-04-01..null Senior Manager"),
-                refItems.names(item.id()).stream().map(n -> n.validFrom() + ".." + n.validTo() + " " + n.name())
+                refItems.names(item.id()).stream()
+                        .map(n -> n.validFrom() + ".." + n.validTo() + " " + n.names().primary().name())
                         .toList());
 
         // A row without a date changes the names from the effective date.
         service.apply(doc("2026-04-01", false, null,
-                List.of(new RefItemRow("JOB_TITLE", "m1", "Head", null, null, null, null)), null));
+                List.of(new RefItemRow("JOB_TITLE", "m1", "en", ItemNames.english("Head"), null, null, null)), null));
 
         assertEquals(List.of("Manager", "Senior Manager", "Head"),
-                refItems.names(item.id()).stream().map(n -> n.name()).toList());
+                refItems.names(item.id()).stream().map(n -> n.names().primary().name()).toList());
         assertEquals(LocalDate.of(2026, 4, 1), refItems.names(item.id()).getLast().validFrom());
         assertEquals(List.of("refItems[0] invalid.date"), errors(service.apply(doc("2026-04-01", false, null,
-                List.of(new RefItemRow("JOB_TITLE", "m1", "Head", null, null, null, null, null, null, null, "soon")),
+                List.of(new RefItemRow("JOB_TITLE", "m1", "en", ItemNames.english("Head"), null, null, null, null, null, null, "soon")),
                 null))));
     }
 
     @Test
     void changesAReferenceItemThatDiffers() {
         service.apply(doc("2026-04-01", false, null,
-                List.of(new RefItemRow("UNIT_TYPE", "hospital", "病院", null, null, null, null)), null));
+                List.of(new RefItemRow("UNIT_TYPE", "hospital", "ja", ItemNames.japanese("病院"), null, null, null)), null));
 
         ImportReport report = service.apply(doc("2026-04-01", false, null,
-                List.of(new RefItemRow("UNIT_TYPE", "hospital", "総合病院", null, 3, null, false)), null));
+                List.of(new RefItemRow("UNIT_TYPE", "hospital", "ja", ItemNames.japanese("総合病院"), 3, null, false)), null));
 
         assertEquals(Map.of("refItems", new Counts(0, 1, 0)), report.counts());
         assertFalse(report.writes().getFirst().created());
         RefItem item = refItems.findByCode(RefKind.UNIT_TYPE, "hospital").orElseThrow();
-        assertEquals("総合病院", item.name());
+        assertEquals(Localized.of("ja", new RefItemName("総合病院")), item.names());
         assertEquals(3, item.displayOrder());
         assertFalse(item.active());
     }
@@ -401,12 +407,12 @@ class ImportServiceTest {
     @Test
     void reportsEveryBadReferenceItemAndStillAppliesTheGoodOnes() {
         List<RefItemRow> rows = new ArrayList<>();
-        rows.add(new RefItemRow("UNIT_TYPE", "ok", "OK", null, null, null, null));
-        rows.add(new RefItemRow("NOPE", "x", "x", null, null, null, null));
+        rows.add(new RefItemRow("UNIT_TYPE", "ok", "en", ItemNames.english("OK"), null, null, null));
+        rows.add(new RefItemRow("NOPE", "x", "en", ItemNames.english("x"), null, null, null));
         rows.add(null);
-        rows.add(new RefItemRow(null, "x", "x", null, null, null, null));
-        rows.add(new RefItemRow("UNIT_TYPE", "bad code", "x", null, null, null, null));
-        rows.add(new RefItemRow("UNIT_TYPE", "blank", " ", null, null, null, null));
+        rows.add(new RefItemRow(null, "x", "en", ItemNames.english("x"), null, null, null));
+        rows.add(new RefItemRow("UNIT_TYPE", "bad code", "en", ItemNames.english("x"), null, null, null));
+        rows.add(new RefItemRow("UNIT_TYPE", "blank", "en", ItemNames.english(" "), null, null, null));
 
         ImportReport report = service.apply(doc("2026-04-01", false, null, rows, null));
 
@@ -680,7 +686,7 @@ class ImportServiceTest {
     @Test
     void aRowNamesAStoredEmploymentItsPersonAndItsEmployerByTheirIds() {
         importTwoUnits();
-        refItems.insert(new RefItem("g", RefKind.GRADE, "g2", "x", Map.of(), 0, Map.of(), true));
+        refItems.insert(new RefItem("g", RefKind.GRADE, "g2", ItemNames.of("x"), 0, Map.of(), true));
         String hospital = stored(ExternalId.Kind.ORG_UNIT, "import", "H");
         PersonService personService = new PersonService(personStore, externalIdStore, users, id -> false);
         String taro = personService.create(new PersonValues(null, "ja", japanese("Taro"), null, null, null)).person().id();
@@ -831,7 +837,7 @@ class ImportServiceTest {
     void importsRolesAndStartsANewOneWhenItCoversTheUnitsBelow() {
         importTwoUnits();
         importPeople("2026-04-01", List.of(employment("E1", "nurse", null, null, null)), null);
-        refItems.insert(new RefItem("approver-id", RefKind.UNIT_ROLE.name(), "approver", "承認者", Map.of(), 0,
+        refItems.insert(new RefItem("approver-id", RefKind.UNIT_ROLE.name(), "approver", ItemNames.of("承認者"), 0,
                 Map.of(), true, false, false, false, 1, null, null));
 
         ImportReport first = importRoles("2026-04-01", role(null, "E1", "H", "approver", null, null));
@@ -881,7 +887,7 @@ class ImportServiceTest {
 
     @Test
     void importsQualificationsAndReplacesAStoredOne() {
-        refItems.insert(new RefItem("license-id", RefKind.QUALIFICATION.name(), "license", "免許", Map.of(), 0,
+        refItems.insert(new RefItem("license-id", RefKind.QUALIFICATION.name(), "license", ItemNames.of("免許"), 0,
                 Map.of(), true, false, false, false, 1, null, null));
         service.apply(new ImportDocument("2026-04-01", false, null, null, null, null, null,
                 List.of(new PersonRow(null, "P1", null, null, "ja", japanese("Ann"), null, null),
@@ -1055,8 +1061,8 @@ class ImportServiceTest {
 
     @Test
     void importsStaffInOneDocumentAndIsIdempotent() {
-        refItems.insert(new RefItem("t", RefKind.EMPLOYMENT_TYPE, "part-time", "x", Map.of(), 0, Map.of(), true));
-        refItems.insert(new RefItem("o", RefKind.OCCUPATION, "nurse", "x", Map.of(), 0, Map.of(), true));
+        refItems.insert(new RefItem("t", RefKind.EMPLOYMENT_TYPE, "part-time", ItemNames.of("x"), 0, Map.of(), true));
+        refItems.insert(new RefItem("o", RefKind.OCCUPATION, "nurse", ItemNames.of("x"), 0, Map.of(), true));
         ImportDocument document = new ImportDocument("2026-04-01", false, "hr", null,
                 List.of(unit("H", "Hospital", null), unit("W", "Ward", "H")),
                 List.of(new EmploymentRow(null, "E1", "nurse", null, "N-1", "part-time", null, null,
@@ -1095,7 +1101,7 @@ class ImportServiceTest {
     @Test
     void aSecondDocumentTransfersOnePersonAndEndsAnother() {
         importTwoUnits();
-        refItems.insert(new RefItem("r", RefKind.END_REASON, "resignation", "x", Map.of(), 0, Map.of(), true));
+        refItems.insert(new RefItem("r", RefKind.END_REASON, "resignation", ItemNames.of("x"), 0, Map.of(), true));
         importPeople("2026-04-01",
                 List.of(employment("E1", "nurse", null, null, null), employment("E2", "doctor", null, null, null)),
                 List.of(assignment("A1", "E1", "W", true, null), assignment("A2", "E2", "H", true, null)));
@@ -1131,7 +1137,7 @@ class ImportServiceTest {
     @Test
     void aChangeOfAssignmentDetailsTakesEffectOnTheDate() {
         importTwoUnits();
-        refItems.insert(new RefItem("j", RefKind.JOB_TITLE, "chief", "x", Map.of(), 0, Map.of(), true));
+        refItems.insert(new RefItem("j", RefKind.JOB_TITLE, "chief", ItemNames.of("x"), 0, Map.of(), true));
         importPeople("2026-04-01", List.of(employment("E1", "nurse", null, null, null)),
                 List.of(assignment("A1", "E1", "W", false, null)));
 
@@ -1221,7 +1227,7 @@ class ImportServiceTest {
 
     @Test
     void aNewEmploymentWithAnEndAndAReasonIsCreatedAndEnded() {
-        refItems.insert(new RefItem("r", RefKind.END_REASON, "resignation", "x", Map.of(), 0, Map.of(), true));
+        refItems.insert(new RefItem("r", RefKind.END_REASON, "resignation", ItemNames.of("x"), 0, Map.of(), true));
         ImportDocument document = new ImportDocument("2026-04-01", false, "hr", null, null,
                 List.of(new EmploymentRow(null, "E9", "nurse", null, null, null, null, null, null, null,
                         "2020-04-01", "2026-04-01", "resignation")), null);
@@ -1246,9 +1252,9 @@ class ImportServiceTest {
     // Each step changes one more field. So every field is the one that differs in one step.
     @Test
     void eachDetailOfAnOrgUnitAloneMakesTheRowAChange() {
-        refItems.insert(new RefItem("w", RefKind.UNIT_TYPE, "ward", "x", Map.of(), 0, Map.of(), true));
-        refItems.insert(new RefItem("l", RefKind.WORK_LOCATION, "tokyo", "x", Map.of(), 0, Map.of(), true));
-        refItems.insert(new RefItem("c", RefKind.COST_CENTER, "cc", "x", Map.of(), 0, Map.of(), true));
+        refItems.insert(new RefItem("w", RefKind.UNIT_TYPE, "ward", ItemNames.of("x"), 0, Map.of(), true));
+        refItems.insert(new RefItem("l", RefKind.WORK_LOCATION, "tokyo", ItemNames.of("x"), 0, Map.of(), true));
+        refItems.insert(new RefItem("c", RefKind.COST_CENTER, "cc", ItemNames.of("x"), 0, Map.of(), true));
         Map<String, OrgUnitName> shortName = Map.of("ja", new OrgUnitName("Unit", "U1", null));
         Map<String, OrgUnitName> english = Map.of("ja", new OrgUnitName("Unit", "U1", null),
                 "en", new OrgUnitName("U-1", null, null));
@@ -1278,8 +1284,8 @@ class ImportServiceTest {
 
     @Test
     void eachTermOfAnEmploymentAloneMakesTheRowAChange() {
-        refItems.insert(new RefItem("t", RefKind.EMPLOYMENT_TYPE, "part-time", "x", Map.of(), 0, Map.of(), true));
-        refItems.insert(new RefItem("g", RefKind.GRADE, "g2", "x", Map.of(), 0, Map.of(), true));
+        refItems.insert(new RefItem("t", RefKind.EMPLOYMENT_TYPE, "part-time", ItemNames.of("x"), 0, Map.of(), true));
+        refItems.insert(new RefItem("g", RefKind.GRADE, "g2", ItemNames.of("x"), 0, Map.of(), true));
         BigDecimal half = new BigDecimal("50");
         List<EmploymentRow> steps = List.of(
                 new EmploymentRow(null, "E", "nurse", null, null, null, null, null, null, null, "2020-04-01", null,
@@ -1319,11 +1325,11 @@ class ImportServiceTest {
     @Test
     void eachDetailOfAnAssignmentAloneMakesTheRowAChange() {
         importTwoUnits();
-        refItems.insert(new RefItem("j", RefKind.JOB_TITLE, "director", "x", Map.of(), 0, Map.of(), true));
-        refItems.insert(new RefItem("o", RefKind.OCCUPATION, "nurse", "x", Map.of(), 0, Map.of(), true));
-        refItems.insert(new RefItem("k", RefKind.ASSIGNMENT_KIND, "support", "x", Map.of(), 0, Map.of(), true));
-        refItems.insert(new RefItem("l", RefKind.WORK_LOCATION, "home", "x", Map.of(), 0, Map.of(), true));
-        refItems.insert(new RefItem("c", RefKind.COST_CENTER, "cc", "x", Map.of(), 0, Map.of(), true));
+        refItems.insert(new RefItem("j", RefKind.JOB_TITLE, "director", ItemNames.of("x"), 0, Map.of(), true));
+        refItems.insert(new RefItem("o", RefKind.OCCUPATION, "nurse", ItemNames.of("x"), 0, Map.of(), true));
+        refItems.insert(new RefItem("k", RefKind.ASSIGNMENT_KIND, "support", ItemNames.of("x"), 0, Map.of(), true));
+        refItems.insert(new RefItem("l", RefKind.WORK_LOCATION, "home", ItemNames.of("x"), 0, Map.of(), true));
+        refItems.insert(new RefItem("c", RefKind.COST_CENTER, "cc", ItemNames.of("x"), 0, Map.of(), true));
         importPeople("2026-04-01", List.of(employment("E", "nurse", null, null, null)), null);
         BigDecimal all = new BigDecimal("100");
         List<AssignmentRow> steps = List.of(
@@ -1429,8 +1435,8 @@ class ImportServiceTest {
 
     @Test
     void theEndOfAnEmploymentIsComparedByDateAndByReason() {
-        refItems.insert(new RefItem("r1", RefKind.END_REASON, "resignation", "x", Map.of(), 0, Map.of(), true));
-        refItems.insert(new RefItem("r2", RefKind.END_REASON, "retirement", "x", Map.of(), 0, Map.of(), true));
+        refItems.insert(new RefItem("r1", RefKind.END_REASON, "resignation", ItemNames.of("x"), 0, Map.of(), true));
+        refItems.insert(new RefItem("r2", RefKind.END_REASON, "retirement", ItemNames.of("x"), 0, Map.of(), true));
         EmploymentRow open = new EmploymentRow(null, "E", "nurse", null, null, null, null, null, null, null,
                 "2020-04-01", "2027-04-01", null);
 
@@ -1465,16 +1471,16 @@ class ImportServiceTest {
 
     @Test
     void aReferenceItemIsComparedByItsAttributesAndByWhetherItIsActive() {
-        RefItemRow base = new RefItemRow("UNIT_TYPE", "ward", "Ward", null, null, Map.of("k", "v"), true);
+        RefItemRow base = new RefItemRow("UNIT_TYPE", "ward", "en", ItemNames.english("Ward"), null, Map.of("k", "v"), true);
         service.apply(doc("2026-04-01", false, null, List.of(base), null));
 
         assertEquals(new Counts(0, 0, 1),
                 service.apply(doc("2026-04-01", false, null, List.of(base), null)).counts().get("refItems"));
         assertEquals(new Counts(0, 1, 0), service.apply(doc("2026-04-01", false, null,
-                List.of(new RefItemRow("UNIT_TYPE", "ward", "Ward", null, null, Map.of("k", "w"), true)), null))
+                List.of(new RefItemRow("UNIT_TYPE", "ward", "en", ItemNames.english("Ward"), null, Map.of("k", "w"), true)), null))
                 .counts().get("refItems"));
         assertEquals(new Counts(0, 1, 0), service.apply(doc("2026-04-01", false, null,
-                List.of(new RefItemRow("UNIT_TYPE", "ward", "Ward", null, null, Map.of("k", "w"), false)), null))
+                List.of(new RefItemRow("UNIT_TYPE", "ward", "en", ItemNames.english("Ward"), null, Map.of("k", "w"), false)), null))
                 .counts().get("refItems"));
     }
 

@@ -535,7 +535,7 @@ public class AttributeSyncService {
             for (boolean active : List.of(true, false)) {
                 List<RefItem> some = all.stream().filter(item -> item.active() == active).toList();
                 some.forEach(item -> titles.putIfAbsent(item.code(), item));
-                some.forEach(item -> titles.putIfAbsent(item.name(), item));
+                some.forEach(item -> titles.putIfAbsent(item.names().primary().name(), item));
             }
         }
 

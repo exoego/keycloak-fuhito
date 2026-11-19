@@ -33,7 +33,8 @@ public record RoleHolderRepresentation(
         String orgUnitName,
         @Schema(description = "The code of a reference item of the kind `UNIT_ROLE`.")
         String role,
-        @Schema(description = "The name of the reference item of the role on the date.")
+        @Schema(description = "The name of the reference item of the role on the date, in the language of the "
+                + "request.")
         String roleName,
         @Schema(description = "True when the role also covers every unit below in the default hierarchy.")
         boolean includesDescendants,
@@ -45,8 +46,9 @@ public record RoleHolderRepresentation(
     static RoleHolderRepresentation of(UnitRoleService.Holder holder, Locale language) {
         var role = holder.view().role();
         String orgUnitName = holder.orgUnitNames() == null ? null : holder.orgUnitNames().in(language).name();
+        String roleName = holder.roleNames() == null ? null : holder.roleNames().in(language).name();
         return new RoleHolderRepresentation(role.id(), role.version(), role.employmentId(), role.personId(),
-                role.userId(), role.orgUnitId(), orgUnitName, holder.view().code(), holder.roleName(),
+                role.userId(), role.orgUnitId(), orgUnitName, holder.view().code(), roleName,
                 role.includesDescendants(), role.period().from().toString(),
                 Objects.toString(role.period().to(), null));
     }

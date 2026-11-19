@@ -41,7 +41,7 @@ class EmploymentServiceTest {
     }
 
     private RefItem item(RefKind kind, String code, boolean active) {
-        RefItem item = new RefItem(kind + "-" + code, kind, code, code, Map.of(), 0, Map.of(), active);
+        RefItem item = new RefItem(kind + "-" + code, kind, code, ItemNames.of(code), 0, Map.of(), active);
         refItems.insert(item);
         return item;
     }
@@ -386,7 +386,7 @@ class EmploymentServiceTest {
         item(RefKind.GRADE, "retired-grade", false);
         String id = service.start(new NewEmployment("alice", "2026-04-01", null, null, "old-type", null, null, null,
                 null, null, null)).employment().id();
-        refItems.update(new RefItem(old.id(), RefKind.EMPLOYMENT_TYPE, "old-type", "old", Map.of(), 0, Map.of(),
+        refItems.update(new RefItem(old.id(), RefKind.EMPLOYMENT_TYPE, "old-type", ItemNames.of("old"), 0, Map.of(),
                 false));
 
         EmploymentView view = service.changeTerms(id, new TermsChange("2026-10-01", "old-type", null, "ON_LEAVE",
@@ -675,7 +675,7 @@ class EmploymentServiceTest {
         RefItem reason = item(RefKind.END_REASON, "old-reason", true);
         String id = service.start(minimal("alice", "2026-04-01")).employment().id();
         service.end(id, "2027-04-01", "old-reason");
-        refItems.update(new RefItem(reason.id(), RefKind.END_REASON, "old-reason", "old", Map.of(), 0, Map.of(),
+        refItems.update(new RefItem(reason.id(), RefKind.END_REASON, "old-reason", ItemNames.of("old"), 0, Map.of(),
                 false));
 
         assertEquals("old-reason", service.end(id, "2027-03-01", "old-reason").endReason());

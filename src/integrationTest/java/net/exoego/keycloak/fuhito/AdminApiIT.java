@@ -107,7 +107,7 @@ class AdminApiIT {
         assertEquals(403, get("", otherAdminToken).statusCode());
         assertEquals(403, get("/hierarchies", otherAdminToken).statusCode());
         assertEquals(403, new Api(REALM, otherAdminToken).post("/ref-items",
-                "{\"kind\": \"UNIT_TYPE\", \"code\": \"forbidden\", \"name\": \"x\"}").statusCode());
+                "{\"kind\": \"UNIT_TYPE\", \"code\": \"forbidden\", \"primaryLanguage\": \"en\", \"names\": {\"en\": {\"name\": \"x\"}}}").statusCode());
     }
 
     private static HttpResponse<String> get(String path, String token) throws Exception {

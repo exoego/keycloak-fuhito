@@ -61,7 +61,7 @@ The lists are applied in the order change orders, kinds of reference data, attri
   "dryRun": false,
   "source": "sheet",
   "refItems": [
-    {"kind": "OCCUPATION", "code": "nurse", "name": "Nurse"}
+    {"kind": "OCCUPATION", "code": "nurse", "primaryLanguage": "en", "names": {"en": {"name": "Nurse"}}}
   ],
   "orgUnits": [
     {"externalId": "H", "primaryLanguage": "en", "names": {"en": {"name": "X Hospital"}},
@@ -78,7 +78,7 @@ The lists are applied in the order change orders, kinds of reference data, attri
 }
 ```
 
-- A row of a reference item can have `validFrom`, the first date of its names. A new item without it has names that hold for every date. A stored item without it gets the names of the row from the effective date, and keeps its old names for the dates before. A row compares with the names of its date, so the same row changes nothing the second time. Two rows of one item with two dates load two periods of names, for example the names of a job title from a system that kept them.
+- A row of a reference item has `primaryLanguage` and `names`, as `POST /ref-items` has them. It can have `validFrom`, the first date of its names. A new item without it has names that hold for every date. A stored item without it gets the names of the row from the effective date, and keeps its old names for the dates before. A row compares with the names of its date, so the same row changes nothing the second time. Two rows of one item with two dates load two periods of names, for example the names of a job title from a system that kept them.
 - The list `refKinds` adds kinds of reference data to the realm. A row has `code`, `name`, and `names`. A row of a stored kind changes its names. A fixed kind such as `UNIT_TYPE` is in every realm and cannot be a row.
 - The list `attributeDefinitions` defines free attributes. A row has `target`, `name`, `type`, `refKind`, `multiple`, and `required`. A row of a stored definition changes the type, the kind, `multiple`, and `required`, as `PUT /attribute-definitions/{id}` does. Stored values stay as they are. The definitions come before the reference items, so that a row of a reference item can set an attribute that the same document defines.
 - The list `hierarchies` adds hierarchies. A row has `code` and `name`. A row of a stored hierarchy changes its name. The code `default` names the default hierarchy.
@@ -159,6 +159,7 @@ curl -X POST \
 - A name in another language has its own column, for example `name:en` or `名称:en`.
 - In a file of org units, `name`, `shortName`, and `phoneticName` are the names of the primary language, which `primaryLanguage` names. A new unit needs `primaryLanguage`. `name:en`, `shortName:en`, and `phoneticName:en` are the names of one language. `name:en` with `#CLEAR` removes that language. A CSV export leaves the columns of a language empty for a unit whose primary language it is.
 - A file of people has the names in the same way, with `primaryLanguage`, `name`, `phoneticName`, `name:en`, and `phoneticName:en`. A row with a name needs `primaryLanguage`, unless the person has a primary language already.
+- A file of reference items has the names in the same way, with `primaryLanguage`, `name`, and `name:en`. A new item needs `primaryLanguage`. A row for a stored item keeps the primary language of the names of its date when the cell is blank.
 - A column `attributes.<name>` sets an attribute that the realm defined for the resource of the list, for example `attributes.beds`. The cell is read by the type of the definition. The cell of a definition with `multiple` is a JSON array, for example `["night","icu"]`, which the CSV writes as `"[""night"",""icu""]"`. Other attributes keep what is stored. A column of an attribute with no definition is rejected.
 
 ### Columns
@@ -194,6 +195,7 @@ Reference items.
 |---|---|
 | `kind` | `種類` |
 | `code` | `コード` |
+| `primaryLanguage` | `主言語` |
 | `name` | `名称` |
 | `displayOrder` | `表示順` |
 | `active` | `有効` |
@@ -426,7 +428,7 @@ This copies a realm to a test environment, moves it to another Keycloak, or brin
 
 - `GET /export/{list}` reads one list in pages, ordered by ID. Follow the `Link` header to the end. The lists are `ref-kinds`, `ref-items`, `attribute-definitions`, `hierarchies`, `org-units`, `people`, `employments`, `assignments`, `reporting-lines`, `unit-roles`, `qualifications`, `external-ids`, `change-orders`, and `erasures`.
 - Put the lists together under their names in camel case, such as `refKinds`, with `"format": "fuhito.export.v1"`. `POST /restore` takes that document.
-- A reference item has every period of its names in `versions`. An export from before names had periods has `name` and `names` in place of them, and a restore gives the item those names for every date.
+- A reference item has every period of its names in `versions`, each with `primaryLanguage` and `names`. A restore needs them.
 - A restore keeps every ID, so products that stored IDs find the same resources. It writes all or nothing. The default hierarchy of the export takes the place of the one of the empty realm, with its ID and its name.
 - It fails with `restore.realm_not_empty` when the realm has any data of the extension. So a restore into the wrong realm does not remove its data.
 - With `?replace=true`, the restore first deletes every row of the extension in the realm, in the same transaction. The realm is then as it was at the export. The change log stays, with the changes after the export. The runs of jobs and the records of the members that the projection added to organizations stay too. The next projection makes the Keycloak groups and organizations match. A replace asks for the permission to manage each organization that a unit was linked to before it.

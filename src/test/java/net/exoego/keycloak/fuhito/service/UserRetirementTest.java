@@ -157,7 +157,7 @@ class UserRetirementTest {
 
     @Test
     void aReasonThatWasStoredWithALaterEndStays() {
-        refItems.insert(new RefItem("resignation", RefKind.END_REASON, "resignation", "Resignation", Map.of(), 0,
+        refItems.insert(new RefItem("resignation", RefKind.END_REASON, "resignation", ItemNames.of("Resignation"), 0,
                 Map.of(), true));
         String employment = employ("alice", "2020-04-01", null);
         employments.end(employment, "2026-12-01", "resignation");

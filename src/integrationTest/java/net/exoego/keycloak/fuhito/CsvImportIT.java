@@ -407,24 +407,24 @@ class CsvImportIT {
         assertEquals(201, api.post("/attribute-definitions", "{\"target\": \"REF_ITEM\", \"name\": \"note\", "
                 + "\"type\": \"STRING\"}").statusCode());
         assertEquals(201, api.post("/ref-kinds", "{\"code\": \"site\", \"name\": \"拠点\"}").statusCode());
-        assertEquals(201, api.post("/ref-items", "{\"kind\": \"site\", \"code\": \"tokyo\", \"name\": \"東京\", "
-                + "\"names\": {\"en\": \"Tokyo\"}, \"displayOrder\": 2, \"attributes\": {\"note\": \"1F, west\"}}")
+        assertEquals(201, api.post("/ref-items", "{\"kind\": \"site\", \"code\": \"tokyo\", \"primaryLanguage\": \"ja\", "
+                + "\"names\": {\"ja\": {\"name\": \"東京\"}, \"en\": {\"name\": \"Tokyo\"}}, \"displayOrder\": 2, \"attributes\": {\"note\": \"1F, west\"}}")
                 .statusCode());
         assertEquals(201, api.post("/ref-items", "{\"kind\": \"UNIT_TYPE\", \"code\": \"committee\", "
-                + "\"name\": \"委員会\", \"lateral\": true}").statusCode());
+                + "\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"委員会\"}}, \"lateral\": true}").statusCode());
         assertEquals(201, api.post("/ref-items", "{\"kind\": \"ASSIGNMENT_KIND\", \"code\": \"acting\", "
-                + "\"name\": \"代行\", \"actingHead\": true}").statusCode());
+                + "\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"代行\"}}, \"actingHead\": true}").statusCode());
         String old = realm.refItem("JOB_TITLE", "old", "旧役職");
-        assertEquals(200, api.putWithVersion("/ref-items/" + old, "{\"name\": \"旧役職\", \"active\": false}").statusCode());
+        assertEquals(200, api.putWithVersion("/ref-items/" + old, "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"旧役職\"}}, \"active\": false}").statusCode());
 
         for (String header : List.of("en", "ja")) {
             HttpResponse<String> exported = api.get("/imports/csv/ref-items?header=" + header);
             assertEquals(200, exported.statusCode(), exported.body());
-            assertTrue(exported.body().startsWith("﻿" + (header.equals("en") ? "kind,code,name,name:en,"
+            assertTrue(exported.body().startsWith("﻿" + (header.equals("en") ? "kind,code,primaryLanguage,name,name:en,"
                     + "displayOrder,active,legalEntity,actingHead,lateral,attributes.note"
-                    : "種類,コード,名称,名称:en,表示順,有効,法人,代行,横断,attributes.note")), exported.body());
-            assertTrue(exported.body().contains("site,tokyo,東京,Tokyo,2,true,,,,\"1F, west\""), exported.body());
-            assertTrue(exported.body().contains("JOB_TITLE,old,旧役職,,0,false,,,,"), exported.body());
+                    : "種類,コード,主言語,名称,名称:en,表示順,有効,法人,代行,横断,attributes.note")), exported.body());
+            assertTrue(exported.body().contains("site,tokyo,ja,東京,Tokyo,2,true,,,,\"1F, west\""), exported.body());
+            assertTrue(exported.body().contains("JOB_TITLE,old,ja,旧役職,,0,false,,,,"), exported.body());
 
             JsonNode counts = load(api, "ref-items", "effectiveDate=2026-05-01", exported.body()).get("counts")
                     .get("refItems");
@@ -436,8 +436,8 @@ class CsvImportIT {
 
         // The new name holds from the effective date. The file of an earlier date has the old one.
         assertEquals("東京", Api.json(api.get("/ref-items?kind=site&asOf=2026-05-31")).get(0).get("name").asText());
-        assertTrue(api.get("/imports/csv/ref-items?asOf=2026-05-31").body().contains("site,tokyo,東京,Tokyo,"));
-        assertTrue(api.get("/imports/csv/ref-items?asOf=2026-06-01").body().contains("site,tokyo,東京本社,Tokyo,"));
+        assertTrue(api.get("/imports/csv/ref-items?asOf=2026-05-31").body().contains("site,tokyo,ja,東京,Tokyo,"));
+        assertTrue(api.get("/imports/csv/ref-items?asOf=2026-06-01").body().contains("site,tokyo,ja,東京本社,Tokyo,"));
 
         // A row can name the first date of its names.
         load(api, "ref-items", "effectiveDate=2026-06-01", "kind,code,name,validFrom\nsite,tokyo,東京本店,2030-04-01\n");
@@ -605,10 +605,10 @@ class CsvImportIT {
         String nurse = realm.user("nurse");
 
         load(api, "ref-items", "effectiveDate=2026-04-01", """
-                ﻿種類,コード,名称
-                UNIT_TYPE,hospital,病院
-                OCCUPATION,nurse,看護師
-                EMPLOYMENT_TYPE,part-time,非常勤
+                ﻿種類,コード,主言語,名称
+                UNIT_TYPE,hospital,ja,病院
+                OCCUPATION,nurse,ja,看護師
+                EMPLOYMENT_TYPE,part-time,ja,非常勤
                 """);
         JsonNode units = load(api, "org-units", "effectiveDate=2026-04-01&source=sheet", ORG_UNITS);
         load(api, "employments", "effectiveDate=2026-04-01&source=sheet", """
@@ -708,9 +708,9 @@ class CsvImportIT {
         String nurse = realm.user("nurse");
 
         load(api, "ref-items", "effectiveDate=2026-04-01", """
-                種類,コード,名称,法人
-                UNIT_TYPE,company,会社,はい
-                UNIT_TYPE,ward,病棟,
+                種類,コード,主言語,名称,法人
+                UNIT_TYPE,company,ja,会社,はい
+                UNIT_TYPE,ward,ja,病棟,
                 """);
         load(api, "org-units", "effectiveDate=2026-04-01&source=sheet", """
                 外部ID,主言語,名称,組織種別

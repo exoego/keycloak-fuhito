@@ -1,16 +1,18 @@
 package net.exoego.keycloak.fuhito.rest;
 
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
 import net.exoego.keycloak.fuhito.domain.RefItem;
+import net.exoego.keycloak.fuhito.domain.RefItemName;
 import net.exoego.keycloak.fuhito.service.RefItemService;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 
 /**
  * A reference item in requests and responses.
  */
-@Schema(name = "RefItem", requiredProperties = {"name"})
+@Schema(name = "RefItem", requiredProperties = {"primaryLanguage", "names"})
 public record RefItemRepresentation(
         @Schema(readOnly = true)
         String id,
@@ -25,10 +27,20 @@ public record RefItemRepresentation(
                 maxLength = 64,
                 pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$")
         String code,
-        @Schema(description = "The default name. A read gives the name of its date.", maxLength = 255)
+        @Schema(
+                description = "The name of the date in the language of the request. It is the one of the first "
+                        + "language of `Accept-Language`, else the one of that language with no region, such as `en` "
+                        + "for `en-US`, else the primary one. A request with no `Accept-Language` reads the primary "
+                        + "one.",
+                readOnly = true)
         String name,
-        @Schema(description = "Names in other languages, by language tag. A read gives the names of its date.")
-        Map<String, String> names,
+        @Schema(description = "The language tag of the primary name, such as `ja`. It is a key of `names`.",
+                maxLength = 64)
+        String primaryLanguage,
+        @Schema(
+                description = "The names by language tag, such as `ja`, `en`, or `zh-Hant`. A read gives the names "
+                        + "of its date, with the tags in their standard form, such as `en-US` for `en-us`.")
+        Map<String, RefItemName> names,
         @Schema(description = "The position in lists, lowest first.", defaultValue = "0")
         Integer displayOrder,
         @Schema(description = "Free values that the realm defines.")
@@ -67,9 +79,10 @@ public record RefItemRepresentation(
         return new RefItemService.Marks(legalEntity, actingHead, lateral);
     }
 
-    static RefItemRepresentation of(RefItem item) {
-        return new RefItemRepresentation(item.id(), item.version(), item.kind(), item.code(), item.name(),
-                item.names(), item.displayOrder(), item.attributes(), item.active(),
+    static RefItemRepresentation of(RefItem item, Locale language) {
+        return new RefItemRepresentation(item.id(), item.version(), item.kind(), item.code(),
+                item.names().in(language).name(), item.names().primaryLanguage(), item.names().byLanguage(),
+                item.displayOrder(), item.attributes(), item.active(),
                 item.legalEntity() ? Boolean.TRUE : null, item.actingHead() ? Boolean.TRUE : null,
                 item.lateral() ? Boolean.TRUE : null, Objects.toString(item.validFrom(), null),
                 Objects.toString(item.validTo(), null));
