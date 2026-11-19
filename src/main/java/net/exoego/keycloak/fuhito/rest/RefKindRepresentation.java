@@ -1,22 +1,37 @@
 package net.exoego.keycloak.fuhito.rest;
 
+import java.util.Locale;
 import java.util.Map;
 
+import net.exoego.keycloak.fuhito.domain.RefKindName;
 import net.exoego.keycloak.fuhito.service.RealmKindService;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 
 /**
  * A kind of reference data in requests and responses.
  */
-@Schema(name = "RefKindDefinition", description = "A kind of reference data.", requiredProperties = {"code", "name"})
+@Schema(name = "RefKindDefinition", description = "A kind of reference data.",
+        requiredProperties = {"code", "primaryLanguage", "names"})
 public record RefKindRepresentation(
         @Schema(description = "The code that items name as their kind.", maxLength = 32,
                 pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$")
         String code,
-        @Schema(description = "The default name. A fixed kind has none.", maxLength = 255)
+        @Schema(
+                description = "The name in the language of the request. It is the one of the first language of "
+                        + "`Accept-Language`, else the one of that language with no region, such as `en` for "
+                        + "`en-US`, else the primary one. A request with no `Accept-Language` reads the primary one. "
+                        + "A fixed kind has none.",
+                readOnly = true)
         String name,
-        @Schema(description = "Names in other languages, by language tag.")
-        Map<String, String> names,
+        @Schema(
+                description = "The language tag of the primary name, such as `ja`. It is a key of `names`. A fixed "
+                        + "kind has none.",
+                maxLength = 64)
+        String primaryLanguage,
+        @Schema(
+                description = "The names by language tag, such as `ja`, `en`, or `zh-Hant`. A read gives the tags in "
+                        + "their standard form, such as `en-US` for `en-us`. A fixed kind has none.")
+        Map<String, RefKindName> names,
         @Schema(description = "True for a kind that every realm has.", readOnly = true)
         Boolean fixed,
         @Schema(description = "The version of a kind that the realm added. A new kind has 1. Each write counts it "
@@ -24,8 +39,11 @@ public record RefKindRepresentation(
                 + "read. A create needs none.")
         Long version) implements Versioned {
 
-    static RefKindRepresentation of(RealmKindService.View view) {
-        return new RefKindRepresentation(view.code(), view.name(), view.names().isEmpty() ? null : view.names(),
-                view.fixed(), view.version());
+    static RefKindRepresentation of(RealmKindService.View view, Locale language) {
+        if (view.names() == null) {
+            return new RefKindRepresentation(view.code(), null, null, null, view.fixed(), view.version());
+        }
+        return new RefKindRepresentation(view.code(), view.names().in(language).name(),
+                view.names().primaryLanguage(), view.names().byLanguage(), view.fixed(), view.version());
     }
 }

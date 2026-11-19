@@ -38,6 +38,7 @@ import net.exoego.keycloak.fuhito.domain.PersonName;
 import net.exoego.keycloak.fuhito.domain.Qualification;
 import net.exoego.keycloak.fuhito.domain.RefItem;
 import net.exoego.keycloak.fuhito.domain.RefItemName;
+import net.exoego.keycloak.fuhito.domain.RefKindName;
 import net.exoego.keycloak.fuhito.service.ImportDocument.AssignmentRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.AttributeDefinitionRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.ChangeOrderRow;
@@ -160,7 +161,7 @@ public class CsvImportService {
     }
 
     private static final Map<Kind, Set<String>> FIELDS = Map.ofEntries(
-            Map.entry(Kind.REF_KINDS, Set.of("code", "name")),
+            Map.entry(Kind.REF_KINDS, Set.of("code", "primaryLanguage", "name")),
             Map.entry(Kind.ATTRIBUTE_DEFINITIONS,
                     Set.of("target", "name", "type", "refKind", "multiple", "required")),
             Map.entry(Kind.HIERARCHIES, Set.of("code", "name")),
@@ -196,7 +197,7 @@ public class CsvImportService {
     private static final Set<String> LOCALIZED = Set.of("name");
     private static final List<String> UNIT_NAMES = List.of("name", "shortName", "phoneticName");
     private static final List<String> PERSON_NAMES = List.of("name", "phoneticName");
-    private static final List<String> ITEM_NAMES = List.of("name");
+    private static final List<String> NAME_ONLY = List.of("name");
     static final String ATTRIBUTE_COLUMN = "attributes.";
     private static final Set<String> TRUE = Set.of("true", "1", "yes", "y", "はい", "○", "〇");
     private static final Set<String> FALSE = Set.of("false", "0", "no", "n", "いいえ", "×");
@@ -338,10 +339,12 @@ public class CsvImportService {
 
     private RefKindRow refKind(Cells cells) {
         String code = cells.text("code", null);
-        Optional<RealmKindService.View> stored = code == null ? Optional.empty()
-                : importService.setup().kinds().find(code);
-        return new RefKindRow(code, cells.text("name", stored.map(RealmKindService.View::name).orElse(null)),
-                cells.localized("name", stored.map(RealmKindService.View::names).orElse(Map.of())));
+        Optional<Localized<RefKindName>> names = code == null ? Optional.empty()
+                : importService.setup().kinds().find(code).map(RealmKindService.View::names);
+        String primaryLanguage = cells.primaryLanguage(names);
+        return new RefKindRow(code, primaryLanguage, cells.names(primaryLanguage,
+                names.map(Localized::byLanguage).orElse(Map.of()), NAME_ONLY,
+                (name, field, text) -> new RefKindName(text)));
     }
 
     // Blank cells keep the stored values. A user named by username replaces the stored ID of the user.
@@ -476,7 +479,7 @@ public class CsvImportService {
         Optional<Localized<RefItemName>> names = stored.map(RefItem::names);
         String primaryLanguage = cells.primaryLanguage(names);
         return new RefItemRow(kind, code, primaryLanguage, cells.names(primaryLanguage,
-                        names.map(Localized::byLanguage).orElse(Map.of()), ITEM_NAMES,
+                        names.map(Localized::byLanguage).orElse(Map.of()), NAME_ONLY,
                         (name, field, text) -> new RefItemName(text)),
                 cells.integer("displayOrder", stored.map(RefItem::displayOrder).orElse(null)),
                 cells.attributes(stored.map(RefItem::attributes).orElse(null)),
@@ -829,22 +832,6 @@ public class CsvImportService {
             }
             // With no name, the row fails as a row with a missing name.
             result.put(primaryLanguage, primary == null ? set.with(null, "name", null) : primary);
-            return result;
-        }
-
-        // A column like "name:en" sets one language. The other languages keep what is stored.
-        Map<String, String> localized(String field, Map<String, String> stored) {
-            Map<String, String> result = new LinkedHashMap<>(stored);
-            values.forEach((column, value) -> {
-                if (column.startsWith(field + ":") && !value.isEmpty()) {
-                    String language = column.substring(field.length() + 1);
-                    if (value.equals(CLEAR)) {
-                        result.remove(language);
-                    } else {
-                        result.put(language, value);
-                    }
-                }
-            });
             return result;
         }
     }

@@ -95,6 +95,19 @@ class SchemaIT {
     }
 
     @Test
+    void theDatabaseRejectsASecondPrimaryNameOfOneKind() throws Exception {
+        KeycloakEnvironment.sql("insert into fuhito_ref_kind (id, realm_id, code) values ('ex-kind', 'ex-realm-7', 'site')");
+        String insert = "insert into fuhito_ref_kind_name (kind_id, language, realm_id, is_primary, name) values ";
+        KeycloakEnvironment.sql(insert + "('ex-kind', 'ja', 'ex-realm-7', true, '拠点')");
+        KeycloakEnvironment.sql(insert + "('ex-kind', 'en', 'ex-realm-7', false, 'Site')");
+
+        assertTrue(KeycloakEnvironment.sqlError(insert + "('ex-kind', 'zh-Hant', 'ex-realm-7', true, '據點')")
+                .contains("uk_fuhito_ref_kind_name_primary"));
+        assertTrue(KeycloakEnvironment.sqlError(insert + "('ex-kind', 'en', 'ex-realm-7', false, 'Location')")
+                .contains("pk_fuhito_ref_kind_name"));
+    }
+
+    @Test
     void theDatabaseRejectsTwoParentsAtTheSameTime() throws Exception {
         KeycloakEnvironment.sql("insert into fuhito_hierarchy (id, realm_id, code, name)"
                 + " values ('ex-h1', 'ex-realm-2', 'default', 'Default'), ('ex-h2', 'ex-realm-2', 'other', 'Other')");

@@ -35,6 +35,7 @@ import net.exoego.keycloak.fuhito.domain.RefItem;
 import net.exoego.keycloak.fuhito.domain.RefItemName;
 import net.exoego.keycloak.fuhito.domain.Qualification;
 import net.exoego.keycloak.fuhito.domain.RefKind;
+import net.exoego.keycloak.fuhito.domain.RefKindName;
 import net.exoego.keycloak.fuhito.domain.ReportingLine;
 import net.exoego.keycloak.fuhito.domain.Unchecked;
 import net.exoego.keycloak.fuhito.domain.UnitRole;
@@ -145,14 +146,18 @@ public class CsvExportService {
     private String refKinds(boolean japanese) {
         List<RealmKindService.View> added = kinds.get().stream().filter(kind -> !kind.fixed()).toList();
         SortedSet<String> languages = new TreeSet<>();
-        added.forEach(kind -> languages.addAll(kind.names().keySet()));
-        List<String> header = new ArrayList<>(List.of(column("code", japanese), column("name", japanese)));
+        added.forEach(kind -> addOtherLanguages(kind.names(), languages));
+        List<String> header = new ArrayList<>();
+        for (String field : List.of("code", "primaryLanguage", "name")) {
+            header.add(column(field, japanese));
+        }
         languages.forEach(language -> header.add(column("name", japanese) + ":" + language));
         StringBuilder csv = new StringBuilder(BYTE_ORDER_MARK);
         line(csv, header);
         for (RealmKindService.View kind : added) {
-            List<String> cells = new ArrayList<>(List.of(kind.code(), kind.name()));
-            languages.forEach(language -> cells.add(text(kind.names().get(language))));
+            List<String> cells = new ArrayList<>(List.of(kind.code(), kind.names().primaryLanguage(),
+                    kind.names().primary().name()));
+            languages.forEach(language -> cells.add(nameCell(otherLanguage(kind.names(), language))));
             line(csv, cells);
         }
         return csv.toString();
@@ -607,6 +612,10 @@ public class CsvExportService {
     }
 
     private static String nameCell(RefItemName name) {
+        return name == null ? "" : name.name();
+    }
+
+    private static String nameCell(RefKindName name) {
         return name == null ? "" : name.name();
     }
 

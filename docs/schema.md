@@ -195,6 +195,19 @@ erDiagram
         boolean IS_PRIMARY
         varchar(255) NAME
     }
+    FUHITO_REF_KIND {
+        varchar(36) ID PK
+        varchar(36) REALM_ID
+        varchar(32) CODE
+        bigint VERSION
+    }
+    FUHITO_REF_KIND_NAME {
+        varchar(36) KIND_ID PK, FK
+        varchar(64) LANGUAGE PK
+        varchar(36) REALM_ID
+        boolean IS_PRIMARY
+        varchar(255) NAME
+    }
     FUHITO_REPORTING_LINE {
         varchar(36) ID PK
         varchar(36) REALM_ID
@@ -246,6 +259,7 @@ erDiagram
     FUHITO_REF_ITEM ||..o{ FUHITO_QUALIFICATION : "KIND_ID"
     FUHITO_PERSON ||..o{ FUHITO_QUALIFICATION : "PERSON_ID"
     FUHITO_REF_ITEM ||..o{ FUHITO_REF_ITEM_NAME : "REF_ITEM_ID"
+    FUHITO_REF_KIND ||--o{ FUHITO_REF_KIND_NAME : "KIND_ID"
     FUHITO_PERSON ||..o{ FUHITO_REPORTING_LINE : "MANAGER_PERSON_ID"
     FUHITO_EMPLOYMENT ||..o{ FUHITO_UNIT_ROLE : "EMPLOYMENT_ID"
     FUHITO_ORG_UNIT ||..o{ FUHITO_UNIT_ROLE : "ORG_UNIT_ID"
@@ -304,14 +318,6 @@ erDiagram
         varchar(36) REALM_ID
         varchar(36) KC_ORG_ID
         varchar(255) USER_ID
-    }
-    FUHITO_REF_KIND {
-        varchar(36) ID PK
-        varchar(36) REALM_ID
-        varchar(32) CODE
-        varchar(255) NAME
-        text NAMES_I18N
-        bigint VERSION
     }
     FUHITO_USER_MASK {
         varchar(36) ID PK

@@ -8,6 +8,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AttributeDefinitionsIT {
@@ -116,11 +117,11 @@ class AttributeDefinitionsIT {
     void aRealmAddsAKindAndAnAttributePointsToIt() throws Exception {
         TestRealm realm = TestRealm.create("ref-kinds");
         Api api = realm.api;
-        JsonNode kind = created(api.post("/ref-kinds", "{\"code\": \"work-location\", \"name\": \"勤務地\"}"));
+        JsonNode kind = created(api.post("/ref-kinds", "{\"code\": \"work-location\", \"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"勤務地\"}}}"));
         assertEquals(false, kind.get("fixed").asBoolean());
         assertEquals("work-location", Api.json(api.get("/ref-kinds")).findValuesAsText("code").getLast());
         assertEquals("ref_kind.code_taken", errorOf(409, api.post("/ref-kinds",
-                "{\"code\": \"GRADE\", \"name\": \"等級\"}")));
+                "{\"code\": \"GRADE\", \"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"等級\"}}}")));
 
         created(api.post("/ref-items", "{\"kind\": \"work-location\", \"code\": \"tokyo\", \"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"東京\"}}}"));
         HttpResponse<String> csv = api.postBytes("/imports/csv/ref-items?effectiveDate=2026-04-01",
@@ -138,5 +139,54 @@ class AttributeDefinitionsIT {
                 + "\"tokyo\"}}").statusCode());
 
         assertEquals("ref_kind.in_use", errorOf(409, api.deleteWithVersion("/ref-kinds/work-location")));
+    }
+
+    @Test
+    void aKindHasANameInEachLanguage() throws Exception {
+        TestRealm realm = TestRealm.create("ref-kind-names");
+        Api api = realm.api;
+        JsonNode kind = created(api.post("/ref-kinds", "{\"code\": \"site\", \"primaryLanguage\": \"JA\", "
+                + "\"names\": {\"JA\": {\"name\": \" 拠点 \"}, \"en-us\": {\"name\": \"Site\"}}}"));
+        assertEquals("拠点", kind.get("name").asText());
+        assertEquals("ja", kind.get("primaryLanguage").asText());
+        assertEquals("拠点", kind.get("names").get("ja").get("name").asText());
+        assertEquals("Site", kind.get("names").get("en-US").get("name").asText());
+        assertEquals(kind, kindOf(api, "site"));
+
+        assertEquals("Site", kindOf(api.withAcceptLanguage("en-US,ja;q=0.5"), "site").get("name").asText());
+        assertEquals("拠点", kindOf(api.withAcceptLanguage("fr"), "site").get("name").asText());
+        JsonNode fixed = kindOf(api, "UNIT_TYPE");
+        assertFalse(fixed.has("name") || fixed.has("primaryLanguage") || fixed.has("names"), fixed.toString());
+
+        // A write of the same names still counts up the version.
+        JsonNode same = Api.json(api.withAcceptLanguage("en-US").putWithVersion("/ref-kinds/site",
+                "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"拠点\"}, \"en-US\": {\"name\": \"Site\"}}}"));
+        assertEquals(2, same.get("version").asLong());
+        assertEquals("Site", same.get("name").asText());
+        JsonNode renamed = Api.json(api.putWithVersion("/ref-kinds/site",
+                "{\"primaryLanguage\": \"en\", \"names\": {\"en\": {\"name\": \"Location\"}}}"));
+        assertEquals(3, renamed.get("version").asLong());
+        assertEquals("Location", kindOf(api.withAcceptLanguage("ja"), "site").get("name").asText());
+        assertEquals(1, renamed.get("names").size());
+
+        assertEquals("invalid.primary_language", errorOf(400, api.post("/ref-kinds", "{\"code\": \"other\", "
+                + "\"primaryLanguage\": \"ja\", \"names\": {\"en\": {\"name\": \"Other\"}}}")));
+        assertEquals("invalid.language_tag", errorOf(400, api.post("/ref-kinds", "{\"code\": \"other\", "
+                + "\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"他\"}, \"ja_JP\": {\"name\": \"他\"}}}")));
+        HttpResponse<String> noName = api.post("/ref-kinds", "{\"code\": \"other\", \"primaryLanguage\": \"ja\", "
+                + "\"names\": {\"ja\": {}}}");
+        assertEquals("invalid.required", errorOf(400, noName));
+        assertTrue(Api.json(noName).get("message").asText().contains("names.ja.name"), noName.body());
+        assertEquals("invalid.required", errorOf(400, api.putWithVersion("/ref-kinds/site", "{\"names\": "
+                + "{\"en\": {\"name\": \"Location\"}}}")));
+    }
+
+    private static JsonNode kindOf(Api api, String code) throws Exception {
+        for (JsonNode kind : Api.json(api.get("/ref-kinds"))) {
+            if (kind.get("code").asText().equals(code)) {
+                return kind;
+            }
+        }
+        throw new AssertionError(code + " is not a kind");
     }
 }

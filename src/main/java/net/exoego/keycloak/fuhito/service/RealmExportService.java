@@ -38,6 +38,7 @@ import net.exoego.keycloak.fuhito.domain.RealmKind;
 import net.exoego.keycloak.fuhito.domain.RefItem;
 import net.exoego.keycloak.fuhito.domain.RefItemName;
 import net.exoego.keycloak.fuhito.domain.RefItemPeriod;
+import net.exoego.keycloak.fuhito.domain.RefKindName;
 import net.exoego.keycloak.fuhito.domain.ReportingLine;
 import net.exoego.keycloak.fuhito.domain.UnitRole;
 import net.exoego.keycloak.fuhito.domain.ValidPeriod;
@@ -129,7 +130,8 @@ public class RealmExportService {
         RealmExportStore export = stores.export();
         return switch (Checks.required("list", list)) {
             case "ref-kinds" -> page(export.refKinds().read(afterId, max), RealmKind::id,
-                    kind -> new RealmExport.Kind(kind.id(), kind.version(), kind.code(), kind.name(), kind.names()));
+                    kind -> new RealmExport.Kind(kind.id(), kind.version(), kind.code(),
+                            kind.names().primaryLanguage(), kind.names().byLanguage()));
             case "ref-items" -> refItems(export.refItems().read(afterId, max));
             case "attribute-definitions" -> page(export.attributeDefinitions().read(afterId, max),
                     AttributeDefinition::id, d -> new RealmExport.Definition(d.id(), d.version(), d.target().name(),
@@ -318,7 +320,8 @@ public class RealmExportService {
         }
         Map<String, Integer> counts = new LinkedHashMap<>();
         counts.put("ref-kinds", each("ref-kinds", document.refKinds(), k -> stores.refKinds().insert(
-                new RealmKind(k.id(), k.code(), k.name(), k.names(), version(k.version())))));
+                new RealmKind(k.id(), k.code(), RefKindName.check(k.primaryLanguage(), k.names()),
+                        version(k.version())))));
         counts.put("ref-items", each("ref-items", document.refItems(), this::restoreRefItem));
         counts.put("attribute-definitions", each("attribute-definitions", document.attributeDefinitions(), d -> stores.attributeDefinitions()
                 .insert(new AttributeDefinition(d.id(), AttributeDefinition.Target.valueOf(d.target()), d.name(),

@@ -2,7 +2,6 @@ package net.exoego.keycloak.fuhito.domain;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -142,20 +141,10 @@ class ChecksTest {
     }
 
     @Test
-    void acceptsNoLocalizedNames() {
-        assertEquals(Map.of(), Checks.localizedNames("names", null));
-    }
-
-    @Test
-    void normalizesLanguageTagsAndKeepsTheOrder() {
-        Map<String, String> names = new LinkedHashMap<>();
-        names.put("JA", " 内科 ");
-        names.put("en-us", "Internal Medicine");
-
-        Map<String, String> result = Checks.localizedNames("names", names);
-
-        assertEquals(List.of("ja", "en-US"), List.copyOf(result.keySet()));
-        assertEquals("内科", result.get("ja"));
+    void normalizesALanguageTag() {
+        assertEquals("ja", Checks.languageTag("names", "JA"));
+        assertEquals("en-US", Checks.languageTag("names", "en-us"));
+        assertEquals("zh-Hant", Checks.languageTag("names", "zh-hant"));
     }
 
     // The last one is a good tag of 65 characters, one more than the column of a name row has.
@@ -163,22 +152,13 @@ class ChecksTest {
     @ValueSource(strings = {"", "ja_JP", "not a tag", "und",
         "en-x-12345678-12345678-12345678-12345678-12345678-12345678-123456"})
     void rejectsABadLanguageTag(String tag) {
-        FuhitoException e = invalid(() -> Checks.localizedNames("names", Map.of(tag, "x")));
+        FuhitoException e = invalid(() -> Checks.languageTag("names", tag));
         assertEquals("invalid.language_tag", e.code());
-        assertEquals(tag, e.params().get("value"));
+        assertEquals(Map.of("field", "names", "value", tag), e.params());
     }
 
     @Test
     void rejectsAMissingLanguageTag() {
-        Map<String, String> names = new LinkedHashMap<>();
-        names.put(null, "x");
-        assertEquals("null", invalid(() -> Checks.localizedNames("names", names)).params().get("value"));
-    }
-
-    @Test
-    void rejectsABlankLocalizedName() {
-        FuhitoException e = invalid(() -> Checks.localizedNames("names", Map.of("ja", " ")));
-        assertEquals("invalid.name", e.code());
-        assertEquals("names.ja", e.params().get("field"));
+        assertEquals("null", invalid(() -> Checks.languageTag("names", null)).params().get("value"));
     }
 }

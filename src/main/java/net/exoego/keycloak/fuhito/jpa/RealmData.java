@@ -36,6 +36,7 @@ public final class RealmData {
             OrgUnitEntity.class,
             RefItemNameEntity.class,
             RefItemEntity.class,
+            RefKindNameEntity.class,
             RealmKindEntity.class,
             AttributeDefinitionEntity.class,
             ExternalIdEntity.class,

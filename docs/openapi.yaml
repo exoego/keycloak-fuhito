@@ -1054,12 +1054,12 @@ components:
           format: int64
         code:
           type: string
-        name:
+        primaryLanguage:
           type: string
         names:
           type: object
           additionalProperties:
-            type: string
+            $ref: "#/components/schemas/RefKindName"
     ExportReportingLine:
       type: object
       properties:
@@ -1903,7 +1903,8 @@ components:
       type: object
       required:
       - code
-      - name
+      - primaryLanguage
+      - names
       description: A kind of reference data that the realm adds. It is matched by
         code.
       properties:
@@ -1911,15 +1912,15 @@ components:
           type: string
           maxLength: 32
           pattern: "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
-        name:
+        primaryLanguage:
           type: string
-          maxLength: 255
-          description: The default name.
+          description: "The language tag of the primary name, such as `ja`. It is\
+            \ a key of `names`."
         names:
           type: object
           additionalProperties:
-            type: string
-          description: "Names in other languages, by language tag."
+            $ref: "#/components/schemas/RefKindName"
+          description: "The names by language tag, such as `ja`, `en`, or `zh-Hant`."
     ImportReport:
       required:
       - dryRun
@@ -3144,7 +3145,8 @@ components:
     RefKindDefinition:
       required:
       - code
-      - name
+      - primaryLanguage
+      - names
       description: A kind of reference data.
       type: object
       properties:
@@ -3155,13 +3157,23 @@ components:
           description: The code that items name as their kind.
         name:
           type: string
-          maxLength: 255
-          description: The default name. A fixed kind has none.
+          description: "The name in the language of the request. It is the one of\
+            \ the first language of `Accept-Language`, else the one of that language\
+            \ with no region, such as `en` for `en-US`, else the primary one. A request\
+            \ with no `Accept-Language` reads the primary one. A fixed kind has none."
+          readOnly: true
+        primaryLanguage:
+          type: string
+          maxLength: 64
+          description: "The language tag of the primary name, such as `ja`. It is\
+            \ a key of `names`. A fixed kind has none."
         names:
           type: object
           additionalProperties:
-            type: string
-          description: "Names in other languages, by language tag."
+            $ref: "#/components/schemas/RefKindName"
+          description: "The names by language tag, such as `ja`, `en`, or `zh-Hant`.\
+            \ A read gives the tags in their standard form, such as `en-US` for `en-us`.\
+            \ A fixed kind has none."
         fixed:
           type: boolean
           description: True for a kind that every realm has.
@@ -3172,6 +3184,15 @@ components:
           description: The version of a kind that the realm added. A new kind has
             1. Each write counts it up by one. A fixed kind has none. A write of a
             stored kind sends the version that the caller read. A create needs none.
+    RefKindName:
+      required:
+      - name
+      description: The name of a kind of reference data in one language.
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 255
     Reorganization:
       required:
       - effectiveDate
@@ -8826,8 +8847,9 @@ paths:
     post:
       summary: "Adds a kind of reference data to the realm, such as a working time\
         \ system or a collective agreement."
-      description: Its items are reference items with the code as their kind. Attributes
-        of the type `REF_ITEM` can point to it.
+      description: "The body needs `code`, `primaryLanguage`, and `names`. Its items\
+        \ are reference items with the code as their kind. Attributes of the type\
+        \ `REF_ITEM` can point to it."
       operationId: createRefKind
       tags:
       - ref-items

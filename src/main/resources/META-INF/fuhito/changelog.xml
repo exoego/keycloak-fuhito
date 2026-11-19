@@ -1087,4 +1087,36 @@
             EXCLUDE USING gist (REF_ITEM_ID WITH =, daterange(VALID_FROM, VALID_TO) WITH &amp;&amp;) WHERE (IS_PRIMARY)
         </sql>
     </changeSet>
+
+    <!-- The names of a kind of reference data get one row for each language, and one row of each kind is the
+         primary one. Nothing was released, so the stored names do not move. -->
+    <changeSet id="0.1.0-ref-kind-names" author="keycloak-fuhito">
+        <createTable tableName="FUHITO_REF_KIND_NAME">
+            <column name="KIND_ID" type="VARCHAR(36)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="LANGUAGE" type="VARCHAR(64)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="REALM_ID" type="VARCHAR(36)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="IS_PRIMARY" type="BOOLEAN" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+            <column name="NAME" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        <addPrimaryKey tableName="FUHITO_REF_KIND_NAME" columnNames="KIND_ID, LANGUAGE"
+                       constraintName="PK_FUHITO_REF_KIND_NAME"/>
+        <addForeignKeyConstraint baseTableName="FUHITO_REF_KIND_NAME" baseColumnNames="KIND_ID"
+                                 referencedTableName="FUHITO_REF_KIND" referencedColumnNames="ID"
+                                 constraintName="FK_FUHITO_REF_KIND_NAME_KIND"/>
+        <sql dbms="postgresql">
+            CREATE UNIQUE INDEX UK_FUHITO_REF_KIND_NAME_PRIMARY ON FUHITO_REF_KIND_NAME (KIND_ID) WHERE IS_PRIMARY
+        </sql>
+        <dropColumn tableName="FUHITO_REF_KIND" columnName="NAME"/>
+        <dropColumn tableName="FUHITO_REF_KIND" columnName="NAMES_I18N"/>
+    </changeSet>
 </databaseChangeLog>

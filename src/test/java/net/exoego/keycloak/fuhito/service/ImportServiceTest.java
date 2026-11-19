@@ -20,6 +20,7 @@ import net.exoego.keycloak.fuhito.domain.Qualification;
 import net.exoego.keycloak.fuhito.domain.RefItem;
 import net.exoego.keycloak.fuhito.domain.RefItemName;
 import net.exoego.keycloak.fuhito.domain.RefKind;
+import net.exoego.keycloak.fuhito.domain.RefKindName;
 import net.exoego.keycloak.fuhito.domain.ReportingLine;
 import net.exoego.keycloak.fuhito.domain.UnitRole;
 import net.exoego.keycloak.fuhito.service.ImportDocument.AssignmentRow;
@@ -181,12 +182,14 @@ class ImportServiceTest {
 
     @Test
     void importsTheKindsOfTheRealmAndRenamesAStoredOne() {
-        List<RefKindRow> rows = List.of(new RefKindRow("site", "拠点", Map.of("en", "Site")));
+        List<RefKindRow> rows = List.of(new RefKindRow("site", "ja",
+                Map.of("ja", new RefKindName("拠点"), "en", new RefKindName("Site"))));
 
         ImportReport first = service.apply(kinds(rows));
         ImportReport second = service.apply(kinds(rows));
-        ImportReport renamed = service.apply(kinds(List.of(new RefKindRow("site", "勤務地", null),
-                new RefKindRow("UNIT_TYPE", "組織種別", null))));
+        ImportReport renamed = service.apply(kinds(List.of(
+                new RefKindRow("site", "ja", Map.of("ja", new RefKindName("勤務地"))),
+                new RefKindRow("UNIT_TYPE", "ja", Map.of("ja", new RefKindName("組織種別"))))));
 
         assertEquals(Map.of("refKinds", new Counts(1, 0, 0)), first.counts());
         assertEquals("fuhito/ref-kinds/site", first.writes().getFirst().path());
@@ -194,8 +197,7 @@ class ImportServiceTest {
         assertEquals(Map.of("refKinds", new Counts(0, 1, 0)), renamed.counts());
         // A fixed kind is in every realm, so a row cannot add it.
         assertEquals(List.of("refKinds[1] ref_kind.code_taken"), errors(renamed));
-        assertEquals("勤務地", kinds.get("site").name());
-        assertEquals(Map.of(), kinds.get("site").names());
+        assertEquals(Localized.of("ja", new RefKindName("勤務地")), kinds.get("site").names());
     }
 
     private static ImportDocument kinds(List<RefKindRow> rows) {

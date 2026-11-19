@@ -1,10 +1,13 @@
 package net.exoego.keycloak.fuhito.jpa;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import jakarta.persistence.EntityManager;
+import net.exoego.keycloak.fuhito.domain.Localized;
 import net.exoego.keycloak.fuhito.domain.RealmKind;
+import net.exoego.keycloak.fuhito.domain.RefKindName;
 import net.exoego.keycloak.fuhito.store.RealmKindStore;
 
 /**
@@ -28,23 +31,23 @@ public class JpaRealmKindStore implements RealmKindStore {
 
     @Override
     public List<RealmKind> list() {
-        return em.createQuery("select k from RealmKindEntity k where k.realmId = :realmId order by k.code",
+        return withNames(em, realmId, em.createQuery(
+                        "select k from RealmKindEntity k where k.realmId = :realmId order by k.code",
                         RealmKindEntity.class)
                 .setParameter("realmId", realmId)
-                .getResultStream()
-                .map(JpaRealmKindStore::toDomain)
-                .toList();
+                .getResultList());
     }
 
     @Override
     public Optional<RealmKind> findByCode(String code) {
-        return em.createQuery("select k from RealmKindEntity k where k.realmId = :realmId and k.code = :code",
+        return withNames(em, realmId, em.createQuery(
+                        "select k from RealmKindEntity k where k.realmId = :realmId and k.code = :code",
                         RealmKindEntity.class)
                 .setParameter("realmId", realmId)
                 .setParameter("code", code)
-                .getResultStream()
-                .findFirst()
-                .map(JpaRealmKindStore::toDomain);
+                .getResultList())
+                .stream()
+                .findFirst();
     }
 
     @Override
@@ -53,32 +56,43 @@ public class JpaRealmKindStore implements RealmKindStore {
         entity.id = kind.id();
         entity.realmId = realmId;
         entity.code = kind.code();
-        entity.name = kind.name();
-        entity.names = kind.names();
         entity.version = kind.version();
+        entity.counted = true;
         em.persist(entity);
+        RefKindNames.insert(em, realmId, kind.id(), kind.names());
         em.flush();
     }
 
     @Override
     public void update(RealmKind kind) {
         RealmKindEntity entity = Rows.require(em, RealmKindEntity.class, kind.id(), realmId, found -> found.realmId);
-        entity.name = kind.name();
-        entity.names = kind.names();
-        // JPA counts up the version when it writes the row. A read after the write gives the new one.
-        em.flush();
+        RefKindNames.replace(em, realmId, kind.id(), kind.names());
+        entity.countUp();
     }
 
     @Override
     public void delete(String id) {
         RealmKindEntity entity = em.find(RealmKindEntity.class, id);
         if (entity != null && entity.realmId.equals(realmId)) {
+            RefKindNames.delete(em, realmId, id);
             em.remove(entity);
             em.flush();
         }
     }
 
-    static RealmKind toDomain(RealmKindEntity e) {
-        return new RealmKind(e.id, e.code, e.name, e.names, e.version);
+    /**
+     * Reads the names of kinds in one query, and gives each kind its names.
+     *
+     * @param em the entity manager
+     * @param realmId the ID of the realm
+     * @param entities the rows of the kinds
+     * @return the kinds in the same order
+     */
+    static List<RealmKind> withNames(EntityManager em, String realmId, List<RealmKindEntity> entities) {
+        Map<String, Localized<RefKindName>> names = RefKindNames.of(em, realmId,
+                entities.stream().map(e -> e.id).toList());
+        return entities.stream()
+                .map(e -> new RealmKind(e.id, e.code, names.get(e.id), e.version))
+                .toList();
     }
 }

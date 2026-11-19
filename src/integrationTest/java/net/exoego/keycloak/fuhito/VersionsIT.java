@@ -45,8 +45,8 @@ class VersionsIT {
         TestRealm realm = TestRealm.withEmployer("versions");
         Api api = realm.api;
 
-        assertEquals(1, version(api.post("/ref-kinds", "{\"code\": \"site\", \"name\": \"拠点\"}")));
-        assertEquals(2, version(api.putWithVersion("/ref-kinds/site", "{\"name\": \"事業所\"}")));
+        assertEquals(1, version(api.post("/ref-kinds", "{\"code\": \"site\", \"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"拠点\"}}}")));
+        assertEquals(2, version(api.putWithVersion("/ref-kinds/site", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"事業所\"}}}")));
         assertEquals(2, entry(ok(api.get("/ref-kinds")), "code", "site").get("version").asLong());
         assertFalse(entry(ok(api.get("/ref-kinds")), "code", "UNIT_TYPE").has("version"));
 
@@ -352,8 +352,8 @@ class VersionsIT {
         Api api = source.api;
         String nurseUser = source.user("nurse");
         String bossUser = source.user("boss");
-        ok(api.post("/ref-kinds", "{\"code\": \"site\", \"name\": \"拠点\"}"));
-        ok(api.putWithVersion("/ref-kinds/site", "{\"name\": \"事業所\"}"));
+        ok(api.post("/ref-kinds", "{\"code\": \"site\", \"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"拠点\"}}}"));
+        ok(api.putWithVersion("/ref-kinds/site", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"事業所\"}}}"));
         String item = id(api.post("/ref-items", "{\"kind\": \"site\", \"code\": \"tokyo\", \"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"東京\"}}}"));
         ok(api.putWithVersion("/ref-items/" + item, "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"東京本社\"}}}"));
         String definition = id(api.post("/attribute-definitions",
