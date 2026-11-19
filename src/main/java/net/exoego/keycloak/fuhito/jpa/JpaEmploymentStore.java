@@ -129,11 +129,11 @@ public class JpaEmploymentStore implements EmploymentStore {
             return List.of();
         }
         return em.createQuery("""
-                        select e from EmploymentEntity e join fetch e.person where e.realmId = :realmId
-                        and %s""".formatted(ManyIds.has("e.id", "ids")), EmploymentEntity.class)
-                .setParameter("realmId", realmId)
+                        select e from EmploymentEntity e join fetch e.person where %s"""
+                        .formatted(ManyIds.has("e.id", "ids")), EmploymentEntity.class)
                 .setParameter("ids", ManyIds.of(ids))
                 .getResultStream()
+                .filter(Rows.inRealm(realmId, e -> e.realmId))
                 .map(JpaEmploymentStore::toDomain)
                 .toList();
     }
@@ -216,12 +216,12 @@ public class JpaEmploymentStore implements EmploymentStore {
             return List.of();
         }
         return em.createQuery("""
-                        select t from EmploymentTermsEntity t where t.realmId = :realmId and %s
+                        select t from EmploymentTermsEntity t where %s
                         order by t.employmentId, t.validFrom""".formatted(ManyIds.has("t.employmentId", "ids")),
                         EmploymentTermsEntity.class)
-                .setParameter("realmId", realmId)
                 .setParameter("ids", ManyIds.of(employmentIds))
                 .getResultStream()
+                .filter(Rows.inRealm(realmId, t -> t.realmId))
                 .map(JpaEmploymentStore::toDomain)
                 .toList();
     }
@@ -232,15 +232,14 @@ public class JpaEmploymentStore implements EmploymentStore {
             return List.of();
         }
         return em.createQuery("""
-                        select t from EmploymentTermsEntity t where t.realmId = :realmId
-                        and %s
+                        select t from EmploymentTermsEntity t where %s
                         and t.validFrom <= :date and (t.validTo is null or t.validTo > :date)"""
                         .formatted(ManyIds.has("t.employmentId", "employmentIds")),
                         EmploymentTermsEntity.class)
-                .setParameter("realmId", realmId)
                 .setParameter("employmentIds", ManyIds.of(employmentIds))
                 .setParameter("date", date)
                 .getResultStream()
+                .filter(Rows.inRealm(realmId, t -> t.realmId))
                 .map(JpaEmploymentStore::toDomain)
                 .toList();
     }
@@ -304,11 +303,11 @@ public class JpaEmploymentStore implements EmploymentStore {
     @Override
     public List<EmploymentTerms> terms(String employmentId) {
         return em.createQuery("""
-                        select t from EmploymentTermsEntity t where t.realmId = :realmId
-                        and t.employmentId = :employmentId order by t.validFrom""", EmploymentTermsEntity.class)
-                .setParameter("realmId", realmId)
+                        select t from EmploymentTermsEntity t where t.employmentId = :employmentId
+                        order by t.validFrom""", EmploymentTermsEntity.class)
                 .setParameter("employmentId", employmentId)
                 .getResultStream()
+                .filter(Rows.inRealm(realmId, t -> t.realmId))
                 .map(JpaEmploymentStore::toDomain)
                 .toList();
     }

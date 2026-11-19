@@ -3,10 +3,12 @@ package net.exoego.keycloak.fuhito;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.Statement;
+import java.util.List;
 
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class SchemaIT {
@@ -76,6 +78,131 @@ class SchemaIT {
                     and resource_kind = 'ORG_UNIT' and resource_id = 'ex-new-unit-7'""")
                     .contains("uk_fuhito_external_id_source"));
             connection.rollback();
+        }
+    }
+
+    // The check of a staff number names the realm, because two realms can use the same staff number.
+    @Test
+    void aCheckOfAStaffNumberUsesItsIndexAlsoWhileTheStatisticsAreOld() throws Exception {
+        try (Connection connection = KeycloakEnvironment.connection();
+                Statement statement = connection.createStatement()) {
+            connection.setAutoCommit(false);
+            realmsWithOldStatistics(statement);
+
+            assertTrue(plan(statement, """
+                    explain select * from fuhito_employment where realm_id = 'ex-new-realm'
+                    and staff_number = 'S7' order by valid_from""")
+                    .contains("idx_fuhito_employment_staff_number"));
+            connection.rollback();
+        }
+    }
+
+    // These reads leave the realm out of the query, and drop the rows of other realms after it.
+    @Test
+    void aReadByTheIdOfARecordUsesItsIndexAlsoWhileTheStatisticsAreOld() throws Exception {
+        try (Connection connection = KeycloakEnvironment.connection();
+                Statement statement = connection.createStatement()) {
+            connection.setAutoCommit(false);
+            realmsWithOldStatistics(statement);
+
+            assertTrue(plan(statement, """
+                    explain select * from fuhito_employment where id = any('{ex-new-employment-7}')""")
+                    .contains("Index Cond: ((id)::text = ANY"));
+            assertTrue(plan(statement, """
+                    explain select * from fuhito_employment_terms where employment_id = 'ex-new-employment-7'
+                    order by valid_from""")
+                    .contains("Index Cond: ((employment_id)::text = 'ex-new-employment-7'::text)"));
+            assertTrue(plan(statement, """
+                    explain select * from fuhito_assignment where assignment_id = any('{ex-new-assignment-7}')
+                    order by assignment_id, valid_from""")
+                    .contains("Index Cond: ((assignment_id)::text = ANY"));
+            assertTrue(plan(statement, """
+                    explain select * from fuhito_assignment where employment_id = any('{ex-new-employment-7}')
+                    order by employment_id, valid_from, id""")
+                    .contains("Index Cond: ((employment_id)::text = ANY"));
+            assertTrue(plan(statement, """
+                    explain select * from fuhito_org_unit_version where org_unit_id = 'ex-new-unit-7'
+                    order by valid_from""")
+                    .contains("Index Cond: ((org_unit_id)::text = 'ex-new-unit-7'::text)"));
+            connection.rollback();
+        }
+    }
+
+    @Test
+    void theWalkUpTheTreeLooksUpEachStepByItsUnitAlsoWhileTheStatisticsAreOld() throws Exception {
+        try (Connection connection = KeycloakEnvironment.connection();
+                Statement statement = connection.createStatement()) {
+            connection.setAutoCommit(false);
+            realmsWithOldStatistics(statement);
+
+            // Without analyze, PostgreSQL does not show the lookup in the recursive part.
+            String plan = plan(statement, """
+                    explain (analyze, costs off) with recursive above (unit_id, ancestor_id, depth, realm_id) as (
+                        select v.org_unit_id, v.org_unit_id, 0, v.realm_id from fuhito_org_unit_version v
+                        where v.org_unit_id = any('{ex-new-unit-777}') and v.valid_from <= '2026-04-01'
+                        and (v.valid_to is null or v.valid_to > '2026-04-01')
+                        union all
+                        select a.unit_id, (select l.parent_id from fuhito_org_unit_link l
+                            where l.child_id = a.ancestor_id and l.realm_id = 'ex-new-realm'
+                            and l.hierarchy_id = 'ex-new-hierarchy' and l.valid_from <= '2026-04-01'
+                            and (l.valid_to is null or l.valid_to > '2026-04-01')), a.depth + 1, a.realm_id
+                        from above a where a.ancestor_id is not null)
+                    select a.unit_id,
+                        (select w.work_location_id from fuhito_org_unit_version w where w.org_unit_id = a.ancestor_id
+                        and w.valid_from <= '2026-04-01' and (w.valid_to is null or w.valid_to > '2026-04-01')),
+                        (select w.cost_center_id from fuhito_org_unit_version w where w.org_unit_id = a.ancestor_id
+                        and w.valid_from <= '2026-04-01' and (w.valid_to is null or w.valid_to > '2026-04-01'))
+                    from above a where a.realm_id = 'ex-new-realm' and a.ancestor_id is not null
+                    order by a.unit_id, a.depth""");
+            assertFalse(plan.contains("Seq Scan"), plan);
+            assertTrue(plan.contains("(org_unit_id)::text = ANY"), plan);
+            // Each lookup of a step finds its rows by the unit in the index.
+            List<String> steps = plan.lines().map(String::strip)
+                    .filter(line -> line.matches(".*\\(a(_\\d+)?\\.ancestor_id\\)::text.*")).toList();
+            steps.forEach(line -> assertTrue(line.startsWith("Index Cond:") || line.startsWith("Recheck Cond:"),
+                    plan));
+            assertEquals(3, steps.stream().filter(line -> line.startsWith("Index Cond:")).count(), plan);
+            connection.rollback();
+        }
+    }
+
+    // An import into a new realm writes its rows in one transaction, so the statistics still say that the realm has
+    // no rows. The caller rolls them back.
+    private static void realmsWithOldStatistics(Statement statement) throws Exception {
+        rowsOfRealm(statement, "ex-old", 20);
+        statement.execute("""
+                analyze fuhito_org_unit, fuhito_org_unit_version, fuhito_org_unit_link, fuhito_person,
+                fuhito_employment, fuhito_employment_terms, fuhito_assignment""");
+        rowsOfRealm(statement, "ex-new", 3000);
+    }
+
+    // Units below the first nine have a parent. Each person has one employment with its terms, and one assignment to
+    // one of the first 20 units.
+    private static void rowsOfRealm(Statement statement, String prefix, int count) throws Exception {
+        for (String insert : List.of("""
+                insert into fuhito_hierarchy (id, realm_id, code, name)
+                values ('%1$s-hierarchy', '%1$s-realm', 'default', 'Default')""", """
+                insert into fuhito_org_unit (id, realm_id) select '%1$s-unit-' || i, '%1$s-realm'
+                from generate_series(1, %2$d) i""", """
+                insert into fuhito_org_unit_version (id, realm_id, org_unit_id, valid_from, attributes)
+                select '%1$s-version-' || i, '%1$s-realm', '%1$s-unit-' || i, '2026-04-01', '{}'
+                from generate_series(1, %2$d) i""", """
+                insert into fuhito_org_unit_link (id, realm_id, hierarchy_id, child_id, parent_id, valid_from)
+                select '%1$s-link-' || i, '%1$s-realm', '%1$s-hierarchy', '%1$s-unit-' || i, '%1$s-unit-' || (i / 10),
+                '2026-04-01' from generate_series(10, %2$d) i""", """
+                insert into fuhito_person (id, realm_id, attributes) select '%1$s-person-' || i, '%1$s-realm', '{}'
+                from generate_series(1, %2$d) i""", """
+                insert into fuhito_employment (id, realm_id, valid_from, staff_number, person_id)
+                select '%1$s-employment-' || i, '%1$s-realm', '2026-04-01', 'S' || i, '%1$s-person-' || i
+                from generate_series(1, %2$d) i""", """
+                insert into fuhito_employment_terms (id, realm_id, employment_id, valid_from, status, attributes)
+                select '%1$s-terms-' || i, '%1$s-realm', '%1$s-employment-' || i, '2026-04-01', 'ACTIVE', '{}'
+                from generate_series(1, %2$d) i""", """
+                insert into fuhito_assignment (id, realm_id, assignment_id, employment_id, org_unit_id, valid_from,
+                is_primary, attributes) select '%1$s-row-' || i, '%1$s-realm', '%1$s-assignment-' || i,
+                '%1$s-employment-' || i, '%1$s-unit-' || (i %% 20 + 1), '2026-04-01', true, '{}'
+                from generate_series(1, %2$d) i""")) {
+            statement.execute(insert.formatted(prefix, count));
         }
     }
 

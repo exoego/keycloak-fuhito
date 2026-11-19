@@ -88,11 +88,11 @@ final class Versions {
             return versions;
         }
         Map<String, List<AssignmentEntity>> rowsById = em.createQuery("""
-                        select a from AssignmentEntity a where a.realmId = :realmId
-                        and %s""".formatted(ManyIds.has("a.assignmentId", "ids")), AssignmentEntity.class)
-                .setParameter("realmId", realmId)
+                        select a from AssignmentEntity a where %s""".formatted(ManyIds.has("a.assignmentId", "ids")),
+                        AssignmentEntity.class)
                 .setParameter("ids", ManyIds.of(assignmentIds))
                 .getResultStream()
+                .filter(Rows.inRealm(realmId, row -> row.realmId))
                 .collect(Collectors.groupingBy(row -> row.assignmentId));
         rowsById.forEach((id, rows) -> {
             long current = rows.stream().mapToLong(row -> row.version).max().orElseThrow();

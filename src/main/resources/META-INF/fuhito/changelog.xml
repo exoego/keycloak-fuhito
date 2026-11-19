@@ -1132,4 +1132,32 @@
         <addUniqueConstraint tableName="FUHITO_EXTERNAL_ID" columnNames="RESOURCE_ID, RESOURCE_KIND, REALM_ID, SOURCE"
                              constraintName="UK_FUHITO_EXTERNAL_ID_SOURCE"/>
     </changeSet>
+
+    <!-- PostgreSQL takes an index with a condition only for a read that has the same condition or a narrower one.
+         So the indexes of the dates of employments now serve only a read that names a date. Every row has a
+         VALID_FROM, so that condition leaves out no row. Before, a check of a staff number in a realm that the
+         statistics did not know yet often took one of these indexes, because they start with the realm. Then the
+         check read every employment of the realm. -->
+    <changeSet id="0.1.0-employment-date-indexes" author="keycloak-fuhito" dbms="postgresql">
+        <dropIndex tableName="FUHITO_EMPLOYMENT" indexName="IDX_FUHITO_EMPLOYMENT_FROM"/>
+        <dropIndex tableName="FUHITO_EMPLOYMENT" indexName="IDX_FUHITO_EMPLOYMENT_TO"/>
+        <sql>
+            CREATE INDEX IDX_FUHITO_EMPLOYMENT_FROM ON FUHITO_EMPLOYMENT (REALM_ID, VALID_FROM)
+            WHERE VALID_FROM IS NOT NULL
+        </sql>
+        <sql>
+            CREATE INDEX IDX_FUHITO_EMPLOYMENT_TO ON FUHITO_EMPLOYMENT (REALM_ID, VALID_TO) WHERE VALID_TO IS NOT NULL
+        </sql>
+    </changeSet>
+
+    <!-- The index of the children of a parent starts with the parent. The default hierarchy of a new realm is new
+         too. While the statistics did not know it, a lookup of the parent of one child took this index with only the
+         hierarchy, and read every link of the hierarchy. -->
+    <changeSet id="0.1.0-org-unit-link-parent-index" author="keycloak-fuhito">
+        <dropIndex tableName="FUHITO_ORG_UNIT_LINK" indexName="IDX_FUHITO_ORG_UNIT_LINK_PARENT"/>
+        <createIndex tableName="FUHITO_ORG_UNIT_LINK" indexName="IDX_FUHITO_ORG_UNIT_LINK_PARENT">
+            <column name="PARENT_ID"/>
+            <column name="HIERARCHY_ID"/>
+        </createIndex>
+    </changeSet>
 </databaseChangeLog>
