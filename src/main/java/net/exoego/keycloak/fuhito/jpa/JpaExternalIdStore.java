@@ -1,8 +1,11 @@
 package net.exoego.keycloak.fuhito.jpa;
 
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import jakarta.persistence.EntityManager;
 import net.exoego.keycloak.fuhito.domain.ExternalId;
@@ -150,6 +153,31 @@ public class JpaExternalIdStore implements ExternalIdStore {
         // JPA counts up the version when it writes the row. A read after the write gives the new one.
         em.flush();
         Versions.of(em, realmId, ExternalId.Kind.valueOf(entity.kind), entity.resourceId);
+    }
+
+    @Override
+    public void moveAll(Map<ExternalId.Kind, Map<String, String>> newResourceIds) {
+        Set<String> ids = new HashSet<>();
+        newResourceIds.values().forEach(of -> ids.addAll(of.keySet()));
+        if (ids.isEmpty()) {
+            return;
+        }
+        // An ID of one kind can also be an ID of another kind, so each row looks in the map of its own kind.
+        em.createQuery("""
+                        select x from ExternalIdEntity x where x.realmId = :realmId and x.kind in :kinds
+                        and %s""".formatted(ManyIds.has("x.resourceId", "ids")), ExternalIdEntity.class)
+                .setParameter("realmId", realmId)
+                .setParameter("kinds", newResourceIds.keySet().stream().map(Enum::name).toList())
+                .setParameter("ids", ManyIds.of(ids))
+                .getResultList()
+                .forEach(entity -> {
+                    String moved = newResourceIds.get(ExternalId.Kind.valueOf(entity.kind)).get(entity.resourceId);
+                    if (moved != null) {
+                        entity.resourceId = moved;
+                    }
+                });
+        // JPA counts up the version of each row that it writes.
+        em.flush();
     }
 
     @Override

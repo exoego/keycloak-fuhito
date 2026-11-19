@@ -211,12 +211,9 @@ public class JpaReportingLineStore implements ReportingLineStore {
 
     @Override
     public void deleteAll(Collection<String> ids) {
-        for (String id : ids) {
-            findEntity(id).ifPresent(entity -> {
-                ExternalIds.deleteOf(em, realmId, "REPORTING_LINE", id);
-                em.remove(entity);
-            });
-        }
+        List<ReportingLineEntity> found = ids.stream().map(this::findEntity).flatMap(Optional::stream).toList();
+        ExternalIds.deleteOfAll(em, realmId, "REPORTING_LINE", found.stream().map(entity -> entity.id).toList());
+        found.forEach(em::remove);
         em.flush();
     }
 
