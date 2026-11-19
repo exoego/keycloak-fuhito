@@ -4,6 +4,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import jakarta.persistence.EntityManager;
 import net.exoego.keycloak.fuhito.store.WriteScopes;
@@ -38,19 +39,24 @@ public class JpaWriteScopes implements WriteScopes {
         if (personId != null) {
             all.put("people", Set.of(personId));
             all.put("qualifications", ids("""
-                    select q.id from QualificationEntity q where q.realmId = :realmId
-                    and q.personId = :id""", personId));
+                    select q.realmId, q.id from QualificationEntity q where q.personId = :id""", personId));
             all.get("reporting-lines").addAll(ids("""
-                    select l.id from ReportingLineEntity l where l.realmId = :realmId
-                    and l.managerPersonId = :id""", personId));
+                    select l.realmId, l.id from ReportingLineEntity l where l.managerPersonId = :id""", personId));
         }
         return all;
     }
 
+    // The key of the person has the realm and the user.
     @Override
     public Map<String, Set<String>> userData(String userId) {
         Map<String, Set<String>> all = new HashMap<>();
-        ids("select p.id from PersonEntity p where p.realmId = :realmId and p.userId = :id", userId)
+        if (userId == null) {
+            return all;
+        }
+        em.createQuery("select p.id from PersonEntity p where p.realmId = :realmId and p.userId = :id", String.class)
+                .setParameter("realmId", realmId)
+                .setParameter("id", userId)
+                .getResultList()
                 .forEach(personId -> personData(personId).forEach((collection, ids) -> all
                         .computeIfAbsent(collection, any -> new HashSet<>()).addAll(ids)));
         return all;
@@ -69,41 +75,43 @@ public class JpaWriteScopes implements WriteScopes {
     @Override
     public Map<String, Set<String>> assignmentsOfEmployment(String employmentId) {
         return Map.of("assignments", ids("""
-                select distinct a.assignmentId from AssignmentEntity a where a.realmId = :realmId
-                and a.employmentId = :id""", employmentId));
+                select distinct a.realmId, a.assignmentId from AssignmentEntity a
+                where a.employmentId = :id""", employmentId));
     }
 
     @Override
     public Map<String, Set<String>> assignmentsBeside(String assignmentId) {
         return Map.of("assignments", ids("""
-                select distinct a.assignmentId from AssignmentEntity a where a.realmId = :realmId
-                and a.employmentId in (select b.employmentId from AssignmentEntity b where b.realmId = :realmId
-                and b.assignmentId = :id)""", assignmentId));
+                select distinct a.realmId, a.assignmentId from AssignmentEntity a where a.employmentId in
+                (select b.employmentId from AssignmentEntity b where b.assignmentId = :id)""", assignmentId));
     }
 
     // Each condition is one of the fixed texts above.
     private Map<String, Set<String>> employments(String condition, String id) {
-        String employments = "select e.id from EmploymentEntity e where e.realmId = :realmId and " + condition;
-        String assignments = "select a.assignmentId from AssignmentEntity a where a.realmId = :realmId "
-                + "and a.employmentId in (" + employments + ")";
+        String employments = "select e.id from EmploymentEntity e where " + condition;
+        String assignments = "select a.assignmentId from AssignmentEntity a where a.employmentId in ("
+                + employments + ")";
         Map<String, Set<String>> all = new HashMap<>();
-        all.put("employments", ids(employments, id));
-        all.put("assignments", ids("select distinct a.assignmentId from AssignmentEntity a "
-                + "where a.realmId = :realmId and a.employmentId in (" + employments + ")", id));
-        all.put("unit-roles", ids("select r.id from UnitRoleEntity r where r.realmId = :realmId "
-                + "and r.employmentId in (" + employments + ")", id));
-        all.put("reporting-lines", ids("select l.id from ReportingLineEntity l where l.realmId = :realmId "
-                + "and l.assignmentId in (" + assignments + ")", id));
+        all.put("employments", ids("select e.realmId, e.id from EmploymentEntity e where " + condition, id));
+        all.put("assignments", ids("select distinct a.realmId, a.assignmentId from AssignmentEntity a "
+                + "where a.employmentId in (" + employments + ")", id));
+        all.put("unit-roles", ids("select r.realmId, r.id from UnitRoleEntity r "
+                + "where r.employmentId in (" + employments + ")", id));
+        all.put("reporting-lines", ids("select l.realmId, l.id from ReportingLineEntity l "
+                + "where l.assignmentId in (" + assignments + ")", id));
         return all;
     }
 
+    // Each query finds the realm and the ID of its rows by an ID alone, for the reason in Rows.inRealm.
     private Set<String> ids(String query, String id) {
         if (id == null) {
             return new HashSet<>();
         }
-        return new HashSet<>(em.createQuery(query, String.class)
-                .setParameter("realmId", realmId)
+        return em.createQuery(query, Object[].class)
                 .setParameter("id", id)
-                .getResultList());
+                .getResultStream()
+                .filter(Rows.inRealm(realmId, row -> (String) row[0]))
+                .map(row -> (String) row[1])
+                .collect(Collectors.toCollection(HashSet::new));
     }
 }

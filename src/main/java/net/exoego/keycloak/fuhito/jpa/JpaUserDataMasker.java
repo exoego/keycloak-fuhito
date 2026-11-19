@@ -42,12 +42,13 @@ public class JpaUserDataMasker implements UserDataMasker {
                 .findFirst();
     }
 
+    // The rows of the person are found by IDs alone, for the reason in Rows.inRealm.
     @Override
     public void mask(String personId, Instant now) {
         List<EmploymentEntity> employments = em.createQuery("""
-                        select e from EmploymentEntity e
-                        where e.realmId = :realmId and e.personId = :personId""", EmploymentEntity.class)
-                .setParameter("realmId", realmId).setParameter("personId", personId).getResultList();
+                        select e from EmploymentEntity e where e.personId = :personId""", EmploymentEntity.class)
+                .setParameter("personId", personId).getResultStream()
+                .filter(Rows.inRealm(realmId, e -> e.realmId)).toList();
         List<String> employmentIds = new ArrayList<>();
         for (EmploymentEntity employment : employments) {
             employmentIds.add(employment.id);
@@ -56,29 +57,29 @@ public class JpaUserDataMasker implements UserDataMasker {
         }
         List<String> assignmentIds = new ArrayList<>();
         if (!employmentIds.isEmpty()) {
-            em.createQuery("""
-                            select t from EmploymentTermsEntity t where t.realmId = :realmId
-                            and %s""".formatted(ManyIds.has("t.employmentId", "ids")), EmploymentTermsEntity.class)
-                    .setParameter("realmId", realmId).setParameter("ids", ManyIds.of(employmentIds)).getResultList()
+            em.createQuery("select t from EmploymentTermsEntity t where %s"
+                            .formatted(ManyIds.has("t.employmentId", "ids")), EmploymentTermsEntity.class)
+                    .setParameter("ids", ManyIds.of(employmentIds)).getResultStream()
+                    .filter(Rows.inRealm(realmId, t -> t.realmId))
                     .forEach(terms -> {
                         terms.attributes = new LinkedHashMap<>();
                         terms.leaveReasonId = null;
                     });
-            for (AssignmentEntity row : em.createQuery("""
-                            select a from AssignmentEntity a
-                            where a.realmId = :realmId and %s""".formatted(ManyIds.has("a.employmentId", "ids")),
-                    AssignmentEntity.class)
-                    .setParameter("realmId", realmId).setParameter("ids", ManyIds.of(employmentIds)).getResultList()) {
-                assignmentIds.add(row.assignmentId);
-                row.attributes = new LinkedHashMap<>();
-            }
+            em.createQuery("select a from AssignmentEntity a where %s"
+                            .formatted(ManyIds.has("a.employmentId", "ids")), AssignmentEntity.class)
+                    .setParameter("ids", ManyIds.of(employmentIds)).getResultStream()
+                    .filter(Rows.inRealm(realmId, a -> a.realmId))
+                    .forEach(row -> {
+                        assignmentIds.add(row.assignmentId);
+                        row.attributes = new LinkedHashMap<>();
+                    });
             assignmentIds.stream().distinct().forEach(id -> Versions.assignment(em, realmId, id));
         }
         List<String> qualificationIds = new ArrayList<>();
         for (QualificationEntity qualification : em.createQuery("""
-                        select q from QualificationEntity q
-                        where q.realmId = :realmId and q.personId = :personId""", QualificationEntity.class)
-                .setParameter("realmId", realmId).setParameter("personId", personId).getResultList()) {
+                        select q from QualificationEntity q where q.personId = :personId""", QualificationEntity.class)
+                .setParameter("personId", personId).getResultStream()
+                .filter(Rows.inRealm(realmId, q -> q.realmId)).toList()) {
             qualificationIds.add(qualification.id);
             qualification.number = null;
             qualification.attributes = new LinkedHashMap<>();
@@ -93,7 +94,7 @@ public class JpaUserDataMasker implements UserDataMasker {
         removeExternalIds("ASSIGNMENT", assignmentIds);
         removeExternalIds("QUALIFICATION", qualificationIds);
         // The lines and the roles keep their values, so only those that lose an ID are written.
-        removeExternalIds("REPORTING_LINE", lineIds(personId))
+        removeExternalIds("REPORTING_LINE", lineIds(personId, assignmentIds))
                 .forEach(id -> Versions.reportingLine(em, realmId, id));
         removeExternalIds("UNIT_ROLE", roleIds(employmentIds))
                 .forEach(id -> Versions.unitRole(em, realmId, id));
@@ -109,16 +110,23 @@ public class JpaUserDataMasker implements UserDataMasker {
         em.flush();
     }
 
-    // Lines where the person reports, and lines where the person is the manager.
-    private List<String> lineIds(String personId) {
-        return em.createQuery("""
-                        select l.id from ReportingLineEntity l where l.realmId = :realmId
-                        and (l.managerPersonId = :personId or l.assignmentId in
-                        (select a.assignmentId from AssignmentEntity a where a.realmId = :realmId
-                        and a.employmentId in (select e.id from EmploymentEntity e where e.realmId = :realmId
-                        and e.personId = :personId)))""",
-                        String.class)
-                .setParameter("realmId", realmId).setParameter("personId", personId).getResultList();
+    // Lines where the person is the manager, and lines where the person reports. Each read takes its own index.
+    private List<String> lineIds(String personId, List<String> assignmentIds) {
+        Set<String> ids = new LinkedHashSet<>();
+        em.createQuery("""
+                        select l.realmId, l.id from ReportingLineEntity l where l.managerPersonId = :personId""",
+                        Object[].class)
+                .setParameter("personId", personId).getResultStream()
+                .filter(Rows.inRealm(realmId, row -> (String) row[0]))
+                .forEach(row -> ids.add((String) row[1]));
+        if (!assignmentIds.isEmpty()) {
+            em.createQuery("select l.realmId, l.id from ReportingLineEntity l where %s"
+                            .formatted(ManyIds.has("l.assignmentId", "ids")), Object[].class)
+                    .setParameter("ids", ManyIds.of(assignmentIds)).getResultStream()
+                    .filter(Rows.inRealm(realmId, row -> (String) row[0]))
+                    .forEach(row -> ids.add((String) row[1]));
+        }
+        return List.copyOf(ids);
     }
 
     private List<String> roleIds(List<String> employmentIds) {

@@ -394,8 +394,9 @@ public class JpaOrgUnitStore implements OrgUnitStore {
     @Override
     public long employmentsStartingIn(String employerId, LocalDate from, LocalDate to) {
         return em.createQuery("""
-                        select count(e) from EmploymentEntity e where e.realmId = :realmId
-                        and e.employerId = :employerId and e.validFrom >= :from and e.validFrom < :to""", Long.class)
+                        select count(e) from EmploymentEntity e where e.employerId = :employerId and %s
+                        and e.validFrom >= :from and e.validFrom < :to"""
+                        .formatted(Rows.ofUnit("e.realmId", "employerId")), Long.class)
                 .setParameter("realmId", realmId)
                 .setParameter("employerId", employerId)
                 .setParameter("from", from)
@@ -406,8 +407,9 @@ public class JpaOrgUnitStore implements OrgUnitStore {
     @Override
     public long employmentsHoldingFrom(String employerId, LocalDate date) {
         return em.createQuery("""
-                        select count(e) from EmploymentEntity e where e.realmId = :realmId
-                        and e.employerId = :employerId and (e.validTo is null or e.validTo > :date)""", Long.class)
+                        select count(e) from EmploymentEntity e where e.employerId = :employerId and %s
+                        and (e.validTo is null or e.validTo > :date)"""
+                        .formatted(Rows.ofUnit("e.realmId", "employerId")), Long.class)
                 .setParameter("realmId", realmId)
                 .setParameter("employerId", employerId)
                 .setParameter("date", date)

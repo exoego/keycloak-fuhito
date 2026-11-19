@@ -21,10 +21,12 @@ public class JpaReportingLineStore implements ReportingLineStore {
         return "validFrom <= :date and (%1$s.validTo is null or %1$s.validTo > :date)".formatted(alias);
     }
 
+    // The row is of the realm, and so are the terms of its employment. With the realm, PostgreSQL could read every
+    // term of a realm that the statistics do not know yet.
     private static String present(String row, String t) {
         return """
-                exists (select 1 from EmploymentTermsEntity %2$s where %2$s.realmId = :realmId
-                    and %2$s.employmentId = %1$s.employmentId and %2$s.status = 'ACTIVE' and %2$s.%3$s)"""
+                exists (select 1 from EmploymentTermsEntity %2$s where %2$s.employmentId = %1$s.employmentId
+                    and %2$s.status = 'ACTIVE' and %2$s.%3$s)"""
                 .formatted(row, t, onDate(t));
     }
 
@@ -127,10 +129,11 @@ public class JpaReportingLineStore implements ReportingLineStore {
         return findEntity(id).map(JpaReportingLineStore::toDomain);
     }
 
+    // The lines of these reads are found by an ID alone, for the reason in Rows.inRealm.
     @Override
     public List<ReportingLine> findByAssignment(String assignmentId) {
         return list("""
-                select l from ReportingLineEntity l where l.realmId = :realmId and l.assignmentId = :value
+                select l from ReportingLineEntity l where l.assignmentId = :value
                 order by l.validFrom, l.id""", assignmentId);
     }
 
@@ -141,12 +144,12 @@ public class JpaReportingLineStore implements ReportingLineStore {
             return List.of();
         }
         return em.createQuery("""
-                        select l from ReportingLineEntity l join fetch l.manager where l.realmId = :realmId
-                        and %s order by l.validFrom, l.id""".formatted(ManyIds.has("l.assignmentId", "ids")),
+                        select l from ReportingLineEntity l join fetch l.manager where %s
+                        order by l.validFrom, l.id""".formatted(ManyIds.has("l.assignmentId", "ids")),
                         ReportingLineEntity.class)
-                .setParameter("realmId", realmId)
                 .setParameter("ids", ManyIds.of(assignmentIds))
                 .getResultStream()
+                .filter(Rows.inRealm(realmId, l -> l.realmId))
                 .map(JpaReportingLineStore::toDomain)
                 .toList();
     }
@@ -154,15 +157,15 @@ public class JpaReportingLineStore implements ReportingLineStore {
     @Override
     public List<ReportingLine> findByManager(String managerPersonId) {
         return list("""
-                select l from ReportingLineEntity l where l.realmId = :realmId and l.managerPersonId = :value
+                select l from ReportingLineEntity l where l.managerPersonId = :value
                 order by l.validFrom, l.id""", managerPersonId);
     }
 
     private List<ReportingLine> list(String query, String value) {
         return em.createQuery(query, ReportingLineEntity.class)
-                .setParameter("realmId", realmId)
                 .setParameter("value", value)
                 .getResultStream()
+                .filter(Rows.inRealm(realmId, l -> l.realmId))
                 .map(JpaReportingLineStore::toDomain)
                 .toList();
     }

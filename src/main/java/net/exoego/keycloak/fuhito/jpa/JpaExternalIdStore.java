@@ -33,25 +33,24 @@ public class JpaExternalIdStore implements ExternalIdStore {
     }
 
     // Each kind has its own table. The rows of one assignment share its source. The other kinds keep no source, so
-    // the query reads the ID only to find the resource.
+    // the query reads the ID only to find the resource. The rows come by the ID alone, for the reason in
+    // Rows.inRealm.
     private static String originQuery(ExternalId.Kind kind) {
         return switch (kind) {
-            case ORG_UNIT -> "select x.source from OrgUnitEntity x where x.realmId = :realmId and x.id = :id";
-            case PERSON -> "select x.source from PersonEntity x where x.realmId = :realmId and x.id = :id";
-            case EMPLOYMENT -> "select x.source from EmploymentEntity x where x.realmId = :realmId and x.id = :id";
-            case QUALIFICATION -> """
-                    select x.source from QualificationEntity x where x.realmId = :realmId and x.id = :id""";
+            case ORG_UNIT -> "select x.realmId, x.source from OrgUnitEntity x where x.id = :id";
+            case PERSON -> "select x.realmId, x.source from PersonEntity x where x.id = :id";
+            case EMPLOYMENT -> "select x.realmId, x.source from EmploymentEntity x where x.id = :id";
+            case QUALIFICATION -> "select x.realmId, x.source from QualificationEntity x where x.id = :id";
             case ASSIGNMENT -> """
-                    select x.source from AssignmentEntity x where x.realmId = :realmId and x.assignmentId = :id
+                    select x.realmId, x.source from AssignmentEntity x where x.assignmentId = :id
                     order by x.validFrom""";
-            case REPORTING_LINE -> "select x.id from ReportingLineEntity x where x.realmId = :realmId and x.id = :id";
-            case UNIT_ROLE -> "select x.id from UnitRoleEntity x where x.realmId = :realmId and x.id = :id";
-            case CHANGE_ORDER -> "select x.id from ChangeOrderEntity x where x.realmId = :realmId and x.id = :id";
-            case REF_ITEM -> "select x.id from RefItemEntity x where x.realmId = :realmId and x.id = :id";
-            case REF_KIND -> "select x.id from RealmKindEntity x where x.realmId = :realmId and x.id = :id";
-            case HIERARCHY -> "select x.id from HierarchyEntity x where x.realmId = :realmId and x.id = :id";
-            case ATTRIBUTE_DEFINITION -> """
-                    select x.id from AttributeDefinitionEntity x where x.realmId = :realmId and x.id = :id""";
+            case REPORTING_LINE -> "select x.realmId, x.id from ReportingLineEntity x where x.id = :id";
+            case UNIT_ROLE -> "select x.realmId, x.id from UnitRoleEntity x where x.id = :id";
+            case CHANGE_ORDER -> "select x.realmId, x.id from ChangeOrderEntity x where x.id = :id";
+            case REF_ITEM -> "select x.realmId, x.id from RefItemEntity x where x.id = :id";
+            case REF_KIND -> "select x.realmId, x.id from RealmKindEntity x where x.id = :id";
+            case HIERARCHY -> "select x.realmId, x.id from HierarchyEntity x where x.id = :id";
+            case ATTRIBUTE_DEFINITION -> "select x.realmId, x.id from AttributeDefinitionEntity x where x.id = :id";
         };
     }
 
@@ -64,16 +63,12 @@ public class JpaExternalIdStore implements ExternalIdStore {
 
     @Override
     public Optional<ExternalId.Origin> originOf(ExternalId.Kind kind, String resourceId) {
-        // The source can be null, which a stream of the results cannot hold.
-        List<String> sources = em.createQuery(originQuery(kind), String.class)
-                .setParameter("realmId", realmId)
+        return em.createQuery(originQuery(kind), Object[].class)
                 .setParameter("id", resourceId)
-                .setMaxResults(1)
-                .getResultList();
-        if (sources.isEmpty()) {
-            return Optional.empty();
-        }
-        return Optional.of(new ExternalId.Origin(keepsSource(kind) ? sources.getFirst() : null));
+                .getResultStream()
+                .filter(Rows.inRealm(realmId, row -> (String) row[0]))
+                .findFirst()
+                .map(row -> new ExternalId.Origin(keepsSource(kind) ? (String) row[1] : null));
     }
 
     @Override

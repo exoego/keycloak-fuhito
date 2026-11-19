@@ -16,9 +16,9 @@ import net.exoego.keycloak.fuhito.store.ChangeLogStore;
  */
 public class JpaChangeLogStore implements ChangeLogStore {
 
-    private static final String OF_CHANGE_ORDER = """
-             from ChangeLogEntity l where l.realmId = :realmId
-            and l.changeOrderId = :changeOrderId""";
+    // The read pages in the database, so the realm of the change order comes from a sub-select.
+    private static final String OF_CHANGE_ORDER = " from ChangeLogEntity l where l.changeOrderId = :changeOrderId and "
+            + Rows.ofRecord("l.realmId", "ChangeOrderEntity", "id", "changeOrderId");
 
     private static final String LIST_OF_CHANGE_ORDER = "select l" + OF_CHANGE_ORDER + " order by l.sequence";
 

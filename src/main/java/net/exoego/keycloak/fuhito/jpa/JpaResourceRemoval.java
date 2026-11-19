@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Map;
 
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.TypedQuery;
 import net.exoego.keycloak.fuhito.store.ResourceRemoval;
 
 /**
@@ -12,32 +13,34 @@ import net.exoego.keycloak.fuhito.store.ResourceRemoval;
  */
 public class JpaResourceRemoval implements ResourceRemoval {
 
-    // For each kind, a count of the rows that refer to a resource, by the name that an error shows.
+    // For each kind, the realms of the rows that refer to a resource, by the name that an error shows. The rows come
+    // by the ID alone, for the reason in Rows.inRealm.
     private static final Map<Kind, Map<String, String>> DEPENDENTS = Map.of(
             Kind.ORG_UNIT, Map.of(
-                    "children", "select count(x) from OrgUnitLinkEntity x where x.realmId = :realmId and x.parentId = :id",
-                    "assignments", "select count(x) from AssignmentEntity x where x.realmId = :realmId and x.orgUnitId = :id",
-                    "employments", "select count(x) from EmploymentEntity x where x.realmId = :realmId and x.employerId = :id",
-                    "unitRoles", "select count(x) from UnitRoleEntity x where x.realmId = :realmId and x.orgUnitId = :id",
+                    "children", "select distinct x.realmId from OrgUnitLinkEntity x where x.parentId = :id",
+                    "assignments", "select distinct x.realmId from AssignmentEntity x where x.orgUnitId = :id",
+                    "employments", "select distinct x.realmId from EmploymentEntity x where x.employerId = :id",
+                    "unitRoles", "select distinct x.realmId from UnitRoleEntity x where x.orgUnitId = :id",
                     "successions", """
-                            select count(x) from OrgUnitSuccessionEntity x where x.realmId = :realmId
-                            and (x.predecessorId = :id or x.successorId = :id)""",
+                            select distinct x.realmId from OrgUnitSuccessionEntity x
+                            where x.predecessorId = :id or x.successorId = :id""",
                     "organization", """
-                            select count(x) from OrgUnitEntity x where x.realmId = :realmId and x.id = :id
+                            select distinct x.realmId from OrgUnitEntity x where x.id = :id
                             and x.keycloakOrganizationId is not null"""),
             Kind.EMPLOYMENT, Map.of(
-                    "assignments", "select count(x) from AssignmentEntity x where x.realmId = :realmId and x.employmentId = :id",
-                    "unitRoles", "select count(x) from UnitRoleEntity x where x.realmId = :realmId and x.employmentId = :id",
+                    "assignments", "select distinct x.realmId from AssignmentEntity x where x.employmentId = :id",
+                    "unitRoles", "select distinct x.realmId from UnitRoleEntity x where x.employmentId = :id",
                     "continuation", """
-                            select count(x) from EmploymentEntity x where x.realmId = :realmId
-                            and x.continuesEmploymentId = :id"""),
+                            select distinct x.realmId from EmploymentEntity x where x.continuesEmploymentId = :id"""),
             Kind.ASSIGNMENT, Map.of(
                     "reportingLines", """
-                            select count(x) from ReportingLineEntity x where x.realmId = :realmId
-                            and x.assignmentId = :id""",
+                            select distinct x.realmId from ReportingLineEntity x where x.assignmentId = :id""",
+                    // No index starts with this column, so the realm keeps the read in the rows of the realm.
                     "continuation", """
-                            select count(x) from AssignmentEntity x where x.realmId = :realmId
+                            select distinct x.realmId from AssignmentEntity x where x.realmId = :realmId
                             and x.continuesAssignmentId = :id"""));
+
+    private static final String OF_EMPLOYMENT = Rows.ofRecord("x.realmId", "EmploymentEntity", "id", "id");
 
     // For each kind, the rows that go with the resource, in an order that the foreign keys allow.
     private static final Map<Kind, List<String>> REMOVALS = Map.of(
@@ -50,25 +53,25 @@ public class JpaResourceRemoval implements ResourceRemoval {
                     """
                     delete from ExternalIdEntity x where x.realmId = :realmId and x.kind = 'ORG_UNIT'
                     and x.resourceId = :id""",
-                    "delete from OrgUnitEntity x where x.realmId = :realmId and x.id = :id"),
+                    "delete from OrgUnitEntity x where x.id = :id and " + Rows.ofUnit("x.realmId", "id")),
             Kind.EMPLOYMENT, List.of(
-                    "delete from EmploymentTermsEntity x where x.realmId = :realmId and x.employmentId = :id",
+                    "delete from EmploymentTermsEntity x where x.employmentId = :id and " + OF_EMPLOYMENT,
                     """
                     delete from ExternalIdEntity x where x.realmId = :realmId and x.kind = 'EMPLOYMENT'
                     and x.resourceId = :id""",
-                    "delete from EmploymentEntity x where x.realmId = :realmId and x.id = :id"),
+                    "delete from EmploymentEntity x where x.id = :id and " + OF_EMPLOYMENT),
             Kind.ASSIGNMENT, List.of(
                     """
                     delete from ExternalIdEntity x where x.realmId = :realmId and x.kind = 'ASSIGNMENT'
                     and x.resourceId = :id""",
-                    "delete from AssignmentEntity x where x.realmId = :realmId and x.assignmentId = :id"));
+                    "delete from AssignmentEntity x where x.assignmentId = :id and "
+                            + Rows.ofRecord("x.realmId", "AssignmentEntity", "assignmentId", "id")));
 
+    // The realms of the resource, found by the ID alone.
     private static final Map<Kind, String> EXISTS = Map.of(
-            Kind.ORG_UNIT, "select count(x) from OrgUnitEntity x where x.realmId = :realmId and x.id = :id",
-            Kind.EMPLOYMENT, "select count(x) from EmploymentEntity x where x.realmId = :realmId and x.id = :id",
-            Kind.ASSIGNMENT, """
-                    select count(x) from AssignmentEntity x where x.realmId = :realmId
-                    and x.assignmentId = :id""");
+            Kind.ORG_UNIT, "select x.realmId from OrgUnitEntity x where x.id = :id",
+            Kind.EMPLOYMENT, "select x.realmId from EmploymentEntity x where x.id = :id",
+            Kind.ASSIGNMENT, "select distinct x.realmId from AssignmentEntity x where x.assignmentId = :id");
 
     private final EntityManager em;
     private final String realmId;
@@ -86,14 +89,14 @@ public class JpaResourceRemoval implements ResourceRemoval {
 
     @Override
     public boolean exists(Kind kind, String id) {
-        return count(EXISTS.get(kind), id) > 0;
+        return inRealm(EXISTS.get(kind), id);
     }
 
     @Override
     public List<String> dependents(Kind kind, String id) {
         List<String> found = new ArrayList<>();
         DEPENDENTS.get(kind).forEach((name, query) -> {
-            if (count(query, id) > 0) {
+            if (inRealm(query, id)) {
                 found.add(name);
             }
         });
@@ -111,10 +114,11 @@ public class JpaResourceRemoval implements ResourceRemoval {
                 .executeUpdate());
     }
 
-    private long count(String query, String id) {
-        return em.createQuery(query, Long.class)
-                .setParameter("realmId", realmId)
-                .setParameter("id", id)
-                .getSingleResult();
+    private boolean inRealm(String query, String id) {
+        TypedQuery<String> realms = em.createQuery(query, String.class).setParameter("id", id);
+        if (realms.getParameters().stream().anyMatch(parameter -> "realmId".equals(parameter.getName()))) {
+            realms.setParameter("realmId", realmId);
+        }
+        return realms.getResultList().contains(realmId);
     }
 }
