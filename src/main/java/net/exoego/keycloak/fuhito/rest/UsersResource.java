@@ -108,6 +108,8 @@ public class UsersResource {
             @QueryParam("clearKeycloakName") boolean clearKeycloakName) {
         context.requireWrite();
         return Calls.run(context, () -> {
+            // The check reads the person, so the lock comes first.
+            context.lock(data.ofUser(userId));
             requireKnown(userId);
             if (clearKeycloakName) {
                 context.requireManageUser(userId);
@@ -158,6 +160,7 @@ public class UsersResource {
             @PathParam("userId") String userId) {
         context.requireWrite();
         return Calls.run(context, () -> {
+            context.lock(data.ofUser(userId));
             requireKnown(userId);
             people.ofUser(userId).ifPresent(person -> data.erase(person.id()));
             return Response.noContent().build();

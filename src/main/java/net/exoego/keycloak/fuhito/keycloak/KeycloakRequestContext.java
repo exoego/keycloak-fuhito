@@ -2,9 +2,13 @@ package net.exoego.keycloak.fuhito.keycloak;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Locale;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.OptionalInt;
 import java.util.UUID;
 
@@ -152,18 +156,21 @@ final class KeycloakRequestContext implements RequestContext {
     }
 
     @Override
-    public void lockTarget() {
+    public void lockTarget(Map<String, ? extends Collection<String>> others) {
+        Map<String, Set<String>> all = new HashMap<>();
+        others.forEach((collection, ids) -> all.computeIfAbsent(collection, any -> new HashSet<>()).addAll(ids));
         // The path is /admin/realms/{realm}/fuhito/{collection}/{id}/...
         List<String> segments = List.of(session.getContext().getUri().getPath().split("/"));
         int realms = segments.indexOf("realms");
-        if (realms >= 0 && segments.size() > realms + 4) {
-            lock(segments.get(realms + 3), segments.get(realms + 4));
+        if (realms >= 0 && segments.size() > realms + 4 && RowLocks.knows(segments.get(realms + 3))) {
+            all.computeIfAbsent(segments.get(realms + 3), any -> new HashSet<>()).add(segments.get(realms + 4));
         }
+        lock(all);
     }
 
     @Override
-    public void lock(String collection, String id) {
-        RowLocks.lock(entityManager, realm.getId(), collection, id);
+    public void lock(Map<String, ? extends Collection<String>> ids) {
+        RowLocks.lock(entityManager, realm.getId(), ids);
     }
 
     @Override

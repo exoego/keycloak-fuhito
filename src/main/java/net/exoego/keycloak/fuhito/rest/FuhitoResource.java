@@ -34,6 +34,7 @@ import net.exoego.keycloak.fuhito.jpa.JpaResourceRemoval;
 import net.exoego.keycloak.fuhito.jpa.JpaReportingLineStore;
 import net.exoego.keycloak.fuhito.jpa.JpaUnitRoleStore;
 import net.exoego.keycloak.fuhito.jpa.JpaUserDataMasker;
+import net.exoego.keycloak.fuhito.jpa.JpaWriteScopes;
 import net.exoego.keycloak.fuhito.service.AssignmentService;
 import net.exoego.keycloak.fuhito.service.AttributeDefinitionService;
 import net.exoego.keycloak.fuhito.service.AttributeSyncService;
@@ -68,6 +69,7 @@ import net.exoego.keycloak.fuhito.service.UserMaskingService;
 import net.exoego.keycloak.fuhito.store.OrganizationDirectory;
 import net.exoego.keycloak.fuhito.store.UserAttributeSource;
 import net.exoego.keycloak.fuhito.store.UserDirectory;
+import net.exoego.keycloak.fuhito.store.WriteScopes;
 import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.enums.SecuritySchemeType;
 import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
@@ -196,7 +198,7 @@ public class FuhitoResource {
     @Path("assignments")
     public AssignmentsResource assignments() {
         return new AssignmentsResource(context, assignmentService(), externalIdService(), membershipService(),
-                removals());
+                removals(), writeScopes());
     }
 
     /**
@@ -251,7 +253,7 @@ public class FuhitoResource {
                 assignmentService(),
                 orgUnitService(), new PromotionService(employmentService(), assignmentService(),
                         new JpaAssignmentStore(entityManager, realmId)), new LeaveService(employmentService()),
-                removals(), today());
+                removals(), today(), writeScopes());
     }
 
     /**
@@ -350,6 +352,10 @@ public class FuhitoResource {
                 new JpaUnitRoleStore(entityManager, realmId), new JpaQualificationStore(entityManager, realmId),
                 new JpaExternalIdStore(entityManager, realmId), new JpaChangeOrderStore(entityManager, realmId),
                 users, organizations));
+    }
+
+    private WriteScopes writeScopes() {
+        return new JpaWriteScopes(entityManager, realmId);
     }
 
     private RemovalService removals() {
@@ -533,7 +539,7 @@ public class FuhitoResource {
     private PersonData personData() {
         return new PersonData(context, new UserMaskingService(new JpaUserDataMasker(entityManager, realmId),
                 new JpaEmploymentStore(entityManager, realmId), clock, Clock.systemUTC()), users, erasePerson,
-                personService());
+                personService(), writeScopes());
     }
 
     /**

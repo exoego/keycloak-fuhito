@@ -430,7 +430,7 @@ public class PeopleResource {
             @QueryParam("clearKeycloakName") boolean clearKeycloakName,
             VersionCheckRepresentation body) {
         context.requireWrite();
-        return Calls.guarded(context, body, () -> version(id),
+        return Calls.guarded(context, body, () -> version(id), () -> data.ofPerson(id),
                 () -> data.mask(service.get(id).person(), clearKeycloakName));
     }
 
@@ -457,7 +457,7 @@ public class PeopleResource {
                     schema = @Schema(type = SchemaType.INTEGER, format = "int64"))
             @QueryParam("version") String version) {
         context.requireWrite();
-        return Calls.guarded(context, version, () -> version(id), () -> {
+        return Calls.guarded(context, version, () -> version(id), () -> data.ofPerson(id), () -> {
             data.erase(service.get(id).person().id());
             return Response.noContent().build();
         });

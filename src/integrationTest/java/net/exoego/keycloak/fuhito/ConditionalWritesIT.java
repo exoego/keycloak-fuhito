@@ -3,19 +3,16 @@ package net.exoego.keycloak.fuhito;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.Statement;
 import java.util.List;
-import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import org.junit.jupiter.api.Test;
 
+import static net.exoego.keycloak.fuhito.KeycloakEnvironment.update;
+import static net.exoego.keycloak.fuhito.KeycloakEnvironment.waitingFor;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ConditionalWritesIT {
@@ -172,39 +169,6 @@ class ConditionalWritesIT {
         assertEquals("version.conflict", error(409, api.delete(delete + "&version=1")).get("error").asText());
         assertEquals(204, api.delete(delete + "&version=2").statusCode());
         assertEquals("external_id.not_found", error(404, api.delete(delete + "&version=2")).get("error").asText());
-    }
-
-    // Starts a write, waits until the database makes it wait for the lock of the connection, and returns it.
-    private static CompletableFuture<HttpResponse<String>> waitingFor(Connection holder,
-            Callable<HttpResponse<String>> write) throws Exception {
-        String pid;
-        try (Statement statement = holder.createStatement();
-                ResultSet row = statement.executeQuery("select pg_backend_pid()")) {
-            row.next();
-            pid = row.getString(1);
-        }
-        CompletableFuture<HttpResponse<String>> started = CompletableFuture.supplyAsync(() -> {
-            try {
-                return write.call();
-            } catch (Exception e) {
-                throw new IllegalStateException(e);
-            }
-        });
-        String waiting = "0";
-        for (int i = 0; i < 300 && waiting.equals("0"); i++) {
-            Thread.sleep(100);
-            waiting = KeycloakEnvironment.sql("select count(*) from pg_stat_activity where " + pid
-                    + " = any(pg_blocking_pids(pid))");
-        }
-        assertNotEquals("0", waiting, "the write never waited");
-        return started;
-    }
-
-    private static void update(Connection connection, String sql, String id) throws Exception {
-        try (PreparedStatement statement = connection.prepareStatement(sql)) {
-            statement.setString(1, id);
-            assertEquals(1, statement.executeUpdate());
-        }
     }
 
     @Test

@@ -1,6 +1,7 @@
 package net.exoego.keycloak.fuhito.rest;
 
 import java.util.List;
+import java.util.Map;
 
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.DELETE;
@@ -25,6 +26,7 @@ import net.exoego.keycloak.fuhito.service.MembershipService;
 import net.exoego.keycloak.fuhito.service.Page;
 import net.exoego.keycloak.fuhito.service.RemovalService;
 import net.exoego.keycloak.fuhito.store.ResourceRemoval;
+import net.exoego.keycloak.fuhito.store.WriteScopes;
 import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.enums.SchemaType;
 import org.eclipse.microprofile.openapi.annotations.headers.Header;
@@ -52,6 +54,7 @@ public class AssignmentsResource {
     private final ExternalIdService externalIds;
     private final MembershipService members;
     private final RemovalService removals;
+    private final WriteScopes scopes;
 
     /**
      * Creates the resource for one request.
@@ -61,9 +64,11 @@ public class AssignmentsResource {
      * @param externalIds the IDs that systems have for the resources of the realm
      * @param members the reads of assignments in the shape of members
      * @param removals the removal of resources that were made by mistake
+     * @param scopes finds the other resources that a write changes, to lock them
      */
     public AssignmentsResource(RequestContext context, AssignmentService service, ExternalIdService externalIds,
-            MembershipService members, RemovalService removals) {
+            MembershipService members, RemovalService removals, WriteScopes scopes) {
+        this.scopes = scopes;
         this.externalIds = externalIds;
         this.removals = removals;
         this.members = members;
@@ -164,6 +169,10 @@ public class AssignmentsResource {
         context.requireWrite();
         return Calls.run(context, () -> {
             Checks.required("body", body);
+            // A switch of the primary flag changes the other assignments of the employment.
+            if (Boolean.TRUE.equals(body.switchPrimary())) {
+                context.lock(scopes.assignmentsOfEmployment(body.employmentId()));
+            }
             var assignment = represent(service.add(body.toValues()));
             context.recordChange(Change.CREATE, RESOURCE_TYPE, assignment.id(), path(assignment.id()), assignment);
             return Response.status(Response.Status.CREATED).entity(assignment).build();
@@ -226,7 +235,8 @@ public class AssignmentsResource {
             @PathParam("id") String id,
             AssignmentRepresentation.Details body) {
         context.requireWrite();
-        return Calls.guarded(context, body, () -> version(id), () -> {
+        return Calls.guarded(context, body, () -> version(id),
+                () -> Boolean.TRUE.equals(body.switchPrimary()) ? scopes.assignmentsBeside(id) : Map.of(), () -> {
             var assignment = represent(service.changeDetails(id, body.toValues()));
             context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, path(id) + "/details", assignment);
             return assignment;

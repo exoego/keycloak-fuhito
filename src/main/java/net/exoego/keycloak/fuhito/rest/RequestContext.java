@@ -1,6 +1,8 @@
 package net.exoego.keycloak.fuhito.rest;
 
+import java.util.Collection;
 import java.util.Locale;
+import java.util.Map;
 import java.util.OptionalInt;
 
 import jakarta.ws.rs.core.Response;
@@ -79,19 +81,22 @@ public interface RequestContext {
     Locale locale();
 
     /**
-     * Locks the stored row of the resource that the path of the request names, until the end of the transaction.
-     * A second write to the resource then waits for the first one.
+     * Locks the stored rows of the resource that the path of the request names, and of other resources, until the
+     * end of the transaction. A second write to one of them then waits for the first one.
+     * The rows are locked in one fixed order, as {@link #lock(Map)} does.
+     *
+     * @param others the IDs of the other resources by the first part of their path, for example {@code employments}
      */
-    void lockTarget();
+    void lockTarget(Map<String, ? extends Collection<String>> others);
 
     /**
-     * Locks the stored row of one resource until the end of the transaction, as {@link #lockTarget()} does for the
-     * resource of the path.
+     * Locks the stored rows of resources until the end of the transaction. Every write locks in one order of kinds,
+     * and in the order of the IDs within one kind. So two writes never wait for each other at once.
+     * A write calls it once, before it reads or changes any of them.
      *
-     * @param collection the first part of the path of the resource, for example {@code org-units}
-     * @param id the ID of the resource
+     * @param ids the IDs of the resources by the first part of their path, for example {@code org-units}
      */
-    void lock(String collection, String id);
+    void lock(Map<String, ? extends Collection<String>> ids);
 
     /**
      * Sends the changes of a write to the database now, so that a conflict with another write fails the request.

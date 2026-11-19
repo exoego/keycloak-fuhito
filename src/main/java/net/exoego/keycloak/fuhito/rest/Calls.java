@@ -1,5 +1,6 @@
 package net.exoego.keycloak.fuhito.rest;
 
+import java.util.Collection;
 import java.util.Map;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
@@ -65,9 +66,27 @@ final class Calls {
      * @return the response
      */
     static <T> T guarded(RequestContext context, Versioned body, LongSupplier current, Supplier<T> operation) {
+        return guarded(context, body, current, Map::of, operation);
+    }
+
+    /**
+     * Runs a write of one stored resource that also changes other stored resources. It locks them all together
+     * with the resource of the path, before it reads any of them. It goes on only when the resource of the path
+     * still has the version that the body names.
+     *
+     * @param <T> the type of the response
+     * @param context the request
+     * @param body the body of the request, with the version that the caller read
+     * @param current reads the version of the resource that the path names
+     * @param others finds the other resources that the write changes, by the first part of their path
+     * @param operation the write
+     * @return the response
+     */
+    static <T> T guarded(RequestContext context, Versioned body, LongSupplier current,
+            Supplier<? extends Map<String, ? extends Collection<String>>> others, Supplier<T> operation) {
         return run(context, () -> {
             Checks.required("body", body);
-            requireTarget(context, body.version(), current);
+            requireTarget(context, body.version(), current, others);
             return operation.get();
         });
     }
@@ -84,8 +103,25 @@ final class Calls {
      * @return the response
      */
     static <T> T guarded(RequestContext context, String version, LongSupplier current, Supplier<T> operation) {
+        return guarded(context, version, current, Map::of, operation);
+    }
+
+    /**
+     * Runs a write with no body of one stored resource that also changes other stored resources, as
+     * {@link #guarded(RequestContext, Versioned, LongSupplier, Supplier, Supplier)} does for a write with a body.
+     *
+     * @param <T> the type of the response
+     * @param context the request
+     * @param version the version that the caller read as text, or null when the query has none
+     * @param current reads the version of the resource that the path names
+     * @param others finds the other resources that the write changes, by the first part of their path
+     * @param operation the write
+     * @return the response
+     */
+    static <T> T guarded(RequestContext context, String version, LongSupplier current,
+            Supplier<? extends Map<String, ? extends Collection<String>>> others, Supplier<T> operation) {
         return run(context, () -> {
-            requireTarget(context, versionOf(version), current);
+            requireTarget(context, versionOf(version), current, others);
             return operation.get();
         });
     }
@@ -105,9 +141,10 @@ final class Calls {
         }
     }
 
-    private static void requireTarget(RequestContext context, Long version, LongSupplier current) {
+    private static void requireTarget(RequestContext context, Long version, LongSupplier current,
+            Supplier<? extends Map<String, ? extends Collection<String>>> others) {
         // A second write with the same version waits here, and then reads the version that the first one wrote.
-        context.lockTarget();
+        context.lockTarget(others.get());
         Checks.version(version, current.getAsLong());
     }
 

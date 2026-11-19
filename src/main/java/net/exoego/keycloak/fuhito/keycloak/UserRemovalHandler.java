@@ -16,6 +16,8 @@ import net.exoego.keycloak.fuhito.jpa.JpaProjectedMemberStore;
 import net.exoego.keycloak.fuhito.jpa.JpaRefItemStore;
 import net.exoego.keycloak.fuhito.jpa.JpaUnitRoleStore;
 import net.exoego.keycloak.fuhito.jpa.JpaReportingLineStore;
+import net.exoego.keycloak.fuhito.jpa.JpaWriteScopes;
+import net.exoego.keycloak.fuhito.jpa.RowLocks;
 import net.exoego.keycloak.fuhito.service.EmploymentService;
 import net.exoego.keycloak.fuhito.service.ImportReport.Write;
 import net.exoego.keycloak.fuhito.service.LegalEntityEmployers;
@@ -33,6 +35,8 @@ final class UserRemovalHandler {
 
     static void retire(EntityManager em, RealmModel realm, String userId) {
         String realmId = realm.getId();
+        // The removal ends the employments of the user with what belongs to them, as a write of the API does.
+        RowLocks.lock(em, realmId, new JpaWriteScopes(em, realmId).userData(userId));
         var employments = new JpaEmploymentStore(em, realmId);
         var assignments = new JpaAssignmentStore(em, realmId);
         var lines = new JpaReportingLineStore(em, realmId);

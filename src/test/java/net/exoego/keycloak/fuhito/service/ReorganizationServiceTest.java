@@ -3,6 +3,7 @@ package net.exoego.keycloak.fuhito.service;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
@@ -24,7 +25,7 @@ class ReorganizationServiceTest {
     private final OrgUnitService orgUnits = new OrgUnitService(store, externalIds, new MemoryAssignmentStore(), refItems,
             Clock.systemUTC());
     private final ReorganizationService service = new ReorganizationService(orgUnits);
-    private final List<String> locked = new ArrayList<>();
+    private final List<Collection<String>> locked = new ArrayList<>();
 
     private String unit(String name, String parentId) {
         return orgUnits.create(new NewOrgUnit(null, name, null, null, null, null, null, parentId, "2026-04-01", null,
@@ -101,6 +102,8 @@ class ReorganizationServiceTest {
 
         assertEquals(List.of("change", "create", "move", "move", "create", "end"),
                 results.stream().map(ReorganizationService.Result::op).toList());
+        // Every stored unit of the steps is locked at once. A unit that a step creates needs no lock.
+        assertEquals(List.of(List.of(hospital, medicine, surgery, oldOffice)), locked);
         assertEquals("General Hospital", results.getFirst().unit().version().name());
         assertEquals(results.get(1).unit().unit().id(), results.get(2).unit().parentId());
         assertEquals("Old Office", results.get(5).unit().version().name());
@@ -210,7 +213,8 @@ class ReorganizationServiceTest {
         // Every step of one unit names the version of before the request.
         apply("2027-04-01", List.of(change(a, "A2"), move(a, null, b, null)));
 
-        assertEquals(List.of(a, a), locked);
+        // The units are locked at once before the first check, and the new parent does not change.
+        assertEquals(List.of(List.of(a)), locked);
         assertEquals(List.of("B", "A2 < B"), tree("2027-04-01"));
         FuhitoException none = failure("2028-04-01", List.of(change(b, "B2"), new ReorganizationStep("end", null, a,
                 null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null)));

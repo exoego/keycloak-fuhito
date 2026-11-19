@@ -1,17 +1,23 @@
 package net.exoego.keycloak.fuhito;
 
 import java.io.File;
+import java.net.http.HttpResponse;
 import java.sql.Connection;
 import java.sql.DriverManager;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.List;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CompletableFuture;
 
 import dasniko.testcontainers.keycloak.KeycloakContainer;
 import org.testcontainers.containers.Network;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
@@ -70,6 +76,39 @@ final class KeycloakEnvironment {
     /** Runs a statement that must fail, and returns the error of the database. */
     static String sqlError(String sql) {
         return assertThrows(SQLException.class, () -> run(POSTGRES, sql)).getMessage();
+    }
+
+    // Starts a write, waits until the database makes it wait for the lock of the connection, and returns it.
+    static CompletableFuture<HttpResponse<String>> waitingFor(Connection holder,
+            Callable<HttpResponse<String>> write) throws Exception {
+        String pid;
+        try (Statement statement = holder.createStatement();
+                ResultSet row = statement.executeQuery("select pg_backend_pid()")) {
+            row.next();
+            pid = row.getString(1);
+        }
+        CompletableFuture<HttpResponse<String>> started = CompletableFuture.supplyAsync(() -> {
+            try {
+                return write.call();
+            } catch (Exception e) {
+                throw new IllegalStateException(e);
+            }
+        });
+        String waiting = "0";
+        for (int i = 0; i < 300 && waiting.equals("0"); i++) {
+            Thread.sleep(100);
+            waiting = sql("select count(*) from pg_stat_activity where " + pid
+                    + " = any(pg_blocking_pids(pid))");
+        }
+        assertNotEquals("0", waiting, "the write never waited");
+        return started;
+    }
+
+    static void update(Connection connection, String sql, String id) throws Exception {
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, id);
+            assertEquals(1, statement.executeUpdate());
+        }
     }
 
     // JDBC, not psql in the container. A docker exec sometimes never reports that it ended.

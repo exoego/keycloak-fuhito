@@ -129,6 +129,7 @@ public class ExternalIdsResource {
         context.requireWrite();
         return Calls.run(context, () -> {
             Checks.required("body", body);
+            lockOwner(body.resourceType(), body.resourceId());
             requireVersion(body.resourceType(), body.resourceId(), body.source(), body.version());
             ExternalIdService.View view = service.put(body.resourceType(), body.resourceId(), body.source(),
                     body.externalId());
@@ -163,11 +164,27 @@ public class ExternalIdsResource {
             @QueryParam("version") String version) {
         context.requireWrite();
         return Calls.run(context, () -> {
+            lockOwner(resourceType, resourceId);
             requireVersion(resourceType, resourceId, source, Calls.versionOf(version));
             ExternalIdService.View view = service.remove(resourceType, resourceId, source);
             context.recordChange(Change.DELETE, RESOURCE_TYPE, view.rowId(), path(view.rowId()), null);
             return Response.noContent().build();
         });
+    }
+
+    // The IDs are part of the resource that has them, so a write of one counts up the version of that resource.
+    private void lockOwner(String resourceType, String resourceId) {
+        ExternalId.Kind kind = Checks.optionalEnum("resourceType", ExternalId.Kind.class,
+                Checks.required("resourceType", resourceType), null);
+        if (resourceId != null) {
+            context.lock(Map.of(switch (kind) {
+                case ORG_UNIT -> "org-units";
+                case PERSON -> "people";
+                case EMPLOYMENT -> "employments";
+                case ASSIGNMENT -> "assignments";
+                case QUALIFICATION -> "qualifications";
+            }, List.of(resourceId)));
+        }
     }
 
     // A new ID needs no version. JPA checks the version of the row again when it writes it.
