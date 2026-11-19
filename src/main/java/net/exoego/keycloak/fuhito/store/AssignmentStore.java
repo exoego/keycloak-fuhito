@@ -40,6 +40,16 @@ public interface AssignmentStore {
     List<Assignment> rowsOfEmployment(String employmentId);
 
     /**
+     * Lists all rows of all assignments of several employments. The rows of one employment come oldest first.
+     *
+     * @param employmentIds the IDs of the employments
+     * @return the rows
+     */
+    default List<Assignment> rowsOfEmployments(Collection<String> employmentIds) {
+        return employmentIds.stream().distinct().flatMap(id -> rowsOfEmployment(id).stream()).toList();
+    }
+
+    /**
      * Counts the assignments to an org unit that hold on a date or after it.
      *
      * @param orgUnitId the ID of the org unit
@@ -102,7 +112,16 @@ public interface AssignmentStore {
      *
      * @param row the row
      */
-    void insert(Assignment row);
+    default void insert(Assignment row) {
+        insertAll(List.of(row));
+    }
+
+    /**
+     * Stores new rows in their order. A row of an assignment that has rows already takes their version.
+     *
+     * @param rows the rows
+     */
+    void insertAll(List<Assignment> rows);
 
     /**
      * Stores the new state of an existing row.
@@ -110,14 +129,32 @@ public interface AssignmentStore {
      *
      * @param row the row
      */
-    void update(Assignment row);
+    default void update(Assignment row) {
+        updateAll(List.of(row));
+    }
+
+    /**
+     * Stores the new state of several existing rows, as {@link #update} says.
+     *
+     * @param rows the rows
+     */
+    void updateAll(List<Assignment> rows);
 
     /**
      * Removes a row. The IDs that systems have for the assignment go with its last row.
      *
      * @param rowId the ID of the row
      */
-    void delete(String rowId);
+    default void delete(String rowId) {
+        deleteAll(List.of(rowId));
+    }
+
+    /**
+     * Removes several rows, as {@link #delete} says.
+     *
+     * @param rowIds the IDs of the rows
+     */
+    void deleteAll(Collection<String> rowIds);
 
     /**
      * What a list of assignments across the realm keeps. A value that is null keeps everything.

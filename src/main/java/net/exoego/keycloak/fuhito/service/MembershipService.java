@@ -264,7 +264,7 @@ public class MembershipService {
                 rows.stream().map(Assignment::orgUnitId).distinct().toList(), date);
         Function<String, String> code = UnitPlaces.codes(refItems);
         // The rows hold on the date, so this is one read of the units for all of them.
-        List<LocationAndCost> places = UnitPlaces.ofRows(rows, date, orgUnits, code);
+        List<LocationAndCost> places = UnitPlaces.ofRows(rows, row -> date, orgUnits, code);
         List<Member> members = new ArrayList<>();
         for (int i = 0; i < rows.size(); i++) {
             Assignment row = rows.get(i);

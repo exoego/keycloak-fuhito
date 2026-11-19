@@ -1,6 +1,7 @@
 package net.exoego.keycloak.fuhito.jpa;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -52,6 +53,22 @@ public class JpaEmploymentStore implements EmploymentStore {
     }
 
     @Override
+    public List<Employment> findByStaffNumbers(Collection<String> staffNumbers) {
+        if (staffNumbers.isEmpty()) {
+            return List.of();
+        }
+        return em.createQuery("""
+                        select e from EmploymentEntity e join fetch e.person where e.realmId = :realmId
+                        and %s order by e.validFrom""".formatted(ManyIds.has("e.staffNumber", "staffNumbers")),
+                        EmploymentEntity.class)
+                .setParameter("realmId", realmId)
+                .setParameter("staffNumbers", ManyIds.of(staffNumbers))
+                .getResultStream()
+                .map(JpaEmploymentStore::toDomain)
+                .toList();
+    }
+
+    @Override
     public List<Employment> findByUser(String userId) {
         return em.createQuery("""
                         select e from EmploymentEntity e where e.realmId = :realmId
@@ -63,10 +80,11 @@ public class JpaEmploymentStore implements EmploymentStore {
                 .toList();
     }
 
+    // The person comes in the same query, because each employment reads the user of its person.
     @Override
     public List<Employment> findByEmployer(String employerId) {
         return em.createQuery("""
-                        select e from EmploymentEntity e where e.realmId = :realmId
+                        select e from EmploymentEntity e join fetch e.person where e.realmId = :realmId
                         and e.employerId = :employerId order by e.validFrom, e.id""", EmploymentEntity.class)
                 .setParameter("realmId", realmId)
                 .setParameter("employerId", employerId)
@@ -227,25 +245,27 @@ public class JpaEmploymentStore implements EmploymentStore {
     }
 
     @Override
-    public void insert(Employment employment) {
-        EmploymentEntity entity = new EmploymentEntity();
-        entity.id = employment.id();
-        entity.realmId = realmId;
-        entity.personId = employment.personId();
-        entity.employerId = employment.employerId();
-        entity.continuesEmploymentId = employment.continuesEmploymentId();
-        // The same session reads the row back, and it then needs the person.
-        entity.person = em.getReference(PersonEntity.class, employment.personId());
-        entity.validFrom = employment.period().from();
-        entity.validTo = employment.period().to();
-        entity.staffNumber = employment.staffNumber();
-        entity.endReasonId = employment.endReasonId();
-        entity.source = employment.source();
-        entity.version = employment.version();
-        entity.counted = true;
-        em.persist(entity);
-        // Other rows refer to this one. Hibernate groups inserts by entity type, so this row goes to the
-        // database now, before a row that needs it.
+    public void insertAll(List<Employment> employments) {
+        for (Employment employment : employments) {
+            EmploymentEntity entity = new EmploymentEntity();
+            entity.id = employment.id();
+            entity.realmId = realmId;
+            entity.personId = employment.personId();
+            entity.employerId = employment.employerId();
+            entity.continuesEmploymentId = employment.continuesEmploymentId();
+            // The same session reads the row back, and it then needs the person.
+            entity.person = em.getReference(PersonEntity.class, employment.personId());
+            entity.validFrom = employment.period().from();
+            entity.validTo = employment.period().to();
+            entity.staffNumber = employment.staffNumber();
+            entity.endReasonId = employment.endReasonId();
+            entity.source = employment.source();
+            entity.version = employment.version();
+            entity.counted = true;
+            em.persist(entity);
+        }
+        // Other rows refer to these. Hibernate groups inserts by entity type, so these rows go to the
+        // database now, before a row that needs them.
         em.flush();
     }
 
@@ -268,12 +288,16 @@ public class JpaEmploymentStore implements EmploymentStore {
     }
 
     @Override
-    public void deleteTerms(String termsId) {
-        EmploymentTermsEntity entity = Rows.require(em, EmploymentTermsEntity.class, termsId, realmId,
-                found -> found.realmId);
-        em.remove(entity);
+    public void deleteAllTerms(Collection<String> termsIds) {
+        List<String> employmentIds = new ArrayList<>();
+        for (String termsId : termsIds) {
+            EmploymentTermsEntity entity = Rows.require(em, EmploymentTermsEntity.class, termsId, realmId,
+                    found -> found.realmId);
+            em.remove(entity);
+            employmentIds.add(entity.employmentId);
+        }
         em.flush();
-        Versions.employment(em, realmId, entity.employmentId);
+        employmentIds.forEach(id -> Versions.employment(em, realmId, id));
     }
 
     @Override
@@ -300,12 +324,17 @@ public class JpaEmploymentStore implements EmploymentStore {
     }
 
     @Override
-    public void updateTerms(EmploymentTerms terms) {
-        EmploymentTermsEntity entity = Rows.require(em, EmploymentTermsEntity.class, terms.id(), realmId, found -> found.realmId);
-        copy(terms, entity);
+    public void updateAllTerms(List<EmploymentTerms> terms) {
+        List<String> employmentIds = new ArrayList<>();
+        for (EmploymentTerms changed : terms) {
+            EmploymentTermsEntity entity = Rows.require(em, EmploymentTermsEntity.class, changed.id(), realmId,
+                    found -> found.realmId);
+            copy(changed, entity);
+            employmentIds.add(entity.employmentId);
+        }
         // A split shortens this row and then inserts the next one. The database must see the shorter row first.
         em.flush();
-        Versions.employment(em, realmId, entity.employmentId);
+        employmentIds.forEach(id -> Versions.employment(em, realmId, id));
     }
 
     private static void copy(EmploymentTerms terms, EmploymentTermsEntity entity) {

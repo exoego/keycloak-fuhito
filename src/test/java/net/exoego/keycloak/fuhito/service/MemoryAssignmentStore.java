@@ -131,22 +131,22 @@ final class MemoryAssignmentStore implements AssignmentStore {
     }
 
     @Override
-    public void insert(Assignment row) {
-        rows.add(row);
+    public void insertAll(List<Assignment> added) {
+        rows.addAll(added);
     }
 
     @Override
-    public void update(Assignment row) {
-        rows.replaceAll(r -> r.rowId().equals(row.rowId()) ? new Assignment(row.rowId(), row.assignmentId(),
-                row.employmentId(), row.orgUnitId(), row.period(), row.jobTitleId(), row.occupationId(),
-                row.kindId(), row.workLocationId(), row.costCenterId(), row.head(), row.primary(),
-                row.allocationPercent(), row.displayOrder(), row.attributes(), row.source(),
-                r.continuesAssignmentId(), r.version()) : r);
+    public void updateAll(List<Assignment> changed) {
+        changed.forEach(row -> rows.replaceAll(r -> r.rowId().equals(row.rowId()) ? new Assignment(row.rowId(),
+                row.assignmentId(), row.employmentId(), row.orgUnitId(), row.period(), row.jobTitleId(),
+                row.occupationId(), row.kindId(), row.workLocationId(), row.costCenterId(), row.head(),
+                row.primary(), row.allocationPercent(), row.displayOrder(), row.attributes(), row.source(),
+                r.continuesAssignmentId(), r.version()) : r));
     }
 
     @Override
-    public void delete(String rowId) {
-        rows.removeIf(r -> r.rowId().equals(rowId));
+    public void deleteAll(Collection<String> rowIds) {
+        rows.removeIf(r -> rowIds.contains(r.rowId()));
     }
 
     @Override

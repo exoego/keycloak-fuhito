@@ -2,6 +2,8 @@ package net.exoego.keycloak.fuhito.service;
 
 import java.time.Clock;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -286,7 +288,7 @@ public class AssignmentService {
         store.update(changed);
         if (to != null) {
             // A reporting line cannot outlast its assignment.
-            reportingLines.truncate(last.assignmentId(), to);
+            reportingLines.truncate(List.of(last.assignmentId()), to);
         }
     }
 
@@ -299,14 +301,46 @@ public class AssignmentService {
      * @throws FuhitoException when the assignment does not exist
      */
     public AssignmentView get(String id) {
-        List<Assignment> rows = requireRows(id);
-        String userId = employments.find(rows.getFirst().employmentId()).map(Employment::userId).orElse(null);
-        ValidPeriod period = new ValidPeriod(rows.getFirst().period().from(), rows.getLast().period().to());
+        return getAll(List.of(id)).getFirst();
+    }
+
+    /**
+     * Returns several assignments with their details over time, as {@link #get} does for each.
+     *
+     * @param ids the IDs of the assignments
+     * @return the assignments, in the order of the IDs
+     * @throws FuhitoException when an assignment does not exist
+     */
+    public List<AssignmentView> getAll(List<String> ids) {
+        Map<String, List<Assignment>> rowsById = store.rowsOf(ids).stream()
+                .collect(Collectors.groupingBy(Assignment::assignmentId));
+        Map<String, LocalDate> dates = new HashMap<>();
+        for (String id : ids) {
+            List<Assignment> rows = rowsById.get(id);
+            if (rows == null) {
+                throw FuhitoException.notFound("assignment.not_found", Map.of("id", id));
+            }
+            dates.put(id, today.ofUnit(rows.getFirst().orgUnitId()));
+        }
+        Map<String, String> userIds = new HashMap<>();
+        employments.findAll(rowsById.values().stream().map(rows -> rows.getFirst().employmentId()).toList())
+                .forEach(employment -> userIds.put(employment.id(), employment.userId()));
         Function<String, String> code = UnitPlaces.codes(refItems);
-        List<LocationAndCost> places = UnitPlaces.ofRows(rows, today.ofUnit(rows.getFirst().orgUnitId()), orgUnits,
-                code);
-        return new AssignmentView(id, userId, period, rows.getFirst().continuesAssignmentId(),
-                IntStream.range(0, rows.size()).mapToObj(i -> row(rows.get(i), code, places.get(i))).toList());
+        List<Assignment> all = ids.stream().flatMap(id -> rowsById.get(id).stream()).toList();
+        List<LocationAndCost> places = UnitPlaces.ofRows(all, row -> dates.get(row.assignmentId()), orgUnits, code);
+        List<AssignmentView> views = new ArrayList<>();
+        int at = 0;
+        for (String id : ids) {
+            List<Assignment> rows = rowsById.get(id);
+            List<LocationAndCost> ofRows = places.subList(at, at + rows.size());
+            at += rows.size();
+            views.add(new AssignmentView(id, userIds.get(rows.getFirst().employmentId()),
+                    new ValidPeriod(rows.getFirst().period().from(), rows.getLast().period().to()),
+                    rows.getFirst().continuesAssignmentId(), IntStream.range(0, rows.size())
+                            .mapToObj(i -> row(rows.get(i), code, ofRows.get(i)))
+                            .toList()));
+        }
+        return views;
     }
 
     /**

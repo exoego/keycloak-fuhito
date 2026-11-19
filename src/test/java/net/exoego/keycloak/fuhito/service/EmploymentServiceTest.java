@@ -526,6 +526,12 @@ class EmploymentServiceTest {
         assertEquals("employment.not_transferred", assertThrows(FuhitoException.class,
                 () -> service.transferAll(new TransferAllRequest("company-y", "company-x", "2027-04-01", null, false,
                         Map.of("nope", "1")))).code());
+        // An earlier part of the same merger takes the number first.
+        String bob = service.start(new NewEmployment("bob", "2021-04-01", null, "1002", null, null, null, null, null,
+                null, null, null, "company-y")).employment().id();
+        assertEquals("employment.staff_number_taken", assertThrows(FuhitoException.class,
+                () -> service.transferAll(new TransferAllRequest("company-y", "company-w", "2027-04-01", null, false,
+                        Map.of(alice, "W-1", bob, "W-1")))).code());
         assertEquals("invalid.required", assertThrows(FuhitoException.class,
                 () -> service.transferAll(new TransferAllRequest(null, "company-x", "2027-04-01", null, false,
                         null))).code());
@@ -536,6 +542,17 @@ class EmploymentServiceTest {
         assertEquals(List.of(), service.transferAll(new TransferAllRequest("company-q", "company-x", "2027-04-01",
                 null, false, null)));
         assertNull(store.employments.get(alice).period().to());
+    }
+
+    @Test
+    void aMergerMayGiveOnePersonTheSameNumberTwice() {
+        for (String from : List.of("2020-04-01", "2021-04-01")) {
+            service.start(new NewEmployment("alice", from, null, "1001", null, null, null, null, null, null, null,
+                    null, "company-y"));
+        }
+
+        assertEquals(List.of("1001", "1001"), service.transferAll(new TransferAllRequest("company-y", "company-x",
+                "2027-04-01", null, true, null)).stream().map(t -> t.started().employment().staffNumber()).toList());
     }
 
     @Test

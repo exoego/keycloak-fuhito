@@ -20,10 +20,10 @@ class ChangeLogServiceTest {
         private final List<ChangeLogEntry> entries = new ArrayList<>();
 
         @Override
-        public void append(ChangeLogEntry entry) {
-            entries.add(new ChangeLogEntry(entry.id(), entries.size() + 1, entry.recordedAt(), entry.actorUserId(),
-                    entry.resourceType(), entry.resourceId(), entry.operation(), entry.resourcePath(),
-                    entry.changeOrderId()));
+        public void appendAll(List<ChangeLogEntry> added) {
+            added.forEach(entry -> entries.add(new ChangeLogEntry(entry.id(), entries.size() + 1, entry.recordedAt(),
+                    entry.actorUserId(), entry.resourceType(), entry.resourceId(), entry.operation(),
+                    entry.resourcePath(), entry.changeOrderId())));
         }
 
         @Override

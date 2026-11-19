@@ -3,12 +3,15 @@ package net.exoego.keycloak.fuhito.service;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import net.exoego.keycloak.fuhito.domain.Assignment;
@@ -227,7 +230,7 @@ public class EmploymentService {
             throw FuhitoException.notFound("employment.not_valid_on", Map.of("id", id, "date", validTo));
         }
         RefItem reason = usableItem(RefKind.END_REASON, endReason, employment.endReasonId());
-        setEnd(employment, to, idOf(reason));
+        setEnd(List.of(employment), to, idOf(reason));
         return get(id);
     }
 
@@ -266,74 +269,8 @@ public class EmploymentService {
             throw FuhitoException.notFound("employment.not_valid_on", Map.of("id", id, "date", request.validFrom()));
         }
         String employerId = employers.of(Checks.required("employerId", request.employerId()), date);
-        if (employerId.equals(old.employerId())) {
-            throw FuhitoException.invalid("employment.same_employer", Map.of("employerId", employerId));
-        }
-        String staffNumber = Checks.optionalCode("staffNumber", request.staffNumber());
-        requireFreeStaffNumber(staffNumber, employerId, old.personId());
-
-        // These are read before the end, because the end cuts them and removes what would start later.
-        List<EmploymentTerms> terms = store.terms(id).stream().filter(t -> t.period().endsAfter(date)).toList();
-        List<Assignment> all = assignments.rowsOfEmployment(id);
-        List<Assignment> rows = all.stream().filter(row -> row.period().endsAfter(date)).toList();
-        // An assignment that started before the date stays with its history. The end removes any other one.
-        Set<String> kept = all.stream()
-                .filter(row -> row.period().from().isBefore(date))
-                .map(Assignment::assignmentId)
-                .collect(Collectors.toSet());
-        List<UnitRole> roles = unitRoles.findByEmployment(id).stream()
-                .filter(role -> role.period().endsAfter(date))
-                .toList();
-        Map<String, List<ReportingLine>> lines = new LinkedHashMap<>();
-        rows.forEach(row -> lines.computeIfAbsent(row.assignmentId(),
-                assignmentId -> reportingLines.findByAssignment(assignmentId).stream()
-                        .filter(line -> line.period().endsAfter(date))
-                        .toList()));
-
-        // Each old assignment becomes one new assignment, with every period from the date on.
-        Map<String, String> newAssignmentIds = new LinkedHashMap<>();
-        rows.forEach(row -> newAssignmentIds.computeIfAbsent(row.assignmentId(), oldId -> newId()));
-        // The end removes an assignment that starts on the date or later. Its copy takes its external IDs, so
-        // that an import still finds it.
-        newAssignmentIds.forEach((oldId, copyId) -> {
-            if (!kept.contains(oldId)) {
-                moveExternalIds(oldId, copyId);
-            }
-        });
-
-        EmploymentView ended = end(id, request.validFrom(), request.endReason());
-
-        Employment started = new Employment(newId(), old.personId(), old.userId(), employerId,
-                from(date, old.period()), staffNumber, null, null, id, 1);
-        store.insert(started);
-        terms.forEach(t -> store.insertTerms(t.copy(newId(), started.id(), from(date, t.period()))));
-        for (Assignment row : rows) {
-            boolean stays = kept.contains(row.assignmentId());
-            // A copy continues the old assignment that stays. A copy of one that the end removed continues the
-            // copy of what the old one continued, and takes the system that made it.
-            String continues = stays ? row.assignmentId()
-                    : newAssignmentIds.getOrDefault(row.continuesAssignmentId(), row.continuesAssignmentId());
-            assignments.insert(new Assignment(newId(), newAssignmentIds.get(row.assignmentId()), started.id(),
-                    row.orgUnitId(), from(date, row.period()), row.jobTitleId(), row.occupationId(), row.kindId(),
-                    row.workLocationId(), row.costCenterId(), row.head(), row.primary(), row.allocationPercent(),
-                    row.displayOrder(), row.attributes(), stays ? null : row.source(), continues, 1));
-        }
-        List<ReportingLine> newLines = new ArrayList<>();
-        lines.forEach((oldAssignmentId, ofAssignment) -> ofAssignment.forEach(line -> {
-            ReportingLine next = new ReportingLine(newId(), newAssignmentIds.get(oldAssignmentId),
-                    line.managerPersonId(), line.managerUserId(), line.kind(), from(date, line.period()), 1);
-            reportingLines.insert(next);
-            newLines.add(next);
-        }));
-        List<UnitRoleService.View> newRoles = new ArrayList<>();
-        for (UnitRole role : roles) {
-            UnitRole next = new UnitRole(newId(), started.id(), started.personId(), started.userId(),
-                    role.orgUnitId(), role.roleId(), role.includesDescendants(), from(date, role.period()), 1);
-            unitRoles.insert(next);
-            newRoles.add(new UnitRoleService.View(next, refItems.find(role.roleId()).map(RefItem::code).orElse(null)));
-        }
-        List<String> assignmentIds = List.copyOf(newAssignmentIds.values());
-        return new Transfer(ended, get(started.id()), assignmentIds, newLines, newRoles);
+        return transfer(List.of(new Move(old, request.staffNumber())), employerId, date, request.endReason())
+                .getFirst();
     }
 
     /**
@@ -362,14 +299,158 @@ public class EmploymentService {
                         Map.of("id", id, "date", request.validFrom()));
             }
         }
+        if (moving.isEmpty()) {
+            return List.of();
+        }
+        List<Move> moves = moving.stream()
+                .map(employment -> new Move(employment, staffNumbers.containsKey(employment.id())
+                        ? staffNumbers.get(employment.id())
+                        : request.keepStaffNumbers() ? employment.staffNumber() : null))
+                .toList();
+        return transfer(moves, employers.of(request.toEmployerId(), date), date, request.endReason());
+    }
+
+    private record Move(Employment employment, String staffNumber) {
+    }
+
+    // What the employments have from the date on, read before the end cuts it and removes what would start later.
+    // The rows of an assignment are all there, also the ones that end before the date.
+    private record Holding(Map<String, List<EmploymentTerms>> terms, Map<String, List<Assignment>> rows,
+            Map<String, List<UnitRole>> roles, Map<String, List<ReportingLine>> lines) {
+    }
+
+    // What the new employment of a transfer gets. Gone has each old assignment that the end removes, with its copy.
+    private record Copy(Employment started, List<EmploymentTerms> terms, List<Assignment> rows,
+            List<String> assignmentIds, List<ReportingLine> lines, List<UnitRole> roles, Map<String, String> gone) {
+    }
+
+    // Every check comes before the first write.
+    private List<Transfer> transfer(List<Move> moves, String employerId, LocalDate date, String endReason) {
+        Optional<RefItem> reason = Optional.ofNullable(endReason)
+                .flatMap(code -> refItems.findByCode(RefKind.END_REASON, code));
+        List<String> staffNumbers = check(moves, employerId, endReason, reason);
+        List<String> ids = moves.stream().map(move -> move.employment().id()).toList();
+        Holding holding = holding(ids, date);
+        List<Copy> copies = new ArrayList<>();
+        for (int i = 0; i < moves.size(); i++) {
+            Employment old = moves.get(i).employment();
+            copies.add(copy(old, new Employment(newId(), old.personId(), old.userId(), employerId,
+                    from(date, old.period()), staffNumbers.get(i), null, null, old.id(), 1), date, holding));
+        }
+
+        Map<String, String> gone = new HashMap<>();
+        copies.forEach(copy -> gone.putAll(copy.gone()));
+        moveExternalIds(gone);
+        setEnd(moves.stream().map(Move::employment).toList(), date, reason.map(RefItem::id).orElse(null));
+        store.insertAll(copies.stream().map(Copy::started).toList());
+        copies.forEach(copy -> copy.terms().forEach(store::insertTerms));
+        assignments.insertAll(copies.stream().flatMap(copy -> copy.rows().stream()).toList());
+        copies.forEach(copy -> copy.lines().forEach(reportingLines::insert));
+        unitRoles.insertAll(copies.stream().flatMap(copy -> copy.roles().stream()).toList());
+
+        List<String> both = new ArrayList<>(ids);
+        copies.forEach(copy -> both.add(copy.started().id()));
+        Map<String, EmploymentView> views = views(store.findAll(both)).stream()
+                .collect(Collectors.toMap(view -> view.employment().id(), Function.identity()));
+        Map<String, String> codes = new HashMap<>();
         List<Transfer> transfers = new ArrayList<>();
-        for (Employment employment : moving) {
-            String staffNumber = staffNumbers.containsKey(employment.id()) ? staffNumbers.get(employment.id())
-                    : request.keepStaffNumbers() ? employment.staffNumber() : null;
-            transfers.add(transfer(employment.id(), new TransferRequest(request.toEmployerId(), request.validFrom(),
-                    staffNumber, request.endReason())));
+        for (int i = 0; i < copies.size(); i++) {
+            Copy copy = copies.get(i);
+            transfers.add(new Transfer(views.get(ids.get(i)), views.get(copy.started().id()), copy.assignmentIds(),
+                    copy.lines(), copy.roles().stream()
+                            .map(role -> new UnitRoleService.View(role, cachedCode(codes, role.roleId())))
+                            .toList()));
         }
         return transfers;
+    }
+
+    // The checks of each move come in the order of the moves, as if they were made one by one.
+    private List<String> check(List<Move> moves, String employerId, String endReason, Optional<RefItem> reason) {
+        // Each legal entity gives its own numbers, so two of them may give the same number to two people.
+        Map<String, Set<String>> holders = new HashMap<>();
+        store.findByStaffNumbers(moves.stream().map(Move::staffNumber).filter(Objects::nonNull).toList()).stream()
+                .filter(e -> employerId.equals(e.employerId()))
+                .forEach(e -> holders.computeIfAbsent(e.staffNumber(), any -> new HashSet<>()).add(e.personId()));
+        List<String> staffNumbers = new ArrayList<>();
+        for (Move move : moves) {
+            Employment old = move.employment();
+            if (employerId.equals(old.employerId())) {
+                throw FuhitoException.invalid("employment.same_employer", Map.of("employerId", employerId));
+            }
+            String staffNumber = Checks.optionalCode("staffNumber", move.staffNumber());
+            if (staffNumber != null) {
+                Set<String> people = holders.computeIfAbsent(staffNumber, any -> new HashSet<>());
+                if (people.stream().anyMatch(personId -> !personId.equals(old.personId()))) {
+                    throw FuhitoException.conflict("employment.staff_number_taken",
+                            Map.of("staffNumber", staffNumber));
+                }
+                people.add(old.personId());
+            }
+            staffNumbers.add(staffNumber);
+            if (endReason != null) {
+                usable(RefKind.END_REASON, endReason, reason, old.endReasonId());
+            }
+        }
+        return staffNumbers;
+    }
+
+    private Holding holding(List<String> employmentIds, LocalDate date) {
+        Map<String, List<Assignment>> rows = assignments.rowsOfEmployments(employmentIds).stream()
+                .collect(Collectors.groupingBy(Assignment::employmentId));
+        Set<String> assignmentIds = rows.values().stream()
+                .flatMap(List::stream)
+                .filter(row -> row.period().endsAfter(date))
+                .map(Assignment::assignmentId)
+                .collect(Collectors.toSet());
+        return new Holding(
+                store.termsOf(employmentIds).stream()
+                        .filter(t -> t.period().endsAfter(date))
+                        .collect(Collectors.groupingBy(EmploymentTerms::employmentId)),
+                rows,
+                unitRoles.findByEmployments(employmentIds).stream()
+                        .filter(role -> role.period().endsAfter(date))
+                        .collect(Collectors.groupingBy(UnitRole::employmentId)),
+                reportingLines.findByAssignments(assignmentIds).stream()
+                        .filter(line -> line.period().endsAfter(date))
+                        .collect(Collectors.groupingBy(ReportingLine::assignmentId)));
+    }
+
+    private Copy copy(Employment old, Employment started, LocalDate date, Holding holding) {
+        List<EmploymentTerms> terms = holding.terms().getOrDefault(old.id(), List.of()).stream()
+                .map(t -> t.copy(newId(), started.id(), from(date, t.period())))
+                .toList();
+        List<Assignment> all = holding.rows().getOrDefault(old.id(), List.of());
+        List<Assignment> moved = all.stream().filter(row -> row.period().endsAfter(date)).toList();
+        // An assignment that started before the date stays with its history. The end removes any other one.
+        Set<String> kept = all.stream()
+                .filter(row -> row.period().from().isBefore(date))
+                .map(Assignment::assignmentId)
+                .collect(Collectors.toSet());
+        // Each old assignment becomes one new assignment, with every period from the date on.
+        Map<String, String> newAssignmentIds = new LinkedHashMap<>();
+        moved.forEach(row -> newAssignmentIds.computeIfAbsent(row.assignmentId(), oldId -> newId()));
+        Map<String, String> gone = new LinkedHashMap<>(newAssignmentIds);
+        gone.keySet().removeAll(kept);
+        List<Assignment> rows = moved.stream().map(row -> {
+            boolean stays = kept.contains(row.assignmentId());
+            // A copy continues the old assignment that stays. A copy of one that the end removed continues the
+            // copy of what the old one continued, and takes the system that made it.
+            String continues = stays ? row.assignmentId()
+                    : newAssignmentIds.getOrDefault(row.continuesAssignmentId(), row.continuesAssignmentId());
+            return new Assignment(newId(), newAssignmentIds.get(row.assignmentId()), started.id(),
+                    row.orgUnitId(), from(date, row.period()), row.jobTitleId(), row.occupationId(), row.kindId(),
+                    row.workLocationId(), row.costCenterId(), row.head(), row.primary(), row.allocationPercent(),
+                    row.displayOrder(), row.attributes(), stays ? null : row.source(), continues, 1);
+        }).toList();
+        List<ReportingLine> lines = new ArrayList<>();
+        newAssignmentIds.forEach((oldId, copyId) -> holding.lines().getOrDefault(oldId, List.of()).forEach(line ->
+                lines.add(new ReportingLine(newId(), copyId, line.managerPersonId(), line.managerUserId(),
+                        line.kind(), from(date, line.period()), 1))));
+        List<UnitRole> roles = holding.roles().getOrDefault(old.id(), List.of()).stream()
+                .map(role -> new UnitRole(newId(), started.id(), started.personId(), started.userId(),
+                        role.orgUnitId(), role.roleId(), role.includesDescendants(), from(date, role.period()), 1))
+                .toList();
+        return new Copy(started, terms, rows, List.copyOf(newAssignmentIds.values()), lines, roles, gone);
     }
 
     // What holds on the date starts on the date. What was stored for later keeps its own start.
@@ -394,47 +475,73 @@ public class EmploymentService {
      * @throws FuhitoException when the employment does not exist
      */
     public EmploymentView removeEnd(String id) {
-        setEnd(get(id).employment(), null, null);
+        setEnd(List.of(get(id).employment()), null, null);
         return get(id);
     }
 
-    private void setEnd(Employment employment, LocalDate to, String endReasonId) {
-        employers.requireCovers(employment.employerId(), employment.period().endingAt(to));
-        String id = employment.id();
-        store.update(new Employment(id, employment.personId(), employment.userId(), employment.employerId(),
-                employment.period().endingAt(to),
-                employment.staffNumber(), endReasonId, employment.source(),
-                employment.continuesEmploymentId(), employment.version()));
-
-        List<EmploymentTerms> terms = store.terms(id);
-        if (to != null) {
-            terms.stream().filter(t -> !t.period().from().isBefore(to)).forEach(t -> store.deleteTerms(t.id()));
+    private void setEnd(List<Employment> employments, LocalDate to, String endReasonId) {
+        // Only the end of the period counts, and it is the same for every employment.
+        Set<String> checked = new HashSet<>();
+        for (Employment employment : employments) {
+            if (checked.add(employment.employerId())) {
+                employers.requireCovers(employment.employerId(), employment.period().endingAt(to));
+            }
         }
-        EmploymentTerms last = terms.stream()
-                .filter(t -> to == null || t.period().from().isBefore(to))
-                .reduce((first, second) -> second)
-                .orElseThrow();
-        store.updateTerms(last.withPeriod(last.period().endingAt(to)));
-
+        for (Employment employment : employments) {
+            store.update(new Employment(employment.id(), employment.personId(), employment.userId(),
+                    employment.employerId(), employment.period().endingAt(to), employment.staffNumber(), endReasonId,
+                    employment.source(), employment.continuesEmploymentId(), employment.version()));
+        }
+        List<String> ids = employments.stream().map(Employment::id).toList();
+        endTerms(ids, to);
         if (to == null) {
             return;
         }
-        for (UnitRole role : unitRoles.findByEmployment(id)) {
+        List<String> removedRoles = new ArrayList<>();
+        List<UnitRole> endedRoles = new ArrayList<>();
+        for (UnitRole role : unitRoles.findByEmployments(ids)) {
             if (!role.period().from().isBefore(to)) {
-                unitRoles.delete(role.id());
+                removedRoles.add(role.id());
             } else if (role.period().endsAfter(to)) {
-                unitRoles.update(role.withPeriod(role.period().endingAt(to)));
+                endedRoles.add(role.withPeriod(role.period().endingAt(to)));
             }
         }
-        for (Assignment row : assignments.rowsOfEmployment(id)) {
-            // A reporting line cannot outlast its assignment.
-            reportingLines.truncate(row.assignmentId(), to);
+        unitRoles.deleteAll(removedRoles);
+        unitRoles.updateAll(endedRoles);
+        List<Assignment> rows = assignments.rowsOfEmployments(ids);
+        // A reporting line cannot outlast its assignment.
+        reportingLines.truncate(rows.stream().map(Assignment::assignmentId).distinct().toList(), to);
+        List<String> removedRows = new ArrayList<>();
+        List<Assignment> endedRows = new ArrayList<>();
+        for (Assignment row : rows) {
             if (!row.period().from().isBefore(to)) {
-                assignments.delete(row.rowId());
+                removedRows.add(row.rowId());
             } else if (row.period().endsAfter(to)) {
-                assignments.update(row.withPeriod(row.period().endingAt(to)));
+                endedRows.add(row.withPeriod(row.period().endingAt(to)));
             }
         }
+        assignments.deleteAll(removedRows);
+        assignments.updateAll(endedRows);
+    }
+
+    private void endTerms(List<String> employmentIds, LocalDate to) {
+        Map<String, List<EmploymentTerms>> terms = store.termsOf(employmentIds).stream()
+                .collect(Collectors.groupingBy(EmploymentTerms::employmentId));
+        List<String> removed = new ArrayList<>();
+        List<EmploymentTerms> ended = new ArrayList<>();
+        for (String id : employmentIds) {
+            List<EmploymentTerms> of = terms.getOrDefault(id, List.of());
+            if (to != null) {
+                of.stream().filter(t -> !t.period().from().isBefore(to)).forEach(t -> removed.add(t.id()));
+            }
+            EmploymentTerms last = of.stream()
+                    .filter(t -> to == null || t.period().from().isBefore(to))
+                    .reduce((first, second) -> second)
+                    .orElseThrow();
+            ended.add(last.withPeriod(last.period().endingAt(to)));
+        }
+        store.deleteAllTerms(removed);
+        store.updateAllTerms(ended);
     }
 
     /**
@@ -501,12 +608,15 @@ public class EmploymentService {
      */
     public List<EmploymentView> list(Search search, Page page, String after) {
         String afterId = after == null ? null : Cursor.decode(Cursor.EMPLOYMENTS, after).getFirst();
-        List<Employment> found = store.search(search.toStore(), afterId, page.first(), page.max());
-        Map<String, List<EmploymentTerms>> terms = store.termsOf(found.stream().map(Employment::id).toList())
+        return views(store.search(search.toStore(), afterId, page.first(), page.max()));
+    }
+
+    private List<EmploymentView> views(List<Employment> employments) {
+        Map<String, List<EmploymentTerms>> terms = store.termsOf(employments.stream().map(Employment::id).toList())
                 .stream()
                 .collect(Collectors.groupingBy(EmploymentTerms::employmentId));
         Map<String, String> codes = new HashMap<>();
-        return found.stream()
+        return employments.stream()
                 .map(employment -> new EmploymentView(employment, cachedCode(codes, employment.endReasonId()),
                         terms.getOrDefault(employment.id(), List.of()).stream()
                                 .map(t -> new EmploymentView.TermsView(t, cachedCode(codes, t.employmentTypeId()),
@@ -534,11 +644,11 @@ public class EmploymentService {
     }
 
     private RefItem usableItem(RefKind kind, String code, String currentId) {
-        if (code == null) {
-            return null;
-        }
-        return refItems.findByCode(kind, code)
-                .filter(item -> item.active() || item.id().equals(currentId))
+        return code == null ? null : usable(kind, code, refItems.findByCode(kind, code), currentId);
+    }
+
+    private static RefItem usable(RefKind kind, String code, Optional<RefItem> found, String currentId) {
+        return found.filter(item -> item.active() || item.id().equals(currentId))
                 .orElseThrow(() -> FuhitoException.invalid("ref_item.unknown",
                         Map.of("kind", kind.name(), "code", code)));
     }
@@ -551,11 +661,13 @@ public class EmploymentService {
         return item == null ? null : item.id();
     }
 
-    private void moveExternalIds(String fromAssignmentId, String toAssignmentId) {
-        externalIds.ofResource(ExternalId.Kind.ASSIGNMENT, fromAssignmentId).forEach(row -> {
+    // The end removes an assignment that starts on the date or later. Its copy takes its external IDs, so that an
+    // import still finds it.
+    private void moveExternalIds(Map<String, String> copyIds) {
+        externalIds.ofResources(ExternalId.Kind.ASSIGNMENT, copyIds.keySet()).forEach(row -> {
             externalIds.delete(row.id());
-            externalIds.insert(new ExternalId(row.id(), row.kind(), toAssignmentId, row.source(), row.externalId(),
-                    row.version() + 1));
+            externalIds.insert(new ExternalId(row.id(), row.kind(), copyIds.get(row.resourceId()), row.source(),
+                    row.externalId(), row.version() + 1));
         });
     }
 

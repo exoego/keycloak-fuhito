@@ -2,6 +2,7 @@ package net.exoego.keycloak.fuhito.service;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
@@ -93,17 +94,17 @@ final class MemoryUnitRoleStore implements UnitRoleStore {
     }
 
     @Override
-    public void insert(UnitRole role) {
-        roles.add(role);
+    public void insertAll(List<UnitRole> added) {
+        roles.addAll(added);
     }
 
     @Override
-    public void update(UnitRole role) {
-        roles.replaceAll(r -> r.id().equals(role.id()) ? role : r);
+    public void updateAll(List<UnitRole> changed) {
+        changed.forEach(role -> roles.replaceAll(r -> r.id().equals(role.id()) ? role : r));
     }
 
     @Override
-    public void delete(String id) {
-        roles.removeIf(r -> r.id().equals(id));
+    public void deleteAll(Collection<String> ids) {
+        roles.removeIf(r -> ids.contains(r.id()));
     }
 }

@@ -30,6 +30,16 @@ public interface EmploymentStore {
     List<Employment> findByStaffNumber(String staffNumber);
 
     /**
+     * Lists the employments that use one of several staff numbers.
+     *
+     * @param staffNumbers the staff numbers
+     * @return the employments
+     */
+    default List<Employment> findByStaffNumbers(Collection<String> staffNumbers) {
+        return staffNumbers.stream().distinct().flatMap(number -> findByStaffNumber(number).stream()).toList();
+    }
+
+    /**
      * Lists the employments of a user, oldest first.
      *
      * @param userId the ID of the user
@@ -84,7 +94,16 @@ public interface EmploymentStore {
      *
      * @param employment the employment
      */
-    void insert(Employment employment);
+    default void insert(Employment employment) {
+        insertAll(List.of(employment));
+    }
+
+    /**
+     * Stores new employments.
+     *
+     * @param employments the employments
+     */
+    void insertAll(List<Employment> employments);
 
     /**
      * Lists all terms of an employment, oldest first.
@@ -106,7 +125,16 @@ public interface EmploymentStore {
      *
      * @param terms the terms
      */
-    void updateTerms(EmploymentTerms terms);
+    default void updateTerms(EmploymentTerms terms) {
+        updateAllTerms(List.of(terms));
+    }
+
+    /**
+     * Stores the new state of several existing terms.
+     *
+     * @param terms the terms
+     */
+    void updateAllTerms(List<EmploymentTerms> terms);
 
     /**
      * Stores the new state of an existing employment.
@@ -129,7 +157,16 @@ public interface EmploymentStore {
      *
      * @param termsId the ID of the terms
      */
-    void deleteTerms(String termsId);
+    default void deleteTerms(String termsId) {
+        deleteAllTerms(List.of(termsId));
+    }
+
+    /**
+     * Removes several terms.
+     *
+     * @param termsIds the IDs of the terms
+     */
+    void deleteAllTerms(Collection<String> termsIds);
 
     /**
      * What a list of employments keeps. A value that is null keeps everything.

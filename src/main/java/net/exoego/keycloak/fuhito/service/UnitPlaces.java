@@ -50,23 +50,23 @@ final class UnitPlaces {
 
     /**
      * Gives each row of assignments its values. The values that apply to a row are the ones on its date nearest to
-     * a date. There is one read for each such date.
+     * the date of the row. There is one read for each such date.
      *
      * @param rows the rows
-     * @param date the date
+     * @param dateOf the date of each row
      * @param store the storage of org units of the realm
      * @param code the lookup of the code of a reference item
      * @return the values of each row, in the same order
      */
-    static List<LocationAndCost> ofRows(List<Assignment> rows, LocalDate date, OrgUnitStore store,
-            Function<String, String> code) {
+    static List<LocationAndCost> ofRows(List<Assignment> rows, Function<Assignment, LocalDate> dateOf,
+            OrgUnitStore store, Function<String, String> code) {
         Map<LocalDate, Set<String>> unitsByDay = new HashMap<>();
-        rows.forEach(row -> unitsByDay.computeIfAbsent(row.period().nearest(date), day -> new HashSet<>())
-                .add(row.orgUnitId()));
+        rows.forEach(row -> unitsByDay.computeIfAbsent(row.period().nearest(dateOf.apply(row)),
+                day -> new HashSet<>()).add(row.orgUnitId()));
         Map<LocalDate, Map<String, UnitDefaults>> defaults = new HashMap<>();
         unitsByDay.forEach((day, ids) -> defaults.put(day, store.defaultsOn(ids, day)));
         return rows.stream().map(row -> {
-            UnitDefaults unit = defaults.get(row.period().nearest(date))
+            UnitDefaults unit = defaults.get(row.period().nearest(dateOf.apply(row)))
                     .getOrDefault(row.orgUnitId(), UnitDefaults.NONE);
             String workLocation = code.apply(row.workLocationId());
             String costCenter = code.apply(row.costCenterId());

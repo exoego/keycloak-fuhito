@@ -58,13 +58,13 @@ final class MemoryReportingLineStore implements ReportingLineStore {
     }
 
     @Override
-    public void update(ReportingLine line) {
-        lines.replaceAll(l -> l.id().equals(line.id()) ? line : l);
+    public void updateAll(List<ReportingLine> changed) {
+        changed.forEach(line -> lines.replaceAll(l -> l.id().equals(line.id()) ? line : l));
     }
 
     @Override
-    public void delete(String id) {
-        lines.removeIf(l -> l.id().equals(id));
+    public void deleteAll(Collection<String> ids) {
+        lines.removeIf(l -> ids.contains(l.id()));
     }
 
     /** The other stores that the reports of a manager come from. A test of reports sets them. */
