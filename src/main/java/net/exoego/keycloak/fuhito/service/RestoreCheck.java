@@ -23,6 +23,12 @@ final class RestoreCheck {
     private final Set<String> employments;
     private final Set<String> assignments;
     private final Set<String> qualifications;
+    private final Set<String> lines;
+    private final Set<String> roles;
+    private final Set<String> orders;
+    private final Set<String> refKinds;
+    private final Set<String> hierarchies;
+    private final Set<String> definitions;
 
     private RestoreCheck(RealmExport document) {
         refItems = ids(document.refItems(), RealmExport.Item::id);
@@ -31,6 +37,12 @@ final class RestoreCheck {
         employments = ids(document.employments(), RealmExport.EmploymentRow::id);
         assignments = ids(document.assignments(), RealmExport.AssignmentRows::assignmentId);
         qualifications = ids(document.qualifications(), RealmExport.QualificationRow::id);
+        lines = ids(document.reportingLines(), RealmExport.Line::id);
+        roles = ids(document.unitRoles(), RealmExport.Role::id);
+        orders = ids(document.changeOrders(), RealmExport.Order::id);
+        refKinds = ids(document.refKinds(), RealmExport.Kind::id);
+        hierarchies = ids(document.hierarchies(), RealmExport.HierarchyRow::id);
+        definitions = ids(document.attributeDefinitions(), RealmExport.Definition::id);
     }
 
     /**
@@ -135,6 +147,13 @@ final class RestoreCheck {
                 case "EMPLOYMENT" -> employments;
                 case "ASSIGNMENT" -> assignments;
                 case "QUALIFICATION" -> qualifications;
+                case "REPORTING_LINE" -> lines;
+                case "UNIT_ROLE" -> roles;
+                case "CHANGE_ORDER" -> orders;
+                case "REF_ITEM" -> refItems;
+                case "REF_KIND" -> refKinds;
+                case "HIERARCHY" -> hierarchies;
+                case "ATTRIBUTE_DEFINITION" -> definitions;
                 default -> Set.of();
             };
             required("external-ids", "resourceId", x.resourceId(), named);

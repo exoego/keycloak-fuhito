@@ -13,10 +13,14 @@ import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
+import net.exoego.keycloak.fuhito.domain.ChangeOrder;
 import net.exoego.keycloak.fuhito.domain.Checks;
+import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.rest.RequestContext.Change;
 import net.exoego.keycloak.fuhito.service.ChangeLogService;
 import net.exoego.keycloak.fuhito.service.ChangeOrderService;
+import net.exoego.keycloak.fuhito.service.ExternalIdLists;
+import net.exoego.keycloak.fuhito.service.ExternalIdService;
 import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.enums.SchemaType;
 import org.eclipse.microprofile.openapi.annotations.media.Content;
@@ -42,6 +46,7 @@ public class ChangeOrdersResource {
     private final RequestContext context;
     private final ChangeOrderService service;
     private final ChangeLogService changeLog;
+    private final ExternalIdService externalIds;
 
     /**
      * Creates the resource for one request.
@@ -49,11 +54,14 @@ public class ChangeOrdersResource {
      * @param context the request and its caller
      * @param service the operations on the realm of the request
      * @param changeLog the reads of the change log of the realm
+     * @param externalIds the IDs that systems have for the resources of the realm
      */
-    public ChangeOrdersResource(RequestContext context, ChangeOrderService service, ChangeLogService changeLog) {
+    public ChangeOrdersResource(RequestContext context, ChangeOrderService service, ChangeLogService changeLog,
+            ExternalIdService externalIds) {
         this.context = context;
         this.service = service;
         this.changeLog = changeLog;
+        this.externalIds = externalIds;
     }
 
     @GET
@@ -118,7 +126,7 @@ public class ChangeOrdersResource {
             @QueryParam("max") Integer max) {
         context.requireRead();
         return Calls.run(context,
-                () -> service.list(from, to, first, max).stream().map(ChangeOrderRepresentation::of).toList());
+                () -> represent(service.list(from, to, first, max)));
     }
 
     @GET
@@ -148,7 +156,7 @@ public class ChangeOrdersResource {
             @Parameter(description = "The ID of the resource.")
             @PathParam("id") String id) {
         context.requireRead();
-        return Calls.run(context, () -> ChangeOrderRepresentation.of(service.get(id)));
+        return Calls.run(context, () -> represent(service.get(id)));
     }
 
     @POST
@@ -165,7 +173,8 @@ public class ChangeOrdersResource {
         context.requireWrite();
         return Calls.run(context, () -> {
             Checks.required("body", body);
-            var order = ChangeOrderRepresentation.of(service.create(body.toValues()));
+            var order = represent(externalIds.create(ExternalId.Kind.CHANGE_ORDER, body.source(),
+                    body.externalId(), () -> service.create(body.toValues()), ChangeOrder::id));
             context.recordChange(Change.CREATE, RESOURCE_TYPE, order.id(), path(order.id()), order);
             return Response.status(Response.Status.CREATED).entity(order).build();
         });
@@ -187,7 +196,7 @@ public class ChangeOrdersResource {
             ChangeOrderRepresentation body) {
         context.requireWrite();
         return Calls.guarded(context, body, () -> version(id), () -> {
-            var order = ChangeOrderRepresentation.of(service.update(id, body.toValues()));
+            var order = represent(service.update(id, body.toValues()));
             context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, path(id), order);
             return order;
         });
@@ -212,7 +221,7 @@ public class ChangeOrdersResource {
             VersionCheckRepresentation body) {
         context.requireWrite();
         return Calls.guarded(context, body, () -> version(id), () -> {
-            var order = ChangeOrderRepresentation.of(service.announce(id, context.callerUserId()));
+            var order = represent(service.announce(id, context.callerUserId()));
             context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, path(id) + "/announce", order);
             return order;
         });
@@ -247,6 +256,17 @@ public class ChangeOrdersResource {
 
     private static String path(String id) {
         return "fuhito/change-orders/" + id;
+    }
+
+    // The IDs of every order of a list are read with one query.
+    private List<ChangeOrderRepresentation> represent(List<ChangeOrder> orders) {
+        ExternalIdLists ids = externalIds.lists(ExternalId.Kind.CHANGE_ORDER,
+                orders.stream().map(ChangeOrder::id).toList());
+        return orders.stream().map(order -> ChangeOrderRepresentation.of(order, ids)).toList();
+    }
+
+    private ChangeOrderRepresentation represent(ChangeOrder order) {
+        return represent(List.of(order)).getFirst();
     }
 
     private long version(String id) {

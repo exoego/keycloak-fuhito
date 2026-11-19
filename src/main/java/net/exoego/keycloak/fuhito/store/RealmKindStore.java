@@ -26,6 +26,14 @@ public interface RealmKindStore {
     Optional<RealmKind> findByCode(String code);
 
     /**
+     * Finds the code of a kind by its ID. It reads only the code, so a lock of the kind can come after it.
+     *
+     * @param id the ID
+     * @return the code, or empty when the realm has no kind with the ID
+     */
+    Optional<String> codeOf(String id);
+
+    /**
      * Stores a new kind.
      *
      * @param kind the kind

@@ -27,7 +27,8 @@ public class JpaExternalIdStore implements ExternalIdStore {
         this.realmId = realmId;
     }
 
-    // Each kind has its own table. The rows of one assignment share its source.
+    // Each kind has its own table. The rows of one assignment share its source. The other kinds keep no source, so
+    // the query reads the ID only to find the resource.
     private static String originQuery(ExternalId.Kind kind) {
         return switch (kind) {
             case ORG_UNIT -> "select x.source from OrgUnitEntity x where x.realmId = :realmId and x.id = :id";
@@ -38,6 +39,21 @@ public class JpaExternalIdStore implements ExternalIdStore {
             case ASSIGNMENT -> """
                     select x.source from AssignmentEntity x where x.realmId = :realmId and x.assignmentId = :id
                     order by x.validFrom""";
+            case REPORTING_LINE -> "select x.id from ReportingLineEntity x where x.realmId = :realmId and x.id = :id";
+            case UNIT_ROLE -> "select x.id from UnitRoleEntity x where x.realmId = :realmId and x.id = :id";
+            case CHANGE_ORDER -> "select x.id from ChangeOrderEntity x where x.realmId = :realmId and x.id = :id";
+            case REF_ITEM -> "select x.id from RefItemEntity x where x.realmId = :realmId and x.id = :id";
+            case REF_KIND -> "select x.id from RealmKindEntity x where x.realmId = :realmId and x.id = :id";
+            case HIERARCHY -> "select x.id from HierarchyEntity x where x.realmId = :realmId and x.id = :id";
+            case ATTRIBUTE_DEFINITION -> """
+                    select x.id from AttributeDefinitionEntity x where x.realmId = :realmId and x.id = :id""";
+        };
+    }
+
+    private static boolean keepsSource(ExternalId.Kind kind) {
+        return switch (kind) {
+            case ORG_UNIT, PERSON, EMPLOYMENT, QUALIFICATION, ASSIGNMENT -> true;
+            case REPORTING_LINE, UNIT_ROLE, CHANGE_ORDER, REF_ITEM, REF_KIND, HIERARCHY, ATTRIBUTE_DEFINITION -> false;
         };
     }
 
@@ -49,7 +65,10 @@ public class JpaExternalIdStore implements ExternalIdStore {
                 .setParameter("id", resourceId)
                 .setMaxResults(1)
                 .getResultList();
-        return sources.isEmpty() ? Optional.empty() : Optional.of(new ExternalId.Origin(sources.getFirst()));
+        if (sources.isEmpty()) {
+            return Optional.empty();
+        }
+        return Optional.of(new ExternalId.Origin(keepsSource(kind) ? sources.getFirst() : null));
     }
 
     @Override

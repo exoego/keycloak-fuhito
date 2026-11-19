@@ -51,6 +51,16 @@ public class JpaRealmKindStore implements RealmKindStore {
     }
 
     @Override
+    public Optional<String> codeOf(String id) {
+        return em.createQuery("select k.code from RealmKindEntity k where k.realmId = :realmId and k.id = :id",
+                        String.class)
+                .setParameter("realmId", realmId)
+                .setParameter("id", id)
+                .getResultStream()
+                .findFirst();
+    }
+
+    @Override
     public void insert(RealmKind kind) {
         RealmKindEntity entity = new RealmKindEntity();
         entity.id = kind.id();
@@ -75,6 +85,7 @@ public class JpaRealmKindStore implements RealmKindStore {
         RealmKindEntity entity = em.find(RealmKindEntity.class, id);
         if (entity != null && entity.realmId.equals(realmId)) {
             RefKindNames.delete(em, realmId, id);
+            ExternalIds.deleteOf(em, realmId, "REF_KIND", id);
             em.remove(entity);
             em.flush();
         }

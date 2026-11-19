@@ -189,6 +189,7 @@ public class JpaUnitRoleStore implements UnitRoleStore {
         entity.validFrom = role.period().from();
         entity.validTo = role.period().to();
         entity.version = role.version();
+        entity.counted = true;
         em.persist(entity);
         em.flush();
     }
@@ -198,14 +199,14 @@ public class JpaUnitRoleStore implements UnitRoleStore {
         UnitRoleEntity entity = Rows.require(em, UnitRoleEntity.class, role.id(), realmId, found -> found.realmId);
         entity.validFrom = role.period().from();
         entity.validTo = role.period().to();
-        // JPA counts up the version when it writes the row. A read after the write gives the new one.
-        em.flush();
+        entity.countUp();
     }
 
     @Override
     public void delete(String id) {
         UnitRoleEntity entity = em.find(UnitRoleEntity.class, id);
         if (entity != null && entity.realmId.equals(realmId)) {
+            ExternalIds.deleteOf(em, realmId, "UNIT_ROLE", id);
             em.remove(entity);
             em.flush();
         }

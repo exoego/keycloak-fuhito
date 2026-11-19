@@ -94,15 +94,17 @@ public class JpaHierarchyStore implements HierarchyStore {
 
     @Override
     public void update(Hierarchy hierarchy) {
-        Rows.require(em, HierarchyEntity.class, hierarchy.id(), realmId, HierarchyEntity::getRealmId)
-                .setName(hierarchy.name());
-        // JPA counts up the version when it writes the row. A read after the write gives the new one.
-        em.flush();
+        HierarchyEntity entity = Rows.require(em, HierarchyEntity.class, hierarchy.id(), realmId,
+                HierarchyEntity::getRealmId);
+        entity.setName(hierarchy.name());
+        entity.countUp();
     }
 
     @Override
     public void delete(String id) {
-        em.remove(Rows.require(em, HierarchyEntity.class, id, realmId, HierarchyEntity::getRealmId));
+        HierarchyEntity entity = Rows.require(em, HierarchyEntity.class, id, realmId, HierarchyEntity::getRealmId);
+        ExternalIds.deleteOf(em, realmId, "HIERARCHY", id);
+        em.remove(entity);
         // Hibernate writes inserts before deletes, so a new hierarchy with the same code would come first.
         em.flush();
     }

@@ -124,6 +124,10 @@ class PermissionsIT {
         for (String path : peopleReads()) {
             assertEquals(403, structureReader.get(path).statusCode(), path);
         }
+        // The IDs of other systems need the permission to read the resource that has them.
+        String lookup = "/external-ids/lookup?source=hr&externalId=none&resourceType=";
+        assertEquals(404, structureReader.get(lookup + "HIERARCHY").statusCode());
+        assertEquals(403, structureReader.get(lookup + "REPORTING_LINE").statusCode());
         assertEquals(403, structureReader.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"x\"}}, \"validFrom\": \"2020-04-01\"}").statusCode());
     }
 

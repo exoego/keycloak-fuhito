@@ -4,7 +4,7 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
-import jakarta.persistence.Version;
+import jakarta.persistence.Transient;
 
 /**
  * The definition of one free attribute of one kind of resource.
@@ -38,13 +38,24 @@ public class AttributeDefinitionEntity {
     @Column(name = "REQUIRED", nullable = false)
     boolean required;
 
-    @Version
     @Column(name = "VERSION", nullable = false)
     long version;
+
+    // True once a write of this session counted up the version. A session of Keycloak has one transaction.
+    @Transient
+    boolean counted;
 
     /**
      * Creates an empty entity for JPA.
      */
     public AttributeDefinitionEntity() {
+    }
+
+    // A write and a change of its IDs of other systems count up the version once.
+    void countUp() {
+        if (!counted) {
+            version++;
+            counted = true;
+        }
     }
 }

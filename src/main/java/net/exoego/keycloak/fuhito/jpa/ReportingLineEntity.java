@@ -9,7 +9,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
-import jakarta.persistence.Version;
+import jakarta.persistence.Transient;
 
 /**
  * A link from an assignment to a manager, for a period.
@@ -45,13 +45,24 @@ public class ReportingLineEntity {
     @Column(name = "VALID_TO")
     LocalDate validTo;
 
-    @Version
     @Column(name = "VERSION", nullable = false)
     long version;
+
+    // True once a write of this session counted up the version. A session of Keycloak has one transaction.
+    @Transient
+    boolean counted;
 
     /**
      * Creates an empty entity for JPA.
      */
     public ReportingLineEntity() {
+    }
+
+    // A write and a change of its IDs of other systems count up the version once.
+    void countUp() {
+        if (!counted) {
+            version++;
+            counted = true;
+        }
     }
 }

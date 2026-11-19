@@ -5,6 +5,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.function.Function;
+import java.util.function.Supplier;
 
 import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.ExternalId;
@@ -61,6 +63,28 @@ public class ExternalIdService {
         ExternalId.Pair pair = writes.check(resourceId, Checks.code("source", source),
                 Checks.required("externalId", externalId));
         return view(writes.store(resourceId, pair), origin);
+    }
+
+    /**
+     * Creates a resource of a kind that keeps no source, with the ID that the create gives for it. The ID is checked
+     * before the create writes anything.
+     *
+     * @param <T> the type of the new resource
+     * @param kind the kind of resource
+     * @param source the name of the system, or null
+     * @param externalId the ID in that system, or null when the create gives none
+     * @param create writes the resource
+     * @param idOf gives the ID of the new resource
+     * @return the new resource
+     * @throws FuhitoException when a value is bad, the ID has no system, or the ID names another resource
+     */
+    public <T> T create(ExternalId.Kind kind, String source, String externalId, Supplier<T> create,
+            Function<T, String> idOf) {
+        ExternalIdWrites writes = new ExternalIdWrites(store, kind);
+        ExternalId.Pair pair = writes.check(null, source, externalId);
+        T created = create.get();
+        writes.store(idOf.apply(created), pair);
+        return created;
     }
 
     /**
@@ -184,14 +208,17 @@ public class ExternalIdService {
     }
 
     /**
-     * Tells whether the IDs of a kind name only org units, which a reader of the org structure may read.
+     * Tells whether the IDs of a kind name parts of the org structure, which a reader of the structure may read.
      *
      * @param kind the kind of resource as text
-     * @return true for org units
+     * @return true for org units, reference items and their kinds, hierarchies, and attribute definitions
      * @throws FuhitoException when the kind is unknown
      */
     public static boolean isStructure(String kind) {
-        return kind(kind) == ExternalId.Kind.ORG_UNIT;
+        return switch (kind(kind)) {
+            case ORG_UNIT, REF_ITEM, REF_KIND, HIERARCHY, ATTRIBUTE_DEFINITION -> true;
+            case PERSON, EMPLOYMENT, ASSIGNMENT, QUALIFICATION, REPORTING_LINE, UNIT_ROLE, CHANGE_ORDER -> false;
+        };
     }
 
     private ExternalId.Origin originOf(ExternalId.Kind kind, String resourceId) {
