@@ -108,7 +108,8 @@ public record ImportDocument(
             String note,
             @Schema(format = "date")
             String orderDate,
-            @Schema(description = "The default is the effective date of the import.", format = "date")
+            @Schema(description = "A new order without it takes the effective date of the import. A stored order "
+                    + "without it keeps its date.", format = "date")
             String effectiveDate,
             @Schema(description = "The ID of the Keycloak user who approved it. Give this or `approverUsername`.")
             String approverUserId,

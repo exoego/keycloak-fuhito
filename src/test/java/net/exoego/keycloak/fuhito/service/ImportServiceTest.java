@@ -1032,7 +1032,33 @@ class ImportServiceTest {
     }
 
     private ImportReport importOrders(ChangeOrderRow... rows) {
-        return service.apply(ImportDocument.of("2026-04-01", false, null, "changeOrders", List.of(rows)));
+        return importOrders("2026-04-01", rows);
+    }
+
+    private ImportReport importOrders(String effectiveDate, ChangeOrderRow... rows) {
+        return service.apply(ImportDocument.of(effectiveDate, false, null, "changeOrders", List.of(rows)));
+    }
+
+    @Test
+    void keepsTheEffectiveDateOfAStoredChangeOrderWhenARowHasNone() {
+        importOrders(order(null, "2026-01", "異動", null, null));
+        String id = orderStore.findByNumber("2026-01").orElseThrow().id();
+
+        ImportReport changed = importOrders("2026-05-01", order(null, "2026-01", "人事異動", null, null));
+        ImportReport again = importOrders("2026-05-01", order(null, "2026-01", "人事異動", null, null));
+        ImportReport byId = importOrders("2026-06-01", order(id, "2026-01", "人事異動", null, null));
+        ImportReport created = importOrders("2026-05-01", order(null, "2026-02", "異動", null, null));
+
+        assertEquals(List.of(), errors(changed));
+        assertEquals(Map.of("changeOrders", new Counts(0, 1, 0)), changed.counts());
+        assertEquals(Map.of("changeOrders", new Counts(0, 0, 1)), again.counts());
+        assertEquals(List.of(), again.writes());
+        assertEquals(Map.of("changeOrders", new Counts(0, 0, 1)), byId.counts());
+        ChangeOrder stored = orderStore.findByNumber("2026-01").orElseThrow();
+        assertEquals("人事異動", stored.title());
+        assertEquals("2026-04-01", stored.effectiveDate().toString());
+        assertEquals(Map.of("changeOrders", new Counts(1, 0, 0)), created.counts());
+        assertEquals("2026-05-01", orderStore.findByNumber("2026-02").orElseThrow().effectiveDate().toString());
     }
 
     @Test

@@ -1411,7 +1411,8 @@ components:
           format: date
         effectiveDate:
           type: string
-          description: The default is the effective date of the import.
+          description: A new order without it takes the effective date of the import.
+            A stored order without it keeps its date.
           format: date
         approverUserId:
           type: string
