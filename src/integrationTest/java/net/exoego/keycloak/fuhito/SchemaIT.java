@@ -54,27 +54,34 @@ class SchemaIT {
     // no rows. Nothing is committed here.
     @Test
     void aLookupOfAnExternalIdUsesTheKeyWithItAlsoWhileTheStatisticsAreOld() throws Exception {
-        String insert = "insert into fuhito_external_id (id, realm_id, resource_kind, resource_id, source, external_id)"
-                + " select '%1$s-' || i, '%1$s', 'ORG_UNIT', '%1$s-unit-' || i, 'sheet', 'U' || i"
-                + " from generate_series(1, %2$d) i";
         try (Connection connection = KeycloakEnvironment.connection();
                 Statement statement = connection.createStatement()) {
             connection.setAutoCommit(false);
-            statement.execute(insert.formatted("ex-old-realm", 20));
+            statement.execute("""
+                    insert into fuhito_external_id (id, realm_id, resource_kind, resource_id, source, external_id)
+                    select 'ex-old-' || i, 'ex-old-realm', 'ORG_UNIT', 'ex-old-unit-' || i, 'sheet', 'U' || i
+                    from generate_series(1, 20) i""");
             statement.execute("analyze fuhito_external_id");
-            statement.execute(insert.formatted("ex-new-realm", 3000));
+            statement.execute("""
+                    insert into fuhito_external_id (id, realm_id, resource_kind, resource_id, source, external_id)
+                    select 'ex-new-' || i, 'ex-new-realm', 'ORG_UNIT', 'ex-new-unit-' || i, 'sheet', 'U' || i
+                    from generate_series(1, 3000) i""");
 
-            assertTrue(plan(statement, "realm_id = 'ex-new-realm' and resource_kind = 'ORG_UNIT'"
-                    + " and source = 'sheet' and external_id = 'U7'").contains("uk_fuhito_external_id_value"));
-            assertTrue(plan(statement, "realm_id = 'ex-new-realm' and resource_kind = 'ORG_UNIT'"
-                    + " and resource_id = 'ex-new-realm-unit-7'").contains("uk_fuhito_external_id_source"));
+            assertTrue(plan(statement, """
+                    explain select * from fuhito_external_id where realm_id = 'ex-new-realm'
+                    and resource_kind = 'ORG_UNIT' and source = 'sheet' and external_id = 'U7'""")
+                    .contains("uk_fuhito_external_id_value"));
+            assertTrue(plan(statement, """
+                    explain select * from fuhito_external_id where realm_id = 'ex-new-realm'
+                    and resource_kind = 'ORG_UNIT' and resource_id = 'ex-new-unit-7'""")
+                    .contains("uk_fuhito_external_id_source"));
             connection.rollback();
         }
     }
 
-    private static String plan(Statement statement, String condition) throws Exception {
+    private static String plan(Statement statement, String explain) throws Exception {
         StringBuilder plan = new StringBuilder();
-        try (ResultSet rows = statement.executeQuery("explain select * from fuhito_external_id where " + condition)) {
+        try (ResultSet rows = statement.executeQuery(explain)) {
             while (rows.next()) {
                 plan.append(rows.getString(1)).append('\n');
             }
