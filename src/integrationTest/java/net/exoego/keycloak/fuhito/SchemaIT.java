@@ -128,6 +128,63 @@ class SchemaIT {
         }
     }
 
+    // These reads leave the realm out of the query too. Each finds its rows by a person, an employer, or org units.
+    @Test
+    void aReadByTheIdOfAnotherRecordUsesItsIndexAlsoWhileTheStatisticsAreOld() throws Exception {
+        try (Connection connection = KeycloakEnvironment.connection();
+                Statement statement = connection.createStatement()) {
+            connection.setAutoCommit(false);
+            realmsWithOldStatistics(statement);
+
+            assertPlanHas(statement, """
+                    explain select * from fuhito_employment where person_id = 'ex-new-person-7'
+                    order by valid_from, id""", "Index Cond: ((person_id)::text = 'ex-new-person-7'::text)");
+            assertPlanHas(statement, """
+                    explain select * from fuhito_employment e join fuhito_person p on p.id = e.person_id
+                    where e.employer_id = 'ex-new-unit-2' order by e.valid_from, e.id""",
+                    "Index Cond: ((employer_id)::text = 'ex-new-unit-2'::text)");
+            assertPlanHas(statement, """
+                    explain select * from fuhito_assignment where org_unit_id = any('{ex-new-unit-7}')
+                    and valid_from <= '2026-04-01' and (valid_to is null or valid_to > '2026-04-01')""",
+                    "Index Cond: (((org_unit_id)::text = ANY");
+            assertPlanHas(statement, """
+                    explain select realm_id, count(distinct assignment_id) from fuhito_assignment
+                    where org_unit_id = 'ex-new-unit-7' and (valid_to is null or valid_to > '2026-04-01')
+                    group by realm_id""", "Index Cond: ((org_unit_id)::text = 'ex-new-unit-7'::text)");
+            assertPlanHas(statement, """
+                    explain select a.realm_id, a.org_unit_id, p.user_id from fuhito_assignment a
+                    join fuhito_employment e on e.id = a.employment_id join fuhito_person p on p.id = e.person_id
+                    where a.org_unit_id = any('{ex-new-unit-7,ex-new-unit-8}') and a.valid_from <= '2026-04-01'
+                    and (a.valid_to is null or a.valid_to > '2026-04-01') and p.user_id is not null""",
+                    "Index Cond: (((org_unit_id)::text = ANY", "Index Cond: ((id)::text = (a.employment_id)::text)",
+                    "Index Cond: ((id)::text = (e.person_id)::text)");
+            connection.rollback();
+        }
+    }
+
+    // The reads of the employments of users check the realm on the person, whose key has the user too.
+    @Test
+    void aReadOfTheEmploymentsOfAUserStartsFromThePersonAlsoWhileTheStatisticsAreOld() throws Exception {
+        try (Connection connection = KeycloakEnvironment.connection();
+                Statement statement = connection.createStatement()) {
+            connection.setAutoCommit(false);
+            realmsWithOldStatistics(statement);
+
+            assertPlanHas(statement, """
+                    explain select e.* from fuhito_employment e join fuhito_person p on p.id = e.person_id
+                    where p.realm_id = 'ex-new-realm' and p.user_id = 'ex-new-user-7' order by e.valid_from, e.id""",
+                    "((realm_id)::text = 'ex-new-realm'::text) AND ((user_id)::text = 'ex-new-user-7'::text)",
+                    "Index Cond: ((person_id)::text = (p.id)::text)");
+            assertPlanHas(statement, """
+                    explain select * from fuhito_employment e join fuhito_person p on p.id = e.person_id
+                    where p.realm_id = 'ex-new-realm' and p.user_id = any('{ex-new-user-7,ex-new-user-8}')
+                    order by e.valid_from, e.id""",
+                    "((realm_id)::text = 'ex-new-realm'::text) AND ((user_id)::text = ANY",
+                    "Index Cond: ((person_id)::text = (p.id)::text)");
+            connection.rollback();
+        }
+    }
+
     @Test
     void theWalkUpTheTreeLooksUpEachStepByItsUnitAlsoWhileTheStatisticsAreOld() throws Exception {
         try (Connection connection = KeycloakEnvironment.connection();
@@ -167,8 +224,12 @@ class SchemaIT {
     }
 
     // An import into a new realm writes its rows in one transaction, so the statistics still say that the realm has
-    // no rows. The caller rolls them back.
+    // no rows. The caller rolls them back. The rows that other tests rolled back stay in the tables until a vacuum, and
+    // change the plans. A real import does not find them.
     private static void realmsWithOldStatistics(Statement statement) throws Exception {
+        KeycloakEnvironment.sql("""
+                vacuum fuhito_org_unit, fuhito_org_unit_version, fuhito_org_unit_link, fuhito_person,
+                fuhito_employment, fuhito_employment_terms, fuhito_assignment""");
         rowsOfRealm(statement, "ex-old", 20);
         statement.execute("""
                 analyze fuhito_org_unit, fuhito_org_unit_version, fuhito_org_unit_link, fuhito_person,
@@ -176,8 +237,8 @@ class SchemaIT {
         rowsOfRealm(statement, "ex-new", 3000);
     }
 
-    // Units below the first nine have a parent. Each person has one employment with its terms, and one assignment to
-    // one of the first 20 units.
+    // Units below the first nine have a parent. Each person has a user, one employment with its terms, and one
+    // assignment to one of the first 20 units. The second unit employs every 20th person, and the first unit the rest.
     private static void rowsOfRealm(Statement statement, String prefix, int count) throws Exception {
         for (String insert : List.of("""
                 insert into fuhito_hierarchy (id, realm_id, code, name)
@@ -190,11 +251,12 @@ class SchemaIT {
                 insert into fuhito_org_unit_link (id, realm_id, hierarchy_id, child_id, parent_id, valid_from)
                 select '%1$s-link-' || i, '%1$s-realm', '%1$s-hierarchy', '%1$s-unit-' || i, '%1$s-unit-' || (i / 10),
                 '2026-04-01' from generate_series(10, %2$d) i""", """
-                insert into fuhito_person (id, realm_id, attributes) select '%1$s-person-' || i, '%1$s-realm', '{}'
+                insert into fuhito_person (id, realm_id, user_id, attributes)
+                select '%1$s-person-' || i, '%1$s-realm', '%1$s-user-' || i, '{}'
                 from generate_series(1, %2$d) i""", """
-                insert into fuhito_employment (id, realm_id, valid_from, staff_number, person_id)
-                select '%1$s-employment-' || i, '%1$s-realm', '2026-04-01', 'S' || i, '%1$s-person-' || i
-                from generate_series(1, %2$d) i""", """
+                insert into fuhito_employment (id, realm_id, valid_from, staff_number, person_id, employer_id)
+                select '%1$s-employment-' || i, '%1$s-realm', '2026-04-01', 'S' || i, '%1$s-person-' || i,
+                '%1$s-unit-' || (case when i %% 20 = 0 then 2 else 1 end) from generate_series(1, %2$d) i""", """
                 insert into fuhito_employment_terms (id, realm_id, employment_id, valid_from, status, attributes)
                 select '%1$s-terms-' || i, '%1$s-realm', '%1$s-employment-' || i, '2026-04-01', 'ACTIVE', '{}'
                 from generate_series(1, %2$d) i""", """
@@ -203,6 +265,13 @@ class SchemaIT {
                 '%1$s-employment-' || i, '%1$s-unit-' || (i %% 20 + 1), '2026-04-01', true, '{}'
                 from generate_series(1, %2$d) i""")) {
             statement.execute(insert.formatted(prefix, count));
+        }
+    }
+
+    private static void assertPlanHas(Statement statement, String explain, String... parts) throws Exception {
+        String plan = plan(statement, explain);
+        for (String part : parts) {
+            assertTrue(plan.contains(part), plan);
         }
     }
 

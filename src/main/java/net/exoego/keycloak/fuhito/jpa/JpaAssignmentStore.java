@@ -86,26 +86,28 @@ public class JpaAssignmentStore implements AssignmentStore {
     @Override
     public long assignmentsHoldingFrom(String orgUnitId, LocalDate date) {
         return em.createQuery("""
-                        select count(distinct a.assignmentId) from AssignmentEntity a where a.realmId = :realmId
-                        and a.orgUnitId = :orgUnitId and (a.validTo is null or a.validTo > :date)""", Long.class)
-                .setParameter("realmId", realmId)
+                        select a.realmId, count(distinct a.assignmentId) from AssignmentEntity a
+                        where a.orgUnitId = :orgUnitId and (a.validTo is null or a.validTo > :date)
+                        group by a.realmId""", Object[].class)
                 .setParameter("orgUnitId", orgUnitId)
                 .setParameter("date", date)
-                .getSingleResult();
+                .getResultStream()
+                .filter(Rows.inRealm(realmId, row -> (String) row[0]))
+                .mapToLong(row -> (Long) row[1])
+                .sum();
     }
 
     @Override
     public List<Assignment> rowsOn(Collection<String> orgUnitIds, LocalDate date) {
         return em.createQuery("""
-                        select a from AssignmentEntity a where a.realmId = :realmId
-                        and %s
+                        select a from AssignmentEntity a where %s
                         and a.validFrom <= :date and (a.validTo is null or a.validTo > :date)"""
                         .formatted(ManyIds.has("a.orgUnitId", "orgUnitIds")),
                         AssignmentEntity.class)
-                .setParameter("realmId", realmId)
                 .setParameter("orgUnitIds", ManyIds.of(orgUnitIds))
                 .setParameter("date", date)
                 .getResultStream()
+                .filter(Rows.inRealm(realmId, a -> a.realmId))
                 .map(JpaAssignmentStore::toDomain)
                 .toList();
     }
@@ -114,19 +116,19 @@ public class JpaAssignmentStore implements AssignmentStore {
     public Map<String, Set<String>> usersOn(Collection<String> orgUnitIds, LocalDate date) {
         Map<String, Set<String>> result = new HashMap<>();
         em.createQuery("""
-                        select a.orgUnitId, p.userId from AssignmentEntity a
-                        join EmploymentEntity e on e.id = a.employmentId and e.realmId = :realmId
+                        select a.realmId, a.orgUnitId, p.userId from AssignmentEntity a
+                        join EmploymentEntity e on e.id = a.employmentId
                         join PersonEntity p on p.id = e.personId
-                        where a.realmId = :realmId and %s
+                        where %s
                         and a.validFrom <= :date and (a.validTo is null or a.validTo > :date)
                         and p.userId is not null""".formatted(ManyIds.has("a.orgUnitId", "orgUnitIds")),
                         Object[].class)
-                .setParameter("realmId", realmId)
                 .setParameter("orgUnitIds", ManyIds.of(orgUnitIds))
                 .setParameter("date", date)
                 .getResultStream()
-                .forEach(row -> result.computeIfAbsent((String) row[0], id -> new LinkedHashSet<>())
-                        .add((String) row[1]));
+                .filter(Rows.inRealm(realmId, row -> (String) row[0]))
+                .forEach(row -> result.computeIfAbsent((String) row[1], id -> new LinkedHashSet<>())
+                        .add((String) row[2]));
         return result;
     }
 

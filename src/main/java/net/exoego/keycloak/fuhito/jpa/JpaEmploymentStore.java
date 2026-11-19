@@ -68,14 +68,16 @@ public class JpaEmploymentStore implements EmploymentStore {
                 .toList();
     }
 
+    // The realm is checked on the person, whose key has the user too.
     @Override
     public List<Employment> findByUser(String userId) {
         return em.createQuery("""
-                        select e from EmploymentEntity e where e.realmId = :realmId
-                        and e.person.userId = :userId order by e.validFrom, e.id""", EmploymentEntity.class)
+                        select e from EmploymentEntity e join e.person p where p.realmId = :realmId
+                        and p.userId = :userId order by e.validFrom, e.id""", EmploymentEntity.class)
                 .setParameter("realmId", realmId)
                 .setParameter("userId", userId)
                 .getResultStream()
+                .filter(Rows.inRealm(realmId, e -> e.realmId))
                 .map(JpaEmploymentStore::toDomain)
                 .toList();
     }
@@ -84,11 +86,11 @@ public class JpaEmploymentStore implements EmploymentStore {
     @Override
     public List<Employment> findByEmployer(String employerId) {
         return em.createQuery("""
-                        select e from EmploymentEntity e join fetch e.person where e.realmId = :realmId
-                        and e.employerId = :employerId order by e.validFrom, e.id""", EmploymentEntity.class)
-                .setParameter("realmId", realmId)
+                        select e from EmploymentEntity e join fetch e.person where e.employerId = :employerId
+                        order by e.validFrom, e.id""", EmploymentEntity.class)
                 .setParameter("employerId", employerId)
                 .getResultStream()
+                .filter(Rows.inRealm(realmId, e -> e.realmId))
                 .map(JpaEmploymentStore::toDomain)
                 .toList();
     }
@@ -96,28 +98,30 @@ public class JpaEmploymentStore implements EmploymentStore {
     @Override
     public List<Employment> findByPerson(String personId) {
         return em.createQuery("""
-                        select e from EmploymentEntity e where e.realmId = :realmId
-                        and e.personId = :personId order by e.validFrom, e.id""", EmploymentEntity.class)
-                .setParameter("realmId", realmId)
+                        select e from EmploymentEntity e where e.personId = :personId
+                        order by e.validFrom, e.id""", EmploymentEntity.class)
                 .setParameter("personId", personId)
                 .getResultStream()
+                .filter(Rows.inRealm(realmId, e -> e.realmId))
                 .map(JpaEmploymentStore::toDomain)
                 .toList();
     }
 
-    // The person comes in the same query, because each employment reads the user of its person.
+    // The person comes in the same query, because each employment reads the user of its person. The realm is
+    // checked on the person, whose key has the user too.
     @Override
     public List<Employment> findByUsers(Collection<String> userIds) {
         if (userIds.isEmpty()) {
             return List.of();
         }
         return em.createQuery("""
-                        select e from EmploymentEntity e join fetch e.person where e.realmId = :realmId
-                        and %s order by e.validFrom, e.id""".formatted(ManyIds.has("e.person.userId", "ids")),
+                        select e from EmploymentEntity e join fetch e.person p where p.realmId = :realmId
+                        and %s order by e.validFrom, e.id""".formatted(ManyIds.has("p.userId", "ids")),
                         EmploymentEntity.class)
                 .setParameter("realmId", realmId)
                 .setParameter("ids", ManyIds.of(userIds))
                 .getResultStream()
+                .filter(Rows.inRealm(realmId, e -> e.realmId))
                 .map(JpaEmploymentStore::toDomain)
                 .toList();
     }
