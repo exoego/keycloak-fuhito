@@ -17,7 +17,8 @@ import net.exoego.keycloak.fuhito.store.UserDirectory;
 
 /**
  * The change orders of one document. A row is matched by number, or by ID. A row of a stored order replaces its
- * values, as {@code PUT} does. The announcement is a fact of its own and is not part of a row.
+ * values, as {@code PUT} does, but keeps the stored effective date when the row has none. The announcement is a fact
+ * of its own and is not part of a row.
  */
 final class ChangeOrderImport {
 
@@ -59,7 +60,8 @@ final class ChangeOrderImport {
                 : Optional.of(orders.find(row.id())
                         .orElseThrow(() -> FuhitoException.invalid("import.id_unknown", Map.of("id", row.id()))));
         ChangeOrderValues values = new ChangeOrderValues(row.number(), row.kind(), row.title(), row.note(),
-                row.orderDate(), row.effectiveDate() == null ? effectiveDate : row.effectiveDate(),
+                row.orderDate(), row.effectiveDate() != null ? row.effectiveDate()
+                        : stored.map(o -> o.effectiveDate().toString()).orElse(effectiveDate),
                 userId(row.approverUserId(), row.approverUsername(), "approverUserId"),
                 userId(row.requesterUserId(), row.requesterUsername(), "requesterUserId"), row.externalReference());
         if (stored.isEmpty()) {
