@@ -145,12 +145,11 @@ public class JpaEmploymentStore implements EmploymentStore {
     // Each piece is a fixed text. The values of the search go in as parameters.
     private static String searchText(EmploymentStore.Search search, String afterId, boolean count) {
         StringBuilder text = new StringBuilder(count ? "select count(e)" : "select e")
-                .append(" from EmploymentEntity e where e.realmId = :realmId");
+                .append(" from EmploymentEntity e where ")
+                .append(search.employerId() == null ? "e.realmId = :realmId"
+                        : "e.employerId = :employerId and " + Rows.ofUnit("e.realmId", "employerId"));
         if (search.staffNumber() != null) {
             text.append(" and e.staffNumber = :staffNumber");
-        }
-        if (search.employerId() != null) {
-            text.append(" and e.employerId = :employerId");
         }
         if (search.date() != null) {
             text.append(" and e.validFrom <= :date and (e.validTo is null or e.validTo > :date)");
