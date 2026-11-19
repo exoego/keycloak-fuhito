@@ -79,6 +79,7 @@ public class JpaChangeOrderStore implements ChangeOrderStore {
         entity.realmId = realmId;
         entity.createdAt = order.createdAt();
         entity.version = order.version();
+        entity.counted = true;
         copy(order, entity);
         em.persist(entity);
         // Other rows refer to this one. Hibernate groups inserts by entity type, so this row goes to the
@@ -88,14 +89,17 @@ public class JpaChangeOrderStore implements ChangeOrderStore {
 
     @Override
     public void update(ChangeOrder order) {
-        copy(order, findEntity(order.id()).orElseThrow());
-        // JPA counts up the version when it writes the row. A read after the write gives the new one.
-        em.flush();
+        ChangeOrderEntity entity = findEntity(order.id()).orElseThrow();
+        copy(order, entity);
+        entity.countUp();
     }
 
     @Override
     public void delete(String id) {
-        findEntity(id).ifPresent(em::remove);
+        findEntity(id).ifPresent(entity -> {
+            ExternalIds.deleteOf(em, realmId, "CHANGE_ORDER", id);
+            em.remove(entity);
+        });
     }
 
     // The realm filter keeps one realm from reaching the rows of another by ID.

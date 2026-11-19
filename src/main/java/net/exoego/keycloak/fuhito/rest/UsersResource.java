@@ -334,9 +334,8 @@ public class UsersResource {
         return Calls.run(context, () -> {
             requireKnown(userId);
             return people.ofUser(userId)
-                    .map(person -> unitRoles.ofPerson(person.id(), asOf, Page.of(first, max)).stream()
-                            .map(UnitRoleRepresentation::of)
-                            .toList())
+                    .map(person -> UnitRolesResource.represent(
+                            unitRoles.ofPerson(person.id(), asOf, Page.of(first, max)), externalIds))
                     .orElse(List.of());
         });
     }

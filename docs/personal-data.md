@@ -13,7 +13,7 @@ Which way a law requires depends on the law, the country, and the reason for kee
 | The names and the phonetic names in each language | The person record |
 | The staff number | Employments |
 | The number of a license or certificate | Qualifications |
-| The ID in another system | The IDs that systems have for people, employments, assignments, and qualifications |
+| The ID in another system | The IDs that systems have for people, employments, assignments, qualifications, reporting lines, and roles over org units |
 | Why the person was on leave | Employment terms |
 | Free values that the realm defines | The attributes of people, employment terms, assignments, and qualifications |
 | Where and when the person worked, with job title and occupation | Employments, assignments, reporting lines, and roles over org units |

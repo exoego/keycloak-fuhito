@@ -1,6 +1,7 @@
 package net.exoego.keycloak.fuhito.rest;
 
 import java.util.List;
+import java.util.Locale;
 
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.DELETE;
@@ -14,7 +15,11 @@ import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import net.exoego.keycloak.fuhito.domain.Checks;
+import net.exoego.keycloak.fuhito.domain.ExternalId;
+import net.exoego.keycloak.fuhito.domain.RefItem;
 import net.exoego.keycloak.fuhito.rest.RequestContext.Change;
+import net.exoego.keycloak.fuhito.service.ExternalIdLists;
+import net.exoego.keycloak.fuhito.service.ExternalIdService;
 import net.exoego.keycloak.fuhito.service.Page;
 import net.exoego.keycloak.fuhito.service.RefItemService;
 import org.eclipse.microprofile.openapi.annotations.Operation;
@@ -41,6 +46,7 @@ public class RefItemsResource {
 
     private final RequestContext context;
     private final RefItemService service;
+    private final ExternalIdService externalIds;
     private final StructureLimit limit;
 
     /**
@@ -48,11 +54,14 @@ public class RefItemsResource {
      *
      * @param context the request and its caller
      * @param service the operations on the realm of the request
+     * @param externalIds the IDs that systems have for the resources of the realm
      * @param limit how far ahead a caller who may read only the structure may read
      */
-    RefItemsResource(RequestContext context, RefItemService service, StructureLimit limit) {
+    RefItemsResource(RequestContext context, RefItemService service, ExternalIdService externalIds,
+            StructureLimit limit) {
         this.context = context;
         this.service = service;
+        this.externalIds = externalIds;
         this.limit = limit;
     }
 
@@ -83,10 +92,8 @@ public class RefItemsResource {
                     schema = @Schema(minimum = "0", maximum = "1000", defaultValue = "100"))
             @QueryParam("max") Integer max) {
         context.requireReadStructure();
-        return Calls.run(context, () -> service.list(kind, includeInactive, limit.checked(asOf), Page.of(first, max))
-                .stream()
-                .map(item -> RefItemRepresentation.of(limit.readable(item), context.nameLanguage()))
-                .toList());
+        return Calls.run(context, () -> represent(service.list(kind, includeInactive, limit.checked(asOf),
+                Page.of(first, max)).stream().map(limit::readable).toList()));
     }
 
     @GET
@@ -121,8 +128,7 @@ public class RefItemsResource {
                     schema = @Schema(format = "date"))
             @QueryParam("asOf") String asOf) {
         context.requireReadStructure();
-        return Calls.run(context, () -> RefItemRepresentation.of(
-                limit.readable(service.get(id, limit.checked(asOf))), context.nameLanguage()));
+        return Calls.run(context, () -> represent(limit.readable(service.get(id, limit.checked(asOf)))));
     }
 
     @GET
@@ -141,7 +147,9 @@ public class RefItemsResource {
         context.requireReadStructure();
         return Calls.run(context, () -> {
             limit.requireEveryDate();
-            return RefItemHistoryRepresentation.of(service.history(id), context.nameLanguage());
+            RefItemService.History history = service.history(id);
+            return RefItemHistoryRepresentation.of(history,
+                    externalIds.lists(ExternalId.Kind.REF_ITEM, List.of(history.item().id())), context.nameLanguage());
         });
     }
 
@@ -163,9 +171,10 @@ public class RefItemsResource {
         context.requireWrite();
         return Calls.run(context, () -> {
             Checks.required("body", body);
-            var item = RefItemRepresentation.of(service.create(body.kind(), body.code(), body.primaryLanguage(),
-                    body.names(), body.displayOrder(), body.attributes(), body.marks(),
-                    !Boolean.FALSE.equals(body.active()), body.validFrom()), context.nameLanguage());
+            var item = represent(externalIds.create(ExternalId.Kind.REF_ITEM, body.source(), body.externalId(),
+                    () -> service.create(body.kind(), body.code(), body.primaryLanguage(), body.names(),
+                            body.displayOrder(), body.attributes(), body.marks(), !Boolean.FALSE.equals(body.active()),
+                            body.validFrom()), RefItem::id));
             context.recordChange(Change.CREATE, RESOURCE_TYPE, item.id(), path(item.id()), item);
             return Response.status(Response.Status.CREATED).entity(item).build();
         });
@@ -194,9 +203,8 @@ public class RefItemsResource {
             RefItemRepresentation body) {
         context.requireWrite();
         return Calls.guarded(context, body, () -> service.version(id), () -> {
-            var item = RefItemRepresentation.of(service.update(id, body.primaryLanguage(), body.names(),
-                    body.displayOrder(), body.attributes(), body.active(), body.marks(), body.validFrom()),
-                    context.nameLanguage());
+            var item = represent(service.update(id, body.primaryLanguage(), body.names(), body.displayOrder(),
+                    body.attributes(), body.active(), body.marks(), body.validFrom()));
             context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, path(id), item);
             return item;
         });
@@ -228,5 +236,16 @@ public class RefItemsResource {
 
     private static String path(String id) {
         return "fuhito/ref-items/" + id;
+    }
+
+    // The IDs of every item of a list are read with one query.
+    private List<RefItemRepresentation> represent(List<RefItem> items) {
+        ExternalIdLists ids = externalIds.lists(ExternalId.Kind.REF_ITEM, items.stream().map(RefItem::id).toList());
+        Locale language = context.nameLanguage();
+        return items.stream().map(item -> RefItemRepresentation.of(item, ids, language)).toList();
+    }
+
+    private RefItemRepresentation represent(RefItem item) {
+        return represent(List.of(item)).getFirst();
     }
 }

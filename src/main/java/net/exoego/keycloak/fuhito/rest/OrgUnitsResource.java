@@ -764,9 +764,8 @@ public class OrgUnitsResource {
                     schema = @Schema(minimum = "0", maximum = "1000", defaultValue = "100"))
             @QueryParam("max") Integer max) {
         context.requireRead();
-        return Calls.run(context, () -> unitRoles.holders(id, role, nearest, asOf, Page.of(first, max)).stream()
-                .map(UnitRoleRepresentation::of)
-                .toList());
+        return Calls.run(context, () -> UnitRolesResource.represent(
+                unitRoles.holders(id, role, nearest, asOf, Page.of(first, max)), externalIds));
     }
 
     @GET

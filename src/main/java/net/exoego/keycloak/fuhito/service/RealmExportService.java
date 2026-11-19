@@ -363,13 +363,14 @@ public class RealmExportService {
         counts.put("qualifications", each("qualifications", document.qualifications(), q -> stores.qualifications().insert(
                 new Qualification(q.id(), q.personId(), null, q.kindId(), q.number(), period(q.validFrom(),
                         q.validTo()), q.attributes(), q.source(), version(q.version())))));
-        counts.put("external-ids", each("external-ids", document.externalIds(), x -> stores.externalIds().insert(new ExternalId(
-                x.id(), ExternalId.Kind.valueOf(x.resourceType()), x.resourceId(), x.source(), x.externalId(),
-                version(x.version())))));
         counts.put("change-orders", each("change-orders", document.changeOrders(), o -> stores.changeOrders().insert(new ChangeOrder(
                 o.id(), o.number(), o.kind(), o.title(), o.note(), date(o.orderDate()), date(o.effectiveDate()),
                 userId(o.approver()), userId(o.requester()), o.externalReference(), instant(o.createdAt()),
                 instant(o.announcedAt()), userId(o.announcedBy()), version(o.version())))));
+        // An ID of another system needs the resource that has it.
+        counts.put("external-ids", each("external-ids", document.externalIds(), x -> stores.externalIds().insert(new ExternalId(
+                x.id(), ExternalId.Kind.valueOf(x.resourceType()), x.resourceId(), x.source(), x.externalId(),
+                version(x.version())))));
         counts.put("erasures", each("erasures", document.erasures(), e -> stores.export().restoreErasure(
                 new RealmExportStore.Erasure(Objects.requireNonNull(e.personId()), Instant.parse(e.erasedAt())))));
         stores.export().eraseAgain();

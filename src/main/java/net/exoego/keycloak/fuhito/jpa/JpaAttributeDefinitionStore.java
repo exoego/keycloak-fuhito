@@ -54,6 +54,7 @@ public class JpaAttributeDefinitionStore implements AttributeDefinitionStore {
         entity.target = definition.target().name();
         entity.name = definition.name();
         entity.version = definition.version();
+        entity.counted = true;
         copy(definition, entity);
         em.persist(entity);
         em.flush();
@@ -61,8 +62,10 @@ public class JpaAttributeDefinitionStore implements AttributeDefinitionStore {
 
     @Override
     public void update(AttributeDefinition definition) {
-        copy(definition, Rows.require(em, AttributeDefinitionEntity.class, definition.id(), realmId,
-                found -> found.realmId));
+        AttributeDefinitionEntity entity = Rows.require(em, AttributeDefinitionEntity.class, definition.id(),
+                realmId, found -> found.realmId);
+        copy(definition, entity);
+        entity.countUp();
         em.flush();
     }
 
@@ -70,6 +73,7 @@ public class JpaAttributeDefinitionStore implements AttributeDefinitionStore {
     public void delete(String id) {
         AttributeDefinitionEntity entity = em.find(AttributeDefinitionEntity.class, id);
         if (entity != null && entity.realmId.equals(realmId)) {
+            ExternalIds.deleteOf(em, realmId, "ATTRIBUTE_DEFINITION", id);
             em.remove(entity);
             em.flush();
         }

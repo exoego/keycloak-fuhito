@@ -1,5 +1,7 @@
 package net.exoego.keycloak.fuhito.service;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 
@@ -101,5 +103,35 @@ class ExternalIdServiceTest {
         assertEquals(Optional.of("ward"), service.resourceOf(Kind.ORG_UNIT, "payroll", "P-9"));
         assertEquals(Optional.of("P-9"), service.externalIdOf(Kind.ORG_UNIT, "ward", "payroll"));
         assertEquals(Optional.empty(), service.externalIdOf(Kind.ORG_UNIT, "ward", "budget"));
+    }
+
+    @Test
+    void aCreateStoresItsIdAfterTheCheckAndOnlyThen() {
+        store.resource(Kind.HIERARCHY, "taken", null);
+        service.put("HIERARCHY", "taken", "hr", "H-1");
+        List<String> created = new ArrayList<>();
+
+        assertEquals("external_id.taken", code(() -> service.create(Kind.HIERARCHY, "hr", "H-1", () -> {
+            created.add("project");
+            return "project";
+        }, id -> id)));
+        assertEquals("invalid.required", code(() -> service.create(Kind.HIERARCHY, null, "H-2", () -> "x", id -> id)));
+        assertEquals(List.of(), created);
+
+        String project = service.create(Kind.HIERARCHY, "hr", "H-2", () -> {
+            store.resource(Kind.HIERARCHY, "project", null);
+            return "project";
+        }, id -> id);
+        // A kind that keeps no source has no ID of its own system.
+        assertEquals(List.of("hr=H-2"), summary(service.list("HIERARCHY", project)));
+        assertEquals("site", service.create(Kind.REF_KIND, null, null, () -> "site", id -> id));
+        assertEquals(List.of(), store.ofResource(Kind.REF_KIND, "site"));
+    }
+
+    @Test
+    void aReaderOfTheStructureReadsTheIdsOfTheStructure() {
+        assertEquals(List.of(Kind.ORG_UNIT, Kind.REF_ITEM, Kind.REF_KIND, Kind.HIERARCHY, Kind.ATTRIBUTE_DEFINITION),
+                Arrays.stream(Kind.values()).filter(kind -> ExternalIdService.isStructure(kind.name())).toList());
+        assertEquals("invalid.choice", code(() -> ExternalIdService.isStructure("ROOM")));
     }
 }

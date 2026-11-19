@@ -208,7 +208,7 @@ public class FuhitoResource {
      */
     @Path("change-orders")
     public ChangeOrdersResource changeOrders() {
-        return new ChangeOrdersResource(context, changeOrderService(), changeLogService());
+        return new ChangeOrdersResource(context, changeOrderService(), changeLogService(), externalIdService());
     }
 
     private ChangeOrderService changeOrderService() {
@@ -274,7 +274,8 @@ public class FuhitoResource {
      */
     @Path("ref-items")
     public RefItemsResource refItems() {
-        return new RefItemsResource(context, refItemService(), new StructureLimit(context, today()));
+        return new RefItemsResource(context, refItemService(), externalIdService(),
+                new StructureLimit(context, today()));
     }
 
     private RefItemService refItemService() {
@@ -289,7 +290,7 @@ public class FuhitoResource {
      */
     @Path("ref-kinds")
     public RefKindsResource refKinds() {
-        return new RefKindsResource(context, realmKinds());
+        return new RefKindsResource(context, realmKinds(), externalIdService());
     }
 
     private RealmKindService realmKinds() {
@@ -304,7 +305,7 @@ public class FuhitoResource {
      */
     @Path("attribute-definitions")
     public AttributeDefinitionsResource attributeDefinitions() {
-        return new AttributeDefinitionsResource(context, attributeRules());
+        return new AttributeDefinitionsResource(context, attributeRules(), externalIdService());
     }
 
     /**
@@ -314,7 +315,7 @@ public class FuhitoResource {
      */
     @Path("external-ids")
     public ExternalIdsResource externalIds() {
-        return new ExternalIdsResource(context, externalIdService(), orgUnitService(),
+        return new ExternalIdsResource(context, externalIdService(), orgUnitService(), realmKinds(),
                 new StructureLimit(context, today()));
     }
 
@@ -390,7 +391,7 @@ public class FuhitoResource {
      */
     @Path("reporting-lines")
     public ReportingLinesResource reportingLines() {
-        return new ReportingLinesResource(context, reportingLineService(), personService());
+        return new ReportingLinesResource(context, reportingLineService(), personService(), externalIdService());
     }
 
     /**
@@ -400,7 +401,7 @@ public class FuhitoResource {
      */
     @Path("unit-roles")
     public UnitRolesResource unitRoles() {
-        return new UnitRolesResource(context, unitRoleService());
+        return new UnitRolesResource(context, unitRoleService(), externalIdService());
     }
 
     private UnitRoleService unitRoleService() {
@@ -602,7 +603,7 @@ public class FuhitoResource {
     @Path("hierarchies")
     public HierarchiesResource hierarchies() {
         return new HierarchiesResource(context,
-                new HierarchyService(new JpaHierarchyStore(entityManager, realmId)));
+                new HierarchyService(new JpaHierarchyStore(entityManager, realmId)), externalIdService());
     }
 
     private static String loadVersion() {

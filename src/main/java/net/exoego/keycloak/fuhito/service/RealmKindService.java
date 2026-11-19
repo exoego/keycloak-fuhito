@@ -28,16 +28,17 @@ public class RealmKindService {
     /**
      * A kind of reference data.
      *
+     * @param id the ID, or null for a fixed kind
      * @param code the code that items name as their kind
      * @param names the names in each language, or null for a fixed kind
      * @param fixed true for a kind that every realm has
      * @param version the number that each write of the kind counts up, or null for a fixed kind, which never
      *        changes
      */
-    public record View(String code, Localized<RefKindName> names, boolean fixed, Long version) {
+    public record View(String id, String code, Localized<RefKindName> names, boolean fixed, Long version) {
 
         static View of(RealmKind kind) {
-            return new View(kind.code(), kind.names(), false, kind.version());
+            return new View(kind.id(), kind.code(), kind.names(), false, kind.version());
         }
     }
 
@@ -62,7 +63,7 @@ public class RealmKindService {
      */
     public List<View> list() {
         List<View> kinds = new ArrayList<>(Arrays.stream(RefKind.values())
-                .map(kind -> new View(kind.name(), null, true, null))
+                .map(kind -> new View(null, kind.name(), null, true, null))
                 .toList());
         store.list().forEach(kind -> kinds.add(View.of(kind)));
         return kinds;
@@ -101,6 +102,17 @@ public class RealmKindService {
      */
     public Optional<View> find(String code) {
         return store.findByCode(code).map(View::of);
+    }
+
+    /**
+     * Finds the code of a kind that the realm added, by its ID. It reads only the code, so a lock of the kind can
+     * come after it.
+     *
+     * @param id the ID
+     * @return the code, or empty when the realm added no kind with the ID
+     */
+    public Optional<String> codeOf(String id) {
+        return store.codeOf(id);
     }
 
     /**

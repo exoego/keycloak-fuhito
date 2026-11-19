@@ -1,6 +1,8 @@
 package net.exoego.keycloak.fuhito.rest;
 
 import java.util.List;
+import java.util.Locale;
+import java.util.Objects;
 
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.DELETE;
@@ -14,7 +16,10 @@ import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import net.exoego.keycloak.fuhito.domain.Checks;
+import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.rest.RequestContext.Change;
+import net.exoego.keycloak.fuhito.service.ExternalIdLists;
+import net.exoego.keycloak.fuhito.service.ExternalIdService;
 import net.exoego.keycloak.fuhito.service.RealmKindService;
 import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.enums.SchemaType;
@@ -40,16 +45,19 @@ public class RefKindsResource {
 
     private final RequestContext context;
     private final RealmKindService service;
+    private final ExternalIdService externalIds;
 
     /**
      * Creates the resource for one request.
      *
      * @param context the request and its caller
      * @param service the operations on the realm of the request
+     * @param externalIds the IDs that systems have for the resources of the realm
      */
-    public RefKindsResource(RequestContext context, RealmKindService service) {
+    public RefKindsResource(RequestContext context, RealmKindService service, ExternalIdService externalIds) {
         this.context = context;
         this.service = service;
+        this.externalIds = externalIds;
     }
 
     @GET
@@ -60,9 +68,7 @@ public class RefKindsResource {
     @ApiErrors
     public List<RefKindRepresentation> list() {
         context.requireReadStructure();
-        return Calls.run(context, () -> service.list().stream()
-                .map(kind -> RefKindRepresentation.of(kind, context.nameLanguage()))
-                .toList());
+        return Calls.run(context, () -> represent(service.list()));
     }
 
     @POST
@@ -84,8 +90,8 @@ public class RefKindsResource {
         context.requireWrite();
         return Calls.run(context, () -> {
             Checks.required("body", body);
-            var kind = RefKindRepresentation.of(service.create(body.code(), body.primaryLanguage(), body.names()),
-                    context.nameLanguage());
+            var kind = represent(externalIds.create(ExternalId.Kind.REF_KIND, body.source(), body.externalId(),
+                    () -> service.create(body.code(), body.primaryLanguage(), body.names()), RealmKindService.View::id));
             context.recordChange(Change.CREATE, RESOURCE_TYPE, kind.code(), path(kind.code()), kind);
             return Response.status(Response.Status.CREATED).entity(kind).build();
         });
@@ -110,8 +116,7 @@ public class RefKindsResource {
             RefKindRepresentation body) {
         context.requireWrite();
         return Calls.guarded(context, body, () -> version(code), () -> {
-            var kind = RefKindRepresentation.of(service.rename(code, body.primaryLanguage(), body.names()),
-                    context.nameLanguage());
+            var kind = represent(service.rename(code, body.primaryLanguage(), body.names()));
             context.recordChange(Change.UPDATE, RESOURCE_TYPE, code, path(code), kind);
             return kind;
         });
@@ -143,6 +148,18 @@ public class RefKindsResource {
 
     private static String path(String code) {
         return "fuhito/ref-kinds/" + code;
+    }
+
+    // The IDs of every kind of a list are read with one query. A fixed kind has no ID.
+    private List<RefKindRepresentation> represent(List<RealmKindService.View> kinds) {
+        ExternalIdLists ids = externalIds.lists(ExternalId.Kind.REF_KIND,
+                kinds.stream().map(RealmKindService.View::id).filter(Objects::nonNull).toList());
+        Locale language = context.nameLanguage();
+        return kinds.stream().map(kind -> RefKindRepresentation.of(kind, ids, language)).toList();
+    }
+
+    private RefKindRepresentation represent(RealmKindService.View kind) {
+        return represent(List.of(kind)).getFirst();
     }
 
     private long version(String code) {

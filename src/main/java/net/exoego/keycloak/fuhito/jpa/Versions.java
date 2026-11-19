@@ -8,7 +8,8 @@ import net.exoego.keycloak.fuhito.domain.ExternalId;
 
 /**
  * Counts up the version of a resource whose writes can change several rows, such as an org unit with its periods
- * and its parents, or a reference item with its names. Each write counts it up once, however many rows it changes.
+ * and its parents, a reference item with its names, or any resource with its IDs of other systems. Each write counts
+ * it up once, however many rows it changes.
  */
 final class Versions {
 
@@ -33,6 +34,30 @@ final class Versions {
 
     static void qualification(EntityManager em, String realmId, String id) {
         Rows.require(em, QualificationEntity.class, id, realmId, row -> row.realmId).countUp();
+    }
+
+    static void reportingLine(EntityManager em, String realmId, String id) {
+        Rows.require(em, ReportingLineEntity.class, id, realmId, row -> row.realmId).countUp();
+    }
+
+    static void unitRole(EntityManager em, String realmId, String id) {
+        Rows.require(em, UnitRoleEntity.class, id, realmId, row -> row.realmId).countUp();
+    }
+
+    static void changeOrder(EntityManager em, String realmId, String id) {
+        Rows.require(em, ChangeOrderEntity.class, id, realmId, row -> row.realmId).countUp();
+    }
+
+    static void refKind(EntityManager em, String realmId, String id) {
+        Rows.require(em, RealmKindEntity.class, id, realmId, row -> row.realmId).countUp();
+    }
+
+    static void hierarchy(EntityManager em, String realmId, String id) {
+        Rows.require(em, HierarchyEntity.class, id, realmId, HierarchyEntity::getRealmId).countUp();
+    }
+
+    static void attributeDefinition(EntityManager em, String realmId, String id) {
+        Rows.require(em, AttributeDefinitionEntity.class, id, realmId, row -> row.realmId).countUp();
     }
 
     /**
@@ -70,6 +95,13 @@ final class Versions {
             case EMPLOYMENT -> employment(em, realmId, resourceId);
             case QUALIFICATION -> qualification(em, realmId, resourceId);
             case ASSIGNMENT -> assignment(em, realmId, resourceId);
+            case REPORTING_LINE -> reportingLine(em, realmId, resourceId);
+            case UNIT_ROLE -> unitRole(em, realmId, resourceId);
+            case CHANGE_ORDER -> changeOrder(em, realmId, resourceId);
+            case REF_ITEM -> refItem(em, realmId, resourceId);
+            case REF_KIND -> refKind(em, realmId, resourceId);
+            case HIERARCHY -> hierarchy(em, realmId, resourceId);
+            case ATTRIBUTE_DEFINITION -> attributeDefinition(em, realmId, resourceId);
         }
     }
 }

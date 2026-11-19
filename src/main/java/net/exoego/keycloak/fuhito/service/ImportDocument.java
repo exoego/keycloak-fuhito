@@ -130,7 +130,8 @@ public record ImportDocument(
                     + "resource keeps the name of the system that made it.",
             requiredProperties = {"resourceType", "resourceId", "externalId"})
     public record ExternalIdRow(
-            @Schema(enumeration = {"ORG_UNIT", "PERSON", "EMPLOYMENT", "ASSIGNMENT", "QUALIFICATION"})
+            @Schema(enumeration = {"ORG_UNIT", "PERSON", "EMPLOYMENT", "ASSIGNMENT", "QUALIFICATION", "REPORTING_LINE",
+                    "UNIT_ROLE", "CHANGE_ORDER", "REF_ITEM", "REF_KIND", "HIERARCHY", "ATTRIBUTE_DEFINITION"})
             String resourceType,
             @Schema(description = "The ID of the resource.")
             String resourceId,
