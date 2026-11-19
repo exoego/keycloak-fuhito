@@ -28,9 +28,11 @@ final class ParentImport {
     private final String defaultSource;
     private final ImportReport report;
     private final Set<String> seen = new HashSet<>();
+    private final Runnable rowDone;
 
     ParentImport(OrgUnitService orgUnitService, OrgUnitStore orgUnits, ExternalIdService externalIds,
-            String effectiveDate, String defaultSource, ImportReport report) {
+            String effectiveDate, String defaultSource, ImportReport report, Runnable rowDone) {
+        this.rowDone = rowDone;
         this.orgUnitService = orgUnitService;
         this.orgUnits = orgUnits;
         this.externalIds = externalIds;
@@ -47,6 +49,7 @@ final class ParentImport {
             } catch (FuhitoException e) {
                 report.error(ORG_UNIT_PARENTS, i, e);
             }
+            rowDone.run();
         }
     }
 

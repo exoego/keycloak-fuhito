@@ -6,6 +6,7 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.Id;
+import jakarta.persistence.PostLoad;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
@@ -16,7 +17,7 @@ import jakarta.persistence.Transient;
  */
 @Entity
 @Table(name = "FUHITO_EMPLOYMENT")
-public class EmploymentEntity {
+public class EmploymentEntity implements VersionedRow {
 
     @Id
     @Column(name = "ID", length = 36)
@@ -65,6 +66,16 @@ public class EmploymentEntity {
      * Creates an empty entity for JPA.
      */
     public EmploymentEntity() {
+    }
+
+    @Override
+    public boolean counted() {
+        return counted;
+    }
+
+    @PostLoad
+    void loaded() {
+        counted |= JpaLongWrite.counted(EmploymentEntity.class, id);
     }
 
     // A write may change several rows of the resource. It counts up the version once.

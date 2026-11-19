@@ -29,9 +29,11 @@ final class ChangeOrderImport {
     private final String defaultSource;
     private final ImportReport report;
     private final ImportMatch match;
+    private final Runnable rowDone;
 
     ChangeOrderImport(ChangeOrderService orders, UserDirectory users, ExternalIdService externalIds,
-            String effectiveDate, String defaultSource, ImportReport report) {
+            String effectiveDate, String defaultSource, ImportReport report, Runnable rowDone) {
+        this.rowDone = rowDone;
         this.orders = orders;
         this.users = users;
         this.effectiveDate = effectiveDate;
@@ -48,6 +50,7 @@ final class ChangeOrderImport {
             } catch (FuhitoException e) {
                 report.error(CHANGE_ORDERS, i, e);
             }
+            rowDone.run();
         }
     }
 

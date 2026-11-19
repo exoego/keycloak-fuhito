@@ -37,9 +37,11 @@ final class ReportingLineImport {
     private final String defaultSource;
     private final ImportReport report;
     private final ImportMatch match;
+    private final Runnable rowDone;
 
     ReportingLineImport(ReportingLineService lines, ImportService.People people, ExternalIdService externalIds,
-            String effectiveDate, String defaultSource, ImportReport report) {
+            String effectiveDate, String defaultSource, ImportReport report, Runnable rowDone) {
+        this.rowDone = rowDone;
         this.lines = lines;
         this.people = people;
         this.externalIds = externalIds;
@@ -64,6 +66,7 @@ final class ReportingLineImport {
             } catch (FuhitoException e) {
                 report.error(REPORTING_LINES, i, e);
             }
+            rowDone.run();
         }
         for (Map.Entry<Integer, Line> entry : added.entrySet()) {
             try {
@@ -71,6 +74,7 @@ final class ReportingLineImport {
             } catch (FuhitoException e) {
                 report.error(REPORTING_LINES, entry.getKey(), e);
             }
+            rowDone.run();
         }
     }
 

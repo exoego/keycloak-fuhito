@@ -3,6 +3,7 @@ package net.exoego.keycloak.fuhito.jpa;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
+import jakarta.persistence.PostLoad;
 import jakarta.persistence.Table;
 import jakarta.persistence.Transient;
 
@@ -11,7 +12,7 @@ import jakarta.persistence.Transient;
  */
 @Entity
 @Table(name = "FUHITO_ATTRIBUTE_DEFINITION")
-public class AttributeDefinitionEntity {
+public class AttributeDefinitionEntity implements VersionedRow {
 
     @Id
     @Column(name = "ID", length = 36)
@@ -49,6 +50,16 @@ public class AttributeDefinitionEntity {
      * Creates an empty entity for JPA.
      */
     public AttributeDefinitionEntity() {
+    }
+
+    @Override
+    public boolean counted() {
+        return counted;
+    }
+
+    @PostLoad
+    void loaded() {
+        counted |= JpaLongWrite.counted(AttributeDefinitionEntity.class, id);
     }
 
     // A write and a change of its IDs of other systems count up the version once.

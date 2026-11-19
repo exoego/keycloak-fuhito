@@ -24,6 +24,7 @@ import net.exoego.keycloak.fuhito.jpa.JpaEmploymentStore;
 import net.exoego.keycloak.fuhito.jpa.JpaExternalIdStore;
 import net.exoego.keycloak.fuhito.jpa.JpaHierarchyStore;
 import net.exoego.keycloak.fuhito.jpa.JpaJobRunStore;
+import net.exoego.keycloak.fuhito.jpa.JpaLongWrite;
 import net.exoego.keycloak.fuhito.jpa.JpaOrgUnitStore;
 import net.exoego.keycloak.fuhito.jpa.JpaPersonStore;
 import net.exoego.keycloak.fuhito.jpa.JpaRealmExportStore;
@@ -500,7 +501,7 @@ public class FuhitoResource {
                 new ImportService.Organizations(new OrganizationLinkService(orgUnitStore, organizations),
                         organizations, context::requireManageOrganization),
                 new ImportService.Records(reportingLineService(), unitRoleService(), qualificationService(),
-                        externalIdService(), changeOrderService()));
+                        externalIdService(), changeOrderService()), new JpaLongWrite(entityManager));
         var definitions = new JpaAttributeDefinitionStore(entityManager, realmId);
         return new ImportsResource(context, importService, new CsvImportService(importService, refItemStore,
                 orgUnitService(), people, definitions::list),

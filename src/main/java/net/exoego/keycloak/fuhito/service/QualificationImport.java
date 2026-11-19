@@ -31,9 +31,12 @@ final class QualificationImport {
     private final String defaultSource;
     private final ImportReport report;
     private final Set<String> seen = new HashSet<>();
+    private final Runnable rowDone;
 
     QualificationImport(QualificationService qualifications, ImportService.People people,
-            ExternalIdService externalIds, String effectiveDate, String defaultSource, ImportReport report) {
+            ExternalIdService externalIds, String effectiveDate, String defaultSource, ImportReport report,
+            Runnable rowDone) {
+        this.rowDone = rowDone;
         this.qualifications = qualifications;
         this.people = people;
         this.externalIds = externalIds;
@@ -50,6 +53,7 @@ final class QualificationImport {
             } catch (FuhitoException e) {
                 report.error(QUALIFICATIONS, i, e);
             }
+            rowDone.run();
         }
     }
 

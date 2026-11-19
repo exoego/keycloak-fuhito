@@ -40,9 +40,11 @@ final class PeopleImport {
     private final String effectiveDate;
     private final String defaultSource;
     private final ImportReport report;
+    private final Runnable rowDone;
 
     PeopleImport(ImportService.People people, ExternalIdService externalIds, OrgUnitStore orgUnits,
-            String effectiveDate, String defaultSource, ImportReport report) {
+            String effectiveDate, String defaultSource, ImportReport report, Runnable rowDone) {
+        this.rowDone = rowDone;
         this.people = people;
         this.externalIds = externalIds;
         this.orgUnits = orgUnits;
@@ -62,6 +64,7 @@ final class PeopleImport {
             } catch (FuhitoException e) {
                 report.error(PEOPLE, i, e);
             }
+            rowDone.run();
         }
     }
 
@@ -124,6 +127,7 @@ final class PeopleImport {
             } catch (FuhitoException e) {
                 report.error(EMPLOYMENTS, i, e);
             }
+            rowDone.run();
         }
     }
 
@@ -145,6 +149,7 @@ final class PeopleImport {
             } catch (FuhitoException e) {
                 report.error(ASSIGNMENTS, i, e);
             }
+            rowDone.run();
         }
     }
 

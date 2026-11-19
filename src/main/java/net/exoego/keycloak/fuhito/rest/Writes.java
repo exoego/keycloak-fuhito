@@ -10,6 +10,7 @@ import java.util.function.Function;
 import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.rest.RequestContext.Change;
+import net.exoego.keycloak.fuhito.rest.RequestContext.ChangeRecord;
 import net.exoego.keycloak.fuhito.service.ExternalIdLists;
 import net.exoego.keycloak.fuhito.service.ExternalIdService;
 import net.exoego.keycloak.fuhito.service.ImportReport.Write;
@@ -35,8 +36,8 @@ final class Writes {
         PersonService.Resolved resolved = people.forUser(userId);
         if (resolved.created() != null) {
             // A person made for a user has no IDs of other systems yet.
-            record(context, kind -> ExternalIdLists.NONE, new Write.OfPerson(resolved.created()),
-                    context.nameLanguage());
+            context.recordChanges(List.of(change(kind -> ExternalIdLists.NONE,
+                    new Write.OfPerson(resolved.created()), context.nameLanguage())));
         }
         return resolved.person().id();
     }
@@ -45,8 +46,12 @@ final class Writes {
         recordAll(context, externalIds, List.of(write));
     }
 
-    // The IDs of the records of all writes are read with one query for each kind of record.
+    // The IDs of the records of all writes are read with one query for each kind of record, and the change log
+    // counts up its sequence once for all of them.
     static void recordAll(RequestContext context, ExternalIdService externalIds, List<Write> writes) {
+        if (writes.isEmpty()) {
+            return;
+        }
         Map<ExternalId.Kind, ExternalIdLists> ids = new EnumMap<>(ExternalId.Kind.class);
         for (ExternalId.Kind kind : ExternalId.Kind.values()) {
             ids.put(kind, externalIds.lists(kind, writes.stream()
@@ -56,7 +61,7 @@ final class Writes {
                     .toList()));
         }
         Locale language = context.nameLanguage();
-        writes.forEach(write -> record(context, ids::get, write, language));
+        context.recordChanges(writes.stream().map(write -> change(ids::get, write, language)).toList());
     }
 
     private static String recordOf(Write write, ExternalId.Kind kind) {
@@ -81,8 +86,8 @@ final class Writes {
         };
     }
 
-    private static void record(RequestContext context, Function<ExternalId.Kind, ExternalIdLists> ids,
-            Write write, Locale language) {
+    private static ChangeRecord change(Function<ExternalId.Kind, ExternalIdLists> ids, Write write,
+            Locale language) {
         Object representation = switch (write) {
             case Write.OfRefItem item -> RefItemRepresentation.of(item.state(), ids.apply(ExternalId.Kind.REF_ITEM),
                     language);
@@ -117,6 +122,6 @@ final class Writes {
             case Write.Removed removed -> null;
         };
         Change change = write.deleted() ? Change.DELETE : write.created() ? Change.CREATE : Change.UPDATE;
-        context.recordChange(change, write.resourceType(), write.resourceId(), write.path(), representation);
+        return new ChangeRecord(change, write.resourceType(), write.resourceId(), write.path(), representation);
     }
 }

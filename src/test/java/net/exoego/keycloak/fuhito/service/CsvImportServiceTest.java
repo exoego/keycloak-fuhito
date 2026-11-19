@@ -17,6 +17,7 @@ import net.exoego.keycloak.fuhito.domain.RefItem;
 import net.exoego.keycloak.fuhito.domain.RefItemName;
 import net.exoego.keycloak.fuhito.domain.RefKind;
 import net.exoego.keycloak.fuhito.service.ImportReport.Counts;
+import net.exoego.keycloak.fuhito.store.LongWrite;
 import net.exoego.keycloak.fuhito.store.UserDirectory;
 import org.junit.jupiter.api.Test;
 
@@ -66,7 +67,8 @@ class CsvImportServiceTest {
                             new HierarchyService(new MemoryHierarchyStore())),
                     new ImportService.Organizations(new OrganizationLinkService(orgUnitStore, id -> false),
                             id -> false, id -> { }), new ImportService.Records(null, null, null,
-                            new ExternalIdService(externalIdStore), null)), refItems, orgUnits, people,
+                            new ExternalIdService(externalIdStore), null), LongWrite.NONE), refItems, orgUnits,
+            people,
             definitions::list);
 
     // The record that an ID of a system names, as an import finds it.

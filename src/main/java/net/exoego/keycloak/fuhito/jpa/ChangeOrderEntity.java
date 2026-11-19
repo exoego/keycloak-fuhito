@@ -6,6 +6,7 @@ import java.time.LocalDate;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
+import jakarta.persistence.PostLoad;
 import jakarta.persistence.Table;
 import jakarta.persistence.Transient;
 
@@ -14,7 +15,7 @@ import jakarta.persistence.Transient;
  */
 @Entity
 @Table(name = "FUHITO_CHANGE_ORDER")
-public class ChangeOrderEntity {
+public class ChangeOrderEntity implements VersionedRow {
 
     @Id
     @Column(name = "ID", length = 36)
@@ -70,6 +71,16 @@ public class ChangeOrderEntity {
      * Creates an empty entity for JPA.
      */
     public ChangeOrderEntity() {
+    }
+
+    @Override
+    public boolean counted() {
+        return counted;
+    }
+
+    @PostLoad
+    void loaded() {
+        counted |= JpaLongWrite.counted(ChangeOrderEntity.class, id);
     }
 
     // A write and a change of its IDs of other systems count up the version once.

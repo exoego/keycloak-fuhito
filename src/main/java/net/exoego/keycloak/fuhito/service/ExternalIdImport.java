@@ -24,8 +24,10 @@ final class ExternalIdImport {
     private final String defaultSource;
     private final ImportReport report;
     private final Set<String> seen = new HashSet<>();
+    private final Runnable rowDone;
 
-    ExternalIdImport(ExternalIdService externalIds, String defaultSource, ImportReport report) {
+    ExternalIdImport(ExternalIdService externalIds, String defaultSource, ImportReport report, Runnable rowDone) {
+        this.rowDone = rowDone;
         this.externalIds = externalIds;
         this.defaultSource = defaultSource;
         this.report = report;
@@ -39,6 +41,7 @@ final class ExternalIdImport {
             } catch (FuhitoException e) {
                 report.error(EXTERNAL_IDS, i, e);
             }
+            rowDone.run();
         }
     }
 

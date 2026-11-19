@@ -6,6 +6,7 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.Id;
+import jakarta.persistence.PostLoad;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
@@ -16,7 +17,7 @@ import jakarta.persistence.Transient;
  */
 @Entity
 @Table(name = "FUHITO_REPORTING_LINE")
-public class ReportingLineEntity {
+public class ReportingLineEntity implements VersionedRow {
 
     @Id
     @Column(name = "ID", length = 36)
@@ -56,6 +57,16 @@ public class ReportingLineEntity {
      * Creates an empty entity for JPA.
      */
     public ReportingLineEntity() {
+    }
+
+    @Override
+    public boolean counted() {
+        return counted;
+    }
+
+    @PostLoad
+    void loaded() {
+        counted |= JpaLongWrite.counted(ReportingLineEntity.class, id);
     }
 
     // A write and a change of its IDs of other systems count up the version once.
