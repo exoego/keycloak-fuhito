@@ -711,19 +711,18 @@ class ImportServiceTest {
         importTwoUnits();
         // The nurse has a person already, made for the user by an earlier employment.
         importPeople("2026-04-01", List.of(employment("E0", "nurse", null, null, null)), null);
+        String nurse = personStore.findByUser("user-nurse").orElseThrow().id();
         List<PersonRow> rows = List.of(
                 new PersonRow(null, "P1", null, null, "ja", Map.of("ja", new PersonName("山田 花子", "やまだ はなこ"),
                         "en", new PersonName("Hanako Yamada", null)), Map.of("note", "retired"), null),
-                new PersonRow(null, "P2", "nurse", null, null, null, null, null));
+                new PersonRow(null, null, "nurse", null, null, null, null, nurse));
 
         ImportReport first = service.apply(new ImportDocument("2026-04-01", false, null, null, null, null, null, rows));
 
-        assertEquals(new Counts(1, 1, 0), first.counts().get("people"));
+        assertEquals(new Counts(1, 0, 1), first.counts().get("people"));
         Person retired = personStore.find(stored(ExternalId.Kind.PERSON, "import", "P1")).orElseThrow();
         assertEquals(null, retired.userId());
         assertEquals("やまだ はなこ", retired.names().primary().phoneticName());
-        assertEquals(personStore.findByUser(users.findIdByUsername("nurse").orElseThrow()).orElseThrow().id(),
-                stored(ExternalId.Kind.PERSON, "import", "P2"));
         assertEquals(new Counts(0, 0, 2), service.apply(new ImportDocument("2026-04-01", false, null, null, null,
                 null, null, rows)).counts().get("people"));
 
@@ -750,6 +749,34 @@ class ImportServiceTest {
         PersonRow renamed = new PersonRow(null, "P1", null, null, "ja", japanese("山田 華子"), null, null);
         assertEquals(new Counts(0, 1, 0), service.apply(new ImportDocument("2026-04-01", false, null, null, null,
                 null, null, List.of(renamed))).counts().get("people"));
+    }
+
+    private ImportReport importPersons(PersonRow... rows) {
+        return service.apply(new ImportDocument("2026-04-01", false, null, null, null, null, null, List.of(rows)));
+    }
+
+    private static PersonRow ofUser(String externalId, String username, String id) {
+        return new PersonRow(null, externalId, username, null, null, null, null, id);
+    }
+
+    @Test
+    void aNewPersonCannotTakeAUserWhoHasAPerson() {
+        assertEquals(List.of(), errors(importPersons(ofUser("P1", "nurse", null))));
+        String nurse = stored(ExternalId.Kind.PERSON, "import", "P1");
+
+        ImportReport taken = importPersons(ofUser("P2", "nurse", null));
+        assertEquals(List.of("people[0] import.user_taken"), errors(taken));
+        assertEquals(Map.of("userId", "user-nurse", "personId", nurse), taken.errors().getFirst().error().params());
+        assertTrue(externalIdStore.idOf(ExternalId.Kind.PERSON, "import", "P2").isEmpty());
+
+        // The file names the person of the user by its ID or by an external ID that it has.
+        assertEquals(new Counts(0, 0, 1), importPersons(ofUser(null, "nurse", nurse)).counts().get("people"));
+        assertEquals(new Counts(0, 0, 1), importPersons(ofUser("P1", "nurse", null)).counts().get("people"));
+        // A row of a stored person that names another user links the person to that user.
+        assertEquals(new Counts(0, 1, 0), importPersons(ofUser("P1", "doctor", null)).counts().get("people"));
+        assertEquals("user-doctor", personStore.find(nurse).orElseThrow().userId());
+        assertEquals(new Counts(1, 0, 0), importPersons(ofUser("P3", "nurse", null)).counts().get("people"));
+        assertEquals(List.of("people[0] person.user_taken"), errors(importPersons(ofUser(null, "nurse", nurse))));
     }
 
     private static EmploymentRow byIds(String externalId, String personId, String employerId, String grade,

@@ -65,8 +65,6 @@ final class PeopleImport {
         }
     }
 
-    // A person whom the import made for a user before takes the ID of the row, unless the system of the row has
-    // another ID for the person.
     private Outcome importPerson(PersonRow row) {
         String source = Checks.code("source", row.source() == null ? defaultSource : row.source());
         PersonService service = people.personService();
@@ -75,18 +73,13 @@ final class PeopleImport {
         Optional<Person> stored = row.id() == null
                 ? externalIds.resourceOf(ExternalId.Kind.PERSON, source, row.externalId()).flatMap(service::find)
                 : Optional.of(byId(row, source));
-        if (stored.isEmpty() && userId != null) {
-            Optional<Person> ofUser = service.ofUser(userId);
-            if (ofUser.isPresent()) {
-                if (externalIds.externalIdOf(ExternalId.Kind.PERSON, ofUser.get().id(), source).isPresent()) {
-                    throw FuhitoException.conflict("import.user_mismatch", Map.of("externalId", row.externalId()));
-                }
-                report.write(new Write.OfPerson(false, service.replace(ofUser.get().id(), values(row, userId,
-                        source))));
-                return Outcome.CHANGED;
-            }
-        }
         if (stored.isEmpty()) {
+            // A row never finds a person by its user. The file must name the person of the user.
+            Optional<Person> ofUser = userId == null ? Optional.empty() : service.ofUser(userId);
+            if (ofUser.isPresent()) {
+                throw FuhitoException.conflict("import.user_taken",
+                        Map.of("userId", userId, "personId", ofUser.get().id()));
+            }
             report.write(new Write.OfPerson(true, service.create(values(row, userId, source))));
             return Outcome.CREATED;
         }

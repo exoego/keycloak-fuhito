@@ -671,6 +671,9 @@ class CsvImportIT {
         load(api, "people", "effectiveDate=2026-06-01", renamed);
         assertEquals("山田 はな子", Api.json(api.get("/people/" + hanako)).get("name").asText());
         assertEquals(user, Api.json(api.get("/people?userId=" + user)).get(0).get("userId").asText());
+        // A new person cannot take the user of a stored person.
+        assertEquals("import.user_taken", failure(api, "people", "effectiveDate=2026-06-01",
+                "externalId,userId\nP-9," + user + "\n"));
     }
 
     @Test

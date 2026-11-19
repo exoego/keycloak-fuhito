@@ -401,6 +401,19 @@ class CsvImportServiceTest {
     }
 
     @Test
+    void aNewPersonOfAFileCannotTakeAUserWhoHasAPerson() {
+        assertEquals(List.of(), errors(load("people", "2026-04-01", "externalId,username\nP1,nurse\n")));
+
+        CsvImportService.Result taken = load("people", "2026-04-01", "externalId,username\nP2,nurse\n");
+
+        assertEquals(List.of("line 2 row 0 import.user_taken"), errors(taken));
+        assertEquals(Map.of("userId", "user-nurse", "personId", stored(ExternalId.Kind.PERSON, "import", "P1")),
+                taken.errors().getFirst().error().params());
+        assertEquals(new Counts(0, 0, 1), load("people", "2026-04-01", "externalId,username\nP1,nurse\n")
+                .report().counts().get("people"));
+    }
+
+    @Test
     void reportsBadRowsWithTheirLines() {
         load("orgUnits", "2026-04-01", "外部ID,主言語,名称\nH,ja,X病院\n");
 

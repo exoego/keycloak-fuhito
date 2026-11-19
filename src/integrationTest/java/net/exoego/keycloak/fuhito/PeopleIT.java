@@ -425,6 +425,14 @@ class PeopleIT {
                 "{\"validFrom\": \"2020-04-01\"}")));
         assertEquals("employment.person_unknown", errorOf(400, otherRealm.api.post("/employments",
                 "{\"personId\": \"" + personId + "\", \"validFrom\": \"2020-04-01\"}")));
+
+        // A new person of an import cannot take the user.
+        HttpResponse<String> taken = scratchApi.post("/imports", "{\"effectiveDate\": \"2026-04-01\", "
+                + "\"people\": [{\"externalId\": \"P-taro\", \"userId\": \"" + user + "\"}]}");
+        assertEquals(400, taken.statusCode(), taken.body());
+        JsonNode error = Api.json(taken).get("errors").get(0);
+        assertEquals("import.user_taken", error.get("error").asText());
+        assertEquals(personId, error.get("params").get("personId").asText());
     }
 
     @Test
