@@ -3,6 +3,7 @@ package net.exoego.keycloak.fuhito.jpa;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
+import jakarta.persistence.PostLoad;
 import jakarta.persistence.Table;
 import jakarta.persistence.Transient;
 
@@ -11,7 +12,7 @@ import jakarta.persistence.Transient;
  */
 @Entity
 @Table(name = "FUHITO_ORG_UNIT")
-public class OrgUnitEntity {
+public class OrgUnitEntity implements VersionedRow {
 
     @Id
     @Column(name = "ID", length = 36)
@@ -43,6 +44,16 @@ public class OrgUnitEntity {
      * Creates an empty entity for JPA.
      */
     public OrgUnitEntity() {
+    }
+
+    @Override
+    public boolean counted() {
+        return counted;
+    }
+
+    @PostLoad
+    void loaded() {
+        counted |= JpaLongWrite.counted(OrgUnitEntity.class, id);
     }
 
     // A write may change several rows of the resource. It counts up the version once.

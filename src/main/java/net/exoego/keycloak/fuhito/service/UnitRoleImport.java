@@ -35,9 +35,11 @@ final class UnitRoleImport {
     private final String defaultSource;
     private final ImportReport report;
     private final ImportMatch match;
+    private final Runnable rowDone;
 
     UnitRoleImport(UnitRoleService roles, ExternalIdService externalIds, String effectiveDate, String defaultSource,
-            ImportReport report) {
+            ImportReport report, Runnable rowDone) {
+        this.rowDone = rowDone;
         this.roles = roles;
         this.externalIds = externalIds;
         this.date = Checks.date("effectiveDate", effectiveDate);
@@ -61,6 +63,7 @@ final class UnitRoleImport {
             } catch (FuhitoException e) {
                 report.error(UNIT_ROLES, i, e);
             }
+            rowDone.run();
         }
         for (Map.Entry<Integer, Role> entry : added.entrySet()) {
             try {
@@ -68,6 +71,7 @@ final class UnitRoleImport {
             } catch (FuhitoException e) {
                 report.error(UNIT_ROLES, entry.getKey(), e);
             }
+            rowDone.run();
         }
     }
 

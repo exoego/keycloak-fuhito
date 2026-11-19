@@ -3,6 +3,7 @@ package net.exoego.keycloak.fuhito.jpa;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
+import jakarta.persistence.PostLoad;
 import jakarta.persistence.Table;
 import jakarta.persistence.Transient;
 
@@ -11,7 +12,7 @@ import jakarta.persistence.Transient;
  */
 @Entity
 @Table(name = "FUHITO_REF_KIND")
-public class RealmKindEntity {
+public class RealmKindEntity implements VersionedRow {
 
     @Id
     @Column(name = "ID", length = 36)
@@ -34,6 +35,16 @@ public class RealmKindEntity {
      * Creates an empty entity for JPA.
      */
     public RealmKindEntity() {
+    }
+
+    @Override
+    public boolean counted() {
+        return counted;
+    }
+
+    @PostLoad
+    void loaded() {
+        counted |= JpaLongWrite.counted(RealmKindEntity.class, id);
     }
 
     // A write may change only the names, which are rows of their own. It counts up the version once.

@@ -3,6 +3,7 @@ package net.exoego.keycloak.fuhito.jpa;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
+import jakarta.persistence.PostLoad;
 import jakarta.persistence.Table;
 import jakarta.persistence.Transient;
 
@@ -11,7 +12,7 @@ import jakarta.persistence.Transient;
  */
 @Entity
 @Table(name = "FUHITO_HIERARCHY")
-public class HierarchyEntity {
+public class HierarchyEntity implements VersionedRow {
 
     @Id
     @Column(name = "ID", length = 36)
@@ -37,6 +38,16 @@ public class HierarchyEntity {
      * Creates an empty entity for JPA.
      */
     public HierarchyEntity() {
+    }
+
+    @Override
+    public boolean counted() {
+        return counted;
+    }
+
+    @PostLoad
+    void loaded() {
+        counted |= JpaLongWrite.counted(HierarchyEntity.class, id);
     }
 
     /**

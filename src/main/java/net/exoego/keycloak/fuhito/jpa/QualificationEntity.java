@@ -8,6 +8,7 @@ import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.Id;
+import jakarta.persistence.PostLoad;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
@@ -18,7 +19,7 @@ import jakarta.persistence.Transient;
  */
 @Entity
 @Table(name = "FUHITO_QUALIFICATION")
-public class QualificationEntity {
+public class QualificationEntity implements VersionedRow {
 
     @Id
     @Column(name = "ID", length = 36)
@@ -65,6 +66,16 @@ public class QualificationEntity {
      * Creates an empty entity for JPA.
      */
     public QualificationEntity() {
+    }
+
+    @Override
+    public boolean counted() {
+        return counted;
+    }
+
+    @PostLoad
+    void loaded() {
+        counted |= JpaLongWrite.counted(QualificationEntity.class, id);
     }
 
     // A write may change several rows of the resource. It counts up the version once.

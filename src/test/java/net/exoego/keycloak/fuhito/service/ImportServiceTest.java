@@ -7,6 +7,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Supplier;
 
 import net.exoego.keycloak.fuhito.domain.ChangeOrder;
 import net.exoego.keycloak.fuhito.domain.Employment;
@@ -38,6 +39,7 @@ import net.exoego.keycloak.fuhito.service.ImportDocument.RefKindRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.ReportingLineRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.UnitRoleRow;
 import net.exoego.keycloak.fuhito.service.ImportReport.Counts;
+import net.exoego.keycloak.fuhito.store.LongWrite;
 import net.exoego.keycloak.fuhito.store.OrganizationDirectory;
 import net.exoego.keycloak.fuhito.store.UserDirectory;
 import org.junit.jupiter.api.BeforeEach;
@@ -105,6 +107,9 @@ class ImportServiceTest {
     };
     private final AttributeDefinitionService definitions =
             new AttributeDefinitionService(new MemoryAttributeDefinitionStore(), refItems, kinds::isKnown);
+    // Whether the import runs, and how many of its rows are done.
+    private boolean running;
+    private int rowsDone;
     private final ImportService service = new ImportService(new RefItemService(refItems), refItems, orgUnits,
             orgUnitStore, new ImportService.People(employments, employmentStore, assignments, assignmentStore, users,
                     new PersonService(personStore, externalIdStore, users, id -> false)),
@@ -112,7 +117,23 @@ class ImportServiceTest {
             new ImportService.Organizations(new OrganizationLinkService(orgUnitStore, organizations), organizations,
                     managed::add),
             new ImportService.Records(lines, roles, qualifications, new ExternalIdService(externalIdStore),
-                    new ChangeOrderService(orderStore, null, users, Clock.systemUTC())));
+                    new ChangeOrderService(orderStore, null, users, Clock.systemUTC())), new LongWrite() {
+                @Override
+                public <T> T run(Supplier<T> work) {
+                    running = true;
+                    try {
+                        return work.get();
+                    } finally {
+                        running = false;
+                    }
+                }
+
+                @Override
+                public void rowDone() {
+                    assertTrue(running);
+                    rowsDone++;
+                }
+            });
 
     @BeforeEach
     void shareTheRecords() {
@@ -301,6 +322,19 @@ class ImportServiceTest {
     private static OrgUnitRow starting(String externalId, String validFrom) {
         return new OrgUnitRow(null, externalId, null, "ja", ja(externalId), null, null, null, null,
                 null, validFrom, null, null);
+    }
+
+    @Test
+    void tellsTheStorageWhenEachRowIsDone() {
+        List<OrgUnitRow> units = List.of(ending("OLD", "2026-04-01", List.of("NEW"), null),
+                starting("NEW", "2026-04-01"), unit("BAD", "部", "NONE"));
+
+        ImportReport report = service.apply(doc("2026-04-01", false, null, null, units));
+
+        assertEquals(List.of("orgUnits[2] import.parent_unknown"), errors(report));
+        // One for each row and one for the end of the unit with successors.
+        assertEquals(4, rowsDone);
+        assertFalse(running);
     }
 
     @Test

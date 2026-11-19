@@ -7,6 +7,7 @@ import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.store.AssignmentStore;
 import net.exoego.keycloak.fuhito.store.EmploymentStore;
+import net.exoego.keycloak.fuhito.store.LongWrite;
 import net.exoego.keycloak.fuhito.store.OrgUnitStore;
 import net.exoego.keycloak.fuhito.store.OrganizationDirectory;
 import net.exoego.keycloak.fuhito.store.RefItemStore;
@@ -56,6 +57,7 @@ public class ImportService {
     private final Setup setup;
     private final Organizations organizations;
     private final Records records;
+    private final LongWrite longWrite;
 
     /**
      * The services that an import of the records about people needs.
@@ -92,9 +94,12 @@ public class ImportService {
      * @param setup what an import of the setup of the realm needs
      * @param organizations what a link to a Keycloak organization needs
      * @param records what an import of the records about people needs
+     * @param longWrite tells the storage when each row is done
      */
     public ImportService(RefItemService refItemService, RefItemStore refItems, OrgUnitService orgUnitService,
-            OrgUnitStore orgUnits, People people, Setup setup, Organizations organizations, Records records) {
+            OrgUnitStore orgUnits, People people, Setup setup, Organizations organizations, Records records,
+            LongWrite longWrite) {
+        this.longWrite = longWrite;
         this.organizations = organizations;
         this.records = records;
         this.refItemService = refItemService;
@@ -122,16 +127,21 @@ public class ImportService {
      */
     public ImportReport apply(ImportDocument document) {
         Checks.required("body", document);
+        return longWrite.run(() -> applyLists(document));
+    }
+
+    private ImportReport applyLists(ImportDocument document) {
+        Runnable rowDone = longWrite::rowDone;
         LocalDate effectiveDate = Checks.date("effectiveDate", document.effectiveDate());
         String source = Checks.optionalCode("source", document.source());
         String defaultSource = source == null ? DEFAULT_SOURCE : source;
         ImportReport report = new ImportReport();
         if (document.changeOrders() != null) {
             new ChangeOrderImport(records.changeOrders(), people.users(), records.externalIds(),
-                    document.effectiveDate(), defaultSource, report).run(document.changeOrders());
+                    document.effectiveDate(), defaultSource, report, rowDone).run(document.changeOrders());
         }
         SetupImport setupImport = new SetupImport(setup, refItemService, refItems, records.externalIds(),
-                effectiveDate, defaultSource, report);
+                effectiveDate, defaultSource, report, rowDone);
         if (document.refKinds() != null) {
             setupImport.refKinds(document.refKinds());
         }
@@ -146,21 +156,21 @@ public class ImportService {
         }
         if (document.orgUnits() != null) {
             new OrgUnitImport(orgUnitService, orgUnits, records.externalIds(), organizations,
-                    document.effectiveDate(), defaultSource, document.orgUnits(), report).run();
+                    document.effectiveDate(), defaultSource, document.orgUnits(), report, rowDone).run();
         }
         if (document.orgUnitParents() != null) {
             new ParentImport(orgUnitService, orgUnits, records.externalIds(), document.effectiveDate(),
-                    defaultSource, report).run(document.orgUnitParents());
+                    defaultSource, report, rowDone).run(document.orgUnitParents());
         }
         PeopleImport peopleImport =
                 new PeopleImport(people, records.externalIds(), orgUnits, document.effectiveDate(), defaultSource,
-                        report);
+                        report, rowDone);
         if (document.people() != null) {
             peopleImport.people(document.people());
         }
         if (document.qualifications() != null) {
             new QualificationImport(records.qualifications(), people, records.externalIds(),
-                    document.effectiveDate(), defaultSource, report).run(document.qualifications());
+                    document.effectiveDate(), defaultSource, report, rowDone).run(document.qualifications());
         }
         if (document.employments() != null) {
             peopleImport.employments(document.employments());
@@ -170,14 +180,15 @@ public class ImportService {
         }
         if (document.unitRoles() != null) {
             new UnitRoleImport(records.unitRoles(), records.externalIds(), document.effectiveDate(), defaultSource,
-                    report).run(document.unitRoles());
+                    report, rowDone).run(document.unitRoles());
         }
         if (document.reportingLines() != null) {
             new ReportingLineImport(records.reportingLines(), people, records.externalIds(),
-                    document.effectiveDate(), defaultSource, report).run(document.reportingLines());
+                    document.effectiveDate(), defaultSource, report, rowDone).run(document.reportingLines());
         }
         if (document.externalIds() != null) {
-            new ExternalIdImport(records.externalIds(), defaultSource, report).run(document.externalIds());
+            new ExternalIdImport(records.externalIds(), defaultSource, report, rowDone)
+                    .run(document.externalIds());
         }
         return report;
     }

@@ -6,6 +6,7 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
+import jakarta.persistence.PostLoad;
 import jakarta.persistence.Table;
 import jakarta.persistence.Transient;
 
@@ -14,7 +15,7 @@ import jakarta.persistence.Transient;
  */
 @Entity
 @Table(name = "FUHITO_REF_ITEM")
-public class RefItemEntity {
+public class RefItemEntity implements VersionedRow {
 
     @Id
     @Column(name = "ID", length = 36)
@@ -59,6 +60,16 @@ public class RefItemEntity {
      * Creates an empty entity for JPA.
      */
     public RefItemEntity() {
+    }
+
+    @Override
+    public boolean counted() {
+        return counted;
+    }
+
+    @PostLoad
+    void loaded() {
+        counted |= JpaLongWrite.counted(RefItemEntity.class, id);
     }
 
     // A write may change the item and its names. It counts up the version once.

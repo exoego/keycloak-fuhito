@@ -42,6 +42,7 @@ final class OrgUnitImport {
     private final Set<Integer> failed = new HashSet<>();
     private final Set<Integer> running = new HashSet<>();
     private final List<Ending> endings = new ArrayList<>();
+    private final Runnable rowDone;
 
     // An end with successors waits for every row, because a successor can come later in the document.
     private record Ending(int index, String unitId, String source, OrgUnitRow row) {
@@ -49,7 +50,8 @@ final class OrgUnitImport {
 
     OrgUnitImport(OrgUnitService orgUnitService, OrgUnitStore orgUnits, ExternalIdService externalIds,
             ImportService.Organizations organizations, String effectiveDate, String defaultSource,
-            List<OrgUnitRow> rows, ImportReport report) {
+            List<OrgUnitRow> rows, ImportReport report, Runnable rowDone) {
+        this.rowDone = rowDone;
         this.orgUnitService = orgUnitService;
         this.orgUnits = orgUnits;
         this.externalIds = externalIds;
@@ -72,8 +74,12 @@ final class OrgUnitImport {
         }
         for (int i = 0; i < rows.size(); i++) {
             apply(i);
+            rowDone.run();
         }
-        endings.forEach(this::succeed);
+        for (Ending ending : endings) {
+            succeed(ending);
+            rowDone.run();
+        }
     }
 
     private static boolean hasSuccessors(OrgUnitRow row) {

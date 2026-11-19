@@ -8,6 +8,7 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
+import jakarta.persistence.PostLoad;
 import jakarta.persistence.Table;
 import jakarta.persistence.Transient;
 
@@ -16,7 +17,7 @@ import jakarta.persistence.Transient;
  */
 @Entity
 @Table(name = "FUHITO_ASSIGNMENT")
-public class AssignmentEntity {
+public class AssignmentEntity implements VersionedRow {
 
     @Id
     @Column(name = "ID", length = 36)
@@ -89,5 +90,15 @@ public class AssignmentEntity {
      * Creates an empty entity for JPA.
      */
     public AssignmentEntity() {
+    }
+
+    @Override
+    public boolean counted() {
+        return counted;
+    }
+
+    @PostLoad
+    void loaded() {
+        counted |= JpaLongWrite.counted(AssignmentEntity.class, id);
     }
 }

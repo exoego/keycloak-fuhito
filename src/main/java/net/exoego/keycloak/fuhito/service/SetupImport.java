@@ -42,9 +42,12 @@ final class SetupImport {
     private final LocalDate effectiveDate;
     private final String defaultSource;
     private final ImportReport report;
+    private final Runnable rowDone;
 
     SetupImport(ImportService.Setup setup, RefItemService refItemService, RefItemStore refItems,
-            ExternalIdService externalIds, LocalDate effectiveDate, String defaultSource, ImportReport report) {
+            ExternalIdService externalIds, LocalDate effectiveDate, String defaultSource, ImportReport report,
+            Runnable rowDone) {
+        this.rowDone = rowDone;
         this.setup = setup;
         this.refItemService = refItemService;
         this.refItems = refItems;
@@ -82,6 +85,7 @@ final class SetupImport {
             } catch (FuhitoException e) {
                 report.error(list, i, e);
             }
+            rowDone.run();
         }
     }
 
