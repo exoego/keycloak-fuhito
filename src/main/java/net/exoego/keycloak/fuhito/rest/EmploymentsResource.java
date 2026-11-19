@@ -385,9 +385,12 @@ public class EmploymentsResource {
             operationId = "transferEmployment",
             summary = "Moves a person to another employer on a date, in one write.",
             description = "The employment ends on the date. A new employment at the new employer starts on the "
-                    + "same date. It gets the terms, the assignments, and the reporting lines of the old one from "
-                    + "the date on, also the ones that were stored for a later date. It names the old "
-                    + "employment in `continuesEmploymentId`. A failure writes nothing.")
+                    + "same date. It gets the terms, the assignments, the reporting lines, and the roles over org "
+                    + "units of the old one from the date on, also the ones that were stored for a later date. It "
+                    + "names the old employment in `continuesEmploymentId`. An assignment, a line, or a role that "
+                    + "starts on the date or later goes away from the old employment, and its copy takes its IDs "
+                    + "of other systems. One that holds before the date only ends and keeps its IDs. Its copy "
+                    + "gets none. A failure writes nothing.")
     @Parameter(ref = "changeOrder")
     @APIResponse(
             responseCode = "201",

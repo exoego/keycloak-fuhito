@@ -270,6 +270,74 @@ class ExternalIdsIT {
     }
 
     @Test
+    void aTransferGivesTheIdsOfWhatTheEndRemovesToTheCopies() throws Exception {
+        TestRealm realm = TestRealm.create("external-ids-transfer");
+        Api api = realm.api;
+        String corporation = realm.legalEntity("医療法人X会");
+        String company = realm.legalEntity("株式会社Yサービス");
+        realm.refItem("UNIT_ROLE", "approver", "承認者");
+        realm.refItem("UNIT_ROLE", "hr-contact", "人事担当");
+        String kitchen = Api.json(api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"栄養科\"}}, \"parentId\": \""
+                + corporation + "\", \"validFrom\": \"2020-04-01\"}")).get("id").asText();
+        String ward = Api.json(api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"病棟\"}}, \"parentId\": \""
+                + corporation + "\", \"validFrom\": \"2020-04-01\"}")).get("id").asText();
+        JsonNode staff = Api.json(api.post("/staff", "{\"userId\": \"" + realm.user("cook") + "\", \"employerId\": \""
+                + company + "\", \"orgUnitId\": \"" + kitchen + "\", \"validFrom\": \"2020-04-01\"}"));
+        String employment = staff.get("employment").get("id").asText();
+        String assignment = staff.get("assignment").get("id").asText();
+        String boss = realm.user("boss");
+        String heldLine = created(api, "/reporting-lines", "{\"assignmentId\": \"" + assignment
+                + "\", \"managerUserId\": \"" + boss + "\", \"validFrom\": \"2020-04-01\"}", "L-1");
+        String plannedLine = created(api, "/reporting-lines", "{\"assignmentId\": \"" + assignment
+                + "\", \"managerUserId\": \"" + boss + "\", \"kind\": \"DOTTED\", \"validFrom\": \"2027-07-01\"}", "L-2");
+        String heldRole = created(api, "/unit-roles", "{\"employmentId\": \"" + employment + "\", \"orgUnitId\": \""
+                + kitchen + "\", \"role\": \"approver\", \"validFrom\": \"2020-04-01\"}", "R-1");
+        String plannedRole = created(api, "/unit-roles", "{\"employmentId\": \"" + employment + "\", \"orgUnitId\": \""
+                + kitchen + "\", \"role\": \"hr-contact\", \"validFrom\": \"2027-04-01\"}", "R-2");
+        HttpResponse<String> planned = api.post("/assignments", "{\"employmentId\": \"" + employment
+                + "\", \"orgUnitId\": \"" + ward + "\", \"validFrom\": \"2027-07-01\", \"externalId\": \"A-1\", "
+                + "\"source\": \"hr\"}");
+        assertEquals(201, planned.statusCode(), planned.body());
+        String plannedAssignment = Api.json(planned).get("id").asText();
+
+        HttpResponse<String> response = api.postWithVersion("/employments/" + employment + "/transfer",
+                "{\"employerId\": \"" + corporation + "\", \"validFrom\": \"2027-04-01\"}");
+        assertEquals(201, response.statusCode(), response.body());
+        JsonNode transfer = Api.json(response);
+
+        // A line and a role that hold before the date are only ended. They keep their IDs, and their copies get none.
+        String lookup = "/external-ids/lookup?resourceType=";
+        assertEquals(heldLine, ok(api.get(lookup + "REPORTING_LINE&source=hr&externalId=L-1")).get("resourceId").asText());
+        assertEquals(heldRole, ok(api.get(lookup + "UNIT_ROLE&source=hr&externalId=R-1")).get("resourceId").asText());
+        // The end removes the ones that start on the date or later, and their copies take their IDs.
+        // Each kind names the field and the value that tell the copy of the removed one.
+        String[][] kinds = {
+                {"reportingLines", "/reporting-lines/", "REPORTING_LINE", "L-2", plannedLine, "validFrom", "2027-07-01"},
+                {"unitRoles", "/unit-roles/", "UNIT_ROLE", "R-2", plannedRole, "role", "hr-contact"},
+                {"assignments", "/assignments/", "ASSIGNMENT", "A-1", plannedAssignment, "validFrom", "2027-07-01"}};
+        for (String[] kind : kinds) {
+            assertEquals(2, transfer.get(kind[0]).size(), kind[0]);
+            String copy = null;
+            for (JsonNode each : transfer.get(kind[0])) {
+                boolean later = each.get(kind[5]).asText().equals(kind[6]);
+                assertEquals(later ? List.of("hr=" + kind[3]) : List.of(), Api.externalIds(each), kind[0]);
+                assertEquals(1, each.get("version").asLong(), kind[0]);
+                if (later) {
+                    copy = each.get("id").asText();
+                }
+            }
+            assertEquals(List.of("hr=" + kind[3]), Api.externalIds(ok(api.get(kind[1] + copy))), kind[0]);
+            assertEquals(1, ok(api.get(kind[1] + copy)).get("version").asLong(), kind[0]);
+            assertEquals(copy, ok(api.get(lookup + kind[2] + "&source=hr&externalId=" + kind[3]))
+                    .get("resourceId").asText(), kind[0]);
+            // The ID is the same row, written once more.
+            assertEquals(List.of("2"), ok(api.get("/external-ids?resourceType=" + kind[2] + "&resourceId=" + copy))
+                    .findValuesAsText("version"), kind[0]);
+            assertEquals(404, api.get(kind[1] + kind[4]).statusCode(), kind[0]);
+        }
+    }
+
+    @Test
     void aMaskAndAnEraseRemoveTheIdsOfTheLinesAndTheRolesOfThePerson() throws Exception {
         TestRealm realm = TestRealm.withEmployer("external-ids-person-data");
         Api api = realm.api;
