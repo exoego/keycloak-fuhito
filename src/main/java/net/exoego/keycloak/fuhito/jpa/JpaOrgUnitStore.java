@@ -436,6 +436,24 @@ public class JpaOrgUnitStore implements OrgUnitStore {
     }
 
     @Override
+    public Map<String, ValidPeriod> livesOf(Collection<String> ids) {
+        Map<String, ValidPeriod> lives = new HashMap<>();
+        if (ids.isEmpty()) {
+            return lives;
+        }
+        em.createQuery("""
+                        select v.orgUnitId, v.validFrom, v.validTo from OrgUnitVersionEntity v
+                        where v.realmId = :realmId and %s order by v.validFrom"""
+                        .formatted(ManyIds.has("v.orgUnitId", "ids")), Object[].class)
+                .setParameter("realmId", realmId)
+                .setParameter("ids", ManyIds.of(ids))
+                .getResultStream()
+                .forEach(row -> lives.merge((String) row[0], new ValidPeriod((LocalDate) row[1], (LocalDate) row[2]),
+                        (first, later) -> new ValidPeriod(first.from(), later.to())));
+        return lives;
+    }
+
+    @Override
     public Map<String, List<PlacedOrgUnit>> pathsOn(String hierarchyId, Collection<String> ids, LocalDate date) {
         List<Object[]> rows = em.createQuery(PATHS, Object[].class)
                 .setParameter("realmId", realmId)

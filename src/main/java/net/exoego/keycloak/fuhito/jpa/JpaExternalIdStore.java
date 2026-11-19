@@ -1,7 +1,9 @@
 package net.exoego.keycloak.fuhito.jpa;
 
 import java.util.Collection;
+import java.util.EnumMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -150,17 +152,30 @@ public class JpaExternalIdStore implements ExternalIdStore {
 
     @Override
     public void insert(ExternalId externalId) {
-        ExternalIdEntity entity = new ExternalIdEntity();
-        entity.id = externalId.id();
-        entity.realmId = realmId;
-        entity.kind = externalId.kind().name();
-        entity.resourceId = externalId.resourceId();
-        entity.source = externalId.source();
-        entity.externalId = externalId.externalId();
-        entity.version = externalId.version();
-        em.persist(entity);
+        insertAll(List.of(externalId));
+    }
+
+    @Override
+    public void insertAll(List<ExternalId> externalIds) {
+        if (externalIds.isEmpty()) {
+            return;
+        }
+        for (ExternalId externalId : externalIds) {
+            ExternalIdEntity entity = new ExternalIdEntity();
+            entity.id = externalId.id();
+            entity.realmId = realmId;
+            entity.kind = externalId.kind().name();
+            entity.resourceId = externalId.resourceId();
+            entity.source = externalId.source();
+            entity.externalId = externalId.externalId();
+            entity.version = externalId.version();
+            em.persist(entity);
+        }
         em.flush();
-        Versions.of(em, realmId, externalId.kind(), externalId.resourceId());
+        Map<ExternalId.Kind, Set<String>> resources = new EnumMap<>(ExternalId.Kind.class);
+        externalIds.forEach(row -> resources.computeIfAbsent(row.kind(), kind -> new LinkedHashSet<>())
+                .add(row.resourceId()));
+        resources.forEach((kind, ids) -> Versions.of(em, realmId, kind, ids));
     }
 
     @Override

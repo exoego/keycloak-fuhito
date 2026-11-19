@@ -2,6 +2,7 @@ package net.exoego.keycloak.fuhito.service;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -99,14 +100,15 @@ public class EmploymentService {
     }
 
     /**
-     * Returns the same operations that ask the rule for employers once for each question. They suit a list of rows
-     * that changes no org unit.
+     * Returns the same operations that ask the rule for employers once for each question, and read the definitions
+     * of attributes once for each kind of resource. They suit a list of rows that changes no org unit and no
+     * definition.
      *
      * @return the operations
      */
-    EmploymentService rememberingEmployers() {
+    EmploymentService remembering() {
         return new EmploymentService(store, externalIds, assignments, refItems, people, reportingLines, unitRoles,
-                new RememberedEmployers(employers), attributeRules);
+                new RememberedEmployers(employers), attributeRules.remembering());
     }
 
     /**
@@ -134,36 +136,155 @@ public class EmploymentService {
      *         exist or is of another person
      */
     EmploymentView start(NewEmployment request, String continuesEmploymentId) {
-        Checks.required("body", request);
-        String personId = Checks.required("personId", request.personId());
-        LocalDate from = Checks.date("validFrom", request.validFrom());
-        ValidPeriod period = Checks.period(from, Checks.optionalDate("validTo", request.validTo()));
-        String staffNumber = Checks.optionalCode("staffNumber", request.staffNumber());
-        TermsChange firstTerms = new TermsChange(request.validFrom(), request.employmentType(), request.grade(),
-                request.status(), request.leaveReason(), request.workPercent(), request.contractEndDate(),
-                request.attributes());
-        EmploymentTerms terms = terms(newId(), null, period, firstTerms, null);
-        Person person = people.find(personId).orElseThrow(
-                () -> FuhitoException.invalid("employment.person_unknown", Map.of("personId", personId)));
-        String employerId = employers.of(request.employerId(), from);
-        employers.requireCovers(employerId, period);
-        requireFreeStaffNumber(staffNumber, employerId, personId);
-        ExternalIdWrites writes = new ExternalIdWrites(externalIds, ExternalId.Kind.EMPLOYMENT);
-        ExternalId.Pair externalId = writes.check(null, request.source(), request.externalId());
-        if (continuesEmploymentId != null) {
-            Employment previous = store.find(continuesEmploymentId).orElseThrow(() -> FuhitoException.invalid(
-                    "employment.continues_unknown", Map.of("id", continuesEmploymentId)));
-            if (!previous.personId().equals(personId)) {
-                throw FuhitoException.invalid("employment.continues_other", Map.of("id", continuesEmploymentId));
-            }
+        NewEmployments starts = new NewEmployments(new ExternalIdWrites(externalIds, ExternalId.Kind.EMPLOYMENT));
+        String id = starts.start(request, continuesEmploymentId).id();
+        starts.insert();
+        return get(id);
+    }
+
+    /**
+     * Starts new employments of one list of writes.
+     *
+     * @param ids finds the employment that an ID of a system names
+     * @return the new employments
+     */
+    NewEmployments newEmployments(ExternalIdWrites.Lookup ids) {
+        return new NewEmployments(new ExternalIdWrites(externalIds, ExternalId.Kind.EMPLOYMENT, ids));
+    }
+
+    /**
+     * The new employments of one list of writes. Each one is checked against the stored employments and the new
+     * ones before it. All of them are stored together.
+     */
+    final class NewEmployments {
+
+        private final ExternalIdWrites ids;
+        private final Map<String, Optional<Person>> persons = new HashMap<>();
+        // Each legal entity gives its own numbers, so two of them may give the same number to two people.
+        private final Map<String, List<Employment>> holders = new HashMap<>();
+        private final Map<String, Employment> started = new LinkedHashMap<>();
+        private final List<EmploymentTerms> terms = new ArrayList<>();
+        private final List<ExternalId> rows = new ArrayList<>();
+        private final List<String> inserted = new ArrayList<>();
+
+        private NewEmployments(ExternalIdWrites ids) {
+            this.ids = ids;
         }
 
-        Employment employment = new Employment(newId(), personId, person.userId(), employerId, period, staffNumber,
-                null, Checks.optionalCode("source", request.source()), continuesEmploymentId, 1);
-        store.insert(employment);
-        writes.store(employment.id(), externalId);
-        store.insertTerms(terms.copy(terms.id(), employment.id(), terms.period()));
-        return get(employment.id());
+        /**
+         * Reads some people and the employments with some staff numbers, with one read for each.
+         *
+         * @param personIds the IDs of the people
+         * @param staffNumbers the staff numbers
+         */
+        void read(Collection<String> personIds, Collection<String> staffNumbers) {
+            List<String> unreadPeople = personIds.stream().distinct().filter(id -> !persons.containsKey(id)).toList();
+            unreadPeople.forEach(id -> persons.put(id, Optional.empty()));
+            people.findAll(unreadPeople).forEach(person -> persons.put(person.id(), Optional.of(person)));
+            List<String> unreadNumbers = staffNumbers.stream().distinct().filter(n -> !holders.containsKey(n)).toList();
+            unreadNumbers.forEach(number -> holders.put(number, new ArrayList<>()));
+            store.findByStaffNumbers(unreadNumbers).forEach(e -> holders.get(e.staffNumber()).add(e));
+        }
+
+        /**
+         * Finds a person.
+         *
+         * @param id the ID of the person
+         * @return the person, or empty when the realm has none with the ID
+         */
+        Optional<Person> person(String id) {
+            return persons.computeIfAbsent(id, people::find);
+        }
+
+        /**
+         * Checks a new employment as {@link EmploymentService#start(NewEmployment, String)} does, and keeps it for
+         * {@link #insert}.
+         *
+         * @param request the values of the request
+         * @param continuesEmploymentId the ID of the employment that the new one continues, or null
+         * @return the new employment
+         */
+        Employment start(NewEmployment request, String continuesEmploymentId) {
+            Checks.required("body", request);
+            String personId = Checks.required("personId", request.personId());
+            LocalDate from = Checks.date("validFrom", request.validFrom());
+            ValidPeriod period = Checks.period(from, Checks.optionalDate("validTo", request.validTo()));
+            String staffNumber = Checks.optionalCode("staffNumber", request.staffNumber());
+            TermsChange firstTerms = new TermsChange(request.validFrom(), request.employmentType(), request.grade(),
+                    request.status(), request.leaveReason(), request.workPercent(), request.contractEndDate(),
+                    request.attributes());
+            EmploymentTerms first = terms(newId(), null, period, firstTerms, null);
+            Person person = person(personId).orElseThrow(
+                    () -> FuhitoException.invalid("employment.person_unknown", Map.of("personId", personId)));
+            String employerId = employers.of(request.employerId(), from);
+            employers.requireCovers(employerId, period);
+            if (staffNumber != null && holdersOf(staffNumber).stream()
+                    .anyMatch(e -> employerId.equals(e.employerId()) && !e.personId().equals(personId))) {
+                throw FuhitoException.conflict("employment.staff_number_taken", Map.of("staffNumber", staffNumber));
+            }
+            ExternalId.Pair externalId = ids.check(null, request.source(), request.externalId());
+            if (continuesEmploymentId != null) {
+                Employment previous = Optional.ofNullable(started.get(continuesEmploymentId))
+                        .or(() -> store.find(continuesEmploymentId))
+                        .orElseThrow(() -> FuhitoException.invalid("employment.continues_unknown",
+                                Map.of("id", continuesEmploymentId)));
+                if (!previous.personId().equals(personId)) {
+                    throw FuhitoException.invalid("employment.continues_other", Map.of("id", continuesEmploymentId));
+                }
+            }
+
+            Employment employment = new Employment(newId(), personId, person.userId(), employerId, period,
+                    staffNumber, null, Checks.optionalCode("source", request.source()), continuesEmploymentId, 1);
+            started.put(employment.id(), employment);
+            if (staffNumber != null) {
+                holdersOf(staffNumber).add(employment);
+            }
+            terms.add(first.copy(first.id(), employment.id(), first.period()));
+            ids.forNew(employment.id(), externalId).ifPresent(rows::add);
+            return employment;
+        }
+
+        private List<Employment> holdersOf(String staffNumber) {
+            return holders.computeIfAbsent(staffNumber, number -> new ArrayList<>(store.findByStaffNumber(number)));
+        }
+
+        /**
+         * Gives a new employment that is not stored yet the reason of its end. The employment keeps its period, as
+         * {@link EmploymentService#end} keeps it on the last date of the period.
+         *
+         * @param id the ID of the new employment
+         * @param endReason the code of the end reason
+         * @throws FuhitoException when the realm has no active end reason with the code
+         */
+        void endReason(String id, String endReason) {
+            Employment employment = started.get(id);
+            String reasonId = usableItem(RefKind.END_REASON, endReason, null).id();
+            started.put(id, new Employment(id, employment.personId(), employment.userId(), employment.employerId(),
+                    employment.period(), employment.staffNumber(), reasonId, employment.source(),
+                    employment.continuesEmploymentId(), employment.version()));
+        }
+
+        /**
+         * Stores the new employments that are not stored yet, with their terms and their IDs of other systems.
+         */
+        void insert() {
+            store.insertAll(List.copyOf(started.values()));
+            terms.forEach(store::insertTerms);
+            externalIds.insertAll(List.copyOf(rows));
+            inserted.addAll(started.keySet());
+            started.clear();
+            terms.clear();
+            rows.clear();
+        }
+
+        /**
+         * Reads the new employments that {@link #insert} stored, with one read for all of them.
+         *
+         * @return the employments, by ID
+         */
+        Map<String, EmploymentView> views() {
+            return getAll(inserted);
+        }
     }
 
     /**
@@ -494,14 +615,6 @@ public class EmploymentService {
         return new ValidPeriod(period.from().isAfter(date) ? period.from() : date, period.to());
     }
 
-    // Each legal entity gives its own numbers, so two of them may give the same number to two people.
-    private void requireFreeStaffNumber(String staffNumber, String employerId, String personId) {
-        if (staffNumber != null && store.findByStaffNumber(staffNumber).stream()
-                .anyMatch(e -> employerId.equals(e.employerId()) && !e.personId().equals(personId))) {
-            throw FuhitoException.conflict("employment.staff_number_taken", Map.of("staffNumber", staffNumber));
-        }
-    }
-
     /**
      * Removes the end of an employment, for example to take back a resignation.
      * The last terms get no end either. Assignments stay as they are.
@@ -594,6 +707,19 @@ public class EmploymentService {
                 .map(t -> new EmploymentView.TermsView(t, codeOf(t.employmentTypeId()), codeOf(t.gradeId()),
                         codeOf(t.leaveReasonId())))
                 .toList());
+    }
+
+    /**
+     * Returns several employments with all their terms over time, as {@link #get} does for each, with one read
+     * for all of them.
+     *
+     * @param ids the IDs of the employments
+     * @return the employments that the realm has, by ID
+     */
+    Map<String, EmploymentView> getAll(Collection<String> ids) {
+        Map<String, EmploymentView> found = new HashMap<>();
+        views(store.findAll(ids)).forEach(view -> found.put(view.employment().id(), view));
+        return found;
     }
 
     /**

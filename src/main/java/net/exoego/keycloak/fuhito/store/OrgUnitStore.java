@@ -2,6 +2,7 @@ package net.exoego.keycloak.fuhito.store;
 
 import java.time.LocalDate;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -13,6 +14,7 @@ import net.exoego.keycloak.fuhito.domain.OrgUnitSuccession;
 import net.exoego.keycloak.fuhito.domain.OrgUnitVersion;
 import net.exoego.keycloak.fuhito.domain.PlacedOrgUnit;
 import net.exoego.keycloak.fuhito.domain.UnitDefaults;
+import net.exoego.keycloak.fuhito.domain.ValidPeriod;
 
 /**
  * Storage of the org units of one realm.
@@ -278,6 +280,24 @@ public interface OrgUnitStore {
      * @return the values, by the ID of the unit. A unit with neither has no entry.
      */
     Map<String, UnitDefaults> defaultsOn(Collection<String> ids, LocalDate date);
+
+    /**
+     * Returns the lives of some units, from the first date of the first version to the end of the last one.
+     * The versions of a unit have no gaps.
+     *
+     * @param ids the IDs of the units
+     * @return the life of each unit that has versions, by its ID
+     */
+    default Map<String, ValidPeriod> livesOf(Collection<String> ids) {
+        Map<String, ValidPeriod> lives = new HashMap<>();
+        ids.stream().distinct().forEach(id -> {
+            List<OrgUnitVersion> versions = versions(id);
+            if (!versions.isEmpty()) {
+                lives.put(id, new ValidPeriod(versions.getFirst().period().from(), versions.getLast().period().to()));
+            }
+        });
+        return lives;
+    }
 
     /**
      * Returns some units as they are on a date. A unit that does not exist on the date is left out.

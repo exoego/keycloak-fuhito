@@ -122,13 +122,14 @@ public class JpaEmploymentStore implements EmploymentStore {
                 .toList();
     }
 
+    // The person comes in the same query, because each employment reads the user of its person.
     @Override
     public List<Employment> findAll(Collection<String> ids) {
         if (ids.isEmpty()) {
             return List.of();
         }
         return em.createQuery("""
-                        select e from EmploymentEntity e where e.realmId = :realmId
+                        select e from EmploymentEntity e join fetch e.person where e.realmId = :realmId
                         and %s""".formatted(ManyIds.has("e.id", "ids")), EmploymentEntity.class)
                 .setParameter("realmId", realmId)
                 .setParameter("ids", ManyIds.of(ids))

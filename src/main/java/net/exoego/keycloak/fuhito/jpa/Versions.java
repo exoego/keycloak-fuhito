@@ -106,7 +106,15 @@ final class Versions {
         return versions;
     }
 
-    // The IDs that systems have for a resource are part of it.
+    // The IDs that systems have for a resource are part of it. The rows of many assignments are read together.
+    static void of(EntityManager em, String realmId, ExternalId.Kind kind, Collection<String> resourceIds) {
+        if (kind == ExternalId.Kind.ASSIGNMENT) {
+            assignments(em, realmId, resourceIds);
+        } else {
+            resourceIds.forEach(id -> of(em, realmId, kind, id));
+        }
+    }
+
     static void of(EntityManager em, String realmId, ExternalId.Kind kind, String resourceId) {
         switch (kind) {
             case ORG_UNIT -> orgUnit(em, realmId, resourceId);

@@ -1,5 +1,6 @@
 package net.exoego.keycloak.fuhito.store;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -25,6 +26,26 @@ public interface PersonStore {
      * @return the person, or empty when no person is linked to the user
      */
     Optional<Person> findByUser(String userId);
+
+    /**
+     * Lists the people with the given IDs.
+     *
+     * @param ids the IDs
+     * @return the people that exist in the realm, in no order
+     */
+    default List<Person> findAll(Collection<String> ids) {
+        return ids.stream().distinct().map(this::find).flatMap(Optional::stream).toList();
+    }
+
+    /**
+     * Lists the people that are linked to some Keycloak users.
+     *
+     * @param userIds the IDs of the users
+     * @return the people, in no order
+     */
+    default List<Person> findByUsers(Collection<String> userIds) {
+        return userIds.stream().distinct().map(this::findByUser).flatMap(Optional::stream).toList();
+    }
 
     /**
      * Lists the people of the realm, ordered by ID.
