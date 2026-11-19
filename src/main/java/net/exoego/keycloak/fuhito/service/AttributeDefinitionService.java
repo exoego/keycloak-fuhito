@@ -6,6 +6,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Predicate;
 
@@ -72,6 +73,16 @@ public class AttributeDefinitionService implements AttributeRules {
     public AttributeDefinition get(String id) {
         return store.find(id)
                 .orElseThrow(() -> FuhitoException.notFound("attribute.not_found", Map.of("id", id)));
+    }
+
+    /**
+     * Finds a definition.
+     *
+     * @param id the ID
+     * @return the definition, or empty when the realm has no such definition
+     */
+    public Optional<AttributeDefinition> find(String id) {
+        return store.find(id);
     }
 
     /**

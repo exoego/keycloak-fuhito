@@ -114,16 +114,6 @@ public class ChangeOrderService {
     }
 
     /**
-     * Finds a change order by its number.
-     *
-     * @param number the number
-     * @return the order, or empty when no order has the number
-     */
-    public Optional<ChangeOrder> ofNumber(String number) {
-        return store.findByNumber(number);
-    }
-
-    /**
      * Lists the change orders with an effective date in a range, newest effective date first.
      *
      * @param from the first effective date to return, as {@code YYYY-MM-DD}, or null

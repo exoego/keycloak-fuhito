@@ -94,9 +94,9 @@ class CsvImportServiceTest {
     @Test
     void loadsReferenceItemsWithJapaneseHeaders() {
         CsvImportService.Result result = load("refItems", "2026-04-01", """
-                ﻿種類,コード,主言語,名称,名称:en,表示順,有効
-                OCCUPATION,nurse,ja,看護師,Nurse,2,はい
-                OCCUPATION,old,ja,旧職種,,,いいえ
+                ﻿外部ID,種類,コード,主言語,名称,名称:en,表示順,有効
+                N,OCCUPATION,nurse,ja,看護師,Nurse,2,はい
+                O,OCCUPATION,old,ja,旧職種,,,いいえ
                 """);
 
         assertEquals(List.of(), errors(result));
@@ -110,13 +110,14 @@ class CsvImportServiceTest {
 
     @Test
     void loadsTheNamesOfAReferenceItemFromTheDateOfTheRow() {
-        load("refItems", "2026-04-01", "kind,code,primaryLanguage,name,name:en\nJOB_TITLE,chief,ja,主任,Chief\n");
+        load("refItems", "2026-04-01",
+                "externalId,kind,code,primaryLanguage,name,name:en\nC,JOB_TITLE,chief,ja,主任,Chief\n");
 
         // A blank name keeps the names of the date of the row.
         CsvImportService.Result result = load("refItems", "2026-04-01", """
-                種類,コード,名称,名称:en,開始日
-                JOB_TITLE,chief,,Senior Chief,2027-04-01
-                JOB_TITLE,chief,,,2027-13-01
+                外部ID,名称,名称:en,開始日
+                C,,Senior Chief,2027-04-01
+                C,,,2027-13-01
                 """);
 
         assertEquals(List.of("line 3 row 1 invalid.date"), errors(result));
@@ -130,11 +131,11 @@ class CsvImportServiceTest {
     @Test
     void aNewReferenceItemNeedsAPrimaryLanguageAndClearRemovesALanguage() {
         assertEquals(List.of("line 2 row 0 invalid.required"),
-                errors(load("refItems", "2026-04-01", "kind,code,name\nJOB_TITLE,chief,主任\n")));
-        load("refItems", "2026-04-01", "kind,code,primaryLanguage,name,name:en\nJOB_TITLE,chief,ja,主任,Chief\n");
+                errors(load("refItems", "2026-04-01", "externalId,kind,code,name\nC,JOB_TITLE,chief,主任\n")));
+        load("refItems", "2026-04-01",
+                "externalId,kind,code,primaryLanguage,name,name:en\nC,JOB_TITLE,chief,ja,主任,Chief\n");
 
-        CsvImportService.Result result = load("refItems", "2026-04-01",
-                "kind,code,name,name:en\nJOB_TITLE,chief,主任,#CLEAR\n");
+        CsvImportService.Result result = load("refItems", "2026-04-01", "externalId,name,name:en\nC,主任,#CLEAR\n");
 
         assertEquals(List.of(), errors(result));
         assertEquals(Localized.of("ja", new RefItemName("主任")),
@@ -478,7 +479,13 @@ class CsvImportServiceTest {
     @Test
     void aRowWithNoKeyIsReportedForEveryKindOfList() {
         assertEquals(List.of("line 2 row 0 invalid.required"),
-                errors(load("refItems", "2026-04-01", "kind,code,name\nUNIT_TYPE,,Ward\n")));
+                errors(load("refItems", "2026-04-01", "kind,code,primaryLanguage,name\nUNIT_TYPE,ward,en,Ward\n")));
+        assertEquals(List.of("line 2 row 0 invalid.required"),
+                errors(load("refKinds", "2026-04-01", "code,primaryLanguage,name\nsite,ja,拠点\n")));
+        assertEquals(List.of("line 2 row 0 invalid.required"),
+                errors(load("hierarchies", "2026-04-01", "code,name\nproject,Project\n")));
+        assertEquals(List.of("line 2 row 0 invalid.required"),
+                errors(load("attributeDefinitions", "2026-04-01", "target,name,type\nPERSON,note,STRING\n")));
         assertEquals(List.of("line 2 row 0 invalid.required"),
                 errors(load("orgUnits", "2026-04-01", "externalId,name\n,Ward\n")));
         assertEquals(List.of("line 2 row 0 invalid.required"),
@@ -512,19 +519,19 @@ class CsvImportServiceTest {
     @Test
     void aShortRowHasEmptyCellsAndClearWorksOnNumbersAndFlags() {
         item(RefKind.UNIT_TYPE, "ward");
-        load("refItems", "2026-04-01", "kind,code,name,displayOrder,active\nUNIT_TYPE,ward,Ward,5,no\n");
+        load("refItems", "2026-04-01", "id,name,displayOrder,active\nUNIT_TYPE-ward,Ward,5,no\n");
         var stored = refItems.findByCode(RefKind.UNIT_TYPE, "ward").orElseThrow();
         assertEquals(5, stored.displayOrder());
         assertFalse(stored.active());
 
         // The second row stops after its name. The cells that are missing keep what is stored.
         CsvImportService.Result result = load("refItems", "2026-04-01", """
-                kind,code,name,displayOrder,active
-                UNIT_TYPE,ward,Ward,#CLEAR,#CLEAR
+                id,kind,code,name,displayOrder,active
+                UNIT_TYPE-ward,UNIT_TYPE,ward,Ward,#CLEAR,#CLEAR
                 """);
         CsvImportService.Result kept = load("refItems", "2026-04-01", """
-                kind,code,name,displayOrder,active
-                UNIT_TYPE,ward,East ward
+                id,kind,code,name,displayOrder,active
+                UNIT_TYPE-ward,UNIT_TYPE,ward,East ward
                 """);
 
         assertEquals(List.of(), errors(result));

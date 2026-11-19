@@ -1,14 +1,13 @@
 package net.exoego.keycloak.fuhito.service;
 
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
 
 import net.exoego.keycloak.fuhito.domain.ChangeOrder;
 import net.exoego.keycloak.fuhito.domain.Checks;
+import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.service.ImportDocument.ChangeOrderRow;
 import net.exoego.keycloak.fuhito.service.ImportReport.Outcome;
@@ -16,9 +15,9 @@ import net.exoego.keycloak.fuhito.service.ImportReport.Write;
 import net.exoego.keycloak.fuhito.store.UserDirectory;
 
 /**
- * The change orders of one document. A row is matched by number, or by ID. A row of a stored order replaces its
- * values, as {@code PUT} does, but keeps the stored effective date when the row has none. The announcement is a fact
- * of its own and is not part of a row.
+ * The change orders of one document. A row is matched by source and external ID, or by ID. A row of a stored order
+ * replaces its values, as {@code PUT} does, but keeps the stored effective date when the row has none. The
+ * announcement is a fact of its own and is not part of a row.
  */
 final class ChangeOrderImport {
 
@@ -27,14 +26,18 @@ final class ChangeOrderImport {
     private final ChangeOrderService orders;
     private final UserDirectory users;
     private final String effectiveDate;
+    private final String defaultSource;
     private final ImportReport report;
-    private final Set<String> seen = new HashSet<>();
+    private final ImportMatch match;
 
-    ChangeOrderImport(ChangeOrderService orders, UserDirectory users, String effectiveDate, ImportReport report) {
+    ChangeOrderImport(ChangeOrderService orders, UserDirectory users, ExternalIdService externalIds,
+            String effectiveDate, String defaultSource, ImportReport report) {
         this.orders = orders;
         this.users = users;
         this.effectiveDate = effectiveDate;
+        this.defaultSource = defaultSource;
         this.report = report;
+        this.match = new ImportMatch(externalIds, ExternalId.Kind.CHANGE_ORDER);
     }
 
     void run(List<ChangeOrderRow> rows) {
@@ -49,23 +52,17 @@ final class ChangeOrderImport {
     }
 
     private Outcome apply(ChangeOrderRow row) {
-        if (row.number() == null && row.id() == null) {
-            throw FuhitoException.invalid("invalid.required", Map.of("field", "number"));
-        }
-        if (!seen.add(row.id() == null ? row.number() : "\u0000id\u0000" + row.id())) {
-            throw FuhitoException.invalid("import.duplicate_row",
-                    Map.of("externalId", Objects.requireNonNullElse(row.number(), row.id())));
-        }
-        Optional<ChangeOrder> stored = row.id() == null ? orders.ofNumber(row.number())
-                : Optional.of(orders.find(row.id())
-                        .orElseThrow(() -> FuhitoException.invalid("import.id_unknown", Map.of("id", row.id()))));
+        String source = Checks.code("source", row.source() == null ? defaultSource : row.source());
+        Optional<ChangeOrder> stored = match.stored(source, row.id(), row.externalId(),
+                id -> orders.find(id).isPresent()).map(orders::get);
         ChangeOrderValues values = new ChangeOrderValues(row.number(), row.kind(), row.title(), row.note(),
                 row.orderDate(), row.effectiveDate() != null ? row.effectiveDate()
                         : stored.map(o -> o.effectiveDate().toString()).orElse(effectiveDate),
                 userId(row.approverUserId(), row.approverUsername(), "approverUserId"),
                 userId(row.requesterUserId(), row.requesterUsername(), "requesterUserId"), row.externalReference());
         if (stored.isEmpty()) {
-            report.write(new Write.OfChangeOrder(true, orders.create(values)));
+            report.write(new Write.OfChangeOrder(true, match.create(source, row.externalId(),
+                    () -> orders.create(values), ChangeOrder::id)));
             return Outcome.CREATED;
         }
         ChangeOrder before = stored.get();

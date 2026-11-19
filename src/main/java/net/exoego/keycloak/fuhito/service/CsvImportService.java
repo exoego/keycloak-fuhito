@@ -161,24 +161,25 @@ public class CsvImportService {
     }
 
     private static final Map<Kind, Set<String>> FIELDS = Map.ofEntries(
-            Map.entry(Kind.REF_KINDS, Set.of("code", "primaryLanguage", "name")),
-            Map.entry(Kind.ATTRIBUTE_DEFINITIONS,
-                    Set.of("target", "name", "type", "refKind", "multiple", "required")),
-            Map.entry(Kind.HIERARCHIES, Set.of("code", "name")),
+            Map.entry(Kind.REF_KINDS, Set.of("id", "externalId", "source", "code", "primaryLanguage", "name")),
+            Map.entry(Kind.ATTRIBUTE_DEFINITIONS, Set.of("id", "externalId", "source", "target", "name", "type",
+                    "refKind", "multiple", "required")),
+            Map.entry(Kind.HIERARCHIES, Set.of("id", "externalId", "source", "code", "name")),
             Map.entry(Kind.ORG_UNIT_PARENTS, Set.of("hierarchy", "source", "orgUnitExternalId", "orgUnitId",
                     "parentExternalId", "parentId")),
             Map.entry(Kind.EXTERNAL_IDS, Set.of("resourceType", "resourceId", "source", "externalId")),
-            Map.entry(Kind.CHANGE_ORDERS, Set.of("id", "number", "kind", "title", "note", "orderDate",
-                    "effectiveDate", "approverUserId", "approverUsername", "requesterUserId", "requesterUsername",
-                    "externalReference")),
+            Map.entry(Kind.CHANGE_ORDERS, Set.of("id", "externalId", "source", "number", "kind", "title", "note",
+                    "orderDate", "effectiveDate", "approverUserId", "approverUsername", "requesterUserId",
+                    "requesterUsername", "externalReference")),
             Map.entry(Kind.QUALIFICATIONS, Set.of("id", "source", "externalId", "personExternalId", "personId",
                     "username", "kind", "number", "validFrom", "validTo")),
-            Map.entry(Kind.UNIT_ROLES, Set.of("id", "source", "employmentExternalId", "employmentId",
+            Map.entry(Kind.UNIT_ROLES, Set.of("id", "externalId", "source", "employmentExternalId", "employmentId",
                     "orgUnitExternalId", "orgUnitId", "role", "includesDescendants", "validFrom", "validTo")),
-            Map.entry(Kind.REPORTING_LINES, Set.of("id", "source", "assignmentExternalId", "assignmentId",
-                    "managerPersonExternalId", "managerPersonId", "managerUsername", "kind", "validFrom", "validTo")),
-            Map.entry(Kind.REF_ITEMS, Set.of("kind", "code", "primaryLanguage", "name", "displayOrder", "active",
-                    "legalEntity", "actingHead", "lateral", "validFrom")),
+            Map.entry(Kind.REPORTING_LINES, Set.of("id", "externalId", "source", "assignmentExternalId",
+                    "assignmentId", "managerPersonExternalId", "managerPersonId", "managerUsername", "kind",
+                    "validFrom", "validTo")),
+            Map.entry(Kind.REF_ITEMS, Set.of("id", "externalId", "source", "kind", "code", "primaryLanguage", "name",
+                    "displayOrder", "active", "legalEntity", "actingHead", "lateral", "validFrom")),
             Map.entry(Kind.ORG_UNITS, Set.of("id", "externalId", "source", "code", "primaryLanguage", "name",
                     "shortName", "phoneticName", "unitType", "workLocation", "costCenter", "parentExternalId",
                     "parentId", "displayOrder", "validFrom", "validTo", "successorExternalIds", "successorIds",
@@ -259,9 +260,10 @@ public class CsvImportService {
         Function<List<?>, ImportDocument> document = typed -> ImportDocument.of(effectiveDate, dryRun,
                 defaultSource, kind.list, typed);
         return switch (kind) {
-            case REF_KINDS -> run(data, columns, defined, this::refKind, document);
-            case ATTRIBUTE_DEFINITIONS -> run(data, columns, defined, this::attributeDefinition, document);
-            case HIERARCHIES -> run(data, columns, defined, this::hierarchy, document);
+            case REF_KINDS -> run(data, columns, defined, cells -> refKind(cells, defaultSource), document);
+            case ATTRIBUTE_DEFINITIONS -> run(data, columns, defined, cells -> attributeDefinition(cells,
+                    defaultSource), document);
+            case HIERARCHIES -> run(data, columns, defined, cells -> hierarchy(cells, defaultSource), document);
             case ORG_UNIT_PARENTS -> run(data, columns, defined, cells -> orgUnitParent(cells, date, defaultSource),
                     document);
             case REPORTING_LINES -> run(data, columns, defined, this::reportingLine, document);
@@ -269,8 +271,8 @@ public class CsvImportService {
             case QUALIFICATIONS -> run(data, columns, defined, cells -> qualification(cells, defaultSource),
                     document);
             case EXTERNAL_IDS -> run(data, columns, defined, cells -> externalId(cells, defaultSource), document);
-            case CHANGE_ORDERS -> run(data, columns, defined, this::changeOrder, document);
-            case REF_ITEMS -> run(data, columns, defined, cells -> refItem(cells, date), document);
+            case CHANGE_ORDERS -> run(data, columns, defined, cells -> changeOrder(cells, defaultSource), document);
+            case REF_ITEMS -> run(data, columns, defined, cells -> refItem(cells, date, defaultSource), document);
             case ORG_UNITS -> run(data, columns, defined, cells -> orgUnit(cells, date, defaultSource), document);
             case EMPLOYMENTS -> run(data, columns, defined, cells -> employment(cells, date, defaultSource),
                     document);
@@ -337,26 +339,38 @@ public class CsvImportService {
         return columns;
     }
 
-    private RefKindRow refKind(Cells cells) {
-        String code = cells.text("code", null);
-        Optional<Localized<RefKindName>> names = code == null ? Optional.empty()
-                : importService.setup().kinds().find(code).map(RealmKindService.View::names);
+    // The stored thing that a row names, as the import finds it. The import reports a row that names nothing.
+    private Optional<String> storedId(ExternalId.Kind kind, Cells cells, String defaultSource) {
+        String id = cells.text("id", null);
+        String externalId = cells.text("externalId", null);
+        if (id != null || externalId == null) {
+            return Optional.ofNullable(id);
+        }
+        return resourceOf(kind, cells.text("source", null), externalId, defaultSource);
+    }
+
+    private RefKindRow refKind(Cells cells, String defaultSource) {
+        RealmKindService kinds = importService.setup().kinds();
+        Optional<Localized<RefKindName>> names = storedId(ExternalId.Kind.REF_KIND, cells, defaultSource)
+                .flatMap(kinds::codeOf)
+                .flatMap(kinds::find)
+                .map(RealmKindService.View::names);
         String primaryLanguage = cells.primaryLanguage(names);
-        return new RefKindRow(code, primaryLanguage, cells.names(primaryLanguage,
-                names.map(Localized::byLanguage).orElse(Map.of()), NAME_ONLY,
-                (name, field, text) -> new RefKindName(text)));
+        return new RefKindRow(cells.text("id", null), cells.text("source", null), cells.text("externalId", null),
+                cells.text("code", null), primaryLanguage, cells.names(primaryLanguage,
+                        names.map(Localized::byLanguage).orElse(Map.of()), NAME_ONLY,
+                        (name, field, text) -> new RefKindName(text)));
     }
 
     // Blank cells keep the stored values. A user named by username replaces the stored ID of the user.
-    private ChangeOrderRow changeOrder(Cells cells) {
-        String id = cells.text("id", null);
-        String number = cells.text("number", null);
+    private ChangeOrderRow changeOrder(Cells cells, String defaultSource) {
         ChangeOrderService service = importService.records().changeOrders();
-        Optional<ChangeOrder> stored = id != null ? service.find(id)
-                : number == null ? Optional.empty() : service.ofNumber(number);
+        Optional<ChangeOrder> stored = storedId(ExternalId.Kind.CHANGE_ORDER, cells, defaultSource)
+                .flatMap(service::find);
         String approverUsername = cells.text("approverUsername", null);
         String requesterUsername = cells.text("requesterUsername", null);
-        return new ChangeOrderRow(id, cells.text("number", stored.map(ChangeOrder::number).orElse(null)),
+        return new ChangeOrderRow(cells.text("id", null), cells.text("source", null), cells.text("externalId", null),
+                cells.text("number", stored.map(ChangeOrder::number).orElse(null)),
                 cells.text("kind", stored.map(ChangeOrder::kind).orElse(null)),
                 cells.text("title", stored.map(ChangeOrder::title).orElse(null)),
                 cells.text("note", stored.map(ChangeOrder::note).orElse(null)),
@@ -406,22 +420,19 @@ public class CsvImportService {
                 cells.attributes(q.map(Qualification::attributes).orElse(null)));
     }
 
-    // A row with an ID keeps the stored mark in a blank cell.
+    // The import keeps the stored values of a role in blank cells.
     private UnitRoleRow unitRole(Cells cells) {
-        String id = cells.text("id", null);
-        Optional<UnitRoleService.View> stored = id == null ? Optional.empty()
-                : importService.records().unitRoles().find(id);
-        return new UnitRoleRow(id, cells.text("source", null), cells.text("employmentExternalId", null),
-                cells.text("employmentId", null), cells.text("orgUnitExternalId", null), cells.text("orgUnitId", null),
-                cells.text("role", null),
-                cells.bool("includesDescendants", stored.map(view -> view.role().includesDescendants()).orElse(null)),
-                cells.text("validFrom", null), cells.text("validTo", null));
+        return new UnitRoleRow(cells.text("id", null), cells.text("source", null), cells.text("externalId", null),
+                cells.text("employmentExternalId", null), cells.text("employmentId", null),
+                cells.text("orgUnitExternalId", null), cells.text("orgUnitId", null), cells.text("role", null),
+                cells.bool("includesDescendants", null), cells.text("validFrom", null), cells.text("validTo", null));
     }
 
-    // A row with an ID keeps the stored assignment, manager, and kind in blank cells.
+    // The import keeps the stored assignment, manager, and kind of a line in blank cells.
     private ReportingLineRow reportingLine(Cells cells) {
         return new ReportingLineRow(cells.text("id", null), cells.text("source", null),
-                cells.text("assignmentExternalId", null), cells.text("assignmentId", null),
+                cells.text("externalId", null), cells.text("assignmentExternalId", null),
+                cells.text("assignmentId", null),
                 cells.text("managerPersonExternalId", null), cells.text("managerPersonId", null),
                 cells.text("managerUsername", null), cells.text("kind", null), cells.text("validFrom", null),
                 cells.text("validTo", null));
@@ -445,22 +456,19 @@ public class CsvImportService {
                 parentId);
     }
 
-    private HierarchyRow hierarchy(Cells cells) {
-        String code = cells.text("code", null);
-        Optional<Hierarchy> stored = code == null ? Optional.empty() : importService.setup().hierarchies().find(code);
-        return new HierarchyRow(code, cells.text("name", stored.map(Hierarchy::name).orElse(null)));
+    private HierarchyRow hierarchy(Cells cells, String defaultSource) {
+        Optional<Hierarchy> stored = storedId(ExternalId.Kind.HIERARCHY, cells, defaultSource)
+                .flatMap(importService.setup().hierarchies()::findById);
+        return new HierarchyRow(cells.text("id", null), cells.text("source", null), cells.text("externalId", null),
+                cells.text("code", null), cells.text("name", stored.map(Hierarchy::name).orElse(null)));
     }
 
-    private AttributeDefinitionRow attributeDefinition(Cells cells) {
-        String target = cells.text("target", null);
-        String name = cells.text("name", null);
-        // The import reports an unknown target. Here it only means that nothing is stored.
-        Optional<AttributeDefinition> stored = target == null || name == null ? Optional.empty()
-                : quietly(() -> importService.setup().definitions().list(target)).stream()
-                        .flatMap(List::stream)
-                        .filter(definition -> definition.name().equals(name))
-                        .findFirst();
-        return new AttributeDefinitionRow(target, name,
+    // The import keeps the stored target and name in blank cells.
+    private AttributeDefinitionRow attributeDefinition(Cells cells, String defaultSource) {
+        Optional<AttributeDefinition> stored = storedId(ExternalId.Kind.ATTRIBUTE_DEFINITION, cells, defaultSource)
+                .flatMap(importService.setup().definitions()::find);
+        return new AttributeDefinitionRow(cells.text("id", null), cells.text("source", null),
+                cells.text("externalId", null), cells.text("target", null), cells.text("name", null),
                 cells.text("type", stored.map(definition -> definition.type().name()).orElse(null)),
                 cells.text("refKind", stored.map(AttributeDefinition::refKind).orElse(null)),
                 cells.bool("multiple", stored.map(AttributeDefinition::multiple).orElse(null)),
@@ -468,17 +476,15 @@ public class CsvImportService {
     }
 
     // Blank cells keep the stored values, with the names of the date of the row.
-    private RefItemRow refItem(Cells cells, LocalDate effectiveDate) {
-        String kind = cells.text("kind", null);
-        String code = cells.text("code", null);
+    private RefItemRow refItem(Cells cells, LocalDate effectiveDate, String defaultSource) {
         String validFrom = cells.text("validFrom", null);
         LocalDate date = validFrom == null ? effectiveDate : Checks.date("validFrom", validFrom);
-        // The import reports an unknown kind. Here it only means that nothing is stored.
-        Optional<RefItem> stored = code == null || kind == null ? Optional.empty()
-                : refItems.findByCode(kind, code, date);
+        Optional<RefItem> stored = storedId(ExternalId.Kind.REF_ITEM, cells, defaultSource)
+                .flatMap(id -> refItems.find(id, date));
         Optional<Localized<RefItemName>> names = stored.map(RefItem::names);
         String primaryLanguage = cells.primaryLanguage(names);
-        return new RefItemRow(kind, code, primaryLanguage, cells.names(primaryLanguage,
+        return new RefItemRow(cells.text("id", null), cells.text("source", null), cells.text("externalId", null),
+                cells.text("kind", null), cells.text("code", null), primaryLanguage, cells.names(primaryLanguage,
                         names.map(Localized::byLanguage).orElse(Map.of()), NAME_ONLY,
                         (name, field, text) -> new RefItemName(text)),
                 cells.integer("displayOrder", stored.map(RefItem::displayOrder).orElse(null)),

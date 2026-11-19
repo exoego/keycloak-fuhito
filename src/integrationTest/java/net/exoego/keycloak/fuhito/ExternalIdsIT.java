@@ -248,9 +248,9 @@ class ExternalIdsIT {
 
         // An import that changes a hierarchy and gives it an ID writes it once.
         HttpResponse<String> imported = api.post("/imports", """
-                {"effectiveDate": "2026-04-01", "source": "sheet", "hierarchies": [{"code": "project", "name": "Q"}],
+                {"effectiveDate": "2026-04-01", "source": "sheet", "hierarchies": [{"id": "%s", "name": "Q"}],
                  "externalIds": [{"resourceType": "HIERARCHY", "resourceId": "%s", "externalId": "S-1"}]}"""
-                .formatted(hierarchy));
+                .formatted(hierarchy, hierarchy));
         assertEquals(200, imported.statusCode(), imported.body());
         JsonNode renamed = ok(api.get("/hierarchies/" + hierarchy));
         assertEquals("Q", renamed.get("name").asText());

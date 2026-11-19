@@ -78,6 +78,8 @@ public class ImportsResource {
             description = "The lists are the same as for the import. A row of a thing that has an ID has the "
                     + "column `id`, so that a row of a thing with no external ID comes back too. The columns "
                     + "`source` and `externalId` hold the system that made the thing and the ID that it has there. "
+                    + "A thing that keeps no system that made it, such as a reporting line, has the first of its IDs "
+                    + "by the name of the system. "
                     + "The kinds, the definitions of attributes, the hierarchies, and the people have no date. "
                     + "The reference items have the names of the date.")
     @APIResponse(responseCode = "200", description = "The CSV, in UTF-8 with a byte order mark.")
