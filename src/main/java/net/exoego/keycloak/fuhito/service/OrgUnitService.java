@@ -4,13 +4,19 @@ import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.BiFunction;
+import java.util.function.Function;
+import java.util.function.Supplier;
 
 import net.exoego.keycloak.fuhito.domain.AttributeDefinition;
 import net.exoego.keycloak.fuhito.domain.BusinessDay;
@@ -38,9 +44,11 @@ public class OrgUnitService {
 
     private final AttributeRules attributeRules;
     private final OrgUnitStore store;
+    private final ExternalIdStore externalIdStore;
     private final ExternalIdWrites externalIds;
     private final AssignmentStore assignments;
     private final RefItemStore refItems;
+    private final Items items;
     private final Today today;
 
     /**
@@ -83,12 +91,46 @@ public class OrgUnitService {
      */
     public OrgUnitService(OrgUnitStore store, ExternalIdStore externalIds, AssignmentStore assignments,
             RefItemStore refItems, Today today, AttributeRules attributeRules) {
+        this(store, externalIds, assignments, refItems, today, attributeRules, Items.of(refItems));
+    }
+
+    private OrgUnitService(OrgUnitStore store, ExternalIdStore externalIds, AssignmentStore assignments,
+            RefItemStore refItems, Today today, AttributeRules attributeRules, Items items) {
         this.attributeRules = attributeRules;
         this.store = store;
+        this.externalIdStore = externalIds;
         this.externalIds = new ExternalIdWrites(externalIds, ExternalId.Kind.ORG_UNIT);
         this.assignments = assignments;
         this.refItems = refItems;
+        this.items = items;
         this.today = today;
+    }
+
+    // The reference items that the checks of org units read.
+    private record Items(Function<String, Optional<RefItem>> byId,
+            BiFunction<RefKind, String, Optional<RefItem>> byCode) {
+
+        static Items of(RefItemStore store) {
+            return new Items(store::find, store::findByCode);
+        }
+
+        Items remembering() {
+            Map<String, Optional<RefItem>> ids = new HashMap<>();
+            Map<List<String>, Optional<RefItem>> codes = new HashMap<>();
+            return new Items(id -> ids.computeIfAbsent(id, byId),
+                    (kind, code) -> codes.computeIfAbsent(List.of(kind.name(), code), key -> byCode.apply(kind, code)));
+        }
+    }
+
+    /**
+     * Returns the same operations that read each reference item once, and the definitions of attributes once for
+     * each kind of resource. They suit a list of writes that changes no reference item and no definition.
+     *
+     * @return the operations
+     */
+    OrgUnitService remembering() {
+        return new OrgUnitService(store, externalIdStore, assignments, refItems, today, attributeRules.remembering(),
+                items.remembering());
     }
 
     /**
@@ -100,32 +142,221 @@ public class OrgUnitService {
      *         valid
      */
     public OrgUnitState create(NewOrgUnit request) {
-        Checks.required("body", request);
-        LocalDate validFrom = Checks.date("validFrom", request.validFrom());
-        ValidPeriod period = ValidPeriod.startingAt(validFrom);
-        RefItem unitType = request.unitType() == null ? null : activeUnitType(request.unitType());
-        ExternalId.Pair externalId = externalIds.check(null, request.source(), request.externalId());
-        OrgUnit unit = new OrgUnit(newId(), Checks.optionalCode("source", request.source()), null);
-        requireFreeCode(Checks.optionalCode("code", request.code()), unit.id(), period);
-        if (request.parentId() != null) {
-            requireParentCovers(request.parentId(), period);
-            requireLineParent(unit.id(), List.of(new Nature(period, unitType != null && unitType.lateral())),
-                    request.parentId(), natures(request.parentId()), period);
+        NewOrgUnits units = new NewOrgUnits(externalIds);
+        String id = units.create(request).unit().id();
+        units.insert();
+        return units.state(id);
+    }
+
+    /**
+     * Starts new org units of one list of writes.
+     *
+     * @param ids finds the unit that an ID of a system names
+     * @return the new units
+     */
+    NewOrgUnits newOrgUnits(ExternalIdWrites.Lookup ids) {
+        return new NewOrgUnits(new ExternalIdWrites(externalIdStore, ExternalId.Kind.ORG_UNIT, ids));
+    }
+
+    /**
+     * The new org units of one list of writes, and the stored ones that its rows name. Each new unit is checked
+     * against the stored units and the new ones before it. All of them are stored together.
+     */
+    final class NewOrgUnits {
+
+        private final ExternalIdWrites ids;
+        private final Map<String, Optional<OrgUnit>> units = new HashMap<>();
+        private final Map<String, List<OrgUnitVersion>> versions = new HashMap<>();
+        private final Map<String, List<OrgUnitLink>> parents = new HashMap<>();
+        private final Map<String, List<OrgUnitVersion>> holders = new HashMap<>();
+        private final List<OrgUnitState> made = new ArrayList<>();
+        private final List<OrgUnitLink> links = new ArrayList<>();
+        private final List<ExternalId> rows = new ArrayList<>();
+        private final Map<String, OrgUnitState> states = new HashMap<>();
+        private String hierarchyId;
+
+        private NewOrgUnits(ExternalIdWrites ids) {
+            this.ids = ids;
         }
 
-        OrgUnitVersion version = version(newId(), unit.id(), period, new OrgUnitChange(request.validFrom(),
-                request.code(), request.primaryLanguage(), request.names(), request.unitType(),
-                request.workLocation(), request.costCenter(), request.displayOrder(), request.attributes()),
-                unitType, null);
-        store.insertUnit(unit);
-        externalIds.store(unit.id(), externalId);
-        store.insertVersion(version);
-        if (request.parentId() != null) {
-            store.insertLink(new OrgUnitLink(newId(), store.defaultHierarchyId(), unit.id(), request.parentId(),
-                    period));
+        /**
+         * Reads some units with their versions and their parents in the default hierarchy, and the versions with
+         * some codes, with one read for each kind.
+         *
+         * @param unitIds the IDs of the units
+         * @param codes the codes
+         */
+        void read(Collection<String> unitIds, Collection<String> codes) {
+            List<String> unread = unitIds.stream().distinct().filter(id -> !units.containsKey(id)).toList();
+            if (!unread.isEmpty()) {
+                unread.forEach(id -> units.put(id, Optional.empty()));
+                store.findUnits(unread).forEach(unit -> units.put(unit.id(), Optional.of(unit)));
+                Map<String, List<OrgUnitVersion>> found = store.versionsOf(unread);
+                unread.forEach(id -> versions.put(id, found.getOrDefault(id, List.of())));
+                Map<String, List<OrgUnitLink>> linked = store.parentLinksOf(hierarchyId(), unread);
+                unread.forEach(id -> parents.put(id, linked.getOrDefault(id, List.of())));
+            }
+            List<String> unreadCodes = codes.stream().distinct().filter(code -> !holders.containsKey(code)).toList();
+            unreadCodes.forEach(code -> holders.put(code, new ArrayList<>()));
+            store.versionsWithCodes(unreadCodes).forEach(version -> holders.get(version.code()).add(version));
         }
-        return UnitPlaces.on(List.of(OrgUnitState.of(unit, version, unitType, request.parentId())), store,
-                refItems, validFrom).getFirst();
+
+        /**
+         * Finds a unit, a new one of the list included.
+         *
+         * @param id the ID of the unit
+         * @return the unit, or empty when the realm has no such unit
+         */
+        Optional<OrgUnit> unit(String id) {
+            return units.computeIfAbsent(id, store::findUnit);
+        }
+
+        /**
+         * Lists all versions of a unit, a new one of the list included.
+         *
+         * @param unitId the ID of the unit
+         * @return the versions, oldest first, or none when the realm has no such unit
+         */
+        List<OrgUnitVersion> versions(String unitId) {
+            return versions.computeIfAbsent(unitId, store::versions);
+        }
+
+        /**
+         * Returns a stored unit as it is on a date on which it exists, as {@link OrgUnitService#get} does. Its work
+         * location and its cost center are those of its own version, with none that apply from above.
+         *
+         * @param id the ID of the unit
+         * @param date the date
+         * @return the unit on the date
+         */
+        OrgUnitState stateOn(String id, LocalDate date) {
+            OrgUnit unit = unit(id).orElseThrow();
+            OrgUnitVersion version = versions(id).stream()
+                    .filter(v -> v.period().contains(date))
+                    .findFirst()
+                    .orElseThrow();
+            RefItem unitType = version.unitTypeId() == null ? null
+                    : items.byId().apply(version.unitTypeId()).orElse(null);
+            String parentId = parents.computeIfAbsent(id, key -> store.parentLinks(hierarchyId(), key)).stream()
+                    .filter(link -> link.period().contains(date))
+                    .map(OrgUnitLink::parentId)
+                    .findFirst()
+                    .orElse(null);
+            Function<String, String> code = itemId -> itemId == null ? null
+                    : items.byId().apply(itemId).map(RefItem::code).orElse(null);
+            return OrgUnitState.of(unit, version, unitType, parentId).withPlaces(new LocationAndCost(
+                    code.apply(version.workLocationId()), code.apply(version.costCenterId()), null, null));
+        }
+
+        /**
+         * Returns the ID of the default hierarchy, which the list reads once.
+         *
+         * @return the ID
+         */
+        String hierarchyId() {
+            if (hierarchyId == null) {
+                hierarchyId = store.defaultHierarchyId();
+            }
+            return hierarchyId;
+        }
+
+        /**
+         * Runs a write that changes a stored unit. The new units go to the database first, so that the checks of the
+         * write see them. A later question about the unit reads it again.
+         *
+         * @param <T> the type of the result
+         * @param id the ID of the unit
+         * @param write the write
+         * @return the result of the write
+         */
+        <T> T write(String id, Supplier<T> write) {
+            insert();
+            try {
+                return write.get();
+            } finally {
+                units.remove(id);
+                versions.remove(id);
+                parents.remove(id);
+                holders.clear();
+            }
+        }
+
+        /**
+         * Checks a new unit as {@link OrgUnitService#create} does, and keeps it for {@link #insert}.
+         *
+         * @param request the values of the request
+         * @return the new unit on its first date, without the work location and the cost center that apply to it
+         */
+        OrgUnitState create(NewOrgUnit request) {
+            Checks.required("body", request);
+            LocalDate validFrom = Checks.date("validFrom", request.validFrom());
+            ValidPeriod period = ValidPeriod.startingAt(validFrom);
+            RefItem unitType = request.unitType() == null ? null : activeUnitType(request.unitType());
+            ExternalId.Pair externalId = ids.check(null, request.source(), request.externalId());
+            OrgUnit unit = new OrgUnit(newId(), Checks.optionalCode("source", request.source()), null);
+            String code = Checks.optionalCode("code", request.code());
+            if (code != null) {
+                requireFreeCode(holdersOf(code), code, unit.id(), period);
+            }
+            String parentId = request.parentId();
+            if (parentId != null) {
+                List<OrgUnitVersion> parent = versions(parentId);
+                requireParentCovers(parentId, parent, period);
+                requireLineParent(unit.id(), List.of(new Nature(period, unitType != null && unitType.lateral())),
+                        parentId, natures(parent), period);
+            }
+
+            OrgUnitVersion version = version(newId(), unit.id(), period, new OrgUnitChange(request.validFrom(),
+                    request.code(), request.primaryLanguage(), request.names(), request.unitType(),
+                    request.workLocation(), request.costCenter(), request.displayOrder(), request.attributes()),
+                    unitType, null);
+            units.put(unit.id(), Optional.of(unit));
+            versions.put(unit.id(), List.of(version));
+            if (code != null) {
+                holdersOf(code).add(version);
+            }
+            List<OrgUnitLink> link = parentId == null ? List.of()
+                    : List.of(new OrgUnitLink(newId(), hierarchyId(), unit.id(), parentId, period));
+            parents.put(unit.id(), link);
+            links.addAll(link);
+            ids.forNew(unit.id(), externalId).ifPresent(rows::add);
+            OrgUnitState state = OrgUnitState.of(unit, version, unitType, parentId);
+            made.add(state);
+            return state;
+        }
+
+        private List<OrgUnitVersion> holdersOf(String code) {
+            return holders.computeIfAbsent(code, key -> new ArrayList<>(store.versionsWithCodes(List.of(key))));
+        }
+
+        /**
+         * Stores the new units that are not stored yet, with their versions, their parents, and their IDs of other
+         * systems. Then reads the work location and the cost center that apply to each one on its first date.
+         */
+        void insert() {
+            store.insertUnits(made.stream().map(OrgUnitState::unit).toList());
+            made.forEach(state -> store.insertVersion(state.version()));
+            links.forEach(store::insertLink);
+            externalIdStore.insertAll(List.copyOf(rows));
+            Map<LocalDate, List<OrgUnitState>> byDate = new LinkedHashMap<>();
+            made.forEach(state -> byDate.computeIfAbsent(state.version().period().from(), date -> new ArrayList<>())
+                    .add(state));
+            byDate.forEach((date, onDate) -> UnitPlaces.on(onDate, store, refItems, date)
+                    .forEach(state -> states.put(state.unit().id(), state)));
+            made.clear();
+            links.clear();
+            rows.clear();
+        }
+
+        /**
+         * Returns a new unit that {@link #insert} stored, as it was on its first date.
+         *
+         * @param id the ID of the unit
+         * @return the unit
+         */
+        OrgUnitState state(String id) {
+            return states.get(id);
+        }
     }
 
     /**
@@ -504,7 +735,8 @@ public class OrgUnitService {
     private OrgUnitState state(String id, LocalDate date, String hierarchyId) {
         OrgUnit unit = requireUnit(id);
         OrgUnitVersion version = versionOn(id, date);
-        RefItem unitType = version.unitTypeId() == null ? null : refItems.find(version.unitTypeId()).orElse(null);
+        RefItem unitType = version.unitTypeId() == null ? null
+                : items.byId().apply(version.unitTypeId()).orElse(null);
         String parentId = store.parentLinks(hierarchyId, id).stream()
                 .filter(link -> link.period().contains(date))
                 .map(OrgUnitLink::parentId)
@@ -793,7 +1025,7 @@ public class OrgUnitService {
         if (code == null) {
             return null;
         }
-        return refItems.findByCode(kind, code)
+        return items.byCode().apply(kind, code)
                 .filter(item -> item.active() || item.id().equals(currentId))
                 .map(RefItem::id)
                 .orElseThrow(() -> FuhitoException.invalid("ref_item.unknown",
@@ -802,21 +1034,27 @@ public class OrgUnitService {
 
     // A unit may keep a unit type that was deactivated after the unit got it.
     private RefItem unitTypeForChange(String code, OrgUnitVersion current) {
-        return refItems.findByCode(RefKind.UNIT_TYPE, code)
+        return items.byCode().apply(RefKind.UNIT_TYPE, code)
                 .filter(item -> item.active() || item.id().equals(current.unitTypeId()))
                 .orElseThrow(() -> FuhitoException.invalid("org_unit.unit_type_unknown", Map.of("unitType", code)));
     }
 
     private RefItem activeUnitType(String code) {
-        return refItems.findByCode(RefKind.UNIT_TYPE, code)
+        return items.byCode().apply(RefKind.UNIT_TYPE, code)
                 .filter(RefItem::active)
                 .orElseThrow(() -> FuhitoException.invalid("org_unit.unit_type_unknown", Map.of("unitType", code)));
     }
 
-    // No two org units have the same code on the same date. One unit keeps its code over many periods.
     private void requireFreeCode(String code, String unitId, ValidPeriod period) {
-        if (code != null && store.versionsWithCode(code).stream()
-                .anyMatch(v -> !v.orgUnitId().equals(unitId) && v.period().overlaps(period))) {
+        if (code != null) {
+            requireFreeCode(store.versionsWithCodes(List.of(code)), code, unitId, period);
+        }
+    }
+
+    // No two org units have the same code on the same date. One unit keeps its code over many periods.
+    private static void requireFreeCode(List<OrgUnitVersion> holders, String code, String unitId,
+            ValidPeriod period) {
+        if (holders.stream().anyMatch(v -> !v.orgUnitId().equals(unitId) && v.period().overlaps(period))) {
             throw FuhitoException.conflict("org_unit.code_taken", Map.of("code", code));
         }
     }
@@ -826,9 +1064,13 @@ public class OrgUnitService {
     }
 
     private List<Nature> natures(String unitId) {
-        return store.versions(unitId).stream()
+        return natures(store.versions(unitId));
+    }
+
+    private List<Nature> natures(List<OrgUnitVersion> versions) {
+        return versions.stream()
                 .map(v -> new Nature(v.period(), v.unitTypeId() != null
-                        && refItems.find(v.unitTypeId()).map(RefItem::lateral).orElse(false)))
+                        && items.byId().apply(v.unitTypeId()).map(RefItem::lateral).orElse(false)))
                 .toList();
     }
 
@@ -850,9 +1092,12 @@ public class OrgUnitService {
         }
     }
 
-    // The parent must exist on every date of the child. Versions of one unit have no gaps.
     private void requireParentCovers(String parentId, ValidPeriod period) {
-        List<OrgUnitVersion> versions = store.versions(parentId);
+        requireParentCovers(parentId, store.versions(parentId), period);
+    }
+
+    // The parent must exist on every date of the child. Versions of one unit have no gaps.
+    private static void requireParentCovers(String parentId, List<OrgUnitVersion> versions, ValidPeriod period) {
         if (versions.isEmpty()) {
             throw FuhitoException.invalid("org_unit.parent_unknown", Map.of("parentId", parentId));
         }

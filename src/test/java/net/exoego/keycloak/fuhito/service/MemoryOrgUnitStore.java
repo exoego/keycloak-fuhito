@@ -10,6 +10,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -20,6 +21,7 @@ import net.exoego.keycloak.fuhito.domain.OrgUnitSuccession;
 import net.exoego.keycloak.fuhito.domain.OrgUnitVersion;
 import net.exoego.keycloak.fuhito.domain.PlacedOrgUnit;
 import net.exoego.keycloak.fuhito.domain.UnitDefaults;
+import net.exoego.keycloak.fuhito.domain.ValidPeriod;
 import net.exoego.keycloak.fuhito.store.OrgUnitStore;
 
 final class MemoryOrgUnitStore implements OrgUnitStore {
@@ -40,9 +42,21 @@ final class MemoryOrgUnitStore implements OrgUnitStore {
         return "default-hierarchy";
     }
 
+    /** How often one unit, its versions, or its parents were read. */
+    int oneReads;
+    /** How often the units, the versions, or the parents of a list, or the versions with some codes were read. */
+    int manyReads;
+
     @Override
     public Optional<OrgUnit> findUnit(String id) {
+        oneReads++;
         return Optional.ofNullable(units.get(id));
+    }
+
+    @Override
+    public List<OrgUnit> findUnits(Collection<String> ids) {
+        manyReads++;
+        return ids.stream().distinct().map(units::get).filter(Objects::nonNull).toList();
     }
 
     @Override
@@ -54,8 +68,43 @@ final class MemoryOrgUnitStore implements OrgUnitStore {
     }
 
     @Override
-    public List<OrgUnitVersion> versionsWithCode(String code) {
-        return versions.stream().filter(v -> code.equals(v.code())).toList();
+    public List<OrgUnitVersion> versionsWithCodes(Collection<String> codes) {
+        manyReads++;
+        return versions.stream().filter(v -> v.code() != null && codes.contains(v.code())).toList();
+    }
+
+    @Override
+    public Map<String, List<OrgUnitVersion>> versionsOf(Collection<String> orgUnitIds) {
+        manyReads++;
+        Map<String, List<OrgUnitVersion>> found = new HashMap<>();
+        orgUnitIds.stream().distinct().forEach(id -> {
+            List<OrgUnitVersion> of = stored(id);
+            if (!of.isEmpty()) {
+                found.put(id, of);
+            }
+        });
+        return found;
+    }
+
+    @Override
+    public Map<String, ValidPeriod> livesOf(Collection<String> ids) {
+        Map<String, ValidPeriod> lives = new HashMap<>();
+        versionsOf(ids).forEach((id, of) -> lives.put(id, new ValidPeriod(of.getFirst().period().from(),
+                of.getLast().period().to())));
+        return lives;
+    }
+
+    @Override
+    public Map<String, List<OrgUnitLink>> parentLinksOf(String hierarchyId, Collection<String> childIds) {
+        manyReads++;
+        Map<String, List<OrgUnitLink>> found = new HashMap<>();
+        childIds.stream().distinct().forEach(id -> {
+            List<OrgUnitLink> of = parentsOf(hierarchyId, id);
+            if (!of.isEmpty()) {
+                found.put(id, of);
+            }
+        });
+        return found;
     }
 
     @Override
@@ -201,7 +250,7 @@ final class MemoryOrgUnitStore implements OrgUnitStore {
             String workLocationId = null;
             String costCenterId = null;
             for (String unitId : line(defaultHierarchyId(), id, date)) {
-                Optional<OrgUnitVersion> version = versions(unitId).stream()
+                Optional<OrgUnitVersion> version = stored(unitId).stream()
                         .filter(v -> v.period().contains(date))
                         .findFirst();
                 if (version.isEmpty()) {
@@ -273,7 +322,17 @@ final class MemoryOrgUnitStore implements OrgUnitStore {
     }
 
     @Override
+    public void insertUnits(List<OrgUnit> list) {
+        list.forEach(this::insertUnit);
+    }
+
+    @Override
     public List<OrgUnitVersion> versions(String orgUnitId) {
+        oneReads++;
+        return stored(orgUnitId);
+    }
+
+    private List<OrgUnitVersion> stored(String orgUnitId) {
         return versions.stream()
                 .filter(v -> v.orgUnitId().equals(orgUnitId))
                 .sorted(Comparator.comparing(v -> v.period().from()))
@@ -292,6 +351,11 @@ final class MemoryOrgUnitStore implements OrgUnitStore {
 
     @Override
     public List<OrgUnitLink> parentLinks(String hierarchyId, String childId) {
+        oneReads++;
+        return parentsOf(hierarchyId, childId);
+    }
+
+    private List<OrgUnitLink> parentsOf(String hierarchyId, String childId) {
         return links.stream()
                 .filter(l -> l.hierarchyId().equals(hierarchyId) && l.childId().equals(childId))
                 .sorted(Comparator.comparing(l -> l.period().from()))
