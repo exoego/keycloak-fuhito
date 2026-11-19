@@ -19,6 +19,7 @@ import net.exoego.keycloak.fuhito.service.PromotionService.Promotion;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import static net.exoego.keycloak.fuhito.service.UnitNames.ja;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -55,9 +56,9 @@ class PromotionServiceTest {
             refItems.insert(new RefItem(item[0] + "-" + item[1], RefKind.valueOf(item[0]), item[1], item[1], Map.of(),
                     0, Map.of(), true));
         }
-        String ward = orgUnits.create(new NewOrgUnit(null, "Ward", null, null, null, null, null, null, "2026-04-01",
+        String ward = orgUnits.create(new NewOrgUnit(null, "ja", ja("Ward"), null, null, "2026-04-01",
                 null, null, null, null)).unit().id();
-        String committee = orgUnits.create(new NewOrgUnit(null, "Committee", null, null, null, null, null, null,
+        String committee = orgUnits.create(new NewOrgUnit(null, "ja", ja("Committee"), null, null,
                 "2026-04-01", null, null, null, null)).unit().id();
         employment = employments.start(new NewEmployment("nurse", "2026-04-01", null, "N-1", "part-time", "g1",
                 "ON_LEAVE", null, new BigDecimal("50"), "2027-03-31", Map.of("shift", "night"), null, null, null))

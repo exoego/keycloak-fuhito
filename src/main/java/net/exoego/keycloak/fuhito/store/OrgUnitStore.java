@@ -99,7 +99,7 @@ public interface OrgUnitStore {
 
     /**
      * Lists a page of a unit and everything below it on a date, each parent before its children.
-     * Siblings follow the display order, then the phonetic name, then the name, then the ID.
+     * Siblings follow the display order, then the primary phonetic name, then the primary name, then the ID.
      *
      * @param hierarchyId the ID of the hierarchy
      * @param rootId the ID of the unit to start from
@@ -163,7 +163,7 @@ public interface OrgUnitStore {
     /**
      * What a search of org units keeps. A value that is null keeps everything.
      *
-     * @param text a part of a name in any language, of a short name, or of the phonetic name, with no regard to case
+     * @param text a part of a name, a short name, or a phonetic name in any language, with no regard to case
      * @param code the code
      * @param unitTypeId the ID of the unit type
      * @param lateral true for lateral units only, false for line units only
@@ -175,7 +175,7 @@ public interface OrgUnitStore {
 
     /**
      * Lists a page of the org units that match a search on a date, in the order of siblings.
-     * Siblings follow the display order, then the phonetic name, then the name, then the ID.
+     * Siblings follow the display order, then the primary phonetic name, then the primary name, then the ID.
      *
      * @param hierarchyId the ID of the hierarchy whose parents the units come with, and whose roots the search keeps
      * @param search what to keep
@@ -239,16 +239,16 @@ public interface OrgUnitStore {
     Map<String, Set<String>> ancestorsOn(String hierarchyId, Collection<String> ids, LocalDate date);
 
     /**
-     * Lists the units from the root down to a unit on a date. The database walks upward from the unit, so the
-     * whole tree is not loaded.
+     * Lists the units from the root down to each of some units on a date. The database walks upward from the
+     * units, so the whole tree is not loaded.
      *
      * @param hierarchyId the ID of the hierarchy
-     * @param id the ID of the unit
+     * @param ids the IDs of the units
      * @param date the date
-     * @return the path, with the root first and the unit last. It is empty when the unit does not exist on the
-     *         date.
+     * @return the path of each unit, with the root first and the unit last. A unit that does not exist on the date
+     *         has none.
      */
-    List<PlacedOrgUnit> pathOn(String hierarchyId, String id, LocalDate date);
+    Map<String, List<PlacedOrgUnit>> pathsOn(String hierarchyId, Collection<String> ids, LocalDate date);
 
     /**
      * Lists the units that set a time zone or a day start of their own. Most realms have none.

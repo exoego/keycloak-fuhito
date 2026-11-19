@@ -12,7 +12,7 @@ class RealmRemovalIT {
 
     private static final List<String> TABLES = List.of("fuhito_hierarchy", "fuhito_ref_item", "fuhito_ref_item_name",
             "fuhito_attribute_definition", "fuhito_ref_kind", "fuhito_external_id", "fuhito_job_run", "fuhito_org_unit",
-            "fuhito_org_unit_version", "fuhito_org_unit_link", "fuhito_org_unit_succession", "fuhito_employment", "fuhito_employment_terms",
+            "fuhito_org_unit_version", "fuhito_org_unit_version_name", "fuhito_org_unit_link", "fuhito_org_unit_succession", "fuhito_employment", "fuhito_employment_terms",
             "fuhito_assignment", "fuhito_change_order", "fuhito_change_log", "fuhito_change_log_counter", "fuhito_qualification",
             "fuhito_reporting_line", "fuhito_unit_role", "fuhito_user_mask", "fuhito_person", "fuhito_erasure",
             "fuhito_projected_member");
@@ -51,11 +51,11 @@ class RealmRemovalIT {
     private static void fill(TestRealm realm) throws Exception {
         Api api = realm.api;
         realm.refItem("UNIT_TYPE", "hospital", "Hospital");
-        var parent = api.post("/org-units", "{\"name\": \"P\", \"unitType\": \"hospital\", \"validFrom\": \"2026-04-01\"}");
+        var parent = api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"P\"}}, \"unitType\": \"hospital\", \"validFrom\": \"2026-04-01\"}");
         assertEquals(201, parent.statusCode(), parent.body());
-        assertEquals(201, api.post("/org-units", "{\"name\": \"C\", \"parentId\": \""
+        assertEquals(201, api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"C\"}}, \"parentId\": \""
                 + Api.json(parent).get("id").asText() + "\", \"validFrom\": \"2026-04-01\"}").statusCode());
-        var old = api.post("/org-units", "{\"name\": \"Old\", \"validFrom\": \"2026-04-01\"}");
+        var old = api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"Old\"}}, \"validFrom\": \"2026-04-01\"}");
         assertEquals(201, old.statusCode(), old.body());
         var succession = api.postWithVersion("/reorganizations", "{\"effectiveDate\": \"2027-04-01\", \"steps\": [{\"op\": "
                 + "\"succeed\", \"id\": \"" + Api.json(old).get("id").asText() + "\", \"successorIds\": [\""

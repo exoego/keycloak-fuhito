@@ -958,4 +958,43 @@
     <changeSet id="0.1.0-no-idempotency-key" author="keycloak-fuhito">
         <dropTable tableName="FUHITO_IDEMPOTENCY_KEY"/>
     </changeSet>
+
+    <!-- The names of an org unit get one row for each language, and one row of each version is the primary one.
+         Nothing was released, so the names of the stored versions do not move. -->
+    <changeSet id="0.1.0-org-unit-names" author="keycloak-fuhito">
+        <createTable tableName="FUHITO_ORG_UNIT_VERSION_NAME">
+            <column name="VERSION_ID" type="VARCHAR(36)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="LANGUAGE" type="VARCHAR(64)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="REALM_ID" type="VARCHAR(36)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="IS_PRIMARY" type="BOOLEAN" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+            <column name="NAME" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="SHORT_NAME" type="VARCHAR(255)"/>
+            <column name="PHONETIC_NAME" type="VARCHAR(255)"/>
+        </createTable>
+        <addPrimaryKey tableName="FUHITO_ORG_UNIT_VERSION_NAME" columnNames="VERSION_ID, LANGUAGE"
+                       constraintName="PK_FUHITO_ORG_UNIT_VERSION_NAME"/>
+        <addForeignKeyConstraint baseTableName="FUHITO_ORG_UNIT_VERSION_NAME" baseColumnNames="VERSION_ID"
+                                 referencedTableName="FUHITO_ORG_UNIT_VERSION" referencedColumnNames="ID"
+                                 constraintName="FK_FUHITO_ORG_UNIT_VERSION_NAME_VERSION"/>
+        <sql dbms="postgresql">
+            CREATE UNIQUE INDEX UK_FUHITO_ORG_UNIT_VERSION_NAME_PRIMARY ON FUHITO_ORG_UNIT_VERSION_NAME (VERSION_ID)
+            WHERE IS_PRIMARY
+        </sql>
+        <dropColumn tableName="FUHITO_ORG_UNIT_VERSION" columnName="NAME"/>
+        <dropColumn tableName="FUHITO_ORG_UNIT_VERSION" columnName="NAMES_I18N"/>
+        <dropColumn tableName="FUHITO_ORG_UNIT_VERSION" columnName="SHORT_NAME"/>
+        <dropColumn tableName="FUHITO_ORG_UNIT_VERSION" columnName="SHORT_NAMES_I18N"/>
+        <dropColumn tableName="FUHITO_ORG_UNIT_VERSION" columnName="PHONETIC_NAME"/>
+        <dropColumn tableName="FUHITO_ORG_UNIT_VERSION" columnName="SEARCH_NAMES"/>
+    </changeSet>
 </databaseChangeLog>

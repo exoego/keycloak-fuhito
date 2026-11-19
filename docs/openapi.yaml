@@ -929,20 +929,12 @@ components:
           type: string
         code:
           type: string
-        name:
+        primaryLanguage:
           type: string
         names:
           type: object
           additionalProperties:
-            type: string
-        shortName:
-          type: string
-        shortNames:
-          type: object
-          additionalProperties:
-            type: string
-        phoneticName:
-          type: string
+            $ref: "#/components/schemas/OrgUnitName"
         unitTypeId:
           type: string
         workLocationId:
@@ -1673,7 +1665,8 @@ components:
     ImportOrgUnitRow:
       type: object
       required:
-      - name
+      - primaryLanguage
+      - names
       description: "An org unit. It is matched by its ID in the system of `source`,\
         \ whichever system made it, or by `id`. A row needs one of them."
       properties:
@@ -1692,28 +1685,15 @@ components:
           pattern: "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
           description: A code that no other org unit has on the same date. A row for
             a stored unit changes it from the effective date.
-        name:
+        primaryLanguage:
           type: string
-          maxLength: 255
-          description: The default name.
+          description: "The language tag of the primary names, such as `ja`. It is\
+            \ a key of `names`."
         names:
           type: object
           additionalProperties:
-            type: string
-          description: "Names in other languages, by language tag."
-        shortName:
-          type: string
-          maxLength: 255
-          description: The default short name.
-        shortNames:
-          type: object
-          additionalProperties:
-            type: string
-          description: "The short names in other languages, by language tag."
-        phoneticName:
-          type: string
-          maxLength: 255
-          description: The reading of the name for sorting.
+            $ref: "#/components/schemas/OrgUnitName"
+          description: "The names by language tag, such as `ja`, `en`, or `zh-Hant`."
         unitType:
           type: string
           description: The code of the unit type.
@@ -2233,7 +2213,8 @@ components:
           type: string
         orgUnitName:
           type: string
-          description: The name of the org unit on the date.
+          description: "The name of the org unit on the date, in the language of the\
+            \ request."
         orgUnitPath:
           type: array
           items:
@@ -2386,7 +2367,8 @@ components:
     OrgUnit:
       type: object
       required:
-      - name
+      - primaryLanguage
+      - names
       - validFrom
       description: An org unit as it is on one date.
       properties:
@@ -2409,26 +2391,30 @@ components:
             \ that leaves it out clears it."
         name:
           type: string
-          maxLength: 255
-          description: The default name.
+          description: "The name in the language of the request. It is the one of\
+            \ the first language of `Accept-Language`, else the one of that language\
+            \ with no region, such as `en` for `en-US`, else the primary one. A request\
+            \ with no `Accept-Language` reads the primary one."
+          readOnly: true
+        shortName:
+          type: string
+          description: The short name in the language of `name`.
+          readOnly: true
+        phoneticName:
+          type: string
+          description: The reading of the name in the language of `name`.
+          readOnly: true
+        primaryLanguage:
+          type: string
+          maxLength: 64
+          description: "The language tag of the primary names, such as `ja`. It is\
+            \ a key of `names`. The Keycloak group of the unit has the primary name."
         names:
           type: object
           additionalProperties:
-            type: string
-          description: "Names in other languages, by language tag."
-        shortName:
-          type: string
-          maxLength: 255
-          description: The default short name.
-        shortNames:
-          type: object
-          additionalProperties:
-            type: string
-          description: "The short names in other languages, by language tag."
-        phoneticName:
-          type: string
-          maxLength: 255
-          description: The reading of the name for sorting.
+            $ref: "#/components/schemas/OrgUnitName"
+          description: "The names by language tag, such as `ja`, `en`, or `zh-Hant`.\
+            \ A read gives the tags in their standard form, such as `en-US` for `en-us`."
         unitType:
           type: string
           description: The code of the unit type.
@@ -2556,6 +2542,23 @@ components:
             $ref: "#/components/schemas/ParentPeriod"
           description: "The parents in every hierarchy, oldest first. A gap in a hierarchy\
             \ means that the unit had no parent there."
+    OrgUnitName:
+      required:
+      - name
+      description: The names of an org unit in one language.
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 255
+        shortName:
+          type: string
+          maxLength: 255
+        phoneticName:
+          type: string
+          maxLength: 255
+          description: The reading of the name. The one of the primary language sorts
+            the units.
     OrgUnitSuccessionLink:
       type: object
       required:
@@ -2653,7 +2656,8 @@ components:
           type: string
         name:
           type: string
-          description: The name of the org unit on the date.
+          description: "The name of the org unit on the date, in the language of the\
+            \ request."
     Person:
       description: A person that the realm knows. A person does not need a Keycloak
         user.
@@ -3226,28 +3230,15 @@ components:
           pattern: "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
           description: "The code of a new unit, or of a unit after `change`. A `change`\
             \ that leaves it out clears it."
-        name:
+        primaryLanguage:
           type: string
-          maxLength: 255
-          description: "The default name, for a create or a change."
+          description: "The language tag of the primary names, for a create or a change.\
+            \ It is a key of `names`."
         names:
           type: object
           additionalProperties:
-            type: string
-          description: "Names in other languages, by language tag."
-        shortName:
-          type: string
-          maxLength: 255
-          description: The default short name.
-        shortNames:
-          type: object
-          additionalProperties:
-            type: string
-          description: "The short names in other languages, by language tag."
-        phoneticName:
-          type: string
-          maxLength: 255
-          description: The reading of the name for sorting.
+            $ref: "#/components/schemas/OrgUnitName"
+          description: "The names by language tag, for a create or a change."
         unitType:
           type: string
           description: The code of the unit type.
@@ -3411,7 +3402,8 @@ components:
           description: The ID of the org unit.
         orgUnitName:
           type: string
-          description: The name of the org unit on the date.
+          description: "The name of the org unit on the date, in the language of the\
+            \ request."
         role:
           type: string
           description: The code of a reference item of the kind `UNIT_ROLE`.
@@ -6292,10 +6284,10 @@ paths:
       summary: "Lists the org units of a date that match the filters, at any depth."
       description: "With no filter, the list has every org unit of the date. The filters\
         \ apply together. Each unit comes with its parent in `hierarchy`. The order\
-        \ is the display order, then the phonetic name, then the name. To read every\
-        \ unit, follow the `Link` header of each response. The list is not in tree\
-        \ order. For the tree, start from the roots, then read the children of an\
-        \ org unit or one branch with its subtree."
+        \ is the display order, then the phonetic name and the name of the primary\
+        \ language. To read every unit, follow the `Link` header of each response.\
+        \ The list is not in tree order. For the tree, start from the roots, then\
+        \ read the children of an org unit or one branch with its subtree."
       operationId: listOrgUnits
       tags:
       - org-units

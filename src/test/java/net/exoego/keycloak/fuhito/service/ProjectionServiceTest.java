@@ -20,6 +20,7 @@ import net.exoego.keycloak.fuhito.store.OrganizationGroups;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import static net.exoego.keycloak.fuhito.service.UnitNames.ja;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -286,7 +287,7 @@ class ProjectionServiceTest {
     }
 
     private String unit(String name, String parentId) {
-        return orgUnits.create(new NewOrgUnit(null, name, null, null, null, null, null, parentId, "2026-04-01", null,
+        return orgUnits.create(new NewOrgUnit(null, "ja", ja(name), null, parentId, "2026-04-01", null,
                 null, null, null)).unit().id();
     }
 
@@ -393,7 +394,7 @@ class ProjectionServiceTest {
     @Test
     void followsARenameAMoveANewUnitAndAnEndedAssignment() {
         rebuild();
-        orgUnits.changeDetails(nursing, new OrgUnitChange("2026-06-01", null, "Nursing Division", null, null, null, null,
+        orgUnits.changeDetails(nursing, new OrgUnitChange("2026-06-01", null, "ja", ja("Nursing Division"),
                 null, null, null));
         orgUnits.move(ward, hospital, "2026-06-01");
         unit("Pharmacy", hospital);
@@ -416,7 +417,7 @@ class ProjectionServiceTest {
         rebuild();
         String labGroup = groupOf(lab);
         orgUnits.end(lab, "2026-06-01");
-        String next = orgUnits.create(new NewOrgUnit(null, "Lab", null, null, null, null, null, nursing,
+        String next = orgUnits.create(new NewOrgUnit(null, "ja", ja("Lab"), null, nursing,
                 "2026-06-01", null, null, null, null)).unit().id();
 
         ProjectionReport report = rebuild();
@@ -438,9 +439,9 @@ class ProjectionServiceTest {
         rebuild();
         String eastGroup = groupOf(east);
         String teamGroup = groupOf(team);
-        orgUnits.changeDetails(east, new OrgUnitChange("2026-06-01", null, "West", null, null, null, null, null,
+        orgUnits.changeDetails(east, new OrgUnitChange("2026-06-01", null, "ja", ja("West"), null,
                 null, null));
-        orgUnits.changeDetails(west, new OrgUnitChange("2026-06-01", null, "East", null, null, null, null, null,
+        orgUnits.changeDetails(west, new OrgUnitChange("2026-06-01", null, "ja", ja("East"), null,
                 null, null));
         orgUnits.move(team, west, "2026-06-01");
         orgUnits.move(other, east, "2026-06-01");
@@ -458,7 +459,7 @@ class ProjectionServiceTest {
     @Test
     void aUnitMovesBelowANewUnit() {
         rebuild();
-        String annex = orgUnits.create(new NewOrgUnit(null, "Annex", null, null, null, null, null, hospital,
+        String annex = orgUnits.create(new NewOrgUnit(null, "ja", ja("Annex"), null, hospital,
                 "2026-06-01", null, null, null, null)).unit().id();
         orgUnits.move(ward, annex, "2026-06-01");
 
@@ -655,7 +656,7 @@ class ProjectionServiceTest {
     @Test
     void mirrorsEachLinkedUnitAsItIsOnItsOwnDate() {
         String clinic = unit("Clinic", null);
-        String lab = orgUnits.create(new NewOrgUnit(null, "Lab", null, null, null, null, null, clinic, "2026-06-15",
+        String lab = orgUnits.create(new NewOrgUnit(null, "ja", ja("Lab"), null, clinic, "2026-06-15",
                 null, null, null, null)).unit().id();
         links.link(clinic, "org-y");
         assign("technician", lab, "2026-06-15");

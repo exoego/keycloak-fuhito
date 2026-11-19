@@ -24,7 +24,7 @@ class UserRemovalIT {
     void removingAUserKeepsTheirHistoryAndEndsWhatIsOpen() throws Exception {
         TestRealm realm = TestRealm.withEmployer("user-removal");
         Api api = realm.api;
-        String unit = Api.json(api.post("/org-units", "{\"name\": \"課\", \"validFrom\": \"2020-04-01\"}")).get("id").asText();
+        String unit = Api.json(api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"課\"}}, \"validFrom\": \"2020-04-01\"}")).get("id").asText();
         String removed = realm.user("removed");
         String kept = realm.user("kept");
         List<String> removedIds = employ(api, removed, unit);
@@ -71,7 +71,7 @@ class UserRemovalIT {
     void erasingAUserRemovesEverythingAboutThemAndNothingElse() throws Exception {
         TestRealm realm = TestRealm.withEmployer("user-erase");
         Api api = realm.api;
-        String unit = Api.json(api.post("/org-units", "{\"name\": \"課\", \"validFrom\": \"2020-04-01\"}")).get("id").asText();
+        String unit = Api.json(api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"課\"}}, \"validFrom\": \"2020-04-01\"}")).get("id").asText();
         realm.refItem("QUALIFICATION", "license", "免許");
         String erased = realm.user("erased");
         String gone = realm.user("gone");
@@ -192,7 +192,7 @@ class UserRemovalIT {
     void aMaskAndAnEraseKeepTheEarlierEntriesAndAddTheirOwn() throws Exception {
         TestRealm realm = TestRealm.withEmployer("user-erase-log");
         Api api = realm.api;
-        String unit = Api.json(api.post("/org-units", "{\"name\": \"課\", \"validFrom\": \"2020-04-01\"}")).get("id").asText();
+        String unit = Api.json(api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"課\"}}, \"validFrom\": \"2020-04-01\"}")).get("id").asText();
         realm.refItem("QUALIFICATION", "license", "免許");
         String user = realm.user("leaver");
         assertEquals(201, api.post("/staff", "{\"userId\": \"" + user + "\", \"orgUnitId\": \"" + unit
@@ -229,7 +229,7 @@ class UserRemovalIT {
     void removingAUserDeletesAnEmploymentThatNeverStarted() throws Exception {
         TestRealm realm = TestRealm.withEmployer("user-removal-future");
         Api api = realm.api;
-        String unit = Api.json(api.post("/org-units", "{\"name\": \"課\", \"validFrom\": \"2020-04-01\"}")).get("id").asText();
+        String unit = Api.json(api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"課\"}}, \"validFrom\": \"2020-04-01\"}")).get("id").asText();
         String user = realm.user("joins-later");
         assertEquals(201, api.post("/staff", "{\"userId\": \"" + user + "\", \"orgUnitId\": \"" + unit
                 + "\", \"validFrom\": \"" + TOMORROW + "\"}").statusCode());

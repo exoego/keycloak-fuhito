@@ -27,9 +27,9 @@ class RealmGroupProjectionIT {
         org.setName("org");
         String orgId = CreatedResponseUtil.getCreatedId(keycloak.groups().add(org));
 
-        String hospital = Api.json(api.post("/org-units", "{\"name\": \"病院\", \"validFrom\": \"2020-04-01\"}"))
+        String hospital = Api.json(api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"病院\"}}, \"validFrom\": \"2020-04-01\"}"))
                 .get("id").asText();
-        String ward = Api.json(api.post("/org-units", "{\"name\": \"1病棟\", \"parentId\": \"" + hospital
+        String ward = Api.json(api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"1病棟\"}}, \"parentId\": \"" + hospital
                 + "\", \"validFrom\": \"2020-04-01\"}")).get("id").asText();
         String nurse = realm.user("nurse");
         HttpResponse<String> staff = api.post("/staff", "{\"userId\": \"" + nurse + "\", \"orgUnitId\": \"" + ward

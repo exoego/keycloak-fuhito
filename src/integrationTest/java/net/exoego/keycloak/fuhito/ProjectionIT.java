@@ -73,7 +73,7 @@ class ProjectionIT {
 
     private String unit(String name, String parentId) throws Exception {
         String parent = parentId == null ? "" : ", \"parentId\": \"" + parentId + "\"";
-        return post("/org-units", "{\"name\": \"" + name + "\"" + parent + ", \"validFrom\": \"2020-04-01\"}");
+        return post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"" + name + "\"}}" + parent + ", \"validFrom\": \"2020-04-01\"}");
     }
 
     private String staff(String userId, String orgUnitId) throws Exception {
@@ -242,12 +242,12 @@ class ProjectionIT {
         // The ward moves to the top with a new name, the office ends, and the nurse leaves the ward.
         // A new office takes the name of the old one on the same date.
         assertEquals(200, api.putWithVersion("/org-units/" + ward + "/parent", "{\"validFrom\": \"2021-04-01\", \"parentId\": \"" + hospital + "\"}").statusCode());
-        assertEquals(200, api.putWithVersion("/org-units/" + ward, "{\"name\": \"東病棟\", \"validFrom\": \"2021-04-01\"}").statusCode());
+        assertEquals(200, api.putWithVersion("/org-units/" + ward, "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"東病棟\"}}, \"validFrom\": \"2021-04-01\"}").statusCode());
         assertEquals(200, api.putWithVersion("/assignments/" + nurseAssignment + "/end", "{\"validTo\": \"2021-04-01\"}").statusCode());
         JsonNode clerkAssignments = Api.json(api.get("/users/" + clerk + "/assignments"));
         assertEquals(200, api.putWithVersion("/assignments/" + clerkAssignments.get(0).get("assignmentId").asText() + "/end", "{\"validTo\": \"2021-04-01\"}").statusCode());
         assertEquals(200, api.putWithVersion("/org-units/" + office + "/end", "{\"validTo\": \"2021-04-01\"}").statusCode());
-        post("/org-units", "{\"name\": \"事務室\", \"parentId\": \"" + hospital + "\", \"validFrom\": \"2021-04-01\"}");
+        post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"事務室\"}}, \"parentId\": \"" + hospital + "\", \"validFrom\": \"2021-04-01\"}");
 
         JsonNode second = rebuild();
 

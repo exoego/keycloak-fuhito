@@ -128,18 +128,21 @@ erDiagram
         varchar(36) ORG_UNIT_ID FK
         date VALID_FROM
         date VALID_TO
-        varchar(255) NAME
-        text NAMES_I18N
-        varchar(255) SHORT_NAME
-        text SHORT_NAMES_I18N
-        varchar(255) PHONETIC_NAME
         varchar(36) UNIT_TYPE_ID FK
         varchar(36) WORK_LOCATION_ID FK
         varchar(36) COST_CENTER_ID FK
         integer DISPLAY_ORDER
         text ATTRIBUTES
         varchar(64) CODE
-        text SEARCH_NAMES
+    }
+    FUHITO_ORG_UNIT_VERSION_NAME {
+        varchar(36) VERSION_ID PK, FK
+        varchar(64) LANGUAGE PK
+        varchar(36) REALM_ID
+        boolean IS_PRIMARY
+        varchar(255) NAME
+        varchar(255) SHORT_NAME
+        varchar(255) PHONETIC_NAME
     }
     FUHITO_PERSON {
         varchar(36) ID PK
@@ -233,6 +236,7 @@ erDiagram
     FUHITO_REF_ITEM |o..o{ FUHITO_ORG_UNIT_VERSION : "WORK_LOCATION_ID"
     FUHITO_REF_ITEM |o..o{ FUHITO_ORG_UNIT_VERSION : "UNIT_TYPE_ID"
     FUHITO_ORG_UNIT ||..o{ FUHITO_ORG_UNIT_VERSION : "ORG_UNIT_ID"
+    FUHITO_ORG_UNIT_VERSION ||--o{ FUHITO_ORG_UNIT_VERSION_NAME : "VERSION_ID"
     FUHITO_REF_ITEM ||..o{ FUHITO_QUALIFICATION : "KIND_ID"
     FUHITO_PERSON ||..o{ FUHITO_QUALIFICATION : "PERSON_ID"
     FUHITO_REF_ITEM ||..o{ FUHITO_REF_ITEM_NAME : "REF_ITEM_ID"

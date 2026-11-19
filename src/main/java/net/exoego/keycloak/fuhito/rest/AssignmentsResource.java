@@ -1,6 +1,7 @@
 package net.exoego.keycloak.fuhito.rest;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import jakarta.ws.rs.Consumes;
@@ -122,8 +123,10 @@ public class AssignmentsResource {
             Cursor.requireAlone(after, first);
             MembershipService.Search search = new MembershipService.Search(orgUnitId, jobTitle, occupation, kind,
                     asOf);
+            Locale language = context.nameLanguage();
             return Pages.of(context, members.search(search, Page.of(first, max), after).stream()
-                            .map(MemberRepresentation::of).toList(), Page.of(first, max).max(),
+                            .map(member -> MemberRepresentation.of(member, language)).toList(),
+                    Page.of(first, max).max(),
                     member -> Cursor.encode(Cursor.ASSIGNMENTS, member.assignmentId()));
         });
     }

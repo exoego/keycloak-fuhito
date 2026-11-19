@@ -23,7 +23,7 @@ class StaffIT {
     static void createTheClinic() throws Exception {
         realm = TestRealm.withEmployer("staff");
         api = realm.api;
-        clinic = Api.json(api.post("/org-units", "{\"name\": \"ホゲホゲ診療所\", \"validFrom\": \"2026-04-01\"}"))
+        clinic = Api.json(api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"ホゲホゲ診療所\"}}, \"validFrom\": \"2026-04-01\"}"))
                 .get("id").asText();
         realm.refItem("OCCUPATION", "nurse", "看護師");
         realm.refItem("EMPLOYMENT_TYPE", "part-time", "非常勤");

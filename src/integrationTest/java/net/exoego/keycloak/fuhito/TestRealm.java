@@ -174,8 +174,8 @@ final class TestRealm {
                     + "\"name\": \"法人\", \"legalEntity\": true}");
             // The type is there already when the realm has a legal entity.
             assertTrue(type.statusCode() == 201 || type.statusCode() == 409, type.body());
-            var response = api.post("/org-units", "{\"name\": \"" + entityName
-                    + "\", \"unitType\": \"legal-entity\", \"validFrom\": \"1990-01-01\"}");
+            var response = api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \""
+                    + entityName + "\"}}, \"unitType\": \"legal-entity\", \"validFrom\": \"1990-01-01\"}");
             assertEquals(201, response.statusCode(), response.body());
             return Api.json(response).get("id").asText();
         } catch (Exception e) {

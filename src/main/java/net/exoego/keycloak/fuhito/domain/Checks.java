@@ -24,6 +24,11 @@ public final class Checks {
      */
     public static final int MAX_NAME_LENGTH = 255;
 
+    /**
+     * The longest language tag.
+     */
+    public static final int MAX_LANGUAGE_TAG_LENGTH = 64;
+
     private static final BigDecimal HUNDRED = BigDecimal.valueOf(100);
 
     private static final Pattern CODE = Pattern.compile("[A-Za-z0-9][A-Za-z0-9_.-]*");
@@ -225,7 +230,15 @@ public final class Checks {
         return result;
     }
 
-    private static String languageTag(String field, String tag) {
+    /**
+     * Reads a language tag, for example {@code ja}, {@code en-US}, or {@code zh-Hant}.
+     *
+     * @param field the name of the field, for the error
+     * @param tag the tag
+     * @return the tag in the form of {@link Locale#toLanguageTag()}
+     * @throws FuhitoException when the tag is missing, bad, or too long
+     */
+    public static String languageTag(String field, String tag) {
         FuhitoException bad =
                 FuhitoException.invalid("invalid.language_tag", Map.of("field", field, "value", String.valueOf(tag)));
         if (tag == null) {
@@ -234,7 +247,7 @@ public final class Checks {
         try {
             // An empty tag gives "und", with no exception.
             String normalized = new Locale.Builder().setLanguageTag(tag).build().toLanguageTag();
-            if (normalized.equals("und")) {
+            if (normalized.equals("und") || normalized.length() > MAX_LANGUAGE_TAG_LENGTH) {
                 throw bad;
             }
             return normalized;

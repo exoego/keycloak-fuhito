@@ -64,8 +64,9 @@ The lists are applied in the order change orders, kinds of reference data, attri
     {"kind": "OCCUPATION", "code": "nurse", "name": "Nurse"}
   ],
   "orgUnits": [
-    {"externalId": "H", "name": "X Hospital", "validFrom": "1998-04-01"},
-    {"externalId": "W1", "name": "Ward 1", "parentExternalId": "H"}
+    {"externalId": "H", "primaryLanguage": "en", "names": {"en": {"name": "X Hospital"}},
+     "validFrom": "1998-04-01"},
+    {"externalId": "W1", "primaryLanguage": "en", "names": {"en": {"name": "Ward 1"}}, "parentExternalId": "H"}
   ],
   "employments": [
     {"externalId": "E1", "username": "nurse", "staffNumber": "N-001"}
@@ -156,6 +157,7 @@ curl -X POST \
 - The cell `#CLEAR` removes the stored value.
 - True is `true`, `1`, `yes`, `はい`, or `○`. False is `false`, `0`, `no`, `いいえ`, or `×`.
 - A name in another language has its own column, for example `name:en` or `名称:en`.
+- In a file of org units, `name`, `shortName`, and `phoneticName` are the names of the primary language, which `primaryLanguage` names. A new unit needs `primaryLanguage`. `name:en`, `shortName:en`, and `phoneticName:en` are the names of one language. `name:en` with `#CLEAR` removes that language. A CSV export leaves the columns of a language empty for a unit whose primary language it is.
 - A column `attributes.<name>` sets an attribute that the realm defined for the resource of the list, for example `attributes.beds`. The cell is read by the type of the definition. The cell of a definition with `multiple` is a JSON array, for example `["night","icu"]`, which the CSV writes as `"[""night"",""icu""]"`. Other attributes keep what is stored. A column of an attribute with no definition is rejected.
 
 ### Columns
@@ -203,6 +205,7 @@ Org units.
 | `externalId` | `外部ID` |
 | `source` | `ソース` |
 | `code` | `コード` |
+| `primaryLanguage` | `主言語` |
 | `name` | `名称` |
 | `shortName` | `略称` |
 | `phoneticName` | `よみがな` |

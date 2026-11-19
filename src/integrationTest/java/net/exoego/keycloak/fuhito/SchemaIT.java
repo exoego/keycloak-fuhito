@@ -18,16 +18,32 @@ class SchemaIT {
     void theDatabaseRejectsOverlappingVersionsOfOneUnit() throws Exception {
         KeycloakEnvironment.sql("insert into fuhito_org_unit (id, realm_id) values ('ex-u1', 'ex-realm'), ('ex-u2', 'ex-realm')");
         String insert = "insert into fuhito_org_unit_version (id, realm_id, org_unit_id, valid_from, valid_to,"
-                + " name, names_i18n, short_names_i18n, attributes) values ";
-        KeycloakEnvironment.sql(insert + "('ex-v1', 'ex-realm', 'ex-u1', '2026-04-01', '2027-04-01', 'a', '{}', '{}', '{}')");
+                + " attributes) values ";
+        KeycloakEnvironment.sql(insert + "('ex-v1', 'ex-realm', 'ex-u1', '2026-04-01', '2027-04-01', '{}')");
 
         assertTrue(KeycloakEnvironment.sqlError(insert
-                + "('ex-v2', 'ex-realm', 'ex-u1', '2027-03-31', null, 'b', '{}', '{}', '{}')")
+                + "('ex-v2', 'ex-realm', 'ex-u1', '2027-03-31', null, '{}')")
                 .contains("ex_fuhito_org_unit_version_period"));
 
         // The next period may start on the end date, and another unit may use the same dates.
-        KeycloakEnvironment.sql(insert + "('ex-v3', 'ex-realm', 'ex-u1', '2027-04-01', null, 'c', '{}', '{}', '{}')");
-        KeycloakEnvironment.sql(insert + "('ex-v4', 'ex-realm', 'ex-u2', '2026-04-01', null, 'd', '{}', '{}', '{}')");
+        KeycloakEnvironment.sql(insert + "('ex-v3', 'ex-realm', 'ex-u1', '2027-04-01', null, '{}')");
+        KeycloakEnvironment.sql(insert + "('ex-v4', 'ex-realm', 'ex-u2', '2026-04-01', null, '{}')");
+    }
+
+    @Test
+    void theDatabaseRejectsASecondPrimaryNameOfOneVersion() throws Exception {
+        KeycloakEnvironment.sql("insert into fuhito_org_unit (id, realm_id) values ('ex-u5', 'ex-realm-4')");
+        KeycloakEnvironment.sql("insert into fuhito_org_unit_version (id, realm_id, org_unit_id, valid_from, attributes)"
+                + " values ('ex-v5', 'ex-realm-4', 'ex-u5', '2026-04-01', '{}')");
+        String insert = "insert into fuhito_org_unit_version_name (version_id, language, realm_id, is_primary, name)"
+                + " values ";
+        KeycloakEnvironment.sql(insert + "('ex-v5', 'ja', 'ex-realm-4', true, '営業部')");
+        KeycloakEnvironment.sql(insert + "('ex-v5', 'en', 'ex-realm-4', false, 'Sales')");
+
+        assertTrue(KeycloakEnvironment.sqlError(insert + "('ex-v5', 'zh-Hant', 'ex-realm-4', true, '營業部')")
+                .contains("uk_fuhito_org_unit_version_name_primary"));
+        assertTrue(KeycloakEnvironment.sqlError(insert + "('ex-v5', 'en', 'ex-realm-4', false, 'Sales 2')")
+                .contains("pk_fuhito_org_unit_version_name"));
     }
 
     @Test

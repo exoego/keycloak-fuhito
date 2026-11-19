@@ -25,6 +25,8 @@ import org.eclipse.microprofile.openapi.annotations.parameters.Parameter;
 import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
 import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 
+import java.util.Locale;
+
 /**
  * The roles over org units of one realm.
  */
@@ -96,8 +98,10 @@ public class UnitRolesResource {
         return Calls.run(context, () -> {
             Cursor.requireAlone(after, first);
             UnitRoleService.Search search = new UnitRoleService.Search(role, orgUnitId, asOf);
+            Locale language = context.nameLanguage();
             return Pages.of(context, service.list(search, Page.of(first, max), after).stream()
-                            .map(RoleHolderRepresentation::of).toList(), Page.of(first, max).max(),
+                            .map(holder -> RoleHolderRepresentation.of(holder, language)).toList(),
+                    Page.of(first, max).max(),
                     holder -> Cursor.encode(Cursor.UNIT_ROLES, holder.id()));
         });
     }

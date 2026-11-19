@@ -15,10 +15,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class CsvImportIT {
 
     private static final String ORG_UNITS = """
-            外部ID,名称,名称:en,よみがな,組織種別,親の外部ID,表示順
-            H,X病院,X Hospital,えっくすびょういん,hospital,,1
-            N,看護部,Nursing,かんごぶ,,H,2
-            W1,"1病棟, 東館",,いちびょうとう,,N,1
+            外部ID,主言語,名称,名称:en,よみがな,組織種別,親の外部ID,表示順
+            H,ja,X病院,X Hospital,えっくすびょういん,hospital,,1
+            N,ja,看護部,Nursing,かんごぶ,,H,2
+            W1,ja,"1病棟, 東館",,いちびょうとう,,N,1
             """;
 
     private static JsonNode load(Api api, String list, String query, String csv) throws Exception {
@@ -40,10 +40,10 @@ class CsvImportIT {
         assertEquals(201, api.post("/attribute-definitions", "{\"target\": \"ORG_UNIT\", \"name\": \"beds\", "
                 + "\"type\": \"NUMBER\"}").statusCode());
         // One unit made through REST has no external ID, and one comes from another system.
-        String hospital = Api.json(api.post("/org-units", "{\"name\": \"X病院, 本院\", \"workLocation\": \"tokyo\", "
+        String hospital = Api.json(api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"X病院, 本院\"}}, \"workLocation\": \"tokyo\", "
                 + "\"validFrom\": \"2020-04-01\"}")).get("id").asText();
-        assertEquals(201, api.post("/org-units", "{\"name\": \"1病棟\", \"names\": {\"en\": \"Ward One\"}, "
-                + "\"shortName\": \"1W\", \"unitType\": \"ward\", \"costCenter\": \"cc-1\", \"parentId\": \""
+        assertEquals(201, api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": "
+                + "\"1病棟\", \"shortName\": \"1W\"}, \"en\": {\"name\": \"Ward One\"}}, \"unitType\": \"ward\", \"costCenter\": \"cc-1\", \"parentId\": \""
                 + hospital + "\", \"attributes\": {\"beds\": 30}, \"externalId\": \"W1\", \"source\": \"hr\", "
                 + "\"validFrom\": \"2020-04-01\"}").statusCode());
 
@@ -51,11 +51,14 @@ class CsvImportIT {
             HttpResponse<String> exported = api.get("/imports/csv/org-units?asOf=2026-05-01&header=" + header);
             assertEquals(200, exported.statusCode(), exported.body());
             assertTrue(exported.headers().firstValue("Content-Type").orElseThrow().startsWith("text/csv"));
-            assertTrue(exported.body().startsWith("\uFEFF" + (header.equals("en") ? "id,externalId,source,code,name,"
-                    + "name:en,shortName" : "ID,外部ID,ソース,コード,名称,名称:en,略称")), exported.body());
+            assertTrue(exported.body().startsWith("\uFEFF" + (header.equals("en")
+                    ? "id,externalId,source,code,primaryLanguage,name,shortName,phoneticName,name:en,shortName:en,"
+                            + "phoneticName:en,unitType"
+                    : "ID,外部ID,ソース,コード,主言語,名称,略称,よみがな,名称:en,略称:en,よみがな:en,組織種別")),
+                    exported.body());
             assertTrue(exported.body().contains("\"X病院, 本院\""), exported.body());
             // The columns of the source and the external ID hold the system that made the unit and its ID there.
-            assertTrue(exported.body().contains(",W1,hr,,1病棟,"), exported.body());
+            assertTrue(exported.body().contains(",W1,hr,,ja,1病棟,1W,,Ward One,,,ward,"), exported.body());
             assertTrue(exported.body().contains(header.equals("en") ? ",unitType,workLocation,costCenter,parentId,"
                     : ",組織種別,勤務地,コストセンター,親のID,"), exported.body());
             // The ward takes the work location of the hospital, and the file has only its own values.
@@ -85,11 +88,11 @@ class CsvImportIT {
     void aCsvFileEndsAUnitWithItsSuccessors() throws Exception {
         TestRealm realm = TestRealm.create("csv-successors");
         Api api = realm.api;
-        String old = Api.json(api.post("/org-units", "{\"name\": \"旧病棟\", \"validFrom\": \"2020-04-01\"}"))
+        String old = Api.json(api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"旧病棟\"}}, \"validFrom\": \"2020-04-01\"}"))
                 .get("id").asText();
-        String first = Api.json(api.post("/org-units", "{\"name\": \"1病棟\", \"validFrom\": \"2020-04-01\"}"))
+        String first = Api.json(api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"1病棟\"}}, \"validFrom\": \"2020-04-01\"}"))
                 .get("id").asText();
-        String second = Api.json(api.post("/org-units", "{\"name\": \"2病棟\", \"validFrom\": \"2020-04-01\"}"))
+        String second = Api.json(api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"2病棟\"}}, \"validFrom\": \"2020-04-01\"}"))
                 .get("id").asText();
 
         JsonNode report = load(api, "org-units", "effectiveDate=2026-05-01", "id,validTo,successorIds\r\n" + old
@@ -110,7 +113,7 @@ class CsvImportIT {
         TestRealm realm = TestRealm.create("csv-organizations");
         Api api = realm.api;
         String organization = realm.organization("x-hospital");
-        String hospital = Api.json(api.post("/org-units", "{\"name\": \"X病院\", \"validFrom\": \"2020-04-01\"}"))
+        String hospital = Api.json(api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"X病院\"}}, \"validFrom\": \"2020-04-01\"}"))
                 .get("id").asText();
 
         JsonNode linked = load(api, "org-units", "effectiveDate=2026-05-01", "id,organizationAlias\r\n" + hospital
@@ -135,7 +138,7 @@ class CsvImportIT {
     void anExportOfReportingLinesLoadsAgainWithNoChange() throws Exception {
         TestRealm realm = TestRealm.withEmployer("csv-export-lines");
         Api api = realm.api;
-        String ward = Api.json(api.post("/org-units", "{\"name\": \"1病棟\", \"validFrom\": \"2020-04-01\"}"))
+        String ward = Api.json(api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"1病棟\"}}, \"validFrom\": \"2020-04-01\"}"))
                 .get("id").asText();
         String assignment = Api.json(api.post("/staff", "{\"userId\": \"" + realm.user("nurse") + "\", "
                 + "\"orgUnitId\": \"" + ward + "\", \"validFrom\": \"2020-04-01\"}")).get("assignment").get("id")
@@ -169,7 +172,7 @@ class CsvImportIT {
         TestRealm realm = TestRealm.withEmployer("csv-export-roles");
         Api api = realm.api;
         realm.refItem("UNIT_ROLE", "approver", "承認者");
-        String ward = Api.json(api.post("/org-units", "{\"name\": \"1病棟\", \"validFrom\": \"2020-04-01\"}"))
+        String ward = Api.json(api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"1病棟\"}}, \"validFrom\": \"2020-04-01\"}"))
                 .get("id").asText();
         String employment = Api.json(api.post("/staff", "{\"userId\": \"" + realm.user("nurse") + "\", "
                 + "\"orgUnitId\": \"" + ward + "\", \"validFrom\": \"2020-04-01\"}")).get("employment").get("id")
@@ -231,7 +234,7 @@ class CsvImportIT {
     void anExportOfIdsOfOtherSystemsLoadsAgainWithNoChange() throws Exception {
         TestRealm realm = TestRealm.create("csv-export-external-ids");
         Api api = realm.api;
-        String ward = Api.json(api.post("/org-units", "{\"name\": \"1病棟\", \"validFrom\": \"2020-04-01\"}"))
+        String ward = Api.json(api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"1病棟\"}}, \"validFrom\": \"2020-04-01\"}"))
                 .get("id").asText();
         assertEquals(200, api.putWithVersion("/external-ids", "{\"resourceType\": \"ORG_UNIT\", \"resourceId\": \"" + ward
                 + "\", \"source\": \"payroll\", \"externalId\": \"P-1\"}").statusCode());
@@ -370,11 +373,11 @@ class CsvImportIT {
         Api api = realm.api;
         assertEquals(201, api.post("/hierarchies", "{\"code\": \"project\", \"name\": \"プロジェクト\"}")
                 .statusCode());
-        String hospital = Api.json(api.post("/org-units", "{\"name\": \"病院\", \"validFrom\": \"2020-04-01\"}"))
+        String hospital = Api.json(api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"病院\"}}, \"validFrom\": \"2020-04-01\"}"))
                 .get("id").asText();
-        String first = Api.json(api.post("/org-units", "{\"name\": \"1病棟\", \"validFrom\": \"2020-04-01\"}"))
+        String first = Api.json(api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"1病棟\"}}, \"validFrom\": \"2020-04-01\"}"))
                 .get("id").asText();
-        String second = Api.json(api.post("/org-units", "{\"name\": \"2病棟\", \"validFrom\": \"2020-04-01\"}"))
+        String second = Api.json(api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"2病棟\"}}, \"validFrom\": \"2020-04-01\"}"))
                 .get("id").asText();
         assertEquals(200, api.putWithVersion("/org-units/" + first + "/parent?hierarchy=project", "{\"parentId\": \""
                 + hospital + "\", \"validFrom\": \"2021-04-01\"}").statusCode());
@@ -503,9 +506,9 @@ class CsvImportIT {
         realm.refItem("COST_CENTER", "cc-lab", "検査室");
         assertEquals(201, api.post("/attribute-definitions", "{\"target\": \"ASSIGNMENT\", \"name\": \"room\", "
                 + "\"type\": \"STRING\"}").statusCode());
-        String ward = Api.json(api.post("/org-units", "{\"name\": \"1病棟\", \"validFrom\": \"2020-04-01\"}"))
+        String ward = Api.json(api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"1病棟\"}}, \"validFrom\": \"2020-04-01\"}"))
                 .get("id").asText();
-        String lab = Api.json(api.post("/org-units", "{\"name\": \"検査室\", \"workLocation\": \"tokyo\", "
+        String lab = Api.json(api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"検査室\"}}, \"workLocation\": \"tokyo\", "
                 + "\"costCenter\": \"cc-lab\", \"validFrom\": \"2020-04-01\"}")).get("id").asText();
         String hanako = Api.json(api.post("/people", "{\"name\": \"山田 花子\"}")).get("id").asText();
         String employment = Api.json(api.post("/employments", "{\"personId\": \"" + hanako + "\", "
@@ -616,8 +619,8 @@ class CsvImportIT {
         assertEquals(3, units.get("counts").get("orgUnits").get("created").asInt());
         JsonNode tree = api.tree("asOf=2026-04-01");
         // The legal entity of the realm is a root of its own.
-        assertEquals(List.of("法人", "X病院", "看護部", "1病棟, 東館"), tree.findValuesAsText("name"));
-        assertEquals("X Hospital", tree.get(1).get("names").get("en").asText());
+        assertEquals(List.of("法人", "X病院", "看護部", "1病棟, 東館"), Api.names(tree));
+        assertEquals("X Hospital", tree.get(1).get("names").get("en").get("name").asText());
         assertEquals("hospital", tree.get(1).get("unitType").asText());
         assertEquals("sheet", tree.get(1).get("source").asText());
         JsonNode member = Api.json(api.get("/users/" + nurse + "/assignments?asOf=2026-04-01&includePath=true")).get(0);
@@ -642,18 +645,19 @@ class CsvImportIT {
         TestRealm realm = TestRealm.create("csv-errors");
         Api api = realm.api;
 
-        JsonNode dryRun = load(api, "org-units", "effectiveDate=2026-04-01&dryRun=true", "外部ID,名称\nH,X病院\n");
+        JsonNode dryRun = load(api, "org-units", "effectiveDate=2026-04-01&dryRun=true",
+                "外部ID,主言語,名称\nH,ja,X病院\n");
         assertTrue(dryRun.get("dryRun").asBoolean());
         assertFalse(dryRun.get("applied").asBoolean());
         assertEquals(1, dryRun.get("counts").get("orgUnits").get("created").asInt());
 
         HttpResponse<String> bad = api.withAcceptLanguage("ja").postBytes(
                 "/imports/csv/org-units?effectiveDate=2026-04-01", "text/csv; charset=UTF-8", """
-                        外部ID,名称,表示順,親の外部ID
-                        H,X病院,1,
+                        外部ID,主言語,名称,表示順,親の外部ID
+                        H,ja,X病院,1,
 
-                        A,A課,多い,H
-                        B,B課,2,NOPE
+                        A,ja,A課,多い,H
+                        B,ja,B課,2,NOPE
                         """.getBytes(StandardCharsets.UTF_8));
         assertEquals(400, bad.statusCode(), bad.body());
         JsonNode report = Api.json(bad);
@@ -681,10 +685,10 @@ class CsvImportIT {
         Api api = realm.api;
 
         HttpResponse<String> response = api.postBytes("/imports/csv/org-units?effectiveDate=2026-04-01",
-                "text/csv; charset=Shift_JIS", "外部ID,名称\nH,X病院\n".getBytes(Charset.forName("Shift_JIS")));
+                "text/csv; charset=Shift_JIS", "外部ID,主言語,名称\nH,ja,X病院\n".getBytes(Charset.forName("Shift_JIS")));
 
         assertEquals(200, response.statusCode(), response.body());
-        assertEquals(List.of("X病院"), api.tree("asOf=2026-04-01").findValuesAsText("name"));
+        assertEquals(List.of("X病院"), Api.names(api.tree("asOf=2026-04-01")));
 
         HttpResponse<String> unknown = api.postBytes("/imports/csv/org-units?effectiveDate=2026-04-01",
                 "text/csv; charset=no-such-charset", "a\n1\n".getBytes(StandardCharsets.UTF_8));
@@ -704,9 +708,9 @@ class CsvImportIT {
                 UNIT_TYPE,ward,病棟,
                 """);
         load(api, "org-units", "effectiveDate=2026-04-01&source=sheet", """
-                外部ID,名称,組織種別
-                X,医療法人X会,company
-                Y,株式会社Yサービス,company
+                外部ID,主言語,名称,組織種別
+                X,ja,医療法人X会,company
+                Y,ja,株式会社Yサービス,company
                 """);
         JsonNode loaded = load(api, "employments", "effectiveDate=2026-04-01&source=sheet", """
                 外部ID,ユーザー名,雇用主の外部ID

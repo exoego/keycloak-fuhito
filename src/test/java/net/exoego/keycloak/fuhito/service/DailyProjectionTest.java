@@ -23,6 +23,7 @@ import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.store.JobRunStore.JobRun;
 import org.junit.jupiter.api.Test;
 
+import static net.exoego.keycloak.fuhito.service.UnitNames.ja;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -93,7 +94,7 @@ class DailyProjectionTest {
     }
 
     private String unit(String name, String parentId) {
-        return orgUnits.create(new NewOrgUnit(null, name, null, null, null, null, null, parentId, "2020-04-01", null,
+        return orgUnits.create(new NewOrgUnit(null, "ja", ja(name), null, parentId, "2020-04-01", null,
                 null, null, null)).unit().id();
     }
 

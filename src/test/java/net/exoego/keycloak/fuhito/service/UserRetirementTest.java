@@ -17,6 +17,7 @@ import net.exoego.keycloak.fuhito.service.ImportReport.Write;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import static net.exoego.keycloak.fuhito.service.UnitNames.ja;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class UserRetirementTest {
@@ -48,8 +49,7 @@ class UserRetirementTest {
 
     @BeforeEach
     void createAUnit() {
-        unit = new OrgUnitService(orgUnitStore, externalIds, assignmentStore, refItems, CLOCK).create(new NewOrgUnit(null, "Unit",
-                null, null, null, null, null, null, "2010-04-01", null, null, null, null)).unit().id();
+        unit = new OrgUnitService(orgUnitStore, externalIds, assignmentStore, refItems, CLOCK).create(new NewOrgUnit(null, "ja", ja("Unit"), null, null, "2010-04-01", null, null, null, null)).unit().id();
     }
 
     private String employ(String userId, String from, String to) {

@@ -158,8 +158,10 @@ class ChecksTest {
         assertEquals("内科", result.get("ja"));
     }
 
+    // The last one is a good tag of 65 characters, one more than the column of a name row has.
     @ParameterizedTest
-    @ValueSource(strings = {"", "ja_JP", "not a tag", "und"})
+    @ValueSource(strings = {"", "ja_JP", "not a tag", "und",
+        "en-x-12345678-12345678-12345678-12345678-12345678-12345678-123456"})
     void rejectsABadLanguageTag(String tag) {
         FuhitoException e = invalid(() -> Checks.localizedNames("names", Map.of(tag, "x")));
         assertEquals("invalid.language_tag", e.code());

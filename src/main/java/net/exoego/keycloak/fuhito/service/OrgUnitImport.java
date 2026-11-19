@@ -13,6 +13,7 @@ import java.util.Set;
 import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
+import net.exoego.keycloak.fuhito.domain.Localized;
 import net.exoego.keycloak.fuhito.domain.OrgUnit;
 import net.exoego.keycloak.fuhito.domain.OrgUnitVersion;
 import net.exoego.keycloak.fuhito.service.ImportDocument.OrgUnitRow;
@@ -196,10 +197,10 @@ final class OrgUnitImport {
         }
         Optional<String> stored = stored(row, source);
         if (stored.isEmpty()) {
-            OrgUnitState created = orgUnitService.create(new NewOrgUnit(row.code(), row.name(), row.names(),
-                    row.shortName(), row.shortNames(), row.phoneticName(), row.unitType(), row.workLocation(),
-                    row.costCenter(), parentId, row.validFrom() == null ? effectiveDate : row.validFrom(),
-                    row.displayOrder(), row.attributes(), row.externalId(), source));
+            OrgUnitState created = orgUnitService.create(new NewOrgUnit(row.code(), row.primaryLanguage(),
+                    row.names(), row.unitType(), row.workLocation(), row.costCenter(), parentId,
+                    row.validFrom() == null ? effectiveDate : row.validFrom(), row.displayOrder(), row.attributes(),
+                    row.externalId(), source));
             String id = created.unit().id();
             unitIdByRow.put(index, id);
             written(true, "", created);
@@ -230,9 +231,8 @@ final class OrgUnitImport {
             OrgUnitState before = orgUnitService.get(id, effectiveDate);
             if (!sameDetails(row, before)) {
                 written(false, "", orgUnitService.changeDetails(id, new OrgUnitChange(effectiveDate, row.code(),
-                        row.name(), row.names(), row.shortName(), row.shortNames(), row.phoneticName(),
-                        row.unitType(), row.workLocation(), row.costCenter(), row.displayOrder(),
-                        row.attributes())));
+                        row.primaryLanguage(), row.names(), row.unitType(), row.workLocation(), row.costCenter(),
+                        row.displayOrder(), row.attributes())));
                 changed = true;
             }
             if (!Objects.equals(parentId, before.parentId())) {
@@ -328,12 +328,8 @@ final class OrgUnitImport {
     private boolean sameDetails(OrgUnitRow row, OrgUnitState before) {
         var version = before.version();
         return Objects.equals(Checks.optionalCode("code", row.code()), version.code())
-                && Checks.name("name", row.name()).equals(version.name())
-                && Checks.localizedNames("names", row.names()).equals(version.names())
-                && Objects.equals(Checks.optionalName("shortName", row.shortName()), version.shortName())
-                && Checks.localizedNames("shortNames", row.shortNames()).equals(version.shortNames())
-                && Objects.equals(Checks.optionalName("phoneticName", row.phoneticName()),
-                        version.phoneticName())
+                && Localized.check(row.primaryLanguage(), row.names(), (field, name) -> name.checked(field))
+                        .equals(version.names())
                 && Objects.equals(row.unitType(), before.unitType())
                 && Objects.equals(row.workLocation(), before.places().workLocation())
                 && Objects.equals(row.costCenter(), before.places().costCenter())

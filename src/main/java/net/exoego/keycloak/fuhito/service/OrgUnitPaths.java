@@ -1,6 +1,7 @@
 package net.exoego.keycloak.fuhito.service;
 
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -33,11 +34,32 @@ final class OrgUnitPaths {
      */
     static List<OrgUnitState> on(OrgUnitStore store, RefItemStore refItems, String hierarchyId, String id,
             LocalDate date) {
-        List<PlacedOrgUnit> path = store.pathOn(hierarchyId, id, date);
-        if (path.isEmpty()) {
-            throw FuhitoException.notFound("org_unit.not_valid_on", Map.of("id", id, "date", date.toString()));
+        return of(store, refItems, hierarchyId, List.of(id), date).get(id);
+    }
+
+    /**
+     * Lists the units from the root down to each of some org units on a date, with one read of the store.
+     *
+     * @param store the storage of org units of the realm
+     * @param refItems the storage of reference items of the realm
+     * @param hierarchyId the ID of the hierarchy
+     * @param ids the IDs of the units
+     * @param date the date
+     * @return the path of each unit, with the root first and the unit last
+     * @throws FuhitoException when a unit does not exist on the date
+     */
+    static Map<String, List<OrgUnitState>> of(OrgUnitStore store, RefItemStore refItems, String hierarchyId,
+            Collection<String> ids, LocalDate date) {
+        Map<String, List<PlacedOrgUnit>> paths = store.pathsOn(hierarchyId, ids, date);
+        Map<String, List<OrgUnitState>> result = new HashMap<>();
+        for (String id : ids) {
+            List<PlacedOrgUnit> path = paths.get(id);
+            if (path == null) {
+                throw FuhitoException.notFound("org_unit.not_valid_on", Map.of("id", id, "date", date.toString()));
+            }
+            result.put(id, states(path, refItems));
         }
-        return states(path, refItems);
+        return result;
     }
 
     /**

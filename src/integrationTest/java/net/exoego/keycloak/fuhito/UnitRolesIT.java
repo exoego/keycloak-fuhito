@@ -29,9 +29,9 @@ class UnitRolesIT {
         Api api = realm.api;
         realm.refItem("UNIT_ROLE", "safety-officer", "安全管理者");
         String approverRole = realm.refItem("UNIT_ROLE", "approver", "承認者");
-        String division = created(api.post("/org-units", "{\"name\": \"看護部\", \"validFrom\": \"2026-04-01\"}"))
+        String division = created(api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"看護部\"}}, \"validFrom\": \"2026-04-01\"}"))
                 .get("id").asText();
-        String ward = created(api.post("/org-units", "{\"name\": \"1病棟\", \"parentId\": \"" + division
+        String ward = created(api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"1病棟\"}}, \"parentId\": \"" + division
                 + "\", \"validFrom\": \"2026-04-01\"}")).get("id").asText();
         List<String> ids = new ArrayList<>();
         List<String> roles = List.of("safety-officer", "safety-officer", "approver");
@@ -109,9 +109,9 @@ class UnitRolesIT {
         TestRealm realm = TestRealm.withEmployer("unit-roles");
         Api api = realm.api;
         realm.refItem("UNIT_ROLE", "hr-contact", "人事担当");
-        String division = created(api.post("/org-units", "{\"name\": \"看護部\", \"validFrom\": \"2026-04-01\"}"))
+        String division = created(api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"看護部\"}}, \"validFrom\": \"2026-04-01\"}"))
                 .get("id").asText();
-        String ward = created(api.post("/org-units", "{\"name\": \"1病棟\", \"parentId\": \"" + division
+        String ward = created(api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"1病棟\"}}, \"parentId\": \"" + division
                 + "\", \"validFrom\": \"2026-04-01\"}")).get("id").asText();
         String user = realm.user("hr-contact");
         String employment = created(api.post("/employments", "{\"userId\": \"" + user

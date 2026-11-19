@@ -69,7 +69,7 @@ class MembershipIT {
 
     private static String unit(String name, String parentId) throws Exception {
         String parent = parentId == null ? "" : ", \"parentId\": \"" + parentId + "\"";
-        return post("/org-units", "{\"name\": \"" + name + "\"" + parent + ", \"validFrom\": \"2026-04-01\"}").get("id").asText();
+        return post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"" + name + "\"}}" + parent + ", \"validFrom\": \"2026-04-01\"}").get("id").asText();
     }
 
     private static String staff(String userId, String orgUnitId, String more) throws Exception {
@@ -193,8 +193,8 @@ class MembershipIT {
         Map<String, String> units = new LinkedHashMap<>();
         for (String[] unit : new String[][] {{"病院", null, "0"}, {"B病棟", "病院", "2"}, {"A病棟", "病院", "1"}}) {
             String parent = unit[1] == null ? "" : ", \"parentId\": \"" + units.get(unit[1]) + "\"";
-            HttpResponse<String> response = scratchApi.post("/org-units", "{\"name\": \"" + unit[0]
-                    + "\", \"displayOrder\": " + unit[2] + parent + ", \"validFrom\": \"2026-04-01\"}");
+            HttpResponse<String> response = scratchApi.post("/org-units", "{\"primaryLanguage\": \"ja\", "
+                    + "\"names\": {\"ja\": {\"name\": \"" + unit[0] + "\"}}, \"displayOrder\": " + unit[2] + parent + ", \"validFrom\": \"2026-04-01\"}");
             assertEquals(201, response.statusCode(), response.body());
             units.put(unit[0], Api.json(response).get("id").asText());
         }

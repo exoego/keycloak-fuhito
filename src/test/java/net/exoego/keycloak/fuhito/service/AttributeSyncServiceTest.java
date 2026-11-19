@@ -33,6 +33,7 @@ import net.exoego.keycloak.fuhito.store.UserAttributeSource;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import static net.exoego.keycloak.fuhito.service.UnitNames.ja;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -89,7 +90,7 @@ class AttributeSyncServiceTest {
     }
 
     private static NewOrgUnit unit(String code, String name, String parentId) {
-        return new NewOrgUnit(code, name, null, null, null, null, null, parentId, "2020-04-01", null, null, null,
+        return new NewOrgUnit(code, "ja", ja(name), null, parentId, "2020-04-01", null, null, null,
                 null);
     }
 
@@ -262,7 +263,7 @@ class AttributeSyncServiceTest {
     }
 
     private String unitName(Assignment row) {
-        return orgUnitStore.versions(row.orgUnitId()).getFirst().name();
+        return orgUnitStore.versions(row.orgUnitId()).getFirst().names().primary().name();
     }
 
     private List<String> managersOf(String userId) {
@@ -646,7 +647,7 @@ class AttributeSyncServiceTest {
 
         // 1:00 on June 15 in New York. The lab opens that day in Los Angeles, where it is still June 14.
         clock = Clock.offset(clock, Duration.ofHours(2));
-        String lab = orgUnits.create(new NewOrgUnit("lab", "Lab", null, null, null, null, null, null, "2026-06-15",
+        String lab = orgUnits.create(new NewOrgUnit("lab", "ja", ja("Lab"), null, null, "2026-06-15",
                 null, null, null, null)).unit().id();
         orgUnits.setTime(lab, "America/Los_Angeles", null);
         attributes.remove("alice");

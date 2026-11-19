@@ -121,7 +121,7 @@ class ConditionalWritesIT {
     void anOperationThatChangesSeveralResourcesTakesTheVersionOfItsPath() throws Exception {
         TestRealm realm = TestRealm.withEmployer("versions-transfer");
         Api api = realm.api;
-        String unit = ok(api.post("/org-units", "{\"name\": \"病棟\", \"validFrom\": \"2026-04-01\"}")).get("id")
+        String unit = ok(api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"病棟\"}}, \"validFrom\": \"2026-04-01\"}")).get("id")
                 .asText();
         JsonNode staff = ok(api.post("/staff", "{\"userId\": \"" + realm.user("nurse") + "\", \"orgUnitId\": \""
                 + unit + "\", \"validFrom\": \"2026-04-01\"}"));
@@ -175,7 +175,7 @@ class ConditionalWritesIT {
     void aSecondWriteWithTheSameVersionWaitsAndFails() throws Exception {
         TestRealm realm = TestRealm.withEmployer("versions-race");
         Api api = realm.api;
-        String unit = ok(api.post("/org-units", "{\"name\": \"1病棟\", \"validFrom\": \"2026-04-01\"}")).get("id")
+        String unit = ok(api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"1病棟\"}}, \"validFrom\": \"2026-04-01\"}")).get("id")
                 .asText();
 
         CompletableFuture<HttpResponse<String>> second;
@@ -184,7 +184,7 @@ class ConditionalWritesIT {
             first.setAutoCommit(false);
             update(first, "update fuhito_org_unit set version = version + 1 where id = ?", unit);
             second = waitingFor(first, () -> api.put("/org-units/" + unit,
-                    "{\"version\": 1, \"name\": \"第1病棟\", \"validFrom\": \"2026-04-01\"}"));
+                    "{\"version\": 1, \"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"第1病棟\"}}, \"validFrom\": \"2026-04-01\"}"));
             first.commit();
         }
 
@@ -229,12 +229,12 @@ class ConditionalWritesIT {
     void theImportAndTheSyncNeedNoVersion() throws Exception {
         TestRealm realm = TestRealm.withEmployer("versions-import");
         Api api = realm.api;
-        String unit = ok(api.post("/org-units", "{\"name\": \"病院\", \"validFrom\": \"2026-04-01\", "
+        String unit = ok(api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"病院\"}}, \"validFrom\": \"2026-04-01\", "
                 + "\"source\": \"sheet\", \"externalId\": \"H\"}")).get("id").asText();
 
         ok(api.post("/imports", """
                 {"effectiveDate": "2027-04-01", "source": "sheet", "orgUnits": [
-                  {"externalId": "H", "name": "総合病院"}
+                  {"externalId": "H", "primaryLanguage": "ja", "names": {"ja": {"name": "総合病院"}}}
                 ]}"""));
         assertEquals(2, version(api, "/org-units/" + unit + "/history"));
         HttpResponse<String> csv = api.postBytes("/imports/csv/org-units?effectiveDate=2028-04-01",
@@ -248,7 +248,7 @@ class ConditionalWritesIT {
     void aRetryOfAWriteThatWentThroughFails() throws Exception {
         TestRealm realm = TestRealm.withEmployer("retries");
         Api api = realm.api;
-        String body = "{\"name\": \"1病棟\", \"validFrom\": \"2026-04-01\", \"source\": \"hr\", "
+        String body = "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"1病棟\"}}, \"validFrom\": \"2026-04-01\", \"source\": \"hr\", "
                 + "\"externalId\": \"W-1\"}";
         String unit = ok(api.post("/org-units", body)).get("id").asText();
 

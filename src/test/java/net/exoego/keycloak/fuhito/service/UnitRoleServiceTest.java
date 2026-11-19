@@ -15,6 +15,7 @@ import net.exoego.keycloak.fuhito.domain.RefKind;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import static net.exoego.keycloak.fuhito.service.UnitNames.ja;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -60,7 +61,7 @@ class UnitRoleServiceTest {
     }
 
     private String unit(String name, String parentId) {
-        return orgUnits.create(new NewOrgUnit(null, name, null, null, null, null, null, parentId, "2026-04-01", null,
+        return orgUnits.create(new NewOrgUnit(null, "ja", ja(name), null, parentId, "2026-04-01", null,
                 null, null, null)).unit().id();
     }
 
@@ -127,7 +128,7 @@ class UnitRoleServiceTest {
         UnitRoleService.Holder safety = listed.get(ids(listed).indexOf(officer));
         assertEquals("safety-officer", safety.view().code());
         assertEquals("Safety officer", safety.roleName());
-        assertEquals("Ward", safety.orgUnitName());
+        assertEquals("Ward", safety.orgUnitNames().primary().name());
         assertEquals("bob", safety.view().role().userId());
         assertEquals(2, service.count(today));
         assertEquals(sorted(contact, officer, approver), ids(service.list(july, Page.of(null, null), null)));
@@ -198,7 +199,7 @@ class UnitRoleServiceTest {
         assertEquals("unit_role.overlap", code(() -> service.add(alice, division, "approver", null, "2026-09-01",
                 null)));
         service.add(alice, division, "approver", null, "2026-10-01", null);
-        String later = orgUnits.create(new NewOrgUnit(null, "Later", null, null, null, null, null, null, "2026-07-01",
+        String later = orgUnits.create(new NewOrgUnit(null, "ja", ja("Later"), null, null, "2026-07-01",
                 null, null, null, null)).unit().id();
         assertEquals("unit_role.org_unit_not_valid", code(() -> service.add(alice, later, "approver", null,
                 "2026-04-01", null)));

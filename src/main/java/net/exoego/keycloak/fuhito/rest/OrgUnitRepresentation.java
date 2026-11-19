@@ -1,9 +1,11 @@
 package net.exoego.keycloak.fuhito.rest;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
+import net.exoego.keycloak.fuhito.domain.OrgUnitName;
 import net.exoego.keycloak.fuhito.service.ExternalIdLists;
 import net.exoego.keycloak.fuhito.service.NewOrgUnit;
 import net.exoego.keycloak.fuhito.service.OrgUnitChange;
@@ -13,7 +15,7 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
 @Schema(
         name = "OrgUnit",
         description = "An org unit as it is on one date.",
-        requiredProperties = {"name", "validFrom"})
+        requiredProperties = {"primaryLanguage", "names", "validFrom"})
 public record OrgUnitRepresentation(
         @Schema(readOnly = true)
         String id,
@@ -27,16 +29,25 @@ public record OrgUnitRepresentation(
                 maxLength = 64,
                 pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$")
         String code,
-        @Schema(description = "The default name.", maxLength = 255)
+        @Schema(
+                description = "The name in the language of the request. It is the one of the first language of "
+                        + "`Accept-Language`, else the one of that language with no region, such as `en` for "
+                        + "`en-US`, else the primary one. A request with no `Accept-Language` reads the primary one.",
+                readOnly = true)
         String name,
-        @Schema(description = "Names in other languages, by language tag.")
-        Map<String, String> names,
-        @Schema(description = "The default short name.", maxLength = 255)
+        @Schema(description = "The short name in the language of `name`.", readOnly = true)
         String shortName,
-        @Schema(description = "The short names in other languages, by language tag.")
-        Map<String, String> shortNames,
-        @Schema(description = "The reading of the name for sorting.", maxLength = 255)
+        @Schema(description = "The reading of the name in the language of `name`.", readOnly = true)
         String phoneticName,
+        @Schema(
+                description = "The language tag of the primary names, such as `ja`. It is a key of `names`. The "
+                        + "Keycloak group of the unit has the primary name.",
+                maxLength = 64)
+        String primaryLanguage,
+        @Schema(
+                description = "The names by language tag, such as `ja`, `en`, or `zh-Hant`. A read gives the tags in "
+                        + "their standard form, such as `en-US` for `en-us`.")
+        Map<String, OrgUnitName> names,
         @Schema(description = "The code of the unit type.")
         String unitType,
         @Schema(
@@ -104,14 +115,15 @@ public record OrgUnitRepresentation(
         @Schema(description = "The day start that the unit sets for itself and the units below it.", readOnly = true)
         String dayStart) implements Versioned {
 
-    static OrgUnitRepresentation of(OrgUnitState state, ExternalIdLists ids) {
+    static OrgUnitRepresentation of(OrgUnitState state, ExternalIdLists ids, Locale language) {
         var unit = state.unit();
         var version = state.version();
         var period = version.period();
         var places = state.places();
-        return new OrgUnitRepresentation(unit.id(), unit.version(), version.code(), version.name(), version.names(),
-                version.shortName(), version.shortNames(), version.phoneticName(), state.unitType(),
-                places.workLocation(), places.costCenter(), places.effectiveWorkLocation(),
+        OrgUnitName read = version.names().in(language);
+        return new OrgUnitRepresentation(unit.id(), unit.version(), version.code(), read.name(), read.shortName(),
+                read.phoneticName(), version.names().primaryLanguage(), version.names().byLanguage(),
+                state.unitType(), places.workLocation(), places.costCenter(), places.effectiveWorkLocation(),
                 places.effectiveCostCenter(), state.legalEntity() ? Boolean.TRUE : null,
                 state.lateral() ? Boolean.TRUE : null, state.parentId(), period.from().toString(),
                 Objects.toString(period.to(), null), version.displayOrder(), version.attributes(), null,
@@ -120,12 +132,12 @@ public record OrgUnitRepresentation(
     }
 
     OrgUnitChange toChange() {
-        return new OrgUnitChange(validFrom, code, name, names, shortName, shortNames, phoneticName, unitType,
-                workLocation, costCenter, displayOrder, attributes);
+        return new OrgUnitChange(validFrom, code, primaryLanguage, names, unitType, workLocation, costCenter,
+                displayOrder, attributes);
     }
 
     NewOrgUnit toNewOrgUnit() {
-        return new NewOrgUnit(code, name, names, shortName, shortNames, phoneticName, unitType, workLocation,
-                costCenter, parentId, validFrom, displayOrder, attributes, externalId, source);
+        return new NewOrgUnit(code, primaryLanguage, names, unitType, workLocation, costCenter, parentId,
+                validFrom, displayOrder, attributes, externalId, source);
     }
 }

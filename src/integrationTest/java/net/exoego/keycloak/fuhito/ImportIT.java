@@ -21,10 +21,10 @@ class ImportIT {
                {"kind": "UNIT_TYPE", "code": "department", "name": "部"}
              ],
              "orgUnits": [
-               {"externalId": "W1", "name": "1病棟", "phoneticName": "いちびょうとう", "parentExternalId": "N"},
-               {"externalId": "N", "name": "看護部", "unitType": "department", "parentExternalId": "H", "displayOrder": 2},
-               {"externalId": "M", "name": "診療部", "unitType": "department", "parentExternalId": "H", "displayOrder": 1},
-               {"externalId": "H", "name": "X病院", "unitType": "hospital", "code": "x-hospital",
+               {"externalId": "W1", "primaryLanguage": "ja", "names": {"ja": {"name": "1病棟", "phoneticName": "いちびょうとう"}}, "parentExternalId": "N"},
+               {"externalId": "N", "primaryLanguage": "ja", "names": {"ja": {"name": "看護部"}}, "unitType": "department", "parentExternalId": "H", "displayOrder": 2},
+               {"externalId": "M", "primaryLanguage": "ja", "names": {"ja": {"name": "診療部"}}, "unitType": "department", "parentExternalId": "H", "displayOrder": 1},
+               {"externalId": "H", "primaryLanguage": "ja", "names": {"ja": {"name": "X病院"}}, "unitType": "hospital", "code": "x-hospital",
                 "validFrom": "1998-04-01", "attributes": {"beds": 120}}
              ]}
             """;
@@ -35,7 +35,7 @@ class ImportIT {
     }
 
     private static List<String> names(Api api, String asOf) throws Exception {
-        return api.tree("asOf=" + asOf).findValuesAsText("name");
+        return Api.names(api.tree("asOf=" + asOf));
     }
 
     private static String rows(TestRealm realm, String table) throws Exception {
@@ -98,9 +98,9 @@ class ImportIT {
         // In April 2027 the ward gets a new name and moves, and a new department appears.
         JsonNode changed = ok(api.post("/imports", """
                 {"effectiveDate": "2027-04-01", "source": "sheet", "orgUnits": [
-                  {"externalId": "W1", "name": "東病棟", "phoneticName": "ひがしびょうとう", "parentExternalId": "M"},
-                  {"externalId": "R", "name": "リハビリ部", "unitType": "department", "parentExternalId": "H", "displayOrder": 3},
-                  {"externalId": "N", "name": "看護部", "unitType": "department", "parentExternalId": "H", "displayOrder": 2}
+                  {"externalId": "W1", "primaryLanguage": "ja", "names": {"ja": {"name": "東病棟", "phoneticName": "ひがしびょうとう"}}, "parentExternalId": "M"},
+                  {"externalId": "R", "primaryLanguage": "ja", "names": {"ja": {"name": "リハビリ部"}}, "unitType": "department", "parentExternalId": "H", "displayOrder": 3},
+                  {"externalId": "N", "primaryLanguage": "ja", "names": {"ja": {"name": "看護部"}}, "unitType": "department", "parentExternalId": "H", "displayOrder": 2}
                 ]}
                 """));
         assertEquals(1, changed.get("counts").get("orgUnits").get("created").asInt());
@@ -116,7 +116,7 @@ class ImportIT {
         String document = """
                 {"effectiveDate": "2026-04-01", "source": "sheet",
                  "hierarchies": [{"code": "project", "name": "プロジェクト"}],
-                 "orgUnits": [{"externalId": "P", "name": "P"}, {"externalId": "C", "name": "C"}],
+                 "orgUnits": [{"externalId": "P", "primaryLanguage": "ja", "names": {"ja": {"name": "P"}}}, {"externalId": "C", "primaryLanguage": "ja", "names": {"ja": {"name": "C"}}}],
                  "orgUnitParents": [{"hierarchy": "project", "orgUnitExternalId": "C", "parentExternalId": "P"}]}
                 """;
 
@@ -126,9 +126,9 @@ class ImportIT {
         assertEquals(1, first.get("counts").get("orgUnitParents").get("changed").asInt(), first.toString());
         assertEquals(1, again.get("counts").get("orgUnitParents").get("unchanged").asInt(), again.toString());
         JsonNode roots = Api.json(realm.api.get("/org-units?roots=true&asOf=2026-04-01&hierarchy=project"));
-        assertEquals(List.of("P"), roots.findValuesAsText("name"));
-        assertEquals(List.of("C"), Api.json(realm.api.get("/org-units/" + roots.get(0).get("id").asText()
-                + "/children?asOf=2026-04-01&hierarchy=project")).findValuesAsText("name"));
+        assertEquals(List.of("P"), Api.names(roots));
+        assertEquals(List.of("C"), Api.names(Api.json(realm.api.get("/org-units/" + roots.get(0).get("id").asText()
+                + "/children?asOf=2026-04-01&hierarchy=project"))));
     }
 
     @Test
@@ -156,10 +156,10 @@ class ImportIT {
 
         HttpResponse<String> response = realm.api.withAcceptLanguage("ja").post("/imports", """
                 {"effectiveDate": "2026-04-01", "orgUnits": [
-                  {"externalId": "H", "name": "X病院"},
-                  {"externalId": "A", "name": " ", "parentExternalId": "H"},
-                  {"externalId": "B", "name": "B", "parentExternalId": "NOPE"},
-                  {"externalId": "C", "name": "C", "parentExternalId": "A"}
+                  {"externalId": "H", "primaryLanguage": "ja", "names": {"ja": {"name": "X病院"}}},
+                  {"externalId": "A", "primaryLanguage": "ja", "names": {"ja": {"name": " "}}, "parentExternalId": "H"},
+                  {"externalId": "B", "primaryLanguage": "ja", "names": {"ja": {"name": "B"}}, "parentExternalId": "NOPE"},
+                  {"externalId": "C", "primaryLanguage": "ja", "names": {"ja": {"name": "C"}}, "parentExternalId": "A"}
                 ]}
                 """);
 
@@ -216,9 +216,9 @@ class ImportIT {
                    {"kind": "END_REASON", "code": "resignation", "name": "退職"}
                  ],
                  "orgUnits": [
-                   {"externalId": "H", "name": "X病院"},
-                   {"externalId": "W1", "name": "1病棟", "parentExternalId": "H"},
-                   {"externalId": "W2", "name": "2病棟", "parentExternalId": "H"}
+                   {"externalId": "H", "primaryLanguage": "ja", "names": {"ja": {"name": "X病院"}}},
+                   {"externalId": "W1", "primaryLanguage": "ja", "names": {"ja": {"name": "1病棟"}}, "parentExternalId": "H"},
+                   {"externalId": "W2", "primaryLanguage": "ja", "names": {"ja": {"name": "2病棟"}}, "parentExternalId": "H"}
                  ],
                  "employments": [
                    {"externalId": "E-nurse", "username": "nurse", "staffNumber": "N-001", "validFrom": "2020-04-01",
@@ -286,10 +286,10 @@ class ImportIT {
                 {"effectiveDate": "2020-04-01", "source": "sheet",
                  "refItems": [{"kind": "UNIT_TYPE", "code": "company", "name": "会社", "legalEntity": true}],
                  "orgUnits": [
-                   {"externalId": "X", "name": "医療法人X会", "unitType": "company"},
-                   {"externalId": "Y", "name": "株式会社Yサービス", "unitType": "company"},
-                   {"externalId": "K", "name": "栄養科", "parentExternalId": "X"},
-                   {"externalId": "L", "name": "給食課", "parentExternalId": "Y"}
+                   {"externalId": "X", "primaryLanguage": "ja", "names": {"ja": {"name": "医療法人X会"}}, "unitType": "company"},
+                   {"externalId": "Y", "primaryLanguage": "ja", "names": {"ja": {"name": "株式会社Yサービス"}}, "unitType": "company"},
+                   {"externalId": "K", "primaryLanguage": "ja", "names": {"ja": {"name": "栄養科"}}, "parentExternalId": "X"},
+                   {"externalId": "L", "primaryLanguage": "ja", "names": {"ja": {"name": "給食課"}}, "parentExternalId": "Y"}
                  ],
                  "employments": [
                    {"externalId": "E1", "username": "sato", "employerExternalId": "X", "validTo": "2026-04-01"},
@@ -345,7 +345,7 @@ class ImportIT {
 
         HttpResponse<String> response = realm.api.post("/imports", """
                 {"effectiveDate": "2026-04-01",
-                 "orgUnits": [{"externalId": "H", "name": "X病院"}],
+                 "orgUnits": [{"externalId": "H", "primaryLanguage": "ja", "names": {"ja": {"name": "X病院"}}}],
                  "employments": [
                    {"externalId": "E1", "username": "nurse"},
                    {"externalId": "E2", "username": "nobody"}
@@ -389,9 +389,9 @@ class ImportIT {
                 {"effectiveDate": "2026-04-01", "source": "sheet",
                  "refItems": [{"kind": "UNIT_TYPE", "code": "company", "name": "会社", "legalEntity": true}],
                  "orgUnits": [
-                   {"externalId": "X", "name": "医療法人X会", "unitType": "company"},
-                   {"externalId": "Y", "name": "株式会社Yサービス", "unitType": "company"},
-                   {"externalId": "K", "name": "栄養科", "parentExternalId": "X"}
+                   {"externalId": "X", "primaryLanguage": "ja", "names": {"ja": {"name": "医療法人X会"}}, "unitType": "company"},
+                   {"externalId": "Y", "primaryLanguage": "ja", "names": {"ja": {"name": "株式会社Yサービス"}}, "unitType": "company"},
+                   {"externalId": "K", "primaryLanguage": "ja", "names": {"ja": {"name": "栄養科"}}, "parentExternalId": "X"}
                  ],
                  "employments": [
                    {"externalId": "E1", "username": "sato", "staffNumber": "1001", "employerExternalId": "X"},
@@ -407,7 +407,7 @@ class ImportIT {
         assertTrue(first.get("applied").asBoolean());
         assertEquals(2, first.get("counts").get("employments").get("created").asInt());
         JsonNode entities = Api.json(api.get("/org-units?legalEntity=true&asOf=2026-04-01"));
-        assertEquals(List.of("医療法人X会", "株式会社Yサービス"), entities.findValuesAsText("name").stream().sorted().toList());
+        assertEquals(List.of("医療法人X会", "株式会社Yサービス"), Api.names(entities).stream().sorted().toList());
         String employerOfSato = Api.json(api.get("/users/" + sato + "/history")).get("employments").get(0).get("employerId").asText();
         String employerOfSuzuki = Api.json(api.get("/users/" + suzuki + "/history")).get("employments").get(0).get("employerId").asText();
         assertEquals("医療法人X会", Api.json(api.get("/org-units/" + employerOfSato + "?asOf=2026-04-01")).get("name").asText());

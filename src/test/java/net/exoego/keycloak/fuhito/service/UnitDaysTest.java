@@ -13,6 +13,7 @@ import net.exoego.keycloak.fuhito.domain.ValidPeriod;
 import net.exoego.keycloak.fuhito.domain.OrgUnitLink;
 import org.junit.jupiter.api.Test;
 
+import static net.exoego.keycloak.fuhito.service.UnitNames.ja;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -34,7 +35,7 @@ class UnitDaysTest {
             new MemoryRefItemStore(), Today.of(BASE));
 
     private String unit(String name, String parentId) {
-        return orgUnits.create(new NewOrgUnit(null, name, null, null, null, null, null, parentId, "2020-04-01", null,
+        return orgUnits.create(new NewOrgUnit(null, "ja", ja(name), null, parentId, "2020-04-01", null,
                 null, null, null)).unit().id();
     }
 
@@ -162,7 +163,7 @@ class UnitDaysTest {
     void aReadWithNoDateUsesTheDateOfTheUnit() {
         String america = unit("America", null);
         orgUnits.setTime(america, "America/New_York", null);
-        String opensInApril = orgUnits.create(new NewOrgUnit(null, "New Office", null, null, null, null, null,
+        String opensInApril = orgUnits.create(new NewOrgUnit(null, "ja", ja("New Office"), null,
                 america, "2026-04-01", null, null, null, null)).unit().id();
         OrgUnitService reads = new OrgUnitService(store, externalIds, new MemoryAssignmentStore(), new MemoryRefItemStore(),
                 days());

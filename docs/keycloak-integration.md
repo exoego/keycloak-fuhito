@@ -72,6 +72,8 @@ Each entry has these fields. A field with no value is left out.
 | `assignmentId` | The ID of the assignment |
 | `orgUnitId`, `orgUnitName`, `orgUnitCode` | The org unit |
 | `orgUnitPath` | The units from the root down to the org unit, each with `id` and `name` |
+
+The names of units are in the language of the user. That is the language that the user picked, else the default language of the realm. A realm with no languages turned on gives English. A unit with no name in that language gives its primary name.
 | `jobTitle`, `occupation`, `kind` | The codes of the reference items |
 | `effectiveWorkLocation`, `effectiveCostCenter` | The codes of the work location and the cost center that apply today. They are the ones of the assignment, else of its org unit, else of the nearest unit above in the default hierarchy |
 | `head`, `primary` | The flags of the assignment |
@@ -183,7 +185,8 @@ The projection goes one way. The tables of this extension stay the source of tru
 - An organization that no unit links on its date loses every group that the projection made there, for example when the linked unit ends or its link is taken away. It also loses every recorded member. Its other members stay.
 - While organizations are off, because the server runs without the feature or the realm turned them off, a rebuild leaves every organization and every record alone. It still mirrors the realm groups. When a unit links an organization, the rebuild writes one warning to the server log. The first rebuild after organizations are on again takes out the recorded members that should go.
 - The report has `organizationMembersAdded` and `organizationMembersRemoved`. They count the users that the rebuild added to an organization and took out of one.
-- Two units below one parent must have different names, because Keycloak requires it for groups. A rebuild fails with `projection.duplicate_name` otherwise, and changes nothing in that organization. The organizations that the rebuild handled before it stay as the rebuild left them.
+- A group has the primary name of its unit.
+- Two units below one parent must have different primary names, because Keycloak requires it for groups. A rebuild fails with `projection.duplicate_name` otherwise, and changes nothing in that organization. The organizations that the rebuild handled before it stay as the rebuild left them.
 
 The projection records no admin events and no change log entries. It changes data of Keycloak, not data of the extension.
 The records of the members that it added describe Keycloak too. So an export does not have them, and a restore keeps them.

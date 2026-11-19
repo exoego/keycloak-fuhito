@@ -527,7 +527,8 @@ public class AttributeSyncService {
                 if (unit.version().code() != null) {
                     unitByCode.put(unit.version().code(), unit.unit().id());
                 }
-                unitsByName.computeIfAbsent(unit.version().name(), name -> new ArrayList<>()).add(unit.unit().id());
+                unitsByName.computeIfAbsent(unit.version().names().primary().name(), name -> new ArrayList<>())
+                        .add(unit.unit().id());
             }
             // The code wins over the name, and an active title wins over a deactivated one.
             List<RefItem> all = from.refItems().list(RefKind.JOB_TITLE, true, today);

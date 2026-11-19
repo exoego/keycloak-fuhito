@@ -55,7 +55,7 @@ public class LegalEntityEmployers implements Employers {
         boolean legalEntity = unitTypeId != null && refItems.find(unitTypeId).map(RefItem::legalEntity).orElse(false);
         if (!legalEntity) {
             throw FuhitoException.invalid("employment.employer_not_legal_entity",
-                    Map.of("employerId", requestedId, "name", unit.version().name()));
+                    Map.of("employerId", requestedId, "name", unit.version().names().primary().name()));
         }
         return requestedId;
     }

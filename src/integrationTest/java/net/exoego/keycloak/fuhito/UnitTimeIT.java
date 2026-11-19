@@ -19,7 +19,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class UnitTimeIT {
 
     private static String unit(TestRealm realm, String name, String parentId, LocalDate validFrom) throws Exception {
-        HttpResponse<String> response = realm.api.post("/org-units", "{\"name\": \"" + name + "\", \"validFrom\": \""
+        HttpResponse<String> response = realm.api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"" + name + "\"}}, \"validFrom\": \""
                 + validFrom + "\"" + (parentId == null ? "" : ", \"parentId\": \"" + parentId + "\"") + "}");
         assertEquals(201, response.statusCode(), response.body());
         return Api.json(response).get("id").asText();

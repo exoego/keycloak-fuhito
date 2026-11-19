@@ -442,7 +442,8 @@ public class EmploymentsResource {
                 String employerId = body.fromEmployerId();
                 OrgUnitState ended = orgUnits.end(employerId, body.validFrom());
                 endedEmployer = OrgUnitRepresentation.of(ended,
-                        externalIds.lists(ExternalId.Kind.ORG_UNIT, List.of(ended.unit().id())));
+                        externalIds.lists(ExternalId.Kind.ORG_UNIT, List.of(ended.unit().id())),
+                        context.nameLanguage());
                 context.recordChange(Change.UPDATE, OrgUnitsResource.RESOURCE_TYPE, employerId,
                         "fuhito/org-units/" + employerId + "/end", endedEmployer);
             }

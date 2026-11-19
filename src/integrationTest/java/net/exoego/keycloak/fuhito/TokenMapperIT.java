@@ -8,6 +8,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -44,6 +45,10 @@ class TokenMapperIT {
         realm = "token-mapper-" + UUID.randomUUID();
         realmRepresentation.setRealm(realm);
         realmRepresentation.setEnabled(true);
+        // A token gives the names of units in the language of the user, else of the realm.
+        realmRepresentation.setInternationalizationEnabled(true);
+        realmRepresentation.setSupportedLocales(Set.of("ja", "en"));
+        realmRepresentation.setDefaultLocale("ja");
         TestRealm.withTimeZone(realmRepresentation);
         TestRealm.createRealm(admin, realmRepresentation);
         api = new Api(realm, admin.tokenManager().getAccessTokenString());
@@ -77,6 +82,10 @@ class TokenMapperIT {
     }
 
     private static String user(String username) {
+        return user(username, null);
+    }
+
+    private static String user(String username, String locale) {
         var credential = new CredentialRepresentation();
         credential.setType(CredentialRepresentation.PASSWORD);
         credential.setValue(PASSWORD);
@@ -89,6 +98,9 @@ class TokenMapperIT {
         user.setLastName("User");
         user.setEnabled(true);
         user.setCredentials(List.of(credential));
+        if (locale != null) {
+            user.setAttributes(Map.of("locale", List.of(locale)));
+        }
         try (Response response = admin.realm(realm).users().create(user)) {
             assertEquals(201, response.getStatus());
             return CreatedResponseUtil.getCreatedId(response);
@@ -119,10 +131,10 @@ class TokenMapperIT {
     @Test
     void theTokenHasTheAssignmentsThatHoldToday() throws Exception {
         String physician = user("physician");
-        String hospital = post("/org-units", "{\"name\": \"X病院\", \"code\": \"x-hospital\", \"validFrom\": \"2020-04-01\"}");
-        String medicine = post("/org-units", "{\"name\": \"内科\", \"parentId\": \"" + hospital + "\", \"validFrom\": \"2020-04-01\"}");
-        String committee = post("/org-units", "{\"name\": \"医療安全委員会\", \"parentId\": \"" + hospital + "\", \"validFrom\": \"2020-04-01\"}");
-        String ended = post("/org-units", "{\"name\": \"旧部署\", \"parentId\": \"" + hospital + "\", \"validFrom\": \"2020-04-01\"}");
+        String hospital = post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"X病院\"}}, \"code\": \"x-hospital\", \"validFrom\": \"2020-04-01\"}");
+        String medicine = post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"内科\"}}, \"parentId\": \"" + hospital + "\", \"validFrom\": \"2020-04-01\"}");
+        String committee = post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"医療安全委員会\"}}, \"parentId\": \"" + hospital + "\", \"validFrom\": \"2020-04-01\"}");
+        String ended = post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"旧部署\"}}, \"parentId\": \"" + hospital + "\", \"validFrom\": \"2020-04-01\"}");
         assertEquals(201, api.post("/ref-items", "{\"kind\": \"OCCUPATION\", \"code\": \"physician\", \"name\": \"医師\"}").statusCode());
         assertEquals(201, api.post("/ref-items", "{\"kind\": \"JOB_TITLE\", \"code\": \"chair\", \"name\": \"委員長\"}").statusCode());
         String employment = post("/employments", "{\"userId\": \"" + physician + "\", \"validFrom\": \"2020-04-01\", \"staffNumber\": \"D-1\"}");
@@ -163,6 +175,30 @@ class TokenMapperIT {
     }
 
     @Test
+    void theNamesOfTheUnitsAreInTheLanguageOfTheUser() throws Exception {
+        String hospital = post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": "
+                + "\"Y病院\"}, \"en\": {\"name\": \"Y Hospital\"}}, \"validFrom\": \"2020-04-01\"}");
+        String ward = post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"東病棟\"}, "
+                + "\"en\": {\"name\": \"East Ward\"}}, \"parentId\": \"" + hospital
+                + "\", \"validFrom\": \"2020-04-01\"}");
+        for (String[] user : new String[][] {{"english-nurse", "en"}, {"japanese-nurse", null}}) {
+            String employment = post("/employments", "{\"userId\": \"" + user(user[0], user[1])
+                    + "\", \"validFrom\": \"2020-04-01\"}");
+            post("/assignments", "{\"employmentId\": \"" + employment + "\", \"orgUnitId\": \"" + ward
+                    + "\", \"primary\": true, \"validFrom\": \"2020-04-01\"}");
+        }
+
+        JsonNode english = claims(tokens("english-nurse").get("access_token").asText()).get("org").get(0);
+        JsonNode japanese = claims(tokens("japanese-nurse").get("access_token").asText()).get("org").get(0);
+
+        assertEquals("East Ward", english.get("orgUnitName").asText());
+        assertEquals(List.of("Y Hospital", "East Ward"), english.get("orgUnitPath").findValuesAsText("name"));
+        // A user who picked no language gets the default language of the realm.
+        assertEquals("東病棟", japanese.get("orgUnitName").asText());
+        assertEquals(List.of("Y病院", "東病棟"), japanese.get("orgUnitPath").findValuesAsText("name"));
+    }
+
+    @Test
     void eachEntryHasTheWorkLocationAndTheCostCenterThatApply() throws Exception {
         String commuter = user("commuter");
         for (String[] item : new String[][] {{"WORK_LOCATION", "main-site"}, {"COST_CENTER", "cc-admin"},
@@ -170,11 +206,11 @@ class TokenMapperIT {
             post("/ref-items", "{\"kind\": \"" + item[0] + "\", \"code\": \"" + item[1] + "\", \"name\": \""
                     + item[1] + "\"}");
         }
-        String clinic = post("/org-units", "{\"name\": \"Zクリニック\", \"workLocation\": \"main-site\", "
+        String clinic = post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"Zクリニック\"}}, \"workLocation\": \"main-site\", "
                 + "\"costCenter\": \"cc-admin\", \"validFrom\": \"2020-04-01\"}");
-        String care = post("/org-units", "{\"name\": \"外来\", \"parentId\": \"" + clinic + "\", "
+        String care = post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"外来\"}}, \"parentId\": \"" + clinic + "\", "
                 + "\"costCenter\": \"cc-care\", \"validFrom\": \"2020-04-01\"}");
-        String elsewhere = post("/org-units", "{\"name\": \"別の組織\", \"validFrom\": \"2020-04-01\"}");
+        String elsewhere = post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"別の組織\"}}, \"validFrom\": \"2020-04-01\"}");
         String employment = post("/employments", "{\"userId\": \"" + commuter + "\", \"validFrom\": \"2020-04-01\"}");
         String start = "{\"employmentId\": \"" + employment + "\", \"validFrom\": \"2020-04-01\", \"orgUnitId\": \"";
         String primary = post("/assignments", start + care + "\", \"primary\": true}");

@@ -35,7 +35,7 @@ class RealmTimeIT {
     private static String endedOn(TestRealm realm) throws Exception {
         String user = realm.user("someone");
         realm.legalEntity("法人");
-        String unit = Api.json(realm.api.post("/org-units", "{\"name\": \"Unit\", \"validFrom\": \"2020-04-01\"}")).get("id").asText();
+        String unit = Api.json(realm.api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"Unit\"}}, \"validFrom\": \"2020-04-01\"}")).get("id").asText();
         HttpResponse<String> staff = realm.api.post("/staff", "{\"userId\": \"" + user + "\", \"orgUnitId\": \"" + unit
                 + "\", \"validFrom\": \"2020-04-01\"}");
         assertEquals(201, staff.statusCode(), staff.body());
@@ -53,7 +53,7 @@ class RealmTimeIT {
         assertNotEquals(serverToday, realmToday);
         // A unit that starts on the later of the two dates exists today for only one of them.
         LocalDate later = realmToday.isAfter(serverToday) ? realmToday : serverToday;
-        assertEquals(201, realm.api.post("/org-units", "{\"name\": \"Starts on the later date\", \"validFrom\": \""
+        assertEquals(201, realm.api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"Starts on the later date\"}}, \"validFrom\": \""
                 + later + "\"}").statusCode());
 
         JsonNode defaultRead = Api.json(realm.api.get("/org-units"));
@@ -84,7 +84,7 @@ class RealmTimeIT {
 
         for (HttpResponse<String> response : List.of(realm.api.get("/org-units"),
                 realm.api.get("/org-units?asOf=2026-04-01"),
-                realm.api.post("/org-units", "{\"name\": \"x\", \"validFrom\": \"2026-04-01\"}"),
+                realm.api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"x\"}}, \"validFrom\": \"2026-04-01\"}"),
                 realm.api.get("/ref-items?kind=UNIT_TYPE"))) {
             assertEquals(409, response.statusCode(), response.body());
             assertEquals("realm.time_zone_missing", Api.json(response).get("error").asText());

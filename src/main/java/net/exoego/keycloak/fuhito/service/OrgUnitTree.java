@@ -24,8 +24,9 @@ final class OrgUnitTree {
 
     private static final Comparator<OrgUnitState> SIBLING_ORDER = Comparator
             .comparingInt((OrgUnitState s) -> s.version().displayOrder())
-            .thenComparing(s -> s.version().phoneticName(), Comparator.nullsLast(Comparator.naturalOrder()))
-            .thenComparing(s -> s.version().name())
+            .thenComparing(s -> s.version().names().primary().phoneticName(),
+                    Comparator.nullsLast(Comparator.naturalOrder()))
+            .thenComparing(s -> s.version().names().primary().name())
             .thenComparing(s -> s.unit().id());
 
     private final LocalDate date;

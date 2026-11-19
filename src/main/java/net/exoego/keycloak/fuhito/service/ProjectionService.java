@@ -438,7 +438,7 @@ public class ProjectionService {
             return true;
         }
         return !Objects.equals(group.parentId(), parent == null ? null : parent.id())
-                || !group.name().equals(unit.version().name());
+                || !group.name().equals(groupName(unit));
     }
 
     private void removeGone(List<Group> existing, Map<String, String> groupIdByUnit) {
@@ -580,7 +580,7 @@ public class ProjectionService {
                 : groupIdByUnit.get(unit.parentId());
         Group group = mirrored.get(unitId);
         if (group == null) {
-            groupIdByUnit.put(unitId, target.create(keycloak, unit.version().name(), parentGroupId, unitId));
+            groupIdByUnit.put(unitId, target.create(keycloak, groupName(unit), parentGroupId, unitId));
             groupsCreated++;
             return;
         }
@@ -589,9 +589,9 @@ public class ProjectionService {
             target.move(keycloak, group.id(), parentGroupId);
             groupsMoved++;
         }
-        boolean renamed = !group.name().equals(unit.version().name());
+        boolean renamed = !group.name().equals(groupName(unit));
         if (renamed || parked.contains(group.id())) {
-            keycloak.renameGroup(group.id(), unit.version().name());
+            keycloak.renameGroup(group.id(), groupName(unit));
         }
         if (renamed) {
             groupsRenamed++;
@@ -620,13 +620,18 @@ public class ProjectionService {
         }
     }
 
+    // A group has one name for every reader, so it takes the primary one.
+    private static String groupName(OrgUnitState unit) {
+        return unit.version().names().primary().name();
+    }
+
     // Keycloak allows one name among the groups of one parent.
     private static void requireUniqueNames(List<OrgUnitState> below) {
         Set<String> seen = new HashSet<>();
         for (OrgUnitState unit : below) {
-            if (!seen.add(unit.parentId() + "/" + unit.version().name())) {
+            if (!seen.add(unit.parentId() + "/" + groupName(unit))) {
                 throw FuhitoException.conflict("projection.duplicate_name",
-                        Map.of("orgUnitId", unit.unit().id(), "name", unit.version().name()));
+                        Map.of("orgUnitId", unit.unit().id(), "name", groupName(unit)));
             }
         }
     }

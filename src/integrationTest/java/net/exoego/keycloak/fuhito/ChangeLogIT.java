@@ -39,7 +39,7 @@ class ChangeLogIT {
         api = realm.api;
         String director = realm.user("director");
         String staff = realm.user("staff");
-        unit = id(api.post("/org-units", "{\"name\": \"総務課\", \"validFrom\": \"2025-04-01\"}"));
+        unit = id(api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"総務課\"}}, \"validFrom\": \"2025-04-01\"}"));
         JsonNode added = Api.json(api.post("/staff", "{\"userId\": \"" + staff + "\", \"orgUnitId\": \"" + unit
                 + "\", \"validFrom\": \"2025-04-01\"}"));
         employment = added.get("employment").get("id").asText();
@@ -48,7 +48,7 @@ class ChangeLogIT {
         order = id(api.post("/change-orders", "{\"number\": \"2026-001\", \"title\": \"2026年4月異動\", "
                 + "\"effectiveDate\": \"2026-04-01\", \"approverUserId\": \"" + director + "\"}"));
         String under = "?changeOrder=" + order;
-        newUnit = id(api.post("/org-units" + under, "{\"name\": \"人事課\", \"validFrom\": \"2026-04-01\"}"));
+        newUnit = id(api.post("/org-units" + under, "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"人事課\"}}, \"validFrom\": \"2026-04-01\"}"));
         assertEquals(200, api.putWithVersion("/assignments/" + oldAssignment + "/end" + under, "{\"validTo\": \"2026-04-01\"}").statusCode());
         newAssignment = id(api.post("/assignments" + under, "{\"employmentId\": \"" + employment + "\", \"orgUnitId\": \""
                 + newUnit + "\", \"validFrom\": \"2026-04-01\", \"primary\": true}"));
@@ -174,13 +174,13 @@ class ChangeLogIT {
 
     @Test
     void anUnknownChangeOrderRejectsTheWriteAndAFailedWriteLogsNothing() throws Exception {
-        HttpResponse<String> unknown = api.post("/org-units?changeOrder=no-such-order", "{\"name\": \"x\", \"validFrom\": \"2026-04-01\"}");
+        HttpResponse<String> unknown = api.post("/org-units?changeOrder=no-such-order", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"x\"}}, \"validFrom\": \"2026-04-01\"}");
         assertEquals(400, unknown.statusCode(), unknown.body());
         assertEquals("change_order.not_found", Api.json(unknown).get("error").asText());
-        assertEquals(400, otherRealm.api.post("/org-units?changeOrder=" + order, "{\"name\": \"x\", \"validFrom\": \"2026-04-01\"}").statusCode());
+        assertEquals(400, otherRealm.api.post("/org-units?changeOrder=" + order, "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"x\"}}, \"validFrom\": \"2026-04-01\"}").statusCode());
 
         String scratch = id(api.post("/change-orders", "{\"title\": \"失敗する\", \"effectiveDate\": \"2026-04-01\"}"));
-        assertEquals(400, api.post("/org-units?changeOrder=" + scratch, "{\"name\": \" \", \"validFrom\": \"2026-04-01\"}").statusCode());
+        assertEquals(400, api.post("/org-units?changeOrder=" + scratch, "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \" \"}}, \"validFrom\": \"2026-04-01\"}").statusCode());
         assertEquals(409, api.putWithVersion("/org-units/" + unit + "/end?changeOrder=" + scratch, "{\"validTo\": \"2026-01-01\"}").statusCode());
         assertEquals(0, ok(api.get("/change-orders/" + scratch + "/changes")).size());
         assertEquals(0, api.count("/change-orders/" + scratch + "/changes/count"));

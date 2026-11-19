@@ -121,15 +121,13 @@ public class JpaRealmExportStore implements RealmExportStore {
 
     @Override
     public List<OrgUnitVersion> versionsOf(Collection<String> orgUnitIds) {
-        return em.createQuery("""
+        return JpaOrgUnitStore.withNames(em, realmId, em.createQuery("""
                         select v from OrgUnitVersionEntity v where v.realmId = :realmId and %s
                         order by v.orgUnitId, v.validFrom""".formatted(ManyIds.has("v.orgUnitId", "ids")),
                         OrgUnitVersionEntity.class)
                 .setParameter("realmId", realmId)
                 .setParameter("ids", ManyIds.of(orgUnitIds))
-                .getResultStream()
-                .map(JpaOrgUnitStore::toDomain)
-                .toList();
+                .getResultList());
     }
 
     @Override

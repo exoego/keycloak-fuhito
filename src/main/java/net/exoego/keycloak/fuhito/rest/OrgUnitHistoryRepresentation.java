@@ -1,6 +1,7 @@
 package net.exoego.keycloak.fuhito.rest;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 
 import net.exoego.keycloak.fuhito.service.ExternalIdLists;
@@ -43,11 +44,12 @@ public record OrgUnitHistoryRepresentation(
             String validTo) {
     }
 
-    static OrgUnitHistoryRepresentation of(OrgUnitHistory history, ExternalIdLists ids) {
+    static OrgUnitHistoryRepresentation of(OrgUnitHistory history, ExternalIdLists ids, Locale language) {
         var unit = history.unit();
         return new OrgUnitHistoryRepresentation(unit.id(), unit.version(), unit.source(),
                 ExternalIdPairRepresentation.of(ids.of(unit.id(), unit.source())),
-                history.versions().stream().map(version -> OrgUnitRepresentation.of(version, ids)).toList(),
+                history.versions().stream().map(version -> OrgUnitRepresentation.of(version, ids, language))
+                        .toList(),
                 history.parents().stream()
                         .map(link -> new ParentPeriod(history.hierarchyCodes().get(link.hierarchyId()),
                                 link.parentId(), link.period().from().toString(),
