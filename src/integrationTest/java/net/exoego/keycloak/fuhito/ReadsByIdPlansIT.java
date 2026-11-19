@@ -265,7 +265,7 @@ class ReadsByIdPlansIT {
 
     // The rows of OldStatistics, and a qualification for each person, a reporting line and an ID of another system
     // for each assignment, and an entry of the change log for each employment.
-    static void oldStatistics(Statement statement) throws Exception {
+    private static void oldStatistics(Statement statement) throws Exception {
         String tables = """
                 fuhito_ref_item, fuhito_qualification, fuhito_reporting_line, fuhito_external_id, fuhito_change_order,
                 fuhito_change_log""";
