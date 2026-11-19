@@ -37,6 +37,26 @@ class SchemaIT {
     }
 
     @Test
+    void theDatabaseRejectsOverlappingTermsOfOneEmployment() throws Exception {
+        KeycloakEnvironment.sql("insert into fuhito_person (id, realm_id, attributes)"
+                + " values ('ex-terms-person', 'ex-realm-terms', '{}')");
+        KeycloakEnvironment.sql("insert into fuhito_employment (id, realm_id, valid_from, person_id)"
+                + " values ('ex-terms-e1', 'ex-realm-terms', '2026-04-01', 'ex-terms-person'),"
+                + " ('ex-terms-e2', 'ex-realm-terms', '2026-04-01', 'ex-terms-person')");
+        String insert = "insert into fuhito_employment_terms (id, realm_id, employment_id, valid_from, valid_to,"
+                + " status, attributes) values ";
+        KeycloakEnvironment.sql(insert + "('ex-t1', 'ex-realm-terms', 'ex-terms-e1', '2026-04-01', '2027-04-01',"
+                + " 'ACTIVE', '{}')");
+
+        assertTrue(KeycloakEnvironment.sqlError(insert
+                + "('ex-t2', 'ex-realm-terms', 'ex-terms-e1', '2027-03-31', null, 'ACTIVE', '{}')")
+                .contains("ex_fuhito_employment_terms_period"));
+
+        KeycloakEnvironment.sql(insert + "('ex-t3', 'ex-realm-terms', 'ex-terms-e1', '2027-04-01', null, 'ACTIVE', '{}')");
+        KeycloakEnvironment.sql(insert + "('ex-t4', 'ex-realm-terms', 'ex-terms-e2', '2026-04-01', null, 'ACTIVE', '{}')");
+    }
+
+    @Test
     void theDatabaseRejectsASecondPrimaryNameOfOneVersion() throws Exception {
         KeycloakEnvironment.sql("insert into fuhito_org_unit (id, realm_id) values ('ex-u5', 'ex-realm-4')");
         KeycloakEnvironment.sql("insert into fuhito_org_unit_version (id, realm_id, org_unit_id, valid_from, attributes)"
