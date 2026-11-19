@@ -30,7 +30,7 @@ final class OrgUnitImport {
 
     private final OrgUnitService orgUnitService;
     private final OrgUnitStore orgUnits;
-    private final ExternalIdService externalIds;
+    private final ListIds ids;
     private final ImportService.Organizations organizations;
     private final String effectiveDate;
     private final String defaultSource;
@@ -54,7 +54,7 @@ final class OrgUnitImport {
         this.rowDone = rowDone;
         this.orgUnitService = orgUnitService;
         this.orgUnits = orgUnits;
-        this.externalIds = externalIds;
+        this.ids = new ListIds(externalIds);
         this.organizations = organizations;
         this.effectiveDate = effectiveDate;
         this.defaultSource = defaultSource;
@@ -71,7 +71,14 @@ final class OrgUnitImport {
             } else if (rowByKey.putIfAbsent(key(row), i) != null) {
                 fail(i, FuhitoException.invalid("import.duplicate_row", Map.of("externalId", name(row))));
             }
+            if (row != null) {
+                ids.want(ExternalId.Kind.ORG_UNIT, sourceOf(row), row.externalId())
+                        .want(ExternalId.Kind.ORG_UNIT, sourceOf(row), row.parentExternalId());
+                Optional.ofNullable(row.successorExternalIds()).orElse(List.of())
+                        .forEach(successor -> ids.want(ExternalId.Kind.ORG_UNIT, sourceOf(row), successor));
+            }
         }
+        ids.read();
         for (int i = 0; i < rows.size(); i++) {
             apply(i);
             rowDone.run();
@@ -114,9 +121,9 @@ final class OrgUnitImport {
     }
 
     private List<String> successorIds(OrgUnitRow row, String source) {
-        List<String> ids = new ArrayList<>();
+        List<String> found = new ArrayList<>();
         for (String externalId : Optional.ofNullable(row.successorExternalIds()).orElse(List.of())) {
-            ids.add(externalIds.resourceOf(ExternalId.Kind.ORG_UNIT, source,
+            found.add(ids.resourceOf(ExternalId.Kind.ORG_UNIT, source,
                             Checks.required("successorExternalIds", externalId))
                     .orElseThrow(() -> FuhitoException.invalid("import.successor_unknown",
                             Map.of("successorExternalId", externalId))));
@@ -125,9 +132,9 @@ final class OrgUnitImport {
             if (orgUnits.findUnit(Checks.required("successorIds", id)).isEmpty()) {
                 throw FuhitoException.invalid("import.id_unknown", Map.of("id", id));
             }
-            ids.add(id);
+            found.add(id);
         }
-        return ids;
+        return found;
     }
 
     private String sourceOf(OrgUnitRow row) {
@@ -191,7 +198,7 @@ final class OrgUnitImport {
             }
             return unitIdByRow.get(parentRow);
         }
-        return externalIds.resourceOf(ExternalId.Kind.ORG_UNIT, source, row.parentExternalId())
+        return ids.resourceOf(ExternalId.Kind.ORG_UNIT, source, row.parentExternalId())
                 .orElseThrow(() -> FuhitoException.invalid("import.parent_unknown",
                         Map.of("parentExternalId", row.parentExternalId())));
     }
@@ -203,10 +210,12 @@ final class OrgUnitImport {
         }
         Optional<String> stored = stored(row, source);
         if (stored.isEmpty()) {
-            OrgUnitState created = orgUnitService.create(new NewOrgUnit(row.code(), row.primaryLanguage(),
-                    row.names(), row.unitType(), row.workLocation(), row.costCenter(), parentId,
+            NewOrgUnit request = new NewOrgUnit(row.code(), row.primaryLanguage(), row.names(), row.unitType(),
+                    row.workLocation(), row.costCenter(), parentId,
                     row.validFrom() == null ? effectiveDate : row.validFrom(), row.displayOrder(), row.attributes(),
-                    row.externalId(), source));
+                    row.externalId(), source);
+            OrgUnitState created = ids.create(ExternalId.Kind.ORG_UNIT, source, row.externalId(),
+                    () -> orgUnitService.create(request), state -> state.unit().id());
             String id = created.unit().id();
             unitIdByRow.put(index, id);
             written(true, "", created);
@@ -262,12 +271,12 @@ final class OrgUnitImport {
     // A row with an ID changes that unit. An external ID beside it must be one of that unit.
     private Optional<String> stored(OrgUnitRow row, String source) {
         if (row.id() == null) {
-            return externalIds.resourceOf(ExternalId.Kind.ORG_UNIT, source, row.externalId());
+            return ids.resourceOf(ExternalId.Kind.ORG_UNIT, source, row.externalId());
         }
         if (orgUnits.findUnit(row.id()).isEmpty()) {
             throw FuhitoException.invalid("import.id_unknown", Map.of("id", row.id()));
         }
-        if (row.externalId() != null && !externalIds.resourceOf(ExternalId.Kind.ORG_UNIT, source, row.externalId())
+        if (row.externalId() != null && !ids.resourceOf(ExternalId.Kind.ORG_UNIT, source, row.externalId())
                 .equals(Optional.of(row.id()))) {
             throw FuhitoException.invalid("import.id_mismatch", Map.of("id", row.id(), "externalId", row.externalId()));
         }

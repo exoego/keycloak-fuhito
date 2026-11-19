@@ -99,6 +99,17 @@ public class EmploymentService {
     }
 
     /**
+     * Returns the same operations that ask the rule for employers once for each question. They suit a list of rows
+     * that changes no org unit.
+     *
+     * @return the operations
+     */
+    EmploymentService rememberingEmployers() {
+        return new EmploymentService(store, externalIds, assignments, refItems, people, reportingLines, unitRoles,
+                new RememberedEmployers(employers), attributeRules);
+    }
+
+    /**
      * Starts an employment of a person.
      * A person can have several employments. A new one after an old one ended is a rehire.
      * Two employments of one person may overlap, for a person with two contracts.

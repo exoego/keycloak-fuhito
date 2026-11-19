@@ -1,6 +1,7 @@
 package net.exoego.keycloak.fuhito.service;
 
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -165,6 +166,20 @@ public class ExternalIdService {
      */
     public Optional<String> resourceOf(ExternalId.Kind kind, String source, String externalId) {
         return store.find(kind, source, externalId).map(ExternalId::resourceId);
+    }
+
+    /**
+     * Finds the resources that several IDs of one system name, with one read.
+     *
+     * @param kind the kind of resource
+     * @param source the name of the system
+     * @param externalIds the IDs in that system
+     * @return the ID of the resource for each ID that names one
+     */
+    Map<String, String> resourcesOf(ExternalId.Kind kind, String source, Collection<String> externalIds) {
+        Map<String, String> found = new HashMap<>();
+        store.findAll(kind, source, externalIds).forEach(row -> found.put(row.externalId(), row.resourceId()));
+        return found;
     }
 
     /**

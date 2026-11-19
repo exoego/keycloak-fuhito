@@ -1408,6 +1408,36 @@ class ImportServiceTest {
     }
 
     @Test
+    void readsWhatTheRowsOfAListNameWithOneReadForEachKind() {
+        importTwoUnits();
+        List<PersonRow> people = new ArrayList<>();
+        List<EmploymentRow> employments = new ArrayList<>();
+        List<AssignmentRow> assignments = new ArrayList<>();
+        for (int i = 1; i <= 3; i++) {
+            people.add(new PersonRow(null, "P" + i, null, null, "ja", japanese("人 " + i), null, null));
+            employments.add(new EmploymentRow(null, "E" + i, null, null, null, null, null, null, null, null, null,
+                    null, null, null, null, "P" + i, null, null, null));
+            assignments.add(assignment("A" + i, "E" + i, "W", true, null));
+        }
+        int single = externalIdStore.singleFinds;
+        int many = externalIdStore.manyFinds;
+
+        ImportReport report = service.apply(new ImportDocument("2026-04-01", false, null, null, null, employments,
+                assignments, people));
+
+        assertEquals(List.of(), errors(report));
+        // A new resource checks that its own ID is free. The lists read the people, then the employments and the
+        // people, then the assignments, the employments, and the org units.
+        assertEquals(9, externalIdStore.singleFinds - single);
+        assertEquals(6, externalIdStore.manyFinds - many);
+        // An employment that continues one of an earlier row of its list finds it.
+        assertEquals(List.of(), errors(importPeople("2027-04-01", List.of(
+                new EmploymentRow(null, "E4", "nurse", null, null, null, null, null, null, null, null, "2026-04-01",
+                        "2027-04-01", null, null, null, null, null, null, null, null),
+                continuing("E5", "E4", null)), null)));
+    }
+
+    @Test
     void aSecondDocumentTransfersOnePersonAndEndsAnother() {
         importTwoUnits();
         refItems.insert(new RefItem("r", RefKind.END_REASON, "resignation", ItemNames.of("x"), 0, Map.of(), true));

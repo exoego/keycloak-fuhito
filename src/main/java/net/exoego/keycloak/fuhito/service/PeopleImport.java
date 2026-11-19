@@ -41,6 +41,8 @@ final class PeopleImport {
     private final String defaultSource;
     private final ImportReport report;
     private final Runnable rowDone;
+    // What the rows of the list that runs name.
+    private ListIds ids;
 
     PeopleImport(ImportService.People people, ExternalIdService externalIds, OrgUnitStore orgUnits,
             String effectiveDate, String defaultSource, ImportReport report, Runnable rowDone) {
@@ -55,6 +57,10 @@ final class PeopleImport {
 
     void people(List<PersonRow> rows) {
         report.startList(PEOPLE);
+        ids = new ListIds(externalIds);
+        rows.stream().filter(Objects::nonNull)
+                .forEach(row -> ids.want(ExternalId.Kind.PERSON, sourceOf(row.source()), row.externalId()));
+        ids.read();
         Set<String> seen = new HashSet<>();
         for (int i = 0; i < rows.size(); i++) {
             try {
@@ -74,7 +80,7 @@ final class PeopleImport {
         String userId = row.userId() != null || row.username() != null
                 ? userId(row.userId(), row.username()) : null;
         Optional<Person> stored = row.id() == null
-                ? externalIds.resourceOf(ExternalId.Kind.PERSON, source, row.externalId()).flatMap(service::find)
+                ? ids.resourceOf(ExternalId.Kind.PERSON, source, row.externalId()).flatMap(service::find)
                 : Optional.of(byId(row, source));
         if (stored.isEmpty()) {
             // A row never finds a person by its user. The file must name the person of the user.
@@ -83,7 +89,9 @@ final class PeopleImport {
                 throw FuhitoException.conflict("import.user_taken",
                         Map.of("userId", userId, "personId", ofUser.get().id()));
             }
-            report.write(new Write.OfPerson(true, service.create(values(row, userId, source))));
+            PersonView created = ids.create(ExternalId.Kind.PERSON, source, row.externalId(),
+                    () -> service.create(values(row, userId, source)), view -> view.person().id());
+            report.write(new Write.OfPerson(true, created));
             return Outcome.CREATED;
         }
         Person person = stored.get();
@@ -108,7 +116,7 @@ final class PeopleImport {
     }
 
     private void requireNames(ExternalId.Kind kind, String id, String source, String externalId) {
-        if (externalId != null && !externalIds.resourceOf(kind, source, externalId).equals(Optional.of(id))) {
+        if (externalId != null && !ids.resourceOf(kind, source, externalId).equals(Optional.of(id))) {
             throw FuhitoException.invalid("import.id_mismatch", Map.of("id", id, "externalId", externalId));
         }
     }
@@ -120,10 +128,24 @@ final class PeopleImport {
 
     void employments(List<EmploymentRow> rows) {
         report.startList(EMPLOYMENTS);
+        ids = new ListIds(externalIds);
+        for (EmploymentRow row : rows) {
+            if (row != null) {
+                String source = sourceOf(row.source());
+                ids.want(ExternalId.Kind.EMPLOYMENT, source, row.externalId())
+                        .want(ExternalId.Kind.EMPLOYMENT, source, row.continuesEmploymentExternalId())
+                        .want(ExternalId.Kind.PERSON, source, row.personExternalId())
+                        .want(ExternalId.Kind.ORG_UNIT, source, row.employerExternalId());
+            }
+        }
+        ids.read();
+        // The rows change no org unit, so the employer of a date is the same for all of them.
+        EmploymentService employmentService = people.employmentService().rememberingEmployers();
         Set<String> seen = new HashSet<>();
         for (int i = 0; i < rows.size(); i++) {
             try {
-                report.count(EMPLOYMENTS, importEmployment(Checks.required("row", rows.get(i)), seen));
+                report.count(EMPLOYMENTS, importEmployment(Checks.required("row", rows.get(i)), seen,
+                        employmentService));
             } catch (FuhitoException e) {
                 report.error(EMPLOYMENTS, i, e);
             }
@@ -140,6 +162,17 @@ final class PeopleImport {
         order.sort(Comparator.comparing(i -> rows.get(i) != null && rows.get(i).validTo() == null
                 && Boolean.TRUE.equals(rows.get(i).primary())));
         report.startList(ASSIGNMENTS);
+        ids = new ListIds(externalIds);
+        for (AssignmentRow row : rows) {
+            if (row != null) {
+                String source = sourceOf(row.source());
+                ids.want(ExternalId.Kind.ASSIGNMENT, source, row.externalId())
+                        .want(ExternalId.Kind.ASSIGNMENT, source, row.continuesAssignmentExternalId())
+                        .want(ExternalId.Kind.EMPLOYMENT, source, row.employmentExternalId())
+                        .want(ExternalId.Kind.ORG_UNIT, source, row.orgUnitExternalId());
+            }
+        }
+        ids.read();
         Set<String> seen = new HashSet<>();
         for (int i : order) {
             try {
@@ -160,7 +193,7 @@ final class PeopleImport {
         if (row.continuesEmploymentExternalId() == null) {
             return row.continuesEmploymentId();
         }
-        return externalIds.resourceOf(ExternalId.Kind.EMPLOYMENT, source, row.continuesEmploymentExternalId())
+        return ids.resourceOf(ExternalId.Kind.EMPLOYMENT, source, row.continuesEmploymentExternalId())
                 .orElseThrow(() -> FuhitoException.invalid("import.employment_unknown",
                         Map.of("employmentExternalId", row.continuesEmploymentExternalId())));
     }
@@ -172,7 +205,7 @@ final class PeopleImport {
         if (row.continuesAssignmentExternalId() == null) {
             return row.continuesAssignmentId();
         }
-        return externalIds.resourceOf(ExternalId.Kind.ASSIGNMENT, source, row.continuesAssignmentExternalId())
+        return ids.resourceOf(ExternalId.Kind.ASSIGNMENT, source, row.continuesAssignmentExternalId())
                 .orElseThrow(() -> FuhitoException.invalid("import.assignment_unknown",
                         Map.of("assignmentExternalId", row.continuesAssignmentExternalId())));
     }
@@ -186,32 +219,37 @@ final class PeopleImport {
             return;
         }
         Checks.required("externalId", externalId);
-        if (!seen.add((source == null ? defaultSource : source) + "\\u0000" + externalId)) {
+        if (!seen.add(sourceOf(source) + "\\u0000" + externalId)) {
             throw FuhitoException.invalid("import.duplicate_row", Map.of("externalId", externalId));
         }
     }
 
-    private Outcome importEmployment(EmploymentRow row, Set<String> seen) {
+    private String sourceOf(String source) {
+        return source == null ? defaultSource : source;
+    }
+
+    private Outcome importEmployment(EmploymentRow row, Set<String> seen, EmploymentService employmentService) {
         requireFirst(seen, row.source(), row.externalId(), row.id());
         String source = Checks.code("source", row.source() == null ? defaultSource : row.source());
         String name = row.externalId() == null ? row.id() : row.externalId();
         Optional<Employment> stored = row.id() == null
-                ? externalIds.resourceOf(ExternalId.Kind.EMPLOYMENT, source, row.externalId())
+                ? ids.resourceOf(ExternalId.Kind.EMPLOYMENT, source, row.externalId())
                         .flatMap(people.employments()::find)
                 : Optional.of(employmentById(row, source));
         String personId = personId(row, name, source, stored);
         String employerId = employerId(row, source);
         String continues = continuedEmployment(row, source);
         if (stored.isEmpty()) {
-            EmploymentView created = people.employmentService().start(new NewEmployment(personId,
+            NewEmployment request = new NewEmployment(personId,
                     row.validFrom() == null ? effectiveDate : row.validFrom(), row.validTo(), row.staffNumber(),
                     row.employmentType(), row.grade(), row.status(), row.leaveReason(), row.workPercent(),
-                    row.contractEndDate(), row.attributes(), row.externalId(), source, employerId), continues);
+                    row.contractEndDate(), row.attributes(), row.externalId(), source, employerId);
+            EmploymentView created = ids.create(ExternalId.Kind.EMPLOYMENT, source, row.externalId(),
+                    () -> employmentService.start(request, continues), view -> view.employment().id());
             String id = created.employment().id();
             written(true, "", created);
             if (row.validTo() != null && row.endReason() != null) {
-                written(false, "/end",
-                        people.employmentService().end(id, row.validTo(), row.endReason()));
+                written(false, "/end", employmentService.end(id, row.validTo(), row.endReason()));
             }
             return Outcome.CREATED;
         }
@@ -228,7 +266,7 @@ final class PeopleImport {
             throw FuhitoException.conflict("import.continues_mismatch", Map.of("externalId", name));
         }
         ImportMatch.start(id, employment.period().from(), row.validFrom());
-        EmploymentView before = people.employmentService().get(id);
+        EmploymentView before = employmentService.get(id);
         boolean changed = false;
         // An employment that ended by the effective date has no terms to compare. One that starts later can only
         // come again as it is, for example in the document that made it.
@@ -246,7 +284,7 @@ final class PeopleImport {
                 if (later) {
                     throw FuhitoException.notFound("employment.not_valid_on", Map.of("id", id, "date", effectiveDate));
                 }
-                written(false, "/terms", people.employmentService().changeTerms(id, new TermsChange(
+                written(false, "/terms", employmentService.changeTerms(id, new TermsChange(
                         effectiveDate, row.employmentType(), row.grade(), row.status(), row.leaveReason(),
                         row.workPercent(), row.contractEndDate(), row.attributes())));
                 changed = true;
@@ -256,7 +294,7 @@ final class PeopleImport {
         boolean sameEnd = Objects.equals(row.validTo(), storedEnd)
                 && (row.endReason() == null || row.endReason().equals(before.endReason()));
         if (row.validTo() != null && !sameEnd) {
-            written(false, "/end", people.employmentService().end(id, row.validTo(), row.endReason()));
+            written(false, "/end", employmentService.end(id, row.validTo(), row.endReason()));
             changed = true;
         }
         return changed ? Outcome.CHANGED : Outcome.UNCHANGED;
@@ -282,7 +320,7 @@ final class PeopleImport {
             return row.employerId();
         }
         return row.employerExternalId() == null ? null
-                : externalIds.resourceOf(ExternalId.Kind.ORG_UNIT, source, row.employerExternalId())
+                : ids.resourceOf(ExternalId.Kind.ORG_UNIT, source, row.employerExternalId())
                         .orElseThrow(() -> FuhitoException.invalid("import.org_unit_unknown",
                                 Map.of("orgUnitExternalId", row.employerExternalId())));
     }
@@ -300,7 +338,7 @@ final class PeopleImport {
                     ? people.personService().find(row.personId()).map(Person::id)
                             .orElseThrow(() -> FuhitoException.invalid("import.id_unknown",
                                     Map.of("id", row.personId())))
-                    : externalIds.resourceOf(ExternalId.Kind.PERSON, source, row.personExternalId())
+                    : ids.resourceOf(ExternalId.Kind.PERSON, source, row.personExternalId())
                             .orElseThrow(() -> FuhitoException.invalid("import.person_unknown",
                                     Map.of("personExternalId", row.personExternalId())));
             if (namesUser && !userId(row.userId(), row.username())
@@ -352,7 +390,7 @@ final class PeopleImport {
         String source = Checks.code("source", row.source() == null ? defaultSource : row.source());
         String name = row.externalId() == null ? row.id() : row.externalId();
         Optional<String> stored = row.id() == null
-                ? externalIds.resourceOf(ExternalId.Kind.ASSIGNMENT, source, row.externalId())
+                ? ids.resourceOf(ExternalId.Kind.ASSIGNMENT, source, row.externalId())
                 : Optional.of(assignmentById(row, source));
         Optional<Assignment> firstRow = stored.map(id -> people.assignments().rows(id).getFirst());
         String employmentId = employmentId(row, source, firstRow);
@@ -364,7 +402,8 @@ final class PeopleImport {
 
         String continues = continuedAssignment(row, source);
         if (stored.isEmpty()) {
-            written(true, "", people.assignmentService().add(values, continues));
+            written(true, "", ids.create(ExternalId.Kind.ASSIGNMENT, source, row.externalId(),
+                    () -> people.assignmentService().add(values, continues), AssignmentView::assignmentId));
             return Outcome.CREATED;
         }
         String id = stored.get();
@@ -432,7 +471,7 @@ final class PeopleImport {
             return stored.get().employmentId();
         }
         String externalId = Checks.required("employmentExternalId", row.employmentExternalId());
-        return externalIds.resourceOf(ExternalId.Kind.EMPLOYMENT, source, externalId)
+        return ids.resourceOf(ExternalId.Kind.EMPLOYMENT, source, externalId)
                 .orElseThrow(() -> FuhitoException.invalid("import.employment_unknown",
                         Map.of("employmentExternalId", externalId)));
     }
@@ -453,7 +492,7 @@ final class PeopleImport {
             return stored.get().orgUnitId();
         }
         String externalId = Checks.required("orgUnitExternalId", row.orgUnitExternalId());
-        return externalIds.resourceOf(ExternalId.Kind.ORG_UNIT, source, externalId)
+        return ids.resourceOf(ExternalId.Kind.ORG_UNIT, source, externalId)
                 .orElseThrow(() -> FuhitoException.invalid("import.org_unit_unknown",
                         Map.of("orgUnitExternalId", externalId)));
     }

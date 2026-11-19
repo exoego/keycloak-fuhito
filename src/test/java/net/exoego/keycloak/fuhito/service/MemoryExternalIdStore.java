@@ -21,6 +21,10 @@ final class MemoryExternalIdStore implements ExternalIdStore {
     final List<ExternalId> rows = new ArrayList<>();
     /** The number of reads of the IDs of many resources. */
     int batchReads;
+    /** The number of reads of the resource that one ID of a system names. */
+    int singleFinds;
+    /** The number of reads of the resources that many IDs of a system name. */
+    int manyFinds;
 
     void resource(ExternalId.Kind kind, String id, String source) {
         origins.computeIfAbsent(kind, k -> new HashMap<>()).put(id, new ExternalId.Origin(source));
@@ -56,9 +60,18 @@ final class MemoryExternalIdStore implements ExternalIdStore {
 
     @Override
     public Optional<ExternalId> find(ExternalId.Kind kind, String source, String externalId) {
+        singleFinds++;
         return rows.stream()
                 .filter(r -> r.kind() == kind && r.source().equals(source) && r.externalId().equals(externalId))
                 .findFirst();
+    }
+
+    @Override
+    public List<ExternalId> findAll(ExternalId.Kind kind, String source, Collection<String> externalIds) {
+        manyFinds++;
+        return rows.stream()
+                .filter(r -> r.kind() == kind && r.source().equals(source) && externalIds.contains(r.externalId()))
+                .toList();
     }
 
     @Override
