@@ -6,7 +6,6 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -152,6 +151,21 @@ class ImportRowSourceIT {
         rowsUseTheirSource("row-source-csv", ImportRowSourceIT::csv);
     }
 
+    // Null takes the source of the document, as a row that leaves it out does.
+    private static List<Map<String, String>> rowsThatUseTheirSource(Thing thing) {
+        List<Map<String, String>> rows = new ArrayList<>(List.of(thing.keys(), thing.with(null)));
+        if (thing.externalId() != null) {
+            rows.add(thing.with("hr", "externalId", thing.externalId()));
+        }
+        if (thing.reference() != null) {
+            rows.add(thing.with("hr", thing.reference().getKey(), thing.reference().getValue()));
+        }
+        if (thing.keepsSource()) {
+            rows.add(thing.with("hr"));
+        }
+        return rows;
+    }
+
     private interface Load {
         HttpResponse<String> apply(Api api, Thing thing, Map<String, String> row) throws Exception;
     }
@@ -173,24 +187,10 @@ class ImportRowSourceIT {
         assertEquals(expected, got);
         assertEquals(before, RealmExportIT.export(api));
 
-        // Null takes the source of the document, as a row that leaves it out does.
-        Function<Thing, List<Map<String, String>>> working = thing -> {
-            List<Map<String, String>> rows = new ArrayList<>(List.of(thing.keys(), thing.with(null)));
-            if (thing.externalId() != null) {
-                rows.add(thing.with("hr", "externalId", thing.externalId()));
-            }
-            if (thing.reference() != null) {
-                rows.add(thing.with("hr", thing.reference().getKey(), thing.reference().getValue()));
-            }
-            if (thing.keepsSource()) {
-                rows.add(thing.with("hr"));
-            }
-            return rows;
-        };
         expected.clear();
         got.clear();
         for (Thing thing : things) {
-            for (Map<String, String> row : working.apply(thing)) {
+            for (Map<String, String> row : rowsThatUseTheirSource(thing)) {
                 expected.add(thing.list() + " " + row + " {\"created\":0,\"changed\":0,\"unchanged\":1}");
                 got.add(thing.list() + " " + row + " " + counts(load.apply(api, thing, row), thing));
             }
