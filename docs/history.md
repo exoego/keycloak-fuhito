@@ -186,8 +186,9 @@ Checked by `OrgUnitsIT.rejectsAMoveBelowItselfAndOtherBadMoves`, `RollupUnitsIT.
 
 `POST /reorganizations` applies many org unit changes on one date in one transaction.
 When one step fails, nothing is written.
+Each operation reads only its own fields. A step that gives another field fails with `reorganization.field_unused` before any step runs, so no value is dropped with no word.
 
-Checked by `ReorganizationIT.appliesAReorganizationUnderAChangeOrder` and `ReorganizationIT.aFailedStepWritesNothing`.
+Checked by `ReorganizationIT.appliesAReorganizationUnderAChangeOrder`, `ReorganizationIT.aFailedStepWritesNothing`, and `UnusedFieldsIT.aReorganizationStepWithAFieldThatItsOperationDoesNotReadFailsAndWritesNothing`.
 
 ### A merger and a split
 
@@ -228,11 +229,13 @@ A change of terms and a change of the details of an assignment each replace all 
 - The request has `validFrom`, and `grade`, `jobTitle`, or `head`, or several of them.
 - The grade goes to the terms of the employment. The job title and the head flag go to one assignment.
 - That assignment is the one that `assignmentId` names. With none, it is the primary assignment of the employment on the date.
+- `assignmentId` names an assignment of the employment that holds on the date. Another ID fails with `employment.assignment_not_on`.
+- A request that gives `assignmentId` with no `jobTitle` and no `head` fails with `employment.promotion_assignment_unused`. The promotion would not read the assignment.
 - Every value that the request does not name stays as it is on the date.
 - Both writes are one transaction. When one fails, nothing is written.
 - The change log has one entry for the employment with the path `.../promotion`, and one for the assignment.
 
-Checked by `StaffIT.promotesAPersonInOneWrite`.
+Checked by `StaffIT.promotesAPersonInOneWrite` and `UnusedFieldsIT.aPromotionWithAnAssignmentAndNoJobTitleOrHeadFailsAndWritesNothing`.
 
 ## A leave and a return
 
