@@ -6,20 +6,26 @@ import java.util.Map;
 import net.exoego.keycloak.fuhito.domain.OrgUnitName;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 
-@Schema(name = "ReorganizationStep", description = "One operation of a reorganization.", requiredProperties = {"op"})
+@Schema(
+        name = "ReorganizationStep",
+        description = "One operation of a reorganization. Each operation reads only some fields. A step that gives "
+                + "a field that its operation does not read fails with 400 and `reorganization.field_unused`, which "
+                + "names the field in `field`.",
+        requiredProperties = {"op"})
 public record ReorganizationStep(
         @Schema(enumeration = {"create", "change", "move", "end", "succeed"})
         String op,
         @Schema(
-                description = "A name that later steps of the same request can use for the unit that a create step "
-                        + "makes.")
+                description = "For a create step, a name that later steps of the same request can use for the unit "
+                        + "that it makes.")
         String ref,
         @Schema(description = "The ID of the unit to change, move, end, or succeed.")
         String id,
         @Schema(description = "The `ref` of an earlier create step, in place of `id`.")
         String unitRef,
         @Schema(description = "The version of the unit of `id` that the caller read. A change, move, end, or "
-                + "succeed step with `id` needs it. Two steps of one unit name the same version.")
+                + "succeed step with `id` needs it. Two steps of one unit name the same version. A create step and "
+                + "a step with no `id` have no version to give.")
         Long version,
         @Schema(description = "The ID of the parent for a create or a move.")
         String parentId,
@@ -37,15 +43,17 @@ public record ReorganizationStep(
         @Schema(description = "The names by language tag, for a create or a change. Two keys of one tag in standard "
                 + "form, such as `ja` and `JA`, fail with `invalid.duplicate_language`.")
         Map<String, OrgUnitName> names,
-        @Schema(description = "The code of the unit type.")
+        @Schema(description = "The code of the unit type, for a create or a change.")
         String unitType,
-        @Schema(description = "The code of the work location that the unit gives its members.")
+        @Schema(description = "The code of the work location that the unit gives its members, for a create or a "
+                + "change.")
         String workLocation,
-        @Schema(description = "The code of the cost center that the unit gives its members.")
+        @Schema(description = "The code of the cost center that the unit gives its members, for a create or a "
+                + "change.")
         String costCenter,
-        @Schema(description = "The position among siblings.", defaultValue = "0")
+        @Schema(description = "The position among siblings, for a create or a change.", defaultValue = "0")
         Integer displayOrder,
-        @Schema(description = "Free values that the realm defines.")
+        @Schema(description = "Free values that the realm defines, for a create or a change.")
         Map<String, Object> attributes,
         @Schema(description = "For a succeed step, the IDs of the units that follow the unit that ends.")
         List<String> successorIds,

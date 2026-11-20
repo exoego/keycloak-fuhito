@@ -52,13 +52,18 @@ public class PromotionService {
      * @param employmentId the ID of the employment
      * @param request the date and what changes
      * @return the employment and the assignment after the promotion
-     * @throws FuhitoException when the request changes nothing, the employment or the assignment does not hold
-     *         on the date, the assignment is of another employment, or a code is unknown
+     * @throws FuhitoException when the request changes nothing, names an assignment with no job title and no
+     *         head flag for it, the employment or the assignment does not hold on the date, the assignment is of
+     *         another employment, or a code is unknown
      */
     public Promotion promote(String employmentId, PromotionRequest request) {
         Checks.required("body", request);
         LocalDate date = Checks.date("validFrom", request.validFrom());
         boolean changesAssignment = request.jobTitle() != null || request.head() != null;
+        if (request.assignmentId() != null && !changesAssignment) {
+            throw FuhitoException.invalid("employment.promotion_assignment_unused",
+                    Map.of("assignmentId", request.assignmentId()));
+        }
         if (request.grade() == null && !changesAssignment) {
             throw FuhitoException.invalid("employment.promotion_empty", Map.of());
         }

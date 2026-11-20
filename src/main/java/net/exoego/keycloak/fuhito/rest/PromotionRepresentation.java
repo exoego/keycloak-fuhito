@@ -22,7 +22,10 @@ public record PromotionRepresentation(
         String jobTitle,
         @Schema(
                 description = "The ID of the assignment that gets the job title and the head flag. The default is "
-                        + "the primary assignment of the employment on the date.",
+                        + "the primary assignment of the employment on the date. It must name an assignment of the "
+                        + "employment that holds on the date. Any other ID fails with `employment.assignment_not_on`. "
+                        + "A request that gives it with no `jobTitle` and no `head` fails with "
+                        + "`employment.promotion_assignment_unused`.",
                 writeOnly = true)
         String assignmentId,
         @Schema(

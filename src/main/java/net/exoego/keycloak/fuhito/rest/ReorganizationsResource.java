@@ -52,7 +52,8 @@ public class ReorganizationsResource {
             summary = "Changes many org units on one date, in one transaction.",
             description = "A failed step writes nothing. A step that changes a stored unit names the `version` of "
                     + "the unit that the caller read. An old version fails with 409 and `version.conflict`, and "
-                    + "`step` in the values of the error.")
+                    + "`step` in the values of the error. A step that gives a field that its operation does not read "
+                    + "fails with 400 and `reorganization.field_unused` before any step runs.")
     @Parameter(ref = "changeOrder")
     @APIResponse(responseCode = "200", description = "What each step did.")
     @BadRequest

@@ -130,6 +130,34 @@ class PromotionServiceTest {
     }
 
     @Test
+    void anAssignmentWithNoJobTitleAndNoHeadFailsAndWritesNothing() {
+        String otherEmployment = employments.start(new NewEmployment("nurse", "2026-04-01", null, null, null, null,
+                null, null, null, null, null)).employment().id();
+        String ofOther = assignments.add(new AssignmentValues(otherEmployment,
+                assignments.get(ward).rows().getFirst().row().orgUnitId(), "2026-04-01", null, null, null, null, null,
+                false, null, null, null, null, null, null)).assignmentId();
+
+        for (String assignmentId : List.of(ward, committee, ofOther, "nope")) {
+            for (String grade : new String[] {"g2", null}) {
+                FuhitoException e = failure(employment, request("2026-10-01", grade, null, assignmentId, null));
+                assertEquals(FuhitoException.Reason.INVALID, e.reason());
+                assertEquals("employment.promotion_assignment_unused", e.code());
+                assertEquals(Map.of("assignmentId", assignmentId), e.params());
+            }
+        }
+
+        assertEquals(1, employments.get(employment).terms().size());
+        assertEquals(1, assignments.get(ward).rows().size());
+        assertEquals(1, assignments.get(committee).rows().size());
+        // With a job title, the assignment must be one of the employment on the date.
+        for (String assignmentId : List.of(ofOther, "nope")) {
+            assertEquals("employment.assignment_not_on",
+                    failure(employment, request("2026-10-01", "g2", "chief", assignmentId, null)).code());
+        }
+        assertEquals(1, employments.get(employment).terms().size());
+    }
+
+    @Test
     void aBadPromotionWritesNothing() {
         assertEquals("employment.promotion_empty", failure(employment, request("2026-10-01", null, null, null, null))
                 .code());
