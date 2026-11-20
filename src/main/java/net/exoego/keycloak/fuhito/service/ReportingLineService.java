@@ -91,17 +91,10 @@ public class ReportingLineService {
         requireInsideAssignment(assignmentId, life, period);
         Person manager = sources.people().find(managerPersonId).orElseThrow(() -> FuhitoException.invalid(
                 "reporting_line.manager_unknown", Map.of("managerPersonId", managerPersonId)));
-        if (managerPersonId.equals(employmentOf(rows.getFirst()).map(Employment::personId).orElse(null))) {
-            throw FuhitoException.invalid("reporting_line.self", Map.of("managerPersonId", managerPersonId));
-        }
+        ReportingLineRules.requireNotSelf(managerPersonId,
+                employmentOf(rows.getFirst()).map(Employment::personId).orElse(null));
         if (lineKind == Kind.SOLID) {
-            store.findByAssignment(assignmentId).stream()
-                    .filter(other -> other.kind() == Kind.SOLID && other.period().overlaps(period))
-                    .findFirst()
-                    .ifPresent(other -> {
-                        throw FuhitoException.conflict("reporting_line.solid_exists",
-                                Map.of("assignmentId", assignmentId, "lineId", other.id()));
-                    });
+            ReportingLineRules.requireNoOtherSolid(assignmentId, period, store.findByAssignment(assignmentId));
         }
         ReportingLine line = new ReportingLine(UUID.randomUUID().toString(), assignmentId, managerPersonId,
                 manager.userId(), lineKind, period, 1);
