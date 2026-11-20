@@ -595,6 +595,7 @@ public class FuhitoResource {
     @Operation(operationId = "getVersion", summary = "Returns the version of this extension.")
     @Tag(ref = Tags.GENERAL)
     @APIResponse(responseCode = "200", description = "The version.")
+    @BadRequest
     @ApiErrors
     public VersionRepresentation version() {
         context.requireReadStructure();

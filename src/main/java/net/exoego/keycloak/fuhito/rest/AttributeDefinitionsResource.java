@@ -82,6 +82,7 @@ public class AttributeDefinitionsResource {
     @Operation(operationId = "getAttributeDefinition", summary = "Returns one definition.")
     @APIResponse(responseCode = "200", description = "The definition.")
     @NotFound
+    @BadRequest
     @ApiErrors
     public AttributeDefinitionRepresentation get(
             @Parameter(description = "The ID of the resource.")

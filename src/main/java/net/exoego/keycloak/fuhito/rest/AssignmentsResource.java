@@ -186,6 +186,7 @@ public class AssignmentsResource {
     @Operation(operationId = "getAssignment", summary = "Returns an assignment with the details of every period.")
     @APIResponse(responseCode = "200", description = "The assignment.")
     @NotFound
+    @BadRequest
     @ApiErrors
     public AssignmentRepresentation get(
             @Parameter(description = "The ID of the resource.")
