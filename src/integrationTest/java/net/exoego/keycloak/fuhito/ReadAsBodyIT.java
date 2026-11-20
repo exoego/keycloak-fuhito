@@ -4,6 +4,7 @@ import java.net.http.HttpResponse;
 import java.util.List;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -25,11 +26,13 @@ class ReadAsBodyIT {
         return resource;
     }
 
-    // Reads a resource, deletes it, and creates it again with the read as the body. Returns the ID of the new one.
-    private static String createdAgain(Api api, String list, String id) throws Exception {
-        JsonNode read = ok(api.get(list + "/" + id));
+    // Reads a resource, deletes it, and creates it again with the read as the body, less the fields that it leaves
+    // out. Returns the ID of the new one.
+    private static String createdAgain(Api api, String list, String id, String... leftOut) throws Exception {
+        ObjectNode read = (ObjectNode) ok(api.get(list + "/" + id));
         assertFalse(read.has("externalIds"), list);
         assertEquals(204, api.deleteWithVersion(list + "/" + id).statusCode(), list);
+        read.remove(List.of(leftOut));
         return createdWithNoId(api, list, read.toString()).get("id").asText();
     }
 
@@ -71,9 +74,10 @@ class ReadAsBodyIT {
                 + person + "\", \"validFrom\": \"2020-04-01\"}").get("id").asText());
         String assignment = createdAgain(api, "/assignments", createdWithNoId(api, "/assignments", "{\"employmentId\": \""
                 + employment + "\", \"orgUnitId\": \"" + unit + "\", \"validFrom\": \"2020-04-01\"}").get("id").asText());
+        // The read names the manager by the person and by the user, and a create takes one of them.
         createdAgain(api, "/reporting-lines", createdWithNoId(api, "/reporting-lines", "{\"assignmentId\": \""
                 + assignment + "\", \"managerUserId\": \"" + realm.user("boss") + "\", \"validFrom\": \"2020-04-01\"}")
-                .get("id").asText());
+                .get("id").asText(), "managerUserId");
         createdAgain(api, "/unit-roles", createdWithNoId(api, "/unit-roles", "{\"employmentId\": \"" + employment
                 + "\", \"orgUnitId\": \"" + unit + "\", \"role\": \"approver\", \"validFrom\": \"2020-04-01\"}")
                 .get("id").asText());
