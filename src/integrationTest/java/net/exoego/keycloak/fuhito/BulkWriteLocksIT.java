@@ -18,6 +18,7 @@ import org.keycloak.representations.idm.UserRepresentation;
 import org.keycloak.representations.userprofile.config.UPConfig;
 
 import static net.exoego.keycloak.fuhito.KeycloakEnvironment.KEYCLOAK;
+import static net.exoego.keycloak.fuhito.KeycloakEnvironment.holding;
 import static net.exoego.keycloak.fuhito.KeycloakEnvironment.inBackground;
 import static net.exoego.keycloak.fuhito.KeycloakEnvironment.update;
 import static net.exoego.keycloak.fuhito.KeycloakEnvironment.waiterOf;
@@ -41,14 +42,6 @@ class BulkWriteLocksIT {
 
     private static String id(HttpResponse<String> response) throws Exception {
         return ok(response).get("id").asText();
-    }
-
-    // A connection that holds a row, as a write that has not ended does.
-    private static Connection holding(String table, String id) throws Exception {
-        Connection connection = KeycloakEnvironment.connection();
-        connection.setAutoCommit(false);
-        update(connection, "update " + table + " set version = version where id = ?", id);
-        return connection;
     }
 
     // The call must not wait for a lock. A call that waits would fail the test only after a long time.

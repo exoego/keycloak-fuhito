@@ -137,6 +137,9 @@ public class AttributeSyncService {
 
     private static final int USERS_AT_A_TIME = 100;
 
+    // The code of a piece whose realm Keycloak removed. No user can run there any more.
+    private static final String REALM_GONE = "realm.not_found";
+
     private final Work work;
     // The parts of the piece that runs now.
     private Sources from;
@@ -196,7 +199,8 @@ public class AttributeSyncService {
      * The work is done in pieces. A user that fails is reported, and the run goes on with the other users.
      *
      * @return what the run did
-     * @throws FuhitoException when the realm did not turn the sync on, or another run is going on
+     * @throws FuhitoException when the realm did not turn the sync on, another run is going on, or Keycloak removed
+     *         the realm during the run
      */
     public SyncReport run() {
         return work.alone(this::runAlone);
@@ -236,6 +240,9 @@ public class AttributeSyncService {
             try {
                 total.add(tallied(some, body));
             } catch (RuntimeException pieceFailed) {
+                if (pieceFailed instanceof FuhitoException known && REALM_GONE.equals(known.code())) {
+                    throw known;
+                }
                 for (E one : some) {
                     try {
                         total.add(tallied(List.of(one), body));
