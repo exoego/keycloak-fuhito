@@ -15,7 +15,6 @@ import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
-import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.rest.RequestContext.Change;
 import net.exoego.keycloak.fuhito.service.AssignmentService;
@@ -171,7 +170,7 @@ public class AssignmentsResource {
     public Response add(AssignmentRepresentation body) {
         context.requireWrite();
         return Calls.run(context, () -> {
-            Checks.required("body", body);
+            Calls.body(body);
             // A switch of the primary flag changes the other assignments of the employment.
             if (Boolean.TRUE.equals(body.switchPrimary())) {
                 context.lock(scopes.assignmentsOfEmployment(body.employmentId()));

@@ -122,8 +122,12 @@ class RefItemsIT {
     void rejectsBadValues() throws Exception {
         assertEquals("invalid.code", errorOf(400, api.post("/ref-items",
                 "{\"kind\": \"UNIT_TYPE\", \"code\": \"bad code\", \"primaryLanguage\": \"en\", \"names\": {\"en\": {\"name\": \"x\"}}}")));
-        assertEquals("invalid.name", errorOf(400, api.post("/ref-items",
+        assertEquals("invalid.blank", errorOf(400, api.post("/ref-items",
                 "{\"kind\": \"UNIT_TYPE\", \"code\": \"blank-name\", \"primaryLanguage\": \"en\", \"names\": {\"en\": {\"name\": \" \"}}}")));
+        HttpResponse<String> emptyCode = api.post("/ref-items",
+                "{\"kind\": \"UNIT_TYPE\", \"code\": \"\", \"primaryLanguage\": \"en\", \"names\": {\"en\": {\"name\": \"x\"}}}");
+        assertEquals("invalid.blank", errorOf(400, emptyCode));
+        assertEquals("code", Api.json(emptyCode).get("params").get("field").asText());
         assertEquals("invalid.kind", errorOf(400, api.post("/ref-items",
                 "{\"kind\": \"NOPE\", \"code\": \"x\", \"primaryLanguage\": \"en\", \"names\": {\"en\": {\"name\": \"x\"}}}")));
         assertEquals("invalid.language_tag", errorOf(400, api.post("/ref-items",

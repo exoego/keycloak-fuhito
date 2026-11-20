@@ -19,7 +19,6 @@ import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
-import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.rest.RequestContext.Change;
 import net.exoego.keycloak.fuhito.service.AssignmentService;
@@ -213,7 +212,7 @@ public class EmploymentsResource {
     public Response start(EmploymentRepresentation body) {
         context.requireWrite();
         return Calls.run(context, () -> {
-            Checks.required("body", body);
+            Calls.body(body);
             var employment = represent(service.start(
                     body.toNewEmployment(Writes.personId(context, people, "personId", body.personId(), body.userId()))));
             context.recordChange(Change.CREATE, RESOURCE_TYPE, employment.id(), "fuhito/employments/" + employment.id(),
@@ -443,7 +442,7 @@ public class EmploymentsResource {
     public Response transferAll(TransfersRepresentation body) {
         context.requireWrite();
         return Calls.run(context, () -> {
-            Checks.required("body", body);
+            Calls.body(body);
             Map<String, Set<String>> changed = new HashMap<>(scopes.employer(body.fromEmployerId()));
             if (Boolean.TRUE.equals(body.endEmployer()) && body.fromEmployerId() != null) {
                 changed.put("org-units", Set.of(body.fromEmployerId()));

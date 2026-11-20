@@ -13,7 +13,6 @@ import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
-import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.domain.ReportingLine;
 import net.exoego.keycloak.fuhito.rest.RequestContext.Change;
@@ -77,7 +76,7 @@ public class ReportingLinesResource {
     public Response add(ReportingLineRepresentation body) {
         context.requireWrite();
         return Calls.run(context, () -> {
-            Checks.required("body", body);
+            Calls.body(body);
             String manager = Writes.personId(context, people, "managerPersonId", body.managerPersonId(),
                     body.managerUserId());
             var line = represent(externalIds.create(ExternalId.Kind.REPORTING_LINE, body.source(), body.externalId(),

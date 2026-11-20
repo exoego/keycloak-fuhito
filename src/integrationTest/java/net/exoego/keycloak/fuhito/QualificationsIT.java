@@ -106,6 +106,26 @@ class QualificationsIT {
     }
 
     @Test
+    void anEmptyNumberOrOtherTextFails() throws Exception {
+        String start = "{\"userId\": \"" + realm.user("empty-texts") + "\", \"kind\": \"physician-license\", "
+                + "\"validFrom\": \"2010-05-01\"";
+        for (String field : List.of("number", "validTo", "userId", "externalId")) {
+            for (String empty : List.of("", "  ")) {
+                HttpResponse<String> response = api.post("/qualifications", start + ", \"" + field + "\": \""
+                        + empty + "\"}");
+                assertEquals("invalid.blank", errorOf(400, response), field);
+                assertEquals(field, Api.json(response).get("params").get("field").asText());
+            }
+        }
+        String id = created(api.post("/qualifications", start + ", \"number\": \"第7号\"}")).get("id").asText();
+        HttpResponse<String> replaced = api.putWithVersion("/qualifications/" + id,
+                "{\"kind\": \"physician-license\", \"number\": \"\", \"validFrom\": \"2010-05-01\"}");
+        assertEquals("invalid.blank", errorOf(400, replaced));
+        assertEquals("number", Api.json(replaced).get("params").get("field").asText());
+        assertEquals("第7号", Api.json(api.get("/qualifications/" + id)).get("number").asText());
+    }
+
+    @Test
     void removingAUserKeepsTheirQualificationsAndErasingRemovesThem() throws Exception {
         TestRealm scratch = TestRealm.create("qualifications-removal");
         scratch.refItem("QUALIFICATION", "license", "免許");

@@ -688,15 +688,18 @@ public class OrgUnitService {
      * has its own. A missing value means that the unit uses the value from above, or from the realm.
      *
      * @param id the ID
-     * @param timeZone the time zone, for example {@code America/New_York}, or null or blank for none
-     * @param dayStart the time of day when the date changes, as {@code HH:mm}, or null or blank for none
+     * @param timeZone the time zone, for example {@code America/New_York}, or null for none
+     * @param dayStart the time of day when the date changes, as {@code HH:mm}, or null for none
      * @return the unit with the new settings
-     * @throws FuhitoException when the unit does not exist, the time zone is unknown, or the day start is bad
+     * @throws FuhitoException when the unit does not exist, a value is empty or only spaces, the time zone is
+     *         unknown, or the day start is bad
      */
     public OrgUnit setTime(String id, String timeZone, String dayStart) {
         OrgUnit unit = requireUnit(id);
-        String zone = timeZone == null || timeZone.isBlank() ? null : timeZone.strip();
-        String start = dayStart == null || dayStart.isBlank() ? null : dayStart.strip();
+        Checks.optionalText("timeZone", timeZone);
+        Checks.optionalText("dayStart", dayStart);
+        String zone = timeZone == null ? null : timeZone.strip();
+        String start = dayStart == null ? null : dayStart.strip();
         try {
             // Any rule will do for the check. Only the two new values are parsed.
             new BusinessDay.Rule(ZoneOffset.UTC, LocalTime.MIDNIGHT).with(zone, start);

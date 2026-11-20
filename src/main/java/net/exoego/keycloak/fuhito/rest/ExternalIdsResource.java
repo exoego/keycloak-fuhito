@@ -134,7 +134,7 @@ public class ExternalIdsResource {
     public ExternalIdRepresentation put(ExternalIdRepresentation body) {
         context.requireWrite();
         return Calls.run(context, () -> {
-            Checks.required("body", body);
+            Calls.body(body);
             lockOwner(body.resourceType(), body.resourceId());
             requireVersion(body.resourceType(), body.resourceId(), body.source(), body.version());
             ExternalIdService.View view = service.put(body.resourceType(), body.resourceId(), body.source(),

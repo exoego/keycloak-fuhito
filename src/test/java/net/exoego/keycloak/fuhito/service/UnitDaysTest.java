@@ -5,6 +5,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import net.exoego.keycloak.fuhito.domain.BusinessDay;
@@ -84,7 +85,7 @@ class UnitDaysTest {
         // After 13:00 the date changes, so 12:00 on March 31 in New York is still March 30.
         orgUnits.setTime(sales, null, "13:00");
         // 01:00 on April 1 in Tokyo is March 31 with the day start of 13:00 from above.
-        orgUnits.setTime(team, " Asia/Tokyo ", " ");
+        orgUnits.setTime(team, " Asia/Tokyo ", null);
 
         UnitDays days = days();
 
@@ -181,15 +182,33 @@ class UnitDaysTest {
     }
 
     @Test
-    void aBlankTimeZoneMeansNone() {
+    void aMissingTimeZoneMeansNone() {
         String america = unit("America", null);
 
-        orgUnits.setTime(america, "  ", "13:00");
+        orgUnits.setTime(america, null, "13:00");
 
         assertNull(store.units.get(america).timeZone());
         assertEquals("13:00", store.units.get(america).dayStart());
         // 01:00 on April 1 in Tokyo, the zone of the realm, is before the day start of the unit.
         assertEquals(MARCH_31, days().ofUnit(america));
+    }
+
+    @Test
+    void anEmptyTimeSettingFails() {
+        String america = unit("America", null);
+        orgUnits.setTime(america, "America/New_York", "04:00");
+
+        for (String blank : List.of("", "  ")) {
+            FuhitoException zone = assertThrows(FuhitoException.class,
+                    () -> orgUnits.setTime(america, blank, "13:00"));
+            assertEquals("invalid.blank", zone.code());
+            assertEquals(Map.of("field", "timeZone"), zone.params());
+            FuhitoException start = assertThrows(FuhitoException.class,
+                    () -> orgUnits.setTime(america, "Asia/Tokyo", blank));
+            assertEquals(Map.of("field", "dayStart"), start.params());
+        }
+        assertEquals("America/New_York", store.units.get(america).timeZone());
+        assertEquals("04:00", store.units.get(america).dayStart());
     }
 
     // The service refuses a cycle. This is the tree as only broken data could make it.

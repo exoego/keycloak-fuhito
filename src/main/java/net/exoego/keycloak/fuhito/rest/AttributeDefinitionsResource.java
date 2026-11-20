@@ -14,7 +14,6 @@ import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import net.exoego.keycloak.fuhito.domain.AttributeDefinition;
-import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.rest.RequestContext.Change;
 import net.exoego.keycloak.fuhito.service.AttributeDefinitionService;
@@ -107,7 +106,7 @@ public class AttributeDefinitionsResource {
     public Response create(AttributeDefinitionRepresentation body) {
         context.requireWrite();
         return Calls.run(context, () -> {
-            Checks.required("body", body);
+            Calls.body(body);
             var definition = represent(externalIds.create(ExternalId.Kind.ATTRIBUTE_DEFINITION, body.source(),
                     body.externalId(), () -> service.create(body.target(), body.name(), body.type(), body.refKind(),
                             body.multiple(), body.required()), AttributeDefinition::id));

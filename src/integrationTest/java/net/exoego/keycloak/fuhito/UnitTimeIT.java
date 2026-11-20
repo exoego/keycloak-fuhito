@@ -113,4 +113,29 @@ class UnitTimeIT {
         assertEquals("Asia/Tokyo", kept.get("timeZone").asText());
         assertEquals("04:00", kept.get("dayStart").asText());
     }
+
+    @Test
+    void anEmptySettingFailsAndNullRemovesIt() throws Exception {
+        TestRealm realm = TestRealm.create("unit-time-empty");
+        String unit = unit(realm, "Branch", null, LocalDate.of(2020, 4, 1));
+        String path = "/org-units/" + unit + "/time-settings";
+        assertEquals(200, realm.api.putWithVersion(path, "{\"timeZone\": \"Asia/Tokyo\", \"dayStart\": \"04:00\"}")
+                .statusCode());
+
+        for (String body : new String[] {"{\"timeZone\": \"\", \"dayStart\": \"04:00\"}",
+            "{\"timeZone\": \"Asia/Tokyo\", \"dayStart\": \"  \"}"}) {
+            HttpResponse<String> empty = realm.api.putWithVersion(path, body);
+            assertEquals(400, empty.statusCode(), empty.body());
+            JsonNode error = Api.json(empty);
+            assertEquals("invalid.blank", error.get("error").asText());
+            assertEquals(body.contains("\"\"") ? "timeZone" : "dayStart", error.get("params").get("field").asText());
+        }
+        JsonNode kept = Api.json(realm.api.get("/org-units/" + unit));
+        assertEquals("Asia/Tokyo", kept.get("timeZone").asText());
+        assertEquals("04:00", kept.get("dayStart").asText());
+
+        assertEquals(200, realm.api.putWithVersion(path, "{\"timeZone\": null, \"dayStart\": \"04:00\"}")
+                .statusCode());
+        assertFalse(Api.json(realm.api.get("/org-units/" + unit)).has("timeZone"));
+    }
 }

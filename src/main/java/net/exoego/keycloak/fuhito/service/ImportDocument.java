@@ -418,12 +418,14 @@ public record ImportDocument(
             @Schema(description = "The name in `attributes`, which no other definition of the target has. A row of "
                     + "a stored definition may leave it out.", maxLength = 64)
             String name,
-            @Schema(enumeration = {"STRING", "NUMBER", "BOOLEAN", "DATE", "REF_ITEM"})
+            @Schema(
+                    description = "The type of the value. A `STRING` value must not be empty or only spaces, also "
+                            + "in a list.",
+                    enumeration = {"STRING", "NUMBER", "BOOLEAN", "DATE", "REF_ITEM"})
             String type,
             @Schema(description = "The kind of reference data. Only the type `REF_ITEM` has it.")
             String refKind,
-            @Schema(description = "True when the value is a JSON array, and each element has the type. An element of a "
-                    + "`STRING` list must not be empty or only spaces.",
+            @Schema(description = "True when the value is a JSON array, and each element has the type.",
                     defaultValue = "false")
             Boolean multiple,
             @Schema(description = "True when every write of the resource must give a value.", defaultValue = "false")

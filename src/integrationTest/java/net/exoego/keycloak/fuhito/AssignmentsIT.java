@@ -237,6 +237,29 @@ class AssignmentsIT {
     }
 
     @Test
+    void anEmptyTextFailsInEveryWriteOfAnAssignment() throws Exception {
+        for (String field : List.of("jobTitle", "occupation", "kind", "workLocation", "costCenter", "validTo")) {
+            HttpResponse<String> response = api.post("/assignments", assign(xMedicine, ", \"" + field + "\": \" \""));
+            assertEquals("invalid.blank", errorOf(400, response), field);
+            assertEquals(field, Api.json(response).get("params").get("field").asText());
+        }
+        String id = id(api.post("/assignments", assign(unit("空のテキスト", null),
+                ", \"jobTitle\": \"staff\", \"validTo\": \"2027-01-01\"")));
+        String path = "/assignments/" + id;
+        HttpResponse<String> details = api.putWithVersion(path + "/details",
+                "{\"validFrom\": \"2026-10-01\", \"jobTitle\": \"\"}");
+        assertEquals("invalid.blank", errorOf(400, details));
+        assertEquals("jobTitle", Api.json(details).get("params").get("field").asText());
+        assertEquals("invalid.blank", errorOf(400, api.postWithVersion(path + "/move",
+                "{\"orgUnitId\": \"" + xMedicine + "\", \"validFrom\": \"2026-10-01\", \"costCenter\": \"\"}")));
+        assertEquals("invalid.blank", errorOf(400, api.putWithVersion(path + "/end", "{\"validTo\": \"\"}")));
+        JsonNode kept = Api.json(api.get(path));
+        assertEquals(1, kept.get("periods").size());
+        assertEquals("staff", kept.get("periods").get(0).get("jobTitle").asText());
+        assertEquals("2027-01-01", kept.get("validTo").asText());
+    }
+
+    @Test
     void aMoveTakesAPersonToAnotherOrgUnitInOneWrite() throws Exception {
         TestRealm scratch = TestRealm.withEmployer("assignments-move");
         Api scratchApi = scratch.api;

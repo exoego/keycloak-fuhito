@@ -26,13 +26,15 @@ public record AttributeDefinitionRepresentation(
         String target,
         @Schema(description = "The name in `attributes`. Only a create request reads it.", maxLength = 64)
         String name,
-        @Schema(enumeration = {"STRING", "NUMBER", "BOOLEAN", "DATE", "REF_ITEM"})
+        @Schema(
+                description = "The type of the value. A `STRING` value must not be empty or only spaces, also in a "
+                        + "list.",
+                enumeration = {"STRING", "NUMBER", "BOOLEAN", "DATE", "REF_ITEM"})
         String type,
         @Schema(description = "The kind of reference data, fixed or of the realm. Only the type `REF_ITEM` has it.")
         String refKind,
         @Schema(
-                description = "True when the value is a JSON array, and each element has the type. An element of a "
-                        + "`STRING` list must not be empty or only spaces.",
+                description = "True when the value is a JSON array, and each element has the type.",
                 defaultValue = "false")
         Boolean multiple,
         @Schema(

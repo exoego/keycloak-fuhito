@@ -99,19 +99,24 @@ class AttributeDefinitionServiceTest {
     }
 
     @Test
-    void aTextListRejectsAnEmptyItem() {
+    void anAttributeRejectsAnEmptyText() {
         service.create("ASSIGNMENT", "shifts", "STRING", null, true, null);
         service.create("ASSIGNMENT", "note", "STRING", null, false, null);
+        service.create("ASSIGNMENT", "since", "DATE", null, false, null);
 
-        Map<String, Object> good = Map.of("shifts", List.of("night", " day"));
+        Map<String, Object> good = Map.of("shifts", List.of("night", " day"), "note", " a ");
         assertEquals(good, service.check(Target.ASSIGNMENT, good));
         for (List<String> bad : List.of(List.of("night", ""), List.of(" "), List.of("\t", "day"))) {
             FuhitoException e = assertThrows(FuhitoException.class,
                     () -> service.check(Target.ASSIGNMENT, Map.of("shifts", bad)));
-            assertEquals("attribute.empty_item", e.code(), bad.toString());
-            assertEquals(Map.of("name", "shifts"), e.params());
+            assertEquals("invalid.blank", e.code(), bad.toString());
+            assertEquals(Map.of("field", "attributes.shifts"), e.params());
         }
-        assertEquals(Map.of("note", ""), service.check(Target.ASSIGNMENT, Map.of("note", "")));
+        for (String bad : List.of("", " ", "\u3000")) {
+            assertEquals(Map.of("field", "attributes.note"), assertThrows(FuhitoException.class,
+                    () -> service.check(Target.ASSIGNMENT, Map.of("note", bad))).params());
+        }
+        assertEquals("invalid.blank", code(() -> service.check(Target.ASSIGNMENT, Map.of("since", ""))));
     }
 
     @Test

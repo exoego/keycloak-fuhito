@@ -114,16 +114,18 @@ class AttributeDefinitionsIT {
     }
 
     @Test
-    void aTextListRejectsAnEmptyItem() throws Exception {
+    void anAttributeRejectsAnEmptyText() throws Exception {
         TestRealm realm = TestRealm.create("attributes-empty-item");
         Api api = realm.api;
         created(api.post("/attribute-definitions", "{\"target\": \"ORG_UNIT\", \"name\": \"shifts\", "
                 + "\"type\": \"STRING\", \"multiple\": true}"));
         realm.attribute("ORG_UNIT", "note", "STRING");
+        String unit = "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"1病棟\"}}, "
+                + "\"validFrom\": \"2026-04-01\", \"attributes\": %s}";
 
-        assertEquals("attribute.empty_item", errorOf(400, api.post("/org-units", "{\"primaryLanguage\": \"ja\", "
-                + "\"names\": {\"ja\": {\"name\": \"1病棟\"}}, \"validFrom\": \"2026-04-01\", "
-                + "\"attributes\": {\"shifts\": [\"night\", \"\"]}}")));
+        HttpResponse<String> item = api.post("/org-units", unit.formatted("{\"shifts\": [\"night\", \"\"]}"));
+        assertEquals("invalid.blank", errorOf(400, item));
+        assertEquals("attributes.shifts", Api.json(item).get("params").get("field").asText());
         HttpResponse<String> imported = api.post("/imports", """
                 {"effectiveDate": "2026-04-01", "orgUnits": [
                   {"externalId": "W", "primaryLanguage": "ja", "names": {"ja": {"name": "1病棟"}},
@@ -131,13 +133,19 @@ class AttributeDefinitionsIT {
                 ]}
                 """);
         assertEquals(400, imported.statusCode(), imported.body());
-        // The import rejects an empty text in every field before the attribute is checked.
         assertEquals(List.of("invalid.blank"), Api.json(imported).get("errors").findValuesAsText("error"));
+        for (String note : List.of("\"\"", "\" \"")) {
+            HttpResponse<String> single = api.post("/org-units", unit.formatted("{\"note\": " + note + "}"));
+            assertEquals("invalid.blank", errorOf(400, single));
+            assertEquals("attributes.note", Api.json(single).get("params").get("field").asText());
+        }
 
-        JsonNode ward = created(api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": "
-                + "{\"name\": \"1病棟\"}}, \"validFrom\": \"2026-04-01\", "
-                + "\"attributes\": {\"shifts\": [\"night\"], \"note\": \"\"}}"));
-        assertEquals("", ward.get("attributes").get("note").asText());
+        JsonNode ward = created(api.post("/org-units", unit.formatted("{\"shifts\": [\"night\"], \"note\": \"x\"}")));
+        String path = "/org-units/" + ward.get("id").asText();
+        assertEquals("invalid.blank", errorOf(400, api.putWithVersion(path, unit.formatted("{\"note\": \"\"}"))));
+        assertEquals("x", Api.json(api.get(path)).get("attributes").get("note").asText());
+        assertEquals(200, api.putWithVersion(path, unit.formatted("{\"shifts\": [\"night\"]}")).statusCode());
+        assertFalse(Api.json(api.get(path)).path("attributes").has("note"));
     }
 
     @Test

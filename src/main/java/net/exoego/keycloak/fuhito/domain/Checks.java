@@ -85,6 +85,21 @@ public final class Checks {
     }
 
     /**
+     * Checks a text that may be missing. Null is the way to give no value, so an empty text fails.
+     *
+     * @param field the name of the field, for the error
+     * @param value the text, or null
+     * @return the text, or null
+     * @throws FuhitoException when the text is empty or only spaces
+     */
+    public static String optionalText(String field, String value) {
+        if (value != null && value.isBlank()) {
+            throw FuhitoException.invalid("invalid.blank", Map.of("field", field));
+        }
+        return value;
+    }
+
+    /**
      * Checks a code that may be missing.
      *
      * @param field the name of the field, for the error
