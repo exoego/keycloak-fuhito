@@ -77,6 +77,39 @@ class DateRangeIT {
     }
 
     @Test
+    void aListOfChangeOrdersWithNoEndHasTheLastDate() throws Exception {
+        Api orders = TestRealm.create("date-range-orders").api;
+        for (String date : EDGES) {
+            HttpResponse<String> created = orders.post("/change-orders", order(date));
+            assertEquals(201, created.statusCode(), created.body());
+        }
+        HttpResponse<String> last = orders.get("/change-orders?from=9999-12-31");
+        assertEquals(200, last.statusCode(), last.body());
+        assertEquals(List.of("9999-12-31"), Api.json(last).findValuesAsText("effectiveDate"));
+        assertEquals(1, orders.count("/change-orders/count?from=9999-12-31"));
+        HttpResponse<String> all = orders.get("/change-orders");
+        assertEquals(200, all.statusCode(), all.body());
+        assertEquals(List.of("9999-12-31", "0001-01-01"), Api.json(all).findValuesAsText("effectiveDate"));
+        assertEquals(2, orders.count("/change-orders/count"));
+    }
+
+    @Test
+    void anEmploymentFromTheLastDateKeepsItsEmployerALegalEntity() throws Exception {
+        TestRealm realm = TestRealm.create("date-range-employer");
+        String company = realm.legalEntity("最後の日の雇用主");
+        realm.refItem("UNIT_TYPE", "department", "部");
+        HttpResponse<String> employment = realm.api.post("/employments", "{\"userId\": \"" + realm.user("last-day")
+                + "\", \"employerId\": \"" + company + "\", \"validFrom\": \"9999-12-31\"}");
+        assertEquals(201, employment.statusCode(), employment.body());
+
+        HttpResponse<String> changed = realm.api.putWithVersion("/org-units/" + company, "{\"primaryLanguage\": \"ja\", "
+                + "\"names\": {\"ja\": {\"name\": \"最後の日の雇用主\"}}, \"unitType\": \"department\", "
+                + "\"validFrom\": \"9999-12-31\"}");
+        assertEquals(409, changed.statusCode(), changed.body());
+        assertEquals("org_unit.is_employer", Api.json(changed).get("error").asText());
+    }
+
+    @Test
     void anOrgUnitTakesOnlyADateInTheRangeAndSoDoesARead() throws Exception {
         for (String date : OUTSIDE) {
             assertInvalidDate(api.post("/org-units", unit("範囲外", date)), "validFrom", date);
