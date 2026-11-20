@@ -19,7 +19,7 @@ import static net.exoego.keycloak.fuhito.service.RestoreRules.check;
  * Checks the kinds of reference data in an export. An item has a fixed kind or the code of a kind of the export. An
  * attribute definition names such a kind for the type {@code REF_ITEM}, and only for it. A field that names an item
  * names one of the kind that a write takes for the field. A write finds an item by its kind and its code, so it never
- * takes an item of another kind.
+ * takes an item of another kind. An item has only the marks of its kind.
  */
 final class RestoreKinds {
 
@@ -28,6 +28,16 @@ final class RestoreKinds {
             RefKind.UNIT_TYPE, "org_unit.unit_type_unknown",
             RefKind.EXTERNAL_EMPLOYER, "employment.external_employer_unknown");
 
+    // The mark that breaks each rule of the marks.
+    private static final Map<String, String> MARKS = Map.of(
+            "ref_item.legal_entity_kind", "legalEntity",
+            "ref_item.acting_head_kind", "actingHead",
+            "ref_item.lateral_kind", "lateral",
+            "ref_item.rollup_kind", "rollup",
+            "ref_item.lateral_legal_entity", "lateral",
+            "ref_item.rollup_lateral", "rollup",
+            "ref_item.rollup_legal_entity", "rollup");
+
     private final Map<String, String> kinds = new HashMap<>();
 
     private RestoreKinds(RealmExport document) {
@@ -35,12 +45,14 @@ final class RestoreKinds {
     }
 
     /**
-     * Requires known kinds of reference data, and items of the right kind in every field that names an item.
+     * Requires known kinds of reference data, the marks of the kind of each item, and items of the right kind in every
+     * field that names an item.
      *
      * @param document the export, whose values are checked, whose references name rows of the export, and whose IDs
      *        are unique
-     * @throws FuhitoException when an item or a definition has an unknown kind, a definition has a kind with a type
-     *         other than {@code REF_ITEM} or none with it, or a field names an item of another kind. The error is
+     * @throws FuhitoException when an item or a definition has an unknown kind, an item has a mark that its kind
+     *         cannot have or two marks that exclude each other, a definition has a kind with a type other than
+     *         {@code REF_ITEM} or none with it, or a field names an item of another kind. The error is
      *         {@code restore.bad_value} and names the list, the ID of the row, the field, and the error of the write
      *         in {@code rule}.
      */
@@ -51,6 +63,12 @@ final class RestoreKinds {
                 || Arrays.stream(RefKind.values()).anyMatch(kind -> kind.name().equals(code));
         for (RealmExport.Item item : all(document.refItems())) {
             check("ref-items", item.id(), "kind", () -> RefItemService.knownKind(item.kind(), known));
+            try {
+                RefItemMarks.require(item.kind(), item.code(), new RefItemService.Marks(item.legalEntity(),
+                        item.actingHead(), item.lateral(), item.rollup()));
+            } catch (FuhitoException e) {
+                throw broken("ref-items", item.id(), MARKS.get(e.code()), e.code()).causedBy(e);
+            }
         }
         for (RealmExport.Definition definition : all(document.attributeDefinitions())) {
             check("attribute-definitions", definition.id(), "refKind", () -> AttributeDefinitionService
