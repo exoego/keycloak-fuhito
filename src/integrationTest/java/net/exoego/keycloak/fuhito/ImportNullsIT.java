@@ -39,7 +39,7 @@ class ImportNullsIT {
                   {"externalId": "W", "code": null, "timeZone": null, "names": {"ja": {"shortName": null}, "en": null}}
                 ]}
                 """));
-        HttpResponse<String> blank = api.post("/imports", """
+        HttpResponse<String> blank = api.withAcceptLanguage("ja").post("/imports", """
                 {"effectiveDate": "2026-06-01", "orgUnits": [{"externalId": "W", "code": " "},
                   {"externalId": "H", "validTo": "2027-04-01", "successorIds": []}]}
                 """);
@@ -60,6 +60,8 @@ class ImportNullsIT {
         assertEquals(List.of("invalid.blank", "invalid.blank"),
                 Api.json(blank).get("errors").findValuesAsText("error"));
         assertEquals(List.of("code", "successorIds"), Api.json(blank).get("errors").findValuesAsText("field"));
+        assertEquals("code を空や空白だけにすることはできません。値がないときは null にしてください。",
+                Api.json(blank).get("errors").get(0).get("message").asText());
     }
 
     @Test

@@ -172,8 +172,6 @@ class ImportIT {
         assertEquals(List.of("invalid.blank", "import.parent_unknown", "import.parent_failed"),
                 report.get("errors").findValuesAsText("error"));
         assertEquals("orgUnits", report.get("errors").get(0).get("list").asText());
-        assertEquals("names.ja.name を空や空白だけにすることはできません。値がないときは null にしてください。",
-                report.get("errors").get(0).get("message").asText());
         assertEquals("NOPE", report.get("errors").get(1).get("params").get("parentExternalId").asText());
         assertEquals("外部 ID「NOPE」の親は、取り込みデータにも保存済みデータにもありません。",
                 report.get("errors").get(1).get("message").asText());
