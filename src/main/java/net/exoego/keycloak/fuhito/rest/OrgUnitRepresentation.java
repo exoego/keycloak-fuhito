@@ -83,7 +83,14 @@ public record OrgUnitRepresentation(
                         + "unit gathers units in another hierarchy and is not in the default hierarchy.",
                 readOnly = true)
         Boolean rollup,
-        @Schema(description = "The ID of the parent in the default hierarchy. A root and a rollup unit have none.")
+        @Schema(
+                description = "The ID of the parent in the default hierarchy. A root and a rollup unit have none. "
+                        + "`PUT /org-units/{id}/parent` moves the unit, and `PUT /org-units/{id}` does not. A "
+                        + "`PUT /org-units/{id}` can leave it out, or give a parent that the unit has on any date of "
+                        + "the details that the write replaces, as a read of such a date has it. These dates run from "
+                        + "`validFrom` to the end of the stored details of that date. Another value fails with 400 and "
+                        + "`invalid.value_fixed`. So for a unit with no parent on those dates, it must be null or left "
+                        + "out.")
         String parentId,
         @Schema(description = "The first date of these details.", format = "date")
         String validFrom,

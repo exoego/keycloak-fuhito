@@ -122,8 +122,9 @@
                                     `invalid.duplicate_key`. A write that names one thing in two ways gets
                                     `invalid.twice`. A create with a person ID and a user ID that do not name the
                                     same person gets `invalid.mismatch`. A write of a stored resource with another
-                                    value of a field that never changes gets `invalid.value_fixed`. A read with two
-                                    values that do not go together gets `invalid.not_together`.
+                                    value of a field that never changes, or that the write does not change, gets
+                                    `invalid.value_fixed`. A read with two values that do not go together gets
+                                    `invalid.not_together`.
                                     """,
                             content = @Content(mediaType = "application/json",
                                     schema = @Schema(implementation = ErrorRepresentation.class))),

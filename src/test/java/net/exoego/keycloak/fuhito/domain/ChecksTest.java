@@ -74,6 +74,17 @@ class ChecksTest {
     }
 
     @Test
+    void takesOneOfTheStoredValuesOfAFieldThatTheWriteDoesNotChange() {
+        Checks.fixedAmong("parentId", Set.of("a", "b"), "b");
+        Checks.fixedAmong("parentId", Set.of("a"), null);
+        Checks.fixedAmong("parentId", Set.of(), null);
+        FuhitoException e = invalid(() -> Checks.fixedAmong("parentId", Set.of("a", "b"), "c"));
+        assertEquals("invalid.value_fixed", e.code());
+        assertEquals(Map.of("field", "parentId"), e.params());
+        assertEquals("invalid.value_fixed", invalid(() -> Checks.fixedAmong("parentId", Set.of(), "a")).code());
+    }
+
+    @Test
     void takesTwoNamesOfOneThing() {
         Checks.agree("personId", "u1", "userId", "u1");
         Checks.agree("personId", "u1", "userId", null);

@@ -9,6 +9,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import net.exoego.keycloak.fuhito.domain.Assignment;
 import net.exoego.keycloak.fuhito.domain.Employer;
@@ -674,6 +675,24 @@ class OrgUnitServiceTest {
 
         assertNull(service.move(unit, null, "2026-04-01").parentId());
         assertTrue(store.links.isEmpty());
+    }
+
+    @Test
+    void listsTheParentsOnTheDatesOfTheDetailsThatAChangeReplaces() {
+        String a = root("A");
+        String b = root("B");
+        String unit = child("Unit", a);
+        service.move(unit, b, "2026-10-01");
+        service.changeDetails(unit, rename("2027-04-01", "Later"));
+
+        assertEquals(Set.of(a, b), service.parentsOfDetails(unit, "2026-04-01"));
+        assertEquals(Set.of(b), service.parentsOfDetails(unit, "2026-11-01"));
+        assertEquals(Set.of(b), service.parentsOfDetails(unit, "2027-04-01"));
+        assertEquals(Set.of(), service.parentsOfDetails(a, "2026-04-01"));
+        assertEquals("org_unit.not_valid_on",
+                assertThrows(FuhitoException.class, () -> service.parentsOfDetails(unit, "2026-03-31")).code());
+        assertEquals("invalid.required",
+                assertThrows(FuhitoException.class, () -> service.parentsOfDetails(unit, null)).code());
     }
 
     @Test

@@ -17,6 +17,7 @@ import java.util.UUID;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import net.exoego.keycloak.fuhito.domain.AttributeDefinition;
 import net.exoego.keycloak.fuhito.domain.BusinessDay;
@@ -994,6 +995,25 @@ public class OrgUnitService {
      */
     public String source(String id) {
         return requireUnit(id).source();
+    }
+
+    /**
+     * Lists the parents of an org unit in the default hierarchy on the dates of the details that a change of details
+     * from a date replaces. These dates run from that date to the end of the stored details of that date.
+     *
+     * @param id the ID
+     * @param validFrom the first date of the change, as {@code YYYY-MM-DD}
+     * @return the IDs of the parents, or none when the unit has no parent on those dates
+     * @throws FuhitoException when the date is bad, or the unit does not exist on it
+     */
+    public Set<String> parentsOfDetails(String id, String validFrom) {
+        LocalDate from = Checks.date("validFrom", validFrom);
+        requireUnit(id);
+        ValidPeriod replaced = new ValidPeriod(from, versionOn(id, from).period().to());
+        return store.parentLinks(store.defaultHierarchyId(), id).stream()
+                .filter(link -> link.period().overlaps(replaced))
+                .map(OrgUnitLink::parentId)
+                .collect(Collectors.toUnmodifiableSet());
     }
 
     /**
