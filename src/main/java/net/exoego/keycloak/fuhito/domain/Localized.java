@@ -1,8 +1,11 @@
 package net.exoego.keycloak.fuhito.domain;
 
 import java.util.Collections;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.BiFunction;
 
@@ -75,14 +78,16 @@ public record Localized<T>(String primaryLanguage, Map<String, T> byLanguage) {
      * @param names the values by language tag
      * @param check the check of one value. It takes the name of the field, for the error, and the value.
      * @return the checked values with normalized language tags
-     * @throws FuhitoException when a value or a tag is missing or bad, or no value has the primary language
+     * @throws FuhitoException when a value or a tag is missing or bad, two tags give one language, or no value has
+     *         the primary language. The primary language matches a tag in normalized form.
      */
     public static <V, T> Localized<T> check(String primaryLanguage, Map<String, V> names,
             BiFunction<String, V, T> check) {
         String primary = Checks.languageTag("primaryLanguage", Checks.required("primaryLanguage", primaryLanguage));
+        Map<String, String> languages = languages(Checks.required("names", names));
         Map<String, T> checked = new TreeMap<>();
-        Checks.required("names", names).forEach((tag, value) -> {
-            String language = Checks.languageTag("names", tag);
+        names.forEach((tag, value) -> {
+            String language = languages.get(tag);
             String field = "names." + language;
             checked.put(language, check.apply(field, Checks.required(field, value)));
         });
@@ -90,5 +95,26 @@ public record Localized<T>(String primaryLanguage, Map<String, T> byLanguage) {
             throw FuhitoException.invalid("invalid.primary_language", Map.of("value", primary));
         }
         return new Localized<>(primary, checked);
+    }
+
+    /**
+     * Normalizes the language tags of the keys of {@code names} in a request, such as {@code ja} for {@code JA}.
+     *
+     * @param names the values by language tag. A value may be null.
+     * @return the normalized tag of each key
+     * @throws FuhitoException when a tag is bad, or two tags give one language, such as {@code ja} and {@code JA}
+     */
+    public static Map<String, String> languages(Map<String, ?> names) {
+        Map<String, String> languages = new LinkedHashMap<>();
+        Set<String> seen = new HashSet<>();
+        for (String tag : names.keySet()) {
+            String language = Checks.languageTag("names", tag);
+            if (!seen.add(language)) {
+                throw FuhitoException.invalid("invalid.duplicate_language",
+                        Map.of("field", "names." + tag, "value", language));
+            }
+            languages.put(tag, language);
+        }
+        return languages;
     }
 }

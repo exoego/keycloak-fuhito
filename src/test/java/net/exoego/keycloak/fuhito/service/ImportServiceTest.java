@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -226,6 +227,28 @@ class ImportServiceTest {
         assertEquals(new Localized<>("ja", Map.of("ja", new RefKindName("勤務地"), "en", new RefKindName("Site"))),
                 kinds.get("site").names());
         assertEquals(kinds.get("site").id(), stored(ExternalId.Kind.REF_KIND, "import", "SITE"));
+    }
+
+    @Test
+    void aRowWithTwoTagsOfOneLanguageFailsAndKeepsTheStoredNames() {
+        Localized<RefKindName> stored = new Localized<>("ja", Map.of("ja", new RefKindName("拠点"),
+                "en", new RefKindName("Site")));
+        service.apply(kinds(List.of(new RefKindRow(null, null, "SITE", "site", "ja", stored.byLanguage()))));
+        Map<String, RefKindName> removing = new LinkedHashMap<>();
+        removing.put("ja", new RefKindName("勤務地"));
+        removing.put("JA", null);
+        Map<String, RefKindName> twice = new LinkedHashMap<>();
+        twice.put("en-us", new RefKindName("Room"));
+        twice.put("en-US", new RefKindName("Rooms"));
+
+        ImportReport report = service.apply(kinds(List.of(new RefKindRow(null, null, "SITE", null, "ja", removing),
+                new RefKindRow(null, null, "ROOM", "room", "en", twice))));
+
+        assertEquals(List.of("refKinds[0] invalid.duplicate_language", "refKinds[1] invalid.duplicate_language"),
+                errors(report));
+        assertEquals(Map.of("field", "names.JA", "value", "ja"), report.errors().getFirst().error().params());
+        assertEquals(stored, kinds.get("site").names());
+        assertEquals(Optional.empty(), kinds.find("room"));
     }
 
     @Test

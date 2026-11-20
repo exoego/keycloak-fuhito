@@ -65,6 +65,39 @@ class LocalizedTest {
     }
 
     @Test
+    void thePrimaryLanguageMatchesAKeyInNormalizedForm() {
+        assertEquals(Localized.of("en-US", new OrgUnitName("Sales", null, null)), Localized.check("EN-us",
+                Map.of("en-us", new OrgUnitName("Sales", null, null)), (field, name) -> name.checked(field)));
+    }
+
+    @Test
+    void rejectsTwoTagsOfOneLanguage() {
+        Map<String, OrgUnitName> names = new LinkedHashMap<>();
+        names.put("ja", new OrgUnitName("営業部", null, null));
+        names.put("JA", new OrgUnitName("販売部", null, null));
+        assertEquals(Map.of("field", "names.JA", "value", "ja"), invalid("ja", names, "invalid.duplicate_language"));
+
+        Map<String, OrgUnitName> regions = new LinkedHashMap<>();
+        regions.put("en-us", new OrgUnitName("Sales", null, null));
+        regions.put("en-US", new OrgUnitName("Sales", null, null));
+        assertEquals(Map.of("field", "names.en-US", "value", "en-US"),
+                invalid("en-US", regions, "invalid.duplicate_language"));
+    }
+
+    @Test
+    void normalizesTheTagsOfAMergeAndRejectsTwoTagsOfOneLanguage() {
+        Map<String, OrgUnitName> removing = new LinkedHashMap<>();
+        removing.put("JA", new OrgUnitName("営業部", null, null));
+        removing.put("en-us", null);
+        assertEquals(Map.of("JA", "ja", "en-us", "en-US"), Localized.languages(removing));
+
+        removing.put("ja", null);
+        FuhitoException e = assertThrows(FuhitoException.class, () -> Localized.languages(removing));
+        assertEquals("invalid.duplicate_language", e.code());
+        assertEquals(Map.of("field", "names.ja", "value", "ja"), e.params());
+    }
+
+    @Test
     void rejectsBadNamesOfALanguage() {
         assertEquals(Map.of("field", "names.ja.name"),
                 invalid("ja", Map.of("ja", new OrgUnitName(null, null, null)), "invalid.required"));

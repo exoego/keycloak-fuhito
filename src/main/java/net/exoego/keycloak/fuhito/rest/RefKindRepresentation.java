@@ -28,13 +28,14 @@ public record RefKindRepresentation(
                 readOnly = true)
         String name,
         @Schema(
-                description = "The language tag of the primary name, such as `ja`. It is a key of `names`. A fixed "
-                        + "kind has none.",
+                description = "The language tag of the primary name, such as `ja`. It matches a key of `names` in "
+                        + "standard form. A fixed kind has none.",
                 maxLength = 64)
         String primaryLanguage,
         @Schema(
                 description = "The names by language tag, such as `ja`, `en`, or `zh-Hant`. A read gives the tags in "
-                        + "their standard form, such as `en-US` for `en-us`. A fixed kind has none.")
+                        + "their standard form, such as `en-US` for `en-us`. A fixed kind has none. Two keys of one "
+                        + "tag in standard form, such as `ja` and `JA`, fail with `invalid.duplicate_language`.")
         Map<String, RefKindName> names,
         @Schema(description = "True for a kind that every realm has.", readOnly = true)
         Boolean fixed,
