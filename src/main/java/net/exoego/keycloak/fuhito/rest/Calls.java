@@ -56,15 +56,16 @@ final class Calls {
     }
 
     /**
-     * Requires the body of a write, with no empty text in any of its values.
+     * Requires the body of a write, with no empty text and no empty list in any of its values.
      *
      * @param <B> the type of the body
      * @param body the body
      * @return the body
-     * @throws FuhitoException when the body is missing, or a text in it is empty or only spaces
+     * @throws FuhitoException when the body is missing, a text in it is empty or only spaces, or a list in it is
+     *         empty
      */
     static <B extends Record> B body(B body) {
-        return EmptyValues.withoutEmptyTexts(Checks.required("body", body));
+        return EmptyValues.withoutEmptyValues(Checks.required("body", body));
     }
 
     /**

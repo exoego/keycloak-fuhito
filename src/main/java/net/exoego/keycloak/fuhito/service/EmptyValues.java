@@ -8,9 +8,8 @@ import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 
 /**
- * Finds an empty value in a write. An empty text and a text of only spaces fail in every field of a REST write and
- * of an import row, also in the names and the attributes. An empty list fails in an import row too. Null is the way
- * to clear a value.
+ * Finds an empty value in a write. An empty text, a text of only spaces, and an empty list fail in every field of a
+ * REST write and of an import row, also in the names and the attributes. Null is the way to clear a value.
  */
 public final class EmptyValues {
 
@@ -26,30 +25,24 @@ public final class EmptyValues {
      * @throws FuhitoException when the row is missing or a value is empty
      */
     static <R extends Record> R checked(R row) {
-        reject(Checks.required("row", row));
-        return row;
+        return withoutEmptyValues(Checks.required("row", row));
     }
 
     /**
-     * Checks every value of a row of an import.
-     *
-     * @param row the row
-     * @throws FuhitoException when a value is empty
-     */
-    static void reject(Record row) {
-        components(row, true);
-    }
-
-    /**
-     * Requires values with no empty text. The body of a REST write is checked this way.
+     * Requires values with no empty text and no empty list. The body of a REST write and a row of an import are
+     * checked this way.
      *
      * @param <R> the type of the values
      * @param values the values
      * @return the values
-     * @throws FuhitoException when a text is empty or only spaces
+     * @throws FuhitoException when a text is empty or only spaces, or a list is empty
      */
-    public static <R extends Record> R withoutEmptyTexts(R values) {
-        components(values, false);
+    public static <R extends Record> R withoutEmptyValues(R values) {
+        for (RecordComponent component : values.getClass().getRecordComponents()) {
+            if (!component.getName().equals("nulls")) {
+                rejectEmptyValues(component.getName(), valueOf(component, values));
+            }
+        }
         return values;
     }
 
@@ -58,33 +51,17 @@ public final class EmptyValues {
      *
      * @param field the name of the field, for the error
      * @param value the value, or null
-     * @throws FuhitoException when a text in the value is empty or only spaces
+     * @throws FuhitoException when a text in the value is empty or only spaces, or a list in it is empty
      */
-    static void rejectEmptyTexts(String field, Object value) {
-        check(field, value, false);
-    }
-
-    private static void components(Record values, boolean lists) {
-        for (RecordComponent component : values.getClass().getRecordComponents()) {
-            if (!component.getName().equals("nulls")) {
-                check(component.getName(), valueOf(component, values), lists);
-            }
-        }
-    }
-
-    private static void check(String field, Object value, boolean lists) {
+    static void rejectEmptyValues(String field, Object value) {
         switch (value) {
             case String text -> Checks.optionalText(field, text);
-            case Collection<?> items -> {
-                if (lists && items.isEmpty()) {
-                    throw FuhitoException.invalid("invalid.blank", Map.of("field", field));
-                }
-                items.forEach(item -> check(field, item, lists));
-            }
-            case Map<?, ?> values -> values.forEach((key, item) -> check(field + "." + key, item, lists));
+            case Collection<?> items -> Checks.optionalList(field, items)
+                    .forEach(item -> rejectEmptyValues(field, item));
+            case Map<?, ?> values -> values.forEach((key, item) -> rejectEmptyValues(field + "." + key, item));
             case Record names -> {
                 for (RecordComponent component : names.getClass().getRecordComponents()) {
-                    check(field + "." + component.getName(), valueOf(component, names), lists);
+                    rejectEmptyValues(field + "." + component.getName(), valueOf(component, names));
                 }
             }
             case null, default -> {

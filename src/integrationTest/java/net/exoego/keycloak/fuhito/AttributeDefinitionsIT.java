@@ -97,6 +97,8 @@ class AttributeDefinitionsIT {
         assertTrue(occupations.get("multiple").asBoolean());
 
         assertEquals("attribute.required", errorOf(400, api.post("/people", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"山田 花子\"}}, "
+                + "\"attributes\": {\"occupations\": null}}")));
+        assertEquals("invalid.blank", errorOf(400, api.post("/people", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"山田 花子\"}}, "
                 + "\"attributes\": {\"occupations\": []}}")));
         assertEquals("attribute.bad_value", errorOf(400, api.post("/people", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"山田 花子\"}}, "
                 + "\"attributes\": {\"occupations\": \"nurse\"}}")));
@@ -146,6 +148,31 @@ class AttributeDefinitionsIT {
         assertEquals("x", Api.json(api.get(path)).get("attributes").get("note").asText());
         assertEquals(200, api.putWithVersion(path, unit.formatted("{\"shifts\": [\"night\"]}")).statusCode());
         assertFalse(Api.json(api.get(path)).path("attributes").has("note"));
+    }
+
+    @Test
+    void anAttributeRejectsAnEmptyList() throws Exception {
+        TestRealm realm = TestRealm.create("attributes-empty-list");
+        Api api = realm.api;
+        realm.textList("ORG_UNIT", "shifts");
+        realm.attribute("ORG_UNIT", "note", "STRING");
+        String unit = "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"1病棟\"}}, "
+                + "\"validFrom\": \"2026-04-01\", \"attributes\": %s}";
+
+        for (String name : List.of("shifts", "note")) {
+            HttpResponse<String> empty = api.post("/org-units", unit.formatted("{\"" + name + "\": []}"));
+            assertEquals("invalid.blank", errorOf(400, empty), name);
+            assertEquals("attributes." + name, Api.json(empty).get("params").get("field").asText());
+        }
+
+        JsonNode ward = created(api.post("/org-units", unit.formatted("{\"shifts\": [\"night\"]}")));
+        String path = "/org-units/" + ward.get("id").asText();
+        HttpResponse<String> change = api.putWithVersion(path, unit.formatted("{\"shifts\": []}"));
+        assertEquals("invalid.blank", errorOf(400, change));
+        assertEquals("attributes.shifts", Api.json(change).get("params").get("field").asText());
+        assertEquals("night", Api.json(api.get(path)).get("attributes").get("shifts").get(0).asText());
+        assertEquals(200, api.putWithVersion(path, unit.formatted("{}")).statusCode());
+        assertFalse(Api.json(api.get(path)).path("attributes").has("shifts"));
     }
 
     @Test

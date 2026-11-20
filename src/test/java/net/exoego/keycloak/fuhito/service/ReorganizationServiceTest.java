@@ -175,7 +175,11 @@ class ReorganizationServiceTest {
         FuhitoException none = failure("2027-04-01", List.of(succeed(b, null, null)));
         assertEquals("invalid.required", none.code());
         assertEquals(Map.of("field", "successorIds", "step", "0"), none.params());
-        assertEquals("invalid.required", failure("2027-04-01", List.of(succeed(b, List.of(), List.of()))).code());
+        FuhitoException empty = failure("2027-04-01", List.of(succeed(b, List.of(), null)));
+        assertEquals("invalid.blank", empty.code());
+        assertEquals(Map.of("field", "successorIds", "step", "0"), empty.params());
+        assertEquals(Map.of("field", "successorRefs", "step", "0"),
+                failure("2027-04-01", List.of(succeed(b, List.of(b), List.of()))).params());
         assertEquals("org_unit.successor_self", failure("2027-04-01", List.of(succeed(b, List.of(b), null))).code());
         assertEquals("org_unit.not_found", failure("2027-04-01", List.of(succeed(b, List.of("nope"), null))).code());
         assertEquals("org_unit.not_valid_on",
@@ -257,7 +261,7 @@ class ReorganizationServiceTest {
         assertEquals("invalid.date", failure("soon", List.of(end(a))).code());
         assertEquals("invalid.required", failure("2027-04-01", null).code());
         FuhitoException empty = failure("2027-04-01", List.of());
-        assertEquals("invalid.required", empty.code());
+        assertEquals("invalid.blank", empty.code());
         assertEquals(Map.of("field", "steps"), empty.params());
         assertNull(empty.params().get("step"));
 

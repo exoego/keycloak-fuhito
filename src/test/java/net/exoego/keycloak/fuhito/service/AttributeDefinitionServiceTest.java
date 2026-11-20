@@ -77,7 +77,12 @@ class AttributeDefinitionServiceTest {
         assertTrue(sites.multiple());
         Map<String, Object> good = Map.of("sites", List.of("nurse", "clerk"), "days", List.of(1, 3, 5));
         assertEquals(good, service.check(Target.ASSIGNMENT, good));
-        assertEquals("attribute.required", code(() -> service.check(Target.ASSIGNMENT, Map.of("sites", List.of()))));
+        FuhitoException noSites = assertThrows(FuhitoException.class,
+                () -> service.check(Target.ASSIGNMENT, Map.of("sites", List.of())));
+        assertEquals("invalid.blank", noSites.code());
+        assertEquals(Map.of("field", "attributes.sites"), noSites.params());
+        assertEquals(Map.of("field", "attributes.days"), assertThrows(FuhitoException.class,
+                () -> service.check(Target.ASSIGNMENT, Map.of("sites", List.of("nurse"), "days", List.of()))).params());
         assertEquals("attribute.required", code(() -> service.check(Target.ASSIGNMENT, Map.of("days", List.of(1)))));
         List<Object> withNull = new ArrayList<>(List.of("nurse"));
         withNull.add(null);

@@ -61,7 +61,7 @@ public class ReorganizationsResource {
     public ReorganizationRepresentation apply(ReorganizationRepresentation body) {
         context.requireWrite();
         return Calls.run(context, () -> {
-            // The service checks the empty texts of each step, so that the error names the step.
+            // The service checks the empty values of each step, so that the error names the step.
             Checks.required("body", body);
             List<ReorganizationRepresentation.Result> results = new ArrayList<>();
             // A second request that changes the same unit waits for the first one.

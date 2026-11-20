@@ -2,8 +2,10 @@ package net.exoego.keycloak.fuhito.domain;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -85,6 +87,17 @@ class ChecksTest {
             FuhitoException e = invalid(() -> Checks.optionalText("note", blank));
             assertEquals("invalid.blank", e.code());
             assertEquals(Map.of("field", "note"), e.params());
+        }
+    }
+
+    @Test
+    void anOptionalListIsNullOrHasItems() {
+        assertNull(Checks.optionalList("tags", null));
+        assertEquals(List.of("a"), Checks.optionalList("tags", List.of("a")));
+        for (Collection<?> empty : List.of(List.of(), Set.of())) {
+            FuhitoException e = invalid(() -> Checks.optionalList("tags", empty));
+            assertEquals("invalid.blank", e.code());
+            assertEquals(Map.of("field", "tags"), e.params());
         }
     }
 
