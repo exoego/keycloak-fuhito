@@ -72,7 +72,7 @@ public class StaffResource {
     public Response add(StaffRepresentation body) {
         context.requireWrite();
         return Calls.run(context, () -> {
-            Checks.required("body", body);
+            Calls.body(body);
             // The org unit is checked first, so that a request without it does not get as far as the employment.
             Checks.required("orgUnitId", body.orgUnitId());
             EmploymentView started = employments.start(

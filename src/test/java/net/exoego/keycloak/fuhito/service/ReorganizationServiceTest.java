@@ -237,6 +237,19 @@ class ReorganizationServiceTest {
     }
 
     @Test
+    void anEmptyTextInAStepFailsBeforeAnyStepRuns() {
+        String a = unit("A", null);
+        String b = unit("B", null);
+
+        FuhitoException e = failure("2027-04-01", List.of(change(a, "A2"), change(b, " ")));
+
+        assertEquals("invalid.blank", e.code());
+        assertEquals(Map.of("field", "names.ja.name", "step", "1"), e.params());
+        assertEquals("A", orgUnits.get(a, "2027-04-01").version().names().primary().name());
+        assertEquals(Map.of("field", "effectiveDate"), failure(" ", List.of(end(a))).params());
+    }
+
+    @Test
     void rejectsBadRequests() {
         String a = unit("A", null);
 

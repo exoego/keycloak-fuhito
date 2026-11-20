@@ -228,8 +228,13 @@ class PeopleIT {
         assertTrue(Api.json(notAKey).get("message").asText().contains("\"en\""), notAKey.body());
         HttpResponse<String> blank = api.post("/people", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": "
                 + "{\"name\": \" \"}}}");
-        assertEquals("invalid.name", errorOf(400, blank));
+        assertEquals("invalid.blank", errorOf(400, blank));
         assertTrue(Api.json(blank).get("message").asText().contains("names.ja.name"), blank.body());
+        HttpResponse<String> phonetic = api.putWithVersion("/people/" + other, "{\"primaryLanguage\": \"ja\", "
+                + "\"names\": {\"ja\": {\"name\": \"Other\", \"phoneticName\": \"\"}}}");
+        assertEquals("invalid.blank", errorOf(400, phonetic));
+        assertEquals("names.ja.phoneticName", Api.json(phonetic).get("params").get("field").asText());
+        assertEquals("invalid.blank", errorOf(400, api.post("/people", "{\"userId\": \" \"}")));
         assertEquals("invalid.required", errorOf(400, api.post("/people", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"X\"}}, \"externalId\": \"P-8\"}")));
         assertEquals("person.not_found", errorOf(404, otherRealm.api.get("/people/" + id)));
         assertEquals("person.not_found", errorOf(404, otherRealm.api.putWithVersion("/people/" + id, "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"X\"}}}")));

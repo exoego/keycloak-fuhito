@@ -14,7 +14,6 @@ import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
-import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.rest.RequestContext.Change;
 import net.exoego.keycloak.fuhito.service.Cursor;
@@ -101,7 +100,7 @@ public class OrgUnitsResource {
     public Response create(OrgUnitRepresentation body) {
         context.requireWrite();
         return Calls.run(context, () -> {
-            Checks.required("body", body);
+            Calls.body(body);
             var unit = represent(service.create(body.toNewOrgUnit()));
             context.recordChange(Change.CREATE, RESOURCE_TYPE, unit.id(), path(unit.id()), unit);
             return Response.status(Response.Status.CREATED).entity(unit).build();
@@ -569,7 +568,8 @@ public class OrgUnitsResource {
             operationId = "setOrgUnitTimeSettings",
             summary = "Sets the time zone and the day start of an org unit.",
             description = "They decide what today is for the unit and for the units below it. A value that is left "
-                    + "out is removed, and the unit then uses the value from above.")
+                    + "out is removed, and the unit then uses the value from above. An empty text fails with "
+                    + "`invalid.blank`.")
     @Parameter(ref = "changeOrder")
     @APIResponse(responseCode = "200", description = "The settings of the org unit.")
     @BadRequest

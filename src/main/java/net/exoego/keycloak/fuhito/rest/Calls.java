@@ -11,6 +11,7 @@ import jakarta.ws.rs.core.Response;
 import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.Messages;
+import net.exoego.keycloak.fuhito.service.EmptyValues;
 
 /**
  * Runs an operation and turns its failure into an error response.
@@ -55,17 +56,31 @@ final class Calls {
     }
 
     /**
+     * Requires the body of a write, with no empty text in any of its values.
+     *
+     * @param <B> the type of the body
+     * @param body the body
+     * @return the body
+     * @throws FuhitoException when the body is missing, or a text in it is empty or only spaces
+     */
+    static <B extends Record> B body(B body) {
+        return EmptyValues.withoutEmptyTexts(Checks.required("body", body));
+    }
+
+    /**
      * Runs a write of one stored resource. It goes on only when the resource still has the version that the body
      * names.
      *
      * @param <T> the type of the response
+     * @param <B> the type of the body
      * @param context the request
      * @param body the body of the request, with the version that the caller read
      * @param current reads the version of the resource that the path names
      * @param operation the write
      * @return the response
      */
-    static <T> T guarded(RequestContext context, Versioned body, LongSupplier current, Supplier<T> operation) {
+    static <T, B extends Record & Versioned> T guarded(RequestContext context, B body, LongSupplier current,
+            Supplier<T> operation) {
         return guarded(context, body, current, Map::of, operation);
     }
 
@@ -75,6 +90,7 @@ final class Calls {
      * still has the version that the body names.
      *
      * @param <T> the type of the response
+     * @param <B> the type of the body
      * @param context the request
      * @param body the body of the request, with the version that the caller read
      * @param current reads the version of the resource that the path names
@@ -82,10 +98,10 @@ final class Calls {
      * @param operation the write
      * @return the response
      */
-    static <T> T guarded(RequestContext context, Versioned body, LongSupplier current,
+    static <T, B extends Record & Versioned> T guarded(RequestContext context, B body, LongSupplier current,
             Supplier<? extends Map<String, ? extends Collection<String>>> others, Supplier<T> operation) {
         return run(context, () -> {
-            Checks.required("body", body);
+            body(body);
             requireTarget(context, body.version(), current, others);
             return operation.get();
         });
@@ -108,7 +124,7 @@ final class Calls {
 
     /**
      * Runs a write with no body of one stored resource that also changes other stored resources, as
-     * {@link #guarded(RequestContext, Versioned, LongSupplier, Supplier, Supplier)} does for a write with a body.
+     * {@link #guarded(RequestContext, Record, LongSupplier, Supplier, Supplier)} does for a write with a body.
      *
      * @param <T> the type of the response
      * @param context the request

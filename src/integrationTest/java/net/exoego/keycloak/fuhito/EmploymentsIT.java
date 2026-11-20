@@ -242,6 +242,35 @@ class EmploymentsIT {
     }
 
     @Test
+    void anEmptyStaffNumberOrOtherTextFails() throws Exception {
+        String user = "{\"userId\": \"" + realm.user("empty-texts") + "\", \"validFrom\": \"2026-04-01\", ";
+        for (String field : List.of("staffNumber", "employmentType", "grade", "contractEndDate", "validTo",
+                "externalEmployer")) {
+            for (String empty : List.of("", " ")) {
+                HttpResponse<String> response = api.post("/employments", user + "\"" + field + "\": \"" + empty + "\"}");
+                assertEquals("invalid.blank", errorOf(400, response), field);
+                assertEquals(field, Api.json(response).get("params").get("field").asText());
+            }
+        }
+        String id = created(api.post("/employments", user + "\"staffNumber\": \"E-EMPTY\"}")).get("id").asText();
+        String path = "/employments/" + id;
+        HttpResponse<String> terms = api.putWithVersion(path + "/terms",
+                "{\"validFrom\": \"2026-10-01\", \"leaveReason\": \"\", \"status\": \"ON_LEAVE\"}");
+        assertEquals("invalid.blank", errorOf(400, terms));
+        assertEquals("leaveReason", Api.json(terms).get("params").get("field").asText());
+        assertEquals("invalid.blank", errorOf(400, api.putWithVersion(path + "/end",
+                "{\"validTo\": \"2027-04-01\", \"endReason\": \" \"}")));
+        assertEquals("invalid.blank", errorOf(400, api.postWithVersion(path + "/leave",
+                "{\"validFrom\": \"2026-10-01\", \"reason\": \"\"}")));
+        assertEquals("invalid.blank", errorOf(400, api.postWithVersion(path + "/transfer",
+                "{\"employerId\": \"other\", \"validFrom\": \"2026-10-01\", \"staffNumber\": \"\"}")));
+        JsonNode kept = Api.json(api.get(path));
+        assertEquals("E-EMPTY", kept.get("staffNumber").asText());
+        assertEquals(1, kept.get("terms").size());
+        assertFalse(kept.has("validTo"));
+    }
+
+    @Test
     void oneRealmDoesNotSeeTheUsersOrEmploymentsOfAnother() throws Exception {
         String id = created(api.post("/employments",
                 "{\"userId\": \"" + nurse + "\", \"validFrom\": \"2026-04-01\"}")).get("id").asText();

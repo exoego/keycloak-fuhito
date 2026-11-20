@@ -69,6 +69,29 @@ class ChangeOrdersIT {
     }
 
     @Test
+    void anEmptyNoteOrTextFails() throws Exception {
+        for (String field : List.of("note", "externalReference", "title", "number", "kind", "approverUserId")) {
+            for (String empty : List.of("", "  ")) {
+                HttpResponse<String> response = api.post("/change-orders", "{\"title\": \"空\", "
+                        + "\"effectiveDate\": \"2027-04-01\", \"" + field + "\": \"" + empty + "\"}");
+                assertEquals("invalid.blank", errorOf(400, response), field);
+                assertEquals(field, Api.json(response).get("params").get("field").asText());
+            }
+        }
+        JsonNode order = created(api.post("/change-orders", "{\"title\": \"空\", \"note\": \"メモ\", "
+                + "\"effectiveDate\": \"2027-04-01\"}"));
+        String path = "/change-orders/" + order.get("id").asText();
+
+        assertEquals("invalid.blank", errorOf(400, api.putWithVersion(path, "{\"title\": \"空\", \"note\": \"\", "
+                + "\"effectiveDate\": \"2027-04-01\"}")));
+        assertEquals("メモ", Api.json(api.get(path)).get("note").asText());
+        HttpResponse<String> cleared = api.putWithVersion(path, "{\"title\": \"空\", \"note\": null, "
+                + "\"effectiveDate\": \"2027-04-01\"}");
+        assertEquals(200, cleared.statusCode(), cleared.body());
+        assertFalse(Api.json(cleared).has("note"));
+    }
+
+    @Test
     void recordsThatAnOrderWasAnnounced() throws Exception {
         JsonNode order = created(api.post("/change-orders", "{\"title\": \"内示\", \"effectiveDate\": \"2027-04-01\"}"));
         String id = order.get("id").asText();

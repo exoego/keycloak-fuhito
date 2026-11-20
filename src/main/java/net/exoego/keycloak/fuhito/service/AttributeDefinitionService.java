@@ -177,6 +177,8 @@ public class AttributeDefinitionService implements AttributeRules {
     private Map<String, Object> check(AttributeDefinition.Target target, Map<String, Object> attributes,
             List<AttributeDefinition> definitions) {
         Map<String, Object> values = AttributeSize.require(attributes == null ? Map.of() : attributes);
+        // A CSV cell cannot hold an empty text, so a stored value must not be one either.
+        EmptyValues.rejectEmptyTexts("attributes", values);
         Map<String, AttributeDefinition> byName = new HashMap<>();
         definitions.forEach(definition -> byName.put(definition.name(), definition));
         values.forEach((name, value) -> {
@@ -186,9 +188,6 @@ public class AttributeDefinitionService implements AttributeRules {
             }
             if (value != null && !fitsAll(definition, value)) {
                 throw FuhitoException.invalid("attribute.bad_value", Map.of("name", name, "type", typeOf(definition)));
-            }
-            if (hasBlankItem(definition, value)) {
-                throw FuhitoException.invalid("attribute.empty_item", Map.of("name", name));
             }
         });
         byName.values().stream()
@@ -206,13 +205,6 @@ public class AttributeDefinitionService implements AttributeRules {
             return fits(definition, value);
         }
         return value instanceof List<?> list && list.stream().allMatch(element -> fits(definition, element));
-    }
-
-    // A CSV cell of a list cannot hold a blank item, so a stored list must not have one either.
-    private static boolean hasBlankItem(AttributeDefinition definition, Object value) {
-        return definition.multiple() && definition.type() == AttributeDefinition.Type.STRING
-                && value instanceof List<?> list
-                && list.stream().anyMatch(item -> item instanceof String text && text.isBlank());
     }
 
     private static boolean missing(Object value) {

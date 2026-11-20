@@ -216,7 +216,7 @@ class OrgUnitsIT {
                 .get("id").asText();
 
         assertEquals("invalid.required", errorOf(400, api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"x\"}}}")));
-        assertEquals("invalid.name", errorOf(400, api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \" \"}}, \"validFrom\": \"2026-04-01\"}")));
+        assertEquals("invalid.blank", errorOf(400, api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \" \"}}, \"validFrom\": \"2026-04-01\"}")));
         assertEquals("org_unit.unit_type_unknown", errorOf(400, api.post("/org-units",
                 "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"x\"}}, \"unitType\": \"nope\", \"validFrom\": \"2026-04-01\"}")));
         assertEquals("org_unit.parent_unknown", errorOf(400, api.post("/org-units",
@@ -225,6 +225,31 @@ class OrgUnitsIT {
                 "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"x\"}}, \"parentId\": \"" + hospitalId + "\", \"validFrom\": \"2026-03-31\"}")));
         assertEquals("org_unit.code_taken", errorOf(409, api.post("/org-units",
                 "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"x\"}}, \"code\": \"y-hospital\", \"validFrom\": \"2026-04-01\"}")));
+    }
+
+    @Test
+    void anEmptyTextFailsInEveryFieldOfAWrite() throws Exception {
+        String unit = "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"x\"%s}}, \"validFrom\": \"2026-04-01\"%s}";
+        String[][] cases = {
+            {", \"shortName\": \"\"", "", "names.ja.shortName"},
+            {", \"phoneticName\": \" \"", "", "names.ja.phoneticName"},
+            {"", ", \"code\": \"\"", "code"},
+            {"", ", \"unitType\": \" \"", "unitType"},
+            {"", ", \"parentId\": \"\"", "parentId"},
+            {"", ", \"externalId\": \"\", \"source\": \"hr\"", "externalId"}};
+        for (String[] bad : cases) {
+            HttpResponse<String> response = api.post("/org-units", unit.formatted(bad[0], bad[1]));
+            assertEquals("invalid.blank", errorOf(400, response), bad[2]);
+            assertEquals(bad[2], Api.json(response).get("params").get("field").asText());
+        }
+        String id = created(api.post("/org-units", unit.formatted("", ", \"code\": \"empty-texts\""))).get("id").asText();
+        HttpResponse<String> change = api.putWithVersion("/org-units/" + id, unit.formatted(", \"shortName\": \" \"", ""));
+        assertEquals("invalid.blank", errorOf(400, change));
+        assertEquals("invalid.blank", errorOf(400, api.putWithVersion("/org-units/" + id + "/parent",
+                "{\"parentId\": \"\", \"validFrom\": \"2026-05-01\"}")));
+        assertEquals("invalid.blank", errorOf(400, api.putWithVersion("/org-units/" + id + "/end",
+                "{\"validTo\": \" \"}")));
+        assertEquals("empty-texts", Api.json(api.get("/org-units/" + id + "?asOf=2026-04-01")).get("code").asText());
     }
 
     @Test

@@ -78,6 +78,17 @@ class ChecksTest {
     }
 
     @Test
+    void anOptionalTextIsNullOrHasText() {
+        assertNull(Checks.optionalText("note", null));
+        assertEquals(" a ", Checks.optionalText("note", " a "));
+        for (String blank : List.of("", " ", "\t", "　")) {
+            FuhitoException e = invalid(() -> Checks.optionalText("note", blank));
+            assertEquals("invalid.blank", e.code());
+            assertEquals(Map.of("field", "note"), e.params());
+        }
+    }
+
+    @Test
     void requiresTheVersionThatTheResourceHas() {
         Checks.version(3L, 3);
         assertEquals("version.required", invalid(() -> Checks.version(null, 3)).code());

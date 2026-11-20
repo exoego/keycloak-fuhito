@@ -14,7 +14,6 @@ import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
-import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.rest.RequestContext.Change;
 import net.exoego.keycloak.fuhito.service.Cursor;
@@ -137,7 +136,7 @@ public class PeopleResource {
     public Response create(PersonRepresentation body) {
         context.requireWrite();
         return Calls.run(context, () -> {
-            Checks.required("body", body);
+            Calls.body(body);
             var person = represent(service.create(body.toValues()));
             context.recordChange(Change.CREATE, RESOURCE_TYPE, person.id(), path(person.id()), person);
             return Response.status(Response.Status.CREATED).entity(person).build();

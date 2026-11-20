@@ -15,6 +15,10 @@
                         A response leaves out every field that has no value.
                         For example, an org unit with no end date has no `validTo` field.
 
+                        A text in the body of a write must not be empty or only spaces. This holds for every field,
+                        also for a name and for a text in `attributes`. Such a text fails with 400 and
+                        `invalid.blank`, which names the field. A field that is left out or null has no value.
+
                         A read of the org structure needs the role `fuhito-view-structure`. Every other read needs
                         `fuhito-view-people`. A write needs `fuhito-manage`. The roles are in the client
                         `realm-management` of the realm.
@@ -73,7 +77,11 @@
                                     """)
                 },
                 responses = {
-                    @APIResponse(name = "BadRequest", description = "A value in the request is bad.",
+                    @APIResponse(name = "BadRequest",
+                            description = """
+                                    A value in the request is bad.
+                                    In a write, an empty text or a text of only spaces gets `invalid.blank`.
+                                    """,
                             content = @Content(mediaType = "application/json",
                                     schema = @Schema(implementation = ErrorRepresentation.class))),
                     @APIResponse(name = "Unauthorized", description = "The request has no valid token."),
