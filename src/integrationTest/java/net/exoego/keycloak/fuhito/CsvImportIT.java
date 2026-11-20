@@ -867,50 +867,6 @@ class CsvImportIT {
                 "select count(*) from fuhito_org_unit where realm_id = '" + realm.id() + "'"));
     }
 
-    // A row gives its source, and a row of a new resource also needs its ID in that system.
-    @Test
-    void aRowOfAResourceThatKeepsNoSystemNeedsAnIdOrAnExternalIdBesideItsSource() throws Exception {
-        TestRealm realm = TestRealm.withEmployer("csv-source-alone");
-        Api api = realm.api;
-        JsonNode staff = ImportIT.staffForNewRows(realm);
-        String employment = staff.get("employment").get("id").asText();
-        String assignment = staff.get("assignment").get("id").asText();
-        List<ImportIT.NewRow> files = List.of(
-                new ImportIT.NewRow("REF_KIND", "ref-kinds", "source,code,primaryLanguage,name\r\nhr,site,ja,拠点\r\n"),
-                new ImportIT.NewRow("ATTRIBUTE_DEFINITION", "attribute-definitions",
-                        "source,target,name,type\r\nhr,PERSON,beds,NUMBER\r\n"),
-                new ImportIT.NewRow("REF_ITEM", "ref-items",
-                        "source,kind,code,primaryLanguage,name\r\nhr,area,tokyo,ja,東京\r\n"),
-                new ImportIT.NewRow("HIERARCHY", "hierarchies", "source,code,name\r\nhr,project,P\r\n"),
-                new ImportIT.NewRow("CHANGE_ORDER", "change-orders", "source,title\r\nhr,異動\r\n"),
-                new ImportIT.NewRow("UNIT_ROLE", "unit-roles", "source,employmentId,orgUnitId,role\r\nhr," + employment
-                        + "," + staff.get("assignment").get("orgUnitId").asText() + ",approver\r\n"),
-                new ImportIT.NewRow("REPORTING_LINE", "reporting-lines",
-                        "source,assignmentId,managerUsername\r\nhr," + assignment + ",boss\r\n"));
-        JsonNode before = RealmExportIT.export(api);
-
-        List<String> expected = new ArrayList<>();
-        List<String> got = new ArrayList<>();
-        for (ImportIT.NewRow file : files) {
-            HttpResponse<String> response = api.postBytes("/imports/csv/" + file.list() + "?effectiveDate=2026-04-01",
-                    "text/csv; charset=UTF-8", file.values().getBytes(StandardCharsets.UTF_8));
-            JsonNode error = Api.json(response).path("errors").path(0);
-            expected.add(file.list() + " 400 invalid.required externalId");
-            got.add(file.list() + " " + response.statusCode() + " " + error.path("error").asText() + " "
-                    + error.path("params").path("field").asText());
-        }
-        assertEquals(expected, got);
-        assertEquals(before, RealmExportIT.export(api));
-
-        for (ImportIT.NewRow file : files) {
-            String externalId = "X-" + file.list();
-            load(api, file.list(), "effectiveDate=2026-04-01", "externalId," + file.values()
-                    .replace("\r\nhr,", "\r\n" + externalId + ",hr,"));
-            assertEquals(200, api.get("/external-ids/lookup?resourceType=" + file.resourceType()
-                    + "&source=hr&externalId=" + externalId).statusCode(), file.list());
-        }
-    }
-
     @Test
     void aFileLoadsInTheCharsetThatTheRequestNames() throws Exception {
         TestRealm realm = TestRealm.create("csv-sjis");

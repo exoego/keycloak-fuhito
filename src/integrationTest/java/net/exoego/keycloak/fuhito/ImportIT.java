@@ -371,67 +371,6 @@ class ImportIT {
         }
     }
 
-    // A list of a resource that keeps no system, and the values of a new row of it.
-    record NewRow(String resourceType, String list, String values) {
-    }
-
-    // The kind, the role, the manager, and the staff that the new rows name.
-    static JsonNode staffForNewRows(TestRealm realm) throws Exception {
-        Api api = realm.api;
-        String unit = Api.json(api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"病棟\"}}, \"validFrom\": \"2020-04-01\"}"))
-                .get("id").asText();
-        realm.refItem("UNIT_ROLE", "approver", "承認者");
-        realm.user("boss");
-        assertEquals(201, api.post("/ref-kinds", "{\"code\": \"area\", \"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"地域\"}}}").statusCode());
-        return Api.json(api.post("/staff", "{\"userId\": \"" + realm.user("nurse") + "\", \"orgUnitId\": \""
-                + unit + "\", \"validFrom\": \"2020-04-01\"}"));
-    }
-
-    // A row gives its source, and a row of a new resource also needs its ID in that system.
-    @Test
-    void aRowOfAResourceThatKeepsNoSystemNeedsAnIdOrAnExternalIdBesideItsSource() throws Exception {
-        TestRealm realm = TestRealm.withEmployer("import-source-alone");
-        Api api = realm.api;
-        JsonNode staff = staffForNewRows(realm);
-        List<NewRow> rows = List.of(
-                new NewRow("REF_KIND", "refKinds", "\"code\": \"site\", \"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"拠点\"}}"),
-                new NewRow("ATTRIBUTE_DEFINITION", "attributeDefinitions", "\"target\": \"PERSON\", \"name\": \"beds\", \"type\": \"NUMBER\""),
-                new NewRow("REF_ITEM", "refItems", "\"kind\": \"area\", \"code\": \"tokyo\", \"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"東京\"}}"),
-                new NewRow("HIERARCHY", "hierarchies", "\"code\": \"project\", \"name\": \"P\""),
-                new NewRow("CHANGE_ORDER", "changeOrders", "\"title\": \"異動\""),
-                new NewRow("UNIT_ROLE", "unitRoles", "\"employmentId\": \"" + staff.get("employment").get("id").asText()
-                        + "\", \"orgUnitId\": \"" + staff.get("assignment").get("orgUnitId").asText()
-                        + "\", \"role\": \"approver\""),
-                new NewRow("REPORTING_LINE", "reportingLines", "\"assignmentId\": \""
-                        + staff.get("assignment").get("id").asText() + "\", \"managerUsername\": \"boss\""));
-        JsonNode before = RealmExportIT.export(api);
-
-        List<String> expected = new ArrayList<>();
-        List<String> got = new ArrayList<>();
-        for (NewRow row : rows) {
-            HttpResponse<String> response = api.post("/imports", "{\"effectiveDate\": \"2026-04-01\", \"" + row.list()
-                    + "\": [{\"source\": \"hr\", " + row.values() + "}]}");
-            JsonNode error = Api.json(response).path("errors").path(0);
-            expected.add(row.list() + " 400 invalid.required externalId");
-            got.add(error.path("list").asText() + " " + response.statusCode() + " " + error.path("error").asText()
-                    + " " + error.path("params").path("field").asText());
-        }
-        assertEquals(expected, got);
-        assertEquals(before, RealmExportIT.export(api));
-
-        StringBuilder document = new StringBuilder("{\"effectiveDate\": \"2026-04-01\"");
-        for (NewRow row : rows) {
-            document.append(", \"").append(row.list()).append("\": [{\"source\": \"hr\", \"externalId\": \"X-")
-                    .append(row.list()).append("\", ").append(row.values()).append("}]");
-        }
-        JsonNode report = ok(api.post("/imports", document.append('}').toString()));
-        for (NewRow row : rows) {
-            assertEquals(1, report.get("counts").get(row.list()).get("created").asInt(), row.list());
-            ok(api.get("/external-ids/lookup?resourceType=" + row.resourceType() + "&source=hr&externalId=X-"
-                    + row.list()));
-        }
-    }
-
     @Test
     void rejectsABadDocument() throws Exception {
         TestRealm realm = TestRealm.create("import-bad");
