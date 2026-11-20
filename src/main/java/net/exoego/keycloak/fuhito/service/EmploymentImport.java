@@ -289,6 +289,8 @@ final class EmploymentImport {
     private EmploymentView byId(EmploymentRow row, String source) {
         EmploymentView view = find(row.id())
                 .orElseThrow(() -> FuhitoException.invalid("import.id_unknown", Map.of("id", row.id())));
+        ImportMatch.source(row.id(), view.employment().source(), row.source(), row.externalId(),
+                row.personExternalId(), row.employerExternalId(), row.continuesEmploymentExternalId());
         PeopleImport.requireNames(ids, ExternalId.Kind.EMPLOYMENT, row.id(), source, row.externalId());
         return view;
     }

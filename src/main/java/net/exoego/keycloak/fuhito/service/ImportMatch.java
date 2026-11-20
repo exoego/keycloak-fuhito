@@ -1,6 +1,7 @@
 package net.exoego.keycloak.fuhito.service;
 
 import java.time.LocalDate;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
@@ -109,6 +110,22 @@ final class ImportMatch {
             throw FuhitoException.conflict("import.value_fixed", Map.of("id", id, "field", field));
         }
         return stored;
+    }
+
+    /**
+     * Checks the source that a row of a stored thing gives. The source of a row is the system of the external IDs
+     * that the row gives. A row that gives none can only give the source that the thing keeps.
+     *
+     * @param id the ID of the stored thing
+     * @param stored the source that the thing keeps, or null for a thing that keeps none
+     * @param given the source of the row, or null for a row that takes the source of the document
+     * @param externalIds the external IDs that the row gives, of the thing and of the things that it names
+     * @throws FuhitoException when the row gives another source and no external ID
+     */
+    static void source(String id, String stored, String given, Object... externalIds) {
+        if (Arrays.stream(externalIds).allMatch(Objects::isNull)) {
+            fixed(id, "source", stored, given);
+        }
     }
 
     /**

@@ -55,6 +55,27 @@ Some values tell what a thing is, so they never change. A row of a stored thing 
 
 Parents in hierarchies and the IDs of other systems have no ID of their own, so they keep their keys. How a row names another thing does not change either. For example, an assignment names its job title by code and its employment by `employmentExternalId`.
 
+### The source of a row
+
+A row can give its own `source`. A row that leaves it out takes the source of the document, which is `import` by default. `null` takes it too, as for other values with a default. In a CSV file, a blank cell and `#CLEAR` take the `source` of the query.
+
+The source of a row is the system of the external IDs that the row gives. A row that gives none of them finds nothing by its own `source`. So a row by `id` with its own `source` and no external ID can only give the `source` that the thing keeps. Another `source` fails with `import.value_fixed`, which names the field `source` and the `id` of the thing. A thing that keeps no source takes no `source` in such a row. The `PUT` of a resource follows the same rule with `invalid.value_fixed`. A failed row fails the whole import, so it writes nothing.
+
+| List | `source` of a row is the system of | A row by `id` with `source` and none of them |
+|---|---|---|
+| `refKinds`, `attributeDefinitions`, `refItems`, `hierarchies`, `changeOrders` | `externalId` | Fails. These things keep no source |
+| `unitRoles` | `externalId`, `employmentExternalId`, and `orgUnitExternalId` | Fails. A role keeps no source |
+| `reportingLines` | `externalId`, `assignmentExternalId`, and `managerPersonExternalId` | Fails. A line keeps no source |
+| `orgUnits` | `externalId`, `parentExternalId`, and `successorExternalIds` | Fails unless it is the `source` of the unit |
+| `people` | `externalId` | Fails unless it is the `source` of the person |
+| `employments` | `externalId`, `personExternalId`, `employerExternalId`, and `continuesEmploymentExternalId` | Fails unless it is the `source` of the employment |
+| `assignments` | `externalId`, `employmentExternalId`, `orgUnitExternalId`, and `continuesAssignmentExternalId` | Fails unless it is the `source` of the assignment |
+| `qualifications` | `externalId` and `personExternalId` | Fails unless it is the `source` of the qualification |
+| `orgUnitParents` | `orgUnitExternalId` and `parentExternalId` | A row has no `id`. A row with `source` and neither of them fails, because a parent keeps no source |
+| `externalIds` | `externalId`. `source` is part of the key of the row | A row has no `id`. Every row uses `source` |
+
+A CSV file of each list follows the same rule. A row of a CSV export has `source` and `externalId` together, only the `source` that the thing keeps, or neither. So an exported file loads again.
+
 ## People
 
 The list `people` loads people, also those with no Keycloak user, such as staff who left long ago or never log in. It comes before the employments.
