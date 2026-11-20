@@ -16,6 +16,7 @@ import static net.exoego.keycloak.fuhito.ImportIT.ok;
 import static net.exoego.keycloak.fuhito.ImportIT.rows;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 class DuplicateLanguagesIT {
 
@@ -165,8 +166,29 @@ class DuplicateLanguagesIT {
     }
 
     private static HttpResponse<String> csv(String list, String body) throws Exception {
-        return api.postBytes("/imports/csv/" + list + "?effectiveDate=2026-04-01", "text/csv; charset=UTF-8",
+        return csv(api, list, body);
+    }
+
+    private static HttpResponse<String> csv(Api to, String list, String body) throws Exception {
+        return to.postBytes("/imports/csv/" + list + "?effectiveDate=2026-04-01", "text/csv; charset=UTF-8",
                 body.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private static String idOf(Api to, String resourceType, String externalId) throws Exception {
+        return ok(to.get("/external-ids/lookup?resourceType=" + resourceType + "&source=import&externalId="
+                + externalId)).get("resourceId").asText();
+    }
+
+    private static List<String> rowErrors(HttpResponse<String> response) throws Exception {
+        assertEquals(400, response.statusCode(), response.body());
+        JsonNode report = Api.json(response);
+        assertFalse(report.get("applied").asBoolean());
+        List<String> errors = new ArrayList<>();
+        for (JsonNode error : report.get("errors")) {
+            errors.add("line " + error.get("line").asText() + " " + error.get("error").asText() + " "
+                    + error.get("params").path("field").asText() + " " + error.get("params").path("value").asText());
+        }
+        return errors;
     }
 
     @Test
@@ -186,6 +208,106 @@ class DuplicateLanguagesIT {
         JsonNode unit = unitFound("Accounting", "2026-04-01");
         assertEquals("経理", unit.get("names").get("ja").get("shortName").asText());
         assertEquals("Accounting", unit.get("names").get("en-US").get("name").asText());
+    }
+
+    @Test
+    void aCsvRowWithANameOfThePrimaryLanguageInBothOfItsColumnsFailsAndWritesNothing() throws Exception {
+        TestRealm target = TestRealm.create("duplicate-languages-csv-row");
+        Api to = target.api;
+        ok(to.post("/imports", """
+                {"effectiveDate": "2026-04-01",
+                 "refKinds": [{"externalId": "K", "code": "floor", "primaryLanguage": "ja",
+                   "names": {"ja": {"name": "階"}}}],
+                 "refItems": [{"externalId": "I", "kind": "UNIT_TYPE", "code": "clinic", "primaryLanguage": "ja",
+                   "names": {"ja": {"name": "診療所"}}}],
+                 "orgUnits": [{"externalId": "U", "primaryLanguage": "ja",
+                   "names": {"ja": {"name": "営業部", "shortName": "営業"}}}],
+                 "people": [{"externalId": "P", "primaryLanguage": "ja", "names": {"ja": {"name": "田中"}}}]}
+                """));
+        List<String> before = counts(target);
+
+        // A row of a stored thing with a blank primary language takes the stored one.
+        assertEquals(List.of("line 2 invalid.duplicate_language 略称:JA ja",
+                "line 3 invalid.duplicate_language 名称:ja ja", "line 4 invalid.duplicate_language よみがな:ja ja"),
+                rowErrors(csv(to, "org-units", """
+                        外部ID,主言語,名称,略称,よみがな,名称:ja,略称:JA,よみがな:ja,名称:en
+                        U,,,営業課,,,営業,,
+                        N1,ja,経理部,,,#CLEAR,,,Accounting
+                        N2,ja,人事部,,#CLEAR,,,じんじぶ,
+                        N3,en,Planning,,,企画部,,,
+                        """)));
+        assertEquals(List.of("line 2 invalid.duplicate_language Name:JA ja",
+                "line 3 invalid.duplicate_language phoneticName:ja ja"), rowErrors(csv(to, "people", """
+                        externalId,primaryLanguage,name,Name:JA,phoneticName,phoneticName:ja
+                        P,,田中 太郎,田中,,
+                        Q,ja,鈴木,,すずき,すずき
+                        """)));
+        assertEquals(List.of("line 2 invalid.duplicate_language name:ja ja"), rowErrors(csv(to, "ref-items", """
+                externalId,kind,code,primaryLanguage,name,name:ja
+                I,,,,医院,診療所
+                """)));
+        assertEquals(List.of("line 3 invalid.duplicate_language 名称:EN en"), rowErrors(csv(to, "ref-kinds", """
+                外部ID,コード,主言語,名称,名称:EN
+                K,,,階層,
+                K2,room,en,Room,Rooms
+                """)));
+        assertEquals(before, counts(target));
+    }
+
+    @Test
+    void aCsvRowGivesANameOfThePrimaryLanguageInEitherColumnAndAnExportLoadsAgain() throws Exception {
+        TestRealm target = TestRealm.create("duplicate-languages-csv-export");
+        Api to = target.api;
+        ok(csv(to, "org-units", """
+                externalId,primaryLanguage,name,shortName,phoneticName,name:ja,shortName:ja,phoneticName:ja,name:en
+                A,ja,経理部,,,,経理,けいり,Accounting
+                B,en,,Planning,,企画部,,,Planning Division
+                """));
+        ok(csv(to, "people", """
+                externalId,primaryLanguage,name,phoneticName,name:ja,phoneticName:ja,name:en
+                P,ja,,やまだ,山田,,Yamada
+                Q,en,Suzuki,,鈴木,すずき,
+                """));
+        ok(csv(to, "ref-items", """
+                externalId,kind,code,primaryLanguage,name,name:ja,name:en
+                I1,UNIT_TYPE,ward,ja,,病棟,Ward
+                I2,UNIT_TYPE,room,en,Room,部屋,
+                """));
+        ok(csv(to, "ref-kinds", """
+                externalId,code,primaryLanguage,name,name:ja,name:en
+                K1,site,ja,拠点,,Site
+                K2,area,en,,地域,Area
+                """));
+        // A blank cell keeps the stored name, and #CLEAR in either column removes it.
+        ok(csv(to, "org-units", "externalId,shortName,phoneticName,shortName:ja,phoneticName:ja\nA,,#CLEAR,#CLEAR,\n"));
+
+        JsonNode accounting = Api.json(to.get("/org-units/" + idOf(to, "ORG_UNIT", "A") + "?asOf=2026-04-01"))
+                .get("names");
+        assertEquals("経理部", accounting.get("ja").get("name").textValue());
+        assertNull(accounting.get("ja").path("shortName").textValue());
+        assertNull(accounting.get("ja").path("phoneticName").textValue());
+        assertEquals("Accounting", accounting.get("en").get("name").textValue());
+        JsonNode planning = Api.json(to.get("/org-units/" + idOf(to, "ORG_UNIT", "B") + "?asOf=2026-04-01"));
+        assertEquals("en", planning.get("primaryLanguage").textValue());
+        assertEquals("Planning Division", planning.get("names").get("en").get("name").textValue());
+        assertEquals("Planning", planning.get("names").get("en").get("shortName").textValue());
+        assertEquals("企画部", planning.get("names").get("ja").get("name").textValue());
+        JsonNode yamada = Api.json(to.get("/people/" + idOf(to, "PERSON", "P"))).get("names");
+        assertEquals("山田", yamada.get("ja").get("name").textValue());
+        assertEquals("やまだ", yamada.get("ja").get("phoneticName").textValue());
+        JsonNode kinds = Api.json(to.get("/ref-kinds"));
+        JsonNode area = kinds.get(kinds.findValuesAsText("code").indexOf("area"));
+        assertEquals("Area", area.get("name").textValue());
+        assertEquals("地域", area.get("names").get("ja").get("name").textValue());
+
+        for (String list : List.of("org-units", "people", "ref-items", "ref-kinds")) {
+            HttpResponse<String> exported = to.get("/imports/csv/" + list + "?asOf=2026-04-01");
+            assertEquals(200, exported.statusCode(), exported.body());
+            JsonNode counts = ok(csv(to, list, exported.body())).get("counts");
+            assertEquals(0, counts.findValues("created").stream().mapToInt(JsonNode::asInt).sum()
+                    + counts.findValues("changed").stream().mapToInt(JsonNode::asInt).sum(),
+                    list + " " + counts + "\n" + exported.body());
+        }
     }
 
     @Test

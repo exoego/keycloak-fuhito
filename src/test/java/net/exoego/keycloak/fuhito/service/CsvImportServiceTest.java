@@ -205,6 +205,49 @@ class CsvImportServiceTest {
     }
 
     @Test
+    void aRowGivesANameOfThePrimaryLanguageInOneOfItsTwoColumns() {
+        load("orgUnits", "2026-04-01", """
+                externalId,primaryLanguage,name,shortName,phoneticName
+                U,ja,営業部,営業,えいぎょう
+                V,ja,経理部,経理,けいり
+                """);
+        Localized<OrgUnitName> stored = unit("U", "2026-04-01").version().names();
+
+        // A stored unit keeps its primary language when the cell is blank. A column writes the tag in any case.
+        CsvImportService.Result twice = load("orgUnits", "2027-04-01", """
+                外部ID,主言語,名称,略称,よみがな,名称:JA,略称:ja,よみがな:ja
+                U,,販売部,,,営業部,,
+                V,,,経理,,,経理課,
+                N1,ja,人事部,#CLEAR,,,人事,
+                N2,JA,総務部,,#CLEAR,,,#CLEAR
+                """);
+        CsvImportService.Result inTheRow = load("orgUnits", "2027-04-01",
+                "externalId,primaryLanguage,name,name:en\nU,en,Sales,Sales Division\n");
+
+        assertEquals(List.of("line 2 row 0 invalid.duplicate_language", "line 3 row 1 invalid.duplicate_language",
+                "line 4 row 2 invalid.duplicate_language", "line 5 row 3 invalid.duplicate_language"), errors(twice));
+        assertEquals(List.of(Map.of("field", "名称:JA", "value", "ja"), Map.of("field", "略称:ja", "value", "ja"),
+                Map.of("field", "略称:ja", "value", "ja"), Map.of("field", "よみがな:ja", "value", "ja")),
+                twice.errors().stream().map(e -> e.error().params()).toList());
+        assertEquals(List.of("line 2 row 0 invalid.duplicate_language"), errors(inTheRow));
+        assertEquals(Map.of("field", "name:en", "value", "en"), inTheRow.errors().getFirst().error().params());
+        assertEquals(stored, unit("U", "2027-04-01").version().names());
+        assertTrue(externalIdStore.idOf(ExternalId.Kind.ORG_UNIT, "import", "N1").isEmpty());
+
+        // A blank cell in one of the two columns leaves the name to the other. #CLEAR there removes it.
+        assertEquals(List.of(), errors(load("orgUnits", "2027-04-01", """
+                外部ID,名称,略称,よみがな,名称:ja,略称:ja,よみがな:ja
+                U,,#CLEAR,,販売部,,#CLEAR
+                V,経理部,,,,経理課,
+                """)));
+        assertEquals(Localized.of("ja", new OrgUnitName("販売部", null, null)),
+                unit("U", "2027-04-01").version().names());
+        assertEquals(Localized.of("ja", new OrgUnitName("経理部", "経理課", "けいり")),
+                unit("V", "2027-04-01").version().names());
+        assertEquals(stored, unit("U", "2026-04-01").version().names());
+    }
+
+    @Test
     void loadsStaffAndATransferFromCsv() {
         item(RefKind.OCCUPATION, "nurse");
         item(RefKind.EMPLOYMENT_TYPE, "part-time");
