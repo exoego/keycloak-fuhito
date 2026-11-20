@@ -251,7 +251,9 @@ public class AssignmentsResource {
     @Operation(
             operationId = "endAssignment",
             summary = "Sets the end of an assignment.",
-            description = "Its history stays readable. The end can move earlier or later.")
+            description = "Its history stays readable. The end can move earlier or later. A later end that comes "
+                    + "after the start of an assignment that continues this one fails with 409 and "
+                    + "`assignment.continues_holds`.")
     @Parameter(ref = "changeOrder")
     @APIResponse(responseCode = "200", description = "The assignment with the details of every period.")
     @BadRequest
@@ -309,7 +311,9 @@ public class AssignmentsResource {
     @Operation(
             operationId = "removeAssignmentEnd",
             summary = "Removes the end of an assignment.",
-            description = "The assignment then lasts as long as its employment.")
+            description = "The assignment then lasts as long as its employment. When it would then hold on the "
+                    + "start of an assignment that continues it, as after a move, the request fails with 409 and "
+                    + "`assignment.continues_holds`.")
     @Parameter(ref = "changeOrder")
     @APIResponse(responseCode = "200", description = "The assignment with the details of every period.")
     @BadRequest

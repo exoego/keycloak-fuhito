@@ -727,6 +727,30 @@ class EmploymentServiceTest {
     }
 
     @Test
+    void anEndDoesNotPassTheStartOfTheEmploymentThatContinuesIt() {
+        String old = service.start(minimal("alice", "2026-04-01")).employment().id();
+        String next = service.transfer(old, new TransferRequest("company-x", "2027-04-01", null, null)).started()
+                .employment().id();
+
+        for (String date : List.of("2027-04-02", "2028-04-01")) {
+            FuhitoException e = assertThrows(FuhitoException.class, () -> service.end(old, date, null));
+            assertEquals(FuhitoException.Reason.CONFLICT, e.reason());
+            assertEquals("employment.continues_holds", e.code());
+            assertEquals(Map.of("id", old, "date", "2027-04-01"), e.params());
+        }
+        assertEquals("employment.continues_holds",
+                assertThrows(FuhitoException.class, () -> service.removeEnd(old)).code());
+        assertEquals(LocalDate.of(2027, 4, 1), service.get(old).employment().period().to());
+
+        // An end before the start of the next one leaves a gap, which is fine. So is an end on that start.
+        assertEquals(LocalDate.of(2027, 3, 1), service.end(old, "2027-03-01", null).employment().period().to());
+        assertEquals(LocalDate.of(2027, 4, 1), service.end(old, "2027-04-01", null).employment().period().to());
+        // The next one is continued by none.
+        assertEquals(LocalDate.of(2030, 4, 1), service.end(next, "2030-04-01", null).employment().period().to());
+        assertNull(service.removeEnd(next).employment().period().to());
+    }
+
+    @Test
     void aSecondEndMayKeepADeactivatedReason() {
         RefItem reason = item(RefKind.END_REASON, "old-reason", true);
         String id = service.start(minimal("alice", "2026-04-01")).employment().id();

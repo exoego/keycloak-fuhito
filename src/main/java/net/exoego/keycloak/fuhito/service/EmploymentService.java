@@ -349,22 +349,85 @@ public class EmploymentService {
      * An earlier end is how a person leaves. It also ends the terms, the assignments, and the roles over org units
      * on that date, and removes stored changes that would start on or after it.
      * A later end extends a fixed-term employment and its last terms. It does not extend assignments.
+     * A later end cannot pass the start of an employment that continues this one.
      *
      * @param id the ID of the employment
      * @param validTo the first date on which the employment no longer holds, as {@code YYYY-MM-DD}
      * @param endReason the code of the end reason, or null
      * @return the employment with all its terms
-     * @throws FuhitoException when the date is not after the start of the employment or a value is bad
+     * @throws FuhitoException when the date is not after the start of the employment, a value is bad, or the
+     *         employment would hold on the start of an employment that continues it
      */
     public EmploymentView end(String id, String validTo, String endReason) {
+        return end(id, validTo, endReason, true);
+    }
+
+    /**
+     * Sets the end of an employment, as {@link #end(String, String, String)} does.
+     *
+     * @param id the ID of the employment
+     * @param validTo the first date on which the employment no longer holds, as {@code YYYY-MM-DD}
+     * @param endReason the code of the end reason, or null
+     * @param checkNext false when the caller checks the employments that continue this one itself
+     * @return the employment with all its terms
+     * @throws FuhitoException as {@link #end(String, String, String)} does
+     */
+    EmploymentView end(String id, String validTo, String endReason, boolean checkNext) {
         LocalDate to = Checks.date("validTo", validTo);
         Employment employment = get(id).employment();
         if (!to.isAfter(employment.period().from())) {
             throw FuhitoException.notFound("employment.not_valid_on", Map.of("id", id, "date", validTo));
         }
         RefItem reason = usableItem(RefKind.END_REASON, endReason, employment.endReasonId());
+        if (checkNext) {
+            requireEndsByNext(employment, to);
+        }
         setEnd(List.of(employment), to, idOf(reason));
         return get(id);
+    }
+
+    /**
+     * Finds the employments that continue some employments. Such an employment is of the same person.
+     *
+     * @param employments the employments that others may continue
+     * @return the employments that continue one of them
+     */
+    List<Employment> continuing(Collection<Employment> employments) {
+        Set<String> ids = employments.stream().map(Employment::id).collect(Collectors.toSet());
+        Set<String> personIds = employments.stream().map(Employment::personId).collect(Collectors.toSet());
+        return store.findByPeople(personIds).stream()
+                .filter(employment -> ids.contains(employment.continuesEmploymentId()))
+                .toList();
+    }
+
+    /**
+     * Checks that an employment ends by the start of an employment that continues it.
+     *
+     * @param id the ID of the employment
+     * @param period the period of the employment
+     * @param from the start of the employment that continues it
+     * @return the error when the employment still holds on that start
+     */
+    static Optional<FuhitoException> stillHolds(String id, ValidPeriod period, LocalDate from) {
+        if (!period.endsAfter(from)) {
+            return Optional.empty();
+        }
+        return Optional.of(FuhitoException.conflict("employment.continues_holds",
+                Map.of("id", id, "date", from.toString())));
+    }
+
+    // Only a later end or no end can make the employment hold on the start of one that continues it.
+    private void requireEndsByNext(Employment employment, LocalDate to) {
+        LocalDate stored = employment.period().to();
+        if (stored == null || (to != null && !to.isAfter(stored))) {
+            return;
+        }
+        ValidPeriod period = employment.period().endingAt(to);
+        for (Employment next : continuing(List.of(employment))) {
+            stillHolds(employment.id(), period, next.period().from()).ifPresent(e -> {
+                throw e;
+            });
+        }
     }
 
     /**
@@ -618,13 +681,16 @@ public class EmploymentService {
     /**
      * Removes the end of an employment, for example to take back a resignation.
      * The last terms get no end either. Assignments stay as they are.
+     * An employment that another one continues keeps its end.
      *
      * @param id the ID of the employment
      * @return the employment with all its terms
-     * @throws FuhitoException when the employment does not exist
+     * @throws FuhitoException when the employment does not exist, or another employment continues it
      */
     public EmploymentView removeEnd(String id) {
-        setEnd(List.of(get(id).employment()), null, null);
+        Employment employment = get(id).employment();
+        requireEndsByNext(employment, null);
+        setEnd(List.of(employment), null, null);
         return get(id);
     }
 

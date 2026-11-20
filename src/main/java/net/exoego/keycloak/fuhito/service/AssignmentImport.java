@@ -2,11 +2,9 @@ package net.exoego.keycloak.fuhito.service;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -19,13 +17,11 @@ import java.util.stream.Collectors;
 
 import net.exoego.keycloak.fuhito.domain.Assignment;
 import net.exoego.keycloak.fuhito.domain.Checks;
-import net.exoego.keycloak.fuhito.domain.Employment;
 import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.service.ImportDocument.AssignmentRow;
 import net.exoego.keycloak.fuhito.service.ImportReport.Outcome;
 import net.exoego.keycloak.fuhito.service.ImportReport.Write;
-import net.exoego.keycloak.fuhito.store.EmploymentStore;
 
 /**
  * The list of assignments of one document. The writes of the list come into the report in the order in which its
@@ -191,7 +187,7 @@ final class AssignmentImport {
         }
         String storedEnd = Objects.toString(before.period().to(), null);
         if (row.validTo() != null && !row.validTo().equals(storedEnd)) {
-            written("/end", first, () -> service.end(id, row.validTo()));
+            written("/end", first, () -> service.end(id, row.validTo(), false));
             ends.put(id, index);
             changed = true;
         }
@@ -217,7 +213,8 @@ final class AssignmentImport {
         }
         // A new one is checked on its own row.
         Set<String> newIds = continuing.values().stream().map(Link::id).collect(Collectors.toSet());
-        for (Assignment next : continuingOf(ends.keySet().stream().map(found::get).toList())) {
+        List<Assignment> ended = ends.keySet().stream().map(id -> found.get(id).getFirst()).toList();
+        for (Assignment next : service.continuing(ended)) {
             if (!newIds.contains(next.assignmentId())) {
                 holds(found.get(next.continuesAssignmentId()), next.period().from())
                         .ifPresent(e -> failed.putIfAbsent(ends.get(next.continuesAssignmentId()), e));
@@ -226,32 +223,9 @@ final class AssignmentImport {
         return failed;
     }
 
-    // The first rows of the assignments that continue some assignments. Such an assignment is of the same person.
-    private Collection<Assignment> continuingOf(List<List<Assignment>> assignments) {
-        Set<String> ids = new HashSet<>();
-        Set<String> employmentIds = new HashSet<>();
-        assignments.forEach(rows -> {
-            ids.add(rows.getFirst().assignmentId());
-            employmentIds.add(rows.getFirst().employmentId());
-        });
-        EmploymentStore employments = document.people.employments();
-        Set<String> people = employments.findAll(employmentIds).stream().map(Employment::personId)
-                .collect(Collectors.toSet());
-        List<String> all = employments.findByPeople(people).stream().map(Employment::id).toList();
-        Map<String, Assignment> firsts = new LinkedHashMap<>();
-        document.people.assignments().rowsOfEmployments(all).stream()
-                .filter(row -> ids.contains(row.continuesAssignmentId()))
-                .forEach(row -> firsts.putIfAbsent(row.assignmentId(), row));
-        return firsts.values();
-    }
-
     private static Optional<FuhitoException> holds(List<Assignment> previous, LocalDate from) {
         Assignment last = previous.getLast();
-        if (!last.period().endsAfter(from)) {
-            return Optional.empty();
-        }
-        return Optional.of(FuhitoException.conflict("assignment.continues_holds",
-                Map.of("id", last.assignmentId(), "date", from.toString())));
+        return AssignmentService.stillHolds(last.assignmentId(), last.period(), from);
     }
 
     private void written(String suffix, Assignment first, Supplier<AssignmentView> write) {

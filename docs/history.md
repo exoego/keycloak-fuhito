@@ -111,6 +111,7 @@ The end of an org unit, an assignment, or an employment can move earlier or late
 - An earlier end of an org unit needs the same as a first end. The parents that ended with it end on the new date.
 - A later end of an org unit, or no end, lengthens its last details and the parents that ended with it. Each parent must exist on the new dates.
 - The end of an org unit that other units follow after a merger or a split does not move. It fails with `org_unit.has_successors`.
+- The end of an employment or an assignment that another one continues, as after a transfer or a move, does not move past the start of that one. A later end and `DELETE .../end` then fail with `employment.continues_holds` or `assignment.continues_holds`. An end on that start or before it is fine, and so is a gap. The import has the same rule.
 
 ## A delete and an end
 

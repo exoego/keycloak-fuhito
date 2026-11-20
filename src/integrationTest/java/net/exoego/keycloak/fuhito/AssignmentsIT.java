@@ -127,6 +127,29 @@ class AssignmentsIT {
     }
 
     @Test
+    void anEndCannotOpenAgainAnAssignmentThatAMoveEnded() throws Exception {
+        String old = id(api.post("/assignments", assign(unit("移転前の課", null), "")));
+        HttpResponse<String> move = api.postWithVersion("/assignments/" + old + "/move",
+                "{\"orgUnitId\": \"" + unit("移転先の課", null) + "\", \"validFrom\": \"2027-04-01\"}");
+        assertEquals(201, move.statusCode(), move.body());
+        String end = "/assignments/" + old + "/end";
+
+        HttpResponse<String> later = api.putWithVersion(end, "{\"validTo\": \"2027-10-01\"}");
+        assertEquals("assignment.continues_holds", errorOf(409, later));
+        JsonNode params = Api.json(later).get("params");
+        assertEquals(old, params.get("id").asText());
+        assertEquals("2027-04-01", params.get("date").asText());
+        assertEquals("assignment.continues_holds", errorOf(409, api.deleteWithVersion(end)));
+        assertEquals("2027-04-01", Api.json(api.get("/assignments/" + old)).get("validTo").asText());
+
+        // An end before the start of the new assignment leaves a gap, which is fine. So is an end on that start.
+        assertEquals("2027-03-01", Api.json(api.putWithVersion(end, "{\"validTo\": \"2027-03-01\"}"))
+                .get("validTo").asText());
+        assertEquals("2027-04-01", Api.json(api.putWithVersion(end, "{\"validTo\": \"2027-04-01\"}"))
+                .get("validTo").asText());
+    }
+
+    @Test
     void anEmploymentHasOnePrimaryAssignmentAtATime() throws Exception {
         String nurse = realm.user("nurse-" + System.nanoTime());
         String nurseEmployment = id(api.post("/employments", "{\"userId\": \"" + nurse + "\", \"validFrom\": \"2026-04-01\"}"));
