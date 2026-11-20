@@ -187,6 +187,9 @@ public class AttributeDefinitionService implements AttributeRules {
             if (value != null && !fitsAll(definition, value)) {
                 throw FuhitoException.invalid("attribute.bad_value", Map.of("name", name, "type", typeOf(definition)));
             }
+            if (hasBlankItem(definition, value)) {
+                throw FuhitoException.invalid("attribute.empty_item", Map.of("name", name));
+            }
         });
         byName.values().stream()
                 .filter(definition -> definition.required() && missing(values.get(definition.name())))
@@ -203,6 +206,13 @@ public class AttributeDefinitionService implements AttributeRules {
             return fits(definition, value);
         }
         return value instanceof List<?> list && list.stream().allMatch(element -> fits(definition, element));
+    }
+
+    // A CSV cell of a list cannot hold a blank item, so a stored list must not have one either.
+    private static boolean hasBlankItem(AttributeDefinition definition, Object value) {
+        return definition.multiple() && definition.type() == AttributeDefinition.Type.STRING
+                && value instanceof List<?> list
+                && list.stream().anyMatch(item -> item instanceof String text && text.isBlank());
     }
 
     private static boolean missing(Object value) {

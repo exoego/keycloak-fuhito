@@ -114,6 +114,32 @@ class AttributeDefinitionsIT {
     }
 
     @Test
+    void aTextListRejectsAnEmptyItem() throws Exception {
+        TestRealm realm = TestRealm.create("attributes-empty-item");
+        Api api = realm.api;
+        created(api.post("/attribute-definitions", "{\"target\": \"ORG_UNIT\", \"name\": \"shifts\", "
+                + "\"type\": \"STRING\", \"multiple\": true}"));
+        realm.attribute("ORG_UNIT", "note", "STRING");
+
+        assertEquals("attribute.empty_item", errorOf(400, api.post("/org-units", "{\"primaryLanguage\": \"ja\", "
+                + "\"names\": {\"ja\": {\"name\": \"1病棟\"}}, \"validFrom\": \"2026-04-01\", "
+                + "\"attributes\": {\"shifts\": [\"night\", \"\"]}}")));
+        HttpResponse<String> imported = api.post("/imports", """
+                {"effectiveDate": "2026-04-01", "orgUnits": [
+                  {"externalId": "W", "primaryLanguage": "ja", "names": {"ja": {"name": "1病棟"}},
+                   "attributes": {"shifts": ["night", ""]}}
+                ]}
+                """);
+        assertEquals(400, imported.statusCode(), imported.body());
+        assertEquals(List.of("attribute.empty_item"), Api.json(imported).get("errors").findValuesAsText("error"));
+
+        JsonNode ward = created(api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": "
+                + "{\"name\": \"1病棟\"}}, \"validFrom\": \"2026-04-01\", "
+                + "\"attributes\": {\"shifts\": [\"night\"], \"note\": \"\"}}"));
+        assertEquals("", ward.get("attributes").get("note").asText());
+    }
+
+    @Test
     void aRealmAddsAKindAndAnAttributePointsToIt() throws Exception {
         TestRealm realm = TestRealm.create("ref-kinds");
         Api api = realm.api;

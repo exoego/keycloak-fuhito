@@ -99,6 +99,22 @@ class AttributeDefinitionServiceTest {
     }
 
     @Test
+    void aTextListRejectsAnEmptyItem() {
+        service.create("ASSIGNMENT", "shifts", "STRING", null, true, null);
+        service.create("ASSIGNMENT", "note", "STRING", null, false, null);
+
+        Map<String, Object> good = Map.of("shifts", List.of("night", " day"));
+        assertEquals(good, service.check(Target.ASSIGNMENT, good));
+        for (List<String> bad : List.of(List.of("night", ""), List.of(" "), List.of("\t", "day"))) {
+            FuhitoException e = assertThrows(FuhitoException.class,
+                    () -> service.check(Target.ASSIGNMENT, Map.of("shifts", bad)));
+            assertEquals("attribute.empty_item", e.code(), bad.toString());
+            assertEquals(Map.of("name", "shifts"), e.params());
+        }
+        assertEquals(Map.of("note", ""), service.check(Target.ASSIGNMENT, Map.of("note", "")));
+    }
+
+    @Test
     void rejectsABadDefinition() {
         service.create("ORG_UNIT", "beds", "NUMBER", null, null, null);
 
