@@ -211,9 +211,15 @@ final class EmploymentImport {
         return changed ? Outcome.CHANGED : Outcome.UNCHANGED;
     }
 
-    // An employment with no end has no end reason. A row that removes the end and gives no reason removes the
-    // stored one with the end.
-    private static void requireEnd(String validTo, String endReason) {
+    /**
+     * Requires that only an employment with an end has an end reason. A row that removes the end and gives no reason
+     * removes the stored one with the end.
+     *
+     * @param validTo the end of the employment, or null
+     * @param endReason the end reason, or null
+     * @throws FuhitoException when the employment has an end reason and no end
+     */
+    static void requireEnd(String validTo, String endReason) {
         if (validTo == null && endReason != null) {
             throw FuhitoException.invalid("employment.end_reason_without_end", Map.of("endReason", endReason));
         }

@@ -293,7 +293,8 @@ public class RealmExportService {
      * @return the number of rows of each list
      * @throws FuhitoException when the format is unknown, the realm has data and is not replaced, a value is empty or
      *         too long for its column, a period does not end after it starts, two rows have the same key or overlap,
-     *         a username has no user, or the realm has no organization with an alias
+     *         a row breaks a rule between rows of the writes, a username has no user, or the realm has no
+     *         organization with an alias
      */
     public Map<String, Integer> restore(RealmExport document, boolean replace, Consumer<String> linking) {
         Checks.required("body", document);
@@ -306,6 +307,7 @@ public class RealmExportService {
         RestoreCheck.requireValues(document, stores.export()::lengths);
         RestoreCheck.requireReferences(document);
         RestoreKeys.require(document);
+        RestoreRules.require(document);
         Map<String, String> organizations = organizations(document);
         Map<String, String> users = users(document);
         if (replace) {

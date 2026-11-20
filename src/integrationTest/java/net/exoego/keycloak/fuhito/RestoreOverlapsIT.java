@@ -60,12 +60,16 @@ class RestoreOverlapsIT {
         // Every row has another ID, but the assignment has the ID of the one of the first realm.
         ObjectNode copy = (ObjectNode) JSON.readTree("""
                 {"format": "fuhito.export.v1",
+                 "refItems": [{"id": "corp-b", "kind": "UNIT_TYPE", "code": "corp", "legalEntity": true,
+                   "attributes": {}, "versions": [{"id": "n-b", "primaryLanguage": "ja",
+                                                   "names": {"ja": {"name": "法人"}}}]}],
                  "orgUnits": [{"id": "u-b", "parents": [], "successors": [],
-                   "versions": [{"id": "v-b", "validFrom": "2020-04-01", "primaryLanguage": "ja",
-                                 "names": {"ja": {"name": "本社"}}, "attributes": {}}]}],
+                   "versions": [{"id": "v-b", "validFrom": "2020-04-01", "unitTypeId": "corp-b",
+                                 "primaryLanguage": "ja", "names": {"ja": {"name": "本社"}}, "attributes": {}}]}],
                  "people": [{"id": "p-b", "attributes": {}}],
                  "employments": [{"id": "e-b", "personId": "p-b", "employerId": "u-b", "validFrom": "2020-04-01",
-                                  "terms": []}],
+                                  "terms": [{"id": "t-b", "validFrom": "2020-04-01", "status": "ACTIVE",
+                                             "attributes": {}}]}],
                  "assignments": [{"assignmentId": "a-1", "periods": [{"rowId": "r-b", "employmentId": "e-b",
                                   "orgUnitId": "u-b", "validFrom": "2020-04-01", "attributes": {}}]}]}
                 """);
