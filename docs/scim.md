@@ -110,6 +110,7 @@ An error of the database can spoil the transaction of the whole piece, so the us
 Only the users that fail on their own are left out. A piece that does not fail costs no extra transaction.
 
 The run as a whole still fails when the realm did not turn the sync on, or when `fuhito.sync.employer` names no org unit.
+It also fails with `realm.not_found` and the status 404 when Keycloak removes the realm during the run. No user runs again on its own then.
 Only one run goes on for a realm at a time, on all nodes of a cluster. A second call fails with `sync.running` and the status 409. A dry run counts as a run.
 
 A run reads the attributes of all users from the tables of Keycloak in one query.

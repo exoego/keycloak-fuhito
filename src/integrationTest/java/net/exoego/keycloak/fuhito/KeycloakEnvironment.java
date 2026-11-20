@@ -124,6 +124,14 @@ final class KeycloakEnvironment {
         }
     }
 
+    // A connection that holds a row, as a write that has not ended does.
+    static Connection holding(String table, String id) throws Exception {
+        Connection connection = connection();
+        connection.setAutoCommit(false);
+        update(connection, "update " + table + " set version = version where id = ?", id);
+        return connection;
+    }
+
     static void update(Connection connection, String sql, String id) throws Exception {
         try (PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setString(1, id);
