@@ -78,7 +78,8 @@ public class ImportsResource {
                     + "`source` and `externalId` hold the system that made the thing and the ID that it has there. "
                     + "A thing that keeps no system that made it, such as a reporting line, has the first of its IDs "
                     + "by the name of the system. "
-                    + "The kinds, the definitions of attributes, the hierarchies, and the people have no date. "
+                    + "The kinds, the definitions of attributes, the hierarchies, the people, the IDs of other "
+                    + "systems, and the change orders have no date, so they take no `asOf`. "
                     + "The reference items have the names of the date.")
     @APIResponse(responseCode = "200", description = "The CSV, in UTF-8 with a byte order mark.")
     @BadRequest
@@ -91,7 +92,12 @@ public class ImportsResource {
                         "unit-roles", "qualifications", "external-ids", "change-orders"}))
             @PathParam("list") String list,
             @Parameter(
-                    description = "The date of the state. The default is today in the time zone of the realm.",
+                    description = """
+                            The date of the state. The default is today in the time zone of the realm. \
+                            For `qualifications`, the default is every date. \
+                            The lists `ref-kinds`, `attribute-definitions`, `hierarchies`, `people`, `external-ids`, \
+                            and `change-orders` have no date. \
+                            A date with one of them fails with 400 and `csv.export_no_date`.""",
                     schema = @Schema(format = "date"))
             @QueryParam("asOf") String asOf,
             @Parameter(

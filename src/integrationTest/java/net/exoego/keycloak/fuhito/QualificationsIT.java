@@ -1,6 +1,7 @@
 package net.exoego.keycloak.fuhito;
 
 import java.net.http.HttpResponse;
+import java.util.ArrayList;
 import java.util.List;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -82,6 +83,37 @@ class QualificationsIT {
                 Api.json(api.get("/users/" + physician + "/qualifications")).findValuesAsText("kind"));
         assertEquals(3, Api.json(api.get("/users/" + physician + "/qualifications?all=true")).size());
         assertEquals("ref_item.in_use", errorOf(409, api.deleteWithVersion("/ref-items/" + licenseKindId)));
+    }
+
+    @Test
+    void aReadOfEveryQualificationOnADateFails() throws Exception {
+        String user = realm.user("every-date");
+        String person = created(api.post("/qualifications", "{\"userId\": \"" + user
+                + "\", \"kind\": \"physician-license\", \"validFrom\": \"2010-05-01\", \"validTo\": \"2020-05-01\"}"))
+                .get("personId").asText();
+        List<String> expected = new ArrayList<>();
+        List<String> got = new ArrayList<>();
+        for (String path : List.of("/users/" + user + "/qualifications", "/people/" + person + "/qualifications")) {
+            expected.add(path + " 400 invalid.not_together asOf all");
+            got.add(path + " " + outcome(api.get(path + "?all=true&asOf=2021-06-01")));
+            expected.add(path + " 400 invalid.date asOf ");
+            got.add(path + " " + outcome(api.get(path + "?all=true&asOf=2021-02-30")));
+        }
+        assertEquals(expected, got);
+        String path = "/users/" + user + "/qualifications?all=true&asOf=2021-06-01";
+        assertEquals("asOf and all do not go together. Give one of them.",
+                Api.json(api.get(path)).get("message").asText());
+        assertEquals("asOf と all は同時に指定できません。どちらか一方にしてください。",
+                Api.json(api.withAcceptLanguage("ja").get(path)).get("message").asText());
+        assertEquals(1, Api.json(api.get("/people/" + person + "/qualifications?all=true")).size());
+        assertEquals(0, Api.json(api.get("/people/" + person + "/qualifications?all=false&asOf=2021-06-01")).size());
+    }
+
+    // The status, the code, and the fields of the error, so that one assertion shows every case.
+    private static String outcome(HttpResponse<String> response) throws Exception {
+        JsonNode body = Api.json(response);
+        return response.statusCode() + " " + body.path("error").asText() + " "
+                + body.path("params").path("field").asText() + " " + body.path("params").path("otherField").asText();
     }
 
     @Test

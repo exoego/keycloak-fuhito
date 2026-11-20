@@ -158,7 +158,8 @@ class ImportNullsIT {
     }
 
     private static String export(Api api, String list) throws Exception {
-        HttpResponse<String> exported = api.get("/imports/csv/" + list + "?asOf=2026-05-01");
+        HttpResponse<String> exported = api.get("/imports/csv/" + list
+                + (list.equals("people") ? "" : "?asOf=2026-05-01"));
         assertEquals(200, exported.statusCode(), exported.body());
         return exported.body();
     }
