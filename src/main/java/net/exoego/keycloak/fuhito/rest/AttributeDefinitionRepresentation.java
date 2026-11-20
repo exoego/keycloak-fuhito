@@ -31,7 +31,8 @@ public record AttributeDefinitionRepresentation(
         @Schema(description = "The kind of reference data, fixed or of the realm. Only the type `REF_ITEM` has it.")
         String refKind,
         @Schema(
-                description = "True when the value is a JSON array, and each element has the type.",
+                description = "True when the value is a JSON array, and each element has the type. An element of a "
+                        + "`STRING` list must not be empty or only spaces.",
                 defaultValue = "false")
         Boolean multiple,
         @Schema(

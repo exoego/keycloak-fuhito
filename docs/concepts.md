@@ -171,7 +171,7 @@ A realm defines each name with `POST /attribute-definitions` before a write give
 
 - The attributes of one write are at most 64 KB as JSON, counted in bytes of UTF-8. A larger write fails with `attribute.too_large`.
 - A definition is for one kind of resource and one name. It has a type, `STRING`, `NUMBER`, `BOOLEAN`, `DATE`, or `REF_ITEM` with a kind of reference data.
-- A definition with `multiple` holds a list. The value is a JSON array, and each element has the type. A `REF_ITEM` list checks the code of each element.
+- A definition with `multiple` holds a list. The value is a JSON array, and each element has the type. A `REF_ITEM` list checks the code of each element. An element of a `STRING` list that is empty or only spaces fails with `attribute.empty_item`, as a CSV cell of a list cannot hold such an item.
 - Every write of the resource is checked against the definitions. A value of the wrong type fails with `attribute.bad_value`. A missing required one fails with `attribute.required`. A required list needs at least one element.
 - A name with no definition fails with `attribute.unknown`.
 - An object has no type. Split it into several names, such as `addressZip` and `addressCity`.
