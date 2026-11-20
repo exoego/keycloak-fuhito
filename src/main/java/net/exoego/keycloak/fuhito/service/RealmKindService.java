@@ -80,7 +80,7 @@ public class RealmKindService {
      */
     public View create(String code, String primaryLanguage, Map<String, RefKindName> names) {
         Checks.code("code", code);
-        if (code.length() > MAX_CODE_LENGTH) {
+        if (!Checks.fits(code, MAX_CODE_LENGTH)) {
             throw FuhitoException.invalid("invalid.code", Map.of("field", "code"));
         }
         boolean fixed = Arrays.stream(RefKind.values())

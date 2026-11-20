@@ -423,6 +423,7 @@ components:
           description: The ID of the Keycloak user who asked for the order.
         externalReference:
           type: string
+          maxLength: 255
           description: A reference to the order in another system.
         createdAt:
           type: string
@@ -1476,6 +1477,7 @@ components:
           description: The username of the user who asked for it.
         externalReference:
           type: string
+          maxLength: 255
           description: "A reference in another system, such as a workflow."
     ImportCounts:
       type: object
@@ -4315,6 +4317,10 @@ info:
     A text with one fails with 400 and `invalid.character`, which names the field and the code
     point. This holds for every text of every write, also for a key in `attributes`. Other
     characters, such as control characters, emoji, and combining marks, are stored as sent.
+
+    The `maxLength` of a text counts characters, as the database does, so an emoji is one
+    character. A longer text fails with 400. A text with no other rule, such as
+    `externalReference`, fails with `invalid.too_long`, which names the field and the `max`.
 
     A read of the org structure needs the role `fuhito-view-structure`. Every other read needs
     `fuhito-view-people`. A write needs `fuhito-manage`. The roles are in the client
