@@ -189,7 +189,11 @@ final class KeycloakRequestContext implements RequestContext {
     // The row of the realm comes before every other lock, also for a write that did not ask for it.
     private void lockRealm(boolean alone) {
         if (!realmLocked) {
-            RowLocks.lockRealm(entityManager, realm.getId(), alone);
+            try {
+                RowLocks.lockRealm(entityManager, realm.getId(), alone);
+            } catch (FuhitoException e) {
+                throw failure(error(Response.Status.NOT_FOUND, e.code(), e.params()));
+            }
             realmLocked = true;
         }
     }
