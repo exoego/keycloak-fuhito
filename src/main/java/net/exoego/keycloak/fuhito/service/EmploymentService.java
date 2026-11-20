@@ -570,11 +570,19 @@ public class EmploymentService {
         List<String> ids = moves.stream().map(move -> move.employment().id()).toList();
         Holding holding = holding(ids, date);
         List<String> staffNumbers = check(moves, employer, date, holding, endReason, reason);
+        // Each old assignment becomes one new assignment, with every period from the date on. An assignment may
+        // continue one of another employment of the same person that moves too.
+        Map<String, String> newAssignmentIds = new HashMap<>();
+        holding.rows().values().stream()
+                .flatMap(List::stream)
+                .filter(row -> row.period().endsAfter(date))
+                .forEach(row -> newAssignmentIds.computeIfAbsent(row.assignmentId(), oldId -> newId()));
         List<Copy> copies = new ArrayList<>();
         for (int i = 0; i < moves.size(); i++) {
             Employment old = moves.get(i).employment();
             copies.add(copy(old, new Employment(newId(), old.personId(), old.userId(), employer,
-                    from(date, old.period()), staffNumbers.get(i), null, null, old.id(), 1), date, holding));
+                    from(date, old.period()), staffNumbers.get(i), null, null, old.id(), 1), date, holding,
+                    newAssignmentIds));
         }
 
         // The end removes these old resources, so their copies take their external IDs and an import still finds them.
@@ -662,7 +670,8 @@ public class EmploymentService {
                         .collect(Collectors.groupingBy(ReportingLine::assignmentId)));
     }
 
-    private Copy copy(Employment old, Employment started, LocalDate date, Holding holding) {
+    private Copy copy(Employment old, Employment started, LocalDate date, Holding holding,
+            Map<String, String> newAssignmentIds) {
         List<EmploymentTerms> terms = holding.terms().getOrDefault(old.id(), List.of()).stream()
                 .map(t -> t.copy(newId(), started.id(), from(date, t.period())))
                 .toList();
@@ -673,10 +682,9 @@ public class EmploymentService {
                 .filter(row -> row.period().from().isBefore(date))
                 .map(Assignment::assignmentId)
                 .collect(Collectors.toSet());
-        // Each old assignment becomes one new assignment, with every period from the date on.
-        Map<String, String> newAssignmentIds = new LinkedHashMap<>();
-        moved.forEach(row -> newAssignmentIds.computeIfAbsent(row.assignmentId(), oldId -> newId()));
-        Map<String, String> goneAssignments = new HashMap<>(newAssignmentIds);
+        Map<String, String> ofEmployment = new LinkedHashMap<>();
+        moved.forEach(row -> ofEmployment.put(row.assignmentId(), newAssignmentIds.get(row.assignmentId())));
+        Map<String, String> goneAssignments = new HashMap<>(ofEmployment);
         goneAssignments.keySet().removeAll(kept);
         List<Assignment> rows = moved.stream().map(row -> {
             boolean stays = kept.contains(row.assignmentId());
@@ -689,7 +697,7 @@ public class EmploymentService {
                     row.workLocationId(), row.costCenterId(), row.head(), row.primary(), row.allocationPercent(),
                     row.displayOrder(), row.attributes(), stays ? null : row.source(), continues, 1);
         }).toList();
-        List<ReportingLine> oldLines = newAssignmentIds.keySet().stream()
+        List<ReportingLine> oldLines = ofEmployment.keySet().stream()
                 .flatMap(oldId -> holding.lines().getOrDefault(oldId, List.of()).stream())
                 .toList();
         List<ReportingLine> lines = oldLines.stream()
@@ -701,7 +709,7 @@ public class EmploymentService {
                 .map(role -> new UnitRole(newId(), started.id(), started.personId(), started.userId(),
                         role.orgUnitId(), role.roleId(), role.includesDescendants(), from(date, role.period()), 1))
                 .toList();
-        return new Copy(started, terms, rows, List.copyOf(newAssignmentIds.values()), lines, roles, Map.of(
+        return new Copy(started, terms, rows, List.copyOf(ofEmployment.values()), lines, roles, Map.of(
                 ExternalId.Kind.ASSIGNMENT, goneAssignments,
                 ExternalId.Kind.REPORTING_LINE, gone(oldLines, lines, ReportingLine::id, ReportingLine::period, date),
                 ExternalId.Kind.UNIT_ROLE, gone(oldRoles, roles, UnitRole::id, UnitRole::period, date)));
