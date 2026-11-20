@@ -166,6 +166,7 @@ public class UnitRolesResource {
     @Operation(operationId = "getUnitRole", summary = "Returns one role over an org unit.")
     @APIResponse(responseCode = "200", description = "The role.")
     @NotFound
+    @BadRequest
     @ApiErrors
     public UnitRoleRepresentation get(
             @Parameter(description = "The ID of the resource.")

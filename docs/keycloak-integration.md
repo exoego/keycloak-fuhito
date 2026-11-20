@@ -16,6 +16,7 @@ The extension uses these Keycloak APIs that Keycloak does not promise to keep st
 | `AbstractOIDCProtocolMapper` | The protocol mapper for tokens |
 | `TimerProvider`, `ClusterAwareScheduledTaskRunner`, and `ExecutorsProvider` | The timer of the projection |
 | `ObjectMapperResolver` and a JAX-RS `MessageBodyReader` | The JSON bodies of the own endpoints, read with the settings of Keycloak |
+| A JAX-RS `ContainerRequestFilter` with `ResourceInfo` | The check of the query parameters of the own endpoints |
 
 All code that touches these APIs is in the package `net.exoego.keycloak.fuhito.keycloak`.
 When Keycloak changes one of them, only that package needs a change.
@@ -389,10 +390,33 @@ A body that gives one key twice in one object fails with 400 and `invalid.duplic
 Keycloak itself would keep the last value.
 Other bad JSON fails as it does in Keycloak.
 
+### Query parameters
+
+The extension checks the query of each request to its own endpoints with a JAX-RS `ContainerRequestFilter` in the provider jar.
+Keycloak registers it in the same way as the reader of the bodies.
+Quarkus REST runs a request filter only for the method that answers the request, after every resource locator on the way.
+The filter gets that method from `ResourceInfo`. It checks only a method of a class of the extension.
+So every endpoint of Keycloak takes its query as before.
+
+- A method takes the names of its `@QueryParam` parameters. A write also takes `changeOrder`. These are the query parameters that [openapi.yaml](openapi.yaml) lists for each operation.
+- A request with another query parameter fails with 400 and `invalid.unknown_parameter`, which names the parameter in `field`. Quarkus REST would drop it.
+- The case of each letter counts. Quarkus REST itself finds a parameter in any case, so `asof` used to work as `asOf`. Now it fails.
+- A request that gives one query parameter twice fails with 400 and `invalid.parameter_twice`, which names it. Quarkus REST would take the first value. Two names that differ only in case count as one parameter given twice.
+- The check reads no data, and the request fails before the method runs. So nothing is written.
+
+The filter runs after Keycloak checked the token and the realm of the caller, and before the extension checks its roles.
+A request with no token still gets 401.
+A caller without the role gets 400 for a query that the endpoint does not take, and 403 for any other query.
+The 400 tells such a caller nothing that the OpenAPI document does not.
+
+The `Link` header of a list is the URL of the request without `first` and with `after`.
+Every list that has the header takes `after`, so the next page passes the check too.
+
 ### Responses
 
 A request with no token gets 401.
 A caller without the role or the permission gets 403.
+A query that the endpoint does not take gets 400, also for a caller without the role. See "Query parameters" above.
 
 A response leaves out every field that has no value.
 For example, an org unit with no end date has no `validTo` field.
@@ -667,6 +691,7 @@ Another system can follow the log from a sequence number. See [history.md](histo
 A write belongs to a change order when its request has the query parameter `changeOrder` with the ID of the order.
 For example, `PUT /org-units/{id}/end?changeOrder={orderId}`.
 A request that names an unknown change order gets 400 and writes nothing.
+A read does not take `changeOrder`, so a read with it gets 400 with `invalid.unknown_parameter`.
 
 The valid period of a row says when a fact is true.
 The change log says when the system learned it, from whom, and under which approval.

@@ -100,10 +100,12 @@ class OrgUnitsIT {
             assertEquals(201, staff.statusCode(), staff.body());
         }
         HttpResponse<String> members = search.get("/org-units/" + hospital
-                + "/members?includeDescendants=true&max=1&count=true" + on);
+                + "/members?includeDescendants=true&max=1" + on);
         assertEquals(1, Api.json(members).size());
         // The list no longer counts. The count is a read of its own.
         assertTrue(members.headers().firstValue("X-Total-Count").isEmpty());
+        assertEquals("invalid.unknown_parameter", errorOf(400, search.get("/org-units/" + hospital
+                + "/members?includeDescendants=true&max=1&count=true" + on)));
         assertEquals(2, search.count("/org-units/" + hospital + "/members/count?includeDescendants=true" + on));
         assertEquals(0, search.count("/org-units/" + hospital + "/members/count" + on.replace('&', '?')));
         assertEquals("ref_item.unknown", errorOf(400, search.get("/org-units/" + hospital

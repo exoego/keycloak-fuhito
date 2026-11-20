@@ -127,6 +127,16 @@ testing {
             dependencies {
                 implementation(libs.archunit)
             }
+            targets.all {
+                testTask.configure {
+                    // A test compares the query parameters of each endpoint with the generated document.
+                    val openApi = generatedOpenApi
+                    inputs.file(openApi)
+                    doFirst {
+                        systemProperty("openapi.document", openApi.get().absolutePath)
+                    }
+                }
+            }
         }
 
         // Runs the built jar in a real Keycloak container with PostgreSQL. Needs Docker.
