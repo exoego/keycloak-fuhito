@@ -89,13 +89,7 @@ final class KeycloakEnvironment {
             throws Exception {
         String waiting = "select count(*) from pg_stat_activity where " + pid + " = any(pg_blocking_pids(pid))";
         long before = Long.parseLong(sql(waiting));
-        CompletableFuture<HttpResponse<String>> started = CompletableFuture.supplyAsync(() -> {
-            try {
-                return write.call();
-            } catch (Exception e) {
-                throw new IllegalStateException(e);
-            }
-        });
+        CompletableFuture<HttpResponse<String>> started = inBackground(write);
         long now = before;
         for (int i = 0; i < 300 && now == before; i++) {
             Thread.sleep(100);
@@ -103,6 +97,18 @@ final class KeycloakEnvironment {
         }
         assertNotEquals(before, now, "the write never waited");
         return started;
+    }
+
+    // Each call gets a thread of its own. The common pool has one thread less than the machine has CPUs, and the
+    // waiting writes of one test can take all of them.
+    static <T> CompletableFuture<T> inBackground(Callable<T> call) {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                return call.call();
+            } catch (Exception e) {
+                throw new IllegalStateException(e);
+            }
+        }, task -> Thread.ofPlatform().daemon().start(task));
     }
 
     // The backend that waits for the lock of the connection, such as a write that waitingFor started.

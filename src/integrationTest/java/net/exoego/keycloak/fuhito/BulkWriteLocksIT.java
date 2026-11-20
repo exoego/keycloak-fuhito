@@ -18,6 +18,7 @@ import org.keycloak.representations.idm.UserRepresentation;
 import org.keycloak.representations.userprofile.config.UPConfig;
 
 import static net.exoego.keycloak.fuhito.KeycloakEnvironment.KEYCLOAK;
+import static net.exoego.keycloak.fuhito.KeycloakEnvironment.inBackground;
 import static net.exoego.keycloak.fuhito.KeycloakEnvironment.update;
 import static net.exoego.keycloak.fuhito.KeycloakEnvironment.waiterOf;
 import static net.exoego.keycloak.fuhito.KeycloakEnvironment.waitingFor;
@@ -52,13 +53,7 @@ class BulkWriteLocksIT {
 
     // The call must not wait for a lock. A call that waits would fail the test only after a long time.
     private static <T> T soon(Callable<T> call) throws Exception {
-        return CompletableFuture.supplyAsync(() -> {
-            try {
-                return call.call();
-            } catch (Exception e) {
-                throw new IllegalStateException(e);
-            }
-        }).get(30, TimeUnit.SECONDS);
+        return inBackground(call).get(30, TimeUnit.SECONDS);
     }
 
     private static String renameHierarchy(String hierarchy, String name) {
