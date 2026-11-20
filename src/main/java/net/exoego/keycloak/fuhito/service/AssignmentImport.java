@@ -199,8 +199,8 @@ final class AssignmentImport {
     }
 
     // An assignment that another one continues must end by the start of that one. Its rows end when its employment
-    // ends, so they tell. The row that ends it may come after the row of the new one, so the check looks at what the
-    // whole list made. It also keeps a later end from opening such an assignment again.
+    // ends, so they give its end. The row that ends it may come after the row of the new one, so the check looks at
+    // what the whole list made. It also keeps a later end from opening such an assignment again.
     private Map<Integer, FuhitoException> unended() {
         if (continuing.isEmpty() && ends.isEmpty()) {
             return Map.of();
