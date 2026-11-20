@@ -9525,21 +9525,22 @@ paths:
         \ resources. The rows are written all or nothing. A row that is null, or a\
         \ row with no value that its table needs, such as `attributes`, fails with\
         \ 400 and `restore.bad_value`. So does a text longer than its column, or a\
-        \ value that breaks the rule of a write, such as a code or a name. An empty\
-        \ text, a text of only spaces, or an empty array in a row fails with 400 and\
-        \ `invalid.blank`, as in a write. A text with NUL (U+0000) or half of a surrogate\
-        \ pair fails with 400 and `invalid.character`, as in a write. The error names\
-        \ the list, the `id` of the row, and the field. A row may have an empty list\
-        \ of its own rows, such as `parents`. Two rows with the same ID or the same\
-        \ unique key, such as the `code` of a hierarchy, the `number` of a change\
-        \ order, or the user of a person, fail with 400 and `restore.duplicate`. Two\
-        \ rows that must not be valid on the same date, such as two versions of one\
-        \ org unit, fail with 400 and `restore.overlap`. These errors also name the\
-        \ `other` row. A row that breaks a rule of the database that the restore did\
-        \ not find, for example because another write stored the same row at the same\
-        \ time, fails with 409 and `restore.conflict`, with the name of the rule in\
-        \ `constraint`. A username must name a user of this realm. An org unit names\
-        \ its Keycloak organization by alias, and the restore asks for the permission\
+        \ value that breaks the rule of a write, such as a code or a name. So does\
+        \ a `validTo` that is not after the `validFrom` of its row, as in a write.\
+        \ An empty text, a text of only spaces, or an empty array in a row fails with\
+        \ 400 and `invalid.blank`, as in a write. A text with NUL (U+0000) or half\
+        \ of a surrogate pair fails with 400 and `invalid.character`, as in a write.\
+        \ The error names the list, the `id` of the row, and the field. A row may\
+        \ have an empty list of its own rows, such as `parents`. Two rows with the\
+        \ same ID or the same unique key, such as the `code` of a hierarchy, the `number`\
+        \ of a change order, or the user of a person, fail with 400 and `restore.duplicate`.\
+        \ Two rows that must not be valid on the same date, such as two versions of\
+        \ one org unit, fail with 400 and `restore.overlap`. These errors also name\
+        \ the `other` row. A row that breaks a rule of the database that the restore\
+        \ did not find, for example because another write stored the same row at the\
+        \ same time, fails with 409 and `restore.conflict`, with the name of the rule\
+        \ in `constraint`. A username must name a user of this realm. An org unit\
+        \ names its Keycloak organization by alias, and the restore asks for the permission\
         \ to manage it."
       operationId: restore
       tags:
