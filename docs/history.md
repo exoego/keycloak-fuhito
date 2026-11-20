@@ -101,7 +101,7 @@ A read has the parent of its date, and the work location and the cost center tha
 So `PUT /org-units/{id}` takes a `parentId`, an `effectiveWorkLocation`, and an `effectiveCostCenter` that the unit has on any date of the details that it replaces. These dates run from `validFrom` to the end of the stored details of that date.
 Another value fails with 400 and `invalid.value_fixed`. For a unit with no parent on those dates, such as a root or a rollup unit, `parentId` must be null or left out.
 
-Checked by `FixedValuesIT.aPutOfTheDetailsOfAnOrgUnitTakesOnlyAParentAndPlacesOfTheDetailsThatItReplaces`.
+Checked by `ReplacedDetailsIT.anotherParentOrPlaceFailsAndWritesNothing`.
 
 ## An end
 
