@@ -454,6 +454,7 @@ public class JpaOrgUnitStore implements OrgUnitStore {
         return result;
     }
 
+    // The versions are found by their units alone, for the reason in Rows.inRealm.
     @Override
     public Map<String, ValidPeriod> livesOf(Collection<String> ids) {
         Map<String, ValidPeriod> lives = new HashMap<>();
@@ -461,13 +462,12 @@ public class JpaOrgUnitStore implements OrgUnitStore {
             return lives;
         }
         em.createQuery("""
-                        select v.orgUnitId, v.validFrom, v.validTo from OrgUnitVersionEntity v
-                        where v.realmId = :realmId and %s order by v.validFrom"""
-                        .formatted(ManyIds.has("v.orgUnitId", "ids")), Object[].class)
-                .setParameter("realmId", realmId)
+                        select v.realmId, v.orgUnitId, v.validFrom, v.validTo from OrgUnitVersionEntity v
+                        where %s order by v.validFrom""".formatted(ManyIds.has("v.orgUnitId", "ids")), Object[].class)
                 .setParameter("ids", ManyIds.of(ids))
                 .getResultStream()
-                .forEach(row -> lives.merge((String) row[0], new ValidPeriod((LocalDate) row[1], (LocalDate) row[2]),
+                .filter(Rows.inRealm(realmId, row -> (String) row[0]))
+                .forEach(row -> lives.merge((String) row[1], new ValidPeriod((LocalDate) row[2], (LocalDate) row[3]),
                         (first, later) -> new ValidPeriod(first.from(), later.to())));
         return lives;
     }

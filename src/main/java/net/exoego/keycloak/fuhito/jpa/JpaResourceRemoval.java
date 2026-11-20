@@ -48,8 +48,9 @@ public class JpaResourceRemoval implements ResourceRemoval {
                     "delete from OrgUnitLinkEntity x where x.realmId = :realmId and x.childId = :id",
                     """
                     delete from OrgUnitVersionNameEntity x where x.realmId = :realmId and x.versionId in
-                    (select v.id from OrgUnitVersionEntity v where v.realmId = :realmId and v.orgUnitId = :id)""",
-                    "delete from OrgUnitVersionEntity x where x.realmId = :realmId and x.orgUnitId = :id",
+                    (select v.id from OrgUnitVersionEntity v where v.orgUnitId = :id and %s)"""
+                            .formatted(Rows.ofUnit("v.realmId", "id")),
+                    "delete from OrgUnitVersionEntity x where x.orgUnitId = :id and " + Rows.ofUnit("x.realmId", "id"),
                     """
                     delete from ExternalIdEntity x where x.realmId = :realmId and x.kind = 'ORG_UNIT'
                     and x.resourceId = :id""",

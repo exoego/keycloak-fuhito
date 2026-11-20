@@ -6,8 +6,12 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-// The setup and the plans of the checks of reads while the statistics do not know a new realm.
+// The setup and the plans of the checks of reads while the statistics do not know a new realm, and after they do.
 final class OldStatistics {
+
+    private static final String ANALYZE = """
+            analyze fuhito_org_unit, fuhito_org_unit_version, fuhito_org_unit_version_name, fuhito_org_unit_link,
+            fuhito_person, fuhito_employment, fuhito_employment_terms, fuhito_assignment""";
 
     private OldStatistics() {
     }
@@ -21,10 +25,13 @@ final class OldStatistics {
                 vacuum full fuhito_org_unit, fuhito_org_unit_version, fuhito_org_unit_version_name,
                 fuhito_org_unit_link, fuhito_person, fuhito_employment, fuhito_employment_terms, fuhito_assignment""");
         rowsOfRealm(statement, "ex-old", 20);
-        statement.execute("""
-                analyze fuhito_org_unit, fuhito_org_unit_version, fuhito_org_unit_version_name, fuhito_org_unit_link,
-                fuhito_person, fuhito_employment, fuhito_employment_terms, fuhito_assignment""");
+        statement.execute(ANALYZE);
         rowsOfRealm(statement, "ex-new", 3000);
+    }
+
+    // The statistics after the import, as autovacuum makes them later. They know the rows of this transaction.
+    static void freshStatistics(Statement statement) throws Exception {
+        statement.execute(ANALYZE);
     }
 
     // Units below the first nine have a parent, and each unit has one version with a name. Each person has a user, one

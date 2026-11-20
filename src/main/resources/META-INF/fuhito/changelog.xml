@@ -1177,4 +1177,23 @@
             WHERE (ID IS NOT NULL)
         </sql>
     </changeSet>
+
+    <!-- The index of the exclusion constraint on the versions of org units now serves only the constraint, as the one
+         of the terms does. PostgreSQL takes an index with a condition only for a read whose own conditions make it
+         true. A join by the ID makes ID IS NOT NULL true, and the names join the versions by the ID. No read names
+         the range of the period, so the condition is on the range. A range is never null, so the constraint still
+         covers every row. Before, a lookup of the versions of an org unit often took this index, and was two to five
+         times slower than in UK_FUHITO_ORG_UNIT_VERSION_FROM. Like 0.1.0-no-overlap, this change set waits for
+         btree_gist. -->
+    <changeSet id="0.1.0-org-unit-version-period-index" author="keycloak-fuhito" dbms="postgresql">
+        <preConditions onFail="CONTINUE">
+            <sqlCheck expectedResult="1">SELECT count(*) FROM pg_extension WHERE extname = 'btree_gist'</sqlCheck>
+        </preConditions>
+        <sql>ALTER TABLE FUHITO_ORG_UNIT_VERSION DROP CONSTRAINT EX_FUHITO_ORG_UNIT_VERSION_PERIOD</sql>
+        <sql>
+            ALTER TABLE FUHITO_ORG_UNIT_VERSION ADD CONSTRAINT EX_FUHITO_ORG_UNIT_VERSION_PERIOD
+            EXCLUDE USING gist (ORG_UNIT_ID WITH =, daterange(VALID_FROM, VALID_TO) WITH &amp;&amp;)
+            WHERE (daterange(VALID_FROM, VALID_TO) IS NOT NULL)
+        </sql>
+    </changeSet>
 </databaseChangeLog>

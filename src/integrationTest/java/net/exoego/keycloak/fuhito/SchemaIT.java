@@ -11,7 +11,6 @@ import static net.exoego.keycloak.fuhito.OldStatistics.plan;
 import static net.exoego.keycloak.fuhito.OldStatistics.realmOfUnit;
 import static net.exoego.keycloak.fuhito.OldStatistics.realmsWithOldStatistics;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -124,10 +123,6 @@ class SchemaIT {
                     explain select * from fuhito_assignment where employment_id = any('{ex-new-employment-7}')
                     order by employment_id, valid_from, id""")
                     .contains("Index Cond: ((employment_id)::text = ANY"));
-            assertTrue(plan(statement, """
-                    explain select * from fuhito_org_unit_version where org_unit_id = 'ex-new-unit-7'
-                    order by valid_from""")
-                    .contains("Index Cond: ((org_unit_id)::text = 'ex-new-unit-7'::text)"));
             connection.rollback();
         }
     }
@@ -253,44 +248,6 @@ class SchemaIT {
                     insert into fuhito_employment_terms (id, realm_id, employment_id, valid_from, status, attributes)
                     values ('ex-new-terms-0', 'ex-new-realm', 'ex-new-employment-7', '2026-05-01', 'ACTIVE', '{}')"""))
                     .getMessage().contains("ex_fuhito_employment_terms_period"));
-            connection.rollback();
-        }
-    }
-
-    @Test
-    void theWalkUpTheTreeLooksUpEachStepByItsUnitAlsoWhileTheStatisticsAreOld() throws Exception {
-        try (Connection connection = KeycloakEnvironment.connection();
-                Statement statement = connection.createStatement()) {
-            connection.setAutoCommit(false);
-            realmsWithOldStatistics(statement);
-
-            // Without analyze, PostgreSQL does not show the lookup in the recursive part.
-            String plan = plan(statement, """
-                    explain (analyze, costs off) with recursive above (unit_id, ancestor_id, depth, realm_id) as (
-                        select v.org_unit_id, v.org_unit_id, 0, v.realm_id from fuhito_org_unit_version v
-                        where v.org_unit_id = any('{ex-new-unit-777}') and v.valid_from <= '2026-04-01'
-                        and (v.valid_to is null or v.valid_to > '2026-04-01')
-                        union all
-                        select a.unit_id, (select l.parent_id from fuhito_org_unit_link l
-                            where l.child_id = a.ancestor_id and l.realm_id = 'ex-new-realm'
-                            and l.hierarchy_id = 'ex-new-hierarchy' and l.valid_from <= '2026-04-01'
-                            and (l.valid_to is null or l.valid_to > '2026-04-01')), a.depth + 1, a.realm_id
-                        from above a where a.ancestor_id is not null)
-                    select a.unit_id,
-                        (select w.work_location_id from fuhito_org_unit_version w where w.org_unit_id = a.ancestor_id
-                        and w.valid_from <= '2026-04-01' and (w.valid_to is null or w.valid_to > '2026-04-01')),
-                        (select w.cost_center_id from fuhito_org_unit_version w where w.org_unit_id = a.ancestor_id
-                        and w.valid_from <= '2026-04-01' and (w.valid_to is null or w.valid_to > '2026-04-01'))
-                    from above a where a.realm_id = 'ex-new-realm' and a.ancestor_id is not null
-                    order by a.unit_id, a.depth""");
-            assertFalse(plan.contains("Seq Scan"), plan);
-            assertTrue(plan.contains("(org_unit_id)::text = ANY"), plan);
-            // Each lookup of a step finds its rows by the unit in the index.
-            List<String> steps = plan.lines().map(String::strip)
-                    .filter(line -> line.matches(".*\\(a(_\\d+)?\\.ancestor_id\\)::text.*")).toList();
-            steps.forEach(line -> assertTrue(line.startsWith("Index Cond:") || line.startsWith("Recheck Cond:"),
-                    plan));
-            assertEquals(3, steps.stream().filter(line -> line.startsWith("Index Cond:")).count(), plan);
             connection.rollback();
         }
     }

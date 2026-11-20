@@ -100,7 +100,8 @@ A reader of a late page pays for all pages before it. A cursor that says "go on 
 - The read of the whole tree, `GET /org-units` with every org unit, is gone. `GET /org-units` now lists the roots. The rows "Org units, first page" and "Org units, last page" above are from before that, and the script no longer measures them. A subtree of a root still walks the whole tree.
 - Later, `GET /org-units` lists every org unit again, with `roots=true` for the roots. The list is in the order of siblings, not in tree order, so it does not walk the tree. The script measures its first page and its last page again. The rows above are still from the tree order.
 - The two plain indexes were dropped later. The unique keys `UK_FUHITO_ORG_UNIT_VERSION_FROM` and `UK_FUHITO_ORG_UNIT_LINK_FROM` have the same columns, and they are B-tree indexes too. Every database has them, also one without `btree_gist`. A run with 50,001 org units and 500,000 people before and after the drop gave the same times within 5% for every read. The unique key of the versions took the 1.5 million lookups that the plain index had served. The plain index of the links had served none.
-- The number 333 ms for the whole tree with the two indexes does not hold in general. In a second run the planner still chose the GiST index of the exclusion constraint, and the read took 1.2 seconds. It chose the plain index only after the index was built again. Which one it takes depends on the sizes of the two indexes. The section below has the walk that does not depend on that choice.
+- The number 333 ms for the whole tree with the two indexes does not hold in general. In a second run the planner still chose the GiST index of the exclusion constraint, and the read took 1.2 seconds. It chose the plain index only after the index was built again. Which one it takes depends on the sizes of the two indexes. The section below has the walk that was meant not to depend on that choice.
+- Later, the GiST index of the exclusion constraint got the condition `daterange(VALID_FROM, VALID_TO) IS NOT NULL`. PostgreSQL takes an index with a condition only for a read whose own conditions make it true, and no read names that range. So every lookup of the versions of an org unit takes `UK_FUHITO_ORG_UNIT_VERSION_FROM`, with old and with fresh statistics, and the choice no longer depends on the sizes. A range is never null, so the constraint still covers every row. The condition `ID IS NOT NULL` of the GiST index of the terms of employments would not do here. The names join the versions by the ID, and that join makes it true.
 
 ## The walk down a subtree
 
@@ -115,9 +116,11 @@ Three ways to find the version of each org unit in the walk were measured, with 
 
 - The first column is the walk of before. The database served the lookup with the GiST index of the exclusion constraint. With the plain index it took 333 ms for the company, but nothing made the database take that one.
 - The second filters the versions and the links of the date once and joins them in each step. It is the fastest for the whole company. But it reads every org unit of the realm also for a small subtree.
-- The third finds the latest version that started, and then reads it by its ID. Only plain indexes can serve these two lookups, so the choice is not left to the database. The cost follows the size of the subtree.
+- The third finds the latest version that started, and then reads it by its ID. The cost follows the size of the subtree.
 
 The extension uses the third. A subtree of a part of the organization is the usual read, and a read of the whole company is rare.
+
+The third was meant to keep the database off the GiST index, because only a plain index gives the latest version without a sort. But the GiST index could still serve the first lookup, with a sort for each org unit, and PostgreSQL took it in some databases. With a tree of 5,000 org units in a new realm, the first page took 154 ms with the GiST index and 58 ms with the plain index. Since the GiST index has its condition, the plain index serves this lookup in every database.
 
 ## Late pages with a cursor
 
