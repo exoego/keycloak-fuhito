@@ -1,6 +1,7 @@
 package net.exoego.keycloak.fuhito.rest;
 
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
@@ -18,11 +19,31 @@ import net.exoego.keycloak.fuhito.service.EmptyValues;
  */
 final class Calls {
 
+    private record Missing(String code, String param) {
+    }
+
+    // The error of an ID that names no resource, by the first part of the path.
+    private static final Map<String, Missing> MISSING = Map.ofEntries(
+            Map.entry("assignments", new Missing("assignment.not_found", "id")),
+            Map.entry("attribute-definitions", new Missing("attribute.not_found", "id")),
+            Map.entry("change-orders", new Missing("change_order.not_found", "id")),
+            Map.entry("employments", new Missing("employment.not_found", "id")),
+            Map.entry("hierarchies", new Missing("hierarchy.not_found", "id")),
+            Map.entry("org-units", new Missing("org_unit.not_found", "id")),
+            Map.entry("people", new Missing("person.not_found", "id")),
+            Map.entry("qualifications", new Missing("qualification.not_found", "id")),
+            Map.entry("ref-items", new Missing("ref_item.not_found", "id")),
+            Map.entry("ref-kinds", new Missing("ref_kind.not_found", "code")),
+            Map.entry("reporting-lines", new Missing("reporting_line.not_found", "id")),
+            Map.entry("unit-roles", new Missing("unit_role.not_found", "id")),
+            Map.entry("users", new Missing("user.not_found", "userId")));
+
     private Calls() {
     }
 
     static <T> T run(RequestContext context, Supplier<T> operation) {
         try {
+            requireStorableId(context);
             T result = operation.get();
             context.flush();
             return result;
@@ -33,6 +54,15 @@ final class Calls {
                 throw e;
             }
             throw failure(context, FuhitoException.conflict("version.conflict", Map.of()).causedBy(e));
+        }
+    }
+
+    // PostgreSQL cannot hold NUL in a text, and fails a query that has it. So no resource has such an ID.
+    private static void requireStorableId(RequestContext context) {
+        List<String> parts = context.pathParts();
+        Missing missing = parts.size() > 1 ? MISSING.get(parts.getFirst()) : null;
+        if (missing != null && parts.get(1).indexOf('\0') >= 0) {
+            throw FuhitoException.notFound(missing.code(), Map.of(missing.param(), parts.get(1)));
         }
     }
 
