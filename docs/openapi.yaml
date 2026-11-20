@@ -4559,7 +4559,9 @@ paths:
   /assignments/{id}/end:
     delete:
       summary: Removes the end of an assignment.
-      description: The assignment then lasts as long as its employment.
+      description: "The assignment then lasts as long as its employment. When it would\
+        \ then hold on the start of an assignment that continues it, as after a move,\
+        \ the request fails with 409 and `assignment.continues_holds`."
       operationId: removeAssignmentEnd
       tags:
       - assignments
@@ -4598,6 +4600,8 @@ paths:
     put:
       summary: Sets the end of an assignment.
       description: Its history stays readable. The end can move earlier or later.
+        A later end that comes after the start of an assignment that continues this
+        one fails with 409 and `assignment.continues_holds`.
       operationId: endAssignment
       tags:
       - assignments
@@ -5710,6 +5714,8 @@ paths:
   /employments/{id}/end:
     delete:
       summary: "Removes the end of an employment, for example to take back a resignation."
+      description: "An employment that another one continues, as after a transfer,\
+        \ keeps its end. The request then fails with 409 and `employment.continues_holds`."
       operationId: removeEmploymentEnd
       tags:
       - employments
@@ -5749,6 +5755,8 @@ paths:
       summary: Sets the end of an employment.
       description: An earlier end is how a person leaves. It also ends the terms and
         the assignments on that date. A later end extends a fixed-term employment.
+        A later end that comes after the start of an employment that continues this
+        one fails with 409 and `employment.continues_holds`.
       operationId: endEmployment
       tags:
       - employments
