@@ -508,7 +508,40 @@ This copies a realm to a test environment, moves it to another Keycloak, or brin
 - An empty text, a text of only spaces, or an empty array fails with 400 and `invalid.blank`, as in a row of an import. This holds for every value of every row, also for the names and the attributes. The error names the `list` and the `id` of the row, and the `field`, for example `attributes.beds`. A row inside a row has its own list, such as `org-unit-versions` for a version of an org unit. A list of such rows, such as `parents`, may be empty. An export has no such value, because every write rejects it.
 - A text with NUL (U+0000) or with half of a surrogate pair fails with 400 and `invalid.character`, as in a row of an import. This holds for every text of every row, also for the names, the attributes, and the keys of the attributes. The error names the `list`, the `id` of the row, the `field`, and the `codePoint`.
 - A text longer than its column fails with 400 and `restore.bad_value` before anything is written. The length counts characters, as the column does. This holds for every text of every row, also for a row inside a row. A value that a write checks by a rule of its own must pass that rule too, and fails the same way. Such values are the codes, such as `code`, `source`, `staffNumber`, and the `number` and `kind` of a change order. They are also the names, such as the `name` of a hierarchy, the `title` of a change order, and the `number` of a qualification. The others are the `name` of an attribute definition, `externalId`, `workPercent`, `allocationPercent`, and the `timeZone` and `dayStart` of an org unit. The error names the `list`, the `id` of the row, and the `field`.
-- An ID that a row of the database has already, in any realm, fails with 409 and `restore.id_taken`. This happens for a copy into a second realm of the same database while the first realm still has the rows.
+- Two rows of a list with the same ID fail with 400 and `restore.duplicate` before anything is written. This holds for the rows inside a row too, such as the versions of org units, and for both `assignmentId` and `rowId` of assignments. Two rows with the same unique key of the database fail the same way. These are the keys.
+
+  | List | Key | `field` |
+  |---|---|---|
+  | `ref-kinds` | `code` | `code` |
+  | `ref-items` | `kind` and `code` | `code` |
+  | `attribute-definitions` | `target` and `name` | `name` |
+  | `hierarchies` | `code` | `code` |
+  | `org-units` | the Keycloak organization of `organizationAlias` | `organizationAlias` |
+  | `org-unit-successions` | `successorId` in one org unit | `successorId` |
+  | `people` | the Keycloak user of `username`. Keycloak finds a user by a username in any case, so `nurse` and `Nurse` name one user. | `username` |
+  | `external-ids` | `resourceType`, `source`, and `externalId` | `externalId` |
+  | `external-ids` | `resourceType`, `resourceId`, and `source` | `source` |
+  | `change-orders` | `number` | `number` |
+  | `erasures` | `personId` | `personId` |
+
+  A key with no value, such as a change order with no `number`, is no key.
+- Two rows that must not be valid on the same date fail with 400 and `restore.overlap` before anything is written. A write keeps these rules too.
+
+  | List | Rows that must not share a date | `field` |
+  |---|---|---|
+  | `ref-item-names` | the names of one reference item. Names with no `validFrom` hold from the start. | `validFrom` |
+  | `org-unit-versions` | the versions of one org unit | `validFrom` |
+  | `org-unit-versions` | the versions of any org units with the same `code` | `code` |
+  | `org-unit-parents` | the parents of one org unit in one `hierarchy` | `hierarchy` |
+  | `employment-terms` | the terms of one employment | `validFrom` |
+  | `assignments` | the rows of one assignment | `validFrom` |
+  | `assignments` | the rows of one employment with `"primary": true` | `primary` |
+  | `unit-roles` | the roles with the same `employmentId`, `orgUnitId`, and `roleId` | `roleId` |
+
+  `validTo` is the first date after a period. So a row may start on the `validTo` of the row before it.
+- Both errors name the `list`, the `id` of the row, the `field`, and the `other` row. The row is the later one in the export, or for an overlap the one that starts later. For example, `{"list": "org-unit-versions", "id": "v-2", "field": "validFrom", "other": "v-1"}`. An export never has such rows, because every write keeps the rules.
+- An ID that a row of the database has already, in any realm, fails with 409 and `restore.id_taken`. This holds for the ID of an assignment too. This happens for a copy into a second realm of the same database while the first realm still has the rows.
+- A row that breaks a rule of the database that the restore did not find fails with 409 and `restore.conflict`. The error names the rule in `constraint`, such as `PK_FUHITO_HIERARCHY`. This can happen when another write stores the same row at the same time. Nothing is written.
 - Rows name Keycloak users by username. A restore fails with `restore.username_unknown` when the target realm has no user with that name. A person whose user Keycloak no longer had is exported with no username, and is restored with no link.
 - Masked data stays masked, with the time of the mask. Erased data is not in an export.
 - An erase keeps the ID of the person and the time, and nothing else. The list `erasures` has them. After the load, a restore erases again each person with such a record, also when the export was taken before the erase. So a restore never brings back erased data. A replace keeps these records of the realm.
@@ -517,4 +550,4 @@ This copies a realm to a test environment, moves it to another Keycloak, or brin
 - The change log, the admin events, and the records of the members that the projection added are not part of an export. The restore records one entry, `FUHITO_RESTORE`.
 - The export needs the full read permission, because it has the data of people. The restore needs the permission to write.
 
-Checked by `RealmExportIT.anExportLoadsIntoAnEmptyRealmAndGivesTheSameExportAgain`, `RestoreEmptyValuesIT.anExportOfCheckedDataRestoresUnchanged`, `RestoreEmptyValuesIT.anEmptyValueInAnyRowFailsTheRestoreAndNothingIsWritten`, `RestoreMissingValuesIT.aMissingRowOrValueFailsTheRestoreAndNothingIsWritten`, and `RestoreLongValuesIT.aValueLongerThanItsColumnFailsTheRestoreAndNothingIsWritten`.
+Checked by `RealmExportIT.anExportLoadsIntoAnEmptyRealmAndGivesTheSameExportAgain`, `RestoreEmptyValuesIT.anExportOfCheckedDataRestoresUnchanged`, `RestoreEmptyValuesIT.anEmptyValueInAnyRowFailsTheRestoreAndNothingIsWritten`, `RestoreMissingValuesIT.aMissingRowOrValueFailsTheRestoreAndNothingIsWritten`, `RestoreLongValuesIT.aValueLongerThanItsColumnFailsTheRestoreAndNothingIsWritten`, `RestoreKeysIT`, and `RestoreOverlapsIT`.

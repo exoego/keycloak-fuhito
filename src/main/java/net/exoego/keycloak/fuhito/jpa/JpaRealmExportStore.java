@@ -286,12 +286,12 @@ public class JpaRealmExportStore implements RealmExportStore {
     }
 
     @Override
-    public Optional<String> takenId(String list, Collection<String> ids) {
+    public Optional<String> takenId(String list, String field, Collection<String> ids) {
         Class<?> table = TABLES.get(list);
         if (table == null || ids.isEmpty()) {
             return Optional.empty();
         }
-        String id = "x." + RENAMED.getOrDefault(list, Map.of()).getOrDefault("id", "id");
+        String id = "x." + RENAMED.getOrDefault(list, Map.of()).getOrDefault(field, field);
         return em.createQuery("select %s from %s x where %s".formatted(id, table.getSimpleName(),
                         ManyIds.has(id, "ids")), String.class)
                 .setParameter("ids", ManyIds.of(ids))

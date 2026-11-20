@@ -60,10 +60,11 @@ public interface RealmExportStore {
      * Finds an ID that a row of the database has already, in any realm.
      *
      * @param list the list of an export, or a part of one such as {@code org-unit-versions}
-     * @param ids the IDs of the rows of the list
+     * @param field the field of a row of the list that has the IDs, such as {@code assignmentId}
+     * @param ids the IDs
      * @return one of the IDs that is taken, or empty when none is
      */
-    Optional<String> takenId(String list, Collection<String> ids);
+    Optional<String> takenId(String list, String field, Collection<String> ids);
 
     /**
      * Returns the longest text that each field of a row of a list can have, as its column takes it.

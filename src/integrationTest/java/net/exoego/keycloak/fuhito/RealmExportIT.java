@@ -347,8 +347,8 @@ class RealmExportIT {
         assertEquals("workLocationId", Api.json(location).get("params").get("field").asText());
 
         // The list of IDs keeps the rules of the table. One ID names one unit, and a unit has one ID of a system.
-        for (String[] twice : new String[][] {{"u-3", "W-1", "u-4", "W-1", "restore.external_id_taken"},
-                {"u-3", "W-1", "u-3", "W-2", "restore.external_id_twice"}}) {
+        for (String[] twice : new String[][] {{"u-3", "W-1", "u-4", "W-1", "externalId"},
+                {"u-3", "W-1", "u-3", "W-2", "source"}}) {
             ObjectNode ids = JSON.createObjectNode().put("format", "fuhito.export.v1");
             ArrayNode units = ids.putArray("orgUnits");
             for (String unitId : List.of("u-3", "u-4")) {
@@ -363,7 +363,9 @@ class RealmExportIT {
                     .put("source", "hr").put("externalId", twice[1]);
             rows.addObject().put("id", "x-2").put("resourceType", "ORG_UNIT").put("resourceId", twice[2])
                     .put("source", "hr").put("externalId", twice[3]);
-            assertEquals(twice[4], error(target.api.post("/restore", JSON.writeValueAsString(ids))));
+            HttpResponse<String> response = target.api.post("/restore", JSON.writeValueAsString(ids));
+            assertEquals("restore.duplicate", error(response));
+            assertEquals(twice[4], Api.json(response).get("params").get("field").asText());
         }
 
         // A date that cannot be read, and a unit with no list of versions.

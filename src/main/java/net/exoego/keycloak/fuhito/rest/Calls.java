@@ -1,10 +1,16 @@
 package net.exoego.keycloak.fuhito.rest;
 
+import java.sql.SQLException;
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import jakarta.persistence.OptimisticLockException;
 import jakarta.ws.rs.core.MediaType;
@@ -38,10 +44,28 @@ final class Calls {
             Map.entry("unit-roles", new Missing("unit_role.not_found", "id")),
             Map.entry("users", new Missing("user.not_found", "userId")));
 
+    // The names of the rules in changelog.xml.
+    private static final Pattern RULE = Pattern.compile("\\b(?:PK|UK|EX|FK|CK)_FUHITO_\\w+",
+            Pattern.CASE_INSENSITIVE);
+
     private Calls() {
     }
 
     static <T> T run(RequestContext context, Supplier<T> operation) {
+        return run(context, null, operation);
+    }
+
+    /**
+     * Runs an operation and turns its failure into an error response. A rule of the database that the operation
+     * breaks, such as a unique key, fails with 409 and the code, with the name of the rule in {@code constraint}.
+     *
+     * @param <T> the type of the result
+     * @param context the request
+     * @param ruleCode the code of the error of a broken rule of the database, or null to let Keycloak answer
+     * @param operation the operation
+     * @return the result
+     */
+    static <T> T run(RequestContext context, String ruleCode, Supplier<T> operation) {
         try {
             requireStorableId(context);
             T result = operation.get();
@@ -50,11 +74,28 @@ final class Calls {
         } catch (FuhitoException e) {
             throw failure(context, e);
         } catch (RuntimeException e) {
-            if (!anotherWriteCameFirst(e)) {
+            if (anotherWriteCameFirst(e)) {
+                throw failure(context, FuhitoException.conflict("version.conflict", Map.of()).causedBy(e));
+            }
+            Optional<String> rule = ruleCode == null ? Optional.empty() : brokenRule(e);
+            if (rule.isEmpty()) {
                 throw e;
             }
-            throw failure(context, FuhitoException.conflict("version.conflict", Map.of()).causedBy(e));
+            throw failure(context, FuhitoException.conflict(ruleCode, Map.of("constraint", rule.get())).causedBy(e));
         }
+    }
+
+    // Every database gives a broken rule an SQL state of class 23, and names the rule in the message. A batch names
+    // it in the next error, after the values of the batch.
+    private static Optional<String> brokenRule(Throwable e) {
+        for (Throwable cause = e; cause != null; cause = cause.getCause()) {
+            if (cause instanceof SQLException sql && sql.getSQLState() != null && sql.getSQLState().startsWith("23")) {
+                Matcher name = RULE.matcher(String.valueOf(
+                        Objects.requireNonNullElse(sql.getNextException(), sql).getMessage()));
+                return Optional.of(name.find() ? name.group().toUpperCase(Locale.ROOT) : "");
+            }
+        }
+        return Optional.empty();
     }
 
     // PostgreSQL cannot hold NUL in a text, and fails a query that has it. So no resource has such an ID.

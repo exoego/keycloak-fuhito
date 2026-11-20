@@ -4,7 +4,6 @@ import java.lang.reflect.RecordComponent;
 import java.math.BigDecimal;
 import java.time.LocalTime;
 import java.time.ZoneOffset;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -180,43 +179,6 @@ final class RestoreCheck {
         new RestoreCheck(document).check(document);
     }
 
-    /**
-     * Returns the IDs of every list that a restore writes, by the name of the table.
-     *
-     * @param document the export
-     * @return the IDs by list
-     */
-    static Map<String, Collection<String>> ids(RealmExport document) {
-        Map<String, Collection<String>> ids = new LinkedHashMap<>();
-        ids.put("ref-kinds", ids(document.refKinds(), RealmExport.Kind::id));
-        ids.put("ref-items", ids(document.refItems(), RealmExport.Item::id));
-        ids.put("ref-item-names", ids(all(document.refItems()).stream().flatMap(i -> all(i.versions()).stream())
-                .toList(), RealmExport.ItemNames::id));
-        ids.put("attribute-definitions", ids(document.attributeDefinitions(), RealmExport.Definition::id));
-        ids.put("hierarchies", ids(document.hierarchies(), RealmExport.HierarchyRow::id));
-        List<RealmExport.Unit> units = all(document.orgUnits());
-        ids.put("org-units", ids(units, RealmExport.Unit::id));
-        ids.put("org-unit-versions", ids(units.stream().flatMap(u -> all(u.versions()).stream()).toList(),
-                RealmExport.Version::id));
-        ids.put("org-unit-parents", ids(units.stream().flatMap(u -> all(u.parents()).stream()).toList(),
-                RealmExport.Parent::id));
-        ids.put("org-unit-successions", ids(units.stream().flatMap(u -> all(u.successors()).stream()).toList(),
-                RealmExport.Succession::id));
-        ids.put("people", ids(document.people(), RealmExport.PersonRow::id));
-        List<RealmExport.EmploymentRow> rows = all(document.employments());
-        ids.put("employments", ids(rows, RealmExport.EmploymentRow::id));
-        ids.put("employment-terms", ids(rows.stream().flatMap(e -> all(e.terms()).stream()).toList(),
-                RealmExport.Terms::id));
-        ids.put("assignments", ids(all(document.assignments()).stream().flatMap(a -> all(a.periods()).stream())
-                .toList(), RealmExport.Period::rowId));
-        ids.put("reporting-lines", ids(document.reportingLines(), RealmExport.Line::id));
-        ids.put("unit-roles", ids(document.unitRoles(), RealmExport.Role::id));
-        ids.put("qualifications", ids(document.qualifications(), RealmExport.QualificationRow::id));
-        ids.put("external-ids", ids(document.externalIds(), RealmExport.ExternalIdRow::id));
-        ids.put("change-orders", ids(document.changeOrders(), RealmExport.Order::id));
-        return ids;
-    }
-
     private void check(RealmExport document) {
         for (RealmExport.Unit unit : all(document.orgUnits())) {
             for (RealmExport.Version v : all(unit.versions())) {
@@ -270,8 +232,6 @@ final class RestoreCheck {
             required("qualifications", "personId", q.personId(), people);
             required("qualifications", "kindId", q.kindId(), refItems);
         }
-        Set<List<String>> values = new HashSet<>();
-        Set<List<String>> systems = new HashSet<>();
         for (RealmExport.ExternalIdRow x : all(document.externalIds())) {
             Set<String> named = switch (Optional.ofNullable(x.resourceType()).orElse("")) {
                 case "ORG_UNIT" -> orgUnits;
@@ -289,20 +249,6 @@ final class RestoreCheck {
                 default -> Set.of();
             };
             required("external-ids", "resourceId", x.resourceId(), named);
-            unique(x, values, systems);
-        }
-    }
-
-    // The table of IDs has the same two rules. They are checked here to fail with a clear error.
-    private static void unique(RealmExport.ExternalIdRow x, Set<List<String>> values, Set<List<String>> systems) {
-        String source = String.valueOf(x.source());
-        if (!values.add(List.of(x.resourceType(), source, String.valueOf(x.externalId())))) {
-            throw FuhitoException.invalid("restore.external_id_taken", Map.of("resourceType", x.resourceType(),
-                    "source", source, "externalId", String.valueOf(x.externalId())));
-        }
-        if (!systems.add(List.of(x.resourceType(), x.resourceId(), source))) {
-            throw FuhitoException.invalid("restore.external_id_twice",
-                    Map.of("resourceId", x.resourceId(), "source", source));
         }
     }
 
