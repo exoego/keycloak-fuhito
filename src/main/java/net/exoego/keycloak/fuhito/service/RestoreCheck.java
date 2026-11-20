@@ -244,7 +244,8 @@ final class RestoreCheck {
         switch (list + "." + field) {
             case "attribute-definitions.target" ->
                     Checks.optionalEnum(field, AttributeDefinition.Target.class, value, null);
-            case "attribute-definitions.type" -> Checks.optionalEnum(field, AttributeDefinition.Type.class, value, null);
+            case "attribute-definitions.type" ->
+                    Checks.optionalEnum(field, AttributeDefinition.Type.class, value, null);
             case "employment-terms.status" -> Checks.optionalEnum(field, EmploymentStatus.class, value, null);
             case "reporting-lines.kind" -> Checks.optionalEnum(field, ReportingLine.Kind.class, value, null);
             case "external-ids.resourceType" -> Checks.optionalEnum(field, ExternalId.Kind.class, value, null);

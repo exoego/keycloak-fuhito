@@ -22,7 +22,8 @@ class RestoreChoicesIT {
                 breaks("reporting-lines", "rl-1", "kind", CHOICE,
                         at("/people", "{\"id\": \"p-2\", \"attributes\": {}}"),
                         at("", "{\"reportingLines\": [{\"id\": \"rl-1\", \"assignmentId\": \"a-1\", "
-                                + "\"managerPersonId\": \"p-2\", \"kind\": \"BOSS\", \"validFrom\": \"2020-04-01\"}]}")),
+                                + "\"managerPersonId\": \"p-2\", \"kind\": \"BOSS\", "
+                                + "\"validFrom\": \"2020-04-01\"}]}")),
                 breaks("attribute-definitions", "d-1", "target", CHOICE,
                         at("/attributeDefinitions/0", "{\"target\": \"ROBOT\"}")),
                 breaks("attribute-definitions", "d-1", "type", CHOICE,
@@ -49,7 +50,8 @@ class RestoreChoicesIT {
                 breaks("org-unit-versions", "v-1", "primaryLanguage", "invalid.language_tag",
                         at("/orgUnits/0/versions/0", "{\"primaryLanguage\": \"x_y\"}")),
                 breaks("people", "p-1", "names.JA", "invalid.duplicate_language",
-                        at("/people/0", "{\"names\": {\"ja\": {\"name\": \"山田\"}, \"JA\": {\"name\": \"山田\"}}}")),
+                        at("/people/0", "{\"names\": {\"ja\": {\"name\": \"山田\"}, "
+                                + "\"JA\": {\"name\": \"山田\"}}}")),
                 breaks("ref-item-names", "n-1", "names", "invalid.required",
                         at("/refItems/0/versions/0", "{\"names\": null}")),
                 breaks("ref-kinds", "k-1", "names.ja", "invalid.required",

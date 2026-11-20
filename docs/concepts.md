@@ -220,7 +220,7 @@ One language of each version is the primary one.
 
 - A write sends `primaryLanguage` and `names`. `primaryLanguage` must be a key of `names`.
 - A write stores each tag in its standard form, such as `ja` for `JA` and `en-US` for `en-us`. `primaryLanguage` matches a key in that form, so `JA` matches the key `ja`.
-- Two keys of one tag in standard form, such as `ja` and `JA`, fail with 400 and `invalid.duplicate_language`. The error names the second key in `field`, such as `names.JA`, and the tag in `value`. Nothing is written. This holds for a REST write, an import, and a restore.
+- Two keys of one tag in standard form, such as `ja` and `JA`, fail with 400 and `invalid.duplicate_language`. The error names the second key in `field`, such as `names.JA`, and the tag in `value`. Nothing is written. This holds for a REST write and an import. A restore fails with 400 and `restore.bad_value`, which names the `list`, the `id` of the row, the second key in `field`, and `invalid.duplicate_language` in `rule`.
 - A read gives `name`, `shortName`, and `phoneticName` in the language of the reader, and every language in `names`.
 - The names of a language come from that tag, then from the language with no region, such as `en` for `en-US`, then from the primary language.
 - A read of the API takes the first language of `Accept-Language`. With no `Accept-Language`, it gives the primary names.
