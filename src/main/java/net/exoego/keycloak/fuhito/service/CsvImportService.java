@@ -318,7 +318,7 @@ public class CsvImportService {
             case PEOPLE -> Set.copyOf(PERSON_NAMES);
             default -> LOCALIZED;
         };
-        List<String> columns = columns(rows.getFirst().cells(), FIELDS.get(kind), localized, defined);
+        Map<String, String> columns = columns(rows.getFirst().cells(), FIELDS.get(kind), localized, defined);
         List<Csv.Row> data = rows.subList(1, rows.size());
 
         // Each list has its own type of row, so the rows keep that type from the cells to the import.
@@ -342,7 +342,7 @@ public class CsvImportService {
         };
     }
 
-    private <R> Result run(List<Csv.Row> data, List<String> columns, List<AttributeDefinition> defined,
+    private <R> Result run(List<Csv.Row> data, Map<String, String> columns, List<AttributeDefinition> defined,
             Function<Cells, R> parse, Function<List<?>, ImportDocument> document) {
         Map<Integer, FuhitoException> conversionErrors = new HashMap<>();
         List<R> converted = new ArrayList<>();
@@ -364,24 +364,25 @@ public class CsvImportService {
         return new Result(report, errors);
     }
 
-    private static List<String> columns(List<String> header, Set<String> fields, Set<String> localizedFields,
+    // The header of each column, as the file writes it, by the column.
+    private static Map<String, String> columns(List<String> header, Set<String> fields, Set<String> localizedFields,
             List<AttributeDefinition> defined) {
         Map<String, String> byName = new HashMap<>();
         HEADERS.forEach((field, japanese) -> {
             byName.put(field.toLowerCase(Locale.ROOT), field);
             byName.put(japanese, field);
         });
-        List<String> columns = new ArrayList<>();
+        Map<String, String> columns = new LinkedHashMap<>();
         Set<String> normalizedColumns = new HashSet<>();
         for (String cell : header) {
             String name = cell.strip();
             if (name.startsWith(ATTRIBUTE_COLUMN)) {
                 String attribute = name.substring(ATTRIBUTE_COLUMN.length());
                 if (defined.stream().noneMatch(definition -> definition.name().equals(attribute))
-                        || columns.contains(name)) {
+                        || columns.containsKey(name)) {
                     throw FuhitoException.invalid("csv.bad_column", Map.of("column", name));
                 }
-                columns.add(name);
+                columns.put(name, name);
                 continue;
             }
             int colon = name.indexOf(':');
@@ -393,7 +394,7 @@ public class CsvImportService {
             boolean localized = colon >= 0;
             String column = localized ? field + name.substring(colon) : field;
             if (field == null || !fields.contains(field) || (localized && !localizedFields.contains(field))
-                    || columns.contains(column)) {
+                    || columns.containsKey(column)) {
                 throw FuhitoException.invalid("csv.bad_column", Map.of("column", name));
             }
             if (localized) {
@@ -403,7 +404,7 @@ public class CsvImportService {
                             Map.of("field", name, "value", language));
                 }
             }
-            columns.add(column);
+            columns.put(column, name);
         }
         return columns;
     }
@@ -588,12 +589,13 @@ public class CsvImportService {
      * The cells of one row by column. A blank cell is a key that the row leaves out, and {@code #CLEAR} is a key
      * with null, as in a JSON row.
      */
-    private record Cells(Map<String, String> values, List<AttributeDefinition> defined, Set<String> cleared) {
+    private record Cells(Map<String, String> values, Map<String, String> headers, List<AttributeDefinition> defined,
+            Set<String> cleared) {
 
         // The key of the row for a column with another name.
         private static final Map<String, String> KEYS = Map.of("assignmentKind", "kind");
 
-        static Cells of(List<String> columns, List<String> cells, List<AttributeDefinition> defined) {
+        static Cells of(Map<String, String> columns, List<String> cells, List<AttributeDefinition> defined) {
             // A comma that should have been in quotes moves every later value one column to the right.
             if (cells.subList(Math.min(columns.size(), cells.size()), cells.size()).stream()
                     .anyMatch(cell -> !cell.isBlank())) {
@@ -602,16 +604,17 @@ public class CsvImportService {
             }
             Map<String, String> values = new LinkedHashMap<>();
             Set<String> cleared = new HashSet<>();
-            for (int i = 0; i < columns.size(); i++) {
-                String column = columns.get(i);
+            int i = 0;
+            for (String column : columns.keySet()) {
                 // A row reads stored data by its cells, before the import checks the row.
                 String value = Checks.storable(column, i < cells.size() ? cells.get(i).strip() : "");
+                i++;
                 values.put(column, value);
                 if (value.equals(CLEAR) && column.indexOf(':') < 0 && !column.startsWith(ATTRIBUTE_COLUMN)) {
                     cleared.add(KEYS.getOrDefault(column, column));
                 }
             }
-            return new Cells(values, defined, cleared);
+            return new Cells(values, columns, defined, cleared);
         }
 
         Set<String> nulls() {
@@ -736,6 +739,7 @@ public class CsvImportService {
         // The columns with no language set the primary names. A column like "name:en" sets the names of one
         // language, and "name:en" with #CLEAR removes them. The import keeps the other names that are stored.
         <T> Map<String, T> names(String primaryLanguage, List<String> fields, NameSetter<T> set) {
+            List<String> given = fields.stream().filter(field -> !blank(field)).toList();
             Map<String, T> result = new LinkedHashMap<>();
             values.forEach((column, value) -> {
                 int colon = column.indexOf(':');
@@ -744,13 +748,16 @@ public class CsvImportService {
                 }
                 String field = column.substring(0, colon);
                 String language = Checks.languageTag(column, column.substring(colon + 1));
+                if (language.equals(primaryLanguage) && given.contains(field)) {
+                    throw FuhitoException.invalid("invalid.duplicate_language",
+                            Map.of("field", headers.get(column), "value", language));
+                }
                 if (field.equals("name") && value.equals(CLEAR)) {
                     result.put(language, null);
                 } else {
                     result.put(language, name(result.get(language), language, field, column, set));
                 }
             });
-            List<String> given = fields.stream().filter(field -> !blank(field)).toList();
             if (given.isEmpty()) {
                 return result.isEmpty() ? null : result;
             }
