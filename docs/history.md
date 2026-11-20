@@ -93,6 +93,16 @@ This is how to correct a mistake.
 
 Checked by `OrgUnitsIT.changesInsideAPastPeriodAndCorrectsAFirstDate` and `OrgUnitsIT.movesAUnitAndMakesItARoot`.
 
+### The parent and the places in a change of the details of an org unit
+
+The details and the parent of an org unit change on dates of their own.
+`PUT /org-units/{id}` replaces the details from `validFrom`, and `PUT /org-units/{id}/parent` moves the unit.
+A read has the parent of its date, and the work location and the cost center that apply on it. The details of the read can start before a move or before a change of a unit above.
+So `PUT /org-units/{id}` takes a `parentId`, an `effectiveWorkLocation`, and an `effectiveCostCenter` that the unit has on any date of the details that it replaces. These dates run from `validFrom` to the end of the stored details of that date.
+Another value fails with 400 and `invalid.value_fixed`. For a unit with no parent on those dates, such as a root or a rollup unit, `parentId` must be null or left out.
+
+Checked by `ReplacedDetailsIT.anotherParentOrPlaceFailsAndWritesNothing`.
+
 ## An end
 
 An end says "from this date, this no longer holds".
