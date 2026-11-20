@@ -173,11 +173,9 @@ final class KeycloakRequestContext implements RequestContext {
     public void lockTarget(Map<String, ? extends Collection<String>> others) {
         Map<String, Set<String>> all = new HashMap<>();
         others.forEach((collection, ids) -> all.computeIfAbsent(collection, any -> new HashSet<>()).addAll(ids));
-        // The path is /admin/realms/{realm}/fuhito/{collection}/{id}/...
-        List<String> segments = List.of(session.getContext().getUri().getPath().split("/"));
-        int realms = segments.indexOf("realms");
-        if (realms >= 0 && segments.size() > realms + 4 && RowLocks.knows(segments.get(realms + 3))) {
-            all.computeIfAbsent(segments.get(realms + 3), any -> new HashSet<>()).add(segments.get(realms + 4));
+        List<String> parts = pathParts();
+        if (parts.size() > 1 && RowLocks.knows(parts.getFirst())) {
+            all.computeIfAbsent(parts.getFirst(), any -> new HashSet<>()).add(parts.get(1));
         }
         lock(all);
     }
@@ -243,6 +241,14 @@ final class KeycloakRequestContext implements RequestContext {
                     change.resourceId(), change.change().name(), change.resourcePath(), changeOrderId));
         }
         new JpaChangeLogStore(entityManager, realm.getId()).appendAll(entries);
+    }
+
+    @Override
+    public List<String> pathParts() {
+        // The path is /admin/realms/{realm}/fuhito/...
+        List<String> segments = List.of(session.getContext().getUri().getPath().split("/"));
+        int start = Math.min(segments.indexOf("realms") + 3, segments.size());
+        return segments.subList(start, segments.size());
     }
 
     @Override

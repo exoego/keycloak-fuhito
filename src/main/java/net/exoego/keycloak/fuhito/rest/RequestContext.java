@@ -97,6 +97,14 @@ public interface RequestContext {
     Locale nameLanguage();
 
     /**
+     * Returns the parts of the path of the request after {@code fuhito}, decoded. The first part names a kind of
+     * resource, for example {@code org-units}. The second part is often the ID of one resource of the kind.
+     *
+     * @return the parts, or an empty list for the root
+     */
+    List<String> pathParts();
+
+    /**
      * Locks the stored rows of the resource that the path of the request names, and of other resources, until the
      * end of the transaction. A second write to one of them then waits for the first one.
      * The rows are locked in one fixed order, as {@link #lock(Map)} does.
