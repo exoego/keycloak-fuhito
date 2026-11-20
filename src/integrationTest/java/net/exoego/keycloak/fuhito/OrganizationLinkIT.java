@@ -1,10 +1,13 @@
 package net.exoego.keycloak.fuhito;
 
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.ws.rs.core.Response;
 import org.junit.jupiter.api.Test;
 import org.keycloak.admin.client.CreatedResponseUtil;
@@ -12,12 +15,15 @@ import org.keycloak.admin.client.Keycloak;
 import org.keycloak.representations.idm.OrganizationDomainRepresentation;
 import org.keycloak.representations.idm.OrganizationRepresentation;
 import org.keycloak.representations.idm.RealmRepresentation;
+import org.keycloak.representations.idm.UserRepresentation;
 
 import static net.exoego.keycloak.fuhito.KeycloakEnvironment.KEYCLOAK;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 
 class OrganizationLinkIT {
+
+    private static final ObjectMapper JSON = new ObjectMapper();
 
     private static String createRealm(Keycloak admin, boolean organizations) {
         var realm = new RealmRepresentation();
@@ -41,7 +47,11 @@ class OrganizationLinkIT {
     }
 
     private static String unit(Api api, String name) throws Exception {
-        HttpResponse<String> response = api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"" + name + "\"}}, \"validFrom\": \"2026-04-01\"}");
+        return unit(api, name, "2026-04-01");
+    }
+
+    private static String unit(Api api, String name, String validFrom) throws Exception {
+        HttpResponse<String> response = api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"" + name + "\"}}, \"validFrom\": \"" + validFrom + "\"}");
         assertEquals(201, response.statusCode(), response.body());
         return Api.json(response).get("id").asText();
     }
@@ -49,6 +59,36 @@ class OrganizationLinkIT {
     private static String errorOf(int status, HttpResponse<String> response) throws Exception {
         assertEquals(status, response.statusCode(), response.body());
         return Api.json(response).get("error").asText();
+    }
+
+    // The ID of an organization is unique in all realms.
+    private static String idOfLength(int length) {
+        return (UUID.randomUUID() + "-" + "o".repeat(length)).substring(0, length);
+    }
+
+    // The admin API gives a new organization a UUID, but a realm import keeps the ID that its JSON gives.
+    private static String createRealmWithOrganizations(Keycloak admin, Map<String, String> idsByAlias) {
+        var realm = new RealmRepresentation();
+        realm.setRealm("org-long-" + UUID.randomUUID());
+        realm.setEnabled(true);
+        realm.setOrganizationsEnabled(true);
+        realm.setAttributes(Map.of("fuhito.projection.enabled", "true"));
+        realm.setOrganizations(idsByAlias.entrySet().stream().map(entry -> {
+            var organization = new OrganizationRepresentation();
+            organization.setId(entry.getValue());
+            organization.setName(entry.getKey());
+            organization.setAlias(entry.getKey());
+            organization.setEnabled(true);
+            organization.addDomain(new OrganizationDomainRepresentation(entry.getKey() + ".example.com"));
+            return organization;
+        }).toList());
+        TestRealm.withTimeZone(realm);
+        TestRealm.createRealm(admin, realm);
+        return realm.getRealm();
+    }
+
+    private static String organizationOf(Api api, String unit) throws Exception {
+        return Api.json(api.get("/org-units/" + unit + "?asOf=2026-05-01")).path("keycloakOrganizationId").asText();
     }
 
     @Test
@@ -86,6 +126,62 @@ class OrganizationLinkIT {
         assertFalse(Api.json(unlinked).has("organizationId"));
         assertFalse(Api.json(api.get("/org-units/" + xHospital + "?asOf=2026-04-01")).has("keycloakOrganizationId"));
         assertEquals(200, api.putWithVersion("/org-units/" + yHospital + "/organization", "{\"organizationId\": \"" + xOrganization + "\"}").statusCode());
+    }
+
+    @Test
+    void aUnitLinksToAnOrganizationWithAnIdOf40Characters() throws Exception {
+        linksToOrganizationsWithIdsOf(40);
+    }
+
+    // Keycloak keeps the ID of an organization in VARCHAR(255).
+    @Test
+    void aUnitLinksToAnOrganizationWithAnIdOf255Characters() throws Exception {
+        linksToOrganizationsWithIdsOf(255);
+    }
+
+    private static void linksToOrganizationsWithIdsOf(int length) throws Exception {
+        Keycloak admin = KEYCLOAK.getKeycloakAdminClient();
+        String xOrganization = idOfLength(length);
+        String yOrganization = idOfLength(length);
+        String realm = createRealmWithOrganizations(admin, Map.of("x-hospital", xOrganization,
+                "y-hospital", yOrganization));
+        Api api = new Api(realm, admin.tokenManager().getAccessTokenString());
+        TestRealm.legalEntity(api, "法人");
+        String xHospital = unit(api, "X病院", "2020-04-01");
+        String yHospital = unit(api, "Y病院", "2020-04-01");
+        var nurse = new UserRepresentation();
+        nurse.setUsername("nurse");
+        nurse.setEnabled(true);
+        try (Response response = admin.realm(realm).users().create(nurse)) {
+            HttpResponse<String> staff = api.post("/staff", "{\"userId\": \""
+                    + CreatedResponseUtil.getCreatedId(response) + "\", \"orgUnitId\": \"" + xHospital
+                    + "\", \"validFrom\": \"2020-04-01\"}");
+            assertEquals(201, staff.statusCode(), staff.body());
+        }
+
+        HttpResponse<String> linked = api.putWithVersion("/org-units/" + xHospital + "/organization",
+                "{\"organizationId\": \"" + xOrganization + "\"}");
+        assertEquals(200, linked.statusCode(), linked.body());
+        HttpResponse<String> loaded = api.postBytes("/imports/csv/org-units?effectiveDate=2026-05-01",
+                "text/csv; charset=UTF-8", ("id,organizationAlias\r\n" + yHospital + ",y-hospital\r\n")
+                        .getBytes(StandardCharsets.UTF_8));
+        assertEquals(200, loaded.statusCode(), loaded.body());
+        assertEquals(0, Api.json(loaded).get("errors").size(), loaded.body());
+        assertEquals(xOrganization, organizationOf(api, xHospital));
+        assertEquals(yOrganization, organizationOf(api, yHospital));
+        assertEquals(200, api.post("/projection/rebuild", "").statusCode());
+        assertEquals("1", KeycloakEnvironment.sql("select count(*) from fuhito_projected_member where kc_org_id = '"
+                + xOrganization + "'"));
+
+        JsonNode export = RealmExportIT.export(api);
+        assertEquals(List.of("x-hospital", "y-hospital"), export.get("orgUnits").findValuesAsText("organizationAlias")
+                .stream().sorted().toList());
+        assertEquals(200, api.deleteWithVersion("/org-units/" + xHospital + "/organization").statusCode());
+        assertEquals(200, api.deleteWithVersion("/org-units/" + yHospital + "/organization").statusCode());
+        HttpResponse<String> restored = api.post("/restore?replace=true", JSON.writeValueAsString(export));
+        assertEquals(200, restored.statusCode(), restored.body());
+        assertEquals(xOrganization, organizationOf(api, xHospital));
+        assertEquals(yOrganization, organizationOf(api, yHospital));
     }
 
     @Test
