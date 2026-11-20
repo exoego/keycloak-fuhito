@@ -1,9 +1,11 @@
 package net.exoego.keycloak.fuhito;
 
 import java.net.http.HttpResponse;
+import java.util.ArrayList;
 import java.util.List;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -653,5 +655,61 @@ class EmploymentsIT {
                 Api.names(Api.json(groupApi.get("/org-units?legalEntity=true&asOf=2028-04-01"))));
         assertEquals(List.of("CREATE", "UPDATE"), Api.json(groupApi.get(
                 "/change-log?resourceType=FUHITO_ORG_UNIT&resourceId=" + company)).findValuesAsText("operation"));
+    }
+
+    // The first assignment starts after the date, so that the end removes it, or holds on the date and stays.
+    @Test
+    void aMergerOfTwoEmploymentsOfOnePersonKeepsTheLinkBetweenTheirAssignments() throws Exception {
+        for (String start : List.of("2027-06-01", "2027-01-01")) {
+            TestRealm group = TestRealm.create("employments-merger-link");
+            try {
+                Api groupApi = group.api;
+                String corporation = group.legalEntity("医療法人X会");
+                String company = group.legalEntity("株式会社Yサービス");
+                String ward = created(groupApi.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": "
+                        + "{\"ja\": {\"name\": \"病棟\"}}, \"validFrom\": \"2020-04-01\"}")).get("id").asText();
+                String sato = group.user("sato");
+                List<String> olds = new ArrayList<>();
+                for (String from : List.of("2020-04-01", "2021-04-01")) {
+                    olds.add(created(groupApi.post("/employments", "{\"userId\": \"" + sato + "\", \"employerId\": \""
+                            + corporation + "\", \"validFrom\": \"" + from + "\"}")).get("id").asText());
+                }
+                String first = created(groupApi.post("/assignments", "{\"employmentId\": \"" + olds.get(0)
+                        + "\", \"orgUnitId\": \"" + ward + "\", \"validFrom\": \"" + start
+                        + "\", \"validTo\": \"2027-09-01\"}")).get("id").asText();
+                HttpResponse<String> imported = groupApi.post("/imports", "{\"effectiveDate\": \"2027-09-01\", "
+                        + "\"source\": \"sheet\", \"assignments\": [{\"externalId\": \"B\", \"employmentId\": \""
+                        + olds.get(1) + "\", \"orgUnitId\": \"" + ward + "\", \"validFrom\": \"2027-09-01\", "
+                        + "\"continuesAssignmentId\": \"" + first + "\"}]}");
+                assertEquals(200, imported.statusCode(), imported.body());
+
+                JsonNode merger = created(groupApi.post("/employments/transfers", "{\"fromEmployerId\": \""
+                        + corporation + "\", \"toEmployerId\": \"" + company + "\", \"validFrom\": \"2027-04-01\"}"));
+
+                assertEquals(olds, merger.get("employments").findValuesAsText("endedEmploymentId"));
+                List<String> news = merger.get("employments").findValuesAsText("startedEmploymentId");
+                JsonNode history = Api.json(groupApi.get("/users/" + sato + "/history"));
+                JsonNode copyOfSecond = onlyAssignmentOf(history, news.get(1));
+                assertEquals(onlyAssignmentOf(history, news.get(0)).get("id").asText(),
+                        copyOfSecond.get("continuesAssignmentId").asText(), start);
+                ObjectNode export = RealmExportIT.export(groupApi);
+                HttpResponse<String> restored = groupApi.post("/restore?replace=true", export.toString());
+                assertEquals(200, restored.statusCode(), start + " " + restored.body());
+                assertEquals(export, RealmExportIT.export(groupApi));
+            } finally {
+                group.remove();
+            }
+        }
+    }
+
+    private static JsonNode onlyAssignmentOf(JsonNode history, String employmentId) {
+        List<JsonNode> found = new ArrayList<>();
+        history.get("assignments").forEach(assignment -> {
+            if (employmentId.equals(assignment.get("employmentId").asText())) {
+                found.add(assignment);
+            }
+        });
+        assertEquals(1, found.size(), history.toString());
+        return found.getFirst();
     }
 }
