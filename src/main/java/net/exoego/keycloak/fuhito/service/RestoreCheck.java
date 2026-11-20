@@ -104,7 +104,14 @@ final class RestoreCheck {
         }
         for (RealmExport.EmploymentRow e : all(document.employments())) {
             required("employments", "personId", e.personId(), people);
-            required("employments", "employerId", e.employerId(), orgUnits);
+            if (e.externalEmployerId() == null) {
+                required("employments", "employerId", e.employerId(), orgUnits);
+            } else if (e.employerId() != null) {
+                throw FuhitoException.invalid("employment.employer_twice",
+                        Map.of("externalEmployer", e.externalEmployerId()));
+            } else {
+                required("employments", "externalEmployerId", e.externalEmployerId(), refItems);
+            }
             optional("employments", "endReasonId", e.endReasonId(), refItems);
             optional("employments", "continuesEmploymentId", e.continuesEmploymentId(), employments);
             for (RealmExport.Terms t : all(e.terms())) {

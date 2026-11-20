@@ -310,7 +310,7 @@ class AttributeSyncServiceTest {
         var employment = employmentStore.findByUser("alice").getFirst();
         // The person of alice lost the link to the Keycloak user.
         employmentStore.employments.put(employment.id(), new Employment(employment.id(), employment.personId(), null,
-                employment.employerId(), employment.period(), employment.staffNumber(), employment.endReasonId(),
+                employment.employer(), employment.period(), employment.staffNumber(), employment.endReasonId(),
                 employment.source(), employment.continuesEmploymentId(), 1));
 
         SyncReport again = run();
@@ -353,7 +353,7 @@ class AttributeSyncServiceTest {
         Person person = people.find(first.personId()).orElseThrow();
         people.update(new Person(person.id(), null, person.names(), person.attributes(), person.source(), 1));
         employmentStore.employments.put(first.id(), new Employment(first.id(), first.personId(), null,
-                first.employerId(), first.period(), first.staffNumber(), first.endReasonId(), first.source(),
+                first.employer(), first.period(), first.staffNumber(), first.endReasonId(), first.source(),
                 first.continuesEmploymentId(), 1));
         nextDay();
 

@@ -9,10 +9,12 @@ import net.exoego.keycloak.fuhito.domain.EmploymentTerms;
  * An employment with all its terms over time.
  *
  * @param employment the employment
+ * @param externalEmployer the code of the external employer, or null for an employer that is a legal entity
  * @param endReason the code of the end reason, or null
  * @param terms the terms of each period, oldest first
  */
-public record EmploymentView(Employment employment, String endReason, List<TermsView> terms) {
+public record EmploymentView(Employment employment, String externalEmployer, String endReason,
+        List<TermsView> terms) {
 
     /**
      * The terms of one period, with codes in place of IDs.

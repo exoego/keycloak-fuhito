@@ -123,10 +123,12 @@ public record RealmExport(
             String maskedAt) {
     }
 
-    @Schema(name = "ExportEmployment")
-    public record EmploymentRow(String id, Long version, String personId, String employerId, String validFrom,
-            String validTo, String staffNumber, String endReasonId, String source, String continuesEmploymentId,
-            List<Terms> terms) {
+    @Schema(name = "ExportEmployment",
+            description = "An employment. It has `employerId` or `externalEmployerId`, never both.")
+    public record EmploymentRow(String id, Long version, String personId, String employerId,
+            @Schema(description = "The ID of the reference item of the external employer.")
+            String externalEmployerId, String validFrom, String validTo, String staffNumber, String endReasonId,
+            String source, String continuesEmploymentId, List<Terms> terms) {
     }
 
     @Schema(name = "ExportEmploymentTerms")

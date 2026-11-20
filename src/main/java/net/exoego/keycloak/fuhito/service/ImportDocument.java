@@ -497,8 +497,8 @@ public record ImportDocument(
             @Schema(description = "The code of the end reason. It is used only with `validTo`.")
             String endReason,
             @Schema(description = "The external ID of the org unit that employs the person. It is a legal entity. "
-                    + "Leave it out when the realm has exactly one. A stored employment keeps its employer, so "
-                    + "the value must name that one.")
+                    + "Leave it out when the realm has exactly one, or for an external employer. A stored employment "
+                    + "keeps its employer, so the value must name that one.")
             String employerExternalId,
             @Schema(description = "The external ID of the person with the same source, for a person from the list "
                     + "of people. It names a person with no Keycloak user too.")
@@ -518,7 +518,23 @@ public record ImportDocument(
             String continuesEmploymentExternalId,
             @Schema(description = "The ID of the employment that this one continues. Give this or "
                     + "`continuesEmploymentExternalId`, not both.")
-            String continuesEmploymentId) {
+            String continuesEmploymentId,
+            @Schema(description = "The code of the employer outside the realm, a reference item of the kind "
+                    + "`EXTERNAL_EMPLOYER`, such as a staffing agency. Give this or the employer, not both. A new "
+                    + "employment needs an active item. A stored employment keeps its employer, so the value must "
+                    + "name that one.")
+            String externalEmployer) {
+
+        public EmploymentRow(String source, String externalId, String username, String userId, String staffNumber,
+                String employmentType, String grade, String status, String leaveReason, BigDecimal workPercent,
+                String contractEndDate, Map<String, Object> attributes, String validFrom, String validTo,
+                String endReason, String employerExternalId, String personExternalId, String personId,
+                String employerId, String id, String continuesEmploymentExternalId, String continuesEmploymentId) {
+            this(source, externalId, username, userId, staffNumber, employmentType, grade, status, leaveReason,
+                    workPercent, contractEndDate, attributes, validFrom, validTo, endReason, employerExternalId,
+                    personExternalId, personId, employerId, id, continuesEmploymentExternalId, continuesEmploymentId,
+                    null);
+        }
 
         public EmploymentRow(String source, String externalId, String username, String userId, String staffNumber,
                 String employmentType, String grade, String status, String leaveReason, BigDecimal workPercent,

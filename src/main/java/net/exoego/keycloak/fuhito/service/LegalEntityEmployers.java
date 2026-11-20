@@ -4,15 +4,17 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 
+import net.exoego.keycloak.fuhito.domain.Employer;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.PlacedOrgUnit;
 import net.exoego.keycloak.fuhito.domain.RefItem;
+import net.exoego.keycloak.fuhito.domain.RefKind;
 import net.exoego.keycloak.fuhito.domain.ValidPeriod;
 import net.exoego.keycloak.fuhito.store.OrgUnitStore;
 import net.exoego.keycloak.fuhito.store.RefItemStore;
 
 /**
- * Takes the employer from the legal entities of the realm.
+ * Takes the employer from the legal entities of the realm, or from the external employers that the request names.
  * A request that names no employer gets the only legal entity of the date. Nothing is guessed.
  */
 public class LegalEntityEmployers implements Employers {
@@ -35,7 +37,24 @@ public class LegalEntityEmployers implements Employers {
     }
 
     @Override
-    public String of(String requestedId, LocalDate firstDate) {
+    public Employer of(String requestedId, String externalEmployer, LocalDate firstDate) {
+        if (externalEmployer == null) {
+            return Employer.legalEntity(legalEntity(requestedId, firstDate));
+        }
+        if (requestedId != null) {
+            throw FuhitoException.invalid("employment.employer_twice", Map.of("externalEmployer", externalEmployer));
+        }
+        RefItem item = refItems.findByCode(RefKind.EXTERNAL_EMPLOYER, externalEmployer)
+                .orElseThrow(() -> FuhitoException.invalid("employment.external_employer_unknown",
+                        Map.of("externalEmployer", externalEmployer)));
+        if (!item.active()) {
+            throw FuhitoException.invalid("employment.external_employer_inactive",
+                    Map.of("externalEmployer", externalEmployer));
+        }
+        return Employer.external(item.id());
+    }
+
+    private String legalEntity(String requestedId, LocalDate firstDate) {
         String hierarchy = orgUnits.defaultHierarchyId();
         if (requestedId == null) {
             // Two are enough to know that there is more than one.
@@ -61,7 +80,11 @@ public class LegalEntityEmployers implements Employers {
     }
 
     @Override
-    public void requireCovers(String employerId, ValidPeriod period) {
+    public void requireCovers(Employer employer, ValidPeriod period) {
+        if (employer.isExternal()) {
+            return;
+        }
+        String employerId = employer.legalEntityId();
         LocalDate end = orgUnits.versions(employerId).getLast().period().to();
         if (end != null && (period.to() == null || period.to().isAfter(end))) {
             throw FuhitoException.conflict("employment.employer_ends",

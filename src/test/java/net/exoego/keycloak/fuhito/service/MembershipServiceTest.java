@@ -119,7 +119,7 @@ class MembershipServiceTest {
         assertEquals(List.of("nurse", "doctor"), userIds(inWard));
         assertEquals(List.of(false, true), inWard.stream().map(Member::seconded).toList());
         assertEquals(List.of(hospital, otherHospital),
-                inWard.stream().map(member -> member.employment().employerId()).toList());
+                inWard.stream().map(member -> member.employment().employer().legalEntityId()).toList());
 
         // The list can keep one side only.
         assertEquals(List.of("doctor"), userIds(service.members(ward, seconded(true, false))));

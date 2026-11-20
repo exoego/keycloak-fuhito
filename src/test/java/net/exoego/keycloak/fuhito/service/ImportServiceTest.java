@@ -10,6 +10,7 @@ import java.util.Optional;
 import java.util.function.Supplier;
 
 import net.exoego.keycloak.fuhito.domain.ChangeOrder;
+import net.exoego.keycloak.fuhito.domain.Employer;
 import net.exoego.keycloak.fuhito.domain.Employment;
 import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
@@ -87,7 +88,7 @@ class ImportServiceTest {
             assignmentStore, employmentStore, orgUnitStore, refItems, users, personStore), Clock.systemUTC());
     private final EmploymentService employments =
             new EmploymentService(employmentStore, externalIdStore, assignmentStore, refItems, personStore,
-            new MemoryReportingLineStore(), new MemoryUnitRoleStore(), new AnyEmployer());
+            new MemoryReportingLineStore(), new MemoryUnitRoleStore(), new AnyEmployer(refItems));
     private final AssignmentService assignments =
             new AssignmentService(assignmentStore, externalIdStore, employmentStore, orgUnitStore, refItems,
             new MemoryReportingLineStore());
@@ -923,7 +924,7 @@ class ImportServiceTest {
         assertEquals(List.of(), errors(importEmployments(byIds("E1", taro, hospital, null, null))));
         Employment stored = employmentStore.find(stored(ExternalId.Kind.EMPLOYMENT, "import", "E1")).orElseThrow();
         assertEquals(taro, stored.personId());
-        assertEquals(hospital, stored.employerId());
+        assertEquals(Employer.legalEntity(hospital), stored.employer());
 
         ImportReport changed = importEmployments(byIds(null, taro, hospital, "g2", stored.id()));
         assertEquals(List.of(), errors(changed));
@@ -949,6 +950,45 @@ class ImportServiceTest {
         EmploymentRow employerTwice = new EmploymentRow(null, "E2", null, null, null, null, null, null, null, null,
                 null, null, null, null, "H", null, taro, hospital, null);
         assertEquals(List.of("employments[0] import.employer_twice"), errors(importEmployments(employerTwice)));
+    }
+
+    private static EmploymentRow atAgency(String externalId, String personId, String agency, String validFrom,
+            String employerId) {
+        return new EmploymentRow(null, externalId, null, null, "1001", null, null, null, null, null, null, null,
+                validFrom, null, null, null, null, personId, employerId, null, null, null, agency);
+    }
+
+    @Test
+    void aRowNamesAnExternalEmployerByItsCodeAndCannotChangeIt() {
+        importTwoUnits();
+        String hospital = stored(ExternalId.Kind.ORG_UNIT, "import", "H");
+        refItems.insert(new RefItem("agency", RefKind.EXTERNAL_EMPLOYER, "staffing", ItemNames.of("Staffing"), 0,
+                Map.of(), true));
+        refItems.insert(new RefItem("other", RefKind.EXTERNAL_EMPLOYER, "contracting", ItemNames.of("Contracting"),
+                0, Map.of(), true));
+        String taro = new PersonService(personStore, externalIdStore, users, id -> false)
+                .create(new PersonValues(null, "ja", japanese("Taro"), null, null, null)).person().id();
+
+        assertEquals(List.of(), errors(importEmployments(atAgency("E1", taro, "staffing", "2020-04-01", null))));
+        Employment stored = employmentStore.find(stored(ExternalId.Kind.EMPLOYMENT, "import", "E1")).orElseThrow();
+        assertEquals(Employer.external("agency"), stored.employer());
+        assertEquals("1001", stored.staffNumber());
+
+        // The same row changes nothing, also when the agency takes no new employments.
+        refItems.update(new RefItem("agency", RefKind.EXTERNAL_EMPLOYER, "staffing", ItemNames.of("Staffing"), 0,
+                Map.of(), false));
+        assertEquals(new Counts(0, 0, 1), importEmployments(atAgency("E1", taro, "staffing", null, null)).counts()
+                .get("employments"));
+        assertEquals(List.of("employments[0] import.employer_mismatch",
+                "employments[1] employment.external_employer_inactive", "employments[2] employment.employer_twice",
+                "employments[3] employment.external_employer_unknown"),
+                errors(importEmployments(atAgency("E1", taro, "contracting", null, null),
+                        atAgency("E3", taro, "staffing", "2027-04-01", null),
+                        atAgency("E4", taro, "contracting", "2027-04-01", hospital),
+                        atAgency("E5", taro, "nope", "2027-04-01", null))));
+        assertEquals(List.of("employments[0] import.employer_mismatch"),
+                errors(importEmployments(byIds(null, null, hospital, null, stored.id()))));
+        assertEquals(1, employmentStore.employments.size());
     }
 
     private static AssignmentRow placement(String externalId, String employmentExternalId, String employmentId,

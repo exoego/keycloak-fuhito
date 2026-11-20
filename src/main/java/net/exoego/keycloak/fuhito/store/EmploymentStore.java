@@ -64,7 +64,8 @@ public interface EmploymentStore {
     List<Employment> findAll(Collection<String> ids);
 
     /**
-     * Lists every employment that names an org unit as its employer, oldest first.
+     * Lists every employment that names an org unit as its employer, oldest first. An employment with an external
+     * employer names no org unit.
      * This is for an operation that changes all of them in one write.
      *
      * @param employerId the ID of the org unit
@@ -183,13 +184,14 @@ public interface EmploymentStore {
      *
      * @param staffNumber the staff number
      * @param employerId the ID of the org unit that employs
+     * @param externalEmployerId the ID of the reference item of the external employer that employs
      * @param date a date on which the employment holds
      * @param termsDate the date of the terms whose contract end is compared
      * @param contractEndFrom the earliest contract end
      * @param contractEndTo the first date after the latest contract end
      */
-    record Search(String staffNumber, String employerId, LocalDate date, LocalDate termsDate,
-            LocalDate contractEndFrom, LocalDate contractEndTo) {
+    record Search(String staffNumber, String employerId, String externalEmployerId, LocalDate date,
+            LocalDate termsDate, LocalDate contractEndFrom, LocalDate contractEndTo) {
 
         /**
          * Makes a search that does not look at contracts.
@@ -199,7 +201,7 @@ public interface EmploymentStore {
          * @param date a date on which the employment holds
          */
         public Search(String staffNumber, String employerId, LocalDate date) {
-            this(staffNumber, employerId, date, null, null, null);
+            this(staffNumber, employerId, null, date, null, null, null);
         }
 
         /**

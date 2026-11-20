@@ -127,6 +127,9 @@ public class EmploymentsResource {
             @QueryParam("staffNumber") String staffNumber,
             @Parameter(description = "The ID of the org unit that employs, to keep.")
             @QueryParam("employerId") String employerId,
+            @Parameter(description = "The code of the external employer that employs, to keep. An item that is no "
+                    + "longer active can be named too.")
+            @QueryParam("externalEmployer") String externalEmployer,
             @Parameter(
                     description = "A date to keep the employments that hold on it. Leave it out for every date.",
                     schema = @Schema(format = "date"))
@@ -153,8 +156,8 @@ public class EmploymentsResource {
         context.requireRead();
         return Calls.run(context, () -> {
             Cursor.requireAlone(after, first);
-            EmploymentService.Search search = new EmploymentService.Search(staffNumber, employerId, asOf,
-                    contractEndFrom, contractEndTo, today.ofRealm());
+            EmploymentService.Search search = new EmploymentService.Search(staffNumber, employerId,
+                    externalEmployer, asOf, contractEndFrom, contractEndTo, today.ofRealm());
             return Pages.of(context, represent(service.list(search, Page.of(first, max), after)),
                     Page.of(first, max).max(),
                     employment -> Cursor.encode(Cursor.EMPLOYMENTS, employment.id()));
@@ -174,6 +177,9 @@ public class EmploymentsResource {
             @QueryParam("staffNumber") String staffNumber,
             @Parameter(description = "The ID of the org unit that employs, to keep.")
             @QueryParam("employerId") String employerId,
+            @Parameter(description = "The code of the external employer that employs, to keep. An item that is no "
+                    + "longer active can be named too.")
+            @QueryParam("externalEmployer") String externalEmployer,
             @Parameter(
                     description = "A date to keep the employments that hold on it. Leave it out for every date.",
                     schema = @Schema(format = "date"))
@@ -189,7 +195,8 @@ public class EmploymentsResource {
             @QueryParam("contractEndTo") String contractEndTo) {
         context.requireRead();
         return Calls.run(context, () -> new CountRepresentation(service.count(new EmploymentService.Search(
-                staffNumber, employerId, asOf, contractEndFrom, contractEndTo, today.ofRealm()))));
+                staffNumber, employerId, externalEmployer, asOf, contractEndFrom, contractEndTo,
+                today.ofRealm()))));
     }
 
     @POST
@@ -392,7 +399,8 @@ public class EmploymentsResource {
                     + "names the old employment in `continuesEmploymentId`. An assignment, a line, or a role that "
                     + "starts on the date or later goes away from the old employment, and its copy takes its IDs "
                     + "of other systems. One that holds before the date only ends and keeps its IDs. Its copy "
-                    + "gets none. A failure writes nothing.")
+                    + "gets none. A failure writes nothing. An employment with an external employer cannot move. "
+                    + "End it and start another employment.")
     @Parameter(ref = "changeOrder")
     @APIResponse(
             responseCode = "201",
@@ -421,7 +429,8 @@ public class EmploymentsResource {
             summary = "Moves every person of one employer to another employer on a date, in one write.",
             description = "It is for a merger of two legal entities. Each employment that holds on the day before "
                     + "and on the date is transferred, as `POST /employments/{id}/transfer` does for one. With "
-                    + "`endEmployer`, the old employer ends on the same date. A failure writes nothing.")
+                    + "`endEmployer`, the old employer ends on the same date. A failure writes nothing. Both "
+                    + "employers are legal entities, so an employment with an external employer never moves.")
     @Parameter(ref = "changeOrder")
     @APIResponse(
             responseCode = "201",

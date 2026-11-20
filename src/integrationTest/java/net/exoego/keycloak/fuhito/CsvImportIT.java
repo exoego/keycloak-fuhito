@@ -953,4 +953,51 @@ class CsvImportIT {
         String employer = Api.json(api.get("/users/" + nurse + "/history")).get("employments").get(0).get("employerId").asText();
         assertEquals("株式会社Yサービス", Api.json(api.get("/org-units/" + employer + "?asOf=2026-04-01")).get("name").asText());
     }
+
+    @Test
+    void aCsvFileNamesAnAgencyAndAnExportOfItLoadsAgain() throws Exception {
+        TestRealm realm = TestRealm.withEmployer("csv-agency");
+        Api api = realm.api;
+        String worker = realm.user("worker");
+        String direct = realm.user("direct");
+        load(api, "ref-items", "effectiveDate=2026-04-01", """
+                外部ID,種類,コード,主言語,名称
+                AG-staffing,EXTERNAL_EMPLOYER,staffing,ja,Yスタッフ
+                AG-contracting,EXTERNAL_EMPLOYER,contracting,ja,Z請負
+                """);
+        load(api, "employments", "effectiveDate=2026-04-01&source=sheet", """
+                外部ID,ユーザー名,職員番号,外部の雇用主
+                E1,worker,1001,staffing
+                E2,direct,1001,
+                """);
+
+        JsonNode ofWorker = Api.json(api.get("/users/" + worker + "/history")).get("employments").get(0);
+        assertEquals("staffing", ofWorker.get("externalEmployer").asText());
+        assertFalse(ofWorker.has("employerId"));
+        JsonNode ofDirect = Api.json(api.get("/users/" + direct + "/history")).get("employments").get(0);
+        assertFalse(ofDirect.has("externalEmployer"));
+        String legalEntity = ofDirect.get("employerId").asText();
+
+        for (String header : List.of("en", "ja")) {
+            HttpResponse<String> exported = api.get("/imports/csv/employments?asOf=2026-05-01&header=" + header);
+            assertEquals(200, exported.statusCode(), exported.body());
+            assertTrue(exported.body().startsWith("﻿" + (header.equals("en")
+                    ? "id,externalId,source,personId,staffNumber,employerId,externalEmployer,"
+                    : "ID,外部ID,ソース,人のID,職員番号,雇用主のID,外部の雇用主,")), exported.body());
+            assertTrue(exported.body().contains(",1001,,staffing,"), exported.body());
+            assertTrue(exported.body().contains(",1001," + legalEntity + ",,"), exported.body());
+
+            JsonNode counts = load(api, "employments", "effectiveDate=2026-05-01", exported.body()).get("counts")
+                    .get("employments");
+            assertEquals(0, counts.get("created").asInt() + counts.get("changed").asInt(), counts.toString());
+        }
+        // The employer of a stored employment never changes.
+        String exported = api.get("/imports/csv/employments?asOf=2026-05-01").body();
+        assertEquals("import.employer_mismatch", failure(api, "employments", "effectiveDate=2026-05-01",
+                exported.replace(",staffing,", ",contracting,")));
+        assertEquals("import.employer_mismatch", failure(api, "employments", "effectiveDate=2026-05-01",
+                exported.replace(",1001," + legalEntity + ",,", ",1001,,staffing,")));
+        assertEquals("employment.employer_twice", failure(api, "employments", "effectiveDate=2026-05-01&source=sheet",
+                "外部ID,ユーザー名,雇用主のID,外部の雇用主\r\nE3,direct," + legalEntity + ",staffing\r\n"));
+    }
 }

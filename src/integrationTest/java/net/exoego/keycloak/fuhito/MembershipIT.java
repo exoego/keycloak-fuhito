@@ -341,6 +341,47 @@ class MembershipIT {
                 "/org-units/" + group + "/members?includeDescendants=true&asOf=2027-04-01&seconded=true&max=2"));
     }
 
+    @Test
+    void aPersonOfAnAgencyIsNeverSeconded() throws Exception {
+        TestRealm scratch = TestRealm.create("membership-agency");
+        Api s = scratch.api;
+        String companyA = scratch.legalEntity("会社A");
+        String companyB = scratch.legalEntity("会社B");
+        String branchB = typedUnit(s, "B支店", null, companyB, 0);
+        scratch.refItem("EXTERNAL_EMPLOYER", "staffing", "Yスタッフ");
+        String worker = scratch.user("worker");
+        String guest = scratch.user("guest");
+        // The realm has two legal entities, and the request names the agency.
+        String dispatched = created(s.post("/staff", "{\"userId\": \"" + worker + "\", \"externalEmployer\": "
+                + "\"staffing\", \"orgUnitId\": \"" + branchB + "\", \"validFrom\": \"2026-04-01\"}"))
+                .get("assignment").get("id").asText();
+        String seconded = assign(s, employ(s, guest, companyA), branchB, true, 1);
+        String on = "asOf=2026-04-01";
+
+        JsonNode members = Api.json(s.get("/org-units/" + branchB + "/members?" + on));
+        assertEquals(List.of(worker, guest), members.findValuesAsText("userId"));
+        assertEquals(List.of("staffing"), members.findValuesAsText("externalEmployer"));
+        assertEquals(List.of(companyA), members.findValuesAsText("employerId"));
+        assertEquals(List.of("false", "true"), members.findValuesAsText("seconded"));
+        JsonNode ofWorker = Api.json(s.get("/users/" + worker + "/assignments?" + on)).get(0);
+        assertEquals("staffing", ofWorker.get("externalEmployer").asText());
+        assertFalse(ofWorker.has("employerId"));
+        assertFalse(ofWorker.get("seconded").asBoolean());
+        assertEquals(List.of("staffing"), Api.json(s.get("/assignments?orgUnitId=" + branchB + "&" + on))
+                .findValuesAsText("externalEmployer"));
+
+        // The filter keeps the person of the agency on the side of the people who are not seconded.
+        String inB = "/org-units/" + branchB + "/members?" + on;
+        assertEquals(List.of(seconded), followed(scratch, inB + "&seconded=true&max=1"));
+        assertEquals(List.of(dispatched), followed(scratch, inB + "&seconded=false&max=1"));
+        String belowB = "/org-units/" + companyB + "/members?includeDescendants=true&" + on;
+        assertEquals(List.of(seconded), followed(scratch, belowB + "&seconded=true&max=1"));
+        assertEquals(List.of(dispatched), followed(scratch, belowB + "&seconded=false&max=1"));
+        String count = "/org-units/" + companyB + "/members/count?includeDescendants=true&" + on;
+        assertEquals(1, s.count(count + "&seconded=true"));
+        assertEquals(1, s.count(count + "&seconded=false"));
+    }
+
     private static JsonNode created(HttpResponse<String> response) throws Exception {
         assertEquals(201, response.statusCode(), response.body());
         return Api.json(response);

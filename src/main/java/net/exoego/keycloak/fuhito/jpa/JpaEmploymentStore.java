@@ -8,6 +8,7 @@ import java.util.Optional;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.TypedQuery;
+import net.exoego.keycloak.fuhito.domain.Employer;
 import net.exoego.keycloak.fuhito.domain.Employment;
 import net.exoego.keycloak.fuhito.domain.EmploymentStatus;
 import net.exoego.keycloak.fuhito.domain.EmploymentTerms;
@@ -159,12 +160,20 @@ public class JpaEmploymentStore implements EmploymentStore {
                 .toList();
     }
 
-    // Each piece is a fixed text. The values of the search go in as parameters.
+    // Each piece is a fixed text. The values of the search go in as parameters. A read by an employer takes the realm
+    // from the employer, for the reason in Rows.ofUnit. An employment has one employer, so a search by both finds none.
     private static String searchText(EmploymentStore.Search search, String afterId, boolean count) {
         StringBuilder text = new StringBuilder(count ? "select count(e)" : "select e")
                 .append(" from EmploymentEntity e where ")
-                .append(search.employerId() == null ? "e.realmId = :realmId"
-                        : "e.employerId = :employerId and " + Rows.ofUnit("e.realmId", "employerId"));
+                .append(search.employerId() != null
+                        ? "e.employerId = :employerId and " + Rows.ofUnit("e.realmId", "employerId")
+                        : search.externalEmployerId() != null
+                        ? "e.externalEmployerId = :externalEmployerId and "
+                                + Rows.ofRecord("e.realmId", "RefItemEntity", "id", "externalEmployerId")
+                        : "e.realmId = :realmId");
+        if (search.employerId() != null && search.externalEmployerId() != null) {
+            text.append(" and e.externalEmployerId = :externalEmployerId");
+        }
         if (search.staffNumber() != null) {
             text.append(" and e.staffNumber = :staffNumber");
         }
@@ -197,6 +206,9 @@ public class JpaEmploymentStore implements EmploymentStore {
         }
         if (search.employerId() != null) {
             query.setParameter("employerId", search.employerId());
+        }
+        if (search.externalEmployerId() != null) {
+            query.setParameter("externalEmployerId", search.externalEmployerId());
         }
         if (search.date() != null) {
             query.setParameter("date", search.date());
@@ -271,7 +283,8 @@ public class JpaEmploymentStore implements EmploymentStore {
             entity.id = employment.id();
             entity.realmId = realmId;
             entity.personId = employment.personId();
-            entity.employerId = employment.employerId();
+            entity.employerId = employment.employer().legalEntityId();
+            entity.externalEmployerId = employment.employer().externalEmployerId();
             entity.continuesEmploymentId = employment.continuesEmploymentId();
             // The same session reads the row back, and it then needs the person.
             entity.person = em.getReference(PersonEntity.class, employment.personId());
@@ -370,8 +383,9 @@ public class JpaEmploymentStore implements EmploymentStore {
     }
 
     static Employment toDomain(EmploymentEntity e) {
-        return new Employment(e.id, e.personId, e.person.userId, e.employerId, new ValidPeriod(e.validFrom, e.validTo),
-                e.staffNumber, e.endReasonId, e.source, e.continuesEmploymentId, e.version);
+        return new Employment(e.id, e.personId, e.person.userId, new Employer(e.employerId, e.externalEmployerId),
+                new ValidPeriod(e.validFrom, e.validTo), e.staffNumber, e.endReasonId, e.source,
+                e.continuesEmploymentId, e.version);
     }
 
     static EmploymentTerms toDomain(EmploymentTermsEntity e) {

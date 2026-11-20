@@ -309,7 +309,7 @@ public class CsvExportService {
     }
 
     // The employments that hold on the date, with the terms of that date. The person and the employer are named by
-    // ID, as many have no external ID of the source of the row.
+    // ID, as many have no external ID of the source of the row. An external employer is named by its code.
     private String employments(String asOf, boolean japanese) {
         LocalDate date = asOf == null ? today.ofRealm() : Checks.date("asOf", asOf);
         List<String> attributes = definitions.apply(AttributeDefinition.Target.EMPLOYMENT_TERMS).stream()
@@ -317,8 +317,8 @@ public class CsvExportService {
                 .toList();
         List<String> header = new ArrayList<>();
         for (String field : List.of("id", "externalId", "source", "personId", "staffNumber", "employerId",
-                "employmentType", "grade", "status", "leaveReason", "workPercent", "contractEndDate", "validFrom",
-                "validTo", "endReason", "continuesEmploymentId")) {
+                "externalEmployer", "employmentType", "grade", "status", "leaveReason", "workPercent",
+                "contractEndDate", "validFrom", "validTo", "endReason", "continuesEmploymentId")) {
             header.add(column(field, japanese));
         }
         attributes.forEach(attribute -> header.add(CsvImportService.ATTRIBUTE_COLUMN + attribute));
@@ -337,7 +337,7 @@ public class CsvExportService {
                         .findFirst();
                 List<String> cells = new ArrayList<>(List.of(employment.id(),
                         text(ids.externalIdOf(employment.id(), employment.source())), text(employment.source()), employment.personId(), text(employment.staffNumber()),
-                        text(employment.employerId())));
+                        text(employment.employer().legalEntityId()), text(view.externalEmployer())));
                 cells.add(text(terms.map(EmploymentView.TermsView::employmentType).orElse(null)));
                 cells.add(text(terms.map(EmploymentView.TermsView::grade).orElse(null)));
                 cells.add(text(terms.map(t -> t.terms().status().name()).orElse(null)));

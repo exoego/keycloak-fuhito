@@ -13,7 +13,8 @@ import jakarta.persistence.Table;
 import jakarta.persistence.Transient;
 
 /**
- * The relationship between a user and the legal entity of the realm, for a period.
+ * The relationship between a person and an employer, for a period. The employer is a legal entity of the realm in
+ * {@code employerId}, or an external employer in {@code externalEmployerId}.
  */
 @Entity
 @Table(name = "FUHITO_EMPLOYMENT")
@@ -31,6 +32,9 @@ public class EmploymentEntity implements VersionedRow {
 
     @Column(name = "EMPLOYER_ID", length = 36, updatable = false)
     String employerId;
+
+    @Column(name = "EXTERNAL_EMPLOYER_ID", length = 36, updatable = false)
+    String externalEmployerId;
 
     // Only for reads. The column is written through personId.
     @ManyToOne(fetch = FetchType.LAZY)

@@ -34,14 +34,21 @@ public record EmploymentRepresentation(
         @Schema(
                 description = "The ID of the org unit that employs the person. It is a legal entity on the first "
                         + "date of the employment, and it never changes. A request can leave it out when the "
-                        + "realm has exactly one legal entity on that date.")
+                        + "realm has exactly one legal entity on that date. It is missing for an external "
+                        + "employer.")
         String employerId,
+        @Schema(
+                description = "The code of the employer outside the realm, such as a staffing agency or a "
+                        + "contractor. It is a reference item of the kind `EXTERNAL_EMPLOYER`, and it never "
+                        + "changes. A request gives this or `employerId`, not both. A new employment needs an active "
+                        + "item.")
+        String externalEmployer,
         @Schema(description = "The first date of the employment.", format = "date")
         String validFrom,
         @Schema(description = "The first date after the employment. It is missing for no end.", format = "date")
         String validTo,
         @Schema(
-                description = "The number that the legal entity gives to the person.",
+                description = "The number that the employer gives to the person.",
                 maxLength = 64,
                 pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$")
         String staffNumber,
@@ -147,8 +154,9 @@ public record EmploymentRepresentation(
      */
     public static EmploymentRepresentation of(EmploymentView view, ExternalIdLists ids) {
         var e = view.employment();
-        return new EmploymentRepresentation(e.id(), e.version(), e.personId(), e.userId(), e.employerId(),
-                e.period().from().toString(), text(e.period().to()),
+        return new EmploymentRepresentation(e.id(), e.version(), e.personId(), e.userId(),
+                e.employer().legalEntityId(), view.externalEmployer(), e.period().from().toString(),
+                text(e.period().to()),
                 e.staffNumber(), view.endReason(), null, e.source(),
                 ExternalIdPairRepresentation.of(ids.of(e.id(), e.source())), e.continuesEmploymentId(), null, null,
                 null, null, null, null, null,
@@ -162,7 +170,7 @@ public record EmploymentRepresentation(
 
     NewEmployment toNewEmployment(String person) {
         return new NewEmployment(person, validFrom, validTo, staffNumber, employmentType, grade, status, leaveReason,
-                workPercent, contractEndDate, attributes, externalId, source, employerId);
+                workPercent, contractEndDate, attributes, externalId, source, employerId, externalEmployer);
     }
 
     private static String text(Object value) {

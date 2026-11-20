@@ -11,6 +11,7 @@ import java.util.Map;
 import java.util.Optional;
 
 import net.exoego.keycloak.fuhito.domain.Assignment;
+import net.exoego.keycloak.fuhito.domain.Employer;
 import net.exoego.keycloak.fuhito.domain.Employment;
 import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
@@ -1178,7 +1179,7 @@ class OrgUnitServiceTest {
         store.employments = employments;
         String company = service.create(new NewOrgUnit(null, "ja", ja("Company"), "company", null,
                 "2020-04-01", null, null, null, null)).unit().id();
-        employments.insert(new Employment("e1", "alice", null, company,
+        employments.insert(new Employment("e1", "alice", null, Employer.legalEntity(company),
                 new ValidPeriod(LocalDate.of(2026, 4, 1), LocalDate.of(2028, 4, 1)), null, null, null, null, 1));
         OrgUnitChange toDepartment = new OrgUnitChange("2026-01-01", null, "ja", ja("Company"), "department",
                 null, null);

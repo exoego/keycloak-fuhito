@@ -55,7 +55,8 @@ Reads, the mask, and the erase work by person. Each has a shortcut by the ID of 
 | Term | Japanese | Meaning |
 |---|---|---|
 | Person | 人 | Someone the realm knows. The link to a Keycloak user is optional. One user is linked to at most one person. |
-| Employment | 雇用、在籍 | The relationship between a person and a legal entity, for a period. The legal entity is the employer. It never changes for one employment. It also covers people who are not direct employees, such as agency staff and contractors. Leaving ends the employment. |
+| Employment | 雇用、在籍 | The relationship between a person and an employer, for a period. The employer is a legal entity of the realm, or an external employer. It never changes for one employment. It also covers people who are not direct employees, such as agency staff (派遣社員) and contractors. Their employer is the agency or the contractor, an external employer. Leaving ends the employment. |
+| External Employer | 外部の雇用主 | An employer outside the realm, such as a staffing agency or a contractor. It is a reference item of the kind `EXTERNAL_EMPLOYER`, not an org unit. |
 | Employment Terms | 雇用条件 | The conditions of an employment that change over time. They are the employment type, the grade, the status with its leave reason, the work ratio, and the contract end date. |
 | Contract End Date | 契約期間満了日 | The last day of the fixed-term contract in force. An indefinite contract has none. |
 | Employment Type | 雇用形態 | The category of the contract, for example full-time, part-time, or temporary. |
@@ -132,7 +133,7 @@ When a reader must know that something happened, the field is an `At` field that
 
 ## Reference data
 
-Unit types, job titles, occupations, employment types, grades, end reasons, assignment kinds, qualification kinds, leave reasons, unit roles, work locations, and cost centers are reference data.
+Unit types, job titles, occupations, employment types, grades, end reasons, assignment kinds, qualification kinds, leave reasons, unit roles, work locations, cost centers, and external employers are reference data.
 Each realm defines its own items.
 An item has a code, a name, and optional names in other languages.
 The names have valid periods, so a rename that keeps the code shows the old name in a read of an old date. The code and the other values have no dates. See [history.md](history.md).
@@ -311,7 +312,7 @@ A kind of reference data that a realm added keeps its names the same way, with o
 
 ## Employers
 
-Every employment names its employer. The employer is an org unit that is a legal entity on the first date of the employment.
+Every employment names its employer. The employer is an org unit that is a legal entity on the first date of the employment, or an external employer.
 
 - An org unit is a legal entity when its unit type has the mark `legalEntity`. Mark the types such as "company" and "medical corporation" once.
 - A realm needs at least one legal entity before its first employment.
@@ -321,12 +322,12 @@ Every employment names its employer. The employer is an org unit that is a legal
 - An assignment, a reporting line, or a role over an org unit that starts on the date of the transfer or later goes away from the old employment. Its copy takes its IDs of other systems, so a system that knows it by such an ID still finds it. One that holds before the date only ends and keeps its IDs. Its copy gets none.
 - `POST /employments/transfers` does it for every person of one employer, for a merger of two legal entities. It can end the old employer in the same write.
 - A legal entity stays one while employments name it. Its unit type keeps the mark, the unit does not get a type without the mark from a date on which an employment starts, and the unit does not end before the employments do.
-- A staff number is unique for one employer. Two legal entities can give the same number to two people.
+- A staff number is unique for one employer. Two employers can give the same number to two people.
 - A person who is employed by one legal entity and works in an org unit of another is seconded. The employment names the first, and the assignment names the org unit.
 - Each org unit belongs to one legal entity on a date, or to none. A legal entity belongs to itself. Any other unit belongs to the nearest legal entity above it in the default hierarchy. The unit types of the date decide which units are legal entities.
 - A legal entity can sit below another one, such as a company below its holding company. A branch of the company belongs to the company, not to the holding company.
 - A unit with no legal entity above it in the default hierarchy belongs to none. Such units are a rollup unit, a lateral root such as a labor union, and a unit above every legal entity.
-- The reads of members and of the assignments of a person have `employerId` and `seconded`. An assignment is a secondment when the employment has an employer and the org unit belongs to another legal entity on the date. A unit that belongs to no legal entity gives no secondment.
+- The reads of members and of the assignments of a person have `employerId` and `seconded`. An assignment is a secondment when the employer of the employment is a legal entity and the org unit belongs to another legal entity on the date. A unit that belongs to no legal entity gives no secondment, and neither does an external employer.
 - `GET /org-units/{id}/members` takes `seconded=true` for only the seconded people, and `seconded=false` for everyone else. The database applies the filter, so the pages stay right.
 
 For example, with a holding company H above company A, and company B beside them:
@@ -338,6 +339,21 @@ For example, with a holding company H above company A, and company B beside them
 | A | A branch of B | Yes |
 | H | A branch of A | Yes |
 | A | A branch of A | No |
+| A staffing agency | A branch of B | No |
+
+### External employers
+
+A dispatched worker (派遣社員) or a contractor is employed by an agency outside the realm. The agency is an external employer. It is a reference item of the kind `EXTERNAL_EMPLOYER`, with a code, names by language, attributes, IDs of other systems, and `active`, like other reference items. It is not an org unit, so it is not in any tree.
+
+- An employment names it by its code in `externalEmployer`, in place of `employerId`. A request with both fails with `employment.employer_twice`. A request with neither works as before.
+- A new employment needs an active item. An unknown code fails with `employment.external_employer_unknown`, and an inactive item with `employment.external_employer_inactive`. A stored employment keeps an item that is no longer active.
+- An external employer is no legal entity. A realm with exactly one legal entity still lets a request leave the employer out.
+- The external employer of an employment never changes. `POST /employments/{id}/transfer` rejects an employment with an external employer with `employment.transfer_external`. `POST /employments/transfers` moves the people of a legal entity only. A move from an agency to direct employment ends one employment and starts another.
+- A staff number is unique for one external employer, as for one legal entity.
+- An employment with an external employer is never a secondment. The reads of an employment, of members, and of the assignments of a person have `externalEmployer` and no `employerId`.
+- `GET /employments?externalEmployer=` lists the employments of one external employer. It can name an item that is no longer active.
+- An item that an employment names is in use, so it cannot be deleted. Deactivate it instead.
+- The sync from user attributes names the employer by the code of an org unit, so its new employments have a legal entity.
 
 ## Out of scope
 

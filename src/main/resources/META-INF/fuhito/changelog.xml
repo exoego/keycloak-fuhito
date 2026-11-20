@@ -1221,4 +1221,26 @@
             </column>
         </addColumn>
     </changeSet>
+
+    <!-- An employment can name an employer outside the realm, such as a staffing agency. It is a reference item of the
+         kind EXTERNAL_EMPLOYER. Every employment names a legal entity or such an item, never both. A read by the
+         item takes the realm from the item in a sub-select, and the index ends with the realm for that condition.
+         Without it, PostgreSQL could add an index that starts with the realm and read every row of the realm. -->
+    <changeSet id="0.1.0-employment-external-employer" author="keycloak-fuhito">
+        <addColumn tableName="FUHITO_EMPLOYMENT">
+            <column name="EXTERNAL_EMPLOYER_ID" type="VARCHAR(36)"/>
+        </addColumn>
+        <addForeignKeyConstraint baseTableName="FUHITO_EMPLOYMENT" baseColumnNames="EXTERNAL_EMPLOYER_ID"
+                                 referencedTableName="FUHITO_REF_ITEM" referencedColumnNames="ID"
+                                 constraintName="FK_FUHITO_EMPLOYMENT_EXTERNAL_EMPLOYER"/>
+        <createIndex tableName="FUHITO_EMPLOYMENT" indexName="IDX_FUHITO_EMPLOYMENT_EXTERNAL_EMPLOYER">
+            <column name="EXTERNAL_EMPLOYER_ID"/>
+            <column name="REALM_ID"/>
+        </createIndex>
+        <sql>
+            ALTER TABLE FUHITO_EMPLOYMENT ADD CONSTRAINT CK_FUHITO_EMPLOYMENT_EMPLOYER
+            CHECK ((EMPLOYER_ID IS NOT NULL AND EXTERNAL_EMPLOYER_ID IS NULL)
+            OR (EMPLOYER_ID IS NULL AND EXTERNAL_EMPLOYER_ID IS NOT NULL))
+        </sql>
+    </changeSet>
 </databaseChangeLog>

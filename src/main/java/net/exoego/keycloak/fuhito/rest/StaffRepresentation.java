@@ -21,9 +21,14 @@ public record StaffRepresentation(
         String userId,
         @Schema(
                 description = "The ID of the org unit that employs the person. Leave it out when the realm has "
-                        + "exactly one legal entity.",
+                        + "exactly one legal entity, or for an external employer.",
                 writeOnly = true)
         String employerId,
+        @Schema(
+                description = "The code of the employer outside the realm, a reference item of the kind "
+                        + "`EXTERNAL_EMPLOYER`. Give this or `employerId`, not both.",
+                writeOnly = true)
+        String externalEmployer,
         @Schema(writeOnly = true)
         String orgUnitId,
         @Schema(
@@ -34,7 +39,7 @@ public record StaffRepresentation(
         @Schema(description = "The first date after both.", format = "date", writeOnly = true)
         String validTo,
         @Schema(
-                description = "The number that the legal entity gives to the person.",
+                description = "The number that the employer gives to the person.",
                 maxLength = 64,
                 pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$",
                 writeOnly = true)
@@ -78,7 +83,7 @@ public record StaffRepresentation(
 
     NewEmployment toNewEmployment(String person) {
         return new NewEmployment(person, validFrom, validTo, staffNumber, employmentType, grade, null, null,
-                workPercent, contractEndDate, null, null, null, employerId);
+                workPercent, contractEndDate, null, null, null, employerId, externalEmployer);
     }
 
     // The first assignment of a new employment is its primary one unless the request says otherwise.
@@ -89,6 +94,6 @@ public record StaffRepresentation(
 
     static StaffRepresentation of(EmploymentRepresentation employment, AssignmentRepresentation assignment) {
         return new StaffRepresentation(null, null, null, null, null, null, null, null, null, null, null, null, null,
-                null, null, null, null, employment, assignment);
+                null, null, null, null, null, employment, assignment);
     }
 }

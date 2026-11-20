@@ -529,7 +529,13 @@ components:
           description: "The ID of the org unit that employs the person. It is a legal\
             \ entity on the first date of the employment, and it never changes. A\
             \ request can leave it out when the realm has exactly one legal entity\
-            \ on that date."
+            \ on that date. It is missing for an external employer."
+        externalEmployer:
+          type: string
+          description: "The code of the employer outside the realm, such as a staffing\
+            \ agency or a contractor. It is a reference item of the kind `EXTERNAL_EMPLOYER`,\
+            \ and it never changes. A request gives this or `employerId`, not both.\
+            \ A new employment needs an active item."
         validFrom:
           type: string
           description: The first date of the employment.
@@ -542,7 +548,7 @@ components:
           type: string
           maxLength: 64
           pattern: "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
-          description: The number that the legal entity gives to the person.
+          description: The number that the employer gives to the person.
         endReason:
           type: string
           description: The code of the end reason.
@@ -814,6 +820,8 @@ components:
           type: string
     ExportEmployment:
       type: object
+      description: "An employment. It has `employerId` or `externalEmployerId`, never\
+        \ both."
       properties:
         id:
           type: string
@@ -824,6 +832,9 @@ components:
           type: string
         employerId:
           type: string
+        externalEmployerId:
+          type: string
+          description: The ID of the reference item of the external employer.
         validFrom:
           type: string
         validTo:
@@ -1644,8 +1655,9 @@ components:
         employerExternalId:
           type: string
           description: "The external ID of the org unit that employs the person. It\
-            \ is a legal entity. Leave it out when the realm has exactly one. A stored\
-            \ employment keeps its employer, so the value must name that one."
+            \ is a legal entity. Leave it out when the realm has exactly one, or for\
+            \ an external employer. A stored employment keeps its employer, so the\
+            \ value must name that one."
         personExternalId:
           type: string
           description: "The external ID of the person with the same source, for a\
@@ -1674,6 +1686,12 @@ components:
           type: string
           description: "The ID of the employment that this one continues. Give this\
             \ or `continuesEmploymentExternalId`, not both."
+        externalEmployer:
+          type: string
+          description: "The code of the employer outside the realm, a reference item\
+            \ of the kind `EXTERNAL_EMPLOYER`, such as a staffing agency. Give this\
+            \ or the employer, not both. A new employment needs an active item. A\
+            \ stored employment keeps its employer, so the value must name that one."
     ImportExternalIdRow:
       type: object
       required:
@@ -2362,17 +2380,22 @@ components:
           description: The ID of the Keycloak user that the person is linked to.
         employerId:
           type: string
-          description: The ID of the org unit that employs the person.
+          description: The ID of the org unit that employs the person. It is missing
+            for an external employer.
+        externalEmployer:
+          type: string
+          description: The code of the external employer that employs the person.
         seconded:
           type: boolean
           description: "True when the person works outside the employer. The org unit\
             \ then belongs to another legal entity on the date. A unit belongs to\
             \ the legal entity that it is, else to the nearest legal entity above\
             \ it in the default hierarchy. A unit that belongs to none, such as a\
-            \ rollup unit or a lateral root, gives no secondment."
+            \ rollup unit or a lateral root, gives no secondment. An external employer\
+            \ gives none either."
         staffNumber:
           type: string
-          description: The number that the legal entity gives to the person.
+          description: The number that the employer gives to the person.
         orgUnitId:
           type: string
         orgUnitName:
@@ -3356,6 +3379,7 @@ components:
       - UNIT_ROLE
       - WORK_LOCATION
       - COST_CENTER
+      - EXTERNAL_EMPLOYER
       description: The kinds of reference items. Each realm defines its own items
         for each kind.
     RefKindDefinition:
@@ -3756,8 +3780,13 @@ components:
           writeOnly: true
         employerId:
           type: string
-          description: The ID of the org unit that employs the person. Leave it out
-            when the realm has exactly one legal entity.
+          description: "The ID of the org unit that employs the person. Leave it out\
+            \ when the realm has exactly one legal entity, or for an external employer."
+          writeOnly: true
+        externalEmployer:
+          type: string
+          description: "The code of the employer outside the realm, a reference item\
+            \ of the kind `EXTERNAL_EMPLOYER`. Give this or `employerId`, not both."
           writeOnly: true
         orgUnitId:
           type: string
@@ -3776,7 +3805,7 @@ components:
           type: string
           maxLength: 64
           pattern: "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
-          description: The number that the legal entity gives to the person.
+          description: The number that the employer gives to the person.
           writeOnly: true
         employmentType:
           type: string
@@ -5536,6 +5565,12 @@ paths:
         in: query
         schema:
           type: string
+      - description: "The code of the external employer that employs, to keep. An\
+          \ item that is no longer active can be named too."
+        name: externalEmployer
+        in: query
+        schema:
+          type: string
       - description: The number of entries to skip. It cannot be used with `after`.
         schema:
           type: integer
@@ -5616,6 +5651,12 @@ paths:
         in: query
         schema:
           type: string
+      - description: "The code of the external employer that employs, to keep. An\
+          \ item that is no longer active can be named too."
+        name: externalEmployer
+        in: query
+        schema:
+          type: string
       - description: A staff number to keep.
         name: staffNumber
         in: query
@@ -5643,7 +5684,8 @@ paths:
       description: "It is for a merger of two legal entities. Each employment that\
         \ holds on the day before and on the date is transferred, as `POST /employments/{id}/transfer`\
         \ does for one. With `endEmployer`, the old employer ends on the same date.\
-        \ A failure writes nothing."
+        \ A failure writes nothing. Both employers are legal entities, so an employment\
+        \ with an external employer never moves."
       operationId: transferEmployments
       tags:
       - employments
@@ -5989,7 +6031,8 @@ paths:
         \ in `continuesEmploymentId`. An assignment, a line, or a role that starts\
         \ on the date or later goes away from the old employment, and its copy takes\
         \ its IDs of other systems. One that holds before the date only ends and keeps\
-        \ its IDs. Its copy gets none. A failure writes nothing."
+        \ its IDs. Its copy gets none. A failure writes nothing. An employment with\
+        \ an external employer cannot move. End it and start another employment."
       operationId: transferEmployment
       tags:
       - employments

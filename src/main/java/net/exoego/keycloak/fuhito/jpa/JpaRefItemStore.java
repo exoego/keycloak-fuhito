@@ -23,10 +23,13 @@ import net.exoego.keycloak.fuhito.store.RefItemStore;
  */
 public class JpaRefItemStore implements RefItemStore {
 
-    // One count for every column that holds the ID of a reference item.
+    // One count for every column that holds the ID of a reference item. The column of external employers has an index
+    // of its own, so the realm of that count comes from the item, for the reason in Rows.ofUnit.
     private static final List<String> REFERENCES = List.of(
             "select count(e) from OrgUnitVersionEntity e where e.unitTypeId = :id and e.realmId = :realmId",
             "select count(e) from EmploymentEntity e where e.endReasonId = :id and e.realmId = :realmId",
+            "select count(e) from EmploymentEntity e where e.externalEmployerId = :id and "
+                    + Rows.ofRecord("e.realmId", "RefItemEntity", "id", "id"),
             "select count(e) from EmploymentTermsEntity e where e.employmentTypeId = :id and e.realmId = :realmId",
             "select count(e) from EmploymentTermsEntity e where e.gradeId = :id and e.realmId = :realmId",
             "select count(e) from EmploymentTermsEntity e where e.leaveReasonId = :id and e.realmId = :realmId",

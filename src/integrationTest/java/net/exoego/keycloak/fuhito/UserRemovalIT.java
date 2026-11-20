@@ -124,6 +124,47 @@ class UserRemovalIT {
         assertEquals(401, new Api(realm.name, null).delete("/users/" + kept + "/data").statusCode());
     }
 
+    @Test
+    void anEraseAndARemovalOfPeopleOfAnAgencyKeepTheAgencyUntilNoEmploymentNamesIt() throws Exception {
+        TestRealm realm = TestRealm.withEmployer("user-erase-agency");
+        Api api = realm.api;
+        String agency = realm.refItem("EXTERNAL_EMPLOYER", "staffing", "Yスタッフ");
+        String erased = realm.user("erased");
+        String removed = realm.user("removed");
+        String masked = realm.user("masked");
+        String start = "\"externalEmployer\": \"staffing\", \"validFrom\": \"2025-04-01\"";
+        String ofErased = Api.json(api.post("/employments", "{\"userId\": \"" + erased + "\", \"staffNumber\": \"S-1\", "
+                + start + "}")).get("id").asText();
+        String ofRemoved = Api.json(api.post("/employments", "{\"userId\": \"" + removed + "\", " + start + "}"))
+                .get("id").asText();
+        String ofMasked = Api.json(api.post("/employments", "{\"userId\": \"" + masked + "\", \"staffNumber\": \"S-3\", "
+                + start + "}")).get("id").asText();
+
+        assertEquals(204, api.delete("/users/" + erased + "/data").statusCode());
+        assertEquals(404, api.get("/employments/" + ofErased).statusCode());
+        assertEquals("ref_item.in_use", Api.json(api.deleteWithVersion("/ref-items/" + agency)).get("error").asText());
+
+        // A removal from Keycloak ends the employment, and the agency has no end that would stop it.
+        realm.removeUser(removed);
+        JsonNode ended = Api.json(api.get("/employments/" + ofRemoved));
+        assertEquals(TODAY, ended.get("validTo").asText());
+        assertEquals("staffing", ended.get("externalEmployer").asText());
+
+        // A mask removes the staff number and keeps the employer, which is no personal data.
+        assertEquals(200, api.putWithVersion("/employments/" + ofMasked + "/end", "{\"validTo\": \"2026-04-01\"}")
+                .statusCode());
+        String person = Api.json(api.get("/users/" + masked + "/history")).get("personId").asText();
+        assertEquals(200, api.postWithVersion("/people/" + person + "/mask", "").statusCode());
+        JsonNode maskedEmployment = Api.json(api.get("/employments/" + ofMasked));
+        assertFalse(maskedEmployment.has("staffNumber"));
+        assertEquals("staffing", maskedEmployment.get("externalEmployer").asText());
+
+        assertEquals(204, api.delete("/users/" + removed + "/data").statusCode());
+        assertEquals(204, api.delete("/users/" + masked + "/data").statusCode());
+        assertEquals("0", rows("fuhito_employment", realm.id()));
+        assertEquals(204, api.deleteWithVersion("/ref-items/" + agency).statusCode());
+    }
+
     private static String line(Api api, String userId, String managerUserId) throws Exception {
         String assignment = Api.json(api.get("/users/" + userId + "/assignments")).get(0).get("assignmentId").asText();
         HttpResponse<String> created = api.post("/reporting-lines", "{\"assignmentId\": \"" + assignment
