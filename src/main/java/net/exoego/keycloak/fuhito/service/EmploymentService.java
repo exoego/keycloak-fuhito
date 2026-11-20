@@ -221,9 +221,9 @@ public class EmploymentService {
                     () -> FuhitoException.invalid("employment.person_unknown", Map.of("personId", personId)));
             Employer employer = employers.of(request.employerId(), request.externalEmployer(), from);
             employers.requireCovers(employer, period);
-            if (staffNumber != null) {
-                requireOwnStaffNumber(staffNumber, personId, holdersOf(staffNumber).stream()
-                        .filter(e -> employer.equals(e.employer())).map(Employment::personId).toList());
+            if (staffNumber != null && holdersOf(staffNumber).stream()
+                    .anyMatch(e -> employer.equals(e.employer()) && !e.personId().equals(personId))) {
+                throw FuhitoException.conflict("employment.staff_number_taken", Map.of("staffNumber", staffNumber));
             }
             ExternalId.Pair externalId = ids.check(null, request.source(), request.externalId());
             if (continuesEmploymentId != null) {
@@ -231,7 +231,9 @@ public class EmploymentService {
                         .or(() -> store.find(continuesEmploymentId))
                         .orElseThrow(() -> FuhitoException.invalid("employment.continues_unknown",
                                 Map.of("id", continuesEmploymentId)));
-                requireSamePerson(continuesEmploymentId, previous.personId(), personId);
+                if (!previous.personId().equals(personId)) {
+                    throw FuhitoException.invalid("employment.continues_other", Map.of("id", continuesEmploymentId));
+                }
             }
 
             Employment employment = new Employment(newId(), personId, person.userId(), employer, period,
@@ -337,35 +339,6 @@ public class EmploymentService {
         return new EmploymentTerms(termsId, employmentId, period, idOf(employmentType), idOf(grade), status,
                 idOf(leaveReason), Checks.optionalPercent("workPercent", values.workPercent()), contractEnd,
                 attributeRules.check(AttributeDefinition.Target.EMPLOYMENT_TERMS, values.attributes()));
-    }
-
-    /**
-     * Requires that no other person has a staff number at an employer. Each employer gives its own numbers, so two
-     * of them may give one number to two people.
-     *
-     * @param staffNumber the staff number
-     * @param personId the ID of the person who gets the number
-     * @param holders the IDs of the people who have the number at the employer
-     * @throws FuhitoException when another person has the number
-     */
-    static void requireOwnStaffNumber(String staffNumber, String personId, Collection<String> holders) {
-        if (holders.stream().anyMatch(holder -> !holder.equals(personId))) {
-            throw FuhitoException.conflict("employment.staff_number_taken", Map.of("staffNumber", staffNumber));
-        }
-    }
-
-    /**
-     * Requires that an employment continues only an employment of the same person.
-     *
-     * @param continuesEmploymentId the ID of the employment that it continues
-     * @param previousPersonId the ID of the person of that employment
-     * @param personId the ID of the person of the employment that continues it
-     * @throws FuhitoException when they are two people
-     */
-    static void requireSamePerson(String continuesEmploymentId, String previousPersonId, String personId) {
-        if (!previousPersonId.equals(personId)) {
-            throw FuhitoException.invalid("employment.continues_other", Map.of("id", continuesEmploymentId));
-        }
     }
 
     /**
@@ -654,7 +627,10 @@ public class EmploymentService {
             String staffNumber = Checks.optionalCode("staffNumber", move.staffNumber());
             if (staffNumber != null) {
                 Set<String> people = holders.computeIfAbsent(staffNumber, any -> new HashSet<>());
-                requireOwnStaffNumber(staffNumber, old.personId(), people);
+                if (people.stream().anyMatch(personId -> !personId.equals(old.personId()))) {
+                    throw FuhitoException.conflict("employment.staff_number_taken",
+                            Map.of("staffNumber", staffNumber));
+                }
                 people.add(old.personId());
             }
             staffNumbers.add(staffNumber);

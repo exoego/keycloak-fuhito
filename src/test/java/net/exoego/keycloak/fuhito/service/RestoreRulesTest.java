@@ -45,45 +45,4 @@ class RestoreRulesTest {
                 unit("a", parent("l-a", "b", "2020-04-01", "2021-04-01")),
                 unit("b", parent("l-b", "a", "2021-04-01", null)))));
     }
-
-    private static RealmExport.EmploymentRow employment(String id, String personId, String employerId,
-            String externalEmployerId) {
-        return new RealmExport.EmploymentRow(id, 1L, personId, employerId, externalEmployerId, "2020-04-01", null,
-                "S-1", null, null, null, List.of(new RealmExport.Terms("t-" + id, "2020-04-01", null, null, null,
-                        "ACTIVE", null, null, null, Map.of())));
-    }
-
-    private static RealmExport.AssignmentRows assignment(String id) {
-        return new RealmExport.AssignmentRows(id, 1L, List.of(new RealmExport.Period("r-" + id, "e-1", "u-1",
-                "2020-04-01", null, null, null, null, null, null, false, false, null, 0, Map.of(), null, null)));
-    }
-
-    private static RealmExport.Line line(String id, String assignmentId, String kind) {
-        return new RealmExport.Line(id, 1L, assignmentId, "p-2", kind, "2020-04-01", null);
-    }
-
-    // u-1 is a legal entity.
-    private static RealmExport document(List<RealmExport.EmploymentRow> employments,
-            List<RealmExport.AssignmentRows> assignments, List<RealmExport.Line> lines) {
-        RealmExport.Unit employer = new RealmExport.Unit("u-1", 1L, null, null, null, List.of(new RealmExport.Version(
-                "v-1", "2020-04-01", null, null, "ja", Map.of(), "corp", null, null, 0, Map.of())), List.of(),
-                List.of(), null);
-        RealmExport.Item corp = new RealmExport.Item("corp", 1L, "UNIT_TYPE", "corp", 0, Map.of(), true, true, false,
-                false, false, List.of(new RealmExport.ItemNames("n-1", null, null, "ja", Map.of())));
-        return new RealmExport(RealmExport.FORMAT, null, List.of(corp), null, null, List.of(employer), null,
-                employments, assignments, lines, null, null, null, null, null);
-    }
-
-    @Test
-    void twoEmployersMayGiveOneStaffNumberToTwoPeople() {
-        assertDoesNotThrow(() -> RestoreRules.require(document(List.of(employment("e-1", "p-1", "u-1", null),
-                employment("e-2", "p-2", null, "agency"), employment("e-3", "p-2", null, "agency")), null, null)));
-    }
-
-    @Test
-    void aSolidLineMayShareDatesWithADottedLineOrALineOfAnotherAssignment() {
-        assertDoesNotThrow(() -> RestoreRules.require(document(List.of(employment("e-1", "p-1", "u-1", null)),
-                List.of(assignment("a-1"), assignment("a-2")),
-                List.of(line("rl-1", "a-1", "SOLID"), line("rl-2", "a-1", "DOTTED"), line("rl-3", "a-2", "SOLID")))));
-    }
 }

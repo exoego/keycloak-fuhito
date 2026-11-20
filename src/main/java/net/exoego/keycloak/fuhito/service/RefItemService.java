@@ -404,11 +404,31 @@ public class RefItemService {
     private RefItem item(String id, String kind, String code, String primaryLanguage,
             Map<String, RefItemName> names, Integer displayOrder, Map<String, Object> attributes, boolean active,
             Marks marks, long version) {
-        RefItemMarks.require(kind, code, marks);
+        boolean legalEntity = mark(kind, RefKind.UNIT_TYPE, marks.legalEntity(), "ref_item.legal_entity_kind");
+        boolean actingHead = mark(kind, RefKind.ASSIGNMENT_KIND, marks.actingHead(), "ref_item.acting_head_kind");
+        boolean lateral = mark(kind, RefKind.UNIT_TYPE, marks.lateral(), "ref_item.lateral_kind");
+        boolean rollup = mark(kind, RefKind.UNIT_TYPE, marks.rollup(), "ref_item.rollup_kind");
+        if (legalEntity && lateral) {
+            throw FuhitoException.invalid("ref_item.lateral_legal_entity", Map.of("code", code));
+        }
+        // A lateral unit sits in the default hierarchy, and so does a legal entity for the check of secondments.
+        if (rollup && lateral) {
+            throw FuhitoException.invalid("ref_item.rollup_lateral", Map.of("code", code));
+        }
+        if (rollup && legalEntity) {
+            throw FuhitoException.invalid("ref_item.rollup_legal_entity", Map.of("code", code));
+        }
         return new RefItem(id, kind, code, RefItemName.check(primaryLanguage, names),
                 displayOrder == null ? 0 : displayOrder, attributeRules.check(AttributeDefinition.Target.REF_ITEM, attributes),
-                active, Boolean.TRUE.equals(marks.legalEntity()), Boolean.TRUE.equals(marks.actingHead()),
-                Boolean.TRUE.equals(marks.lateral()), Boolean.TRUE.equals(marks.rollup()), version, null, null);
+                active, legalEntity, actingHead, lateral, rollup, version, null, null);
+    }
+
+    private static boolean mark(String kind, RefKind allowed, Boolean value, String error) {
+        boolean marked = Boolean.TRUE.equals(value);
+        if (marked && !kind.equals(allowed.name())) {
+            throw FuhitoException.invalid(error, Map.of("kind", kind));
+        }
+        return marked;
     }
 
     private static String newId() {

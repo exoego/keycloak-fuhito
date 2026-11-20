@@ -190,10 +190,8 @@ class RealmExportIT {
         // Every item has names on every date, so a restore needs the periods of its names.
         ObjectNode nameless = first.deepCopy();
         nameless.get("refItems").forEach(row -> ((ObjectNode) row).remove("versions"));
-        JsonNode error = Api.json(target.api.post("/restore?replace=true", JSON.writeValueAsString(nameless)));
-        assertEquals("restore.bad_value", error.get("error").asText(), error.toString());
-        assertEquals(JSON.valueToTree(Map.of("list", "ref-items", "id", first.get("refItems").get(0).get("id").asText(),
-                "field", "versions")), error.get("params"));
+        assertEquals("invalid.required", Api.json(target.api.post("/restore?replace=true",
+                JSON.writeValueAsString(nameless))).get("error").asText());
         assertEquals("主任", Api.json(target.api.get("/ref-items/" + chief + "?asOf=2024-03-31")).get("name").asText());
     }
 

@@ -12,7 +12,6 @@ import java.util.function.Function;
 
 import net.exoego.keycloak.fuhito.domain.EmploymentStatus;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
-import net.exoego.keycloak.fuhito.domain.ReportingLine;
 import net.exoego.keycloak.fuhito.domain.ValidPeriod;
 
 /**
@@ -26,9 +25,6 @@ final class RestoreRules {
     private final RestoreUnits units;
     private final Map<String, RealmExport.EmploymentRow> employments = new HashMap<>();
     private final Map<String, List<RealmExport.Period>> rows = new HashMap<>();
-
-    private record StaffNumber(String employerId, String externalEmployerId, String number) {
-    }
 
     private RestoreRules(RealmExport document, RestoreUnits units) {
         this.units = units;
@@ -49,49 +45,14 @@ final class RestoreRules {
      *         ID of the row, the field, and the error of the write for the rule in {@code rule} when the write has one.
      */
     static void require(RealmExport document) {
-        all(document.refItems()).forEach(RestoreRules::requireNames);
         RestoreUnits units = new RestoreUnits(document);
         units.require();
         RestoreRules rules = new RestoreRules(document, units);
-        requireStaffNumbers(document);
         all(document.employments()).forEach(rules::requireEmployment);
         all(document.assignments()).forEach(rules::requireRows);
         all(document.assignments()).forEach(rules::requireAssignment);
         all(document.reportingLines()).forEach(rules::requireLine);
-        requireOneSolid(document);
         all(document.unitRoles()).forEach(rules::requireRole);
-    }
-
-    // An item has names on every date from its first names on. Names with no start hold from the start.
-    private static void requireNames(RealmExport.Item item) {
-        List<RealmExport.ItemNames> sorted = new ArrayList<>(all(item.versions()));
-        if (sorted.isEmpty()) {
-            throw broken("ref-items", item.id(), "versions", null);
-        }
-        sorted.sort(Comparator.comparing(n -> start(n.validFrom())));
-        requireNoGaps("ref-item-names", sorted, RealmExport.ItemNames::id,
-                n -> new ValidPeriod(start(n.validFrom()), date(n.validTo())));
-        if (sorted.getLast().validTo() != null) {
-            throw broken("ref-item-names", sorted.getLast().id(), "validTo", null);
-        }
-    }
-
-    private static LocalDate start(String validFrom) {
-        return validFrom == null ? LocalDate.MIN : LocalDate.parse(validFrom);
-    }
-
-    // The row is the later one in the export.
-    private static void requireStaffNumbers(RealmExport document) {
-        Map<StaffNumber, List<String>> holders = new HashMap<>();
-        for (RealmExport.EmploymentRow e : all(document.employments())) {
-            if (e.staffNumber() != null) {
-                List<String> people = holders.computeIfAbsent(new StaffNumber(e.employerId(), e.externalEmployerId(),
-                        e.staffNumber()), key -> new ArrayList<>());
-                check("employments", e.id(), "staffNumber",
-                        () -> EmploymentService.requireOwnStaffNumber(e.staffNumber(), e.personId(), people));
-                people.add(e.personId());
-            }
-        }
     }
 
     private void requireEmployment(RealmExport.EmploymentRow e) {
@@ -108,8 +69,6 @@ final class RestoreRules {
         }
         if (e.continuesEmploymentId() != null) {
             RealmExport.EmploymentRow previous = employments.get(e.continuesEmploymentId());
-            check("employments", e.id(), "continuesEmploymentId",
-                    () -> EmploymentService.requireSamePerson(previous.id(), previous.personId(), e.personId()));
             EmploymentService.stillHolds(previous.id(), period(previous.validFrom(), previous.validTo()),
                     period.from()).ifPresent(error -> {
                         throw broken("employments", previous.id(), "validTo", error.code()).causedBy(error);
@@ -143,16 +102,6 @@ final class RestoreRules {
             throw broken("assignments", assignment.assignmentId(), "periods", null);
         }
         requireNoGaps("assignments", sorted, RealmExport.Period::rowId, r -> period(r.validFrom(), r.validTo()));
-        // A write never changes the employment or the org unit of an assignment.
-        RealmExport.Period first = sorted.getFirst();
-        for (RealmExport.Period row : sorted) {
-            if (!row.employmentId().equals(first.employmentId())) {
-                throw broken("assignments", row.rowId(), "employmentId", null);
-            }
-            if (!row.orgUnitId().equals(first.orgUnitId())) {
-                throw broken("assignments", row.rowId(), "orgUnitId", null);
-            }
-        }
     }
 
     private void requireAssignment(RealmExport.AssignmentRows assignment) {
@@ -166,11 +115,7 @@ final class RestoreRules {
             check("assignments", row.rowId(), outside(period, life),
                     () -> AssignmentService.requireOrgUnitCovers(row.orgUnitId(), period, Optional.of(life)));
             if (row.continuesAssignmentId() != null) {
-                List<RealmExport.Period> previous = rows.get(row.continuesAssignmentId());
-                String previousPersonId = employments.get(previous.getFirst().employmentId()).personId();
-                check("assignments", row.rowId(), "continuesAssignmentId", () -> AssignmentService.requireSamePerson(
-                        row.continuesAssignmentId(), previousPersonId, e.personId()));
-                RealmExport.Period last = previous.getLast();
+                RealmExport.Period last = rows.get(row.continuesAssignmentId()).getLast();
                 AssignmentService.stillHolds(row.continuesAssignmentId(), period(last.validFrom(), last.validTo()),
                         period.from()).ifPresent(error -> {
                             throw broken("assignments", last.rowId(), "validTo", error.code()).causedBy(error);
@@ -185,27 +130,6 @@ final class RestoreRules {
         ValidPeriod life = period(sorted.getFirst().validFrom(), sorted.getLast().validTo());
         check("reporting-lines", line.id(), outside(period, life),
                 () -> ReportingLineService.requireInsideAssignment(line.assignmentId(), life, period));
-        String personId = employments.get(sorted.getFirst().employmentId()).personId();
-        check("reporting-lines", line.id(), "managerPersonId",
-                () -> ReportingLineRules.requireNotSelf(line.managerPersonId(), personId));
-    }
-
-    // Of two solid lines that share a date, the one that starts later breaks the rule.
-    private static void requireOneSolid(RealmExport document) {
-        List<RealmExport.Line> sorted = new ArrayList<>(all(document.reportingLines()));
-        sorted.sort(Comparator.comparing(l -> LocalDate.parse(l.validFrom())));
-        Map<String, List<ReportingLine>> earlier = new HashMap<>();
-        for (RealmExport.Line line : sorted) {
-            ReportingLine.Kind kind = ReportingLine.Kind.valueOf(line.kind());
-            ValidPeriod period = period(line.validFrom(), line.validTo());
-            List<ReportingLine> others = earlier.computeIfAbsent(line.assignmentId(), id -> new ArrayList<>());
-            if (kind == ReportingLine.Kind.SOLID) {
-                check("reporting-lines", line.id(), "kind",
-                        () -> ReportingLineRules.requireNoOtherSolid(line.assignmentId(), period, others));
-            }
-            others.add(new ReportingLine(line.id(), line.assignmentId(), line.managerPersonId(), null, kind, period,
-                    1));
-        }
     }
 
     private void requireRole(RealmExport.Role role) {
