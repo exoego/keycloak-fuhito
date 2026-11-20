@@ -18,8 +18,7 @@ import static org.junit.jupiter.api.Assertions.fail;
 // they do.
 class TreeWalkPlanIT {
 
-    // Both start with the hierarchy and the child. PostgreSQL takes either, depending on their sizes.
-    private static final String LINK_OF_CHILD = "(uk_fuhito_org_unit_link_from|ex_fuhito_org_unit_link_period)";
+    private static final String LINK_OF_CHILD = "uk_fuhito_org_unit_link_from";
 
     private static final String VERSION_OF_UNIT = "uk_fuhito_org_unit_version_from";
 
@@ -41,13 +40,7 @@ class TreeWalkPlanIT {
             assertIndexFinds(defaults, LINK_OF_CHILD, "child_id", "\\(a(_\\d+)?\\.ancestor_id\\)");
             assertIndexFinds(defaults, VERSION_OF_UNIT, "org_unit_id", "\\(a(_\\d+)?\\.ancestor_id\\)");
 
-            String line = walk(statement, """
-                    with recursive above (id, depth, realm_id) as (
-                        select u.id, 0, u.realm_id from fuhito_org_unit u where u.id = 'ex-new-unit-2999'
-                        union all
-                        select %s, a.depth + 1, a.realm_id from above a where a.id is not null)
-                    select a.id from above a where a.realm_id = 'ex-new-realm' and a.id is not null
-                    order by a.depth""".formatted(parentOf("a.id", false)));
+            String line = walk(statement, line());
             assertIndexFinds(line, "pk_fuhito_org_unit", "'ex-new-unit-2999'");
             assertIndexFinds(line, LINK_OF_CHILD, "child_id", "\\(a(_\\d+)?\\.id\\)");
 
@@ -65,22 +58,35 @@ class TreeWalkPlanIT {
         }
     }
 
-    // After an analyze, PostgreSQL took the index of the exclusion constraint for these lookups too.
+    // After an analyze, PostgreSQL took the indexes of the exclusion constraints for these lookups too.
     @Test
-    void eachWalkLooksUpTheVersionOfAUnitByTheUnitAlsoWithFreshStatistics() throws Exception {
+    void eachWalkLooksUpTheParentAndTheVersionOfAUnitByTheUnitAlsoWithFreshStatistics() throws Exception {
         try (Connection connection = KeycloakEnvironment.connection();
                 Statement statement = connection.createStatement()) {
             connection.setAutoCommit(false);
             realmsWithOldStatistics(statement);
             freshStatistics(statement);
 
-            assertIndexFinds(walk(statement, ancestors()), VERSION_OF_UNIT, "org_unit_id", "ANY");
-            assertIndexFinds(walk(statement, defaults()), VERSION_OF_UNIT, "org_unit_id",
-                    "\\(a(_\\d+)?\\.ancestor_id\\)");
-            assertIndexFinds(walk(statement, paths()), VERSION_OF_UNIT, "org_unit_id", "\\(l(_\\d+)?\\.parent_id\\)");
-            assertIndexFinds(walk(statement, membersOfOneUnitByPlace()), VERSION_OF_UNIT, "org_unit_id",
-                    "\\(u(_\\d+)?\\.above_id\\)");
+            String ancestors = walk(statement, ancestors());
+            assertIndexFinds(ancestors, LINK_OF_CHILD, "child_id", "\\(a(_\\d+)?\\.ancestor_id\\)");
+            assertIndexFinds(ancestors, VERSION_OF_UNIT, "org_unit_id", "ANY");
+
+            String defaults = walk(statement, defaults());
+            assertIndexFinds(defaults, LINK_OF_CHILD, "child_id", "\\(a(_\\d+)?\\.ancestor_id\\)");
+            assertIndexFinds(defaults, VERSION_OF_UNIT, "org_unit_id", "\\(a(_\\d+)?\\.ancestor_id\\)");
+
+            assertIndexFinds(walk(statement, line()), LINK_OF_CHILD, "child_id", "\\(a(_\\d+)?\\.id\\)");
+
+            String paths = walk(statement, paths());
+            assertIndexFinds(paths, LINK_OF_CHILD, "child_id", "\\(a(_\\d+)?\\.id\\)");
+            assertIndexFinds(paths, VERSION_OF_UNIT, "org_unit_id", "\\(l(_\\d+)?\\.parent_id\\)");
+
+            String places = walk(statement, membersOfOneUnitByPlace());
+            assertIndexFinds(places, LINK_OF_CHILD, "child_id", "\\(u(_\\d+)?\\.above_id\\)");
+            assertIndexFinds(places, VERSION_OF_UNIT, "org_unit_id", "\\(u(_\\d+)?\\.above_id\\)");
+
             String page = walk(statement, treePage());
+            assertIndexFinds(page, LINK_OF_CHILD, "child_id", "\\(v(_\\d+)?\\.org_unit_id\\)");
             assertIndexFinds(page, VERSION_OF_UNIT, "org_unit_id", "'ex-new-unit-1'");
             assertIndexFinds(page, VERSION_OF_UNIT, "org_unit_id", "\\(l(_\\d+)?\\.child_id\\)");
             connection.rollback();
@@ -159,7 +165,7 @@ class TreeWalkPlanIT {
     }
 
     // An index scan with only one of the columns reads every row of the new realm, or every link of its hierarchy.
-    // The index of the exclusion constraint on the versions is slower than their unique key.
+    // The indexes of the exclusion constraints on the versions and the links are slower than their unique keys.
     private static String walk(Statement statement, String query, String columns) throws Exception {
         // Without analyze, PostgreSQL does not show the lookups in the recursive part.
         String plan = plan(statement, "explain (analyze, costs off) " + query);
@@ -167,6 +173,7 @@ class TreeWalkPlanIT {
                 + "( AND \\(valid_\\w+ [^)]*\\))?\\)?";
         assertFalse(plan.lines().map(String::strip).anyMatch(line -> line.matches(onlyOne)), plan);
         assertFalse(plan.contains("ex_fuhito_org_unit_version_period"), plan);
+        assertFalse(plan.contains("ex_fuhito_org_unit_link_period"), plan);
         return plan;
     }
 
@@ -242,6 +249,17 @@ class TreeWalkPlanIT {
                 select a.unit_id, %s, %s from above a where a.realm_id = 'ex-new-realm' and a.ancestor_id is not null
                 order by a.unit_id, a.depth""".formatted(IDS, onDate("v"), parentOf("a.ancestor_id", false),
                 value.formatted("work_location_id", onDate("w")), value.formatted("cost_center_id", onDate("w")));
+    }
+
+    // JpaOrgUnitStore.LINE.
+    private static String line() {
+        return """
+                with recursive above (id, depth, realm_id) as (
+                    select u.id, 0, u.realm_id from fuhito_org_unit u where u.id = 'ex-new-unit-2999'
+                    union all
+                    select %s, a.depth + 1, a.realm_id from above a where a.id is not null)
+                select a.id from above a where a.realm_id = 'ex-new-realm' and a.id is not null
+                order by a.depth""".formatted(parentOf("a.id", false));
     }
 
     // JpaOrgUnitStore.PATHS.
