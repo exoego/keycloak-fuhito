@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Map;
 
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
+import net.exoego.keycloak.fuhito.domain.RefItemName;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -39,10 +40,21 @@ class RestoreCheckTest {
     }
 
     private static RealmExport terms(String validFrom, String contractEndDate) {
-        RealmExport.Terms terms = new RealmExport.Terms("t-1", validFrom, null, null, null, "ACTIVE", null, null,
+        return terms(validFrom, null, contractEndDate);
+    }
+
+    private static RealmExport terms(String validFrom, String validTo, String contractEndDate) {
+        RealmExport.Terms terms = new RealmExport.Terms("t-1", validFrom, validTo, null, null, "ACTIVE", null, null,
                 contractEndDate, Map.of());
         return of(null, null, List.of(new RealmExport.EmploymentRow("e-1", 1L, "p-1", "u-1", null, "2020-04-01",
                 null, null, null, null, null, List.of(terms))), null, null);
+    }
+
+    private static RealmExport names(String validFrom, String validTo) {
+        return new RealmExport(RealmExport.FORMAT, null, List.of(new RealmExport.Item("i-1", 1L, "JOB_TITLE", "chief",
+                0, Map.of(), true, false, false, false, false, List.of(new RealmExport.ItemNames("n-1", validFrom,
+                        validTo, "ja", Map.of("ja", new RefItemName("Chief")))))), null, null, null, null, null, null,
+                null, null, null, null, null, null);
     }
 
     private static RealmExport erasure(String erasedAt) {
@@ -104,5 +116,14 @@ class RestoreCheckTest {
         assertDoesNotThrow(() -> check(terms("0001-01-01", "9999-12-31")));
         assertDoesNotThrow(() -> check(erasure("0001-01-01T00:00:00Z")));
         assertDoesNotThrow(() -> check(erasure("9999-12-31T23:59:59.999999Z")));
+    }
+
+    @Test
+    void aPeriodEndsAfterItStarts() {
+        assertBadValue(terms("2021-04-01", "2020-04-01", null), "employment-terms", "t-1", "validTo");
+        assertBadValue(terms("2020-04-01", "2020-04-01", null), "employment-terms", "t-1", "validTo");
+        assertDoesNotThrow(() -> check(terms("2020-04-01", "2020-04-02", null)));
+        assertBadValue(names("2020-04-01", "2020-04-01"), "ref-item-names", "n-1", "validTo");
+        assertDoesNotThrow(() -> check(names(null, "0001-01-01")));
     }
 }
