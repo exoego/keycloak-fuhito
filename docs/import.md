@@ -500,6 +500,7 @@ This copies a realm to a test environment, moves it to another Keycloak, or brin
 - With `?replace=true`, the restore first deletes every row of the extension in the realm, in the same transaction. The realm is then as it was at the export. The change log stays, with the changes after the export. The runs of jobs and the records of the members that the projection added to organizations stay too. The next projection makes the Keycloak groups and organizations match. A replace asks for the permission to manage each organization that a unit was linked to before it.
 - It checks the export before it writes. A row that names a row that the export does not have fails with 400 and `restore.reference_unknown`. So a restore never links to the rows of another realm.
 - A value that is missing or cannot be read fails with 400 and `restore.bad_value`.
+- An empty text, a text of only spaces, or an empty array fails with 400 and `invalid.blank`, as in a row of an import. This holds for every value of every row, also for the names and the attributes. The error names the `list` and the `id` of the row, and the `field`, for example `attributes.beds`. A row inside a row has its own list, such as `org-unit-versions` for a version of an org unit. A list of such rows, such as `parents`, may be empty. An export has no such value, because every write rejects it.
 - An ID that a row of the database has already, in any realm, fails with 409 and `restore.id_taken`. This happens for a copy into a second realm of the same database while the first realm still has the rows.
 - Rows name Keycloak users by username. A restore fails with `restore.username_unknown` when the target realm has no user with that name. A person whose user Keycloak no longer had is exported with no username, and is restored with no link.
 - Masked data stays masked, with the time of the mask. Erased data is not in an export.
@@ -509,4 +510,4 @@ This copies a realm to a test environment, moves it to another Keycloak, or brin
 - The change log, the admin events, and the records of the members that the projection added are not part of an export. The restore records one entry, `FUHITO_RESTORE`.
 - The export needs the full read permission, because it has the data of people. The restore needs the permission to write.
 
-Checked by `RealmExportIT.anExportLoadsIntoAnEmptyRealmAndGivesTheSameExportAgain`.
+Checked by `RealmExportIT.anExportLoadsIntoAnEmptyRealmAndGivesTheSameExportAgain`, `RealmExportIT.anExportOfCheckedDataRestoresUnchanged`, and `RealmExportIT.anEmptyValueInAnyRowFailsTheRestoreAndNothingIsWritten`.

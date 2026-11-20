@@ -53,8 +53,11 @@ public class RestoreResource {
             operationId = "restore",
             summary = "Loads an export into a realm that has no data of the extension, or in place of its data.",
             description = "Every row keeps its ID, so products that stored IDs find the same resources. The rows "
-                    + "are written all or nothing. A username must name a user of this realm. An org unit names its "
-                    + "Keycloak organization by alias, and the restore asks for the permission to manage it.")
+                    + "are written all or nothing. An empty text, a text of only spaces, or an empty array in a row "
+                    + "fails with 400 and `invalid.blank`, as in a write. The error names the list and the `id` of "
+                    + "the row, and the field. A row may have an empty list of its own rows, such as `parents`. A "
+                    + "username must name a user of this realm. An org unit names its Keycloak organization by alias, "
+                    + "and the restore asks for the permission to manage it.")
     @Parameter(ref = "changeOrder")
     @APIResponse(
             responseCode = "200",
