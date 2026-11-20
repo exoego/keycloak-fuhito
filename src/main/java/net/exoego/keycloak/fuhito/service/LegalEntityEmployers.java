@@ -4,6 +4,7 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import net.exoego.keycloak.fuhito.domain.Employer;
@@ -102,11 +103,18 @@ public class LegalEntityEmployers implements Employers {
 
     @Override
     public void requireCovers(Employer employer, ValidPeriod period) {
+        covers(employer).accept(period);
+    }
+
+    @Override
+    public Consumer<ValidPeriod> covers(Employer employer) {
         if (employer.isExternal()) {
-            return;
+            return period -> {
+            };
         }
         String employerId = employer.legalEntityId();
-        requireEndsBy(employerId, orgUnits.versions(employerId).getLast().period().to(), period);
+        LocalDate end = orgUnits.versions(employerId).getLast().period().to();
+        return period -> requireEndsBy(employerId, end, period);
     }
 
     /**
