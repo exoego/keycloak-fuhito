@@ -298,7 +298,7 @@ components:
         multiple:
           type: boolean
           description: "True when the value is a JSON array, and each element has\
-            \ the type."
+            \ the type. An element of a `STRING` list must not be empty or only spaces."
           default: false
         required:
           type: boolean
@@ -1394,7 +1394,7 @@ components:
         multiple:
           type: boolean
           description: "True when the value is a JSON array, and each element has\
-            \ the type."
+            \ the type. An element of a `STRING` list must not be empty or only spaces."
           default: false
         required:
           type: boolean
