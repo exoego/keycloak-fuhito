@@ -460,10 +460,14 @@ public class AttributeSyncService {
         return a == null || (b != null && b.isBefore(a)) ? b : a;
     }
 
-    // An assignment that started today never held, so it is removed. Any other ends today.
+    // An assignment that started today never held, so it is removed, unless another assignment continues it. Any
+    // other ends today.
     private void retire(Assignment row, LocalDate today) {
         List<Assignment> rows = from.assignments().rows(row.assignmentId());
         if (!rows.getFirst().period().from().isBefore(today)) {
+            String personId = from.employments().find(row.employmentId()).orElseThrow().personId();
+            ContinuedAssignments.requireNoneRemoved(from.employments(), from.assignments(), List.of(personId),
+                    Set.of(row.assignmentId()));
             from.lines().findByAssignment(row.assignmentId()).forEach(line -> {
                 from.lines().delete(line.id());
                 record.accept(Write.Removed.line(line.id()));

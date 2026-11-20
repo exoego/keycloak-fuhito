@@ -50,7 +50,9 @@ public record UnitRoleRepresentation(
                 writeOnly = true)
         String externalId,
         @Schema(
-                description = "The name of the system of `externalId`. Only a create reads it.",
+                description = "The name of the system of `externalId`. Only a create reads it. A role keeps no system "
+                        + "that made it, so a create with this and no `externalId` fails with 400 and "
+                        + "`invalid.value_fixed`.",
                 maxLength = 64,
                 pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$",
                 writeOnly = true)

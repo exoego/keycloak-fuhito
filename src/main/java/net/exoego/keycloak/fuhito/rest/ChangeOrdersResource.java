@@ -175,6 +175,7 @@ public class ChangeOrdersResource {
         context.requireWrite();
         return Calls.run(context, () -> {
             Calls.body(body);
+            Writes.requireNoSource(body.source(), body.externalId());
             var order = represent(externalIds.create(ExternalId.Kind.CHANGE_ORDER, body.source(),
                     body.externalId(), () -> service.create(body.toValues()), ChangeOrder::id));
             context.recordChange(Change.CREATE, RESOURCE_TYPE, order.id(), path(order.id()), order);

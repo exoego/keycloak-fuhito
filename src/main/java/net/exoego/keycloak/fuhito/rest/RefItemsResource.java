@@ -174,6 +174,7 @@ public class RefItemsResource {
         context.requireWrite();
         return Calls.run(context, () -> {
             Calls.body(body);
+            Writes.requireNoSource(body.source(), body.externalId());
             var item = represent(externalIds.create(ExternalId.Kind.REF_ITEM, body.source(), body.externalId(),
                     () -> service.create(body.kind(), body.code(), body.primaryLanguage(), body.names(),
                             body.displayOrder(), body.attributes(), body.marks(), !Boolean.FALSE.equals(body.active()),
