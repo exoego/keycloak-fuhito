@@ -38,8 +38,8 @@ public record RefItemRepresentation(
                 description = "The name of the date in the language of the request. It is the one of the first "
                         + "language of `Accept-Language`, else the one of that language with no region, such as `en` "
                         + "for `en-US`, else the primary one. A request with no `Accept-Language` reads the primary "
-                        + "one. A write of a stored item with another value than the names that it changes have fails "
-                        + "with 400 and `invalid.value_fixed`.",
+                        + "one. A write of a stored item fails with 400 and `invalid.value_fixed` when this "
+                        + "is not the name of the names that it changes.",
                 readOnly = true)
         String name,
         @Schema(description = "The language tag of the primary name, such as `ja`. It matches a key of `names` in "

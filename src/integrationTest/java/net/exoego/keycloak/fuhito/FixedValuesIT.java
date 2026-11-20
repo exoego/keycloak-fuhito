@@ -318,6 +318,11 @@ class FixedValuesIT {
         }
         expected.add("old names 400 invalid.value_fixed name");
         got.add("old names " + outcome(api.putWithVersion(ofItem, oldNames.without("version").toString()), "field"));
+        // No details hold before the start, so the write fails on its own.
+        ObjectNode early = details.deepCopy().without("version");
+        expected.add("early details 404 assignment.not_valid_on");
+        got.add("early details " + outcome(api.putWithVersion("/assignments/" + assignment + "/details",
+                early.put("validFrom", "2019-01-01").toString())));
         assertEquals(expected, got);
         assertEquals(before, RealmExportIT.export(api));
 

@@ -71,10 +71,10 @@
                         They change nothing. The body can leave them out, or give the values of a read of the
                         resource in the language of the request. A field of a period, such as `validTo`, has the value
                         of the period that holds on `validFrom` of the body. Without `validFrom`, the names of a
-                        reference item are the ones of today. False is the same as no value. Another value fails with
-                        400 and `invalid.value_fixed`, which names the field. The effective work location and cost
-                        center of an org unit are not checked, because they can differ between the dates of its
-                        details.
+                        reference item are the ones of today. A read leaves out a flag that is false, such as
+                        `legalEntity`, so false is the same as no flag. Another value fails with 400 and
+                        `invalid.value_fixed`, which names the field. The effective work location and cost center of
+                        an org unit are not checked, because they can differ between the dates of its details.
 
                         A failed request writes nothing.
                         """,

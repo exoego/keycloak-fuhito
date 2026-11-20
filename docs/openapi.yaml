@@ -195,6 +195,8 @@ components:
         validTo:
           type: string
           description: The first date after these details. It is missing for no end.
+            A change of the details with another value than the end of the details
+            on its `validFrom` fails with 400 and `invalid.value_fixed`.
           format: date
           readOnly: true
         jobTitle:
@@ -219,14 +221,18 @@ components:
           description: "The code of the work location that applies. It is the one\
             \ of the assignment, else the one of the org unit, else the one of the\
             \ nearest unit above it in the default hierarchy. It is read on the date\
-            \ of the period nearest to today."
+            \ of the period nearest to today. A change of the details fails with 400\
+            \ and `invalid.value_fixed` when this is not the value of the details\
+            \ on its `validFrom`."
           readOnly: true
         effectiveCostCenter:
           type: string
           description: "The code of the cost center that applies. It is the one of\
             \ the assignment, else the one of the org unit, else the one of the nearest\
             \ unit above it in the default hierarchy. It is read on the date of the\
-            \ period nearest to today."
+            \ period nearest to today. A change of the details fails with 400 and\
+            \ `invalid.value_fixed` when this is not the value of the details on its\
+            \ `validFrom`."
           readOnly: true
         head:
           type: boolean
@@ -263,6 +269,8 @@ components:
       properties:
         id:
           type: string
+          description: The ID of the definition. A write of a stored definition with
+            another ID fails with 400 and `invalid.value_fixed`.
           readOnly: true
         version:
           type: integer
@@ -315,21 +323,25 @@ components:
         externalId:
           type: string
           maxLength: 255
-          description: The ID of the definition in the system that `source` names.
-            Only a create reads it. A read gives every ID in `externalIds`.
+          description: "The ID of the definition in the system that `source` names.\
+            \ A write stores it as the ID of that system, in place of the one that\
+            \ the system had. A read gives every ID in `externalIds`."
           writeOnly: true
         source:
           type: string
           maxLength: 64
           pattern: "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
-          description: The name of the system of `externalId`. Only a create reads
-            it.
+          description: "The name of the system of `externalId`. A definition keeps\
+            \ no system that made it, so a write of a stored definition with this\
+            \ and no `externalId` fails with 400 and `invalid.value_fixed`."
           writeOnly: true
         externalIds:
           type: array
           items:
             $ref: "#/components/schemas/ExternalIdPair"
-          description: "Every ID that a system has for the definition, by system."
+          description: "Every ID that a system has for the definition, by system.\
+            \ A write of a stored definition with another list fails with 400 and\
+            \ `invalid.value_fixed`."
           readOnly: true
     ChangeLogEntry:
       required:
@@ -387,6 +399,8 @@ components:
       properties:
         id:
           type: string
+          description: The ID of the order. A write of a stored order with another
+            ID fails with 400 and `invalid.value_fixed`.
           readOnly: true
         version:
           type: integer
@@ -431,38 +445,45 @@ components:
           description: A reference to the order in another system.
         createdAt:
           type: string
-          description: "When the order was stored, in UTC."
+          description: "When the order was stored, in UTC. A write of a stored order\
+            \ with another value fails with 400 and `invalid.value_fixed`."
           format: date-time
           readOnly: true
         announcedAt:
           type: string
           description: "When the order was announced, in UTC. It is absent until someone\
             \ records the announcement. The extension hides nothing with it. An application\
-            \ can hide the planned changes of an order that has none."
+            \ can hide the planned changes of an order that has none. `POST /change-orders/{id}/announce`\
+            \ sets it. A write of a stored order with another value fails with 400\
+            \ and `invalid.value_fixed`."
           format: date-time
           readOnly: true
         announcedByUserId:
           type: string
           description: The ID of the Keycloak user who recorded the announcement.
+            A write of a stored order with another value fails with 400 and `invalid.value_fixed`.
           readOnly: true
         externalId:
           type: string
           maxLength: 255
-          description: The ID of the order in the system that `source` names. Only
-            a create reads it. A read gives every ID in `externalIds`.
+          description: "The ID of the order in the system that `source` names. A write\
+            \ stores it as the ID of that system, in place of the one that the system\
+            \ had. A read gives every ID in `externalIds`."
           writeOnly: true
         source:
           type: string
           maxLength: 64
           pattern: "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
-          description: The name of the system of `externalId`. Only a create reads
-            it.
+          description: "The name of the system of `externalId`. An order keeps no\
+            \ system that made it, so a write of a stored order with this and no `externalId`\
+            \ fails with 400 and `invalid.value_fixed`."
           writeOnly: true
         externalIds:
           type: array
           items:
             $ref: "#/components/schemas/ExternalIdPair"
-          description: "Every ID that a system has for the order, by system."
+          description: "Every ID that a system has for the order, by system. A write\
+            \ of a stored order with another list fails with 400 and `invalid.value_fixed`."
           readOnly: true
     Count:
       required:
@@ -677,7 +698,8 @@ components:
         validTo:
           type: string
           description: The first date after these conditions. It is missing for no
-            end.
+            end. A change of the terms with another value than the end of the terms
+            on its `validFrom` fails with 400 and `invalid.value_fixed`.
           format: date
           readOnly: true
         employmentType:
@@ -1218,7 +1240,7 @@ components:
         own:
           type: boolean
           description: "True when the system made the resource, as the `source` of\
-            \ the resource says."
+            \ the resource says. A write with another value fails with 400 and `invalid.value_fixed`."
           readOnly: true
         version:
           type: integer
@@ -1249,6 +1271,8 @@ components:
       properties:
         id:
           type: string
+          description: The ID of the hierarchy. A write of a stored hierarchy with
+            another ID fails with 400 and `invalid.value_fixed`.
           readOnly: true
         version:
           type: integer
@@ -1270,21 +1294,24 @@ components:
         externalId:
           type: string
           maxLength: 255
-          description: The ID of the hierarchy in the system that `source` names.
-            Only a create reads it. A read gives every ID in `externalIds`.
+          description: "The ID of the hierarchy in the system that `source` names.\
+            \ A write stores it as the ID of that system, in place of the one that\
+            \ the system had. A read gives every ID in `externalIds`."
           writeOnly: true
         source:
           type: string
           maxLength: 64
           pattern: "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
-          description: The name of the system of `externalId`. Only a create reads
-            it.
+          description: "The name of the system of `externalId`. A hierarchy keeps\
+            \ no system that made it, so a write of a stored hierarchy with this and\
+            \ no `externalId` fails with 400 and `invalid.value_fixed`."
           writeOnly: true
         externalIds:
           type: array
           items:
             $ref: "#/components/schemas/ExternalIdPair"
-          description: "Every ID that a system has for the hierarchy, by system."
+          description: "Every ID that a system has for the hierarchy, by system. A\
+            \ write of a stored hierarchy with another list fails with 400 and `invalid.value_fixed`."
           readOnly: true
     ImportAssignmentRow:
       type: object
@@ -2604,6 +2631,8 @@ components:
       properties:
         id:
           type: string
+          description: The ID of the unit. A write of a stored unit with another ID
+            fails with 400 and `invalid.value_fixed`.
           readOnly: true
         version:
           type: integer
@@ -2624,15 +2653,18 @@ components:
           description: "The name in the language of the request. It is the one of\
             \ the first language of `Accept-Language`, else the one of that language\
             \ with no region, such as `en` for `en-US`, else the primary one. A request\
-            \ with no `Accept-Language` reads the primary one."
+            \ with no `Accept-Language` reads the primary one. A write of a stored\
+            \ unit with another value fails with 400 and `invalid.value_fixed`."
           readOnly: true
         shortName:
           type: string
-          description: The short name in the language of `name`.
+          description: The short name in the language of `name`. A write of a stored
+            unit with another value fails with 400 and `invalid.value_fixed`.
           readOnly: true
         phoneticName:
           type: string
-          description: The reading of the name in the language of `name`.
+          description: The reading of the name in the language of `name`. A write
+            of a stored unit with another value fails with 400 and `invalid.value_fixed`.
           readOnly: true
         primaryLanguage:
           type: string
@@ -2663,29 +2695,36 @@ components:
           type: string
           description: "The code of the work location that applies on the date. It\
             \ is the one of the unit, else the one of the nearest unit above it in\
-            \ the default hierarchy. A history has none."
+            \ the default hierarchy. A history has none. A write of a stored unit\
+            \ does not check it, because it can differ between the dates of the details."
           readOnly: true
         effectiveCostCenter:
           type: string
           description: "The code of the cost center that applies on the date. It is\
             \ the one of the unit, else the one of the nearest unit above it in the\
-            \ default hierarchy. A history has none."
+            \ default hierarchy. A history has none. A write of a stored unit does\
+            \ not check it, because it can differ between the dates of the details."
           readOnly: true
         legalEntity:
           type: boolean
           description: "True when the unit type marks the unit as a legal entity,\
-            \ such as a company."
+            \ such as a company. A write of a stored unit with another value fails\
+            \ with 400 and `invalid.value_fixed`. False is the same as no value."
           readOnly: true
         lateral:
           type: boolean
           description: "True when the unit type marks the unit as a lateral unit outside\
-            \ the line organization, such as a committee."
+            \ the line organization, such as a committee. A write of a stored unit\
+            \ with another value fails with 400 and `invalid.value_fixed`. False is\
+            \ the same as no value."
           readOnly: true
         rollup:
           type: boolean
           description: "True when the unit type marks the unit as a rollup unit, such\
             \ as a region. A rollup unit gathers units in another hierarchy and is\
-            \ not in the default hierarchy."
+            \ not in the default hierarchy. A write of a stored unit with another\
+            \ value fails with 400 and `invalid.value_fixed`. False is the same as\
+            \ no value."
           readOnly: true
         parentId:
           type: string
@@ -2698,6 +2737,8 @@ components:
         validTo:
           type: string
           description: The first date after these details. It is missing for no end.
+            A write of a stored unit with another value than the end of the details
+            on its `validFrom` fails with 400 and `invalid.value_fixed`.
           format: date
           readOnly: true
         displayOrder:
@@ -2729,21 +2770,26 @@ components:
           items:
             $ref: "#/components/schemas/ExternalIdPair"
           description: "Every ID that a system has for the unit. The one of `source`\
-            \ comes first, then the others by system."
+            \ comes first, then the others by system. A write of a stored unit with\
+            \ another list fails with 400 and `invalid.value_fixed`."
           readOnly: true
         keycloakOrganizationId:
           type: string
-          description: The ID of the linked Keycloak organization.
+          description: "The ID of the linked Keycloak organization. `PUT /org-units/{id}/organization`\
+            \ changes it. A write of a stored unit with another value fails with 400\
+            \ and `invalid.value_fixed`."
           readOnly: true
         timeZone:
           type: string
-          description: The time zone that the unit sets for itself and the units below
-            it.
+          description: "The time zone that the unit sets for itself and the units\
+            \ below it. `PUT /org-units/{id}/time-settings` changes it. A write of\
+            \ a stored unit with another value fails with 400 and `invalid.value_fixed`."
           readOnly: true
         dayStart:
           type: string
-          description: The day start that the unit sets for itself and the units below
-            it.
+          description: "The day start that the unit sets for itself and the units\
+            \ below it. `PUT /org-units/{id}/time-settings` changes it. A write of\
+            \ a stored unit with another value fails with 400 and `invalid.value_fixed`."
           readOnly: true
     OrgUnitHistory:
       required:
@@ -2838,6 +2884,8 @@ components:
       properties:
         orgUnitId:
           type: string
+          description: The ID of the org unit. A request with another unit than the
+            one of the path fails with 400 and `invalid.value_fixed`.
           readOnly: true
         version:
           type: integer
@@ -2905,6 +2953,8 @@ components:
       properties:
         id:
           type: string
+          description: The ID of the person. A write of a stored person with another
+            ID fails with 400 and `invalid.value_fixed`.
           readOnly: true
         version:
           type: integer
@@ -2923,20 +2973,23 @@ components:
             \ the first language of `Accept-Language`, else the one of that language\
             \ with no region, such as `en` for `en-US`, else the primary one. A request\
             \ with no `Accept-Language` reads the primary one. When the record has\
-            \ no names, it is the name of the linked user from Keycloak."
+            \ no names, it is the name of the linked user from Keycloak. A write of\
+            \ a stored person with another value fails with 400 and `invalid.value_fixed`."
           readOnly: true
         nameSource:
           type: string
           description: Where the name of a response came from. `RECORD` is the person
             record. `KEYCLOAK` is the linked user. It is missing when there is no
-            name.
+            name. A write of a stored person with another value fails with 400 and
+            `invalid.value_fixed`.
           readOnly: true
           enum:
           - RECORD
           - KEYCLOAK
         phoneticName:
           type: string
-          description: The reading of the name in the language of `name`.
+          description: The reading of the name in the language of `name`. A write
+            of a stored person with another value fails with 400 and `invalid.value_fixed`.
           readOnly: true
         primaryLanguage:
           type: string
@@ -2977,7 +3030,8 @@ components:
           items:
             $ref: "#/components/schemas/ExternalIdPair"
           description: "Every ID that a system has for the person. The one of `source`\
-            \ comes first, then the others by system."
+            \ comes first, then the others by system. A write of a stored person with\
+            \ another list fails with 400 and `invalid.value_fixed`."
           readOnly: true
     PersonName:
       required:
@@ -3108,6 +3162,8 @@ components:
       properties:
         id:
           type: string
+          description: The ID of the qualification. A write of a stored qualification
+            with another ID fails with 400 and `invalid.value_fixed`.
           readOnly: true
         version:
           type: integer
@@ -3171,7 +3227,8 @@ components:
           items:
             $ref: "#/components/schemas/ExternalIdPair"
           description: "Every ID that a system has for the qualification. The one\
-            \ of `source` comes first, then the others by system."
+            \ of `source` comes first, then the others by system. A write of a stored\
+            \ qualification with another list fails with 400 and `invalid.value_fixed`."
           readOnly: true
     RealmExport:
       description: "Every stored row of a realm, with every period. `POST /restore`\
@@ -3249,6 +3306,8 @@ components:
       properties:
         id:
           type: string
+          description: The ID of the item. A write of a stored item with another ID
+            fails with 400 and `invalid.value_fixed`.
           readOnly: true
         version:
           type: integer
@@ -3272,7 +3331,9 @@ components:
           description: "The name of the date in the language of the request. It is\
             \ the one of the first language of `Accept-Language`, else the one of\
             \ that language with no region, such as `en` for `en-US`, else the primary\
-            \ one. A request with no `Accept-Language` reads the primary one."
+            \ one. A request with no `Accept-Language` reads the primary one. A write\
+            \ of a stored item fails with 400 and `invalid.value_fixed` when this\
+            \ is not the name of the names that it changes."
           readOnly: true
         primaryLanguage:
           type: string
@@ -3334,27 +3395,32 @@ components:
           format: date
         validTo:
           type: string
-          description: The first date after the names. It is missing for no end.
+          description: The first date after the names. It is missing for no end. A
+            write of a stored item with another value than the end of the names that
+            it changes fails with 400 and `invalid.value_fixed`.
           format: date
           readOnly: true
         externalId:
           type: string
           maxLength: 255
-          description: The ID of the item in the system that `source` names. Only
-            a create reads it. A read gives every ID in `externalIds`.
+          description: "The ID of the item in the system that `source` names. A write\
+            \ stores it as the ID of that system, in place of the one that the system\
+            \ had. A read gives every ID in `externalIds`."
           writeOnly: true
         source:
           type: string
           maxLength: 64
           pattern: "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
-          description: The name of the system of `externalId`. Only a create reads
-            it.
+          description: "The name of the system of `externalId`. An item keeps no system\
+            \ that made it, so a write of a stored item with this and no `externalId`\
+            \ fails with 400 and `invalid.value_fixed`."
           writeOnly: true
         externalIds:
           type: array
           items:
             $ref: "#/components/schemas/ExternalIdPair"
-          description: "Every ID that a system has for the item, by system."
+          description: "Every ID that a system has for the item, by system. A write\
+            \ of a stored item with another list fails with 400 and `invalid.value_fixed`."
           readOnly: true
     RefItemHistory:
       required:
@@ -3455,6 +3521,7 @@ components:
         id:
           type: string
           description: The ID of a kind that the realm added. A fixed kind has none.
+            A write of a stored kind with another ID fails with 400 and `invalid.value_fixed`.
           readOnly: true
         code:
           type: string
@@ -3467,7 +3534,8 @@ components:
           description: "The name in the language of the request. It is the one of\
             \ the first language of `Accept-Language`, else the one of that language\
             \ with no region, such as `en` for `en-US`, else the primary one. A request\
-            \ with no `Accept-Language` reads the primary one. A fixed kind has none."
+            \ with no `Accept-Language` reads the primary one. A fixed kind has none.\
+            \ A write of a stored kind with another value fails with 400 and `invalid.value_fixed`."
           readOnly: true
         primaryLanguage:
           type: string
@@ -3484,7 +3552,8 @@ components:
             \ `ja` and `JA`, fail with `invalid.duplicate_language`."
         fixed:
           type: boolean
-          description: True for a kind that every realm has.
+          description: True for a kind that every realm has. A write of a stored kind
+            with another value fails with 400 and `invalid.value_fixed`.
           readOnly: true
         version:
           type: integer
@@ -3496,21 +3565,24 @@ components:
         externalId:
           type: string
           maxLength: 255
-          description: The ID of the kind in the system that `source` names. Only
-            a create reads it. A read gives every ID in `externalIds`.
+          description: "The ID of the kind in the system that `source` names. A write\
+            \ stores it as the ID of that system, in place of the one that the system\
+            \ had. A read gives every ID in `externalIds`."
           writeOnly: true
         source:
           type: string
           maxLength: 64
           pattern: "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
-          description: The name of the system of `externalId`. Only a create reads
-            it.
+          description: "The name of the system of `externalId`. A kind keeps no system\
+            \ that made it, so a write of a stored kind with this and no `externalId`\
+            \ fails with 400 and `invalid.value_fixed`."
           writeOnly: true
         externalIds:
           type: array
           items:
             $ref: "#/components/schemas/ExternalIdPair"
-          description: "Every ID that a system has for the kind, by system."
+          description: "Every ID that a system has for the kind, by system. A write\
+            \ of a stored kind with another list fails with 400 and `invalid.value_fixed`."
           readOnly: true
     RefKindName:
       required:
@@ -4055,6 +4127,8 @@ components:
       properties:
         orgUnitId:
           type: string
+          description: The ID of the org unit. A request with another unit than the
+            one of the path fails with 400 and `invalid.value_fixed`.
           readOnly: true
         version:
           type: integer
@@ -4334,8 +4408,9 @@ components:
         `invalid.duplicate_key`. A write that names one thing in two ways gets
         `invalid.twice`. A create with a person ID and a user ID that do not name the
         same person gets `invalid.mismatch`. A write of a stored resource with another
-        value of a field that never changes gets `invalid.value_fixed`. A read with two
-        values that do not go together gets `invalid.not_together`.
+        value of a field that never changes, or of a field that only a response fills,
+        gets `invalid.value_fixed`. A read with two values that do not go together gets
+        `invalid.not_together`.
       content:
         application/json:
           schema:
@@ -4435,6 +4510,16 @@ info:
     person of a qualification. A write of the resource can leave them out, or give the stored
     values, as a read has them. Another value fails with 400 and `invalid.value_fixed`, which
     names the field.
+
+    A read is the body of a write, so a write of a stored resource takes the fields that only a
+    response fills. The schemas mark them `readOnly`, such as `id`, `name`, and `externalIds`.
+    They change nothing. The body can leave them out, or give the values of a read of the
+    resource in the language of the request. A field of a period, such as `validTo`, has the value
+    of the period that holds on `validFrom` of the body. Without `validFrom`, the names of a
+    reference item are the ones of today. A read leaves out a flag that is false, such as
+    `legalEntity`, so false is the same as no flag. Another value fails with 400 and
+    `invalid.value_fixed`, which names the field. The effective work location and cost center of
+    an org unit are not checked, because they can differ between the dates of its details.
 
     A failed request writes nothing.
   license:
@@ -4937,9 +5022,12 @@ paths:
   /attribute-definitions/{id}:
     put:
       summary: Replaces the type and the rule of a definition.
-      description: The kind of resource and the name never change. The body can leave
-        them out or give the stored ones. Another kind of resource or name fails with
-        400 and `invalid.value_fixed`. Stored values stay as they are.
+      description: "The kind of resource and the name never change. The body can leave\
+        \ them out or give the stored ones. Another kind of resource or name fails\
+        \ with 400 and `invalid.value_fixed`. Stored values stay as they are. With\
+        \ `source` and `externalId`, the definition gets that ID of that system. `source`\
+        \ with no `externalId` fails with 400 and `invalid.value_fixed`, because a\
+        \ definition keeps no system that made it."
       operationId: replaceAttributeDefinition
       tags:
       - ref-items
@@ -5317,6 +5405,9 @@ paths:
   /change-orders/{id}:
     put:
       summary: Replaces the values of a change order.
+      description: "With `source` and `externalId`, the order gets that ID of that\
+        \ system. `source` with no `externalId` fails with 400 and `invalid.value_fixed`,\
+        \ because an order keeps no system that made it."
       operationId: updateChangeOrder
       tags:
       - change-orders
@@ -6535,8 +6626,11 @@ paths:
   /hierarchies/{id}:
     put:
       summary: Changes the name of a hierarchy.
-      description: The code never changes. The body can leave it out or give the stored
-        one. Another code fails with 400 and `invalid.value_fixed`.
+      description: "The code never changes. The body can leave it out or give the\
+        \ stored one. Another code fails with 400 and `invalid.value_fixed`. With\
+        \ `source` and `externalId`, the hierarchy gets that ID of that system. `source`\
+        \ with no `externalId` fails with 400 and `invalid.value_fixed`, because a\
+        \ hierarchy keeps no system that made it."
       operationId: renameHierarchy
       tags:
       - org-units
@@ -9211,7 +9305,10 @@ paths:
         \ Only the names have dates. With `validFrom`, the new names hold from that\
         \ date until the next stored names, and the old names stay for the dates before.\
         \ A date that starts stored names corrects them. Without `validFrom`, the\
-        \ write changes the names of today. The response has the names of that date."
+        \ write changes the names of today. The response has the names of that date.\
+        \ With `source` and `externalId`, the item gets that ID of that system. `source`\
+        \ with no `externalId` fails with 400 and `invalid.value_fixed`, because an\
+        \ item keeps no system that made it."
       operationId: updateRefItem
       tags:
       - ref-items
@@ -9403,8 +9500,11 @@ paths:
   /ref-kinds/{code}:
     put:
       summary: Changes the names of a kind of the realm.
-      description: The code never changes. The body can leave it out or give the code
-        of the path. Another code fails with 400 and `invalid.value_fixed`.
+      description: "The code never changes. The body can leave it out or give the\
+        \ code of the path. Another code fails with 400 and `invalid.value_fixed`.\
+        \ With `source` and `externalId`, the kind gets that ID of that system. `source`\
+        \ with no `externalId` fails with 400 and `invalid.value_fixed`, because a\
+        \ kind keeps no system that made it."
       operationId: renameRefKind
       tags:
       - ref-items

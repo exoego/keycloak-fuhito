@@ -1,6 +1,8 @@
 package net.exoego.keycloak.fuhito.rest;
 
+import java.lang.reflect.RecordComponent;
 import java.time.LocalDate;
+import java.util.Arrays;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Locale;
@@ -16,6 +18,7 @@ import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.ValidPeriod;
 import net.exoego.keycloak.fuhito.rest.RequestContext.Change;
 import net.exoego.keycloak.fuhito.rest.RequestContext.ChangeRecord;
+import net.exoego.keycloak.fuhito.service.EmptyValues;
 import net.exoego.keycloak.fuhito.service.ExternalIdLists;
 import net.exoego.keycloak.fuhito.service.ExternalIdService;
 import net.exoego.keycloak.fuhito.service.ImportReport.Write;
@@ -79,7 +82,11 @@ final class Writes {
     static <R extends Record> void requireRead(R body, Supplier<R> read, List<String> fields) {
         R stored = null;
         for (String field : fields) {
-            Object given = valueOf(body, field);
+            RecordComponent component = Arrays.stream(body.getClass().getRecordComponents())
+                    .filter(each -> each.getName().equals(field))
+                    .findFirst()
+                    .orElseThrow();
+            Object given = EmptyValues.valueOf(component, body);
             if (given == null) {
                 continue;
             }
@@ -89,7 +96,7 @@ final class Writes {
                     return;
                 }
             }
-            Object value = valueOf(stored, field);
+            Object value = EmptyValues.valueOf(component, stored);
             // A read leaves out a flag that is false.
             Checks.fixed(field, value == null && given instanceof Boolean ? false : value, given);
         }
@@ -111,14 +118,6 @@ final class Writes {
                         Optional.ofNullable(to.apply(period)).map(LocalDate::parse).orElse(null)).contains(date))
                 .findFirst()
                 .orElse(null);
-    }
-
-    private static Object valueOf(Record record, String field) {
-        try {
-            return record.getClass().getMethod(field).invoke(record);
-        } catch (ReflectiveOperationException e) {
-            throw new IllegalStateException("A record gives the value of each of its fields", e);
-        }
     }
 
     static void record(RequestContext context, ExternalIdService externalIds, Write write) {

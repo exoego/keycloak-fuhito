@@ -126,16 +126,16 @@ public record AssignmentRepresentation(
                     description = "The code of the work location that applies. It is the one of the assignment, "
                             + "else the one of the org unit, else the one of the nearest unit above it in the default "
                             + "hierarchy. It is read on the date of the period nearest to today. A change of the "
-                            + "details with another value than the details on its `validFrom` have fails with 400 "
-                            + "and `invalid.value_fixed`.",
+                            + "details fails with 400 and `invalid.value_fixed` when this is not the value of the "
+                            + "details on its `validFrom`.",
                     readOnly = true)
             String effectiveWorkLocation,
             @Schema(
                     description = "The code of the cost center that applies. It is the one of the assignment, else "
                             + "the one of the org unit, else the one of the nearest unit above it in the default "
                             + "hierarchy. It is read on the date of the period nearest to today. A change of the "
-                            + "details with another value than the details on its `validFrom` have fails with 400 "
-                            + "and `invalid.value_fixed`.",
+                            + "details fails with 400 and `invalid.value_fixed` when this is not the value of the "
+                            + "details on its `validFrom`.",
                     readOnly = true)
             String effectiveCostCenter,
             @Schema(description = "True when the person leads the org unit.")
