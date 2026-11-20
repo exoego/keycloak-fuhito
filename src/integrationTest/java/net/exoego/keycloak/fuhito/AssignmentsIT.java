@@ -260,6 +260,24 @@ class AssignmentsIT {
     }
 
     @Test
+    void anEmptyListFailsInTheAttributesOfAnAssignment() throws Exception {
+        realm.textList("ASSIGNMENT", "shifts");
+        String ward = unit("空のリスト", null);
+        HttpResponse<String> add = api.post("/assignments", assign(ward, ", \"attributes\": {\"shifts\": []}"));
+        assertEquals("invalid.blank", errorOf(400, add));
+        assertEquals("attributes.shifts", Api.json(add).get("params").get("field").asText());
+
+        String path = "/assignments/" + id(api.post("/assignments", assign(ward, ", \"attributes\": {\"shifts\": [\"night\"]}")));
+        HttpResponse<String> details = api.putWithVersion(path + "/details",
+                "{\"validFrom\": \"2026-10-01\", \"attributes\": {\"shifts\": []}}");
+        assertEquals("invalid.blank", errorOf(400, details));
+        assertEquals("attributes.shifts", Api.json(details).get("params").get("field").asText());
+        JsonNode kept = Api.json(api.get(path));
+        assertEquals(1, kept.get("periods").size());
+        assertEquals("night", kept.get("periods").get(0).get("attributes").get("shifts").get(0).asText());
+    }
+
+    @Test
     void aMoveTakesAPersonToAnotherOrgUnitInOneWrite() throws Exception {
         TestRealm scratch = TestRealm.withEmployer("assignments-move");
         Api scratchApi = scratch.api;

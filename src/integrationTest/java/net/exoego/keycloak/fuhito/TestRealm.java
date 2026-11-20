@@ -197,4 +197,11 @@ final class TestRealm {
                 "{\"target\": \"" + target + "\", \"name\": \"" + name + "\", \"type\": \"" + type + "\"}");
         assertEquals(201, response.statusCode(), response.body());
     }
+
+    /** Defines a free attribute that holds a list of texts. */
+    void textList(String target, String name) throws Exception {
+        var response = api.post("/attribute-definitions", "{\"target\": \"" + target + "\", \"name\": \"" + name
+                + "\", \"type\": \"STRING\", \"multiple\": true}");
+        assertEquals(201, response.statusCode(), response.body());
+    }
 }

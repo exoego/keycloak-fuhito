@@ -193,7 +193,20 @@ class ReorganizationIT {
     @Test
     void rejectsBadRequests() throws Exception {
         assertEquals(400, api.postWithVersion("/reorganizations", "{\"steps\": [{\"op\": \"end\", \"id\": \"" + oldOffice + "\"}]}").statusCode());
-        assertEquals(400, api.post("/reorganizations", "{\"effectiveDate\": \"2027-04-01\", \"steps\": []}").statusCode());
+        HttpResponse<String> noSteps = api.post("/reorganizations", "{\"effectiveDate\": \"2027-04-01\", \"steps\": []}");
+        assertEquals(400, noSteps.statusCode(), noSteps.body());
+        assertEquals("invalid.blank", Api.json(noSteps).get("error").asText());
+        assertEquals("steps", Api.json(noSteps).get("params").get("field").asText());
+        for (String field : List.of("successorIds", "successorRefs")) {
+            HttpResponse<String> noSuccessors = api.postWithVersion("/reorganizations", "{\"effectiveDate\": "
+                    + "\"2028-04-01\", \"steps\": [{\"op\": \"succeed\", \"id\": \"" + oldOffice + "\", \"" + field
+                    + "\": []}]}");
+            assertEquals(400, noSuccessors.statusCode(), noSuccessors.body());
+            JsonNode error = Api.json(noSuccessors);
+            assertEquals("invalid.blank", error.get("error").asText());
+            assertEquals(field, error.get("params").get("field").asText());
+            assertEquals("0", error.get("params").get("step").asText());
+        }
         HttpResponse<String> badRef = api.post("/reorganizations",
                 "{\"effectiveDate\": \"2028-04-01\", \"steps\": [{\"op\": \"create\", \"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"x\"}}, \"parentRef\": \"nope\"}]}");
         assertEquals(400, badRef.statusCode());

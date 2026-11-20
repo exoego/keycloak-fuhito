@@ -253,6 +253,25 @@ class OrgUnitsIT {
     }
 
     @Test
+    void anEmptyListFailsInEveryFieldOfAWrite() throws Exception {
+        TestRealm realm = TestRealm.create("org-unit-empty-lists");
+        realm.textList("ORG_UNIT", "shifts");
+        String unit = "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"x\"}}, \"validFrom\": \"2026-04-01\"%s}";
+        HttpResponse<String> attribute = realm.api.post("/org-units", unit.formatted(", \"attributes\": {\"shifts\": []}"));
+        assertEquals("invalid.blank", errorOf(400, attribute));
+        assertEquals("attributes.shifts", Api.json(attribute).get("params").get("field").asText());
+
+        // A response has the field, but a write must leave it out.
+        JsonNode stored = created(realm.api.post("/org-units", unit.formatted("")));
+        assertEquals(0, stored.get("externalIds").size());
+        String path = "/org-units/" + stored.get("id").asText();
+        HttpResponse<String> copy = realm.api.putWithVersion(path, unit.formatted(", \"code\": \"copied\", \"externalIds\": []"));
+        assertEquals("invalid.blank", errorOf(400, copy));
+        assertEquals("externalIds", Api.json(copy).get("params").get("field").asText());
+        assertFalse(Api.json(realm.api.get(path)).has("code"));
+    }
+
+    @Test
     void aReadGivesTheNamesInTheLanguageOfTheRequest() throws Exception {
         TestRealm realm = TestRealm.withEmployer("org-unit-languages");
         Api ja = realm.api;

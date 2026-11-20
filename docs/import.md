@@ -106,7 +106,7 @@ The lists are applied in the order change orders, kinds of reference data, attri
 - An object such as `attributes` or `names` merges by key. A missing key keeps the stored value, and a key with `null` clears it. For example, `"names": {"en": null}` removes the names in English, as `name:en` with `#CLEAR` does in CSV. The names of one language merge by field too, so `"names": {"ja": {"shortName": null}}` removes the short name and keeps the name.
 - `null` for a value that a thing must have, such as a name of the primary language or the start of a stored thing, fails with `invalid.required`, as a missing value of a new thing does. A value with a default, such as `status`, `active`, `head`, or `displayOrder`, takes the default.
 - A new thing has nothing stored, so a missing key and `null` both mean no value, and required values must be there.
-- An empty text, a text of only spaces, and an empty array fail with `invalid.blank`, which names the field, for example `names.en.shortName` or `attributes.beds`. This holds for every field, also for a text in the attributes. A REST write rejects an empty text with the same error.
+- An empty text, a text of only spaces, and an empty array fail with `invalid.blank`, which names the field, for example `names.en.shortName` or `attributes.beds`. This holds for every field, also for a text in the attributes. A REST write rejects an empty text and an empty array with the same error.
 - A CSV file follows the same rule. A blank cell is a missing key, and `#CLEAR` is `null`.
 
 ### Rules for lists

@@ -3,6 +3,7 @@ package net.exoego.keycloak.fuhito.domain;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
+import java.util.Collection;
 import java.util.IllformedLocaleException;
 import java.util.Locale;
 import java.util.Map;
@@ -94,6 +95,22 @@ public final class Checks {
      */
     public static String optionalText(String field, String value) {
         if (value != null && value.isBlank()) {
+            throw FuhitoException.invalid("invalid.blank", Map.of("field", field));
+        }
+        return value;
+    }
+
+    /**
+     * Checks a list that may be missing. Null is the way to give no items, so an empty list fails.
+     *
+     * @param <C> the type of the list
+     * @param field the name of the field, for the error
+     * @param value the list, or null
+     * @return the list, or null
+     * @throws FuhitoException when the list is empty
+     */
+    public static <C extends Collection<?>> C optionalList(String field, C value) {
+        if (value != null && value.isEmpty()) {
             throw FuhitoException.invalid("invalid.blank", Map.of("field", field));
         }
         return value;

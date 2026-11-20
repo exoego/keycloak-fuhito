@@ -17,7 +17,8 @@
 
                         A text in the body of a write must not be empty or only spaces. This holds for every field,
                         also for a name and for a text in `attributes`. Such a text fails with 400 and
-                        `invalid.blank`, which names the field. A field that is left out or null has no value.
+                        `invalid.blank`, which names the field. An empty array fails in the same way, also a list
+                        in `attributes`. A field that is left out or null has no value.
 
                         A read of the org structure needs the role `fuhito-view-structure`. Every other read needs
                         `fuhito-view-people`. A write needs `fuhito-manage`. The roles are in the client
@@ -80,7 +81,8 @@
                     @APIResponse(name = "BadRequest",
                             description = """
                                     A value in the request is bad.
-                                    In a write, an empty text or a text of only spaces gets `invalid.blank`.
+                                    In a write, an empty text, a text of only spaces, or an empty array gets
+                                    `invalid.blank`.
                                     """,
                             content = @Content(mediaType = "application/json",
                                     schema = @Schema(implementation = ErrorRepresentation.class))),

@@ -244,6 +244,22 @@ class PeopleIT {
     }
 
     @Test
+    void anEmptyListFailsInTheAttributesOfAPerson() throws Exception {
+        realm.textList("PERSON", "languages");
+        String person = "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"空のリスト\"}}, "
+                + "\"attributes\": {\"languages\": %s}}";
+        HttpResponse<String> create = api.post("/people", person.formatted("[]"));
+        assertEquals("invalid.blank", errorOf(400, create));
+        assertEquals("attributes.languages", Api.json(create).get("params").get("field").asText());
+
+        String id = created(api.post("/people", person.formatted("[\"ja\"]"))).get("id").asText();
+        HttpResponse<String> replace = api.putWithVersion("/people/" + id, person.formatted("[]"));
+        assertEquals("invalid.blank", errorOf(400, replace));
+        assertEquals("attributes.languages", Api.json(replace).get("params").get("field").asText());
+        assertEquals("ja", ok(api.get("/people/" + id)).get("attributes").get("languages").get(0).asText());
+    }
+
+    @Test
     void findsPeopleByNameAndByStaffNumber() throws Exception {
         TestRealm scratch = TestRealm.withEmployer("people-search");
         Api scratchApi = scratch.api;

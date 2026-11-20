@@ -56,27 +56,24 @@ public class ReorganizationService {
      * Applies the steps in the order given, all on the effective date.
      * A later step can name a unit that an earlier create step made, by the {@code ref} of that step.
      * A step that changes a stored unit names the version of the unit that the caller read.
-     * An empty text or a text of only spaces in a step fails before any step runs.
+     * An empty text, a text of only spaces, or an empty list in a step fails before any step runs.
      *
      * @param effectiveDate the date of every step, as {@code YYYY-MM-DD}
      * @param steps the steps
      * @param lock locks the stored units until the end of the transaction, before their versions are read
      * @return what each step did, in the same order
-     * @throws FuhitoException when a step fails, has an empty text, or names no version or an old one. Its values
+     * @throws FuhitoException when a step fails, has an empty value, or names no version or an old one. Its values
      *         hold the position of the step, counted from 0, under the key "step".
      */
     public List<Result> apply(String effectiveDate, List<ReorganizationStep> steps,
             Consumer<Collection<String>> lock) {
         Checks.date("effectiveDate", Checks.optionalText("effectiveDate", effectiveDate));
-        Checks.required("steps", steps);
-        if (steps.isEmpty()) {
-            throw FuhitoException.invalid("invalid.required", Map.of("field", "steps"));
-        }
+        Checks.optionalList("steps", Checks.required("steps", steps));
         Map<Integer, ReorganizationStep> stored = new LinkedHashMap<>();
         for (int i = 0; i < steps.size(); i++) {
             ReorganizationStep step = steps.get(i);
             if (step != null) {
-                atStep(i, () -> EmptyValues.withoutEmptyTexts(step));
+                atStep(i, () -> EmptyValues.withoutEmptyValues(step));
             }
             if (step != null && step.op() != null && CHANGES.contains(step.op()) && step.unitRef() == null
                     && step.id() != null) {

@@ -271,6 +271,25 @@ class EmploymentsIT {
     }
 
     @Test
+    void anEmptyListFailsInTheAttributesOfTheTerms() throws Exception {
+        realm.textList("EMPLOYMENT_TERMS", "shifts");
+        String user = "{\"userId\": \"" + realm.user("empty-lists") + "\", \"validFrom\": \"2026-04-01\", ";
+        HttpResponse<String> start = api.post("/employments", user + "\"attributes\": {\"shifts\": []}}");
+        assertEquals("invalid.blank", errorOf(400, start));
+        assertEquals("attributes.shifts", Api.json(start).get("params").get("field").asText());
+
+        String id = created(api.post("/employments", user + "\"attributes\": {\"shifts\": [\"night\"]}}"))
+                .get("id").asText();
+        HttpResponse<String> terms = api.putWithVersion("/employments/" + id + "/terms",
+                "{\"validFrom\": \"2026-10-01\", \"attributes\": {\"shifts\": []}}");
+        assertEquals("invalid.blank", errorOf(400, terms));
+        assertEquals("attributes.shifts", Api.json(terms).get("params").get("field").asText());
+        JsonNode kept = Api.json(api.get("/employments/" + id));
+        assertEquals(1, kept.get("terms").size());
+        assertEquals("night", kept.get("terms").get(0).get("attributes").get("shifts").get(0).asText());
+    }
+
+    @Test
     void oneRealmDoesNotSeeTheUsersOrEmploymentsOfAnother() throws Exception {
         String id = created(api.post("/employments",
                 "{\"userId\": \"" + nurse + "\", \"validFrom\": \"2026-04-01\"}")).get("id").asText();

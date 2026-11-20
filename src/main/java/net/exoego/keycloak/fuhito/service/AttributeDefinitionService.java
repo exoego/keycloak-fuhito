@@ -177,8 +177,8 @@ public class AttributeDefinitionService implements AttributeRules {
     private Map<String, Object> check(AttributeDefinition.Target target, Map<String, Object> attributes,
             List<AttributeDefinition> definitions) {
         Map<String, Object> values = AttributeSize.require(attributes == null ? Map.of() : attributes);
-        // A CSV cell cannot hold an empty text, so a stored value must not be one either.
-        EmptyValues.rejectEmptyTexts("attributes", values);
+        // A CSV cell cannot hold an empty text or an empty list, so a stored value must not be one either.
+        EmptyValues.rejectEmptyValues("attributes", values);
         Map<String, AttributeDefinition> byName = new HashMap<>();
         definitions.forEach(definition -> byName.put(definition.name(), definition));
         values.forEach((name, value) -> {
@@ -191,7 +191,7 @@ public class AttributeDefinitionService implements AttributeRules {
             }
         });
         byName.values().stream()
-                .filter(definition -> definition.required() && missing(values.get(definition.name())))
+                .filter(definition -> definition.required() && values.get(definition.name()) == null)
                 .findFirst()
                 .ifPresent(definition -> {
                     throw FuhitoException.invalid("attribute.required",
@@ -205,10 +205,6 @@ public class AttributeDefinitionService implements AttributeRules {
             return fits(definition, value);
         }
         return value instanceof List<?> list && list.stream().allMatch(element -> fits(definition, element));
-    }
-
-    private static boolean missing(Object value) {
-        return value == null || (value instanceof List<?> list && list.isEmpty());
     }
 
     private static String typeOf(AttributeDefinition definition) {
