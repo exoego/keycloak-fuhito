@@ -144,11 +144,13 @@ class TransferChecksIT {
         return response.statusCode() + " " + error.path("error").asText() + " " + params;
     }
 
-    private static void eachFailsAndWritesNothing(String failure, Map<String, Request> requests) throws Exception {
+    // The requests run in the order given.
+    private static void eachFailsAndWritesNothing(String failure, List<Map.Entry<String, Request>> requests)
+            throws Exception {
         ObjectNode before = RealmExportIT.export(api);
         Map<String, String> expected = new TreeMap<>();
         Map<String, String> actual = new TreeMap<>();
-        for (var request : requests.entrySet()) {
+        for (var request : requests) {
             expected.put(request.getKey(), failure);
             actual.put(request.getKey(), failure(request.getValue().send()));
         }
@@ -166,10 +168,11 @@ class TransferChecksIT {
         String late = employment(api, realm.user("late"), hospital,
                 "\"validFrom\": \"2020-04-01\", \"validTo\": \"2031-04-01\"");
 
-        eachFailsAndWritesNothing("409 employment.employer_ends {date=2030-04-01, employerId=" + closing + "}", Map.of(
-                "open", transfer(api, open, closing),
-                "late", transfer(api, late, closing),
-                "merger", () -> api.post("/employments/transfers", merger(hospital, closing, "merger", false))));
+        eachFailsAndWritesNothing("409 employment.employer_ends {date=2030-04-01, employerId=" + closing + "}", List.of(
+                Map.entry("open", transfer(api, open, closing)),
+                Map.entry("late", transfer(api, late, closing)),
+                Map.entry("merger", () -> api.post("/employments/transfers",
+                        merger(hospital, closing, "merger", false)))));
     }
 
     @Test
@@ -182,10 +185,10 @@ class TransferChecksIT {
                 "\"validFrom\": \"2020-04-01\", \"contractEndDate\": \"2025-03-31\"");
 
         eachFailsAndWritesNothing(
-                "400 employment.contract_end_before_terms {contractEndDate=2025-03-31, validFrom=2027-04-01}", Map.of(
-                        "transfer", transfer(api, ended, corporation),
-                        "merger", () -> api.post("/employments/transfers",
-                                merger(clinic, corporation, "merger", false))));
+                "400 employment.contract_end_before_terms {contractEndDate=2025-03-31, validFrom=2027-04-01}", List.of(
+                        Map.entry("transfer", transfer(api, ended, corporation)),
+                        Map.entry("merger", () -> api.post("/employments/transfers",
+                                merger(clinic, corporation, "merger", false)))));
     }
 
     @Test
