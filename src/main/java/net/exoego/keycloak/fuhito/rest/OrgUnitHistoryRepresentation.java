@@ -11,7 +11,7 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
 @Schema(
         name = "OrgUnitHistory",
         description = "Everything that is stored about an org unit over time.",
-        requiredProperties = {"id", "externalIds", "versions", "parents"})
+        requiredProperties = {"id", "versions", "parents"})
 public record OrgUnitHistoryRepresentation(
         String id,
         @Schema(

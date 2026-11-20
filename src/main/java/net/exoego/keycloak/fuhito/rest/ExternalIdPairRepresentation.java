@@ -18,7 +18,11 @@ public record ExternalIdPairRepresentation(
         @Schema(description = "The ID in that system.")
         String externalId) {
 
+    // A write rejects an empty list, so a response that is sent back as a body must not have one.
     static List<ExternalIdPairRepresentation> of(List<ExternalId> ids) {
+        if (ids.isEmpty()) {
+            return null;
+        }
         return ids.stream().map(id -> new ExternalIdPairRepresentation(id.source(), id.externalId())).toList();
     }
 }

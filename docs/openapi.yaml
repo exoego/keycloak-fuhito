@@ -2710,7 +2710,6 @@ components:
     OrgUnitHistory:
       required:
       - id
-      - externalIds
       - versions
       - parents
       description: Everything that is stored about an org unit over time.
@@ -3308,7 +3307,6 @@ components:
       - version
       - kind
       - code
-      - externalIds
       - versions
       description: Every period of the names of a reference item. The other values
         of the item have no dates.

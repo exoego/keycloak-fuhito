@@ -404,7 +404,7 @@ class ExternalIdsIT {
     }
 
     // A kind of reference data is read from the list of kinds.
-    private static JsonNode read(Api api, String path) throws Exception {
+    static JsonNode read(Api api, String path) throws Exception {
         if (path.startsWith("/ref-kinds/")) {
             for (JsonNode kind : ok(api.get("/ref-kinds"))) {
                 if (kind.get("code").asText().equals(path.substring("/ref-kinds/".length()))) {

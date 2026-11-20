@@ -20,6 +20,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import static net.exoego.keycloak.fuhito.KeycloakEnvironment.KEYCLOAK;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
 /**
  * Calls the admin REST API of the extension for one realm with one token.
@@ -234,10 +235,12 @@ final class Api {
         return names;
     }
 
-    // The IDs that systems have for a record, as "source=externalId", in the order of the response.
+    // The IDs that systems have for a record, as "source=externalId", in the order of the response. A record with no
+    // IDs has no field, as an empty list would fail as a body.
     static List<String> externalIds(JsonNode record) {
+        assertFalse(record.has("externalIds") && record.get("externalIds").isEmpty(), record.toString());
         List<String> ids = new ArrayList<>();
-        record.get("externalIds").forEach(id -> ids.add(id.get("source").asText() + "=" + id.get("externalId").asText()));
+        record.path("externalIds").forEach(id -> ids.add(id.get("source").asText() + "=" + id.get("externalId").asText()));
         return ids;
     }
 
