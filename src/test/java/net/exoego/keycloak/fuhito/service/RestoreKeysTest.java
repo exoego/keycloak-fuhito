@@ -65,11 +65,6 @@ class RestoreKeysTest {
     }
 
     @Test
-    void aPeriodThatEndsBeforeItStartsFailsInTheWrite() {
-        assertDoesNotThrow(() -> RestoreKeys.require(terms("2020-04-01", null, "2022-04-01", "2021-04-01")));
-    }
-
-    @Test
     void namesWithNoStartHoldFromTheStart() {
         assertDoesNotThrow(() -> RestoreKeys.require(names("2021-04-01", "2021-04-01")));
         assertError("restore.overlap", names("2021-04-01", "1900-01-01"), "ref-item-names", "n-2", "validFrom",

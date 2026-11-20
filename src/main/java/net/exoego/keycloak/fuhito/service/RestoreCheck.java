@@ -23,7 +23,8 @@ import net.exoego.keycloak.fuhito.domain.FuhitoException;
 /**
  * Checks an export before a restore writes it. A row may name only rows of the same export, so that a restore
  * never links to the rows of another realm, and fails with a clear error and not in the database. A row has no empty
- * value and no text that cannot be stored, as a row of an import, and each of its texts fits its column.
+ * value and no text that cannot be stored, as a row of an import, each of its texts fits its column, and its period
+ * ends after it starts.
  */
 final class RestoreCheck {
 
@@ -68,14 +69,14 @@ final class RestoreCheck {
      * Requires every row of an export and every value that the table of a row needs, and requires that no value is an
      * empty text, a text of only spaces, an empty list, or a text that cannot be stored, as in a row of an import. A
      * text must fit its column, and a value that a write checks by a rule of its own, such as a code or a date, must
-     * pass the rule. A row inside a row, such as a version of an org unit, is named by the list and the ID that
-     * {@code restore.id_taken} gives it.
+     * pass the rule. The {@code validTo} of a row must be after its {@code validFrom}, as in a write. A row inside a
+     * row, such as a version of an org unit, is named by the list and the ID that {@code restore.id_taken} gives it.
      *
      * @param document the export
      * @param lengths gives the longest text of each field of a row of a list
      * @throws FuhitoException when a row or a needed value is missing, a value is empty, a text cannot be stored or
-     *         is too long for its column, or a value breaks its rule. The error names the list, the ID of the row
-     *         when it has one, and the field.
+     *         is too long for its column, a value breaks its rule, or a period does not end after it starts. The
+     *         error names the list, the ID of the row when it has one, and the field.
      */
     static void requireValues(RealmExport document, Function<String, Map<String, Integer>> lengths) {
         Values values = new Values(lengths);
@@ -138,7 +139,22 @@ final class RestoreCheck {
                     throw new FuhitoException(e.reason(), e.code(), named).causedBy(e);
                 }
                 fields.forEach((field, value) -> requireFit(params, field, value, longest.get(field)));
+                requireOrder(params, (String) fields.get("validFrom"), (String) fields.get("validTo"));
             }
+        }
+    }
+
+    // Names with no start hold from the start, so any end fits them.
+    private static void requireOrder(Map<String, String> params, String from, String to) {
+        if (from == null || to == null) {
+            return;
+        }
+        try {
+            Checks.period(LocalDate.parse(from), LocalDate.parse(to));
+        } catch (FuhitoException e) {
+            Map<String, String> named = new HashMap<>(params);
+            named.put("field", "validTo");
+            throw FuhitoException.invalid("restore.bad_value", named).causedBy(e);
         }
     }
 
