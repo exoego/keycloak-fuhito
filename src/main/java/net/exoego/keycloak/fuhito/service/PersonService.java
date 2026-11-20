@@ -312,7 +312,7 @@ public class PersonService {
     /**
      * Finds people of the realm, ordered by ID, from a cursor on.
      *
-     * @param userId the ID of a Keycloak user, to return only the person linked to it, or null for everyone
+     * @param userId the ID of the Keycloak user that the person is linked to, or null for any
      * @param text a text that a name of the person or of its Keycloak user has, in any case, or null for any
      * @param staffNumber a staff number that an employment of the person has, or null for any
      * @param first the number of people to skip, or null for 0
@@ -323,17 +323,14 @@ public class PersonService {
      */
     public List<PersonView> list(String userId, String text, String staffNumber, Integer first, Integer max,
             String after) {
-        if (userId != null) {
-            return store.findByUser(userId).map(this::view).stream().toList();
-        }
         Cursor.requireAlone(after, first);
         Page page = Page.of(first, max);
         String afterId = after == null ? null : Cursor.decode(Cursor.PEOPLE, after).getFirst();
         String search = stripped(text);
         String number = stripped(staffNumber);
-        List<Person> people = search == null && number == null
+        List<Person> people = userId == null && search == null && number == null
                 ? store.list(afterId, page.first(), page.max())
-                : store.search(search, number, afterId, page.first(), page.max());
+                : store.search(userId, search, number, afterId, page.first(), page.max());
         return people.stream().map(this::view).toList();
     }
 
@@ -341,16 +338,13 @@ public class PersonService {
      * Counts the people that {@link #list(String, String, String, Integer, Integer, String)} finds on all pages
      * together.
      *
-     * @param userId the ID of a Keycloak user, to count only the person linked to it, or null for everyone
+     * @param userId the ID of the Keycloak user that the person is linked to, or null for any
      * @param text a text that a name of the person or of its Keycloak user has, in any case, or null for any
      * @param staffNumber a staff number that an employment of the person has, or null for any
      * @return the number of people
      */
     public long count(String userId, String text, String staffNumber) {
-        if (userId != null) {
-            return store.findByUser(userId).isPresent() ? 1 : 0;
-        }
-        return store.count(stripped(text), stripped(staffNumber));
+        return store.count(userId, stripped(text), stripped(staffNumber));
     }
 
     private static String stripped(String value) {

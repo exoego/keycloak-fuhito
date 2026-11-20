@@ -2,14 +2,19 @@ package net.exoego.keycloak.fuhito;
 
 import java.sql.Connection;
 import java.sql.Statement;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.function.Executable;
 
+import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -25,6 +30,9 @@ class ReadsByIdPlansIT {
 
     // The rows of an assignment take its unique key or the GiST index of their periods. #590 is about the GiST index.
     private static final String BY_ASSIGNMENT = "uk_fuhito_assignment_from or ex_fuhito_assignment_period";
+
+    // An employment with a staff number comes by the staff number or by its person.
+    private static final String BY_STAFF_NUMBER = "idx_fuhito_employment_staff_number or idx_fuhito_employment_person";
 
     private static final Pattern INDEX = Pattern.compile("(?:using|Bitmap Index Scan on) (\\w+)");
 
@@ -204,6 +212,54 @@ class ReadsByIdPlansIT {
         });
     }
 
+    // The list and the count of people with a user and the other filters of JpaPersonStore.search. The text reads
+    // the names and the Keycloak users as it does with no user, so the check leaves out their tables.
+    @Test
+    void thePeopleOfAUserAreFoundByTheUserWithOldAndWithFreshStatistics() throws Exception {
+        withOldStatistics(statement -> {
+            String byUser = "from fuhito_person p where p.realm_id = " + REALM + " and p.user_id = 'ex-new-user-7'";
+            String like = " like '%sato%' escape '!'";
+            String text = " and (exists (select 1 from fuhito_person_name n where n.person_id = p.id"
+                    + " and (lower(n.name)" + like + " or lower(n.phonetic_name)" + like + "))"
+                    + " or exists (select 1 from user_entity u where u.id = p.user_id and u.realm_id = " + REALM
+                    + " and (lower(u.first_name)" + like + " or lower(u.last_name)" + like
+                    + " or u.username" + like + " or u.email" + like + ")))";
+            String staffNumber = " and exists (select 1 from fuhito_employment e where e.realm_id = " + REALM
+                    + " and e.person_id = p.id and e.staff_number = 'S7')";
+            String page = " order by p.id fetch first 100 rows only";
+            Set<String> byKey = Set.of("uk_fuhito_person_user");
+            Set<String> withEmployment = Set.of("uk_fuhito_person_user", BY_STAFF_NUMBER);
+            Map<String, Set<String>> reads = new LinkedHashMap<>();
+            reads.put("select * " + byUser + page, byKey);
+            reads.put("select * " + byUser + " and p.id > 'ex-new-person-1'" + page, byKey);
+            reads.put("select * " + byUser + text + page, byKey);
+            reads.put("select * " + byUser + staffNumber + page, withEmployment);
+            reads.put("select count(p.id) " + byUser, byKey);
+            reads.put("select count(p.id) " + byUser + text + staffNumber, withEmployment);
+            List<Executable> checks = new ArrayList<>();
+            for (String statistics : List.of("old", "fresh")) {
+                if (statistics.equals("fresh")) {
+                    OldStatistics.freshStatistics(statement);
+                }
+                for (Map.Entry<String, Set<String>> read : reads.entrySet()) {
+                    String plan = OldStatistics.plan(statement, "explain " + read.getKey());
+                    Set<String> found = new TreeSet<>();
+                    for (String name : indexesOf(plan)) {
+                        if (Set.of("idx_fuhito_employment_staff_number", "idx_fuhito_employment_person")
+                                .contains(name)) {
+                            found.add(BY_STAFF_NUMBER);
+                        } else if (name.contains("fuhito") && !name.equals("pk_fuhito_person_name")) {
+                            found.add(name);
+                        }
+                    }
+                    checks.add(() -> assertEquals(new TreeSet<>(read.getValue()), found,
+                            statistics + " " + read.getKey() + "\n" + plan));
+                }
+            }
+            assertAll(checks);
+        });
+    }
+
     @Test
     void theScopesOfAWriteFindTheRowsByTheirIds() throws Exception {
         withOldStatistics(statement -> {
@@ -320,8 +376,12 @@ class ReadsByIdPlansIT {
     }
 
     private static Set<String> indexes(Statement statement, String query) throws Exception {
+        return indexesOf(OldStatistics.plan(statement, "explain " + query));
+    }
+
+    private static Set<String> indexesOf(String plan) {
         Set<String> found = new TreeSet<>();
-        Matcher index = INDEX.matcher(OldStatistics.plan(statement, "explain " + query));
+        Matcher index = INDEX.matcher(plan);
         while (index.find()) {
             found.add(index.group(1));
         }

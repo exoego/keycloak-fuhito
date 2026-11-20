@@ -71,22 +71,26 @@ public class JpaPersonStore implements PersonStore {
     }
 
     @Override
-    public List<Person> search(String text, String staffNumber, String afterId, int first, int max) {
-        return withNames(em, realmId, searchQuery(text, staffNumber, afterId, false, PersonEntity.class)
+    public List<Person> search(String userId, String text, String staffNumber, String afterId, int first,
+            int max) {
+        return withNames(em, realmId, searchQuery(userId, text, staffNumber, afterId, false, PersonEntity.class)
                 .setFirstResult(first)
                 .setMaxResults(max)
                 .getResultList());
     }
 
     @Override
-    public long count(String text, String staffNumber) {
-        return searchQuery(text, staffNumber, null, true, Long.class).getSingleResult();
+    public long count(String userId, String text, String staffNumber) {
+        return searchQuery(userId, text, staffNumber, null, true, Long.class).getSingleResult();
     }
 
-    private <T> TypedQuery<T> searchQuery(String text, String staffNumber, String afterId, boolean count,
-            Class<T> type) {
+    private <T> TypedQuery<T> searchQuery(String userId, String text, String staffNumber, String afterId,
+            boolean count, Class<T> type) {
         StringBuilder query = new StringBuilder(count ? "select count(p)" : "select p")
                 .append(" from PersonEntity p where p.realmId = :realmId");
+        if (userId != null) {
+            query.append(" and p.userId = :userId");
+        }
         if (afterId != null) {
             query.append(" and p.id > :afterId");
         }
@@ -110,6 +114,9 @@ public class JpaPersonStore implements PersonStore {
         }
         TypedQuery<T> typed = em.createQuery(query.toString(), type)
                 .setParameter("realmId", realmId);
+        if (userId != null) {
+            typed.setParameter("userId", userId);
+        }
         if (afterId != null) {
             typed.setParameter("afterId", afterId);
         }

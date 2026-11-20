@@ -295,6 +295,44 @@ class PeopleIT {
     }
 
     @Test
+    void theUserIsOneMoreFilterOfThePeople() throws Exception {
+        TestRealm scratch = TestRealm.withEmployer("people-user");
+        Api scratchApi = scratch.api;
+        String unit = created(scratchApi.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"1病棟\"}}, \"validFrom\": \"2020-04-01\"}"))
+                .get("id").asText();
+        String user = scratch.user("sato", "Hanako", "Sato");
+        String person = created(scratchApi.post("/staff", "{\"userId\": \"" + user + "\", \"orgUnitId\": \"" + unit
+                + "\", \"staffNumber\": \"N-1\", \"validFrom\": \"2020-04-01\"}")).get("employment").get("personId").asText();
+        created(scratchApi.post("/people", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"Sato Other\"}}}"));
+        String byUser = "/people?userId=" + user;
+        String countByUser = "/people/count?userId=" + user;
+
+        assertEquals(List.of(person), ok(scratchApi.get(byUser)).findValuesAsText("id"));
+        assertEquals(List.of(person), ok(scratchApi.get("/people?staffNumber=N-1")).findValuesAsText("id"));
+        assertEquals(2, ok(scratchApi.get("/people?q=sato")).size());
+        assertEquals(List.of(person), ok(scratchApi.get(byUser + "&q=sato&staffNumber=N-1")).findValuesAsText("id"));
+        assertEquals(1, scratchApi.count(countByUser));
+        assertEquals(1, scratchApi.count(countByUser + "&q=sato&staffNumber=N-1"));
+
+        assertEquals(List.of(), ok(scratchApi.get(byUser + "&staffNumber=N-999")).findValuesAsText("id"));
+        assertEquals(List.of(), ok(scratchApi.get(byUser + "&q=tanaka")).findValuesAsText("id"));
+        assertEquals(0, scratchApi.count(countByUser + "&q=tanaka"));
+        assertEquals(0, scratchApi.count(countByUser + "&staffNumber=N-999"));
+
+        assertEquals(List.of(), ok(scratchApi.get(byUser + "&first=1")).findValuesAsText("id"));
+        assertEquals(List.of(), ok(scratchApi.get(byUser + "&max=0")).findValuesAsText("id"));
+        assertEquals(List.of(), ok(scratchApi.get(byUser + "&after=people.v1__" + person)).findValuesAsText("id"));
+        assertEquals("invalid.cursor", errorOf(400, scratchApi.get(byUser + "&after=" + person)));
+        assertEquals("invalid.cursor_with_first",
+                errorOf(400, scratchApi.get(byUser + "&first=1&after=people.v1__" + person)));
+        // The link of a full page leads to an empty page, not to the same person again.
+        String link = scratchApi.get(byUser + "&max=1").headers().firstValue("Link").orElseThrow();
+        String prefix = "/admin/realms/" + scratch.name + "/fuhito";
+        assertEquals(0, ok(scratchApi.get(link.substring(link.indexOf(prefix) + prefix.length(), link.indexOf('>'))))
+                .size());
+    }
+
+    @Test
     void maskingAUserClearsThePersonAndErasingRemovesIt() throws Exception {
         TestRealm scratch = TestRealm.withEmployer("people-personal-data");
         Api scratchApi = scratch.api;
