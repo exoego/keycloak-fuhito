@@ -3,7 +3,8 @@ package net.exoego.keycloak.fuhito.service;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-import net.exoego.keycloak.fuhito.domain.Checks;
+import net.exoego.keycloak.fuhito.domain.FuhitoException;
+import net.exoego.keycloak.fuhito.domain.Localized;
 import net.exoego.keycloak.fuhito.domain.OrgUnitName;
 import net.exoego.keycloak.fuhito.domain.PersonName;
 import net.exoego.keycloak.fuhito.domain.RefItemName;
@@ -101,14 +102,16 @@ final class Merged {
      * @param stored the stored names by language tag, or null for a new thing
      * @param names merges the names of one language
      * @return the names after the row, or null when there are none
+     * @throws FuhitoException when a tag of the row is bad, or two tags of the row give one language
      */
     static <N> Map<String, N> names(ImportRow row, Map<String, N> given, Map<String, N> stored, Names<N> names) {
         if (given == null) {
             return row.nulls().contains("names") ? null : stored;
         }
+        Map<String, String> languages = Localized.languages(given);
         Map<String, N> merged = stored == null ? new LinkedHashMap<>() : new LinkedHashMap<>(stored);
         given.forEach((tag, value) -> {
-            String language = Checks.languageTag("names", tag);
+            String language = languages.get(tag);
             if (value == null) {
                 merged.remove(language);
             } else {

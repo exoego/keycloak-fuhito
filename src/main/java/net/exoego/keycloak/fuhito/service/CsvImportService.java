@@ -372,6 +372,7 @@ public class CsvImportService {
             byName.put(japanese, field);
         });
         List<String> columns = new ArrayList<>();
+        Set<String> normalizedColumns = new HashSet<>();
         for (String cell : header) {
             String name = cell.strip();
             if (name.startsWith(ATTRIBUTE_COLUMN)) {
@@ -390,13 +391,30 @@ public class CsvImportService {
                 field = byName.get(base.toLowerCase(Locale.ROOT));
             }
             boolean localized = colon >= 0;
+            String column = localized ? field + name.substring(colon) : field;
             if (field == null || !fields.contains(field) || (localized && !localizedFields.contains(field))
-                    || columns.contains(localized ? field + name.substring(colon) : field)) {
+                    || columns.contains(column)) {
                 throw FuhitoException.invalid("csv.bad_column", Map.of("column", name));
             }
-            columns.add(localized ? field + name.substring(colon) : field);
+            if (localized) {
+                String language = language(name.substring(colon + 1));
+                if (!normalizedColumns.add(field + ":" + language)) {
+                    throw FuhitoException.invalid("invalid.duplicate_language",
+                            Map.of("field", name, "value", language));
+                }
+            }
+            columns.add(column);
         }
         return columns;
+    }
+
+    // A bad tag fails in each row that fills its column.
+    private static String language(String tag) {
+        try {
+            return Checks.languageTag(tag, tag);
+        } catch (FuhitoException e) {
+            return tag;
+        }
     }
 
     // The stored thing that a row names, as the import finds it. The import reports a row that names nothing.
