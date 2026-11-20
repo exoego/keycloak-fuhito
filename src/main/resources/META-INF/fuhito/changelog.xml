@@ -1196,4 +1196,20 @@
             WHERE (daterange(VALID_FROM, VALID_TO) IS NOT NULL)
         </sql>
     </changeSet>
+
+    <!-- The index of the exclusion constraint on the links now serves only the constraint, as the one of the versions
+         does. With fresh statistics, every lookup of the parent of a unit took this index, and the reads were two to
+         nine times slower than with UK_FUHITO_ORG_UNIT_LINK_FROM. A read by the child alone now takes the unique key
+         with a skip scan, or reads the table. Like 0.1.0-no-overlap, this change set waits for btree_gist. -->
+    <changeSet id="0.1.0-org-unit-link-period-index" author="keycloak-fuhito" dbms="postgresql">
+        <preConditions onFail="CONTINUE">
+            <sqlCheck expectedResult="1">SELECT count(*) FROM pg_extension WHERE extname = 'btree_gist'</sqlCheck>
+        </preConditions>
+        <sql>ALTER TABLE FUHITO_ORG_UNIT_LINK DROP CONSTRAINT EX_FUHITO_ORG_UNIT_LINK_PERIOD</sql>
+        <sql>
+            ALTER TABLE FUHITO_ORG_UNIT_LINK ADD CONSTRAINT EX_FUHITO_ORG_UNIT_LINK_PERIOD
+            EXCLUDE USING gist (HIERARCHY_ID WITH =, CHILD_ID WITH =, daterange(VALID_FROM, VALID_TO) WITH &amp;&amp;)
+            WHERE (daterange(VALID_FROM, VALID_TO) IS NOT NULL)
+        </sql>
+    </changeSet>
 </databaseChangeLog>
