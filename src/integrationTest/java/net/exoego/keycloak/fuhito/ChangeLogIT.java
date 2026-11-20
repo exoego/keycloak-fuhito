@@ -185,8 +185,10 @@ class ChangeLogIT {
         assertEquals(409, api.putWithVersion("/org-units/" + unit + "/end?changeOrder=" + scratch, "{\"validTo\": \"2026-01-01\"}").statusCode());
         assertEquals(0, ok(api.get("/change-orders/" + scratch + "/changes")).size());
         assertEquals(0, api.count("/change-orders/" + scratch + "/changes/count"));
-        // A read ignores the parameter.
-        assertEquals(200, api.get("/org-units?changeOrder=no-such-order&asOf=2026-04-01").statusCode());
+        // A read does not take the parameter.
+        HttpResponse<String> read = api.get("/org-units?changeOrder=no-such-order&asOf=2026-04-01");
+        assertEquals(400, read.statusCode(), read.body());
+        assertEquals("invalid.unknown_parameter", Api.json(read).get("error").asText());
     }
 
     @Test

@@ -65,6 +65,7 @@ public class RefKindsResource {
             operationId = "listRefKinds",
             summary = "Lists the kinds of reference data, the fixed ones first, then the ones of the realm.")
     @APIResponse(responseCode = "200", description = "The kinds.")
+    @BadRequest
     @ApiErrors
     public List<RefKindRepresentation> list() {
         context.requireReadStructure();

@@ -552,6 +552,7 @@ public class EmploymentsResource {
     @Operation(operationId = "getEmployment", summary = "Returns an employment with the terms of every period.")
     @APIResponse(responseCode = "200", description = "The employment.")
     @NotFound
+    @BadRequest
     @ApiErrors
     public EmploymentRepresentation get(
             @Parameter(description = "The ID of the resource.")

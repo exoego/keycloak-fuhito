@@ -63,6 +63,7 @@ public class HierarchiesResource {
     @GET
     @Operation(operationId = "listHierarchies", summary = "Lists the hierarchies of the realm, ordered by code.")
     @APIResponse(responseCode = "200", description = "The hierarchies.")
+    @BadRequest
     @ApiErrors
     public List<HierarchyRepresentation> list(
             @Parameter(
@@ -81,6 +82,7 @@ public class HierarchiesResource {
     @Path("count")
     @Operation(operationId = "countHierarchies", summary = "Counts the hierarchies that `GET /hierarchies` lists.")
     @APIResponse(responseCode = "200", description = "The number of hierarchies on all pages.")
+    @BadRequest
     @ApiErrors
     public CountRepresentation count() {
         context.requireReadStructure();
@@ -92,6 +94,7 @@ public class HierarchiesResource {
     @Operation(operationId = "getHierarchy", summary = "Returns one hierarchy.")
     @APIResponse(responseCode = "200", description = "The hierarchy.")
     @NotFound
+    @BadRequest
     @ApiErrors
     public HierarchyRepresentation get(
             @Parameter(description = "The ID of the resource.")

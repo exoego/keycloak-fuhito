@@ -68,6 +68,7 @@ public class ProjectionResource {
                     + "server either way.")
     @APIResponse(responseCode = "200", description = "The last run.")
     @NotFound
+    @BadRequest
     @ApiErrors
     public JobRunRepresentation lastRun() {
         context.requireRead();

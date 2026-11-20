@@ -70,6 +70,7 @@ public class ChangeOrdersResource {
             summary = "Lists the writes that belong to a change order, oldest first.")
     @APIResponse(responseCode = "200", description = "The entries.")
     @NotFound
+    @BadRequest
     @ApiErrors
     public List<ChangeLogRepresentation> changes(
             @Parameter(description = "The ID of the resource.")
@@ -95,6 +96,7 @@ public class ChangeOrdersResource {
             summary = "Counts the writes that `GET /change-orders/{id}/changes` lists.")
     @APIResponse(responseCode = "200", description = "The number of entries.")
     @NotFound
+    @BadRequest
     @ApiErrors
     public CountRepresentation countChanges(
             @Parameter(description = "The ID of the resource.")
@@ -150,6 +152,7 @@ public class ChangeOrdersResource {
     @Operation(operationId = "getChangeOrder", summary = "Returns one change order.")
     @APIResponse(responseCode = "200", description = "The order.")
     @NotFound
+    @BadRequest
     @ApiErrors
     public ChangeOrderRepresentation get(
             @Parameter(description = "The ID of the resource.")

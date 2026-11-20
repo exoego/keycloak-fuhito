@@ -92,6 +92,7 @@ public class ReportingLinesResource {
     @Operation(operationId = "getReportingLine", summary = "Returns one reporting line.")
     @APIResponse(responseCode = "200", description = "The line.")
     @NotFound
+    @BadRequest
     @ApiErrors
     public ReportingLineRepresentation get(
             @Parameter(description = "The ID of the resource.")

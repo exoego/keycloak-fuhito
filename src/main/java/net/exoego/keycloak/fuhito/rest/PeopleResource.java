@@ -105,6 +105,7 @@ public class PeopleResource {
     @Path("count")
     @Operation(operationId = "countPeople", summary = "Counts the people that `GET /people` lists with the same filters.")
     @APIResponse(responseCode = "200", description = "The number of people on all pages.")
+    @BadRequest
     @ApiErrors
     public CountRepresentation count(
             @Parameter(description = "The ID of a Keycloak user, to count only the person that is linked to it.")
@@ -148,6 +149,7 @@ public class PeopleResource {
     @Operation(operationId = "getPerson", summary = "Returns one person.")
     @APIResponse(responseCode = "200", description = "The person.")
     @NotFound
+    @BadRequest
     @ApiErrors
     public PersonRepresentation get(
             @Parameter(description = "The ID of the resource.")
@@ -246,6 +248,7 @@ public class PeopleResource {
             summary = "Returns every employment and every assignment of a person, with all their periods.")
     @APIResponse(responseCode = "200", description = "The history of the person.")
     @NotFound
+    @BadRequest
     @ApiErrors
     public UserHistoryRepresentation history(
             @Parameter(description = "The ID of the resource.")

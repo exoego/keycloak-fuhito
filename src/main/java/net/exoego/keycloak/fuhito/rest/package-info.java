@@ -32,6 +32,13 @@
                         is dropped. This holds for every body, also for an import, a restore, and the steps of a
                         reorganization.
 
+                        Each operation lists the query parameters that it takes. A request with another query
+                        parameter fails with 400 and `invalid.unknown_parameter`, which names the parameter in
+                        `field`. The case of each letter counts, so `asof` is not `asOf`. A request that gives one
+                        query parameter twice fails with 400 and `invalid.parameter_twice`. No value is dropped.
+                        The check comes after Keycloak checks the token, and before the roles of the extension. So a
+                        caller without the role gets 400 for such a query, and 403 for any other query.
+
                         A write that names one thing in two ways, such as a unit of a reorganization step by `id` and
                         by `unitRef`, fails with 400 and `invalid.twice`. The error names the two fields in `field`
                         and `otherField`. No value is dropped. An employer named by `employerId` and by
@@ -126,6 +133,8 @@
                     @APIResponse(name = "BadRequest",
                             description = """
                                     A value in the request is bad.
+                                    A query parameter that the operation does not take gets
+                                    `invalid.unknown_parameter`, and one given twice gets `invalid.parameter_twice`.
                                     In a write, an empty text, a text of only spaces, or an empty array gets
                                     `invalid.blank`. A text with NUL or half of a surrogate pair gets
                                     `invalid.character`. A body that gives one key twice in one object gets

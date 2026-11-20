@@ -120,6 +120,7 @@ public class RefItemsResource {
     @Operation(operationId = "getRefItem", summary = "Returns one item with the names of a date.")
     @APIResponse(responseCode = "200", description = "The item.")
     @NotFound
+    @BadRequest
     @ApiErrors
     public RefItemRepresentation get(
             @Parameter(description = "The ID of the resource.")
@@ -141,6 +142,7 @@ public class RefItemsResource {
                     + "`fuhito.structure.daysAhead` limits how far ahead the caller may read.")
     @APIResponse(responseCode = "200", description = "The names of every period, oldest first.")
     @NotFound
+    @BadRequest
     @ApiErrors
     public RefItemHistoryRepresentation history(
             @Parameter(description = "The ID of the resource.")

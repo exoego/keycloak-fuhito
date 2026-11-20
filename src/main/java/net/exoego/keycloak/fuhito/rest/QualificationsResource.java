@@ -162,6 +162,7 @@ public class QualificationsResource {
     @Operation(operationId = "getQualification", summary = "Returns one qualification.")
     @APIResponse(responseCode = "200", description = "The qualification.")
     @NotFound
+    @BadRequest
     @ApiErrors
     public QualificationRepresentation get(
             @Parameter(description = "The ID of the resource.")
