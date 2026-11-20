@@ -27,6 +27,11 @@
                         point. This holds for every text of every write, also for a key in `attributes`. Other
                         characters, such as control characters, emoji, and combining marks, are stored as sent.
 
+                        A body that gives one key twice in one object fails with 400 and `invalid.duplicate_key`,
+                        which names the key with its path, such as `names.ja` or `orgUnits[1].names.ja`. No value
+                        is dropped. This holds for every body, also for an import, a restore, and the steps of a
+                        reorganization.
+
                         The `maxLength` of a text counts characters, as the database does, so an emoji is one
                         character. A longer text fails with 400. A text with no other rule, such as
                         `externalReference`, fails with `invalid.too_long`, which names the field and the `max`.
@@ -94,7 +99,8 @@
                                     A value in the request is bad.
                                     In a write, an empty text, a text of only spaces, or an empty array gets
                                     `invalid.blank`. A text with NUL or half of a surrogate pair gets
-                                    `invalid.character`.
+                                    `invalid.character`. A body that gives one key twice in one object gets
+                                    `invalid.duplicate_key`.
                                     """,
                             content = @Content(mediaType = "application/json",
                                     schema = @Schema(implementation = ErrorRepresentation.class))),

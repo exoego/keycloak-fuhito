@@ -107,12 +107,13 @@ class QualificationsIT {
 
     @Test
     void anEmptyNumberOrOtherTextFails() throws Exception {
-        String start = "{\"userId\": \"" + realm.user("empty-texts") + "\", \"kind\": \"physician-license\", "
-                + "\"validFrom\": \"2010-05-01\"";
+        String user = "\"userId\": \"" + realm.user("empty-texts") + "\", ";
+        String start = "{" + user + "\"kind\": \"physician-license\", \"validFrom\": \"2010-05-01\"";
         for (String field : List.of("number", "validTo", "userId", "externalId")) {
             for (String empty : List.of("", "  ")) {
-                HttpResponse<String> response = api.post("/qualifications", start + ", \"" + field + "\": \""
-                        + empty + "\"}");
+                HttpResponse<String> response = api.post("/qualifications",
+                        (field.equals("userId") ? start.replace(user, "") : start) + ", \"" + field + "\": \""
+                                + empty + "\"}");
                 assertEquals("invalid.blank", errorOf(400, response), field);
                 assertEquals(field, Api.json(response).get("params").get("field").asText());
             }
