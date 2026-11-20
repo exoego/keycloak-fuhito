@@ -33,14 +33,16 @@ public class JpaQualificationStore implements QualificationStore {
         return findEntity(id).map(JpaQualificationStore::toDomain);
     }
 
+    // The realm is checked on the person, whose key has the user too.
     @Override
     public List<Qualification> findByUser(String userId) {
         return em.createQuery("""
-                        select q from QualificationEntity q where q.realmId = :realmId
-                        and q.person.userId = :userId order by q.validFrom, q.id""", QualificationEntity.class)
+                        select q from QualificationEntity q join q.person p where p.realmId = :realmId
+                        and p.userId = :userId order by q.validFrom, q.id""", QualificationEntity.class)
                 .setParameter("realmId", realmId)
                 .setParameter("userId", userId)
                 .getResultStream()
+                .filter(Rows.inRealm(realmId, q -> q.realmId))
                 .map(JpaQualificationStore::toDomain)
                 .toList();
     }
@@ -89,14 +91,15 @@ public class JpaQualificationStore implements QualificationStore {
         return searchQuery(search, null, true, Long.class).getSingleResult();
     }
 
+    // The qualifications are found by the person alone, for the reason in Rows.inRealm.
     @Override
     public List<Qualification> findByPerson(String personId) {
         return em.createQuery("""
-                        select q from QualificationEntity q where q.realmId = :realmId
-                        and q.personId = :personId order by q.validFrom, q.id""", QualificationEntity.class)
-                .setParameter("realmId", realmId)
+                        select q from QualificationEntity q where q.personId = :personId
+                        order by q.validFrom, q.id""", QualificationEntity.class)
                 .setParameter("personId", personId)
                 .getResultStream()
+                .filter(Rows.inRealm(realmId, q -> q.realmId))
                 .map(JpaQualificationStore::toDomain)
                 .toList();
     }

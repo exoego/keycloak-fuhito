@@ -50,6 +50,44 @@ public final class RealmData {
     private static final Set<Class<?>> KEPT_BY_RESTORE = Set.of(ChangeLogEntity.class, ChangeLogCounterEntity.class,
             JobRunEntity.class, ErasureEntity.class, ProjectedMemberEntity.class);
 
+    // The rows of a person are found by the person alone. Each delete checks the realm of its rows against the realm
+    // of the person.
+    private static final String EMPLOYMENTS = "select e.id from EmploymentEntity e where e.personId = :personId";
+
+    private static final String ASSIGNMENTS = "select a.assignmentId from AssignmentEntity a where a.employmentId in ("
+            + EMPLOYMENTS + ")";
+
+    // Every query is one fixed text. The order matters, because later queries read rows of earlier ones.
+    private static final List<String> PERSON_DELETES = List.of(
+            // The IDs that systems have for the person and for the records of the person.
+            """
+            delete from ExternalIdEntity x where %s
+            and ((x.kind = 'PERSON' and x.resourceId = :personId)
+            or (x.kind = 'EMPLOYMENT' and x.resourceId in (%s))
+            or (x.kind = 'ASSIGNMENT' and x.resourceId in (%s))
+            or (x.kind = 'QUALIFICATION' and x.resourceId in
+            (select q.id from QualificationEntity q where q.personId = :personId))
+            or (x.kind = 'REPORTING_LINE' and (x.resourceId in
+            (select r.id from ReportingLineEntity r where r.managerPersonId = :personId)
+            or x.resourceId in (select r.id from ReportingLineEntity r where r.assignmentId in (%s))))
+            or (x.kind = 'UNIT_ROLE' and x.resourceId in
+            (select r.id from UnitRoleEntity r where r.employmentId in (%s))))"""
+                    .formatted(ofPerson("x"), EMPLOYMENTS, ASSIGNMENTS, ASSIGNMENTS, EMPLOYMENTS),
+            // Lines where the person is the manager, and lines where the person reports. Each takes its own index.
+            "delete from ReportingLineEntity r where r.managerPersonId = :personId and " + ofPerson("r"),
+            "delete from ReportingLineEntity r where r.assignmentId in (%s) and %s".formatted(ASSIGNMENTS,
+                    ofPerson("r")),
+            "delete from UnitRoleEntity r where r.employmentId in (%s) and %s".formatted(EMPLOYMENTS, ofPerson("r")),
+            "delete from AssignmentEntity x where x.employmentId in (%s) and %s".formatted(EMPLOYMENTS,
+                    ofPerson("x")),
+            "delete from EmploymentTermsEntity x where x.employmentId in (%s) and %s".formatted(EMPLOYMENTS,
+                    ofPerson("x")),
+            "delete from QualificationEntity q where q.personId = :personId and " + ofPerson("q"),
+            "delete from UserMaskEntity m where m.realmId = :realmId and m.personId = :personId",
+            "delete from EmploymentEntity e where e.personId = :personId and " + ofPerson("e"),
+            "delete from PersonNameEntity n where n.realmId = :realmId and n.personId = :personId",
+            "delete from PersonEntity p where p.id = :personId and " + ofPerson("p"));
+
     private RealmData() {
     }
 
@@ -133,52 +171,14 @@ public final class RealmData {
      * @param personId the ID of the person
      */
     public static void deletePerson(EntityManager em, String realmId, String personId) {
-        // Every query is one fixed text. The order matters, because later queries read rows of earlier ones.
-        List.of(
-                // The IDs that systems have for the person and for the records of the person.
-                """
-                delete from ExternalIdEntity x where x.realmId = :realmId
-                and ((x.kind = 'PERSON' and x.resourceId = :personId)
-                or (x.kind = 'EMPLOYMENT' and x.resourceId in
-                (select e.id from EmploymentEntity e where e.realmId = :realmId and e.personId = :personId))
-                or (x.kind = 'ASSIGNMENT' and x.resourceId in
-                (select a.assignmentId from AssignmentEntity a where a.realmId = :realmId and a.employmentId in
-                (select e.id from EmploymentEntity e where e.realmId = :realmId and e.personId = :personId)))
-                or (x.kind = 'QUALIFICATION' and x.resourceId in
-                (select q.id from QualificationEntity q where q.realmId = :realmId and q.personId = :personId))
-                or (x.kind = 'REPORTING_LINE' and x.resourceId in
-                (select r.id from ReportingLineEntity r where r.realmId = :realmId
-                and (r.managerPersonId = :personId or r.assignmentId in
-                (select a.assignmentId from AssignmentEntity a where a.realmId = :realmId and a.employmentId in
-                (select e.id from EmploymentEntity e where e.realmId = :realmId and e.personId = :personId)))))
-                or (x.kind = 'UNIT_ROLE' and x.resourceId in
-                (select r.id from UnitRoleEntity r where r.realmId = :realmId and r.employmentId in
-                (select e.id from EmploymentEntity e where e.realmId = :realmId and e.personId = :personId))))""",
-                // Lines where the person reports, and lines where the person is the manager.
-                """
-                delete from ReportingLineEntity r where r.realmId = :realmId
-                and (r.managerPersonId = :personId or r.assignmentId in
-                (select a.assignmentId from AssignmentEntity a where a.realmId = :realmId
-                and a.employmentId in
-                (select e.id from EmploymentEntity e where e.realmId = :realmId and e.personId = :personId)))""",
-                """
-                delete from UnitRoleEntity r where r.realmId = :realmId and r.employmentId in
-                (select e.id from EmploymentEntity e where e.realmId = :realmId and e.personId = :personId)""",
-                """
-                delete from AssignmentEntity x where x.realmId = :realmId and x.employmentId in
-                (select e.id from EmploymentEntity e where e.realmId = :realmId and e.personId = :personId)""",
-                """
-                delete from EmploymentTermsEntity x where x.realmId = :realmId and x.employmentId in
-                (select e.id from EmploymentEntity e where e.realmId = :realmId and e.personId = :personId)""",
-                "delete from QualificationEntity q where q.realmId = :realmId and q.personId = :personId",
-                "delete from UserMaskEntity m where m.realmId = :realmId and m.personId = :personId",
-                "delete from EmploymentEntity e where e.realmId = :realmId and e.personId = :personId",
-                "delete from PersonNameEntity n where n.realmId = :realmId and n.personId = :personId",
-                "delete from PersonEntity p where p.realmId = :realmId and p.id = :personId")
-                .forEach(query -> em.createQuery(query)
-                        .setParameter("realmId", realmId)
-                        .setParameter("personId", personId)
-                        .executeUpdate());
+        PERSON_DELETES.forEach(query -> em.createQuery(query)
+                .setParameter("realmId", realmId)
+                .setParameter("personId", personId)
+                .executeUpdate());
+    }
+
+    private static String ofPerson(String alias) {
+        return Rows.ofRecord(alias + ".realmId", "PersonEntity", "id", "personId");
     }
 
     /**

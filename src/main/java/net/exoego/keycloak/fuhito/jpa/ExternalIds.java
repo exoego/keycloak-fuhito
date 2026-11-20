@@ -52,7 +52,8 @@ final class ExternalIds {
     }
 
     /**
-     * Removes the IDs of the assignments that have no row left, with one query.
+     * Removes the IDs of the assignments that have no row left, with one query. The rows of an assignment are found
+     * by its ID alone, for the reason in {@link Rows#inRealm}.
      *
      * @param em the entity manager of the request
      * @param realmId the ID of the realm
@@ -65,7 +66,7 @@ final class ExternalIds {
         em.createQuery("""
                         delete from ExternalIdEntity x where x.realmId = :realmId and x.kind = 'ASSIGNMENT'
                         and %s and not exists (select a.id from AssignmentEntity a
-                        where a.realmId = :realmId and a.assignmentId = x.resourceId)"""
+                        where a.assignmentId = x.resourceId)"""
                         .formatted(ManyIds.has("x.resourceId", "ids")))
                 .setParameter("realmId", realmId)
                 .setParameter("ids", ManyIds.of(assignmentIds))

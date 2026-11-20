@@ -49,14 +49,15 @@ public class JpaPersonStore implements PersonStore {
                 .findFirst();
     }
 
+    // The people are found by their IDs alone, for the reason in Rows.inRealm.
     @Override
     public List<Person> findAll(Collection<String> ids) {
-        return ids.isEmpty() ? List.of() : withNames(em, realmId, em.createQuery("""
-                        select p from PersonEntity p where p.realmId = :realmId and %s"""
+        return ids.isEmpty() ? List.of() : withNames(em, realmId, em.createQuery("select p from PersonEntity p where %s"
                         .formatted(ManyIds.has("p.id", "ids")), PersonEntity.class)
-                .setParameter("realmId", realmId)
                 .setParameter("ids", ManyIds.of(ids))
-                .getResultList());
+                .getResultStream()
+                .filter(Rows.inRealm(realmId, p -> p.realmId))
+                .toList());
     }
 
     @Override
