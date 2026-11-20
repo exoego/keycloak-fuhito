@@ -102,7 +102,7 @@ erDiagram
         varchar(36) ID PK
         varchar(36) REALM_ID
         varchar(64) SOURCE
-        varchar(36) KC_ORG_ID
+        varchar(255) KC_ORG_ID
         varchar(64) TIME_ZONE
         varchar(5) DAY_START
         bigint VERSION
@@ -319,7 +319,7 @@ erDiagram
     FUHITO_PROJECTED_MEMBER {
         varchar(36) ID PK
         varchar(36) REALM_ID
-        varchar(36) KC_ORG_ID
+        varchar(255) KC_ORG_ID
         varchar(255) USER_ID
     }
     FUHITO_USER_MASK {
