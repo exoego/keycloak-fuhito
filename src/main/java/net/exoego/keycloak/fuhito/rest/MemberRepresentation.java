@@ -32,8 +32,8 @@ public record MemberRepresentation(
                 description = "True when the person works outside the employer. The org unit then belongs to "
                         + "another legal entity on the date. A unit belongs to the legal entity that it is, else to "
                         + "the nearest legal entity above it in the default hierarchy. A unit that belongs to none, "
-                        + "such as a rollup unit or a lateral root, gives no secondment. Nor does an external "
-                        + "employer.")
+                        + "such as a rollup unit or a lateral root, gives no secondment. An external employer gives "
+                        + "none either.")
         boolean seconded,
         @Schema(description = "The number that the employer gives to the person.")
         String staffNumber,
