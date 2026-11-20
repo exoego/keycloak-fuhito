@@ -109,18 +109,13 @@ public class UnitRoleService {
         Employment employment = sources.employments().find(employmentId).orElseThrow(() -> FuhitoException.invalid(
                 "unit_role.employment_unknown", Map.of("employmentId", employmentId)));
         ValidPeriod period = Checks.period(from, to == null ? employment.period().to() : to);
-        if (!employment.period().encloses(period)) {
-            throw FuhitoException.conflict("unit_role.outside_employment",
-                    Map.of("employmentId", employmentId, "validFrom", validFrom));
-        }
+        requireInsideEmployment(employmentId, employment.period(), period);
         List<OrgUnitVersion> versions = sources.orgUnits().versions(orgUnitId);
         if (versions.isEmpty()) {
             throw FuhitoException.invalid("unit_role.org_unit_unknown", Map.of("orgUnitId", orgUnitId));
         }
-        if (!new ValidPeriod(versions.getFirst().period().from(), versions.getLast().period().to()).encloses(period)) {
-            throw FuhitoException.conflict("unit_role.org_unit_not_valid",
-                    Map.of("orgUnitId", orgUnitId, "validFrom", validFrom));
-        }
+        requireInsideOrgUnit(orgUnitId, new ValidPeriod(versions.getFirst().period().from(),
+                versions.getLast().period().to()), period);
         RefItem item = sources.refItems().findByCode(RefKind.UNIT_ROLE, role)
                 .filter(RefItem::active)
                 .orElseThrow(() -> FuhitoException.invalid("ref_item.unknown",
@@ -136,6 +131,36 @@ public class UnitRoleService {
                 employment.userId(), orgUnitId, item.id(), Boolean.TRUE.equals(includesDescendants), period, 1);
         store.insert(added);
         return new View(added, item.code());
+    }
+
+    /**
+     * Requires that a role lies inside its employment.
+     *
+     * @param employmentId the ID of the employment
+     * @param employment the period of the employment
+     * @param period the period of the role
+     * @throws FuhitoException when the role is not inside the employment
+     */
+    static void requireInsideEmployment(String employmentId, ValidPeriod employment, ValidPeriod period) {
+        if (!employment.encloses(period)) {
+            throw FuhitoException.conflict("unit_role.outside_employment",
+                    Map.of("employmentId", employmentId, "validFrom", period.from().toString()));
+        }
+    }
+
+    /**
+     * Requires that a role lies inside the life of its org unit.
+     *
+     * @param orgUnitId the ID of the org unit
+     * @param life the life of the org unit
+     * @param period the period of the role
+     * @throws FuhitoException when the org unit does not exist on a date of the role
+     */
+    static void requireInsideOrgUnit(String orgUnitId, ValidPeriod life, ValidPeriod period) {
+        if (!life.encloses(period)) {
+            throw FuhitoException.conflict("unit_role.org_unit_not_valid",
+                    Map.of("orgUnitId", orgUnitId, "validFrom", period.from().toString()));
+        }
     }
 
     /**

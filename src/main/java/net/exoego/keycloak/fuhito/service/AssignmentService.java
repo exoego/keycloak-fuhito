@@ -221,10 +221,7 @@ public class AssignmentService {
             Employment employment = employment(employmentId).orElseThrow(() -> FuhitoException.invalid(
                     "assignment.employment_unknown", Map.of("employmentId", employmentId)));
             ValidPeriod period = Checks.period(from, to == null ? employment.period().to() : to);
-            if (!employment.period().encloses(period)) {
-                throw FuhitoException.conflict("assignment.outside_employment", Map.of("employmentId", employmentId,
-                        "validFrom", period.from().toString()));
-            }
+            requireInsideEmployment(employmentId, employment.period(), period);
             requireOrgUnitCovers(orgUnitId, period, lives.computeIfAbsent(orgUnitId, AssignmentService.this::lifeOf));
             ExternalId.Pair externalId = ids.check(null, request.source(), request.externalId());
             if (continuesAssignmentId != null) {
@@ -483,10 +480,7 @@ public class AssignmentService {
         boolean longer = last.period().to() != null && (to == null || to.isAfter(last.period().to()));
         if (longer) {
             Employment employment = employments.find(last.employmentId()).orElseThrow();
-            if (!employment.period().encloses(changed.period())) {
-                throw FuhitoException.conflict("assignment.outside_employment", Map.of("employmentId",
-                        employment.id(), "validFrom", changed.period().from().toString()));
-            }
+            requireInsideEmployment(employment.id(), employment.period(), changed.period());
             requireOrgUnitCovers(last.orgUnitId(), changed.period());
             if (changed.primary()) {
                 claimPrimary(changed, new AssignmentValues(null, null, null, null, null, null, null, null, true,
@@ -682,7 +676,30 @@ public class AssignmentService {
         return Optional.ofNullable(orgUnits.livesOf(List.of(orgUnitId)).get(orgUnitId));
     }
 
-    private static void requireOrgUnitCovers(String orgUnitId, ValidPeriod period, Optional<ValidPeriod> unitLife) {
+    /**
+     * Requires that a row of an assignment lies inside its employment.
+     *
+     * @param employmentId the ID of the employment
+     * @param employment the period of the employment
+     * @param period the period of the row
+     * @throws FuhitoException when the row is not inside the employment
+     */
+    static void requireInsideEmployment(String employmentId, ValidPeriod employment, ValidPeriod period) {
+        if (!employment.encloses(period)) {
+            throw FuhitoException.conflict("assignment.outside_employment", Map.of("employmentId", employmentId,
+                    "validFrom", period.from().toString()));
+        }
+    }
+
+    /**
+     * Requires that the org unit of a row of an assignment exists on every date of the row.
+     *
+     * @param orgUnitId the ID of the org unit
+     * @param period the period of the row
+     * @param unitLife the life of the org unit, or empty when the realm has no such unit
+     * @throws FuhitoException when the realm has no such unit, or it does not exist on a date of the row
+     */
+    static void requireOrgUnitCovers(String orgUnitId, ValidPeriod period, Optional<ValidPeriod> unitLife) {
         ValidPeriod life = unitLife.orElseThrow(() -> FuhitoException.invalid("assignment.org_unit_unknown",
                 Map.of("orgUnitId", orgUnitId)));
         if (!life.encloses(period)) {

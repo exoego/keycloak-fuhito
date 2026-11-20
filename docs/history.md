@@ -182,6 +182,7 @@ Checked by `ReportingLinesIT.derivesManagersAndReportsFromTheHeadsOfTheTree`, `R
 - An employment has at most one primary assignment.
 
 The application checks these rules on every write.
+A restore checks them too, before it writes.
 On PostgreSQL the database checks the overlap rules again.
 
 Checked by `OrgUnitsIT.rejectsAMoveBelowItselfAndOtherBadMoves`, `RollupUnitsIT.aRollupUnitGetsNoParentOrChildInTheDefaultHierarchy`, `AssignmentsIT.rejectsBadRequests`, `AssignmentsIT.anEmploymentHasOnePrimaryAssignmentAtATime`, and `SchemaIT`.
