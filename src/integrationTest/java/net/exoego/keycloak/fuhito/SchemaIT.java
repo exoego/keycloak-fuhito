@@ -1,8 +1,12 @@
 package net.exoego.keycloak.fuhito;
 
 import java.sql.Connection;
+import java.sql.ResultSet;
 import java.sql.Statement;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 
 import org.junit.jupiter.api.Test;
 
@@ -20,6 +24,47 @@ class SchemaIT {
     void liquibaseCreatesTheTable() throws Exception {
         assertEquals("1", KeycloakEnvironment.sql(
                 "select count(*) from information_schema.tables where table_name = 'fuhito_hierarchy'"));
+    }
+
+    private static int width(String column) throws Exception {
+        int dot = column.indexOf('.');
+        return Integer.parseInt(KeycloakEnvironment.sql("""
+                select character_maximum_length from information_schema.columns
+                where table_schema = current_schema() and table_name = '%s' and column_name = '%s'"""
+                .formatted(column.substring(0, dot), column.substring(dot + 1))));
+    }
+
+    // A column that holds an ID from Keycloak takes every ID that the column of Keycloak takes.
+    @Test
+    void everyColumnOfAnIdOfKeycloakIsAsWideAsTheColumnOfKeycloak() throws Exception {
+        Map<String, String> keycloak = new TreeMap<>();
+        try (Connection connection = KeycloakEnvironment.connection();
+                Statement statement = connection.createStatement();
+                ResultSet tables = statement.executeQuery("""
+                        select table_name from information_schema.columns where table_schema = current_schema()
+                        and table_name like 'fuhito%' and column_name = 'realm_id'""")) {
+            while (tables.next()) {
+                keycloak.put(tables.getString(1) + ".realm_id", "realm.id");
+            }
+        }
+        // The default hierarchy has the ID of its realm, and the change log names the realm of a restore.
+        List.of("fuhito_hierarchy.id", "fuhito_org_unit_link.hierarchy_id", "fuhito_change_log.resource_id")
+                .forEach(column -> keycloak.put(column, "realm.id"));
+        List.of("fuhito_org_unit.kc_org_id", "fuhito_projected_member.kc_org_id")
+                .forEach(column -> keycloak.put(column, "org.id"));
+        // Keycloak keeps the ID of a user of a federation, which can be longer than the one of a local user, there.
+        List.of("fuhito_person.user_id", "fuhito_projected_member.user_id", "fuhito_change_order.approver_user_id",
+                "fuhito_change_order.requester_user_id", "fuhito_change_order.announced_by_user_id",
+                "fuhito_change_log.actor_user_id")
+                .forEach(column -> keycloak.put(column, "fed_user_group_membership.user_id"));
+
+        List<String> narrower = new ArrayList<>();
+        for (Map.Entry<String, String> column : keycloak.entrySet()) {
+            if (width(column.getKey()) < width(column.getValue())) {
+                narrower.add(column.getKey());
+            }
+        }
+        assertEquals(List.of(), narrower);
     }
 
     // These rows go around the application, as a bug in it would.
