@@ -322,6 +322,9 @@ erDiagram
         varchar(36) KC_ORG_ID
         varchar(255) USER_ID
     }
+    FUHITO_REALM_WRITE {
+        varchar(36) REALM_ID PK
+    }
     FUHITO_USER_MASK {
         varchar(36) ID PK
         varchar(36) REALM_ID

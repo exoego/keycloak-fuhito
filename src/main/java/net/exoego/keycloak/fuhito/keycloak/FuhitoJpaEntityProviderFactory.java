@@ -4,6 +4,7 @@ import jakarta.persistence.EntityManager;
 import net.exoego.keycloak.fuhito.jpa.JpaHierarchyStore;
 import net.exoego.keycloak.fuhito.jpa.JpaProjectedMemberStore;
 import net.exoego.keycloak.fuhito.jpa.RealmData;
+import net.exoego.keycloak.fuhito.jpa.RowLocks;
 import org.keycloak.Config;
 import org.keycloak.connections.jpa.JpaConnectionProvider;
 import org.keycloak.connections.jpa.entityprovider.JpaEntityProvider;
@@ -49,10 +50,13 @@ public class FuhitoJpaEntityProviderFactory implements JpaEntityProviderFactory 
                 // Realms from before the extension, or from before its roles, get the roles at the start.
                 case PostMigrationEvent migrated -> KeycloakModelUtils.runJobInTransaction(factory,
                         session -> session.realms().getRealmsStream().forEach(FuhitoRoles::addTo));
-                // A realm has its default hierarchy from its start, so two first requests never both make it.
+                // A realm has its row for writes and its default hierarchy from its start, so two first requests
+                // never both make them.
                 case RealmModel.RealmPostCreateEvent created -> {
-                    new JpaHierarchyStore(entityManager(created.getKeycloakSession()),
-                            created.getCreatedRealm().getId()).defaultId();
+                    EntityManager em = entityManager(created.getKeycloakSession());
+                    String realmId = created.getCreatedRealm().getId();
+                    RowLocks.lockRealm(em, realmId, false);
+                    new JpaHierarchyStore(em, realmId).defaultId();
                     FuhitoRoles.addTo(created.getCreatedRealm());
                 }
                 case RealmModel.RealmRemovedEvent removed ->
@@ -64,6 +68,7 @@ public class FuhitoJpaEntityProviderFactory implements JpaEntityProviderFactory 
                     KeycloakSession session = removed.getKeycloakSession();
                     String realmId = session.getContext().getRealm().getId();
                     String organizationId = removed.getOrganization().getId();
+                    RowLocks.lockRealm(entityManager(session), realmId, false);
                     RealmData.unlinkOrganization(entityManager(session), realmId, organizationId);
                     new JpaProjectedMemberStore(entityManager(session), realmId).forgetOrganization(organizationId);
                 }

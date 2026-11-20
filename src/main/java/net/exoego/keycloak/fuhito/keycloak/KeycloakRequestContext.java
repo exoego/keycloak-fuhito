@@ -59,6 +59,7 @@ final class KeycloakRequestContext implements RequestContext {
     private final EntityManager entityManager;
     private final FuhitoException timeSettingsError;
     private boolean writing;
+    private boolean realmLocked;
 
     KeycloakRequestContext(KeycloakSession session, RealmModel realm, AdminPermissionEvaluator auth,
             AdminEventBuilder adminEvent, EntityManager entityManager, FuhitoException timeSettingsError) {
@@ -123,9 +124,20 @@ final class KeycloakRequestContext implements RequestContext {
 
     @Override
     public void requireWrite() {
+        requireWrite(false);
+    }
+
+    @Override
+    public void requireBulkWrite() {
+        requireWrite(true);
+    }
+
+    private void requireWrite(boolean alone) {
         requireRole(FuhitoRoles.MANAGE);
         writing = true;
         requireTimeSettings();
+        // Before the check, so that it finds a change order that a bulk write added.
+        lockRealm(alone);
         String changeOrderId = changeOrderId();
         if (changeOrderId != null
                 && new JpaChangeOrderStore(entityManager, realm.getId()).find(changeOrderId).isEmpty()) {
@@ -172,7 +184,16 @@ final class KeycloakRequestContext implements RequestContext {
 
     @Override
     public void lock(Map<String, ? extends Collection<String>> ids) {
+        lockRealm(false);
         RowLocks.lock(entityManager, realm.getId(), ids);
+    }
+
+    // The row of the realm comes before every other lock, also for a write that did not ask for it.
+    private void lockRealm(boolean alone) {
+        if (!realmLocked) {
+            RowLocks.lockRealm(entityManager, realm.getId(), alone);
+            realmLocked = true;
+        }
     }
 
     @Override

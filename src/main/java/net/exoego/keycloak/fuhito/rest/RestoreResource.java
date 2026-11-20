@@ -76,7 +76,7 @@ public class RestoreResource {
                             + "refused.",
                     schema = @Schema(defaultValue = "false"))
             @QueryParam("replace") boolean replace) {
-        context.requireWrite();
+        context.requireBulkWrite();
         return Calls.run(context, () -> {
             Map<String, Integer> counts = service.restore(body, replace, context::requireManageOrganization);
             context.recordChange(replace ? Change.UPDATE : Change.CREATE, RESOURCE_TYPE, realmId, "fuhito/restore",
