@@ -8,6 +8,7 @@ import java.util.Map;
 import java.util.UUID;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import jakarta.ws.rs.core.Response;
 import org.junit.jupiter.api.Test;
 import org.keycloak.admin.client.CreatedResponseUtil;
@@ -311,6 +312,34 @@ class AttributeSyncIT {
 
     private List<String> changeLog(String resourceType) throws Exception {
         return Api.json(api.get("/change-log?resourceType=" + resourceType)).findValuesAsText("resourceId");
+    }
+
+    @Test
+    void theSyncKeepsAnAssignmentOfTodayThatAnotherAssignmentContinues() throws Exception {
+        createRealm(Map.of("fuhito.sync.enabled", "true"));
+        unit("内科", "naika", null);
+        String surgery = unit("外科", null, null);
+        String alice = user("alice", Map.of("department", "naika"));
+        assertEquals(1, run("").get("assignmentsAdded").asInt());
+        String synced = assignmentsOf(alice).get(0).get("assignmentId").asText();
+        // An administrator moves alice from tomorrow. The new assignment continues the one of the sync.
+        String tomorrow = LocalDate.now(ZoneOffset.UTC).plusDays(1).toString();
+        HttpResponse<String> move = api.postWithVersion("/assignments/" + synced + "/move", "{\"orgUnitId\": \""
+                + surgery + "\", \"validFrom\": \"" + tomorrow + "\"}");
+        assertEquals(201, move.statusCode(), move.body());
+        HttpResponse<String> delete = api.deleteWithVersion("/assignments/" + synced);
+        assertEquals(409, delete.statusCode(), delete.body());
+        ObjectNode before = RealmExportIT.export(api);
+
+        // The department goes. The sync would remove its assignment, which started today and never held.
+        setAttributes(alice, Map.of("title", "部長"));
+        JsonNode report = run("");
+
+        JsonNode failed = report.get("failed");
+        assertEquals(1, failed.size(), report.toString());
+        assertEquals(alice, failed.get(0).get("userId").asText());
+        assertEquals(Api.json(delete).get("error").asText(), failed.get(0).get("error").asText());
+        assertEquals(before, RealmExportIT.export(api));
     }
 
     @Test
