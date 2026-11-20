@@ -14,9 +14,6 @@ import net.exoego.keycloak.fuhito.store.ChangeOrderStore;
  */
 public class JpaChangeOrderStore implements ChangeOrderStore {
 
-    private static final LocalDate FIRST_DATE = LocalDate.of(1, 1, 1);
-    private static final LocalDate LAST_DATE = LocalDate.of(9999, 12, 31);
-
     private final EntityManager em;
     private final String realmId;
 
@@ -63,13 +60,16 @@ public class JpaChangeOrderStore implements ChangeOrderStore {
         return inRange("select count(o)", "", from, to, Long.class).getSingleResult();
     }
 
+    // No date stands in for a missing bound. The end is not in the range, so a stand-in leaves out the last date.
     private <T> TypedQuery<T> inRange(String select, String order, LocalDate from, LocalDate to, Class<T> type) {
-        return em.createQuery(select + """
-                         from ChangeOrderEntity o where o.realmId = :realmId
-                        and o.effectiveDate >= :from and o.effectiveDate < :to""" + order, type)
-                .setParameter("realmId", realmId)
-                .setParameter("from", from == null ? FIRST_DATE : from)
-                .setParameter("to", to == null ? LAST_DATE : to);
+        TypedQuery<T> query = em.createQuery(select + " from ChangeOrderEntity o where o.realmId = :realmId"
+                + (from == null ? "" : " and o.effectiveDate >= :from")
+                + (to == null ? "" : " and o.effectiveDate < :to") + order, type)
+                .setParameter("realmId", realmId);
+        if (from != null) {
+            query.setParameter("from", from);
+        }
+        return to == null ? query : query.setParameter("to", to);
     }
 
     @Override
