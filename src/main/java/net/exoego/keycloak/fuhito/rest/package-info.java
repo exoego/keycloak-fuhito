@@ -142,8 +142,9 @@
                                     `invalid.twice`. A create with a person ID and a user ID that do not name the
                                     same person gets `invalid.mismatch`. A write of a stored resource with another
                                     value of a field that never changes, or of a field that only a response fills,
-                                    gets `invalid.value_fixed`. A read with two values that do not go together gets
-                                    `invalid.not_together`.
+                                    gets `invalid.value_fixed`. So does a write with `source` and no `externalId` of
+                                    a resource that keeps no system that made it. A read with two values that do not
+                                    go together gets `invalid.not_together`.
                                     """,
                             content = @Content(mediaType = "application/json",
                                     schema = @Schema(implementation = ErrorRepresentation.class))),

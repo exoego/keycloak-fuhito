@@ -37,9 +37,9 @@ Every bad row is reported, not only the first one.
 The source is the name of the system or the sheet that the rows come from.
 It keeps the external IDs of two systems apart. The default is `import`.
 A row matches a stored thing that has the external ID of the row in the system of the source, whichever system made the thing. So a file of the payroll system finds a person that the HR system made, once the person has an ID of the payroll system. `PUT /external-ids` and the list of IDs of other systems give those IDs.
-A row that matches nothing makes a new thing. Its `source` is the system of the row, and its external ID is stored as the ID of that system.
+A row that matches nothing makes a new thing. Its external ID is stored as the ID of the system of the row. A new org unit, person, employment, assignment, or qualification also keeps that system as its `source`. The other things keep no system.
 References such as `parentExternalId` and `personExternalId` are matched the same way, with the source of the row.
-A row can name a stored thing by `id` in place of the external ID, also when the thing has no external ID. An external ID beside it must be one of that thing in the system of the source, or the row fails with `import.id_mismatch`. An `id` that names nothing fails with `import.id_unknown`. A row with neither fails with `invalid.required`. A CSV export has `id` in every row. A new thing has no ID.
+A row can name a stored thing by `id` in place of the external ID, also when the thing has no external ID. An external ID beside it must be one of that thing in the system of the source, or the row fails with `import.id_mismatch`. An `id` that names nothing fails with `import.id_unknown`. A row with neither fails with `invalid.required`, also when it gives `source`. A CSV export has `id` in every row. A new thing has no ID.
 
 A row never finds a stored thing by its values, such as a code or the manager of a line. A system that has no ID for a thing derives one by its own rule before it sends the file, for example from the kind and the code of a reference item. Codes and numbers stay values that no other thing has, so a new row with a taken code fails.
 

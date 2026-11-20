@@ -2,6 +2,7 @@ package net.exoego.keycloak.fuhito;
 
 import java.net.http.HttpResponse;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -289,6 +290,60 @@ class ExternalIdsIT {
         }
         assertEquals(201, api.post("/hierarchies", "{\"code\": \"project\", \"name\": \"P\", \"source\": \"hr\", "
                 + "\"externalId\": \"H-1\"}").statusCode());
+    }
+
+    private static String with(String body, String fields) {
+        return body.substring(0, body.length() - 1) + fields + "}";
+    }
+
+    @Test
+    void aCreateOfAResourceThatKeepsNoSystemTakesSourceOnlyWithAnId() throws Exception {
+        TestRealm realm = TestRealm.withEmployer("external-ids-create-source");
+        Api api = realm.api;
+        String unit = Api.json(api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"病棟\"}}, \"validFrom\": \"2020-04-01\"}"))
+                .get("id").asText();
+        JsonNode staff = Api.json(api.post("/staff", "{\"userId\": \"" + realm.user("nurse") + "\", \"orgUnitId\": \""
+                + unit + "\", \"validFrom\": \"2020-04-01\"}"));
+        realm.refItem("UNIT_ROLE", "approver", "承認者");
+        assertEquals(201, api.post("/ref-kinds", "{\"code\": \"area\", \"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"地域\"}}}").statusCode());
+        Map<String, String> bodies = new LinkedHashMap<>();
+        bodies.put("/ref-kinds", "{\"code\": \"site\", \"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"拠点\"}}}");
+        bodies.put("/ref-items", "{\"kind\": \"area\", \"code\": \"tokyo\", \"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"東京\"}}}");
+        bodies.put("/attribute-definitions", "{\"target\": \"PERSON\", \"name\": \"beds\", \"type\": \"NUMBER\"}");
+        bodies.put("/hierarchies", "{\"code\": \"project\", \"name\": \"P\"}");
+        bodies.put("/change-orders", "{\"title\": \"異動\", \"effectiveDate\": \"2026-04-01\"}");
+        bodies.put("/unit-roles", "{\"employmentId\": \"" + staff.get("employment").get("id").asText()
+                + "\", \"orgUnitId\": \"" + unit + "\", \"role\": \"approver\", \"validFrom\": \"2020-04-01\"}");
+        // The manager has no person yet, so the create of the line would make one.
+        bodies.put("/reporting-lines", "{\"assignmentId\": \"" + staff.get("assignment").get("id").asText()
+                + "\", \"managerUserId\": \"" + realm.user("boss") + "\", \"validFrom\": \"2021-04-01\"}");
+        JsonNode before = RealmExportIT.export(api);
+
+        List<String> expected = new ArrayList<>();
+        List<String> got = new ArrayList<>();
+        for (Map.Entry<String, String> each : bodies.entrySet()) {
+            String path = each.getKey();
+            expected.addAll(List.of(path + " 400 invalid.value_fixed source", path + " 400 invalid.required source"));
+            for (String fields : List.of(", \"source\": \"hr\"", ", \"externalId\": \"X\"")) {
+                HttpResponse<String> response = api.post(path, with(each.getValue(), fields));
+                got.add(path + " " + response.statusCode() + " " + Api.json(response).path("error").asText() + " "
+                        + Api.json(response).path("params").path("field").asText());
+            }
+        }
+        assertEquals(expected, got);
+        assertEquals(before, RealmExportIT.export(api));
+
+        // With an ID, the source names the system of that ID, and the resource keeps no system.
+        for (Map.Entry<String, String> each : bodies.entrySet()) {
+            String path = each.getKey();
+            String externalId = "X-" + path.substring(1);
+            HttpResponse<String> response = api.post(path, with(each.getValue(), ", \"source\": \"hr\", "
+                    + "\"externalId\": \"" + externalId + "\""));
+            assertEquals(201, response.statusCode(), response.body());
+            JsonNode created = Api.json(response);
+            assertEquals(List.of("hr=" + externalId), Api.externalIds(created), path);
+            assertTrue(created.path("source").isMissingNode(), path);
+        }
     }
 
     @Test

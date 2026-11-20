@@ -61,8 +61,9 @@ public record RefKindRepresentation(
                 writeOnly = true)
         String externalId,
         @Schema(
-                description = "The name of the system of `externalId`. A kind keeps no system that made it, so a write "
-                        + "of a stored kind with this and no `externalId` fails with 400 and `invalid.value_fixed`.",
+                description = "The name of the system of `externalId`. A kind keeps no system that made it, so a "
+                        + "create or a write of a stored kind with this and no `externalId` fails with 400 and "
+                        + "`invalid.value_fixed`.",
                 maxLength = 64,
                 pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$",
                 writeOnly = true)

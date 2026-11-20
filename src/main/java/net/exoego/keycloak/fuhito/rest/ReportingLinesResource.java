@@ -77,6 +77,7 @@ public class ReportingLinesResource {
         context.requireWrite();
         return Calls.run(context, () -> {
             Calls.body(body);
+            Writes.requireNoSource(body.source(), body.externalId());
             String manager = Writes.personId(context, people, "managerPersonId", body.managerPersonId(),
                     "managerUserId", body.managerUserId());
             var line = represent(externalIds.create(ExternalId.Kind.REPORTING_LINE, body.source(), body.externalId(),
