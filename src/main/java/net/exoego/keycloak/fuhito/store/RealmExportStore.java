@@ -66,6 +66,15 @@ public interface RealmExportStore {
     Optional<String> takenId(String list, Collection<String> ids);
 
     /**
+     * Returns the longest text that each field of a row of a list can have, as its column takes it.
+     *
+     * @param list the list of an export, or a part of one such as {@code org-unit-versions}
+     * @return the number of characters by the name of the field in the export. A field with no column, or with a
+     *         column that takes any length, is not in it.
+     */
+    Map<String, Integer> lengths(String list);
+
+    /**
      * Pages through the reference items.
      *
      * @return the pages

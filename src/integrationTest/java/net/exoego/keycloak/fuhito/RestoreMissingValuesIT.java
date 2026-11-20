@@ -43,13 +43,13 @@ class RestoreMissingValuesIT {
         assertEquals(0, Api.json(target.api.get("/export/org-units")).size());
     }
 
-    private static ObjectNode withPerson() {
+    static ObjectNode withPerson() {
         ObjectNode document = JSON.createObjectNode().put("format", "fuhito.export.v1");
         named(document.putArray("people").addObject().put("id", "p-1")).putObject("attributes");
         return document;
     }
 
-    private static void assertBadValue(Api api, ObjectNode document, Map<String, String> params) throws Exception {
+    static void assertBadValue(Api api, ObjectNode document, Map<String, String> params) throws Exception {
         HttpResponse<String> response = api.post("/restore", JSON.writeValueAsString(document));
         assertEquals(400, response.statusCode(), response.body());
         JsonNode error = Api.json(response);

@@ -292,8 +292,8 @@ public class RealmExportService {
      * @param linking checks each Keycloak organization that a unit is linked to, or was linked to before a replace,
      *        before anything is written
      * @return the number of rows of each list
-     * @throws FuhitoException when the format is unknown, the realm has data and is not replaced, a value is empty, a
-     *         username has no user, or the realm has no organization with an alias
+     * @throws FuhitoException when the format is unknown, the realm has data and is not replaced, a value is empty or
+     *         too long for its column, a username has no user, or the realm has no organization with an alias
      */
     public Map<String, Integer> restore(RealmExport document, boolean replace, Consumer<String> linking) {
         Checks.required("body", document);
@@ -303,7 +303,7 @@ public class RealmExportService {
         if (!replace && !stores.export().isEmpty()) {
             throw FuhitoException.conflict("restore.realm_not_empty", Map.of());
         }
-        RestoreCheck.requireValues(document);
+        RestoreCheck.requireValues(document, stores.export()::lengths);
         RestoreCheck.requireReferences(document);
         Map<String, String> organizations = organizations(document);
         if (replace) {
