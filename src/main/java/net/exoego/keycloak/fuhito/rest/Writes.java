@@ -18,7 +18,8 @@ import net.exoego.keycloak.fuhito.service.ImportReport.Write;
 import net.exoego.keycloak.fuhito.service.PersonService;
 
 /**
- * Records the writes of a bulk operation in the event log and the change log, and finds the person of a write.
+ * Records the writes of a bulk operation in the event log and the change log, finds the person of a write, and
+ * checks the source of a write of a stored resource.
  */
 final class Writes {
 
@@ -42,6 +43,13 @@ final class Writes {
                     new Write.OfPerson(resolved.created()), context.nameLanguage())));
         }
         return resolved.person().id();
+    }
+
+    // With externalId, source names the system of that ID. Without it, source is the system that made the resource.
+    static void requireSource(String stored, String source, String externalId) {
+        if (externalId == null) {
+            Checks.fixed("source", stored, source);
+        }
     }
 
     static void record(RequestContext context, ExternalIdService externalIds, Write write) {

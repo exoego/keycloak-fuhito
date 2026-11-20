@@ -15,7 +15,8 @@ public record HierarchyRepresentation(
                 + "caller read. A create needs none.")
         Long version,
         @Schema(
-                description = "The code. It is unique in the realm and never changes. Every realm has the "
+                description = "The code. It is unique in the realm and never changes. A write of a stored "
+                        + "hierarchy with another code fails with 400 and `invalid.value_fixed`. Every realm has the "
                         + "hierarchy `default`.",
                 maxLength = 64,
                 pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$")

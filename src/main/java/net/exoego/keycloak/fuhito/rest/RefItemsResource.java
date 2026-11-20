@@ -14,6 +14,7 @@ import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
+import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.domain.RefItem;
 import net.exoego.keycloak.fuhito.rest.RequestContext.Change;
@@ -184,7 +185,8 @@ public class RefItemsResource {
     @Operation(
             operationId = "updateRefItem",
             summary = "Replaces the changeable values of an item.",
-            description = "The kind and the code never change. The body can leave them out. Only the names have "
+            description = "The kind and the code never change. The body can leave them out or give the stored ones. "
+                    + "Another kind or code fails with 400 and `invalid.value_fixed`. Only the names have "
                     + "dates. With `validFrom`, the new names hold from that date until the next stored names, and "
                     + "the old names stay for the dates before. A date that starts stored names corrects them. "
                     + "Without `validFrom`, the write changes the names of today. The response has the names of "
@@ -202,6 +204,9 @@ public class RefItemsResource {
             RefItemRepresentation body) {
         context.requireWrite();
         return Calls.guarded(context, body, () -> service.version(id), () -> {
+            RefItem stored = service.get(id);
+            Checks.fixed("kind", stored.kind(), body.kind());
+            Checks.fixed("code", stored.code(), body.code());
             var item = represent(service.update(id, body.primaryLanguage(), body.names(), body.displayOrder(),
                     body.attributes(), body.active(), body.marks(), body.validFrom()));
             context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, path(id), item);

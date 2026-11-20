@@ -21,10 +21,14 @@ public record AttributeDefinitionRepresentation(
                 + "that the caller read. A create needs none.")
         Long version,
         @Schema(
-                description = "The kind of resource. Only a create request reads it.",
+                description = "The kind of resource. It never changes. A write of a stored definition with another "
+                        + "kind fails with 400 and `invalid.value_fixed`.",
                 enumeration = {"ORG_UNIT", "PERSON", "EMPLOYMENT_TERMS", "ASSIGNMENT", "QUALIFICATION", "REF_ITEM"})
         String target,
-        @Schema(description = "The name in `attributes`. Only a create request reads it.", maxLength = 64)
+        @Schema(
+                description = "The name in `attributes`. It never changes. A write of a stored definition with another "
+                        + "name fails with 400 and `invalid.value_fixed`.",
+                maxLength = 64)
         String name,
         @Schema(
                 description = "The type of the value. A `STRING` value must not be empty or only spaces, also in a "

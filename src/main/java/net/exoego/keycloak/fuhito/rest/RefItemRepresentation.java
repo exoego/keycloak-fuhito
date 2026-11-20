@@ -22,11 +22,12 @@ public record RefItemRepresentation(
                 + "change of an ID of another system. A write of a stored item sends the version that the caller "
                 + "read. A create needs none.")
         Long version,
-        @Schema(description = "A fixed kind such as `UNIT_TYPE`, or the code of a kind that the realm added. Only a "
-                + "create request reads it.")
+        @Schema(description = "A fixed kind such as `UNIT_TYPE`, or the code of a kind that the realm added. It never "
+                + "changes. A write of a stored item with another kind fails with 400 and `invalid.value_fixed`.")
         String kind,
         @Schema(
-                description = "Only a create request reads it.",
+                description = "It never changes. A write of a stored item with another code fails with 400 and "
+                        + "`invalid.value_fixed`.",
                 maxLength = 64,
                 pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$")
         String code,

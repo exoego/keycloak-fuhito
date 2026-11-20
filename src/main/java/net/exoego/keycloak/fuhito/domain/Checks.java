@@ -94,6 +94,21 @@ public final class Checks {
     }
 
     /**
+     * Requires that a write of a stored resource gives no other value of a field that never changes. A write that
+     * leaves the field out keeps the stored value, and so does one that gives the stored value, as a read has it.
+     *
+     * @param field the name of the field, for the error
+     * @param stored the stored value, or null
+     * @param given the value of the write, or null
+     * @throws FuhitoException when the write gives another value
+     */
+    public static void fixed(String field, Object stored, Object given) {
+        if (given != null && !given.equals(stored)) {
+            throw FuhitoException.invalid("invalid.value_fixed", Map.of("field", field));
+        }
+    }
+
+    /**
      * Requires a name that is not blank and not too long. Length counts characters, not bytes.
      *
      * @param field the name of the field, for the error

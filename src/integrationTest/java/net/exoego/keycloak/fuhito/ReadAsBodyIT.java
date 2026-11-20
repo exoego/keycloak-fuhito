@@ -58,10 +58,13 @@ class ReadAsBodyIT {
                 + "\"2026-04-01\"}").get("id").asText();
         String qualification = createdWithNoId(api, "/qualifications", "{\"personId\": \"" + person + "\", \"kind\": "
                 + "\"license\", \"validFrom\": \"2020-04-01\"}").get("id").asText();
+        // A read of a qualification of a person with a user has both IDs.
+        String ofUser = createdWithNoId(api, "/qualifications", "{\"userId\": \"" + realm.user("nurse") + "\", "
+                + "\"kind\": \"license\", \"validFrom\": \"2020-04-01\"}").get("id").asText();
 
         for (String path : List.of("/org-units/" + unit, "/people/" + person, "/ref-kinds/site", "/ref-items/" + item,
                 "/attribute-definitions/" + definition, "/hierarchies/" + hierarchy, "/change-orders/" + order,
-                "/qualifications/" + qualification)) {
+                "/qualifications/" + qualification, "/qualifications/" + ofUser)) {
             JsonNode before = ExternalIdsIT.read(api, path);
             assertFalse(before.has("externalIds"), path);
             assertFalse(ok(api.put(path, before.toString())).has("externalIds"), path);
