@@ -122,7 +122,8 @@ class AttributeDefinitionsIT {
         realm.attribute("ORG_UNIT", "note", "STRING");
 
         assertEquals("attribute.empty_item", errorOf(400, api.post("/org-units", "{\"primaryLanguage\": \"ja\", "
-                + "\"names\": {\"ja\": {\"name\": \"1病棟\"}}, \"attributes\": {\"shifts\": [\"night\", \"\"]}}")));
+                + "\"names\": {\"ja\": {\"name\": \"1病棟\"}}, \"validFrom\": \"2026-04-01\", "
+                + "\"attributes\": {\"shifts\": [\"night\", \"\"]}}")));
         HttpResponse<String> imported = api.post("/imports", """
                 {"effectiveDate": "2026-04-01", "orgUnits": [
                   {"externalId": "W", "primaryLanguage": "ja", "names": {"ja": {"name": "1病棟"}},
@@ -133,7 +134,8 @@ class AttributeDefinitionsIT {
         assertEquals(List.of("attribute.empty_item"), Api.json(imported).get("errors").findValuesAsText("error"));
 
         JsonNode ward = created(api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": "
-                + "{\"name\": \"1病棟\"}}, \"attributes\": {\"shifts\": [\"night\"], \"note\": \"\"}}"));
+                + "{\"name\": \"1病棟\"}}, \"validFrom\": \"2026-04-01\", "
+                + "\"attributes\": {\"shifts\": [\"night\"], \"note\": \"\"}}"));
         assertEquals("", ward.get("attributes").get("note").asText());
     }
 
