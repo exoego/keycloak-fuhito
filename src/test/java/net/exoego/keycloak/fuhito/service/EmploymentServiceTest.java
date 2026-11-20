@@ -640,6 +640,16 @@ class EmploymentServiceTest {
         assertEquals(List.of(), service.transferAll(new TransferAllRequest("company-q", "company-x", "2027-04-01",
                 null, false, null)));
         assertNull(store.employments.get(alice).period().to());
+        // Such a merger still checks its values.
+        assertEquals("employment.same_employer", assertThrows(FuhitoException.class,
+                () -> service.transferAll(new TransferAllRequest("company-q", "company-q", "2027-04-01", null, false,
+                        null))).code());
+        item(RefKind.END_REASON, "closed", false);
+        for (String reason : List.of("nope", "closed")) {
+            assertEquals("ref_item.unknown", assertThrows(FuhitoException.class,
+                    () -> service.transferAll(new TransferAllRequest("company-q", "company-x", "2027-04-01", reason,
+                            false, null))).code(), reason);
+        }
     }
 
     @Test
