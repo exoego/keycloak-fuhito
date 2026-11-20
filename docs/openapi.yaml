@@ -150,8 +150,9 @@ components:
           writeOnly: true
         switchPrimary:
           type: boolean
-          description: True to take the primary flag away from other assignments of
-            the employment for the same dates.
+          description: "True to take the primary flag away from other assignments\
+            \ of the employment for the same dates. True needs `primary` true. Without\
+            \ it, the request fails with `assignment.switch_primary_unused`."
           writeOnly: true
         allocationPercent:
           type: number
@@ -235,8 +236,9 @@ components:
           description: True when this is the main assignment of the employment.
         switchPrimary:
           type: boolean
-          description: True to take the primary flag away from other assignments of
-            the employment for the same dates.
+          description: "True to take the primary flag away from other assignments\
+            \ of the employment for the same dates. True needs `primary` true. Without\
+            \ it, the request fails with `assignment.switch_primary_unused`."
           writeOnly: true
         allocationPercent:
           type: number
@@ -3067,6 +3069,9 @@ components:
           type: string
           description: The ID of the assignment that gets the job title and the head
             flag. The default is the primary assignment of the employment on the date.
+            It must name an assignment of the employment that holds on the date. Any
+            other ID fails with `employment.assignment_not_on`. A request that gives
+            it with no `jobTitle` and no `head` fails with `employment.promotion_assignment_unused`.
           writeOnly: true
         head:
           type: boolean
@@ -3548,7 +3553,9 @@ components:
       type: object
       required:
       - op
-      description: One operation of a reorganization.
+      description: "One operation of a reorganization. Each operation reads only some\
+        \ fields. A step that gives a field that its operation does not read fails\
+        \ with 400 and `reorganization.field_unused`, which names the field in `field`."
       properties:
         op:
           type: string
@@ -3560,8 +3567,8 @@ components:
           - succeed
         ref:
           type: string
-          description: A name that later steps of the same request can use for the
-            unit that a create step makes.
+          description: "For a create step, a name that later steps of the same request\
+            \ can use for the unit that it makes."
         id:
           type: string
           description: "The ID of the unit to change, move, end, or succeed."
@@ -3573,7 +3580,8 @@ components:
           format: int64
           description: "The version of the unit of `id` that the caller read. A change,\
             \ move, end, or succeed step with `id` needs it. Two steps of one unit\
-            \ name the same version."
+            \ name the same version. A create step and a step with no `id` have no\
+            \ version to give."
         parentId:
           type: string
           description: The ID of the parent for a create or a move.
@@ -3598,22 +3606,24 @@ components:
             \ of one tag in standard form, such as `ja` and `JA`, fail with `invalid.duplicate_language`."
         unitType:
           type: string
-          description: The code of the unit type.
+          description: "The code of the unit type, for a create or a change."
         workLocation:
           type: string
-          description: The code of the work location that the unit gives its members.
+          description: "The code of the work location that the unit gives its members,\
+            \ for a create or a change."
         costCenter:
           type: string
-          description: The code of the cost center that the unit gives its members.
+          description: "The code of the cost center that the unit gives its members,\
+            \ for a create or a change."
         displayOrder:
           type: integer
           format: int32
-          description: The position among siblings.
+          description: "The position among siblings, for a create or a change."
           default: 0
         attributes:
           type: object
           additionalProperties: {}
-          description: Free values that the realm defines.
+          description: "Free values that the realm defines, for a create or a change."
         successorIds:
           type: array
           items:
@@ -9397,7 +9407,9 @@ paths:
       summary: "Changes many org units on one date, in one transaction."
       description: "A failed step writes nothing. A step that changes a stored unit\
         \ names the `version` of the unit that the caller read. An old version fails\
-        \ with 409 and `version.conflict`, and `step` in the values of the error."
+        \ with 409 and `version.conflict`, and `step` in the values of the error.\
+        \ A step that gives a field that its operation does not read fails with 400\
+        \ and `reorganization.field_unused` before any step runs."
       operationId: applyReorganization
       tags:
       - org-units
