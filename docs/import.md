@@ -186,7 +186,10 @@ curl -X POST \
 
 - The first row has the column names, in English or in Japanese. Columns can be in any order.
 - A column that is not needed can be left out.
-- The file is UTF-8, with or without a byte order mark. For another encoding, name it in the content type, for example `text/csv; charset=Shift_JIS`.
+- The file is UTF-8, with or without a byte order mark. For another encoding, name it in the `charset` of the content type, for example `text/csv; charset=Shift_JIS`. fuhito does not guess the encoding.
+- A file that is not valid in its charset fails with `csv.bad_encoding`, and nothing is written. The error has the charset, and the line, the offset, and the hex of the first bad bytes. The offset is the position in the file, counted from 0. A file that a spreadsheet saved in Shift_JIS fails in this way when the content type names no `charset`.
+- Unless the charset is UTF-16 or UTF-32, a file that starts with the bytes `FF FE` or `FE FF`, or has a `00` byte on its first line, fails with `csv.bad_encoding` too. Such a file is most likely UTF-16.
+- An unknown charset fails with `csv.bad_charset`.
 - A cell can be in double quotes. A quoted cell can hold commas and line breaks.
 - A cell of a list separates its items with `|`, for example `W1|W2`. This is the rule for `successorExternalIds`, `successorIds`, and the columns of attributes with `multiple`, in a file to load and in every CSV export. A JSON import document keeps its arrays. In an item, `\|` is a `|` and `\\` is a `\`. A `\` before any other character fails with `csv.bad_escape`. For example, the two external IDs `100|2024` and `200|2024` are the cell `100\|2024|200\|2024`.
 - An empty item fails with `csv.empty_item`, for example in `a||b`, `|a`, or `a|`. Spaces around an item are removed. A blank cell keeps the stored list, and `#CLEAR` removes it.
