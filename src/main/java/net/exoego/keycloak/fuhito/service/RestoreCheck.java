@@ -1,12 +1,12 @@
 package net.exoego.keycloak.fuhito.service;
 
+import java.lang.reflect.RecordComponent;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
@@ -49,55 +49,69 @@ final class RestoreCheck {
     }
 
     /**
-     * Requires that no value of an export is an empty text, a text of only spaces, or an empty list, as in a row of
-     * an import. A row inside a row, such as a version of an org unit, is named by the list and the ID that
-     * {@code restore.id_taken} gives it.
+     * Requires every row of an export and every value that the table of a row needs, and requires that no value is an
+     * empty text, a text of only spaces, or an empty list, as in a row of an import. A row inside a row, such as a
+     * version of an org unit, is named by the list and the ID that {@code restore.id_taken} gives it.
      *
      * @param document the export
-     * @throws FuhitoException when a value is empty. The error names the list and the ID of the row, and the field.
+     * @throws FuhitoException when a row or a needed value is missing, or a value is empty. The error names the list,
+     *         the ID of the row when it has one, and the field.
      */
     static void requireValues(RealmExport document) {
-        values("ref-kinds", document.refKinds(), RealmExport.Kind::id);
-        values("ref-items", document.refItems(), RealmExport.Item::id);
-        rows(document.refItems()).forEach(i -> values("ref-item-names", i.versions(), RealmExport.ItemNames::id));
-        values("attribute-definitions", document.attributeDefinitions(), RealmExport.Definition::id);
-        values("hierarchies", document.hierarchies(), RealmExport.HierarchyRow::id);
-        values("org-units", document.orgUnits(), RealmExport.Unit::id);
-        for (RealmExport.Unit unit : rows(document.orgUnits())) {
-            values("org-unit-versions", unit.versions(), RealmExport.Version::id);
-            values("org-unit-parents", unit.parents(), RealmExport.Parent::id);
-            values("org-unit-successions", unit.successors(), RealmExport.Succession::id);
+        values("ref-kinds", document.refKinds(), "id", "code");
+        values("ref-items", document.refItems(), "id", "kind", "code", "attributes");
+        all(document.refItems()).forEach(i -> values("ref-item-names", i.versions(), "id"));
+        values("attribute-definitions", document.attributeDefinitions(), "id", "target", "name", "type");
+        values("hierarchies", document.hierarchies(), "id", "code", "name");
+        values("org-units", document.orgUnits(), "id");
+        for (RealmExport.Unit unit : all(document.orgUnits())) {
+            values("org-unit-versions", unit.versions(), "id", "validFrom", "attributes");
+            values("org-unit-parents", unit.parents(), "id", "hierarchy", "parentId", "validFrom");
+            values("org-unit-successions", unit.successors(), "id", "successorId", "effectiveDate");
         }
-        values("people", document.people(), RealmExport.PersonRow::id);
-        values("employments", document.employments(), RealmExport.EmploymentRow::id);
-        rows(document.employments()).forEach(e -> values("employment-terms", e.terms(), RealmExport.Terms::id));
-        values("assignments", document.assignments(), RealmExport.AssignmentRows::assignmentId);
-        rows(document.assignments()).forEach(a -> values("assignments", a.periods(), RealmExport.Period::rowId));
-        values("reporting-lines", document.reportingLines(), RealmExport.Line::id);
-        values("unit-roles", document.unitRoles(), RealmExport.Role::id);
-        values("qualifications", document.qualifications(), RealmExport.QualificationRow::id);
-        values("external-ids", document.externalIds(), RealmExport.ExternalIdRow::id);
-        values("change-orders", document.changeOrders(), RealmExport.Order::id);
-        values("erasures", document.erasures(), RealmExport.Erasure::personId);
+        values("people", document.people(), "id", "attributes");
+        values("employments", document.employments(), "id", "personId", "validFrom");
+        all(document.employments()).forEach(e -> values("employment-terms", e.terms(), "id", "validFrom", "status",
+                "attributes"));
+        values("assignments", document.assignments(), "assignmentId");
+        all(document.assignments()).forEach(a -> values("assignments", a.periods(), "rowId", "employmentId",
+                "orgUnitId", "validFrom", "attributes"));
+        values("reporting-lines", document.reportingLines(), "id", "assignmentId", "managerPersonId", "kind",
+                "validFrom");
+        values("unit-roles", document.unitRoles(), "id", "employmentId", "orgUnitId", "roleId", "validFrom");
+        values("qualifications", document.qualifications(), "id", "personId", "kindId", "validFrom", "attributes");
+        values("external-ids", document.externalIds(), "id", "resourceType", "resourceId", "source", "externalId");
+        values("change-orders", document.changeOrders(), "id", "title", "effectiveDate", "createdAt");
+        values("erasures", document.erasures(), "personId", "erasedAt");
     }
 
-    // A list in a row holds the rows of the row, and a row may have none. Each of them is checked as a row.
-    private static <T extends Record> void values(String list, List<T> rows, Function<T, String> id) {
-        for (T row : rows(rows)) {
+    // The needed fields have columns that are not null, and the first one is the ID of the row. A list in a row holds
+    // the rows of the row, and a row may have none. Each of them is checked as a row.
+    private static <T extends Record> void values(String list, List<T> rows, String... needed) {
+        for (T row : all(rows)) {
+            if (row == null) {
+                throw FuhitoException.invalid("restore.bad_value", Map.of("list", list));
+            }
+            Map<String, Object> values = new HashMap<>();
+            for (RecordComponent component : row.getClass().getRecordComponents()) {
+                values.put(component.getName(), EmptyValues.valueOf(component, row));
+            }
+            Map<String, String> params = new HashMap<>(Map.of("list", list));
+            Optional.ofNullable(values.get(needed[0])).ifPresent(id -> params.put("id", id.toString()));
+            for (String field : needed) {
+                if (values.get(field) == null) {
+                    params.put("field", field);
+                    throw FuhitoException.invalid("restore.bad_value", params);
+                }
+            }
             try {
                 EmptyValues.withoutEmptyValues(row, component -> component.getType() != List.class);
             } catch (FuhitoException e) {
-                Map<String, String> params = new HashMap<>(e.params());
-                params.put("list", list);
-                params.put("id", String.valueOf(id.apply(row)));
-                throw new FuhitoException(e.reason(), e.code(), params).causedBy(e);
+                Map<String, String> named = new HashMap<>(e.params());
+                named.putAll(params);
+                throw new FuhitoException(e.reason(), e.code(), named).causedBy(e);
             }
         }
-    }
-
-    // A missing row is no empty value.
-    private static <T> List<T> rows(List<T> rows) {
-        return all(rows).stream().filter(Objects::nonNull).toList();
     }
 
     /**

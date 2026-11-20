@@ -84,7 +84,14 @@ public final class EmptyValues {
         }
     }
 
-    private static Object valueOf(RecordComponent component, Record row) {
+    /**
+     * Returns the value of a component of a record.
+     *
+     * @param component the component
+     * @param row the record
+     * @return the value, or null
+     */
+    static Object valueOf(RecordComponent component, Record row) {
         try {
             return component.getAccessor().invoke(row);
         } catch (ReflectiveOperationException e) {

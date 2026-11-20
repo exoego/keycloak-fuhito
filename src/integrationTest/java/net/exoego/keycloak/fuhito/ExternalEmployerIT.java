@@ -114,7 +114,7 @@ class ExternalEmployerIT {
     void aRestoreNeedsTheExternalEmployerInTheExportAndNoLegalEntityBesideIt() throws Exception {
         TestRealm target = TestRealm.create("export-agency-check");
         ObjectNode document = JSON.createObjectNode().put("format", "fuhito.export.v1");
-        document.putArray("people").addObject().put("id", "p-9");
+        document.putArray("people").addObject().put("id", "p-9").putObject("attributes");
         ObjectNode employment = document.putArray("employments").addObject().put("id", "e-9").put("personId", "p-9")
                 .put("externalEmployerId", "r-9").put("validFrom", "2020-04-01");
 
@@ -123,7 +123,8 @@ class ExternalEmployerIT {
         assertEquals("restore.reference_unknown", Api.json(unknown).get("error").asText());
         assertEquals("externalEmployerId", Api.json(unknown).get("params").get("field").asText());
 
-        document.putArray("refItems").addObject().put("id", "r-9");
+        document.putArray("refItems").addObject().put("id", "r-9").put("kind", "EXTERNAL_EMPLOYER")
+                .put("code", "agency").putObject("attributes");
         document.putArray("orgUnits").addObject().put("id", "u-9");
         employment.put("employerId", "u-9");
         HttpResponse<String> twice = target.api.post("/restore", JSON.writeValueAsString(document));
