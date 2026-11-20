@@ -986,6 +986,17 @@ public class OrgUnitService {
     }
 
     /**
+     * Returns the name of the system that made an org unit.
+     *
+     * @param id the ID
+     * @return the name of the system, or null when no system made the unit
+     * @throws FuhitoException when the realm has no such unit
+     */
+    public String source(String id) {
+        return requireUnit(id).source();
+    }
+
+    /**
      * Returns the first date on which an org unit no longer exists.
      *
      * @param id the ID

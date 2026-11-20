@@ -182,7 +182,7 @@ class RefItemsIT {
                         + "\"names\": {\"en\": {\"name\": \"Old\"}, \"ja\": {\"name\": \"旧\"}}}")).get("id").asText();
 
         HttpResponse<String> response = api.putWithVersion("/ref-items/" + id,
-                "{\"kind\": \"IGNORED\", \"code\": \"ignored\", \"primaryLanguage\": \"en\", \"names\": {\"en\": {\"name\": \"New\"}}, \"displayOrder\": 5, \"active\": false}");
+                "{\"kind\": \"UNIT_TYPE\", \"code\": \"to-update\", \"primaryLanguage\": \"en\", \"names\": {\"en\": {\"name\": \"New\"}}, \"displayOrder\": 5, \"active\": false}");
 
         assertEquals(200, response.statusCode(), response.body());
         JsonNode changed = Api.json(response);

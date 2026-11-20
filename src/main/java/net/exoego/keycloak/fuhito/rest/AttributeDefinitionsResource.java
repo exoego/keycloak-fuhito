@@ -14,6 +14,7 @@ import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import net.exoego.keycloak.fuhito.domain.AttributeDefinition;
+import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.rest.RequestContext.Change;
 import net.exoego.keycloak.fuhito.service.AttributeDefinitionService;
@@ -120,7 +121,9 @@ public class AttributeDefinitionsResource {
     @Operation(
             operationId = "replaceAttributeDefinition",
             summary = "Replaces the type and the rule of a definition.",
-            description = "The kind of resource and the name never change. Stored values stay as they are.")
+            description = "The kind of resource and the name never change. The body can leave them out or give the "
+                    + "stored ones. Another kind of resource or name fails with 400 and `invalid.value_fixed`. Stored "
+                    + "values stay as they are.")
     @Parameter(ref = "changeOrder")
     @APIResponse(responseCode = "200", description = "The changed definition.")
     @BadRequest
@@ -134,6 +137,9 @@ public class AttributeDefinitionsResource {
             AttributeDefinitionRepresentation body) {
         context.requireWrite();
         return Calls.guarded(context, body, () -> version(id), () -> {
+            AttributeDefinition stored = service.get(id);
+            Checks.fixed("target", stored.target().name(), body.target());
+            Checks.fixed("name", stored.name(), body.name());
             var definition = represent(service.replace(id, body.type(), body.refKind(), body.multiple(),
                     body.required()));
             context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, path(id), definition);

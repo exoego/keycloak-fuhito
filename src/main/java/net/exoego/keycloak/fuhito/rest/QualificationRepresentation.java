@@ -21,14 +21,16 @@ public record QualificationRepresentation(
                 + "version that the caller read. A create needs none.")
         Long version,
         @Schema(
-                description = "The ID of the person. Only a request to add reads it, and takes this or `userId`. A "
-                        + "request to add with both fails with 400 and `invalid.twice`.")
+                description = "The ID of the person. A request to add takes this or `userId`. A request to add with "
+                        + "both fails with 400 and `invalid.twice`. The person never changes. A write of a stored "
+                        + "qualification with another person fails with 400 and `invalid.value_fixed`.")
         String personId,
         @Schema(
                 description = "The ID of the Keycloak user that the person is linked to. A request to add can give "
                         + "it in place of `personId`, not with it. The person of the user is then used, and created "
                         + "when the user has none. A read of a person with a user has both, so a request to add made "
-                        + "from a read leaves one out.")
+                        + "from a read leaves one out. A write of a stored qualification with a user that is not the "
+                        + "one of its person fails with 400 and `invalid.value_fixed`.")
         String userId,
         @Schema(description = "The code of the qualification kind.")
         String kind,
@@ -51,7 +53,8 @@ public record QualificationRepresentation(
         String externalId,
         @Schema(
                 description = "The name of the system that made the qualification. A create sets it, and it never "
-                        + "changes. With `externalId`, it names the system of that ID.",
+                        + "changes. With `externalId`, it names the system of that ID. Without it, a write of a stored "
+                        + "qualification with another value fails with 400 and `invalid.value_fixed`.",
                 maxLength = 64,
                 pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$")
         String source,

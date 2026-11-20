@@ -13,7 +13,9 @@ import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
+import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.ExternalId;
+import net.exoego.keycloak.fuhito.domain.Qualification;
 import net.exoego.keycloak.fuhito.rest.RequestContext.Change;
 import net.exoego.keycloak.fuhito.service.Cursor;
 import net.exoego.keycloak.fuhito.service.ExternalIdLists;
@@ -172,7 +174,9 @@ public class QualificationsResource {
     @Path("{id}")
     @Operation(
             operationId = "replaceQualification",
-            summary = "Replaces the kind, the number, the dates, and the attributes of a qualification.")
+            summary = "Replaces the kind, the number, the dates, and the attributes of a qualification.",
+            description = "The person never changes. The body can leave out `personId` and `userId`, or give the "
+                    + "ones of the stored person. Another person fails with 400 and `invalid.value_fixed`.")
     @Parameter(ref = "changeOrder")
     @APIResponse(responseCode = "200", description = "The changed qualification.")
     @BadRequest
@@ -186,6 +190,10 @@ public class QualificationsResource {
             QualificationRepresentation body) {
         context.requireWrite();
         return Calls.guarded(context, body, () -> version(id), () -> {
+            Qualification stored = service.get(id).qualification();
+            Checks.fixed("personId", stored.personId(), body.personId());
+            Checks.fixed("userId", stored.userId(), body.userId());
+            Writes.requireSource(stored.source(), body.source(), body.externalId());
             var qualification = represent(service.replace(id, body.toValues(null)));
             context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, path(id), qualification);
             return qualification;
