@@ -490,6 +490,7 @@ Each write has its own entry in the change log.
 - It does not remove an end date.
 - It does not move an assignment to another org unit. End it and add a new one.
 - One CSV file is one transaction. Four files are four transactions. Use JSON to load several lists at once.
+- An import, also a dry run, keeps the other writes of the realm waiting until it ends. It waits for the writes that run when it starts. Reads go on.
 
 ## Export and restore
 
