@@ -16,9 +16,6 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import net.exoego.keycloak.fuhito.domain.Assignment;
 import net.exoego.keycloak.fuhito.domain.AttributeDefinition;
 import net.exoego.keycloak.fuhito.domain.ChangeOrder;
@@ -65,8 +62,6 @@ public class CsvImportService {
      * The cell that removes a stored value.
      */
     public static final String CLEAR = "#CLEAR";
-
-    private static final ObjectMapper JSON = new ObjectMapper();
 
     /**
      * What a CSV import did, with the line of each bad row.
@@ -688,13 +683,12 @@ public class CsvImportService {
                 String column = ATTRIBUTE_COLUMN + definition.name();
                 Object value;
                 if (definition.multiple()) {
-                    value = array(column);
+                    List<String> items = list(column);
+                    value = items == null || items.isEmpty() ? null
+                            : items.stream().map(item -> typed(definition, column, item)).toList();
                 } else {
-                    value = switch (definition.type()) {
-                        case NUMBER -> asJson(decimal(column, null));
-                        case BOOLEAN -> bool(column, null);
-                        default -> text(column, null);
-                    };
+                    String text = text(column, null);
+                    value = text == null ? null : typed(definition, column, text);
                 }
                 if (value != null) {
                     result.put(definition.name(), value);
@@ -722,17 +716,13 @@ public class CsvImportService {
             return whole.bitLength() < Long.SIZE ? (Object) whole.longValue() : whole;
         }
 
-        // The definition checks the elements later, as it does for a JSON import.
-        private List<Object> array(String field) {
-            String value = text(field, null);
-            if (value == null) {
-                return null;
-            }
-            try {
-                return JSON.readValue(value, new TypeReference<>() { });
-            } catch (JsonProcessingException e) {
-                throw FuhitoException.invalid("csv.bad_list", Map.of("field", field, "value", value)).causedBy(e);
-            }
+        // The definition checks a text later, as it does for a JSON import.
+        private static Object typed(AttributeDefinition definition, String column, String text) {
+            return switch (definition.type()) {
+                case NUMBER -> asJson(converted(column, text, BigDecimal::new));
+                case BOOLEAN -> truth(column, text);
+                default -> text;
+            };
         }
 
         // A blank cell keeps the stored value, and the cell #CLEAR gives an empty text, which removes it.
@@ -744,16 +734,8 @@ public class CsvImportService {
             return value.equals(CLEAR) ? "" : value;
         }
 
-        // Several values in one cell are separated by a vertical bar.
         List<String> list(String field) {
-            String value = values.getOrDefault(field, "");
-            if (value.isEmpty()) {
-                return null;
-            }
-            return value.equals(CLEAR) ? List.of() : Arrays.stream(value.split("\\|"))
-                    .map(String::strip)
-                    .filter(part -> !part.isEmpty())
-                    .toList();
+            return ListCell.read(field, values.getOrDefault(field, ""));
         }
 
         boolean blank(String field) {
@@ -777,16 +759,18 @@ public class CsvImportService {
         }
 
         Boolean bool(String field, Boolean stored) {
-            return parsed(field, stored, value -> {
-                String lower = value.toLowerCase(Locale.ROOT);
-                if (TRUE.contains(lower)) {
-                    return true;
-                }
-                if (FALSE.contains(lower)) {
-                    return false;
-                }
-                throw FuhitoException.invalid("csv.bad_boolean", Map.of("field", field, "value", value));
-            });
+            return parsed(field, stored, value -> truth(field, value));
+        }
+
+        private static Boolean truth(String field, String value) {
+            String lower = value.toLowerCase(Locale.ROOT);
+            if (TRUE.contains(lower)) {
+                return true;
+            }
+            if (FALSE.contains(lower)) {
+                return false;
+            }
+            throw FuhitoException.invalid("csv.bad_boolean", Map.of("field", field, "value", value));
         }
 
         private <T> T parsed(String field, T stored, Function<String, T> parse) {
@@ -794,6 +778,10 @@ public class CsvImportService {
             if (value == null) {
                 return values.getOrDefault(field, "").equals(CLEAR) ? null : stored;
             }
+            return converted(field, value, parse);
+        }
+
+        private static <T> T converted(String field, String value, Function<String, T> parse) {
             try {
                 return parse.apply(value);
             } catch (NumberFormatException e) {

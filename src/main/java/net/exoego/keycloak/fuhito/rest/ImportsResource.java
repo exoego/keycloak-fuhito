@@ -114,8 +114,9 @@ public class ImportsResource {
             operationId = "applyCsvImport",
             summary = "Loads one CSV file in one transaction.",
             description = "The first row has the column names, in English or in Japanese. A blank cell keeps the "
-                    + "stored value. The cell `#CLEAR` removes it. The `charset` of the content type says how the "
-                    + "file is encoded. The default is UTF-8.")
+                    + "stored value. The cell `#CLEAR` removes it. A cell of a list separates its items with `|`. "
+                    + "In an item, `\\|` is a `|` and `\\\\` is a `\\`. The `charset` of the content type says how "
+                    + "the file is encoded. The default is UTF-8.")
     @Parameter(ref = "changeOrder")
     @APIResponse(
             responseCode = "200",

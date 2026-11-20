@@ -12,6 +12,7 @@ import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.Localized;
 import net.exoego.keycloak.fuhito.domain.OrgUnitName;
+import net.exoego.keycloak.fuhito.domain.OrgUnitSuccession;
 import net.exoego.keycloak.fuhito.domain.PersonName;
 import net.exoego.keycloak.fuhito.domain.RefItem;
 import net.exoego.keycloak.fuhito.domain.RefItemName;
@@ -364,26 +365,65 @@ class CsvImportServiceTest {
     }
 
     @Test
-    void aColumnOfAListAttributeTakesAJsonArray() {
-        new AttributeDefinitionService(definitions, refItems).create("ORG_UNIT", "tags", "STRING", null, true, null);
+    void aColumnOfAListAttributeTakesItemsBetweenVerticalBars() {
+        AttributeDefinitionService service = new AttributeDefinitionService(definitions, refItems);
+        service.create("ORG_UNIT", "tags", "STRING", null, true, null);
+        service.create("ORG_UNIT", "sizes", "NUMBER", null, true, null);
+        service.create("ORG_UNIT", "flags", "BOOLEAN", null, true, null);
         load("orgUnits", "2026-04-01", "外部ID,主言語,名称\nW,ja,1病棟\n");
 
         assertEquals(List.of(), errors(load("orgUnits", "2026-05-01", """
-                外部ID,attributes.tags
-                W,"[""night"",""icu""]"
+                外部ID,attributes.tags,attributes.sizes,attributes.flags
+                W, night\\|day | C:\\\\ward ,30|2.50,はい|false
                 """)));
-        assertEquals(Map.of("tags", List.of("night", "icu")), unit("W", "2026-05-01").version().attributes());
-        assertEquals(List.of("line 2 row 0 csv.bad_list", "line 3 row 1 csv.bad_list"),
-                errors(load("orgUnits", "2026-06-01", """
-                        外部ID,attributes.tags
-                        W,night
-                        W,"{""a"": 1}"
-                        """)));
-        load("orgUnits", "2026-07-01", """
-                外部ID,attributes.tags
-                W,#CLEAR
+        // Each item has the type of the definition, as a single value has.
+        assertEquals(Map.of("tags", List.of("night|day", "C:\\ward"), "sizes", List.of(30, 2.5),
+                "flags", List.of(true, false)), unit("W", "2026-05-01").version().attributes());
+        assertEquals(List.of(), errors(load("orgUnits", "2026-05-15", "外部ID,attributes.tags\nW,icu\n")));
+        assertEquals(List.of("icu"), unit("W", "2026-05-15").version().attributes().get("tags"));
+
+        CsvImportService.Result bad = load("orgUnits", "2026-06-01", """
+                外部ID,attributes.tags,attributes.sizes,attributes.flags
+                W,night||icu,,
+                W,C:\\ward,,
+                W,,30|many,
+                W,,,はい|maybe
                 """);
-        assertEquals(Map.of(), unit("W", "2026-07-01").version().attributes());
+        assertEquals(List.of("line 2 row 0 csv.empty_item", "line 3 row 1 csv.bad_escape",
+                "line 4 row 2 csv.bad_number", "line 5 row 3 csv.bad_boolean"), errors(bad));
+        assertEquals(Map.of("field", "attributes.tags", "value", "night||icu"),
+                bad.errors().getFirst().error().params());
+        assertEquals(Map.of("field", "attributes.sizes", "value", "many"), bad.errors().get(2).error().params());
+
+        load("orgUnits", "2026-07-01", """
+                外部ID,attributes.tags,attributes.sizes,attributes.flags
+                W,#CLEAR,#CLEAR,
+                """);
+        assertEquals(Map.of("flags", List.of(true, false)), unit("W", "2026-07-01").version().attributes());
+    }
+
+    @Test
+    void aCellOfSuccessorsNamesExternalIdsWithAVerticalBarOrABackslash() {
+        assertEquals(List.of(), errors(load("orgUnits", "2026-04-01", """
+                外部ID,主言語,名称
+                OLD,ja,旧病棟
+                100|2024,ja,1病棟
+                C:\\200,ja,2病棟
+                """)));
+
+        assertEquals(List.of("line 2 row 0 csv.empty_item"), errors(load("orgUnits", "2026-05-01", """
+                外部ID,終了日,後継の外部ID
+                OLD,2027-04-01,100\\|2024||C:\\\\200
+                """)));
+        assertEquals(List.of(), errors(load("orgUnits", "2026-05-01", """
+                外部ID,終了日,後継の外部ID
+                OLD,2027-04-01, 100\\|2024 | C:\\\\200
+                """)));
+
+        assertEquals(List.of(stored(ExternalId.Kind.ORG_UNIT, "import", "100|2024"),
+                stored(ExternalId.Kind.ORG_UNIT, "import", "C:\\200")).stream().sorted().toList(),
+                orgUnits.successions(stored(ExternalId.Kind.ORG_UNIT, "import", "OLD")).successors().stream()
+                        .map(OrgUnitSuccession::successorId).sorted().toList());
     }
 
     @Test

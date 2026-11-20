@@ -1,5 +1,6 @@
 package net.exoego.keycloak.fuhito;
 
+import java.net.URLEncoder;
 import java.net.http.HttpResponse;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
@@ -119,6 +120,59 @@ class CsvImportIT {
                 + "/succession")).get("successors").findValuesAsText("orgUnitId")) + ",,,\r\n"), exported);
         JsonNode again = load(api, "org-units", "effectiveDate=2026-05-01", exported).get("counts").get("orgUnits");
         assertEquals(0, again.get("created").asInt() + again.get("changed").asInt(), again.toString());
+    }
+
+    @Test
+    void aListCellEscapesAVerticalBarAndABackslashAndAnExportLoadsAgain() throws Exception {
+        TestRealm realm = TestRealm.create("csv-list-cells");
+        Api api = realm.api;
+        assertEquals(201, api.post("/attribute-definitions", "{\"target\": \"ORG_UNIT\", \"name\": \"tags\", "
+                + "\"type\": \"STRING\", \"multiple\": true}").statusCode());
+        load(api, "org-units", "effectiveDate=2026-04-01", """
+                externalId,primaryLanguage,name
+                OLD,ja,旧病棟
+                100|2024,ja,1病棟
+                C:\\200,ja,2病棟
+                """);
+
+        HttpResponse<String> bad = api.postBytes("/imports/csv/org-units?effectiveDate=2026-05-01",
+                "text/csv; charset=UTF-8", """
+                        externalId,validTo,successorExternalIds,attributes.tags
+                        OLD,2027-04-01,100\\|2024||C:\\\\200,
+                        OLD,,,night|C:\\ward
+                        """.getBytes(StandardCharsets.UTF_8));
+        assertEquals(400, bad.statusCode(), bad.body());
+        JsonNode errors = Api.json(bad).get("errors");
+        assertEquals(List.of("2", "3"), errors.findValuesAsText("line"));
+        assertEquals(List.of("csv.empty_item", "csv.bad_escape"), errors.findValuesAsText("error"));
+        assertEquals("successorExternalIds has an empty item in \"100\\|2024||C:\\\\200\". Each | needs an item on "
+                + "both sides.", errors.get(0).get("message").asText());
+
+        load(api, "org-units", "effectiveDate=2026-05-01", """
+                externalId,validTo,successorExternalIds,attributes.tags
+                OLD,2027-04-01, 100\\|2024 | C:\\\\200 , night\\|day | C:\\\\ward
+                """);
+
+        String old = unitOf(api, "OLD");
+        assertEquals(List.of(unitOf(api, "100|2024"), unitOf(api, "C:\\200")).stream().sorted().toList(),
+                Api.json(api.get("/org-units/" + old + "/succession")).get("successors").findValuesAsText("orgUnitId")
+                        .stream().sorted().toList());
+        assertEquals("[\"night|day\",\"C:\\\\ward\"]", Api.json(api.get("/org-units/" + old + "?asOf=2026-05-01"))
+                .get("attributes").get("tags").toString());
+        String exported = api.get("/imports/csv/org-units?asOf=2026-05-01").body();
+        // An external ID is one value, so only a cell of a list escapes it.
+        assertTrue(exported.contains(",100|2024,import,"), exported);
+        assertTrue(exported.contains(",C:\\200,import,"), exported);
+        assertTrue(exported.contains(",night\\|day|C:\\\\ward\r\n"), exported);
+        JsonNode again = load(api, "org-units", "effectiveDate=2026-05-01", exported).get("counts").get("orgUnits");
+        assertEquals(0, again.get("created").asInt() + again.get("changed").asInt(), again.toString());
+        assertEquals("[\"night|day\",\"C:\\\\ward\"]", Api.json(api.get("/org-units/" + old + "?asOf=2026-05-01"))
+                .get("attributes").get("tags").toString());
+    }
+
+    private static String unitOf(Api api, String externalId) throws Exception {
+        return Api.json(api.get("/external-ids/lookup?resourceType=ORG_UNIT&source=import&externalId="
+                + URLEncoder.encode(externalId, StandardCharsets.UTF_8))).get("resourceId").asText();
     }
 
     @Test
@@ -668,7 +722,7 @@ class CsvImportIT {
                     : "ID,外部ID,ソース,主言語,名称,よみがな,名称:en,よみがな:en,attributes.")), exported.body());
             assertTrue(exported.body().contains(",ja,山田 花子,やまだ はなこ,Hanako Yamada,HY,"), exported.body());
             assertTrue(exported.body().contains("\"3F, east\""), exported.body());
-            assertTrue(exported.body().contains("\"[\"\"ja\"\",\"\"en\"\"]\""), exported.body());
+            assertTrue(exported.body().contains(",ja|en\r\n"), exported.body());
 
             JsonNode counts = load(api, "people", "effectiveDate=2026-05-01", exported.body()).get("counts")
                     .get("people");

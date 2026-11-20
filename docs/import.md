@@ -171,7 +171,8 @@ curl -X POST \
 - A column that is not needed can be left out.
 - The file is UTF-8, with or without a byte order mark. For another encoding, name it in the content type, for example `text/csv; charset=Shift_JIS`.
 - A cell can be in double quotes. A quoted cell can hold commas and line breaks.
-- A cell of several successors separates them with `|`, for example `W1|W2`. An external ID that has `|` must be named by `successorIds`.
+- A cell of a list separates its items with `|`, for example `W1|W2`. This is the rule for `successorExternalIds`, `successorIds`, and the columns of attributes with `multiple`, in a file to load and in every CSV export. A JSON import document keeps its arrays. In an item, `\|` is a `|` and `\\` is a `\`. A `\` before any other character fails with `csv.bad_escape`. For example, the two external IDs `100|2024` and `200|2024` are the cell `100\|2024|200\|2024`.
+- An empty item fails with `csv.empty_item`, for example in `a||b`, `|a`, or `a|`. Spaces around an item are removed. A blank cell keeps the stored list, and `#CLEAR` removes it.
 - A row with more cells than the header fails with `csv.too_many_cells`, unless the extra cells are empty. This is usually a comma that should have been in quotes.
 - **A blank cell keeps the stored value.** This differs from JSON, where a missing value clears it. A blank parent keeps the stored parent, also one with no external ID of the source.
 - The cell `#CLEAR` removes the stored value.
@@ -181,7 +182,7 @@ curl -X POST \
 - A file of people has the names in the same way, with `primaryLanguage`, `name`, `phoneticName`, `name:en`, and `phoneticName:en`. A row with a name needs `primaryLanguage`, unless the person has a primary language already.
 - A file of reference items has the names in the same way, with `primaryLanguage`, `name`, and `name:en`. A new item needs `primaryLanguage`. A row for a stored item keeps the primary language of the names of its date when the cell is blank.
 - A file of kinds of reference data has the names in the same way, with `primaryLanguage`, `name`, and `name:en`. A new kind needs `primaryLanguage`. A row for a stored kind keeps its primary language when the cell is blank.
-- A column `attributes.<name>` sets an attribute that the realm defined for the resource of the list, for example `attributes.beds`. The cell is read by the type of the definition. The cell of a definition with `multiple` is a JSON array, for example `["night","icu"]`, which the CSV writes as `"[""night"",""icu""]"`. Other attributes keep what is stored. A column of an attribute with no definition is rejected.
+- A column `attributes.<name>` sets an attribute that the realm defined for the resource of the list, for example `attributes.beds`. The cell is read by the type of the definition. The cell of a definition with `multiple` is a list, for example `night|icu`, and each item is read by the type of the definition. Other attributes keep what is stored. A column of an attribute with no definition is rejected.
 
 ### Columns
 
