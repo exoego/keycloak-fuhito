@@ -485,10 +485,12 @@ public record ImportDocument(
             @Schema(description = "A code that no other kind has. A row of a stored kind may leave it out.",
                     maxLength = 32, pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$")
             String code,
-            @Schema(description = "The language tag of the primary name, such as `ja`. It is a key of `names`.")
+            @Schema(description = "The language tag of the primary name, such as `ja`. It matches a key of `names` "
+                    + "in standard form.")
             String primaryLanguage,
             @Schema(description = "The names by language tag, such as `ja`, `en`, or `zh-Hant`. They merge with the "
-                    + "stored names by language, and `null` for a language removes its names.")
+                    + "stored names by language, and `null` for a language removes its names. Two keys of one tag in "
+                    + "standard form, such as `ja` and `JA`, fail with `invalid.duplicate_language`.")
             Map<String, RefKindName> names,
             @Schema(hidden = true)
             Set<String> nulls) implements ImportRow {
@@ -518,10 +520,12 @@ public record ImportDocument(
             String username,
             @Schema(description = "The ID of a Keycloak user to link.")
             String userId,
-            @Schema(description = "The language tag of the primary names, such as `ja`. It is a key of `names`.")
+            @Schema(description = "The language tag of the primary names, such as `ja`. It matches a key of `names` "
+                    + "in standard form.")
             String primaryLanguage,
             @Schema(description = "The names by language tag, such as `ja`, `en`, or `zh-Hant`. A person with no "
-                    + "user needs them. They merge with the stored names by language and by field.")
+                    + "user needs them. They merge with the stored names by language and by field. Two keys of one "
+                    + "tag in standard form, such as `ja` and `JA`, fail with `invalid.duplicate_language`.")
             Map<String, PersonName> names,
             @Schema(description = "Free values of the person.")
             Map<String, Object> attributes,
@@ -837,10 +841,12 @@ public record ImportDocument(
             @Schema(description = "A code that no other item of the kind has. A row of a stored item may leave it "
                     + "out.", maxLength = 64, pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$")
             String code,
-            @Schema(description = "The language tag of the primary name, such as `ja`. It is a key of `names`.")
+            @Schema(description = "The language tag of the primary name, such as `ja`. It matches a key of `names` "
+                    + "in standard form.")
             String primaryLanguage,
             @Schema(description = "The names by language tag, such as `ja`, `en`, or `zh-Hant`. They merge with the "
-                    + "stored names of the date by language, and `null` for a language removes its names.")
+                    + "stored names of the date by language, and `null` for a language removes its names. Two keys "
+                    + "of one tag in standard form, such as `ja` and `JA`, fail with `invalid.duplicate_language`.")
             Map<String, RefItemName> names,
             @Schema(description = "The position in lists.", defaultValue = "0")
             Integer displayOrder,
@@ -917,10 +923,12 @@ public record ImportDocument(
                     maxLength = 64,
                     pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$")
             String code,
-            @Schema(description = "The language tag of the primary names, such as `ja`. It is a key of `names`.")
+            @Schema(description = "The language tag of the primary names, such as `ja`. It matches a key of `names` "
+                    + "in standard form.")
             String primaryLanguage,
             @Schema(description = "The names by language tag, such as `ja`, `en`, or `zh-Hant`. They merge with the "
-                    + "stored names by language and by field, and `null` for a language removes its names.")
+                    + "stored names by language and by field, and `null` for a language removes its names. Two keys "
+                    + "of one tag in standard form, such as `ja` and `JA`, fail with `invalid.duplicate_language`.")
             Map<String, OrgUnitName> names,
             @Schema(description = "The code of the unit type.")
             String unitType,

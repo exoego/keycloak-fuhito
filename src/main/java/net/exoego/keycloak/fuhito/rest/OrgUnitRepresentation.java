@@ -40,13 +40,14 @@ public record OrgUnitRepresentation(
         @Schema(description = "The reading of the name in the language of `name`.", readOnly = true)
         String phoneticName,
         @Schema(
-                description = "The language tag of the primary names, such as `ja`. It is a key of `names`. The "
-                        + "Keycloak group of the unit has the primary name.",
+                description = "The language tag of the primary names, such as `ja`. It matches a key of `names` in "
+                        + "standard form. The Keycloak group of the unit has the primary name.",
                 maxLength = 64)
         String primaryLanguage,
         @Schema(
                 description = "The names by language tag, such as `ja`, `en`, or `zh-Hant`. A read gives the tags in "
-                        + "their standard form, such as `en-US` for `en-us`.")
+                        + "their standard form, such as `en-US` for `en-us`. Two keys of one tag in standard form, "
+                        + "such as `ja` and `JA`, fail with `invalid.duplicate_language`.")
         Map<String, OrgUnitName> names,
         @Schema(description = "The code of the unit type.")
         String unitType,

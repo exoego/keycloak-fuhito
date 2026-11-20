@@ -37,12 +37,13 @@ public record RefItemRepresentation(
                         + "one.",
                 readOnly = true)
         String name,
-        @Schema(description = "The language tag of the primary name, such as `ja`. It is a key of `names`.",
-                maxLength = 64)
+        @Schema(description = "The language tag of the primary name, such as `ja`. It matches a key of `names` in "
+                + "standard form.", maxLength = 64)
         String primaryLanguage,
         @Schema(
                 description = "The names by language tag, such as `ja`, `en`, or `zh-Hant`. A read gives the names "
-                        + "of its date, with the tags in their standard form, such as `en-US` for `en-us`.")
+                        + "of its date, with the tags in their standard form, such as `en-US` for `en-us`. Two keys "
+                        + "of one tag in standard form, such as `ja` and `JA`, fail with `invalid.duplicate_language`.")
         Map<String, RefItemName> names,
         @Schema(description = "The position in lists, lowest first.", defaultValue = "0")
         Integer displayOrder,
