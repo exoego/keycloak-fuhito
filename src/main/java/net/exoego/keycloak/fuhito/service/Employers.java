@@ -1,6 +1,7 @@
 package net.exoego.keycloak.fuhito.service;
 
 import java.time.LocalDate;
+import java.util.function.Consumer;
 
 import net.exoego.keycloak.fuhito.domain.Employer;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
@@ -32,4 +33,15 @@ public interface Employers {
      * @throws FuhitoException when the employer ends before the period does
      */
     void requireCovers(Employer employer, ValidPeriod period);
+
+    /**
+     * Returns the check of {@link #requireCovers} for one employer. It reads the employer once for any number of
+     * periods.
+     *
+     * @param employer the employer
+     * @return the check of a period of an employment, which fails as {@link #requireCovers} does
+     */
+    default Consumer<ValidPeriod> covers(Employer employer) {
+        return period -> requireCovers(employer, period);
+    }
 }

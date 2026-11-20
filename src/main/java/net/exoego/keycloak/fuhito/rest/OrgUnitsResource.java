@@ -370,7 +370,7 @@ public class OrgUnitsResource {
             @PathParam("id") String id,
             @Parameter(
                     description = "The date to read. The default is today for the org unit. It is the date of the "
-                            + "realm unless a unit sets its own time zone.",
+                            + "realm unless the unit or a unit above it sets its own time zone or day start.",
                     schema = @Schema(format = "date"))
             @QueryParam("asOf") String asOf,
             @Parameter(description = "The code of the hierarchy. The default is the hierarchy `default`.")
@@ -406,7 +406,7 @@ public class OrgUnitsResource {
             @PathParam("id") String id,
             @Parameter(
                     description = "The date to read. The default is today for the org unit. It is the date of the "
-                            + "realm unless a unit sets its own time zone.",
+                            + "realm unless the unit or a unit above it sets its own time zone or day start.",
                     schema = @Schema(format = "date"))
             @QueryParam("asOf") String asOf,
             @Parameter(description = "The code of the hierarchy. The default is the hierarchy `default`.")
@@ -436,7 +436,7 @@ public class OrgUnitsResource {
             @PathParam("id") String id,
             @Parameter(
                     description = "The date to read. The default is today for the org unit. It is the date of the "
-                            + "realm unless a unit sets its own time zone.",
+                            + "realm unless the unit or a unit above it sets its own time zone or day start.",
                     schema = @Schema(format = "date"))
             @QueryParam("asOf") String asOf,
             @Parameter(description = "The code of the hierarchy. The default is the hierarchy `default`.")
@@ -474,7 +474,7 @@ public class OrgUnitsResource {
             @PathParam("id") String id,
             @Parameter(
                     description = "The date to read. The default is today for the org unit. It is the date of the "
-                            + "realm unless a unit sets its own time zone.",
+                            + "realm unless the unit or a unit above it sets its own time zone or day start.",
                     schema = @Schema(format = "date"))
             @QueryParam("asOf") String asOf,
             @Parameter(description = "The code of the hierarchy. The default is the hierarchy `default`.")
@@ -503,7 +503,7 @@ public class OrgUnitsResource {
             @PathParam("id") String id,
             @Parameter(
                     description = "The date to read. The default is today for the org unit. It is the date of the "
-                            + "realm unless a unit sets its own time zone.",
+                            + "realm unless the unit or a unit above it sets its own time zone or day start.",
                     schema = @Schema(format = "date"))
             @QueryParam("asOf") String asOf,
             @Parameter(description = "The code of the hierarchy. The default is the hierarchy `default`.")
@@ -623,7 +623,7 @@ public class OrgUnitsResource {
             @PathParam("id") String id,
             @Parameter(
                     description = "The date to read. The default is today for the org unit. It is the date of the "
-                            + "realm unless a unit sets its own time zone.",
+                            + "realm unless the unit or a unit above it sets its own time zone or day start.",
                     schema = @Schema(format = "date"))
             @QueryParam("asOf") String asOf,
             @Parameter(description = "The code of the hierarchy. The default is the hierarchy `default`.")
@@ -693,7 +693,7 @@ public class OrgUnitsResource {
             @PathParam("id") String id,
             @Parameter(
                     description = "The date to read. The default is today for the org unit. It is the date of the "
-                            + "realm unless a unit sets its own time zone.",
+                            + "realm unless the unit or a unit above it sets its own time zone or day start.",
                     schema = @Schema(format = "date"))
             @QueryParam("asOf") String asOf,
             @Parameter(description = "The code of the hierarchy. The default is the hierarchy `default`.")
@@ -776,7 +776,7 @@ public class OrgUnitsResource {
             @QueryParam("nearest") boolean nearest,
             @Parameter(
                     description = "The date to read. The default is today for the org unit. It is the date of the "
-                            + "realm unless a unit sets its own time zone.",
+                            + "realm unless the unit or a unit above it sets its own time zone or day start.",
                     schema = @Schema(format = "date"))
             @QueryParam("asOf") String asOf,
             @Parameter(
@@ -814,7 +814,7 @@ public class OrgUnitsResource {
             @QueryParam("nearest") boolean nearest,
             @Parameter(
                     description = "The date to read. The default is today for the org unit. It is the date of the "
-                            + "realm unless a unit sets its own time zone.",
+                            + "realm unless the unit or a unit above it sets its own time zone or day start.",
                     schema = @Schema(format = "date"))
             @QueryParam("asOf") String asOf) {
         context.requireRead();
@@ -882,7 +882,8 @@ public class OrgUnitsResource {
             @Parameter(description = "The ID of the resource.")
             @PathParam("id") String id,
             @Parameter(
-                    description = "The date to read. The default is today in the time zone of the realm.",
+                    description = "The date to read. The default is today for the org unit. It is the date of the "
+                            + "realm unless the unit or a unit above it sets its own time zone or day start.",
                     schema = @Schema(format = "date"))
             @QueryParam("asOf") String asOf,
             @Parameter(description = "The code of the hierarchy. The default is the hierarchy `default`.")

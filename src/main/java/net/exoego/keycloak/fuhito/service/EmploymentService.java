@@ -13,6 +13,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -500,13 +501,16 @@ public class EmploymentService {
      * The new employment gets the terms, the assignments, the reporting lines, and the roles over org units of the
      * old one from the date on. These are the ones that hold on the date and the ones that were stored for a later
      * date.
-     * It names the old employment as the one that it continues.
+     * It names the old employment as the one that it continues. It keeps the end of the old one, and the new
+     * employer must exist until that end. The new terms keep their contract end, which must not be before their
+     * start.
      *
      * @param id the ID of the employment to end
      * @param request the new employer, the date, and the new staff number
      * @return the two employments and what the new one got
-     * @throws FuhitoException when the employment has an external employer, does not hold on the day before and on
-     *         the date, the new employer is not a legal entity or is the old one, or a value is bad
+     * @throws FuhitoException when the employment has an external employer or does not hold on the day before and on
+     *         the date, its terms of the date have a contract that ends before the date, the new employer is not a
+     *         legal entity, is the old one, or ends before the new employment, or a value is bad
      */
     public Transfer transfer(String id, TransferRequest request) {
         Checks.required("body", request);
@@ -590,9 +594,9 @@ public class EmploymentService {
     private List<Transfer> transfer(List<Move> moves, Employer employer, LocalDate date, String endReason) {
         Optional<RefItem> reason = Optional.ofNullable(endReason)
                 .flatMap(code -> refItems.findByCode(RefKind.END_REASON, code));
-        List<String> staffNumbers = check(moves, employer, endReason, reason);
         List<String> ids = moves.stream().map(move -> move.employment().id()).toList();
         Holding holding = holding(ids, date);
+        List<String> staffNumbers = check(moves, employer, date, holding, endReason, reason);
         List<Copy> copies = new ArrayList<>();
         for (int i = 0; i < moves.size(); i++) {
             Employment old = moves.get(i).employment();
@@ -629,12 +633,14 @@ public class EmploymentService {
     }
 
     // The checks of each move come in the order of the moves, as if they were made one by one.
-    private List<String> check(List<Move> moves, Employer employer, String endReason, Optional<RefItem> reason) {
+    private List<String> check(List<Move> moves, Employer employer, LocalDate date, Holding holding, String endReason,
+            Optional<RefItem> reason) {
         // Each employer gives its own numbers, so two of them may give the same number to two people.
         Map<String, Set<String>> holders = new HashMap<>();
         store.findByStaffNumbers(moves.stream().map(Move::staffNumber).filter(Objects::nonNull).toList()).stream()
                 .filter(e -> employer.equals(e.employer()))
                 .forEach(e -> holders.computeIfAbsent(e.staffNumber(), any -> new HashSet<>()).add(e.personId()));
+        Consumer<ValidPeriod> covers = employers.covers(employer);
         List<String> staffNumbers = new ArrayList<>();
         for (Move move : moves) {
             Employment old = move.employment();
@@ -642,6 +648,9 @@ public class EmploymentService {
                 throw FuhitoException.invalid("employment.same_employer",
                         Map.of("employerId", employer.legalEntityId()));
             }
+            holding.terms().getOrDefault(old.id(), List.of())
+                    .forEach(terms -> requireContractEnd(terms.contractEndDate(), from(date, terms.period()).from()));
+            covers.accept(from(date, old.period()));
             String staffNumber = Checks.optionalCode("staffNumber", move.staffNumber());
             if (staffNumber != null) {
                 Set<String> people = holders.computeIfAbsent(staffNumber, any -> new HashSet<>());
