@@ -26,11 +26,14 @@ final class Writes {
     private Writes() {
     }
 
-    // A write may name a person by the ID of a Keycloak user. The person is created when the user has none.
+    // A write may name a person by the ID of a Keycloak user. The person is created when the user has none. A read
+    // has both IDs, so a write can give both. A person that does not exist fails later, in the write that names it.
     static String personId(RequestContext context, PersonService people, String field, String personId,
             String userField, String userId) {
-        Checks.notBoth(field, personId, userField, userId);
         if (personId != null) {
+            if (userId != null) {
+                people.find(personId).ifPresent(person -> Checks.agree(field, person.userId(), userField, userId));
+            }
             return personId;
         }
         if (userId == null) {

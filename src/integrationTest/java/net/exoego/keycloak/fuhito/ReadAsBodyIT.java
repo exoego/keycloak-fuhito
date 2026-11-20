@@ -4,7 +4,6 @@ import java.net.http.HttpResponse;
 import java.util.List;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -26,14 +25,17 @@ class ReadAsBodyIT {
         return resource;
     }
 
-    // Reads a resource, deletes it, and creates it again with the read as the body, less the fields that it leaves
-    // out. Returns the ID of the new one.
-    private static String createdAgain(Api api, String list, String id, String... leftOut) throws Exception {
-        ObjectNode read = (ObjectNode) ok(api.get(list + "/" + id));
+    // Reads a resource, deletes it, and creates it again with the read as the body. The new one names the same
+    // person. Returns the ID of the new one.
+    private static String createdAgain(Api api, String list, String id) throws Exception {
+        JsonNode read = ok(api.get(list + "/" + id));
         assertFalse(read.has("externalIds"), list);
         assertEquals(204, api.deleteWithVersion(list + "/" + id).statusCode(), list);
-        read.remove(List.of(leftOut));
-        return createdWithNoId(api, list, read.toString()).get("id").asText();
+        JsonNode again = createdWithNoId(api, list, read.toString());
+        for (String field : List.of("personId", "userId", "managerPersonId", "managerUserId")) {
+            assertEquals(read.get(field), again.get(field), list + " " + field);
+        }
+        return again.get("id").asText();
     }
 
     @Test
@@ -59,7 +61,8 @@ class ReadAsBodyIT {
         String qualification = createdWithNoId(api, "/qualifications", "{\"personId\": \"" + person + "\", \"kind\": "
                 + "\"license\", \"validFrom\": \"2020-04-01\"}").get("id").asText();
         // A read of a qualification of a person with a user has both IDs.
-        String ofUser = createdWithNoId(api, "/qualifications", "{\"userId\": \"" + realm.user("nurse") + "\", "
+        String nurse = realm.user("nurse");
+        String ofUser = createdWithNoId(api, "/qualifications", "{\"userId\": \"" + nurse + "\", "
                 + "\"kind\": \"license\", \"validFrom\": \"2020-04-01\"}").get("id").asText();
 
         for (String path : List.of("/org-units/" + unit, "/people/" + person, "/ref-kinds/site", "/ref-items/" + item,
@@ -77,12 +80,16 @@ class ReadAsBodyIT {
                 + person + "\", \"validFrom\": \"2020-04-01\"}").get("id").asText());
         String assignment = createdAgain(api, "/assignments", createdWithNoId(api, "/assignments", "{\"employmentId\": \""
                 + employment + "\", \"orgUnitId\": \"" + unit + "\", \"validFrom\": \"2020-04-01\"}").get("id").asText());
-        // The read names the manager by the person and by the user, and a create takes one of them.
+        // The read names the manager by the person and by the user, and a create takes both.
         createdAgain(api, "/reporting-lines", createdWithNoId(api, "/reporting-lines", "{\"assignmentId\": \""
                 + assignment + "\", \"managerUserId\": \"" + realm.user("boss") + "\", \"validFrom\": \"2020-04-01\"}")
-                .get("id").asText(), "managerUserId");
+                .get("id").asText());
         createdAgain(api, "/unit-roles", createdWithNoId(api, "/unit-roles", "{\"employmentId\": \"" + employment
                 + "\", \"orgUnitId\": \"" + unit + "\", \"role\": \"approver\", \"validFrom\": \"2020-04-01\"}")
                 .get("id").asText());
+        // A read of a person with a user names the person by both IDs, and a create takes both.
+        createdAgain(api, "/employments", createdWithNoId(api, "/employments", "{\"userId\": \"" + nurse + "\", "
+                + "\"validFrom\": \"2020-04-01\"}").get("id").asText());
+        createdAgain(api, "/qualifications", ofUser);
     }
 }

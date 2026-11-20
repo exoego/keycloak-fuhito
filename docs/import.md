@@ -62,7 +62,7 @@ The list `people` loads people, also those with no Keycloak user, such as staff 
 - A row has `primaryLanguage`, `names`, and the attributes, as `POST /people` has them. It can link a user with `username` or `userId`. A row with both fails with `import.user_twice`. A row that leaves out both keeps the link that is stored, and null for them removes it. A row that links a user can leave out the names.
 - A row never finds a person by its user. A row with an external ID that names nothing makes a new person. If its user has a person already, the row fails with `import.user_taken`, and the error names that person by `personId`. A row of that person names it by `id` or by an external ID that it has. The list `externalIds` gives it the ID of another system.
 - A row of a stored person that names another user links the person to that user, as `PUT /people/{id}` does. A user who has another person fails with `person.user_taken`.
-- A row of an employment can name its person by `personExternalId`, with the same source. A person with no user is named this way. With a user as well, the user must be the one of that person.
+- A row of an employment can name its person by `personExternalId`, with the same source. A person with no user is named this way. With a user as well, the user must be the one of that person, or the row fails with `import.user_mismatch`. `POST /employments` follows the same rule for `personId` and `userId`.
 - A row for a stored employment may leave out the person and the user. The employment keeps its person. Null for them fails with `invalid.required`.
 
 ## JSON

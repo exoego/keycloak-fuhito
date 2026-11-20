@@ -32,10 +32,15 @@
                         is dropped. This holds for every body, also for an import, a restore, and the steps of a
                         reorganization.
 
-                        A write that names one thing in two ways, such as a person by `personId` and by `userId`,
-                        fails with 400 and `invalid.twice`. The error names the two fields in `field` and
-                        `otherField`. No value is dropped. An employer named by `employerId` and by
+                        A write that names one thing in two ways, such as a unit of a reorganization step by `id` and
+                        by `unitRef`, fails with 400 and `invalid.twice`. The error names the two fields in `field`
+                        and `otherField`. No value is dropped. An employer named by `employerId` and by
                         `externalEmployer` fails with `employment.employer_twice`.
+
+                        A person ID and a user ID are two names of one person, and a read has both when the person
+                        has a user. So a create can name a person by `personId`, by `userId`, or by both, and the
+                        same holds for `managerPersonId` and `managerUserId`. Two IDs that do not name the same person
+                        fail with 400 and `invalid.mismatch`, which names the two fields in `field` and `otherField`.
 
                         The `maxLength` of a text counts characters, as the database does, so an emoji is one
                         character. A longer text fails with 400. A text with no other rule, such as
@@ -111,8 +116,9 @@
                                     `invalid.blank`. A text with NUL or half of a surrogate pair gets
                                     `invalid.character`. A body that gives one key twice in one object gets
                                     `invalid.duplicate_key`. A write that names one thing in two ways gets
-                                    `invalid.twice`. A write of a stored resource with another value of a field
-                                    that never changes gets `invalid.value_fixed`.
+                                    `invalid.twice`. A create with a person ID and a user ID that do not name the
+                                    same person gets `invalid.mismatch`. A write of a stored resource with another
+                                    value of a field that never changes gets `invalid.value_fixed`.
                                     """,
                             content = @Content(mediaType = "application/json",
                                     schema = @Schema(implementation = ErrorRepresentation.class))),

@@ -103,9 +103,30 @@ public final class Checks {
      * @throws FuhitoException when the write gives another value
      */
     public static void fixed(String field, Object stored, Object given) {
-        if (given != null && !given.equals(stored)) {
+        if (differs(stored, given)) {
             throw FuhitoException.invalid("invalid.value_fixed", Map.of("field", field));
         }
+    }
+
+    /**
+     * Requires that two fields that are two names of one thing name the same one, when a request gives both, as a
+     * read gives them. A request that leaves out the other field agrees. The values compare as in
+     * {@link #fixed(String, Object, Object)}.
+     *
+     * @param field the name of the first field, for the error
+     * @param named the value of the other field that names what the first field names, or null when there is none
+     * @param otherField the name of the other field, for the error
+     * @param other the value of the other field, or null
+     * @throws FuhitoException when the other field names another thing
+     */
+    public static void agree(String field, Object named, String otherField, Object other) {
+        if (differs(named, other)) {
+            throw FuhitoException.invalid("invalid.mismatch", Map.of("field", field, "otherField", otherField));
+        }
+    }
+
+    private static boolean differs(Object expected, Object given) {
+        return given != null && !given.equals(expected);
     }
 
     /**

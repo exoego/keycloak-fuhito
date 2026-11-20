@@ -510,8 +510,9 @@ components:
       required:
       - validFrom
       description: "A request to start an employment gives the first terms in the\
-        \ fields of the employment itself. It names the person by `personId` or by\
-        \ `userId`, not both. A response gives the terms of every period in `terms`."
+        \ fields of the employment itself. It names the person by `personId`, by `userId`,\
+        \ or by both of the same person. A response gives the terms of every period\
+        \ in `terms`."
       type: object
       properties:
         id:
@@ -526,15 +527,15 @@ components:
           readOnly: true
         personId:
           type: string
-          description: The ID of the person. A request gives this or `userId`. A request
-            with both fails with 400 and `invalid.twice`.
+          description: "The ID of the person. A request gives this, `userId`, or both.\
+            \ Both must name the same person, or the request fails with 400 and `invalid.mismatch`."
         userId:
           type: string
           description: "The ID of the Keycloak user that the person is linked to.\
-            \ A request can give it in place of `personId`, not with it. The person\
-            \ of the user is then used, and created when the user has none. A read\
-            \ of a person with a user has both, so a request made from a read leaves\
-            \ one out."
+            \ A request can give it in place of `personId`. The person of the user\
+            \ is then used, and created when the user has none. A read of a person\
+            \ with a user has both, and a request made from a read works. With `personId`,\
+            \ the user must be the one of that person."
         employerId:
           type: string
           description: "The ID of the org unit that employs the person. It is a legal\
@@ -3117,18 +3118,19 @@ components:
             \ caller read. A create needs none."
         personId:
           type: string
-          description: The ID of the person. A request to add takes this or `userId`.
-            A request to add with both fails with 400 and `invalid.twice`. The person
-            never changes. A write of a stored qualification with another person fails
-            with 400 and `invalid.value_fixed`.
+          description: "The ID of the person. A request to add takes this, `userId`,\
+            \ or both. Both must name the same person, or the request fails with 400\
+            \ and `invalid.mismatch`. The person never changes. A write of a stored\
+            \ qualification with another person fails with 400 and `invalid.value_fixed`."
         userId:
           type: string
           description: "The ID of the Keycloak user that the person is linked to.\
-            \ A request to add can give it in place of `personId`, not with it. The\
-            \ person of the user is then used, and created when the user has none.\
-            \ A read of a person with a user has both, so a request to add made from\
-            \ a read leaves one out. A write of a stored qualification with a user\
-            \ that is not the one of its person fails with 400 and `invalid.value_fixed`."
+            \ A request to add can give it in place of `personId`. The person of the\
+            \ user is then used, and created when the user has none. A read of a person\
+            \ with a user has both, and a request to add made from a read works. With\
+            \ `personId`, the user must be the one of that person. A write of a stored\
+            \ qualification with a user that is not the one of its person fails with\
+            \ 400 and `invalid.value_fixed`."
         kind:
           type: string
           description: The code of the qualification kind.
@@ -3724,15 +3726,16 @@ components:
           description: The ID of the assignment of the person who reports.
         managerPersonId:
           type: string
-          description: The ID of the person who is the manager. A request gives this
-            or `managerUserId`. A request with both fails with 400 and `invalid.twice`.
+          description: "The ID of the person who is the manager. A request gives this,\
+            \ `managerUserId`, or both. Both must name the same person, or the request\
+            \ fails with 400 and `invalid.mismatch`."
         managerUserId:
           type: string
           description: "The ID of the Keycloak user that the manager is linked to.\
-            \ A request can give it in place of `managerPersonId`, not with it. The\
-            \ person of the user is then used, and created when the user has none.\
-            \ A read of a manager with a user has both, so a request made from a read\
-            \ leaves one out."
+            \ A request can give it in place of `managerPersonId`. The person of the\
+            \ user is then used, and created when the user has none. A read of a manager\
+            \ with a user has both, and a request made from a read works. With `managerPersonId`,\
+            \ the user must be the one of that person."
         kind:
           $ref: "#/components/schemas/ReportingKind"
           default: SOLID
@@ -3848,13 +3851,14 @@ components:
       properties:
         personId:
           type: string
-          description: The ID of the person. Give this or `userId`. A request with
-            both fails with 400 and `invalid.twice`.
+          description: "The ID of the person. Give this, `userId`, or both. Both must\
+            \ name the same person, or the request fails with 400 and `invalid.mismatch`."
           writeOnly: true
         userId:
           type: string
-          description: "The ID of the Keycloak user, in place of `personId`, not with\
-            \ it. The person of the user is used, and created when the user has none."
+          description: "The ID of the Keycloak user, in place of `personId`. The person\
+            \ of the user is used, and created when the user has none. With `personId`,\
+            \ the user must be the one of that person."
           writeOnly: true
         employerId:
           type: string
@@ -4328,8 +4332,9 @@ components:
         `invalid.blank`. A text with NUL or half of a surrogate pair gets
         `invalid.character`. A body that gives one key twice in one object gets
         `invalid.duplicate_key`. A write that names one thing in two ways gets
-        `invalid.twice`. A write of a stored resource with another value of a field
-        that never changes gets `invalid.value_fixed`.
+        `invalid.twice`. A create with a person ID and a user ID that do not name the
+        same person gets `invalid.mismatch`. A write of a stored resource with another
+        value of a field that never changes gets `invalid.value_fixed`.
       content:
         application/json:
           schema:
@@ -4396,10 +4401,15 @@ info:
     is dropped. This holds for every body, also for an import, a restore, and the steps of a
     reorganization.
 
-    A write that names one thing in two ways, such as a person by `personId` and by `userId`,
-    fails with 400 and `invalid.twice`. The error names the two fields in `field` and
-    `otherField`. No value is dropped. An employer named by `employerId` and by
+    A write that names one thing in two ways, such as a unit of a reorganization step by `id` and
+    by `unitRef`, fails with 400 and `invalid.twice`. The error names the two fields in `field`
+    and `otherField`. No value is dropped. An employer named by `employerId` and by
     `externalEmployer` fails with `employment.employer_twice`.
+
+    A person ID and a user ID are two names of one person, and a read has both when the person
+    has a user. So a create can name a person by `personId`, by `userId`, or by both, and the
+    same holds for `managerPersonId` and `managerUserId`. Two IDs that do not name the same person
+    fail with 400 and `invalid.mismatch`, which names the two fields in `field` and `otherField`.
 
     The `maxLength` of a text counts characters, as the database does, so an emoji is one
     character. A longer text fails with 400. A text with no other rule, such as
@@ -8885,7 +8895,7 @@ paths:
           $ref: "#/components/responses/Conflict"
     post:
       summary: Adds a qualification of a person.
-      description: "The body needs `personId` or `userId`, not both."
+      description: "The body needs `personId`, `userId`, or both of the same person."
       operationId: addQualification
       tags:
       - qualifications

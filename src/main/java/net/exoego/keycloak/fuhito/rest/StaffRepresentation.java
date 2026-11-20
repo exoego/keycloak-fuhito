@@ -13,13 +13,14 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
         requiredProperties = {"orgUnitId", "validFrom"})
 public record StaffRepresentation(
         @Schema(
-                description = "The ID of the person. Give this or `userId`. A request with both fails with 400 and "
-                        + "`invalid.twice`.",
+                description = "The ID of the person. Give this, `userId`, or both. Both must name the same person, "
+                        + "or the request fails with 400 and `invalid.mismatch`.",
                 writeOnly = true)
         String personId,
         @Schema(
-                description = "The ID of the Keycloak user, in place of `personId`, not with it. The person of the "
-                        + "user is used, and created when the user has none.",
+                description = "The ID of the Keycloak user, in place of `personId`. The person of the user is used, "
+                        + "and created when the user has none. With `personId`, the user must be the one of that "
+                        + "person.",
                 writeOnly = true)
         String userId,
         @Schema(

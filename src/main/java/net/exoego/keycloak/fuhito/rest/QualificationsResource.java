@@ -135,7 +135,7 @@ public class QualificationsResource {
     @Operation(
             operationId = "addQualification",
             summary = "Adds a qualification of a person.",
-            description = "The body needs `personId` or `userId`, not both.")
+            description = "The body needs `personId`, `userId`, or both of the same person.")
     @Parameter(ref = "changeOrder")
     @APIResponse(
             responseCode = "201",
