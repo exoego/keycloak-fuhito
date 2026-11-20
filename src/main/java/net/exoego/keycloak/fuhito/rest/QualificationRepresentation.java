@@ -21,7 +21,7 @@ public record QualificationRepresentation(
                 + "version that the caller read. A create needs none.")
         Long version,
         @Schema(
-                description = "The ID of the person. Only a request to add reads it. It gives this or `userId`. A "
+                description = "The ID of the person. Only a request to add reads it, and takes this or `userId`. A "
                         + "request to add with both fails with 400 and `invalid.twice`.")
         String personId,
         @Schema(

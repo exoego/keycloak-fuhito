@@ -507,9 +507,9 @@ components:
     Employment:
       required:
       - validFrom
-      description: A request to start an employment gives the first terms in the fields
-        of the employment itself. It names the person by `personId` or by `userId`.
-        A response gives the terms of every period in `terms`.
+      description: "A request to start an employment gives the first terms in the\
+        \ fields of the employment itself. It names the person by `personId` or by\
+        \ `userId`, not both. A response gives the terms of every period in `terms`."
       type: object
       properties:
         id:
@@ -524,12 +524,15 @@ components:
           readOnly: true
         personId:
           type: string
-          description: The ID of the person.
+          description: The ID of the person. A request gives this or `userId`. A request
+            with both fails with 400 and `invalid.twice`.
         userId:
           type: string
           description: "The ID of the Keycloak user that the person is linked to.\
-            \ A request can give it in place of `personId`. The person of the user\
-            \ is then used, and created when the user has none."
+            \ A request can give it in place of `personId`, not with it. The person\
+            \ of the user is then used, and created when the user has none. A read\
+            \ of a person with a user has both, so a request made from a read leaves\
+            \ one out."
         employerId:
           type: string
           description: "The ID of the org unit that employs the person. It is a legal\
@@ -1636,7 +1639,8 @@ components:
             \ or `personExternalId`, except for a stored employment."
         userId:
           type: string
-          description: The ID of the Keycloak user.
+          description: The ID of the Keycloak user. Give this or `username`. A row
+            with both fails with `import.user_twice`.
         staffNumber:
           type: string
           maxLength: 64
@@ -1941,7 +1945,8 @@ components:
             \ removes it."
         userId:
           type: string
-          description: The ID of a Keycloak user to link.
+          description: The ID of a Keycloak user to link. Give this or `username`.
+            A row with both fails with `import.user_twice`.
         primaryLanguage:
           type: string
           description: "The language tag of the primary names, such as `ja`. It matches\
@@ -3107,12 +3112,16 @@ components:
             \ caller read. A create needs none."
         personId:
           type: string
-          description: The ID of the person. Only a request to add reads it.
+          description: "The ID of the person. Only a request to add reads it, and\
+            \ takes this or `userId`. A request to add with both fails with 400 and\
+            \ `invalid.twice`."
         userId:
           type: string
           description: "The ID of the Keycloak user that the person is linked to.\
-            \ A request to add can give it in place of `personId`. The person of the\
-            \ user is then used, and created when the user has none."
+            \ A request to add can give it in place of `personId`, not with it. The\
+            \ person of the user is then used, and created when the user has none.\
+            \ A read of a person with a user has both, so a request to add made from\
+            \ a read leaves one out."
         kind:
           type: string
           description: The code of the qualification kind.
@@ -3571,10 +3580,13 @@ components:
             \ can use for the unit that it makes."
         id:
           type: string
-          description: "The ID of the unit to change, move, end, or succeed."
+          description: "The ID of the unit to change, move, end, or succeed. A step\
+            \ gives this or `unitRef`. A step with both fails with 400 and `invalid.twice`\
+            \ before any step runs."
         unitRef:
           type: string
-          description: "The `ref` of an earlier create step, in place of `id`."
+          description: "The `ref` of an earlier create step, in place of `id`, not\
+            \ with it."
         version:
           type: integer
           format: int64
@@ -3584,10 +3596,13 @@ components:
             \ version to give."
         parentId:
           type: string
-          description: The ID of the parent for a create or a move.
+          description: The ID of the parent for a create or a move. A step gives this
+            or `parentRef`. A step with both fails with 400 and `invalid.twice` before
+            any step runs.
         parentRef:
           type: string
-          description: "The `ref` of an earlier create step, in place of `parentId`."
+          description: "The `ref` of an earlier create step, in place of `parentId`,\
+            \ not with it."
         code:
           type: string
           maxLength: 64
@@ -3634,8 +3649,8 @@ components:
           type: array
           items:
             type: string
-          description: "For a succeed step, the `ref` of earlier create steps, in\
-            \ place of `successorIds`."
+          description: "For a succeed step, the `ref` of earlier create steps. A step\
+            \ can give it with `successorIds`, and the units of both lists follow."
     Reporting:
       required:
       - personId
@@ -3698,12 +3713,15 @@ components:
           description: The ID of the assignment of the person who reports.
         managerPersonId:
           type: string
-          description: The ID of the person who is the manager.
+          description: The ID of the person who is the manager. A request gives this
+            or `managerUserId`. A request with both fails with 400 and `invalid.twice`.
         managerUserId:
           type: string
           description: "The ID of the Keycloak user that the manager is linked to.\
-            \ A request can give it in place of `managerPersonId`. The person of the\
-            \ user is then used, and created when the user has none."
+            \ A request can give it in place of `managerPersonId`, not with it. The\
+            \ person of the user is then used, and created when the user has none.\
+            \ A read of a manager with a user has both, so a request made from a read\
+            \ leaves one out."
         kind:
           $ref: "#/components/schemas/ReportingKind"
           default: SOLID
@@ -3819,12 +3837,13 @@ components:
       properties:
         personId:
           type: string
-          description: The ID of the person.
+          description: The ID of the person. Give this or `userId`. A request with
+            both fails with 400 and `invalid.twice`.
           writeOnly: true
         userId:
           type: string
-          description: "The ID of the Keycloak user, in place of `personId`. The person\
-            \ of the user is used, and created when the user has none."
+          description: "The ID of the Keycloak user, in place of `personId`, not with\
+            \ it. The person of the user is used, and created when the user has none."
           writeOnly: true
         employerId:
           type: string
@@ -4296,7 +4315,8 @@ components:
         In a write, an empty text, a text of only spaces, or an empty array gets
         `invalid.blank`. A text with NUL or half of a surrogate pair gets
         `invalid.character`. A body that gives one key twice in one object gets
-        `invalid.duplicate_key`.
+        `invalid.duplicate_key`. A write that names one thing in two ways gets
+        `invalid.twice`.
       content:
         application/json:
           schema:
@@ -4362,6 +4382,11 @@ info:
     which names the key with its path, such as `names.ja` or `orgUnits[1].names.ja`. No value
     is dropped. This holds for every body, also for an import, a restore, and the steps of a
     reorganization.
+
+    A write that names one thing in two ways, such as a person by `personId` and by `userId`,
+    fails with 400 and `invalid.twice`. The error names the two fields in `field` and
+    `otherField`. No value is dropped. An employer named by `employerId` and by
+    `externalEmployer` fails with `employment.employer_twice`.
 
     The `maxLength` of a text counts characters, as the database does, so an emoji is one
     character. A longer text fails with 400. A text with no other rule, such as
@@ -8838,7 +8863,7 @@ paths:
           $ref: "#/components/responses/Conflict"
     post:
       summary: Adds a qualification of a person.
-      description: The body needs `personId` or `userId`.
+      description: "The body needs `personId` or `userId`, not both."
       operationId: addQualification
       tags:
       - qualifications
