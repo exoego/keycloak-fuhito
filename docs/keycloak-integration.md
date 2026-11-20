@@ -15,6 +15,7 @@ The extension uses these Keycloak APIs that Keycloak does not promise to keep st
 | `AdminPermissionEvaluator` | Permission checks for the caller |
 | `AbstractOIDCProtocolMapper` | The protocol mapper for tokens |
 | `TimerProvider`, `ClusterAwareScheduledTaskRunner`, and `ExecutorsProvider` | The timer of the projection |
+| `ObjectMapperResolver` and a JAX-RS `MessageBodyReader` | The JSON bodies of the own endpoints, read with the settings of Keycloak |
 
 All code that touches these APIs is in the package `net.exoego.keycloak.fuhito.keycloak`.
 When Keycloak changes one of them, only that package needs a change.
@@ -376,6 +377,17 @@ With this attribute, such a caller is limited in these ways.
 A read with no `asOf` reads today. For an org unit with its own time zone, that can be the day after the date of the realm.
 A caller with `fuhito-view-people` has no limit.
 A value that is not such a number gets 409 with `structure.days_ahead_invalid` for the callers that it limits.
+
+### Request bodies
+
+The extension reads the JSON body of its own endpoints with a JAX-RS `MessageBodyReader` in the provider jar.
+Keycloak registers it when it builds the server with the jar.
+It reads only the records of the extension, which are the bodies of its endpoints.
+So every endpoint of Keycloak reads its body as before.
+The reader uses the JSON settings of Keycloak and adds one check.
+A body that gives one key twice in one object fails with 400 and `invalid.duplicate_key`, which names the key with its path.
+Keycloak itself would keep the last value.
+Other bad JSON fails as it does in Keycloak.
 
 ### Responses
 

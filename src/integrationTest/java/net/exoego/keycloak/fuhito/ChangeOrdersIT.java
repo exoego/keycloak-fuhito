@@ -72,7 +72,8 @@ class ChangeOrdersIT {
     void anEmptyNoteOrTextFails() throws Exception {
         for (String field : List.of("note", "externalReference", "title", "number", "kind", "approverUserId")) {
             for (String empty : List.of("", "  ")) {
-                HttpResponse<String> response = api.post("/change-orders", "{\"title\": \"空\", "
+                String title = field.equals("title") ? "" : "\"title\": \"空\", ";
+                HttpResponse<String> response = api.post("/change-orders", "{" + title
                         + "\"effectiveDate\": \"2027-04-01\", \"" + field + "\": \"" + empty + "\"}");
                 assertEquals("invalid.blank", errorOf(400, response), field);
                 assertEquals(field, Api.json(response).get("params").get("field").asText());
