@@ -24,19 +24,71 @@ final class TreeQuery {
      */
     static final String SUBTREE = "with " + TREE;
 
-    /**
-     * Walks from one unit down like {@link #TREE}, and also gives each unit the work location and the cost center
-     * that apply to it, in {@code workLocationId} and {@code costCenterId}. A unit takes the values of its parent,
-     * so this is right only for the default hierarchy. It is one part of a {@code with} clause, after
-     * {@link #places} from the unit.
-     */
-    static final String TREE_WITH_PLACES = tree(
-            ", (select max(u.workLocationId) from Places u) as workLocationId,"
-                    + " (select max(u.costCenterId) from Places u) as costCenterId",
-            ", coalesce(v.workLocationId, p.workLocationId) as workLocationId,"
-                    + " coalesce(v.costCenterId, p.costCenterId) as costCenterId");
-
     private TreeQuery() {
+    }
+
+    /**
+     * Walks from one unit down like {@link #TREE}, and also gives each unit values that it takes from its parent.
+     * So it is right only for the default hierarchy. It is one part of a {@code with} clause.
+     * With the places, each unit gets the work location and the cost center that apply to it, in
+     * {@code workLocationId} and {@code costCenterId}. The walk then comes after {@link #places} from the unit.
+     * With the legal entities, each unit gets the legal entity that it belongs to, or null, in {@code entityId}.
+     * The walk then comes after {@link #legalEntities} from the unit.
+     *
+     * @param places true to give each unit its work location and its cost center
+     * @param legalEntities true to give each unit its legal entity
+     * @return the part of the query
+     */
+    static String treeCarrying(boolean places, boolean legalEntities) {
+        String rootColumns = "";
+        String childColumns = "";
+        if (places) {
+            rootColumns += ", (select max(u.workLocationId) from Places u) as workLocationId,"
+                    + " (select max(u.costCenterId) from Places u) as costCenterId";
+            childColumns += ", coalesce(v.workLocationId, p.workLocationId) as workLocationId,"
+                    + " coalesce(v.costCenterId, p.costCenterId) as costCenterId";
+        }
+        if (legalEntities) {
+            rootColumns += ", (select max(e.entityId) from LegalEntities e) as entityId";
+            childColumns += ", case when %s then v.orgUnitId else p.entityId end as entityId"
+                    .formatted(legalEntity("v"));
+        }
+        return tree(rootColumns, childColumns);
+    }
+
+    /**
+     * Walks up the default hierarchy from some units to the legal entity that each one belongs to on the date.
+     * That is the unit itself when it is a legal entity, else the nearest legal entity above it. It is one part of a
+     * {@code with} clause. The rows of {@code LegalEntities} have {@code unitId}, {@code entityId}, and
+     * {@code realmId}. A unit that belongs to a legal entity has one row with {@code entityId}. A unit that belongs
+     * to none has no such row.
+     *
+     * @param units the {@code from} part that gives the units as the alias {@code v} of their version
+     * @param hierarchy the name of the parameter with the ID of the default hierarchy
+     * @return the part of the query
+     */
+    static String legalEntities(String units, String hierarchy) {
+        // The next step looks at the unit in aboveId. A walk stops at a legal entity, or at a unit with no parent.
+        return """
+                LegalEntities as (
+                    select v.orgUnitId as unitId, %2$s as aboveId,
+                        case when %3$s then v.orgUnitId end as entityId, v.realmId as realmId
+                    %1$s
+                    union all
+                    select e.unitId as unitId, %4$s as aboveId,
+                        case when exists (select 1 from OrgUnitVersionEntity w where w.orgUnitId = e.aboveId
+                            and w.%5$s and %6$s) then e.aboveId end as entityId, e.realmId as realmId
+                    from LegalEntities e
+                    where e.entityId is null and e.aboveId is not null
+                )
+                """.formatted(units, parentOf("v.orgUnitId", hierarchy), legalEntity("v"),
+                parentOf("e.aboveId", hierarchy), onDate("w"), legalEntity("w"));
+    }
+
+    // Whether the unit type of the version is a legal entity.
+    private static String legalEntity(String version) {
+        return "exists (select 1 from RefItemEntity g where g.id = %s.unitTypeId and g.legalEntity = true)"
+                .formatted(version);
     }
 
     static String onDate(String alias) {

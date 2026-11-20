@@ -151,10 +151,10 @@ class WorkLocationsIT {
         assertEquals(List.of(inTeam, ownTokyo), members(office, below + "workLocation=tokyo&costCenter=cc-sales"));
         assertEquals(List.of(inTeam, ownTokyo), members(team, "asOf=2020-04-01&workLocation=tokyo"));
         assertEquals(List.of(), members(sales, "asOf=2020-04-01&costCenter=cc-sales"));
-        // The units are outside the legal entity that employs these people, so all of them are seconded.
-        assertEquals(List.of(atTop, inTeam, ownTokyo), members(office, below + "workLocation=tokyo&seconded=true"));
-        assertEquals(List.of(), members(office, below + "workLocation=tokyo&seconded=false"));
-        assertEquals(List.of(inTeam, ownTokyo), members(team, "asOf=2020-04-01&workLocation=tokyo&seconded=true"));
+        // The units belong to no legal entity, so none of these people are seconded.
+        assertEquals(List.of(), members(office, below + "workLocation=tokyo&seconded=true"));
+        assertEquals(List.of(atTop, inTeam, ownTokyo), members(office, below + "workLocation=tokyo&seconded=false"));
+        assertEquals(List.of(inTeam, ownTokyo), members(team, "asOf=2020-04-01&workLocation=tokyo&seconded=false"));
         // The values of the units are dated.
         String later = "includeDescendants=true&asOf=2021-04-01&";
         assertEquals(List.of(ownTokyo), members(office, later + "workLocation=tokyo"));

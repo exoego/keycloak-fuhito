@@ -19,7 +19,9 @@ import net.exoego.keycloak.fuhito.domain.EmploymentTerms;
  * @param grade the code of the grade, or null
  * @param orgUnit the org unit on the date
  * @param orgUnitPath the units from the root down to the org unit, or null when it was not asked for
- * @param seconded true when the org unit is not the employer and is not below it in the default hierarchy
+ * @param seconded true when the org unit belongs to another legal entity than the employer on the date. A unit
+ *        belongs to the legal entity that it is, else to the nearest one above it in the default hierarchy, or to
+ *        none. A unit that belongs to none gives no secondment.
  * @param places the work location and the cost center of the assignment and the ones that apply on the date
  */
 public record Member(Assignment assignment, Employment employment, EmploymentTerms terms, String jobTitle,

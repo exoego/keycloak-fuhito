@@ -85,6 +85,13 @@ public class JpaOrgUnitStore implements OrgUnitStore {
             order by a.unitId, a.depth""".formatted(TreeQuery.onDate("w"), ManyIds.has("v.orgUnitId", "ids"),
             TreeQuery.onDate("v"), TreeQuery.parentOf("a.ancestorId", "hierarchyId"));
 
+    // The first units are found without the realm, for the reason in Rows.inRealm, so the walk checks the realm of
+    // its rows.
+    private static final String LEGAL_ENTITIES = "with " + TreeQuery.legalEntities("""
+            from OrgUnitVersionEntity v where %s and v.%s""".formatted(ManyIds.has("v.orgUnitId", "ids"),
+            TreeQuery.onDate("v")), "hierarchyId") + """
+            select e.unitId, e.entityId from LegalEntities e where e.realmId = :realmId and e.entityId is not null""";
+
     // A path ends below a parent with no version on the date.
     private static final String PATHS = """
             with Above as (
@@ -455,6 +462,22 @@ public class JpaOrgUnitStore implements OrgUnitStore {
                         (near, far) -> new UnitDefaults(
                                 near.workLocationId() == null ? far.workLocationId() : near.workLocationId(),
                                 near.costCenterId() == null ? far.costCenterId() : near.costCenterId())));
+        return result;
+    }
+
+    @Override
+    public Map<String, String> legalEntitiesOn(Collection<String> ids, LocalDate date) {
+        Map<String, String> result = new HashMap<>();
+        if (ids.isEmpty()) {
+            return result;
+        }
+        em.createQuery(LEGAL_ENTITIES, Object[].class)
+                .setParameter("realmId", realmId)
+                .setParameter("hierarchyId", defaultHierarchyId())
+                .setParameter("ids", ManyIds.of(ids))
+                .setParameter("date", date)
+                .getResultStream()
+                .forEach(row -> result.put((String) row[0], (String) row[1]));
         return result;
     }
 

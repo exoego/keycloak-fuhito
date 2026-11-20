@@ -22,7 +22,7 @@ public record MemberFilter(String hierarchyId, String orgUnitId, boolean include
      * A filter on whether a person works outside the legal entity that employs them.
      *
      * @param wanted true to keep the seconded people, false to keep everyone else
-     * @param hierarchyId the ID of the hierarchy that says what is below a legal entity
+     * @param hierarchyId the ID of the default hierarchy, which says which legal entity a unit belongs to
      */
     public record Seconded(boolean wanted, String hierarchyId) {
     }

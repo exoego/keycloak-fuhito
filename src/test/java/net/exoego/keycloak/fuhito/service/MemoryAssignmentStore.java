@@ -62,9 +62,8 @@ final class MemoryAssignmentStore implements AssignmentStore {
     }
 
     private boolean seconded(Assignment row, MemberFilter filter) {
-        String employerId = employments.findAll(List.of(row.employmentId())).getFirst().employerId();
-        return employerId != null && !orgUnits.ancestorsOn(filter.seconded().hierarchyId(),
-                List.of(row.orgUnitId()), filter.date()).get(row.orgUnitId()).contains(employerId);
+        return employments.findAll(List.of(row.employmentId())).getFirst().secondedTo(
+                orgUnits.legalEntitiesOn(List.of(row.orgUnitId()), filter.date()).get(row.orgUnitId()));
     }
 
     private boolean placed(Assignment row, MemberFilter filter) {

@@ -37,7 +37,7 @@ Every other org unit is in the default hierarchy.
 - A rollup unit can have a head and members. Managers come from the default hierarchy, so its head gets no derived manager from a unit above. Its head is the derived manager of its other members, as in any unit.
 - It takes no work location and no cost center from a unit above. It can have its own, and its members take them.
 - The projection makes no group for it.
-- One unit type cannot carry `rollup` with `lateral` or with `legalEntity`. A lateral unit sits in the default tree, and an employer must be there for the check of secondments.
+- One unit type cannot carry `rollup` with `lateral` or with `legalEntity`. A lateral unit sits in the default tree, and a legal entity must be there for the check of secondments.
 - The mark of a unit type that is in use does not change, as for `lateral`.
 
 ## People
@@ -323,8 +323,21 @@ Every employment names its employer. The employer is an org unit that is a legal
 - A legal entity stays one while employments name it. Its unit type keeps the mark, the unit does not get a type without the mark from a date on which an employment starts, and the unit does not end before the employments do.
 - A staff number is unique for one employer. Two legal entities can give the same number to two people.
 - A person who is employed by one legal entity and works in an org unit of another is seconded. The employment names the first, and the assignment names the org unit.
-- The reads of members and of the assignments of a person have `employerId` and `seconded`. An assignment is a secondment when its org unit is not the employer and not below it in the default hierarchy.
+- Each org unit belongs to one legal entity on a date, or to none. A legal entity belongs to itself. Any other unit belongs to the nearest legal entity above it in the default hierarchy. The unit types of the date decide which units are legal entities.
+- A legal entity can sit below another one, such as a company below its holding company. A branch of the company belongs to the company, not to the holding company.
+- A unit with no legal entity above it in the default hierarchy belongs to none. Such units are a rollup unit, a lateral root such as a labor union, and a unit above every legal entity.
+- The reads of members and of the assignments of a person have `employerId` and `seconded`. An assignment is a secondment when the employment has an employer and the org unit belongs to another legal entity on the date. A unit that belongs to no legal entity gives no secondment.
 - `GET /org-units/{id}/members` takes `seconded=true` for only the seconded people, and `seconded=false` for everyone else. The database applies the filter, so the pages stay right.
+
+For example, with a holding company H above company A, and company B beside them:
+
+| Employer | Org unit | Seconded |
+|---|---|---|
+| A | A rollup unit "Kanto" | No |
+| A | A labor union at the root | No |
+| A | A branch of B | Yes |
+| H | A branch of A | Yes |
+| A | A branch of A | No |
 
 ## Out of scope
 
