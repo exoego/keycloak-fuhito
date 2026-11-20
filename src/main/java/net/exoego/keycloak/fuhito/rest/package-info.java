@@ -37,6 +37,10 @@
                         and `otherField`. No value is dropped. An employer named by `employerId` and by
                         `externalEmployer` fails with `employment.employer_twice`.
 
+                        A read that gives two values that do not go together, such as `asOf` and `all=true`, fails
+                        with 400 and `invalid.not_together`. The error names the two in `field` and `otherField`.
+                        No value is dropped.
+
                         A person ID and a user ID are two names of one person, and a read has both when the person
                         has a user. So a create can name a person by `personId`, by `userId`, or by both, and the
                         same holds for `managerPersonId` and `managerUserId`. Two IDs that do not name the same person
@@ -129,7 +133,8 @@
                                     `invalid.twice`. A create with a person ID and a user ID that do not name the
                                     same person gets `invalid.mismatch`. A write of a stored resource with another
                                     value of a field that never changes, or of a field that only a response fills,
-                                    gets `invalid.value_fixed`.
+                                    gets `invalid.value_fixed`. A read with two values that do not go together gets
+                                    `invalid.not_together`.
                                     """,
                             content = @Content(mediaType = "application/json",
                                     schema = @Schema(implementation = ErrorRepresentation.class))),

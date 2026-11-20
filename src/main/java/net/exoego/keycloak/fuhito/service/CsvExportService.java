@@ -50,6 +50,8 @@ public class CsvExportService {
     private static final List<String> LISTS = List.of("ref-kinds", "attribute-definitions", "ref-items",
             "hierarchies", "org-units", "org-unit-parents", "people", "employments", "assignments",
             "reporting-lines", "unit-roles", "qualifications", "external-ids", "change-orders");
+    private static final Set<String> UNDATED = Set.of("ref-kinds", "attribute-definitions", "hierarchies", "people",
+            "external-ids", "change-orders");
 
     private final RefItemService refItems;
     private final Supplier<List<RealmKindService.View>> kinds;
@@ -113,13 +115,19 @@ public class CsvExportService {
      * Writes a list on a date.
      *
      * @param list the list, as the path of the CSV import names it, for example {@code org-units}
-     * @param asOf the date as {@code YYYY-MM-DD}, or null for today
+     * @param asOf the date as {@code YYYY-MM-DD}, or null for today. For the qualifications, null is every date. A
+     *        list with no date takes no date.
      * @param japanese true for the Japanese names of the columns
      * @return the CSV
-     * @throws FuhitoException when the list is unknown, or the date is bad
+     * @throws FuhitoException when the list is unknown, the date is bad, or the list has no date and the request
+     *         gives one
      */
     public String write(String list, String asOf, boolean japanese) {
-        return switch (String.valueOf(list)) {
+        String name = String.valueOf(list);
+        if (Checks.optionalDate("asOf", asOf) != null && UNDATED.contains(name)) {
+            throw FuhitoException.invalid("csv.export_no_date", Map.of("field", "asOf", "list", name));
+        }
+        return switch (name) {
             case "ref-kinds" -> refKinds(japanese);
             case "attribute-definitions" -> attributeDefinitions(japanese);
             case "hierarchies" -> hierarchies(japanese);

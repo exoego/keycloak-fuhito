@@ -4334,7 +4334,8 @@ components:
         `invalid.duplicate_key`. A write that names one thing in two ways gets
         `invalid.twice`. A create with a person ID and a user ID that do not name the
         same person gets `invalid.mismatch`. A write of a stored resource with another
-        value of a field that never changes gets `invalid.value_fixed`.
+        value of a field that never changes gets `invalid.value_fixed`. A read with two
+        values that do not go together gets `invalid.not_together`.
       content:
         application/json:
           schema:
@@ -4405,6 +4406,10 @@ info:
     by `unitRef`, fails with 400 and `invalid.twice`. The error names the two fields in `field`
     and `otherField`. No value is dropped. An employer named by `employerId` and by
     `externalEmployer` fails with `employment.employer_twice`.
+
+    A read that gives two values that do not go together, such as `asOf` and `all=true`, fails
+    with 400 and `invalid.not_together`. The error names the two in `field` and `otherField`.
+    No value is dropped.
 
     A person ID and a user ID are two names of one person, and a read has both when the person
     has a user. So a create can name a person by `personId`, by `userId`, or by both, and the
@@ -6683,7 +6688,8 @@ paths:
         \ that made the thing and the ID that it has there. A thing that keeps no\
         \ system that made it, such as a reporting line, has the first of its IDs\
         \ by the name of the system. The kinds, the definitions of attributes, the\
-        \ hierarchies, and the people have no date. The reference items have the names\
+        \ hierarchies, the people, the IDs of other systems, and the change orders\
+        \ have no date, so they take no `asOf`. The reference items have the names\
         \ of the date."
       operationId: exportCsv
       tags:
@@ -6710,8 +6716,11 @@ paths:
         name: list
         in: path
         required: true
-      - description: The date of the state. The default is today in the time zone
-          of the realm.
+      - description: "The date of the state. The default is today in the time zone\
+          \ of the realm. For `qualifications`, the default is every date. The lists\
+          \ `ref-kinds`, `attribute-definitions`, `hierarchies`, `people`, `external-ids`,\
+          \ and `change-orders` have no date. A date with one of them fails with 400\
+          \ and `csv.export_no_date`."
         schema:
           type: string
           format: date
@@ -8556,14 +8565,15 @@ paths:
         schema:
           type: string
       - description: "True to return every qualification, expired ones and future\
-          \ ones included."
+          \ ones included. It cannot be used with `asOf`. A request with both fails\
+          \ with 400 and `invalid.not_together`."
         schema:
           type: boolean
           default: false
         name: all
         in: query
       - description: The date to read. The default is today in the time zone of the
-          realm.
+          realm. It cannot be used with `all=true`.
         schema:
           type: string
           format: date
@@ -10180,14 +10190,15 @@ paths:
         schema:
           type: string
       - description: "True to return every qualification, expired ones and future\
-          \ ones included."
+          \ ones included. It cannot be used with `asOf`. A request with both fails\
+          \ with 400 and `invalid.not_together`."
         schema:
           type: boolean
           default: false
         name: all
         in: query
       - description: The date to read. The default is today in the time zone of the
-          realm.
+          realm. It cannot be used with `all=true`.
         schema:
           type: string
           format: date

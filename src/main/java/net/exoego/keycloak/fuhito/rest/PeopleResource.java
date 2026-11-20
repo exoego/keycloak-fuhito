@@ -393,11 +393,14 @@ public class PeopleResource {
             @Parameter(description = "The ID of the resource.")
             @PathParam("id") String id,
             @Parameter(
-                    description = "The date to read. The default is today in the time zone of the realm.",
+                    description = "The date to read. The default is today in the time zone of the realm. It cannot be "
+                            + "used with `all=true`.",
                     schema = @Schema(format = "date"))
             @QueryParam("asOf") String asOf,
             @Parameter(
-                    description = "True to return every qualification, expired ones and future ones included.",
+                    description = "True to return every qualification, expired ones and future ones included. It "
+                            + "cannot be used with `asOf`. A request with both fails with 400 and "
+                            + "`invalid.not_together`.",
                     schema = @Schema(defaultValue = "false"))
             @QueryParam("all") boolean all) {
         context.requireRead();

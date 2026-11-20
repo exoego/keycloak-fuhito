@@ -13,6 +13,7 @@ import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
+import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.service.AssignmentService;
 import net.exoego.keycloak.fuhito.service.EmploymentService;
@@ -251,11 +252,14 @@ public class UsersResource {
             @Parameter(description = "The ID of the Keycloak user.")
             @PathParam("userId") String userId,
             @Parameter(
-                    description = "The date to read. The default is today in the time zone of the realm.",
+                    description = "The date to read. The default is today in the time zone of the realm. It cannot be "
+                            + "used with `all=true`.",
                     schema = @Schema(format = "date"))
             @QueryParam("asOf") String asOf,
             @Parameter(
-                    description = "True to return every qualification, expired ones and future ones included.",
+                    description = "True to return every qualification, expired ones and future ones included. It "
+                            + "cannot be used with `asOf`. A request with both fails with 400 and "
+                            + "`invalid.not_together`.",
                     schema = @Schema(defaultValue = "false"))
             @QueryParam("all") boolean all) {
         context.requireRead();
@@ -332,6 +336,8 @@ public class UsersResource {
             @QueryParam("max") Integer max) {
         context.requireRead();
         return Calls.run(context, () -> {
+            // A user with no person has no roles, but a bad date fails all the same.
+            Checks.optionalDate("asOf", asOf);
             requireKnown(userId);
             return people.ofUser(userId)
                     .map(person -> UnitRolesResource.represent(
@@ -358,6 +364,7 @@ public class UsersResource {
             @QueryParam("asOf") String asOf) {
         context.requireRead();
         return Calls.run(context, () -> {
+            Checks.optionalDate("asOf", asOf);
             requireKnown(userId);
             return new CountRepresentation(people.ofUser(userId)
                     .map(person -> unitRoles.countOfPerson(person.id(), asOf))

@@ -301,7 +301,8 @@ class DuplicateLanguagesIT {
         assertEquals("地域", area.get("names").get("ja").get("name").textValue());
 
         for (String list : List.of("org-units", "people", "ref-items", "ref-kinds")) {
-            HttpResponse<String> exported = to.get("/imports/csv/" + list + "?asOf=2026-04-01");
+            boolean dated = list.startsWith("org") || list.equals("ref-items");
+            HttpResponse<String> exported = to.get("/imports/csv/" + list + (dated ? "?asOf=2026-04-01" : ""));
             assertEquals(200, exported.statusCode(), exported.body());
             JsonNode counts = ok(csv(to, list, exported.body())).get("counts");
             assertEquals(0, counts.findValues("created").stream().mapToInt(JsonNode::asInt).sum()

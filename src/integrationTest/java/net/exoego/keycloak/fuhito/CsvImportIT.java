@@ -5,10 +5,12 @@ import java.net.URLEncoder;
 import java.net.http.HttpResponse;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Stream;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import org.junit.jupiter.api.Test;
@@ -321,6 +323,44 @@ class CsvImportIT {
         assertEquals(2, stored.size(), stored.toString());
         assertEquals(List.of("2030-04-01"), stored.findValuesAsText("validTo"), stored.toString());
         assertTrue(api.get("/imports/csv/qualifications?asOf=2026-05-01").body().contains(",2026-05-01,"));
+    }
+
+    // The status, and the code and the values of an error, so that one assertion shows every case.
+    private static String outcome(HttpResponse<String> response) throws Exception {
+        if (response.statusCode() == 200) {
+            return "200";
+        }
+        JsonNode error = Api.json(response);
+        return response.statusCode() + " " + error.path("error").asText() + " "
+                + error.path("params").path("field").asText() + " " + error.path("params").path("list").asText();
+    }
+
+    @Test
+    void anExportTakesADateOnlyForAListWithDates() throws Exception {
+        Api api = TestRealm.create("csv-export-dates").api;
+        List<String> undated = List.of("ref-kinds", "attribute-definitions", "hierarchies", "people", "external-ids",
+                "change-orders");
+        List<String> dated = List.of("ref-items", "org-units", "org-unit-parents", "employments", "assignments",
+                "reporting-lines", "unit-roles", "qualifications");
+        List<String> expected = new ArrayList<>();
+        List<String> got = new ArrayList<>();
+        for (String list : Stream.concat(undated.stream(), dated.stream()).toList()) {
+            expected.add(list + " 200");
+            got.add(list + " " + api.get("/imports/csv/" + list).statusCode());
+            expected.add(list + " 2026-05-01 " + (undated.contains(list) ? "400 csv.export_no_date asOf " + list
+                    : "200"));
+            got.add(list + " 2026-05-01 " + outcome(api.get("/imports/csv/" + list + "?asOf=2026-05-01")));
+            for (String date : List.of("bad", "2026-02-30", "-5000-01-01")) {
+                expected.add(list + " " + date + " 400 invalid.date asOf ");
+                got.add(list + " " + date + " " + outcome(api.get("/imports/csv/" + list + "?asOf=" + date)));
+            }
+        }
+        assertEquals(expected, got);
+        assertEquals("The list \"people\" has no date, so it takes no asOf. Leave it out.",
+                Api.json(api.get("/imports/csv/people?asOf=2026-05-01")).get("message").asText());
+        assertEquals("リスト「people」には日付がないため、asOf は指定できません。指定しないでください。",
+                Api.json(api.withAcceptLanguage("ja").get("/imports/csv/people?asOf=2026-05-01")).get("message")
+                        .asText());
     }
 
     @Test

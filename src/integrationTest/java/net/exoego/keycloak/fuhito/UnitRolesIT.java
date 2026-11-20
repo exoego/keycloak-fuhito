@@ -108,6 +108,33 @@ class UnitRolesIT {
     }
 
     @Test
+    void aReadOfTheRolesOfAUserChecksTheDateAlsoWhenTheUserHasNoPerson() throws Exception {
+        TestRealm realm = TestRealm.withEmployer("unit-roles-no-person");
+        Api api = realm.api;
+        String withPerson = realm.user("with-person");
+        assertEquals(201, api.post("/employments", "{\"userId\": \"" + withPerson
+                + "\", \"validFrom\": \"2026-04-01\"}").statusCode());
+        String withoutPerson = realm.user("without-person");
+        List<String> expected = new ArrayList<>();
+        List<String> got = new ArrayList<>();
+        for (String user : List.of(withPerson, withoutPerson)) {
+            for (String date : List.of("bad", "2026-02-30", "-5000-01-01")) {
+                for (String path : List.of("/unit-roles", "/unit-roles/count")) {
+                    HttpResponse<String> read = api.get("/users/" + user + path + "?asOf=" + date);
+                    expected.add(user + path + " " + date + " 400 invalid.date asOf");
+                    got.add(user + path + " " + date + " " + read.statusCode() + " "
+                            + Api.json(read).path("error").asText() + " "
+                            + Api.json(read).path("params").path("field").asText());
+                }
+            }
+            assertEquals(List.of(), Api.json(api.get("/users/" + user + "/unit-roles?asOf=2026-05-01"))
+                    .findValuesAsText("id"));
+            assertEquals(0, api.count("/users/" + user + "/unit-roles/count?asOf=2026-05-01"));
+        }
+        assertEquals(expected, got);
+    }
+
+    @Test
     void anHrContactOfADivisionCoversItsWardsUntilTheEmploymentEnds() throws Exception {
         TestRealm realm = TestRealm.withEmployer("unit-roles");
         Api api = realm.api;

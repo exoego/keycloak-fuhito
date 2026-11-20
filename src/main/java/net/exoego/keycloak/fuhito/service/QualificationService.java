@@ -152,13 +152,14 @@ public class QualificationService {
      * Lists the qualifications of a user, oldest first.
      *
      * @param userId the ID of the user
-     * @param asOf the date as {@code YYYY-MM-DD}, or null for today. It is ignored when {@code all} is true.
+     * @param asOf the date as {@code YYYY-MM-DD}, or null for today. It must be null when {@code all} is true.
      * @param all true to return every qualification, expired ones and future ones included
      * @return the qualifications
-     * @throws FuhitoException when the user does not exist
+     * @throws FuhitoException when the date is bad, the request gives a date and {@code all}, or the user does not
+     *         exist
      */
     public List<QualificationView> ofUser(String userId, String asOf, boolean all) {
-        LocalDate date = asOf == null ? LocalDate.now(clock) : Checks.optionalDate("asOf", asOf);
+        LocalDate date = dateOrToday(asOf, all);
         if (!users.isKnown(userId)) {
             throw FuhitoException.notFound("user.not_found", Map.of("userId", userId));
         }
@@ -172,17 +173,26 @@ public class QualificationService {
      * Lists the qualifications of a person, oldest first.
      *
      * @param personId the ID of the person
-     * @param asOf the date as {@code YYYY-MM-DD}, or null for today. It is ignored when {@code all} is true.
+     * @param asOf the date as {@code YYYY-MM-DD}, or null for today. It must be null when {@code all} is true.
      * @param all true to return every qualification, expired ones and future ones included
      * @return the qualifications
-     * @throws FuhitoException when the date is bad
+     * @throws FuhitoException when the date is bad, or the request gives a date and {@code all}
      */
     public List<QualificationView> ofPerson(String personId, String asOf, boolean all) {
-        LocalDate date = asOf == null ? LocalDate.now(clock) : Checks.optionalDate("asOf", asOf);
+        LocalDate date = dateOrToday(asOf, all);
         return store.findByPerson(personId).stream()
                 .filter(qualification -> all || qualification.period().contains(date))
                 .map(this::view)
                 .toList();
+    }
+
+    // With all, every date counts, so a date of the request would be dropped.
+    private LocalDate dateOrToday(String asOf, boolean all) {
+        LocalDate date = Checks.optionalDate("asOf", asOf);
+        if (date != null && all) {
+            throw FuhitoException.invalid("invalid.not_together", Map.of("field", "asOf", "otherField", "all"));
+        }
+        return date == null ? LocalDate.now(clock) : date;
     }
 
     private Qualification checked(String id, Person person, QualificationValues request, String currentKindId,
