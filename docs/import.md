@@ -574,11 +574,18 @@ This copies a realm to a test environment, moves it to another Keycloak, or brin
 
   `validTo` is the first date after a period. So a row may start on the `validTo` of the row before it.
 - Both errors name the `list`, the `id` of the row, the `field`, and the `other` row. The row is the later one in the export, or for an overlap the one that starts later. For example, `{"list": "org-unit-versions", "id": "v-2", "field": "validFrom", "other": "v-1"}`. An export never has such rows, because every write keeps the rules.
-- A row that breaks a rule between rows of a write, or between the fields of one row, fails with 400 and `restore.bad_value` before anything is written. For example, a row of an assignment must lie inside its employment. A restore checks the document against itself, because the document is all the data of the realm. The error names the `list`, the `id` of the row, and the `field`. When a write has an error for the rule, `rule` names it. For example, `{"list": "assignments", "id": "r-1", "field": "validTo", "rule": "assignment.outside_employment"}`. A row that does not lie inside another row names `validFrom` when it starts too early, and `validTo` when it ends too late. These are the rules.
+- A row that breaks another rule of a write fails with 400 and `restore.bad_value` before anything is written. Such a rule is on a choice, such as the `status` of terms, on the fields of one row, such as the names, or between rows. For example, a row of an assignment must lie inside its employment, and the grade of terms must be a reference item of the kind `GRADE`. A restore checks the document against itself, because the document is all the data of the realm. The error names the `list`, the `id` of the row, and the `field`. When a write has an error for the rule, `rule` names it. For example, `{"list": "assignments", "id": "r-1", "field": "validTo", "rule": "assignment.outside_employment"}`. A row that does not lie inside another row names `validFrom` when it starts too early, and `validTo` when it ends too late. These are the rules.
 
   | List | Rule | `field` | `rule` |
   |---|---|---|---|
+  | `ref-kinds`, `ref-item-names`, `org-unit-versions`, `people` | The names keep the rules of a write. `primaryLanguage` is a language tag and a key of `names`. Each key of `names` is a language tag, and no two keys name one language. Each name has `name`, of 255 characters at most. A person may have no `primaryLanguage` and no `names`. | `primaryLanguage`, `names`, or the field of the name, such as `names.ja.name` | The error of the write, such as `invalid.primary_language` |
+  | `ref-items` | The kind is a fixed kind or the `code` of a kind of the export. | `kind` | `invalid.kind` |
+  | `attribute-definitions` | `target` and `type` are choices of a write, such as `PERSON` and `STRING`. | `target`, `type` | `invalid.choice` |
+  | `attribute-definitions` | `refKind` is a fixed kind or the `code` of a kind of the export. | `refKind` | `invalid.choice` |
+  | `attribute-definitions` | A definition of the type `REF_ITEM` has `refKind`, and a definition of another type has none. | `refKind` | `attribute.ref_kind` |
   | `org-units` | A unit has versions. | `versions` | None |
+  | `org-unit-versions` | The unit type is a reference item of the kind `UNIT_TYPE`. | `unitTypeId` | `org_unit.unit_type_unknown` |
+  | `org-unit-versions`, `assignments` | The work location is a reference item of the kind `WORK_LOCATION`, and the cost center one of the kind `COST_CENTER`. | `workLocationId`, `costCenterId` | `ref_item.unknown` |
   | `org-unit-versions` | The versions of a unit have no gaps. The life of a unit is from the start of its first version to the end of its last. | `validFrom` | None |
   | `org-unit-parents` | A parent link lies inside the life of its unit. | `validFrom`, `validTo` | None |
   | `org-unit-parents` | The parent exists on every date of the link. | `validFrom`, `validTo` | `org_unit.parent_not_valid` |
@@ -587,25 +594,35 @@ This copies a realm to a test environment, moves it to another Keycloak, or brin
   | `org-unit-versions` | A unit that other units follow has an end. The row is the last version. | `validTo` | `org_unit.has_successors` |
   | `org-unit-successions` | A unit ends on the date of the units that follow it. | `effectiveDate` | `org_unit.has_successors` |
   | `org-unit-successions` | A unit that follows exists on the date. | `effectiveDate` | `org_unit.follows_others` |
+  | `employments` | The external employer is a reference item of the kind `EXTERNAL_EMPLOYER`. | `externalEmployerId` | `employment.external_employer_unknown` |
+  | `employments` | The end reason is a reference item of the kind `END_REASON`. | `endReasonId` | `ref_item.unknown` |
   | `employments` | Only an employment with an end has an end reason. | `endReasonId` | `employment.end_reason_without_end` |
   | `employments` | The employer exists on the first date of the employment. | `validFrom` | `employment.employer_unknown` |
   | `employments` | The employer is a legal entity on the first date of the employment. | `employerId` | `employment.employer_not_legal_entity` |
   | `employments` | An employment ends by the end of its employer. | `validTo` | `employment.employer_ends` |
   | `employments` | An employment ends by the start of an employment that continues it. The row is the one that it continues. | `validTo` | `employment.continues_holds` |
   | `employments` | An employment has terms. | `terms` | None |
+  | `employment-terms` | The status is a choice of a write, such as `ACTIVE`. | `status` | `invalid.choice` |
+  | `employment-terms` | The employment type, the grade, and the leave reason are reference items of the kinds `EMPLOYMENT_TYPE`, `GRADE`, and `LEAVE_REASON`. | `employmentTypeId`, `gradeId`, `leaveReasonId` | `ref_item.unknown` |
   | `employment-terms` | The terms cover their employment with no gaps. The first terms start with the employment, each terms start at the end of the terms before, and the last terms end with the employment. | `validFrom`, `validTo` | None |
   | `employment-terms` | Only terms with the status `ON_LEAVE` have a leave reason. | `leaveReasonId` | `employment.leave_reason_not_on_leave` |
   | `employment-terms` | The contract does not end before the terms start. | `contractEndDate` | `employment.contract_end_before_terms` |
   | `assignments` | An assignment has rows. The `id` is the `assignmentId`. | `periods` | None |
+  | `assignments` | The job title, the occupation, and the kind are reference items of the kinds `JOB_TITLE`, `OCCUPATION`, and `ASSIGNMENT_KIND`. | `jobTitleId`, `occupationId`, `kindId` | `ref_item.unknown` |
   | `assignments` | The rows of an assignment have no gaps. | `validFrom` | None |
   | `assignments` | A row lies inside its employment. | `validFrom`, `validTo` | `assignment.outside_employment` |
   | `assignments` | A row lies inside the life of its org unit. | `validFrom`, `validTo` | `assignment.org_unit_not_valid` |
   | `assignments` | An assignment ends by the start of an assignment that continues it. The row is the last row of the one that it continues. | `validTo` | `assignment.continues_holds` |
+  | `reporting-lines` | The kind is a choice of a write, such as `SOLID`. | `kind` | `invalid.choice` |
   | `reporting-lines` | A line lies inside its assignment, from its first row to the end of its last. | `validFrom`, `validTo` | `reporting_line.outside_assignment` |
   | `unit-roles` | A role lies inside its employment. | `validFrom`, `validTo` | `unit_role.outside_employment` |
   | `unit-roles` | A role lies inside the life of its org unit. | `validFrom`, `validTo` | `unit_role.org_unit_not_valid` |
+  | `unit-roles` | The role is a reference item of the kind `UNIT_ROLE`. | `roleId` | `ref_item.unknown` |
+  | `qualifications` | The kind is a reference item of the kind `QUALIFICATION`. | `kindId` | `ref_item.unknown` |
+  | `external-ids` | The resource type is a choice of a write, such as `ORG_UNIT`. | `resourceType` | `invalid.choice` |
 
   A write of an employment checks its employer on its first date only. A change of the unit type of the employer from a later date keeps the employment.
+  A write finds a reference item by its kind and its code, so it never takes an item of another kind. A restore names an item by its ID, so it checks the kind.
 - An ID that a row of the database has already, in any realm, fails with 409 and `restore.id_taken`. This holds for the ID of an assignment too. This happens for a copy into a second realm of the same database while the first realm still has the rows.
 - A row that breaks a rule of the database that the restore did not find fails with 409 and `restore.conflict`. The error names the rule in `constraint`, such as `PK_FUHITO_HIERARCHY`. This can happen when another write stores the same row at the same time. Nothing is written.
 - Rows name Keycloak users by username. A restore fails with `restore.username_unknown` when the target realm has no user with that name. A person whose user Keycloak no longer had is exported with no username, and is restored with no link.
@@ -616,4 +633,4 @@ This copies a realm to a test environment, moves it to another Keycloak, or brin
 - The change log, the admin events, and the records of the members that the projection added are not part of an export. The restore records one entry, `FUHITO_RESTORE`.
 - The export needs the full read permission, because it has the data of people. The restore needs the permission to write.
 
-Checked by `RealmExportIT.anExportLoadsIntoAnEmptyRealmAndGivesTheSameExportAgain`, `RestoreEmptyValuesIT.anExportOfCheckedDataRestoresUnchanged`, `RestoreEmptyValuesIT.anEmptyValueInAnyRowFailsTheRestoreAndNothingIsWritten`, `RestoreMissingValuesIT.aMissingRowOrValueFailsTheRestoreAndNothingIsWritten`, `RestoreLongValuesIT.aValueLongerThanItsColumnFailsTheRestoreAndNothingIsWritten`, `RestoreKeysIT`, `RestoreOverlapsIT`, `RestorePeriodsIT`, and `RestoreRulesIT`.
+Checked by `RealmExportIT.anExportLoadsIntoAnEmptyRealmAndGivesTheSameExportAgain`, `RestoreEmptyValuesIT.anExportOfCheckedDataRestoresUnchanged`, `RestoreEmptyValuesIT.anEmptyValueInAnyRowFailsTheRestoreAndNothingIsWritten`, `RestoreMissingValuesIT.aMissingRowOrValueFailsTheRestoreAndNothingIsWritten`, `RestoreLongValuesIT.aValueLongerThanItsColumnFailsTheRestoreAndNothingIsWritten`, `RestoreKeysIT`, `RestoreOverlapsIT`, `RestorePeriodsIT`, `RestoreRulesIT`, `RestoreKindsIT`, and `RestoreChoicesIT`.

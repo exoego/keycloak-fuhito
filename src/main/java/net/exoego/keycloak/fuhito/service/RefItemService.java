@@ -107,7 +107,7 @@ public class RefItemService {
      * @throws FuhitoException when the kind is unknown or the date is bad
      */
     public List<RefItem> list(String kind, boolean includeInactive, String asOf, Page page) {
-        return store.list(knownKind(kind), includeInactive, dateOrToday(asOf), page.first(), page.max());
+        return store.list(knownKind(kind, knownKinds), includeInactive, dateOrToday(asOf), page.first(), page.max());
     }
 
     /**
@@ -120,10 +120,18 @@ public class RefItemService {
      * @throws FuhitoException when the kind is unknown
      */
     public long count(String kind, boolean includeInactive) {
-        return store.count(knownKind(kind), includeInactive);
+        return store.count(knownKind(kind, knownKinds), includeInactive);
     }
 
-    private String knownKind(String kind) {
+    /**
+     * Requires a kind that items can have.
+     *
+     * @param kind the code of the kind
+     * @param knownKinds tells whether a code is a fixed kind or a kind of the realm
+     * @return the same code
+     * @throws FuhitoException when the kind is missing or unknown
+     */
+    static String knownKind(String kind, Predicate<String> knownKinds) {
         Checks.required("kind", kind);
         if (!knownKinds.test(kind)) {
             throw FuhitoException.invalid("invalid.kind", Map.of("value", kind));
@@ -294,7 +302,7 @@ public class RefItemService {
      */
     public RefItem create(String kind, String code, String primaryLanguage, Map<String, RefItemName> names,
             Integer displayOrder, Map<String, Object> attributes, Marks marks, boolean active, String validFrom) {
-        knownKind(kind);
+        knownKind(kind, knownKinds);
         Checks.code("code", code);
         LocalDate from = Checks.optionalDate("validFrom", validFrom);
         if (store.findByCode(kind, code).isPresent()) {

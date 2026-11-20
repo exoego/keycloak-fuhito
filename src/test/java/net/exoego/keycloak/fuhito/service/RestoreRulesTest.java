@@ -45,15 +45,4 @@ class RestoreRulesTest {
                 unit("a", parent("l-a", "b", "2020-04-01", "2021-04-01")),
                 unit("b", parent("l-b", "a", "2021-04-01", null)))));
     }
-
-    @Test
-    void aStatusThatCannotBeReadIsLeftToTheWrite() {
-        RealmExport document = new RealmExport(RealmExport.FORMAT, null, null, null, null, null, null,
-                List.of(new RealmExport.EmploymentRow("e-1", 1L, "p-1", null, "agency", "2020-04-01", null, null,
-                        null, null, null, List.of(new RealmExport.Terms("t-1", "2020-04-01", null, null, null, "NONE",
-                                "sick", null, null, Map.of())))),
-                null, null, null, null, null, null, null);
-
-        assertDoesNotThrow(() -> RestoreRules.require(document));
-    }
 }
