@@ -71,16 +71,18 @@ public record OrgUnitRepresentation(
         String costCenter,
         @Schema(
                 description = "The code of the work location that applies on the date. It is the one of the unit, "
-                        + "else the one of the nearest unit above it in the default hierarchy. A history has none. A "
-                        + "write of a stored unit does not check it, because it can differ between the dates of the "
-                        + "details.",
+                        + "else the one of the nearest unit above it in the default hierarchy. A history has none. It "
+                        + "can change inside the details, when the unit moves or a unit above changes. A write of a "
+                        + "stored unit can give one that applies on any date of the details that it replaces. "
+                        + "Another value fails with 400 and `invalid.value_fixed`.",
                 readOnly = true)
         String effectiveWorkLocation,
         @Schema(
                 description = "The code of the cost center that applies on the date. It is the one of the unit, else "
-                        + "the one of the nearest unit above it in the default hierarchy. A history has none. A write "
-                        + "of a stored unit does not check it, because it can differ between the dates of the "
-                        + "details.",
+                        + "the one of the nearest unit above it in the default hierarchy. A history has none. It can "
+                        + "change inside the details, when the unit moves or a unit above changes. A write of a "
+                        + "stored unit can give one that applies on any date of the details that it replaces. "
+                        + "Another value fails with 400 and `invalid.value_fixed`.",
                 readOnly = true)
         String effectiveCostCenter,
         @Schema(
@@ -102,7 +104,14 @@ public record OrgUnitRepresentation(
                         + "as no value.",
                 readOnly = true)
         Boolean rollup,
-        @Schema(description = "The ID of the parent in the default hierarchy. A root and a rollup unit have none.")
+        @Schema(
+                description = "The ID of the parent in the default hierarchy. A root and a rollup unit have none. "
+                        + "`PUT /org-units/{id}/parent` moves the unit, and `PUT /org-units/{id}` does not. A "
+                        + "`PUT /org-units/{id}` can leave it out, or give a parent that the unit has on any date of "
+                        + "the details that the write replaces, as a read of such a date has it. These dates run from "
+                        + "`validFrom` to the end of the stored details of that date. Another value fails with 400 and "
+                        + "`invalid.value_fixed`. So for a unit with no parent on those dates, it must be null or left "
+                        + "out.")
         String parentId,
         @Schema(description = "The first date of these details.", format = "date")
         String validFrom,
@@ -155,8 +164,8 @@ public record OrgUnitRepresentation(
                 readOnly = true)
         String dayStart) implements Versioned {
 
-    // The fields that only a response fills. A read gives the effective places of its date, which can be any date
-    // of the details, so a write does not compare them.
+    // The fields that only a response fills and that a read of validFrom has. The effective places can differ
+    // between the dates of the details, so a write compares them with every date, as it does the parent.
     static final List<String> READ_ONLY = List.of("id", "name", "shortName", "phoneticName", "legalEntity",
             "lateral", "rollup", "validTo", "externalIds", "keycloakOrganizationId", "timeZone", "dayStart");
 
