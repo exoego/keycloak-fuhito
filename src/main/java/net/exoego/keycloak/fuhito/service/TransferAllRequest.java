@@ -6,7 +6,7 @@ import java.util.Map;
  * The values of a request to move every person of one employer to another employer, for example when two
  * companies merge. They are not checked yet.
  *
- * @param fromEmployerId the ID of the org unit that employs the people today
+ * @param fromEmployerId the ID of the org unit that employs the people before the date
  * @param toEmployerId the ID of the org unit that employs them from the date
  * @param validFrom the first date at the new employer, as {@code YYYY-MM-DD}
  * @param endReason the code of the end reason of the old employments, or null
