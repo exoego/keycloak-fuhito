@@ -330,7 +330,7 @@ class RealmExportIT {
         // A row may name only rows of the same export, not those of another realm.
         ObjectNode foreign = JSON.createObjectNode().put("format", "fuhito.export.v1");
         foreign.putArray("qualifications").addObject().put("id", "q-1").put("personId", person)
-                .put("kindId", "k-1").put("validFrom", "2020-04-01");
+                .put("kindId", "k-1").put("validFrom", "2020-04-01").putObject("attributes");
         HttpResponse<String> named = target.api.post("/restore", JSON.writeValueAsString(foreign));
         assertEquals(400, named.statusCode(), named.body());
         assertEquals("restore.reference_unknown", Api.json(named).get("error").asText());
@@ -339,7 +339,7 @@ class RealmExportIT {
         ObjectNode located = JSON.createObjectNode().put("format", "fuhito.export.v1");
         ObjectNode placed = located.putArray("orgUnits").addObject().put("id", "u-0");
         named(placed.putArray("versions").addObject().put("id", "v-0").put("validFrom", "2020-04-01"))
-                .put("workLocationId", "l-1");
+                .put("workLocationId", "l-1").putObject("attributes");
         placed.putArray("parents");
         placed.putArray("successors");
         HttpResponse<String> location = target.api.post("/restore", JSON.writeValueAsString(located));
@@ -353,7 +353,8 @@ class RealmExportIT {
             ArrayNode units = ids.putArray("orgUnits");
             for (String unitId : List.of("u-3", "u-4")) {
                 ObjectNode row = units.addObject().put("id", unitId).put("source", "hr");
-                named(row.putArray("versions").addObject().put("id", "v-" + unitId).put("validFrom", "2020-04-01"));
+                named(row.putArray("versions").addObject().put("id", "v-" + unitId).put("validFrom", "2020-04-01"))
+                        .putObject("attributes");
                 row.putArray("parents");
                 row.putArray("successors");
             }
@@ -368,7 +369,8 @@ class RealmExportIT {
         // A date that cannot be read, and a unit with no list of versions.
         ObjectNode badDate = JSON.createObjectNode().put("format", "fuhito.export.v1");
         ObjectNode unit = badDate.putArray("orgUnits").addObject().put("id", "u-1");
-        named(unit.putArray("versions").addObject().put("id", "v-1").put("validFrom", "someday"));
+        named(unit.putArray("versions").addObject().put("id", "v-1").put("validFrom", "someday"))
+                .putObject("attributes");
         unit.putArray("parents");
         unit.putArray("successors");
         assertEquals("restore.bad_value", error(target.api.post("/restore", JSON.writeValueAsString(badDate))));
@@ -409,8 +411,8 @@ class RealmExportIT {
     void aRestoreNeedsTheUsersAndTheFormat() throws Exception {
         TestRealm target = TestRealm.create("export-users");
         ObjectNode document = JSON.createObjectNode().put("format", "fuhito.export.v1");
-        document.putArray("people").addObject().put("id", "p-1").put("username", "nobody")
-                .put("primaryLanguage", "ja").putObject("names").putObject("ja").put("name", "X");
+        named(document.putArray("people").addObject().put("id", "p-1").put("username", "nobody"))
+                .putObject("attributes");
 
         assertEquals("restore.username_unknown", Api.json(target.api.post("/restore",
                 JSON.writeValueAsString(document))).get("error").asText());
@@ -419,7 +421,8 @@ class RealmExportIT {
 
         ObjectNode linked = JSON.createObjectNode().put("format", "fuhito.export.v1");
         ObjectNode unit = linked.putArray("orgUnits").addObject().put("id", "u-1").put("organizationAlias", "nope");
-        named(unit.putArray("versions").addObject().put("id", "v-1").put("validFrom", "2020-04-01"));
+        named(unit.putArray("versions").addObject().put("id", "v-1").put("validFrom", "2020-04-01"))
+                .putObject("attributes");
         unit.putArray("parents");
         unit.putArray("successors");
         HttpResponse<String> unknown = target.api.post("/restore", JSON.writeValueAsString(linked));
