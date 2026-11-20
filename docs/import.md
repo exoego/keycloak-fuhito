@@ -510,4 +510,4 @@ This copies a realm to a test environment, moves it to another Keycloak, or brin
 - The change log, the admin events, and the records of the members that the projection added are not part of an export. The restore records one entry, `FUHITO_RESTORE`.
 - The export needs the full read permission, because it has the data of people. The restore needs the permission to write.
 
-Checked by `RealmExportIT.anExportLoadsIntoAnEmptyRealmAndGivesTheSameExportAgain`, `RealmExportIT.anExportOfCheckedDataRestoresUnchanged`, and `RealmExportIT.anEmptyValueInAnyRowFailsTheRestoreAndNothingIsWritten`.
+Checked by `RealmExportIT.anExportLoadsIntoAnEmptyRealmAndGivesTheSameExportAgain`, `RestoreEmptyValuesIT.anExportOfCheckedDataRestoresUnchanged`, and `RestoreEmptyValuesIT.anEmptyValueInAnyRowFailsTheRestoreAndNothingIsWritten`.

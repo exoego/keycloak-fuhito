@@ -379,74 +379,8 @@ class RealmExportIT {
         assertEquals(0, Api.json(target.api.get("/export/org-units")).size());
     }
 
-    @Test
-    void anEmptyValueInAnyRowFailsTheRestoreAndNothingIsWritten() throws Exception {
-        TestRealm target = TestRealm.create("export-blank");
-        ObjectNode emptyText = withPerson();
-        named(((ArrayNode) emptyText.get("people")).addObject().put("id", "p-2")).putObject("attributes")
-                .put("note", "");
-        ObjectNode spaces = withPerson();
-        spaces.putArray("hierarchies").addObject().put("id", "h-1").put("code", "project").put("name", " ");
-        ObjectNode emptyList = withPerson();
-        ObjectNode unit = emptyList.putArray("orgUnits").addObject().put("id", "u-1");
-        named(unit.putArray("versions").addObject().put("id", "v-1").put("validFrom", "2020-04-01"))
-                .putObject("attributes").putArray("sites");
-        unit.putArray("parents");
-        unit.putArray("successors");
-
-        assertBlank(target.api, emptyText, "people", "p-2", "attributes.note");
-        assertBlank(target.api, spaces, "hierarchies", "h-1", "name");
-        assertBlank(target.api, emptyList, "org-unit-versions", "v-1", "attributes.sites");
-
-        // Not even the good person of each document was written.
-        assertEquals(0, Api.json(target.api.get("/export/people")).size());
-        assertEquals(0, Api.json(target.api.get("/export/org-units")).size());
-        assertFalse(Api.json(target.api.get("/export/hierarchies")).findValuesAsText("code").contains("project"));
-    }
-
-    private static ObjectNode withPerson() {
-        ObjectNode document = JSON.createObjectNode().put("format", "fuhito.export.v1");
-        named(document.putArray("people").addObject().put("id", "p-1")).putObject("attributes");
-        return document;
-    }
-
-    private static void assertBlank(Api api, ObjectNode document, String list, String id, String field)
-            throws Exception {
-        HttpResponse<String> response = api.post("/restore", JSON.writeValueAsString(document));
-        assertEquals(400, response.statusCode(), response.body());
-        JsonNode error = Api.json(response);
-        assertEquals("invalid.blank", error.get("error").asText(), response.body());
-        assertEquals(JSON.valueToTree(Map.of("list", list, "id", id, "field", field)), error.get("params"));
-    }
-
-    @Test
-    void anExportOfCheckedDataRestoresUnchanged() throws Exception {
-        TestRealm realm = TestRealm.withEmployer("export-checked");
-        Api api = realm.api;
-        ok(api.post("/attribute-definitions", "{\"target\": \"ORG_UNIT\", \"name\": \"wards\", \"type\": \"STRING\", "
-                + "\"multiple\": true}"));
-        ok(api.post("/attribute-definitions", "{\"target\": \"PERSON\", \"name\": \"note\", \"type\": \"STRING\"}"));
-        String hospital = id(api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": "
-                + "\"病院\", \"shortName\": \"病\"}}, \"attributes\": {\"wards\": [\"東\", \"西\"]}, "
-                + "\"validFrom\": \"2020-04-01\"}"));
-        String person = id(api.post("/people", "{\"userId\": \"" + realm.user("nurse") + "\", "
-                + "\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"山田 花子\", \"phoneticName\": "
-                + "\"やまだ はなこ\"}}, \"attributes\": {\"note\": \"夜勤なし\"}}"));
-        ok(api.post("/staff", "{\"personId\": \"" + person + "\", \"orgUnitId\": \"" + hospital
-                + "\", \"validFrom\": \"2020-04-01\"}"));
-        ObjectNode before = export(api);
-        // An empty list of the rows of a row is not an empty value.
-        assertTrue(before.get("orgUnits").findValues("parents").stream().anyMatch(JsonNode::isEmpty),
-                before.toString());
-        assertTrue(before.get("orgUnits").findValues("successors").stream().allMatch(JsonNode::isEmpty));
-
-        ok(api.post("/restore?replace=true", JSON.writeValueAsString(before)));
-
-        assertEquals(before, export(api));
-    }
-
     // Gives a row of a document of a restore its names.
-    private static ObjectNode named(ObjectNode row) {
+    static ObjectNode named(ObjectNode row) {
         row.put("primaryLanguage", "ja").putObject("names").putObject("ja").put("name", "X");
         return row;
     }
