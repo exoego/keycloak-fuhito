@@ -87,6 +87,28 @@ class ExternalIdsIT {
     }
 
     @Test
+    void anIdFitsItsColumnOf255Characters() throws Exception {
+        Api api = TestRealm.create("external-id-length").api;
+        // An emoji is one character in the column, though Java holds it in two chars.
+        String fits = "😀".repeat(255);
+        String tooLong = "😀".repeat(256);
+        String unit = "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"%s\"}}, "
+                + "\"validFrom\": \"2020-04-01\", \"source\": \"hr\", \"externalId\": \"%s\"}";
+        HttpResponse<String> created = api.post("/org-units", unit.formatted("1病棟", fits));
+        assertEquals(201, created.statusCode(), created.body());
+        String ward = Api.json(created).get("id").asText();
+        assertEquals(List.of("hr=" + fits), Api.externalIds(Api.json(created)));
+        assertEquals("external_id.bad_value", errorOf(400, api.post("/org-units", unit.formatted("2病棟", tooLong))));
+
+        String put = "{\"resourceType\": \"ORG_UNIT\", \"resourceId\": \"" + ward
+                + "\", \"source\": \"payroll\", \"externalId\": \"%s\"}";
+        assertEquals(fits, ok(api.putWithVersion("/external-ids", put.formatted(fits))).get("externalId").asText());
+        assertEquals("external_id.bad_value", errorOf(400, api.putWithVersion("/external-ids", put.formatted(tooLong))));
+        assertEquals(List.of(fits, fits), ok(api.get("/external-ids?resourceType=ORG_UNIT&resourceId=" + ward))
+                .findValuesAsText("externalId"));
+    }
+
+    @Test
     void aMaskRemovesTheIdsOfAPersonAndEveryKindHasTheIdsOfEverySystem() throws Exception {
         TestRealm realm = TestRealm.withEmployer("external-ids-kinds");
         Api api = realm.api;

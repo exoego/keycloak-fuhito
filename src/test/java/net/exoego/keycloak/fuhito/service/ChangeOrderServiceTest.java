@@ -226,4 +226,16 @@ class ChangeOrderServiceTest {
                 "director", "nobody", null)).params().get("field"));
         assertTrue(store.orders.isEmpty());
     }
+
+    @Test
+    void anExternalReferenceFitsItsColumnByCharacters() {
+        String fits = "😀".repeat(255);
+        assertEquals(fits, service.create(new ChangeOrderValues(null, null, "x", null, null, "2026-04-01", null, null,
+                fits)).externalReference());
+
+        FuhitoException tooLong = failure(new ChangeOrderValues(null, null, "x", null, null, "2026-04-01", null, null,
+                "😀".repeat(256)));
+        assertEquals("invalid.too_long", tooLong.code());
+        assertEquals(Map.of("field", "externalReference", "max", "255"), tooLong.params());
+    }
 }
