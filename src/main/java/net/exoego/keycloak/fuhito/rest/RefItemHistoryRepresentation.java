@@ -13,7 +13,7 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
 @Schema(
         name = "RefItemHistory",
         description = "Every period of the names of a reference item. The other values of the item have no dates.",
-        requiredProperties = {"id", "version", "kind", "code", "externalIds", "versions"})
+        requiredProperties = {"id", "version", "kind", "code", "versions"})
 public record RefItemHistoryRepresentation(
         String id,
         @Schema(description = "The version of the item. A write of names counts it up too.", readOnly = true)

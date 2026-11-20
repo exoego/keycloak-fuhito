@@ -154,7 +154,7 @@ An org unit, a person, an employment, an assignment, and a qualification keep `s
 - A write with `source` and `externalId` stores the ID of that system for the resource. It replaces the ID that the system had. A write without them leaves the IDs as they are.
 - A create also sets `source` of the resource. It never changes, also when the ID of that system is removed.
 - The other resources take `source` and `externalId` only in a create. `PUT /external-ids` changes their IDs later.
-- A read of a resource gives `externalIds`, the list of every ID, and `source` when the resource keeps it. The ID of the system of `source` comes first, then the others by system. A read of many resources reads the IDs of all of them at once.
+- A read of a resource gives `externalIds`, the list of every ID, and `source` when the resource keeps it. The ID of the system of `source` comes first, then the others by system. A resource with no ID has no `externalIds`. A read of many resources reads the IDs of all of them at once.
 - An ID is part of its resource. A change of an ID counts up the version of the resource, once in a write.
 - `PUT /external-ids` stores the ID of one system for one resource, and `DELETE /external-ids` removes it.
 - A resource has at most one ID for each system.

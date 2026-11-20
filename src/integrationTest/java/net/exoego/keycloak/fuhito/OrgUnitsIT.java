@@ -261,9 +261,9 @@ class OrgUnitsIT {
         assertEquals("invalid.blank", errorOf(400, attribute));
         assertEquals("attributes.shifts", Api.json(attribute).get("params").get("field").asText());
 
-        // A response has the field, but a write must leave it out.
+        // A field that only a response fills fails too.
         JsonNode stored = created(realm.api.post("/org-units", unit.formatted("")));
-        assertEquals(0, stored.get("externalIds").size());
+        assertFalse(stored.has("externalIds"));
         String path = "/org-units/" + stored.get("id").asText();
         HttpResponse<String> copy = realm.api.putWithVersion(path, unit.formatted(", \"code\": \"copied\", \"externalIds\": []"));
         assertEquals("invalid.blank", errorOf(400, copy));
