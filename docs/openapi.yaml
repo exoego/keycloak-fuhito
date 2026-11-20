@@ -1824,15 +1824,16 @@ components:
             a stored unit changes it from the effective date.
         primaryLanguage:
           type: string
-          description: "The language tag of the primary names, such as `ja`. It is\
-            \ a key of `names`."
+          description: "The language tag of the primary names, such as `ja`. It matches\
+            \ a key of `names` in standard form."
         names:
           type: object
           additionalProperties:
             $ref: "#/components/schemas/OrgUnitName"
           description: "The names by language tag, such as `ja`, `en`, or `zh-Hant`.\
             \ They merge with the stored names by language and by field, and `null`\
-            \ for a language removes its names."
+            \ for a language removes its names. Two keys of one tag in standard form,\
+            \ such as `ja` and `JA`, fail with `invalid.duplicate_language`."
         unitType:
           type: string
           description: The code of the unit type.
@@ -1924,15 +1925,16 @@ components:
           description: The ID of a Keycloak user to link.
         primaryLanguage:
           type: string
-          description: "The language tag of the primary names, such as `ja`. It is\
-            \ a key of `names`."
+          description: "The language tag of the primary names, such as `ja`. It matches\
+            \ a key of `names` in standard form."
         names:
           type: object
           additionalProperties:
             $ref: "#/components/schemas/PersonName"
           description: "The names by language tag, such as `ja`, `en`, or `zh-Hant`.\
             \ A person with no user needs them. They merge with the stored names by\
-            \ language and by field."
+            \ language and by field. Two keys of one tag in standard form, such as\
+            \ `ja` and `JA`, fail with `invalid.duplicate_language`."
         attributes:
           type: object
           additionalProperties: {}
@@ -2024,15 +2026,16 @@ components:
             item may leave it out.
         primaryLanguage:
           type: string
-          description: "The language tag of the primary name, such as `ja`. It is\
-            \ a key of `names`."
+          description: "The language tag of the primary name, such as `ja`. It matches\
+            \ a key of `names` in standard form."
         names:
           type: object
           additionalProperties:
             $ref: "#/components/schemas/RefItemName"
           description: "The names by language tag, such as `ja`, `en`, or `zh-Hant`.\
             \ They merge with the stored names of the date by language, and `null`\
-            \ for a language removes its names."
+            \ for a language removes its names. Two keys of one tag in standard form,\
+            \ such as `ja` and `JA`, fail with `invalid.duplicate_language`."
         displayOrder:
           type: integer
           format: int32
@@ -2099,15 +2102,16 @@ components:
             it out.
         primaryLanguage:
           type: string
-          description: "The language tag of the primary name, such as `ja`. It is\
-            \ a key of `names`."
+          description: "The language tag of the primary name, such as `ja`. It matches\
+            \ a key of `names` in standard form."
         names:
           type: object
           additionalProperties:
             $ref: "#/components/schemas/RefKindName"
           description: "The names by language tag, such as `ja`, `en`, or `zh-Hant`.\
             \ They merge with the stored names by language, and `null` for a language\
-            \ removes its names."
+            \ removes its names. Two keys of one tag in standard form, such as `ja`\
+            \ and `JA`, fail with `invalid.duplicate_language`."
     ImportReport:
       required:
       - dryRun
@@ -2605,14 +2609,17 @@ components:
         primaryLanguage:
           type: string
           maxLength: 64
-          description: "The language tag of the primary names, such as `ja`. It is\
-            \ a key of `names`. The Keycloak group of the unit has the primary name."
+          description: "The language tag of the primary names, such as `ja`. It matches\
+            \ a key of `names` in standard form. The Keycloak group of the unit has\
+            \ the primary name."
         names:
           type: object
           additionalProperties:
             $ref: "#/components/schemas/OrgUnitName"
           description: "The names by language tag, such as `ja`, `en`, or `zh-Hant`.\
-            \ A read gives the tags in their standard form, such as `en-US` for `en-us`."
+            \ A read gives the tags in their standard form, such as `en-US` for `en-us`.\
+            \ Two keys of one tag in standard form, such as `ja` and `JA`, fail with\
+            \ `invalid.duplicate_language`."
         unitType:
           type: string
           description: The code of the unit type.
@@ -2905,8 +2912,8 @@ components:
         primaryLanguage:
           type: string
           maxLength: 64
-          description: "The language tag of the primary names, such as `ja`. It is\
-            \ a key of `names`. A person with no names has none."
+          description: "The language tag of the primary names, such as `ja`. It matches\
+            \ a key of `names` in standard form. A person with no names has none."
         names:
           type: object
           additionalProperties:
@@ -2914,7 +2921,9 @@ components:
           description: "The names by language tag, such as `ja`, `en`, or `zh-Hant`.\
             \ A read gives the tags in their standard form, such as `en-US` for `en-us`.\
             \ A person with no linked user needs them. A person with a linked user\
-            \ can have none, and a response then has the name of the user in `name`."
+            \ can have none, and a response then has the name of the user in `name`.\
+            \ Two keys of one tag in standard form, such as `ja` and `JA`, fail with\
+            \ `invalid.duplicate_language`."
         attributes:
           type: object
           additionalProperties: {}
@@ -3225,15 +3234,16 @@ components:
         primaryLanguage:
           type: string
           maxLength: 64
-          description: "The language tag of the primary name, such as `ja`. It is\
-            \ a key of `names`."
+          description: "The language tag of the primary name, such as `ja`. It matches\
+            \ a key of `names` in standard form."
         names:
           type: object
           additionalProperties:
             $ref: "#/components/schemas/RefItemName"
           description: "The names by language tag, such as `ja`, `en`, or `zh-Hant`.\
             \ A read gives the names of its date, with the tags in their standard\
-            \ form, such as `en-US` for `en-us`."
+            \ form, such as `en-US` for `en-us`. Two keys of one tag in standard form,\
+            \ such as `ja` and `JA`, fail with `invalid.duplicate_language`."
         displayOrder:
           type: integer
           format: int32
@@ -3418,15 +3428,16 @@ components:
         primaryLanguage:
           type: string
           maxLength: 64
-          description: "The language tag of the primary name, such as `ja`. It is\
-            \ a key of `names`. A fixed kind has none."
+          description: "The language tag of the primary name, such as `ja`. It matches\
+            \ a key of `names` in standard form. A fixed kind has none."
         names:
           type: object
           additionalProperties:
             $ref: "#/components/schemas/RefKindName"
           description: "The names by language tag, such as `ja`, `en`, or `zh-Hant`.\
             \ A read gives the tags in their standard form, such as `en-US` for `en-us`.\
-            \ A fixed kind has none."
+            \ A fixed kind has none. Two keys of one tag in standard form, such as\
+            \ `ja` and `JA`, fail with `invalid.duplicate_language`."
         fixed:
           type: boolean
           description: True for a kind that every realm has.
@@ -3561,12 +3572,13 @@ components:
         primaryLanguage:
           type: string
           description: "The language tag of the primary names, for a create or a change.\
-            \ It is a key of `names`."
+            \ It matches a key of `names` in standard form."
         names:
           type: object
           additionalProperties:
             $ref: "#/components/schemas/OrgUnitName"
-          description: "The names by language tag, for a create or a change."
+          description: "The names by language tag, for a create or a change. Two keys\
+            \ of one tag in standard form, such as `ja` and `JA`, fail with `invalid.duplicate_language`."
         unitType:
           type: string
           description: The code of the unit type.
