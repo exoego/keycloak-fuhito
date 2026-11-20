@@ -61,12 +61,18 @@ public record OrgUnitRepresentation(
         String costCenter,
         @Schema(
                 description = "The code of the work location that applies on the date. It is the one of the unit, "
-                        + "else the one of the nearest unit above it in the default hierarchy. A history has none.",
+                        + "else the one of the nearest unit above it in the default hierarchy. A history has none. It "
+                        + "can change inside the details, when the unit moves or a unit above changes. A write of a "
+                        + "stored unit can give one that applies on any date of the details that it replaces. "
+                        + "Another value fails with 400 and `invalid.value_fixed`.",
                 readOnly = true)
         String effectiveWorkLocation,
         @Schema(
                 description = "The code of the cost center that applies on the date. It is the one of the unit, else "
-                        + "the one of the nearest unit above it in the default hierarchy. A history has none.",
+                        + "the one of the nearest unit above it in the default hierarchy. A history has none. It can "
+                        + "change inside the details, when the unit moves or a unit above changes. A write of a "
+                        + "stored unit can give one that applies on any date of the details that it replaces. "
+                        + "Another value fails with 400 and `invalid.value_fixed`.",
                 readOnly = true)
         String effectiveCostCenter,
         @Schema(

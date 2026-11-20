@@ -115,8 +115,9 @@ public class OrgUnitsResource {
             summary = "Replaces the details of an org unit from the `validFrom` date of the body.",
             description = "The details are the code, the names, the unit type, the display order, and the "
                     + "attributes. The parent does not change here, and `PUT /org-units/{id}/parent` moves the unit. "
-                    + "A `parentId` that the unit does not have on any date of the details that the write replaces "
-                    + "fails with 400 and `invalid.value_fixed`. With `source` and `externalId`, the unit gets that "
+                    + "A `parentId`, an `effectiveWorkLocation`, or an `effectiveCostCenter` that the unit does not "
+                    + "have on any date of the details that the write replaces fails with 400 and "
+                    + "`invalid.value_fixed`. With `source` and `externalId`, the unit gets that "
                     + "ID of that system. Another `source` with no `externalId` fails with 400 and "
                     + "`invalid.value_fixed`. No other org unit may have the same code on a date of the change.")
     @Parameter(ref = "changeOrder")
@@ -133,10 +134,7 @@ public class OrgUnitsResource {
         context.requireWrite();
         return Calls.guarded(context, body, () -> version(id), () -> {
             Writes.requireSource(service.source(id), body.source(), body.externalId());
-            if (body.parentId() != null) {
-                // A read has the parent of its date, and its details can start before a move.
-                Checks.fixedAmong("parentId", service.parentsOfDetails(id, body.validFrom()), body.parentId());
-            }
+            requireReplacedValues(id, body);
             return updated(path(id), service.changeDetails(id, body.toChange(), body.source(), body.externalId()));
         });
     }
@@ -842,6 +840,18 @@ public class OrgUnitsResource {
         context.requireReadStructure();
         return Calls.run(context, () -> OrgUnitSuccessionsRepresentation.of(
                 limit.readable(service.successions(id))));
+    }
+
+    // A read has the parent and the places that apply on its date. They can change inside its details, when the unit
+    // moves or a unit above changes.
+    private void requireReplacedValues(String id, OrgUnitRepresentation body) {
+        if (body.parentId() == null && body.effectiveWorkLocation() == null && body.effectiveCostCenter() == null) {
+            return;
+        }
+        OrgUnitService.ReplacedDetails replaced = service.replacedDetails(id, body.validFrom());
+        Checks.fixedAmong("parentId", replaced.parentIds(), body.parentId());
+        Checks.fixedAmong("effectiveWorkLocation", replaced.workLocations(), body.effectiveWorkLocation());
+        Checks.fixedAmong("effectiveCostCenter", replaced.costCenters(), body.effectiveCostCenter());
     }
 
     private OrgUnitRepresentation updated(String path, OrgUnitState state) {
