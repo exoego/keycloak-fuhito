@@ -124,6 +124,18 @@ public class RefItemService {
     }
 
     private String knownKind(String kind) {
+        return knownKind(kind, knownKinds);
+    }
+
+    /**
+     * Requires a kind that items can have.
+     *
+     * @param kind the code of the kind
+     * @param knownKinds tells whether a code is a fixed kind or a kind of the realm
+     * @return the same code
+     * @throws FuhitoException when the kind is missing or unknown
+     */
+    static String knownKind(String kind, Predicate<String> knownKinds) {
         Checks.required("kind", kind);
         if (!knownKinds.test(kind)) {
             throw FuhitoException.invalid("invalid.kind", Map.of("value", kind));

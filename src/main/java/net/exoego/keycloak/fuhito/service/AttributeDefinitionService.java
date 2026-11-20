@@ -147,15 +147,26 @@ public class AttributeDefinitionService implements AttributeRules {
             String type, String refKind, Boolean multiple, Boolean required, long version) {
         AttributeDefinition.Type of = Checks.optionalEnum("type", AttributeDefinition.Type.class,
                 Checks.required("type", type), null);
-        String kind = refKind;
-        if (kind != null && !knownKinds.test(kind)) {
-            throw FuhitoException.invalid("invalid.choice", Map.of("field", "refKind", "value", kind));
-        }
-        if ((of == AttributeDefinition.Type.REF_ITEM) != (kind != null)) {
-            throw FuhitoException.invalid("attribute.ref_kind", Map.of("type", of.name()));
-        }
-        return new AttributeDefinition(id, target, name, of, kind, Boolean.TRUE.equals(multiple),
+        requireRefKind(of, refKind, knownKinds);
+        return new AttributeDefinition(id, target, name, of, refKind, Boolean.TRUE.equals(multiple),
                 Boolean.TRUE.equals(required), version);
+    }
+
+    /**
+     * Requires a kind of reference data for the type {@code REF_ITEM}, and none for another type.
+     *
+     * @param type the type of the value
+     * @param refKind the code of the kind, or null
+     * @param knownKinds tells whether a code is a fixed kind or a kind of the realm
+     * @throws FuhitoException when the kind is unknown, missing for {@code REF_ITEM}, or given for another type
+     */
+    static void requireRefKind(AttributeDefinition.Type type, String refKind, Predicate<String> knownKinds) {
+        if (refKind != null && !knownKinds.test(refKind)) {
+            throw FuhitoException.invalid("invalid.choice", Map.of("field", "refKind", "value", refKind));
+        }
+        if ((type == AttributeDefinition.Type.REF_ITEM) != (refKind != null)) {
+            throw FuhitoException.invalid("attribute.ref_kind", Map.of("type", type.name()));
+        }
     }
 
     @Override

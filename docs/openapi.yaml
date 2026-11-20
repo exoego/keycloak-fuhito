@@ -9704,15 +9704,18 @@ paths:
         \ 400 and `restore.bad_value`. So does a text longer than its column, or a\
         \ value that breaks the rule of a write, such as a code or a name. So does\
         \ a `validTo` that is not after the `validFrom` of its row, as in a write.\
-        \ So does a row that breaks a rule between rows of a write, such as a row\
-        \ of an assignment that is not inside its employment, or a unit that other\
-        \ units follow and that has no end. Then `rule` names the error of the write\
-        \ for the rule, such as `assignment.outside_employment`, when the write has\
-        \ one. An empty text, a text of only spaces, or an empty array in a row fails\
-        \ with 400 and `invalid.blank`, as in a write. A text with NUL (U+0000) or\
-        \ half of a surrogate pair fails with 400 and `invalid.character`, as in a\
-        \ write. The error names the list, the `id` of the row, and the field. A document\
-        \ that gives one key twice in one object fails with 400 and `invalid.duplicate_key`,\
+        \ So does an unknown choice, such as the `status` of terms, or names that\
+        \ break a rule of a write, such as a `primaryLanguage` that is not a key of\
+        \ `names`. So does a row that names a reference item of another kind, such\
+        \ as a unit role as the grade of terms, or that breaks a rule between rows\
+        \ of a write, such as a row of an assignment that is not inside its employment,\
+        \ or a unit that other units follow and that has no end. Then `rule` names\
+        \ the error of the write for the rule, such as `assignment.outside_employment`,\
+        \ when the write has one. An empty text, a text of only spaces, or an empty\
+        \ array in a row fails with 400 and `invalid.blank`, as in a write. A text\
+        \ with NUL (U+0000) or half of a surrogate pair fails with 400 and `invalid.character`,\
+        \ as in a write. The error names the list, the `id` of the row, and the field.\
+        \ A document that gives one key twice in one object fails with 400 and `invalid.duplicate_key`,\
         \ as in a write. That error names the key with its path in the document. A\
         \ row may have an empty list of its own rows, such as `parents`. Two rows\
         \ with the same ID or the same unique key, such as the `code` of a hierarchy,\

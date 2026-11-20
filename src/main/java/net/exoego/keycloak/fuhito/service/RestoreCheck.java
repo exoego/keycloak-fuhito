@@ -16,15 +16,23 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 
+import net.exoego.keycloak.fuhito.domain.AttributeDefinition;
 import net.exoego.keycloak.fuhito.domain.BusinessDay;
 import net.exoego.keycloak.fuhito.domain.Checks;
+import net.exoego.keycloak.fuhito.domain.EmploymentStatus;
+import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
+import net.exoego.keycloak.fuhito.domain.Localized;
+import net.exoego.keycloak.fuhito.domain.PersonName;
+import net.exoego.keycloak.fuhito.domain.RefItemName;
+import net.exoego.keycloak.fuhito.domain.RefKindName;
+import net.exoego.keycloak.fuhito.domain.ReportingLine;
 
 /**
  * Checks an export before a restore writes it. A row may name only rows of the same export, so that a restore
  * never links to the rows of another realm, and fails with a clear error and not in the database. A row has no empty
- * value and no text that cannot be stored, as a row of an import, each of its texts fits its column, and its period
- * ends after it starts.
+ * value and no text that cannot be stored, as a row of an import, each of its texts fits its column, each of its
+ * choices and names is one that a write takes, and its period ends after it starts.
  */
 final class RestoreCheck {
 
@@ -69,14 +77,16 @@ final class RestoreCheck {
      * Requires every row of an export and every value that the table of a row needs, and requires that no value is an
      * empty text, a text of only spaces, an empty list, or a text that cannot be stored, as in a row of an import. A
      * text must fit its column, and a value that a write checks by a rule of its own, such as a code or a date, must
-     * pass the rule. The {@code validTo} of a row must be after its {@code validFrom}, as in a write. A row inside a
-     * row, such as a version of an org unit, is named by the list and the ID that {@code restore.id_taken} gives it.
+     * pass the rule. A choice, such as the status of terms, and the names of a row must be ones that a write takes.
+     * The {@code validTo} of a row must be after its {@code validFrom}, as in a write. A row inside a row, such as a
+     * version of an org unit, is named by the list and the ID that {@code restore.id_taken} gives it.
      *
      * @param document the export
      * @param lengths gives the longest text of each field of a row of a list
      * @throws FuhitoException when a row or a needed value is missing, a value is empty, a text cannot be stored or
-     *         is too long for its column, a value breaks its rule, or a period does not end after it starts. The
-     *         error names the list, the ID of the row when it has one, and the field.
+     *         is too long for its column, a value breaks its rule, a choice is unknown, the names break a rule of a
+     *         write, or a period does not end after it starts. The error names the list, the ID of the row when it
+     *         has one, and the field. For a choice and the names, {@code rule} names the error of the write.
      */
     static void requireValues(RealmExport document, Function<String, Map<String, Integer>> lengths) {
         Values values = new Values(lengths);
@@ -107,6 +117,32 @@ final class RestoreCheck {
                 "externalId");
         values.check("change-orders", document.changeOrders(), "id", "title", "effectiveDate", "createdAt");
         values.check("erasures", document.erasures(), "personId", "erasedAt");
+        requireNames(document);
+    }
+
+    private static void requireNames(RealmExport document) {
+        all(document.refKinds()).forEach(k -> names("ref-kinds", k.id(),
+                () -> RefKindName.check(k.primaryLanguage(), k.names())));
+        for (RealmExport.Item item : all(document.refItems())) {
+            all(item.versions()).forEach(n -> names("ref-item-names", n.id(),
+                    () -> RefItemName.check(n.primaryLanguage(), n.names())));
+        }
+        for (RealmExport.Unit unit : all(document.orgUnits())) {
+            all(unit.versions()).forEach(v -> names("org-unit-versions", v.id(),
+                    () -> Localized.check(v.primaryLanguage(), v.names(), (field, name) -> name.checked(field))));
+        }
+        all(document.people()).forEach(p -> names("people", p.id(),
+                () -> PersonName.check(p.primaryLanguage(), p.names())));
+    }
+
+    // Only invalid.primary_language names no field, and it is about primaryLanguage.
+    private static void names(String list, String id, Runnable check) {
+        try {
+            check.run();
+        } catch (FuhitoException e) {
+            throw RestoreRules.broken(list, id, e.params().getOrDefault("field", "primaryLanguage"), e.code())
+                    .causedBy(e);
+        }
     }
 
     private record Values(Function<String, Map<String, Integer>> lengths) {
@@ -138,7 +174,12 @@ final class RestoreCheck {
                     named.putAll(params);
                     throw new FuhitoException(e.reason(), e.code(), named).causedBy(e);
                 }
-                fields.forEach((field, value) -> requireFit(params, field, value, longest.get(field)));
+                fields.forEach((field, value) -> {
+                    requireFit(params, field, value, longest.get(field));
+                    if (value instanceof String text) {
+                        RestoreRules.check(list, params.get("id"), field, () -> choice(list, field, text));
+                    }
+                });
                 requireOrder(params, (String) fields.get("validFrom"), (String) fields.get("validTo"));
             }
         }
@@ -194,6 +235,19 @@ final class RestoreCheck {
                     Checks.optionalPercent(field, (BigDecimal) value);
             case "org-units.timeZone" -> ANY_DAY.with((String) value, null);
             case "org-units.dayStart" -> ANY_DAY.with(null, (String) value);
+            default -> {
+            }
+        }
+    }
+
+    private static void choice(String list, String field, String value) {
+        switch (list + "." + field) {
+            case "attribute-definitions.target" ->
+                    Checks.optionalEnum(field, AttributeDefinition.Target.class, value, null);
+            case "attribute-definitions.type" -> Checks.optionalEnum(field, AttributeDefinition.Type.class, value, null);
+            case "employment-terms.status" -> Checks.optionalEnum(field, EmploymentStatus.class, value, null);
+            case "reporting-lines.kind" -> Checks.optionalEnum(field, ReportingLine.Kind.class, value, null);
+            case "external-ids.resourceType" -> Checks.optionalEnum(field, ExternalId.Kind.class, value, null);
             default -> {
             }
         }
