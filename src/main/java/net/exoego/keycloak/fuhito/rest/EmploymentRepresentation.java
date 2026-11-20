@@ -52,7 +52,7 @@ public record EmploymentRepresentation(
                 maxLength = 64,
                 pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$")
         String staffNumber,
-        @Schema(description = "The code of the end reason.", readOnly = true)
+        @Schema(description = "The code of the end reason. Only an employment with an end has one.", readOnly = true)
         String endReason,
         @Schema(
                 description = "The ID of the employment in the system that `source` names. A write stores it as the "

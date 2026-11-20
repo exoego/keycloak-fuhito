@@ -127,6 +127,7 @@ final class EmploymentImport {
         String employerId = employerId(row, source);
         String continues = continued(row, source);
         if (before.isEmpty()) {
+            requireEnd(row.validTo(), row.endReason());
             NewEmployment request = new NewEmployment(personId,
                     row.validFrom() == null ? document.effectiveDate : row.validFrom(), row.validTo(),
                     row.staffNumber(), row.employmentType(), row.grade(), row.status(), row.leaveReason(),
@@ -135,7 +136,7 @@ final class EmploymentImport {
             Employment employment = ids.create(ExternalId.Kind.EMPLOYMENT, source, row.externalId(),
                     () -> started.start(request, continues), Employment::id);
             String id = employment.id();
-            boolean ended = row.validTo() != null && row.endReason() != null;
+            boolean ended = row.endReason() != null;
             // The new employment has no end reason until the end that the row gives.
             writes.add(() -> new Write.OfEmployment(true, "", ended ? withoutEndReason(views.get(id)) : views.get(id)));
             if (ended) {
@@ -172,6 +173,9 @@ final class EmploymentImport {
             throw FuhitoException.conflict("import.continues_mismatch", Map.of("externalId", name));
         }
         ImportMatch.start(row, id, employment.period().from(), row.validFrom());
+        String storedEnd = Objects.toString(employment.period().to(), null);
+        String validTo = row.or("validTo", row.validTo(), storedEnd);
+        requireEnd(validTo, row.endReason());
         boolean changed = false;
         // An employment that ended by the effective date has no terms to compare. One that starts later can only
         // come again as it is, for example in the document that made it.
@@ -195,8 +199,6 @@ final class EmploymentImport {
                 changed = true;
             }
         }
-        String storedEnd = Objects.toString(employment.period().to(), null);
-        String validTo = row.or("validTo", row.validTo(), storedEnd);
         String endReason = row.or("endReason", row.endReason(), before.endReason());
         if (validTo == null && storedEnd != null) {
             written("/end", id, () -> service.removeEnd(id));
@@ -207,6 +209,14 @@ final class EmploymentImport {
             changed = true;
         }
         return changed ? Outcome.CHANGED : Outcome.UNCHANGED;
+    }
+
+    // An employment with no end has no end reason. A row that removes the end and gives no reason removes the
+    // stored one with the end.
+    private static void requireEnd(String validTo, String endReason) {
+        if (validTo == null && endReason != null) {
+            throw FuhitoException.invalid("employment.end_reason_without_end", Map.of("endReason", endReason));
+        }
     }
 
     // A status that is not a leave drops the stored reason, unless the row gives one.
