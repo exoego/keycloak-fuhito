@@ -281,7 +281,7 @@ public class UsersResource {
             @Parameter(description = "The ID of the Keycloak user.")
             @PathParam("userId") String userId,
             @Parameter(
-                    description = "The date to read. The default is today in the time zone of the realm.",
+                    description = "The date to read. The default is today for the org unit of each assignment.",
                     schema = @Schema(format = "date"))
             @QueryParam("asOf") String asOf,
             @Parameter(
