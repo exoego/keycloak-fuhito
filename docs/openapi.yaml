@@ -4112,7 +4112,8 @@ components:
       properties:
         fromEmployerId:
           type: string
-          description: The ID of the org unit that employs the people today.
+          description: The ID of the org unit that employs the people before the date.
+            It is a legal entity on the date.
           writeOnly: true
         toEmployerId:
           type: string
