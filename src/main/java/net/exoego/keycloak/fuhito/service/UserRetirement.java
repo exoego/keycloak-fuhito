@@ -76,14 +76,14 @@ public class UserRetirement {
         all.reversed().stream()
                 .filter(employment -> !employment.period().from().isBefore(today))
                 .forEach(employment -> removeNeverHeld(employment, written));
-        for (Employment employment : all) {
-            if (employment.period().from().isBefore(today) && employment.period().endsAfter(today)) {
-                // A reason that was stored with a later end stays.
-                String reason = employmentService.get(employment.id()).endReason();
-                written.add(new Write.OfEmployment(false, "/end",
-                        employmentService.end(employment.id(), today.toString(), reason)));
-            }
-        }
+        // One write ends them all, as the end of one may remove an assignment that one of another continues. A
+        // reason that was stored with a later end stays.
+        List<String> open = all.stream()
+                .filter(employment -> employment.period().from().isBefore(today)
+                        && employment.period().endsAfter(today))
+                .map(Employment::id)
+                .toList();
+        employmentService.endAll(open, today).forEach(view -> written.add(new Write.OfEmployment(false, "/end", view)));
         List<ReportingLine> managed = people.findByUser(userId).map(person -> lines.findByManager(person.id()))
                 .orElse(List.of());
         for (ReportingLine line : managed) {

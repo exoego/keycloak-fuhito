@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.stream.LongStream;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -227,6 +228,47 @@ class UserRemovalIT {
         JsonNode log = Api.json(api.get("/change-log?resourceType=FUHITO_EMPLOYMENT&resourceId=" + employment));
         assertEquals("DELETE", log.get(log.size() - 1).get("operation").asText());
         assertFalse(log.get(log.size() - 1).has("actorUserId"));
+    }
+
+    // The removal ends the two open employments in one write. So the end of the first may remove an assignment
+    // that an assignment of the second continues, as the end of the second removes that one too.
+    @Test
+    void removingAUserRemovesAFutureAssignmentAndTheOneOfAnotherEmploymentThatContinuesIt() throws Exception {
+        TestRealm realm = TestRealm.withEmployer("user-removal-continued");
+        Api api = realm.api;
+        String unit = Api.json(api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"課\"}}, \"validFrom\": \"2020-04-01\"}")).get("id").asText();
+        String user = realm.user("two-contracts");
+        List<String> employments = new ArrayList<>();
+        for (String from : List.of("2020-04-01", "2021-04-01")) {
+            employments.add(Api.json(api.post("/employments", "{\"userId\": \"" + user + "\", \"validFrom\": \""
+                    + from + "\"}")).get("id").asText());
+        }
+        String soon = LocalDate.parse(TODAY).plusDays(10).toString();
+        String later = LocalDate.parse(TODAY).plusDays(20).toString();
+        HttpResponse<String> planned = api.post("/assignments", "{\"employmentId\": \"" + employments.get(0)
+                + "\", \"orgUnitId\": \"" + unit + "\", \"validFrom\": \"" + soon + "\", \"validTo\": \"" + later + "\"}");
+        assertEquals(201, planned.statusCode(), planned.body());
+        String first = Api.json(planned).get("id").asText();
+        HttpResponse<String> imported = api.post("/imports", "{\"effectiveDate\": \"" + TODAY + "\", \"source\": "
+                + "\"sheet\", \"assignments\": [{\"externalId\": \"C-1\", \"employmentId\": \"" + employments.get(1)
+                + "\", \"orgUnitId\": \"" + unit + "\", \"validFrom\": \"" + later + "\", \"continuesAssignmentId\": \""
+                + first + "\"}]}");
+        assertEquals(200, imported.statusCode(), imported.body());
+        String continuing = ImportIT.lookup(api, "ASSIGNMENT", "C-1");
+
+        realm.removeUser(user);
+
+        for (String employment : employments) {
+            assertEquals(TODAY, Api.json(api.get("/employments/" + employment)).get("validTo").asText());
+        }
+        assertEquals(404, api.get("/assignments/" + first).statusCode());
+        assertEquals(404, api.get("/assignments/" + continuing).statusCode());
+        ObjectNode export = RealmExportIT.export(api);
+        TestRealm target = TestRealm.create("user-removal-continued-restore");
+        realm.remove();
+        HttpResponse<String> restored = target.api.post("/restore", export.toString());
+        assertEquals(200, restored.statusCode(), restored.body());
+        assertEquals(export, RealmExportIT.export(target.api));
     }
 
     @Test

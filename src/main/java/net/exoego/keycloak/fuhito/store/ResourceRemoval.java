@@ -8,6 +8,11 @@ import java.util.List;
 public interface ResourceRemoval {
 
     /**
+     * The name that {@link #dependents} gives to the employments or the assignments that continue the resource.
+     */
+    String CONTINUATION = "continuation";
+
+    /**
      * The kinds of resources that can be removed.
      */
     enum Kind {

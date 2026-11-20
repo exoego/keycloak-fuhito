@@ -6083,10 +6083,13 @@ paths:
           $ref: "#/components/responses/Conflict"
     put:
       summary: Sets the end of an employment.
-      description: An earlier end is how a person leaves. It also ends the terms and
-        the assignments on that date. A later end extends a fixed-term employment.
-        A later end that comes after the start of an employment that continues this
-        one fails with 409 and `employment.continues_holds`.
+      description: "An earlier end is how a person leaves. It also ends the terms\
+        \ and the assignments on that date, and removes the ones that would start\
+        \ later. An end that would remove an assignment that another assignment continues\
+        \ fails with 409 and `assignment.in_use`, as the delete of that assignment\
+        \ does. A later end extends a fixed-term employment. A later end that comes\
+        \ after the start of an employment that continues this one fails with 409\
+        \ and `employment.continues_holds`."
       operationId: endEmployment
       tags:
       - employments
@@ -6296,8 +6299,10 @@ paths:
         \ must not end before the date. An assignment, a line, or a role that starts\
         \ on the date or later goes away from the old employment, and its copy takes\
         \ its IDs of other systems. One that holds before the date only ends and keeps\
-        \ its IDs. Its copy gets none. A failure writes nothing. An employment with\
-        \ an external employer cannot move. End it and start another employment."
+        \ its IDs. Its copy gets none. The transfer fails with 409 and `assignment.in_use`\
+        \ when such an assignment is one that another assignment continues, as its\
+        \ delete does. A failure writes nothing. An employment with an external employer\
+        \ cannot move. End it and start another employment."
       operationId: transferEmployment
       tags:
       - employments

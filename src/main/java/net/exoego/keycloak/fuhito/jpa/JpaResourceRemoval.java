@@ -30,13 +30,13 @@ public class JpaResourceRemoval implements ResourceRemoval {
             Kind.EMPLOYMENT, Map.of(
                     "assignments", "select distinct x.realmId from AssignmentEntity x where x.employmentId = :id",
                     "unitRoles", "select distinct x.realmId from UnitRoleEntity x where x.employmentId = :id",
-                    "continuation", """
+                    CONTINUATION, """
                             select distinct x.realmId from EmploymentEntity x where x.continuesEmploymentId = :id"""),
             Kind.ASSIGNMENT, Map.of(
                     "reportingLines", """
                             select distinct x.realmId from ReportingLineEntity x where x.assignmentId = :id""",
                     // No index starts with this column, so the realm keeps the read in the rows of the realm.
-                    "continuation", """
+                    CONTINUATION, """
                             select distinct x.realmId from AssignmentEntity x where x.realmId = :realmId
                             and x.continuesAssignmentId = :id"""));
 
