@@ -38,8 +38,10 @@ class ReadsByIdPlansIT {
         withOldStatistics(statement -> {
             String employer = "select e.realm_id, count(e.id) from fuhito_employment e"
                     + " where e.employer_id = 'ex-new-unit-2' and ";
-            assertIndexes(statement, employer + "e.valid_from >= '2026-01-01' and e.valid_from < '9999-12-31'"
+            assertIndexes(statement, employer + "e.valid_from >= '2026-01-01' and e.valid_from < '2027-01-01'"
                     + " group by e.realm_id", "idx_fuhito_employment_employer");
+            assertIndexes(statement, employer + "e.valid_from >= '2026-01-01' group by e.realm_id",
+                    "idx_fuhito_employment_employer");
             assertIndexes(statement, employer + "(e.valid_to is null or e.valid_to > '2026-04-01') group by e.realm_id",
                     "idx_fuhito_employment_employer");
         });
