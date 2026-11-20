@@ -77,7 +77,11 @@
                                     """)
                 },
                 responses = {
-                    @APIResponse(name = "BadRequest", description = "A value in the request is bad.",
+                    @APIResponse(name = "BadRequest",
+                            description = """
+                                    A value in the request is bad.
+                                    In a write, an empty text or a text of only spaces gets `invalid.blank`.
+                                    """,
                             content = @Content(mediaType = "application/json",
                                     schema = @Schema(implementation = ErrorRepresentation.class))),
                     @APIResponse(name = "Unauthorized", description = "The request has no valid token."),

@@ -285,6 +285,8 @@ components:
           description: The name in `attributes`. Only a create request reads it.
         type:
           type: string
+          description: "The type of the value. A `STRING` value must not be empty\
+            \ or only spaces, also in a list."
           enum:
           - STRING
           - NUMBER
@@ -298,7 +300,7 @@ components:
         multiple:
           type: boolean
           description: "True when the value is a JSON array, and each element has\
-            \ the type. An element of a `STRING` list must not be empty or only spaces."
+            \ the type."
           default: false
         required:
           type: boolean
@@ -1394,6 +1396,8 @@ components:
             \ target has. A row of a stored definition may leave it out."
         type:
           type: string
+          description: "The type of the value. A `STRING` value must not be empty\
+            \ or only spaces, also in a list."
           enum:
           - STRING
           - NUMBER
@@ -1406,7 +1410,7 @@ components:
         multiple:
           type: boolean
           description: "True when the value is a JSON array, and each element has\
-            \ the type. An element of a `STRING` list must not be empty or only spaces."
+            \ the type."
           default: false
         required:
           type: boolean
@@ -4246,7 +4250,9 @@ components:
         type: string
   responses:
     BadRequest:
-      description: A value in the request is bad.
+      description: |
+        A value in the request is bad.
+        In a write, an empty text or a text of only spaces gets `invalid.blank`.
       content:
         application/json:
           schema:
@@ -4295,6 +4301,10 @@ info:
 
     A response leaves out every field that has no value.
     For example, an org unit with no end date has no `validTo` field.
+
+    A text in the body of a write must not be empty or only spaces. This holds for every field,
+    also for a name and for a text in `attributes`. Such a text fails with 400 and
+    `invalid.blank`, which names the field. A field that is left out or null has no value.
 
     A read of the org structure needs the role `fuhito-view-structure`. Every other read needs
     `fuhito-view-people`. A write needs `fuhito-manage`. The roles are in the client
@@ -7916,7 +7926,7 @@ paths:
       summary: Sets the time zone and the day start of an org unit.
       description: "They decide what today is for the unit and for the units below\
         \ it. A value that is left out is removed, and the unit then uses the value\
-        \ from above."
+        \ from above. An empty text fails with `invalid.blank`."
       operationId: setOrgUnitTimeSettings
       tags:
       - org-units
