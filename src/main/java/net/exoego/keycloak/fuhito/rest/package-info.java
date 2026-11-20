@@ -25,6 +25,10 @@
                         point. This holds for every text of every write, also for a key in `attributes`. Other
                         characters, such as control characters, emoji, and combining marks, are stored as sent.
 
+                        The `maxLength` of a text counts characters, as the database does, so an emoji is one
+                        character. A longer text fails with 400. A text with no other rule, such as
+                        `externalReference`, fails with `invalid.too_long`, which names the field and the `max`.
+
                         A read of the org structure needs the role `fuhito-view-structure`. Every other read needs
                         `fuhito-view-people`. A write needs `fuhito-manage`. The roles are in the client
                         `realm-management` of the realm.
@@ -35,10 +39,6 @@
                         It is in the body, or in the query of a `DELETE`. A write with no version fails with 400 and
                         `version.required`. When the resource changed since the read, the write fails with 409 and
                         `version.conflict`, and the values of the error have the current version.
-
-                        The `maxLength` of a text counts characters, as the database does, so an emoji is one
-                        character. A longer text fails with 400. A text with no other rule, such as
-                        `externalReference`, fails with `invalid.too_long`, which names the field and the `max`.
 
                         A failed request writes nothing.
                         """,
