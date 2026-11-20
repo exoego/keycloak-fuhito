@@ -16,7 +16,10 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
  */
 @Schema(name = "RefItem", requiredProperties = {"primaryLanguage", "names"})
 public record RefItemRepresentation(
-        @Schema(readOnly = true)
+        @Schema(
+                description = "The ID of the item. A write of a stored item with another ID fails with 400 and "
+                        + "`invalid.value_fixed`.",
+                readOnly = true)
         String id,
         @Schema(description = "The version of the item. A new item has 1. Each write counts it up by one, also a "
                 + "change of an ID of another system. A write of a stored item sends the version that the caller "
@@ -35,7 +38,8 @@ public record RefItemRepresentation(
                 description = "The name of the date in the language of the request. It is the one of the first "
                         + "language of `Accept-Language`, else the one of that language with no region, such as `en` "
                         + "for `en-US`, else the primary one. A request with no `Accept-Language` reads the primary "
-                        + "one.",
+                        + "one. A write of a stored item fails with 400 and `invalid.value_fixed` when this "
+                        + "is not the name of the names that it changes.",
                 readOnly = true)
         String name,
         @Schema(description = "The language tag of the primary name, such as `ja`. It matches a key of `names` in "
@@ -82,24 +86,35 @@ public record RefItemRepresentation(
                 format = "date")
         String validFrom,
         @Schema(
-                description = "The first date after the names. It is missing for no end.",
+                description = "The first date after the names. It is missing for no end. A write of a stored item with "
+                        + "another value than the end of the names that it changes fails with 400 and "
+                        + "`invalid.value_fixed`.",
                 format = "date",
                 readOnly = true)
         String validTo,
         @Schema(
-                description = "The ID of the item in the system that `source` names. Only a create reads it. "
-                        + "A read gives every ID in `externalIds`.",
+                description = "The ID of the item in the system that `source` names. A write stores it as the ID of "
+                        + "that system, in place of the one that the system had. A read gives every ID in "
+                        + "`externalIds`.",
                 maxLength = 255,
                 writeOnly = true)
         String externalId,
         @Schema(
-                description = "The name of the system of `externalId`. Only a create reads it.",
+                description = "The name of the system of `externalId`. An item keeps no system that made it, so a "
+                        + "write of a stored item with this and no `externalId` fails with 400 and "
+                        + "`invalid.value_fixed`.",
                 maxLength = 64,
                 pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$",
                 writeOnly = true)
         String source,
-        @Schema(description = "Every ID that a system has for the item, by system.", readOnly = true)
+        @Schema(
+                description = "Every ID that a system has for the item, by system. A write of a stored item with "
+                        + "another list fails with 400 and `invalid.value_fixed`.",
+                readOnly = true)
         List<ExternalIdPairRepresentation> externalIds) implements Versioned {
+
+    // The fields that only a response fills.
+    static final List<String> READ_ONLY = List.of("id", "name", "validTo", "externalIds");
 
     RefItemService.Marks marks() {
         return new RefItemService.Marks(legalEntity, actingHead, lateral, rollup);

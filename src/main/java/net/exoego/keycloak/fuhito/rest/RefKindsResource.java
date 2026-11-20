@@ -104,7 +104,9 @@ public class RefKindsResource {
             operationId = "renameRefKind",
             summary = "Changes the names of a kind of the realm.",
             description = "The code never changes. The body can leave it out or give the code of the path. Another "
-                    + "code fails with 400 and `invalid.value_fixed`.")
+                    + "code fails with 400 and `invalid.value_fixed`. With `source` and `externalId`, the kind gets "
+                    + "that ID of that system. `source` with no `externalId` fails with 400 and "
+                    + "`invalid.value_fixed`, because a kind keeps no system that made it.")
     @Parameter(ref = "changeOrder")
     @APIResponse(responseCode = "200", description = "The changed kind.")
     @BadRequest
@@ -119,7 +121,11 @@ public class RefKindsResource {
         context.requireWrite();
         return Calls.guarded(context, body, () -> version(code), () -> {
             Checks.fixed("code", code, body.code());
-            var kind = represent(service.rename(code, body.primaryLanguage(), body.names()));
+            RealmKindService.View stored = service.get(code);
+            Writes.requireNoSource(body.source(), body.externalId());
+            Writes.requireRead(body, () -> represent(stored), RefKindRepresentation.READ_ONLY);
+            var kind = represent(externalIds.write(ExternalId.Kind.REF_KIND, stored.id(), body.source(),
+                    body.externalId(), () -> service.rename(code, body.primaryLanguage(), body.names())));
             context.recordChange(Change.UPDATE, RESOURCE_TYPE, code, path(code), kind);
             return kind;
         });
