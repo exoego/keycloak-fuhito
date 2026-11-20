@@ -9,7 +9,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.Employment;
@@ -37,6 +39,9 @@ final class EmploymentImport {
     private final Map<String, Boolean> units = new HashMap<>();
     private final List<Supplier<Write>> writes = new ArrayList<>();
     private final Map<String, EmploymentView> views = new HashMap<>();
+    // The new employments that continue another, by row. The rows that set an end, by employment.
+    private final Map<Integer, Employment> continuing = new HashMap<>();
+    private final Map<String, Integer> ends = new HashMap<>();
 
     EmploymentImport(PeopleImport document) {
         this.document = document;
@@ -50,15 +55,21 @@ final class EmploymentImport {
         document.report.startList(EMPLOYMENTS);
         read(rows);
         Set<String> seen = new HashSet<>();
+        Map<Integer, Outcome> outcomes = new HashMap<>();
         for (int i = 0; i < rows.size(); i++) {
             try {
-                document.report.count(EMPLOYMENTS, apply(Checks.required("row", rows.get(i)), seen));
+                outcomes.put(i, apply(Checks.required("row", rows.get(i)), i, seen));
             } catch (FuhitoException e) {
                 document.report.error(EMPLOYMENTS, i, e);
             }
             document.rowDone.run();
         }
         started.insert();
+        unended().forEach((row, e) -> {
+            outcomes.remove(row);
+            document.report.error(EMPLOYMENTS, row, e);
+        });
+        outcomes.values().forEach(outcome -> document.report.count(EMPLOYMENTS, outcome));
         views.putAll(started.views());
         writes.forEach(write -> document.report.write(write.get()));
         document.rowDone.run();
@@ -104,7 +115,7 @@ final class EmploymentImport {
         return stored.computeIfAbsent(id, key -> document.people.employments().find(key).map(e -> service.get(key)));
     }
 
-    private Outcome apply(EmploymentRow row, Set<String> seen) {
+    private Outcome apply(EmploymentRow row, int index, Set<String> seen) {
         document.requireFirst(seen, row.source(), row.externalId(), row.id());
         String source = Checks.code("source", row.source() == null ? document.defaultSource : row.source());
         String name = row.externalId() == null ? row.id() : row.externalId();
@@ -119,8 +130,9 @@ final class EmploymentImport {
                     row.validFrom() == null ? document.effectiveDate : row.validFrom(), row.validTo(),
                     row.staffNumber(), row.employmentType(), row.grade(), row.status(), row.leaveReason(),
                     row.workPercent(), row.contractEndDate(), row.attributes(), row.externalId(), source, employerId);
-            String id = ids.create(ExternalId.Kind.EMPLOYMENT, source, row.externalId(),
-                    () -> started.start(request, continues), Employment::id).id();
+            Employment employment = ids.create(ExternalId.Kind.EMPLOYMENT, source, row.externalId(),
+                    () -> started.start(request, continues), Employment::id);
+            String id = employment.id();
             boolean ended = row.validTo() != null && row.endReason() != null;
             // The new employment has no end reason until the end that the row gives.
             writes.add(() -> new Write.OfEmployment(true, "", ended ? withoutEndReason(views.get(id)) : views.get(id)));
@@ -128,13 +140,16 @@ final class EmploymentImport {
                 started.endReason(id, row.endReason());
                 writes.add(() -> new Write.OfEmployment(false, "/end", views.get(id)));
             }
+            if (continues != null) {
+                continuing.put(index, employment);
+            }
             return Outcome.CREATED;
         }
-        return change(row, name, before.get(), personId, employerId, continues);
+        return change(row, index, name, before.get(), personId, employerId, continues);
     }
 
-    private Outcome change(EmploymentRow row, String name, EmploymentView before, String personId, String employerId,
-            String continues) {
+    private Outcome change(EmploymentRow row, int index, String name, EmploymentView before, String personId,
+            String employerId, String continues) {
         Employment employment = before.employment();
         String id = employment.id();
         if (!employment.personId().equals(personId)) {
@@ -177,9 +192,56 @@ final class EmploymentImport {
                 && (row.endReason() == null || row.endReason().equals(before.endReason()));
         if (row.validTo() != null && !sameEnd) {
             written("/end", id, () -> service.end(id, row.validTo(), row.endReason()));
+            ends.put(id, index);
             changed = true;
         }
         return changed ? Outcome.CHANGED : Outcome.UNCHANGED;
+    }
+
+    // An employment that another one continues must end by the start of that one. The row that ends it may come
+    // after the row of the new one, so the check looks at what the whole list made. It also keeps a later end from
+    // opening such an employment again.
+    private Map<Integer, FuhitoException> unended() {
+        if (continuing.isEmpty() && ends.isEmpty()) {
+            return Map.of();
+        }
+        Set<String> ids = new HashSet<>(ends.keySet());
+        continuing.values().forEach(next -> ids.add(next.continuesEmploymentId()));
+        Map<String, Employment> found = new HashMap<>();
+        document.people.employments().findAll(ids).forEach(employment -> found.put(employment.id(), employment));
+        Map<Integer, FuhitoException> failed = new TreeMap<>();
+        continuing.forEach((row, next) -> holds(found.get(next.continuesEmploymentId()), next)
+                .ifPresent(e -> failed.put(row, e)));
+        if (ends.isEmpty()) {
+            return failed;
+        }
+        // A new one is checked on its own row.
+        Set<String> newIds = continuing.values().stream().map(Employment::id).collect(Collectors.toSet());
+        for (Employment next : continuingOf(ends.keySet().stream().map(found::get).toList())) {
+            if (!newIds.contains(next.id())) {
+                holds(found.get(next.continuesEmploymentId()), next)
+                        .ifPresent(e -> failed.putIfAbsent(ends.get(next.continuesEmploymentId()), e));
+            }
+        }
+        return failed;
+    }
+
+    // The employments that continue some employments. Such an employment is of the same person.
+    private List<Employment> continuingOf(List<Employment> employments) {
+        Set<String> ids = employments.stream().map(Employment::id).collect(Collectors.toSet());
+        Set<String> people = employments.stream().map(Employment::personId).collect(Collectors.toSet());
+        return document.people.employments().findByPeople(people).stream()
+                .filter(employment -> ids.contains(employment.continuesEmploymentId()))
+                .toList();
+    }
+
+    private static Optional<FuhitoException> holds(Employment previous, Employment next) {
+        LocalDate from = next.period().from();
+        if (!previous.period().endsAfter(from)) {
+            return Optional.empty();
+        }
+        return Optional.of(FuhitoException.conflict("employment.continues_holds",
+                Map.of("id", previous.id(), "date", from.toString())));
     }
 
     private void written(String suffix, String id, Supplier<EmploymentView> write) {

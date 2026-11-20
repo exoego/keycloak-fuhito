@@ -780,6 +780,52 @@ class CsvImportIT {
     }
 
     @Test
+    void aCsvFileOfATransferEndsTheOldEmploymentInAnyOrder() throws Exception {
+        TestRealm realm = TestRealm.create("csv-continues");
+        Api api = realm.api;
+        realm.user("sato");
+        realm.user("suzuki");
+        load(api, "ref-items", "effectiveDate=2020-04-01", """
+                外部ID,種類,コード,主言語,名称,法人
+                UT-company,UNIT_TYPE,company,ja,会社,はい
+                """);
+        load(api, "org-units", "effectiveDate=2020-04-01&source=sheet", """
+                外部ID,主言語,名称,組織種別
+                X,ja,医療法人X会,company
+                Y,ja,株式会社Yサービス,company
+                """);
+        load(api, "employments", "effectiveDate=2020-04-01&source=sheet", """
+                外部ID,ユーザー名,雇用主の外部ID
+                E1,sato,X
+                E3,suzuki,X
+                """);
+        String e3 = Api.json(api.get("/external-ids/lookup?resourceType=EMPLOYMENT&source=sheet&externalId=E3"))
+                .get("resourceId").asText();
+
+        // The row that ends the old employment of Sato comes after the row of the new one. Suzuki moves with no row
+        // that ends the old employment, and the error has the line of the new one.
+        String transfer = """
+                外部ID,ユーザー名,雇用主の外部ID,終了日,引き継ぎ元の雇用の外部ID
+                E2,sato,Y,,E1
+                E1,sato,X,2026-04-01,
+                E4,suzuki,Y,,E3
+                """;
+        HttpResponse<String> unended = api.postBytes("/imports/csv/employments?effectiveDate=2026-04-01&source=sheet",
+                "text/csv; charset=UTF-8", transfer.getBytes(StandardCharsets.UTF_8));
+
+        assertEquals(400, unended.statusCode(), unended.body());
+        JsonNode errors = Api.json(unended).get("errors");
+        assertEquals(1, errors.size(), unended.body());
+        assertEquals("employment.continues_holds", errors.get(0).get("error").asText());
+        assertEquals(4, errors.get(0).get("line").asInt());
+        assertEquals(e3, errors.get(0).get("params").get("id").asText());
+        JsonNode moved = load(api, "employments", "effectiveDate=2026-04-01&source=sheet",
+                transfer.replace("E4,suzuki,Y,,E3\n", "")).get("counts").get("employments");
+        assertEquals(1, moved.get("created").asInt(), moved.toString());
+        assertEquals(1, moved.get("changed").asInt(), moved.toString());
+    }
+
+    @Test
     void aCsvFileNamesTheEmployerAndMarksAUnitTypeAsALegalEntity() throws Exception {
         TestRealm realm = TestRealm.create("csv-employers");
         Api api = realm.api;

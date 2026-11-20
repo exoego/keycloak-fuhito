@@ -2,24 +2,30 @@ package net.exoego.keycloak.fuhito.service;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import net.exoego.keycloak.fuhito.domain.Assignment;
 import net.exoego.keycloak.fuhito.domain.Checks;
+import net.exoego.keycloak.fuhito.domain.Employment;
 import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.service.ImportDocument.AssignmentRow;
 import net.exoego.keycloak.fuhito.service.ImportReport.Outcome;
 import net.exoego.keycloak.fuhito.service.ImportReport.Write;
+import net.exoego.keycloak.fuhito.store.EmploymentStore;
 
 /**
  * The list of assignments of one document. The writes of the list come into the report in the order in which its
@@ -29,6 +35,9 @@ final class AssignmentImport {
 
     private static final String ASSIGNMENTS = "assignments";
 
+    private record Link(String id, String continues, LocalDate from) {
+    }
+
     private final PeopleImport document;
     private final ListIds ids;
     private final AssignmentService service;
@@ -37,6 +46,9 @@ final class AssignmentImport {
     private final Map<String, Boolean> units = new HashMap<>();
     private final List<Supplier<Write>> writes = new ArrayList<>();
     private final Map<String, AssignmentView> views = new HashMap<>();
+    // The new assignments that continue another, by row. The rows that set an end, by assignment.
+    private final Map<Integer, Link> continuing = new HashMap<>();
+    private final Map<String, Integer> ends = new HashMap<>();
 
     AssignmentImport(PeopleImport document) {
         this.document = document;
@@ -57,17 +69,23 @@ final class AssignmentImport {
         document.report.startList(ASSIGNMENTS);
         read(rows);
         Set<String> seen = new HashSet<>();
+        Map<Integer, Outcome> outcomes = new HashMap<>();
         for (int i : order) {
             try {
                 AssignmentRow row = Checks.required("row", rows.get(i));
                 document.requireFirst(seen, row.source(), row.externalId(), row.id());
-                document.report.count(ASSIGNMENTS, apply(row));
+                outcomes.put(i, apply(row, i));
             } catch (FuhitoException e) {
                 document.report.error(ASSIGNMENTS, i, e);
             }
             document.rowDone.run();
         }
         added.insert();
+        unended().forEach((row, e) -> {
+            outcomes.remove(row);
+            document.report.error(ASSIGNMENTS, row, e);
+        });
+        outcomes.values().forEach(outcome -> document.report.count(ASSIGNMENTS, outcome));
         views.putAll(added.views());
         writes.forEach(write -> document.report.write(write.get()));
         document.rowDone.run();
@@ -113,7 +131,7 @@ final class AssignmentImport {
         return stored.computeIfAbsent(id, key -> Optional.ofNullable(service.findAll(List.of(key)).get(key)));
     }
 
-    private Outcome apply(AssignmentRow row) {
+    private Outcome apply(AssignmentRow row, int index) {
         String source = Checks.code("source", row.source() == null ? document.defaultSource : row.source());
         String name = row.externalId() == null ? row.id() : row.externalId();
         Optional<String> storedId = row.id() == null
@@ -132,6 +150,9 @@ final class AssignmentImport {
             String id = ids.create(ExternalId.Kind.ASSIGNMENT, source, row.externalId(),
                     () -> added.add(values, continues), Function.identity());
             writes.add(() -> new Write.OfAssignment(true, "", views.get(id)));
+            if (continues != null) {
+                continuing.put(index, new Link(id, continues, Checks.date("validFrom", values.validFrom())));
+            }
             return Outcome.CREATED;
         }
         String id = storedId.get();
@@ -171,9 +192,66 @@ final class AssignmentImport {
         String storedEnd = Objects.toString(before.period().to(), null);
         if (row.validTo() != null && !row.validTo().equals(storedEnd)) {
             written("/end", first, () -> service.end(id, row.validTo()));
+            ends.put(id, index);
             changed = true;
         }
         return changed ? Outcome.CHANGED : Outcome.UNCHANGED;
+    }
+
+    // An assignment that another one continues must end by the start of that one. Its rows end when its employment
+    // ends, so they tell. The row that ends it may come after the row of the new one, so the check looks at what the
+    // whole list made. It also keeps a later end from opening such an assignment again.
+    private Map<Integer, FuhitoException> unended() {
+        if (continuing.isEmpty() && ends.isEmpty()) {
+            return Map.of();
+        }
+        Set<String> ids = new HashSet<>(ends.keySet());
+        continuing.values().forEach(link -> ids.add(link.continues()));
+        Map<String, List<Assignment>> found = document.people.assignments().rowsOf(ids).stream()
+                .collect(Collectors.groupingBy(Assignment::assignmentId));
+        Map<Integer, FuhitoException> failed = new TreeMap<>();
+        continuing.forEach((row, link) -> holds(found.get(link.continues()), link.from())
+                .ifPresent(e -> failed.put(row, e)));
+        if (ends.isEmpty()) {
+            return failed;
+        }
+        // A new one is checked on its own row.
+        Set<String> newIds = continuing.values().stream().map(Link::id).collect(Collectors.toSet());
+        for (Assignment next : continuingOf(ends.keySet().stream().map(found::get).toList())) {
+            if (!newIds.contains(next.assignmentId())) {
+                holds(found.get(next.continuesAssignmentId()), next.period().from())
+                        .ifPresent(e -> failed.putIfAbsent(ends.get(next.continuesAssignmentId()), e));
+            }
+        }
+        return failed;
+    }
+
+    // The first rows of the assignments that continue some assignments. Such an assignment is of the same person.
+    private Collection<Assignment> continuingOf(List<List<Assignment>> assignments) {
+        Set<String> ids = new HashSet<>();
+        Set<String> employmentIds = new HashSet<>();
+        assignments.forEach(rows -> {
+            ids.add(rows.getFirst().assignmentId());
+            employmentIds.add(rows.getFirst().employmentId());
+        });
+        EmploymentStore employments = document.people.employments();
+        Set<String> people = employments.findAll(employmentIds).stream().map(Employment::personId)
+                .collect(Collectors.toSet());
+        List<String> all = employments.findByPeople(people).stream().map(Employment::id).toList();
+        Map<String, Assignment> firsts = new LinkedHashMap<>();
+        document.people.assignments().rowsOfEmployments(all).stream()
+                .filter(row -> ids.contains(row.continuesAssignmentId()))
+                .forEach(row -> firsts.putIfAbsent(row.assignmentId(), row));
+        return firsts.values();
+    }
+
+    private static Optional<FuhitoException> holds(List<Assignment> previous, LocalDate from) {
+        Assignment last = previous.getLast();
+        if (!last.period().endsAfter(from)) {
+            return Optional.empty();
+        }
+        return Optional.of(FuhitoException.conflict("assignment.continues_holds",
+                Map.of("id", last.assignmentId(), "date", from.toString())));
     }
 
     private void written(String suffix, Assignment first, Supplier<AssignmentView> write) {

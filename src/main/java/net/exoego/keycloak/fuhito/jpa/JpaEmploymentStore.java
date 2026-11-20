@@ -107,6 +107,23 @@ public class JpaEmploymentStore implements EmploymentStore {
                 .toList();
     }
 
+    // The person comes in the same query, because each employment reads the user of its person.
+    @Override
+    public List<Employment> findByPeople(Collection<String> personIds) {
+        if (personIds.isEmpty()) {
+            return List.of();
+        }
+        return em.createQuery("""
+                        select e from EmploymentEntity e join fetch e.person where %s
+                        order by e.validFrom, e.id""".formatted(ManyIds.has("e.personId", "ids")),
+                        EmploymentEntity.class)
+                .setParameter("ids", ManyIds.of(personIds))
+                .getResultStream()
+                .filter(Rows.inRealm(realmId, e -> e.realmId))
+                .map(JpaEmploymentStore::toDomain)
+                .toList();
+    }
+
     // The person comes in the same query, because each employment reads the user of its person. The realm is
     // checked on the person, whose key has the user too.
     @Override
