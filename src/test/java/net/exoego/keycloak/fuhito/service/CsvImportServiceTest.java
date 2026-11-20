@@ -2,6 +2,8 @@ package net.exoego.keycloak.fuhito.service;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.util.Arrays;
 import java.util.List;
@@ -548,6 +550,78 @@ class CsvImportServiceTest {
 
     private FuhitoException failure(String list, String csv) {
         return assertThrows(FuhitoException.class, () -> load(list, "2026-04-01", csv));
+    }
+
+    @Test
+    void decodesAFileInItsCharset() {
+        String text = "外部ID,名称\nH,山田\n";
+
+        assertEquals(text, CsvImportService.decode(text.getBytes(StandardCharsets.UTF_8), null));
+        assertEquals("﻿" + text, CsvImportService.decode(("﻿" + text).getBytes(StandardCharsets.UTF_8), null));
+        assertEquals(text, CsvImportService.decode(text.getBytes(Charset.forName("Shift_JIS")), "Shift_JIS"));
+        assertEquals(text, CsvImportService.decode(text.getBytes(StandardCharsets.UTF_16), "UTF-16"));
+        assertEquals(text, CsvImportService.decode(text.getBytes(StandardCharsets.UTF_16LE), "utf-16le"));
+        // After the first line, a 00 byte is a NUL character in a cell, which the checks of values reject.
+        assertEquals("a\nb\u0000c", CsvImportService.decode(bytes("a\nb", 0x00, 'c'), "UTF-8"));
+    }
+
+    @Test
+    void rejectsAFileThatIsNotValidInItsCharset() {
+        assertEquals(Map.of("charset", "UTF-8", "bytes", "C3", "offset", "6", "line", "3"),
+                badEncoding(bytes("a\r\nb\rc", 0xC3, 0x28), null));
+        assertEquals(Map.of("charset", "UTF-8", "bytes", "FF", "offset", "2", "line", "2"),
+                badEncoding(bytes("a\n", 0xFF), "UTF-8"));
+        assertEquals(Map.of("charset", "UTF-8", "bytes", "ED A0 80", "offset", "1", "line", "1"),
+                badEncoding(bytes("a", 0xED, 0xA0, 0x80), null));
+        assertEquals(Map.of("charset", "UTF-8", "bytes", "E3 81", "offset", "2", "line", "1"),
+                badEncoding(bytes("a,", 0xE3, 0x81), null));
+        assertEquals(Map.of("charset", "UTF-8", "bytes", "8E", "offset", "0", "line", "1"),
+                badEncoding("山田".getBytes(Charset.forName("Shift_JIS")), null));
+        assertEquals(Map.of("charset", "Shift_JIS", "bytes", "A0", "offset", "2", "line", "2"),
+                badEncoding(bytes("a\n", 0xA0), "sjis"));
+        assertEquals(Map.of("charset", "UTF-16", "bytes", "78", "offset", "4", "line", "1"),
+                badEncoding(bytes("", 0xFE, 0xFF, 0x00, 'a', 'x'), "UTF-16"));
+    }
+
+    @Test
+    void rejectsAUtf16FileUnlessTheCharsetIsUtf16() {
+        String text = "externalId,name\nH,x\n";
+
+        assertEquals(Map.of("charset", "UTF-8", "bytes", "FE FF", "offset", "0", "line", "1"),
+                badEncoding(text.getBytes(StandardCharsets.UTF_16), null));
+        assertEquals(Map.of("charset", "Shift_JIS", "bytes", "FF FE", "offset", "0", "line", "1"),
+                badEncoding(("﻿" + text).getBytes(StandardCharsets.UTF_16LE), "Shift_JIS"));
+        assertEquals(Map.of("charset", "UTF-8", "bytes", "00", "offset", "1", "line", "1"),
+                badEncoding(text.getBytes(StandardCharsets.UTF_16LE), null));
+        assertEquals(Map.of("charset", "UTF-8", "bytes", "00", "offset", "0", "line", "1"),
+                badEncoding(text.getBytes(StandardCharsets.UTF_16BE), null));
+        assertEquals(text, CsvImportService.decode(text.getBytes(StandardCharsets.UTF_16LE), "UTF-16LE"));
+        assertEquals(text, CsvImportService.decode(text.getBytes(Charset.forName("UTF-32")), "UTF-32"));
+    }
+
+    @Test
+    void rejectsAnUnknownCharset() {
+        for (String name : List.of("no-such-charset", "+abc", "")) {
+            FuhitoException e = assertThrows(FuhitoException.class,
+                    () -> CsvImportService.decode(new byte[] {'a'}, name));
+            assertEquals("csv.bad_charset", e.code());
+            assertEquals(Map.of("charset", name), e.params());
+        }
+    }
+
+    private static Map<String, String> badEncoding(byte[] file, String charset) {
+        FuhitoException e = assertThrows(FuhitoException.class, () -> CsvImportService.decode(file, charset));
+        assertEquals("csv.bad_encoding", e.code());
+        return e.params();
+    }
+
+    private static byte[] bytes(String text, int... more) {
+        byte[] start = text.getBytes(StandardCharsets.UTF_8);
+        byte[] file = Arrays.copyOf(start, start.length + more.length);
+        for (int i = 0; i < more.length; i++) {
+            file[start.length + i] = (byte) more[i];
+        }
+        return file;
     }
 
     @Test

@@ -1,7 +1,5 @@
 package net.exoego.keycloak.fuhito.rest;
 
-import java.nio.charset.Charset;
-import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
 import jakarta.ws.rs.Consumes;
@@ -117,8 +115,12 @@ public class ImportsResource {
                     + "stored value, as a key that a JSON row leaves out does. The cell `#CLEAR` removes it, as "
                     + "`null` in a JSON row does. A cell of a list separates its items with `|`. "
                     + "In an item, `\\|` is a `|` and `\\\\` is a `\\`. The `charset` of the content type says how "
-                    + "the file is encoded. The default is UTF-8. A cell with NUL (U+0000) fails with "
-                    + "`invalid.character`, which names the column.")
+                    + "the file is encoded. The default is UTF-8. fuhito does not guess the encoding. A file that is "
+                    + "not valid in its charset fails with `csv.bad_encoding`, with the line and the offset of the "
+                    + "first bad bytes. So does a file that starts with `FF FE` or `FE FF`, or has a `00` byte on its "
+                    + "first line, unless the charset is UTF-16 or UTF-32. Such a file is most likely UTF-16. An "
+                    + "unknown charset fails with `csv.bad_charset`. A `00` byte after the first line is NUL in a "
+                    + "cell, which fails with `invalid.character` and names the column.")
     @Parameter(ref = "changeOrder")
     @APIResponse(
             responseCode = "200",
@@ -151,7 +153,7 @@ public class ImportsResource {
                 throw FuhitoException.invalid("invalid.choice", Map.of("field", "list", "value", list));
             }
             // The framework reads text as UTF-8 whatever the request says, so the bytes are decoded here.
-            String csv = new String(Checks.required("body", file), charset(contentType));
+            String csv = CsvImportService.decode(Checks.required("body", file), charset(contentType));
             var result = csvService.apply(name, csv, effectiveDate, dryRun, source);
             return finish(result.report(), ImportReportRepresentation.of(result, dryRun, context.locale()), dryRun);
         });
@@ -187,17 +189,9 @@ public class ImportsResource {
         });
     }
 
-    private static Charset charset(String contentType) {
+    private static String charset(String contentType) {
         // The endpoint takes only text/csv, so the header is always there.
-        String name = MediaType.valueOf(contentType).getParameters().get("charset");
-        if (name == null) {
-            return StandardCharsets.UTF_8;
-        }
-        try {
-            return Charset.forName(name);
-        } catch (IllegalArgumentException e) {
-            throw FuhitoException.invalid("csv.bad_charset", Map.of("charset", name)).causedBy(e);
-        }
+        return MediaType.valueOf(contentType).getParameters().get("charset");
     }
 
     private ImportReportRepresentation finish(ImportReport report, ImportReportRepresentation representation,

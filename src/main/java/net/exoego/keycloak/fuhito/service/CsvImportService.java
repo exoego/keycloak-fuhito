@@ -2,11 +2,19 @@ package net.exoego.keycloak.fuhito.service;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.nio.ByteBuffer;
+import java.nio.charset.CharacterCodingException;
+import java.nio.charset.Charset;
+import java.nio.charset.CodingErrorAction;
+import java.nio.charset.MalformedInputException;
+import java.nio.charset.StandardCharsets;
+import java.nio.charset.UnmappableCharacterException;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -15,6 +23,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.regex.Pattern;
 
 import net.exoego.keycloak.fuhito.domain.AttributeDefinition;
 import net.exoego.keycloak.fuhito.domain.Checks;
@@ -190,6 +199,8 @@ public class CsvImportService {
     static final String ATTRIBUTE_COLUMN = "attributes.";
     private static final Set<String> TRUE = Set.of("true", "1", "yes", "y", "はい", "○", "〇");
     private static final Set<String> FALSE = Set.of("false", "0", "no", "n", "いいえ", "×");
+    private static final Pattern LINE_BREAK = Pattern.compile("\r\n?|\n");
+    private static final HexFormat HEX = HexFormat.ofDelimiter(" ").withUpperCase();
 
     private final Function<AttributeDefinition.Target, List<AttributeDefinition>> definitions;
     private final ImportService importService;
@@ -214,6 +225,72 @@ public class CsvImportService {
         this.refItems = refItems;
         this.orgUnitService = orgUnitService;
         this.people = people;
+    }
+
+    /**
+     * Reads the bytes of a file as text in its charset. fuhito does not guess the encoding.
+     * A byte order mark of UTF-8 stays at the start of the text.
+     *
+     * @param file the bytes of the file
+     * @param charset the name of the charset of the file, or null for UTF-8
+     * @return the text
+     * @throws FuhitoException with {@code csv.bad_charset} when the charset is unknown, and with
+     *         {@code csv.bad_encoding} when the bytes are not valid in the charset
+     */
+    public static String decode(byte[] file, String charset) {
+        Charset decoding = charset == null ? StandardCharsets.UTF_8 : charsetNamed(charset);
+        if (asciiCompatible(decoding)) {
+            rejectUtf16(file, decoding);
+        }
+        ByteBuffer in = ByteBuffer.wrap(file);
+        try {
+            return decoding.newDecoder()
+                    .onMalformedInput(CodingErrorAction.REPORT)
+                    .onUnmappableCharacter(CodingErrorAction.REPORT)
+                    .decode(in)
+                    .toString();
+        } catch (CharacterCodingException e) {
+            int length = switch (e) {
+                case MalformedInputException malformed -> malformed.getInputLength();
+                case UnmappableCharacterException unmappable -> unmappable.getInputLength();
+                default -> 1;
+            };
+            throw badEncoding(file, decoding, in.position(), length).causedBy(e);
+        }
+    }
+
+    private static Charset charsetNamed(String name) {
+        try {
+            return Charset.forName(name);
+        } catch (IllegalArgumentException e) {
+            throw FuhitoException.invalid("csv.bad_charset", Map.of("charset", name)).causedBy(e);
+        }
+    }
+
+    private static boolean asciiCompatible(Charset charset) {
+        return charset.canEncode() && Arrays.equals(",\n".getBytes(charset), new byte[] {',', '\n'});
+    }
+
+    // A UTF-16 file of ASCII text has 00 bytes, which such a charset reads as NUL with no error.
+    private static void rejectUtf16(byte[] file, Charset charset) {
+        int start = file.length < 2 ? 0 : ((file[0] & 0xFF) << 8) | (file[1] & 0xFF);
+        if (start == 0xFEFF || start == 0xFFFE) {
+            throw badEncoding(file, charset, 0, 2);
+        }
+        for (int i = 0; i < file.length && file[i] != '\n'; i++) {
+            if (file[i] == 0) {
+                throw badEncoding(file, charset, i, 1);
+            }
+        }
+    }
+
+    private static FuhitoException badEncoding(byte[] file, Charset charset, int offset, int length) {
+        String before = new String(file, 0, offset, charset);
+        return FuhitoException.invalid("csv.bad_encoding", Map.of(
+                "charset", charset.name(),
+                "line", Integer.toString(LINE_BREAK.split(before, -1).length),
+                "offset", Integer.toString(offset),
+                "bytes", HEX.formatHex(file, offset, Math.min(file.length, offset + length))));
     }
 
     /**

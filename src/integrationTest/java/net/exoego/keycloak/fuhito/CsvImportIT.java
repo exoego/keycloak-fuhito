@@ -1,10 +1,14 @@
 package net.exoego.keycloak.fuhito;
 
+import java.io.ByteArrayOutputStream;
 import java.net.URLEncoder;
 import java.net.http.HttpResponse;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import org.junit.jupiter.api.Test;
@@ -824,20 +828,90 @@ class CsvImportIT {
     }
 
     @Test
-    void aFileInShiftJisLoadsWhenTheRequestNamesTheCharset() throws Exception {
+    void aFileLoadsInTheCharsetThatTheRequestNames() throws Exception {
         TestRealm realm = TestRealm.create("csv-sjis");
         Api api = realm.api;
+        String path = "/imports/csv/org-units?effectiveDate=2026-04-01";
 
-        HttpResponse<String> response = api.postBytes("/imports/csv/org-units?effectiveDate=2026-04-01",
-                "text/csv; charset=Shift_JIS", "外部ID,主言語,名称\nH,ja,X病院\n".getBytes(Charset.forName("Shift_JIS")));
+        HttpResponse<String> shiftJis = api.postBytes(path, "text/csv; charset=Shift_JIS",
+                "外部ID,主言語,名称\nH,ja,X病院\n".getBytes(Charset.forName("Shift_JIS")));
+        HttpResponse<String> utf16 = api.postBytes(path, "text/csv; charset=UTF-16",
+                "外部ID,主言語,名称\nN,ja,看護部\n".getBytes(StandardCharsets.UTF_16));
+        HttpResponse<String> utf8WithBom = api.postBytes(path, "text/csv",
+                "﻿外部ID,主言語,名称\nW,ja,1病棟\n".getBytes(StandardCharsets.UTF_8));
 
-        assertEquals(200, response.statusCode(), response.body());
-        assertEquals(List.of("X病院"), Api.names(api.tree("asOf=2026-04-01")));
+        assertEquals(200, shiftJis.statusCode(), shiftJis.body());
+        assertEquals(200, utf16.statusCode(), utf16.body());
+        assertEquals(200, utf8WithBom.statusCode(), utf8WithBom.body());
+        assertEquals(Set.of("X病院", "看護部", "1病棟"), Set.copyOf(Api.names(api.tree("asOf=2026-04-01"))));
 
-        HttpResponse<String> unknown = api.postBytes("/imports/csv/org-units?effectiveDate=2026-04-01",
-                "text/csv; charset=no-such-charset", "a\n1\n".getBytes(StandardCharsets.UTF_8));
+        HttpResponse<String> unknown = api.postBytes(path, "text/csv; charset=no-such-charset",
+                "a\n1\n".getBytes(StandardCharsets.UTF_8));
         assertEquals(400, unknown.statusCode(), unknown.body());
         assertEquals("csv.bad_charset", Api.json(unknown).get("error").asText());
+    }
+
+    @Test
+    void aFileThatIsNotTextInItsCharsetFailsAndWritesNothing() throws Exception {
+        TestRealm realm = TestRealm.create("csv-encoding");
+        Api api = realm.api;
+        String yamada = "externalId,primaryLanguage,name\nH,ja,山田\n";
+        Map<String, byte[]> files = new LinkedHashMap<>();
+        Map<String, String> errors = new LinkedHashMap<>();
+        files.put("C3 28", nameWithBytes(0xC3, 0x28));
+        errors.put("C3 28", "C3 at 38 on line 2");
+        files.put("FF", nameWithBytes(0xFF));
+        errors.put("FF", "FF at 38 on line 2");
+        files.put("ED A0 80", nameWithBytes(0xED, 0xA0, 0x80));
+        errors.put("ED A0 80", "ED A0 80 at 38 on line 2");
+        files.put("C0 80", nameWithBytes(0xC0, 0x80));
+        errors.put("C0 80", "C0 at 38 on line 2");
+        files.put("E3 81", nameWithBytes(0xE3, 0x81));
+        errors.put("E3 81", "E3 81 at 38 on line 2");
+        files.put("Shift_JIS", yamada.getBytes(Charset.forName("Shift_JIS")));
+        errors.put("Shift_JIS", "8E at 37 on line 2");
+        files.put("UTF-16BE with a byte order mark", yamada.getBytes(StandardCharsets.UTF_16));
+        errors.put("UTF-16BE with a byte order mark", "FE FF at 0 on line 1");
+        files.put("UTF-16LE with a byte order mark", ("﻿" + yamada).getBytes(StandardCharsets.UTF_16LE));
+        errors.put("UTF-16LE with a byte order mark", "FF FE at 0 on line 1");
+        files.put("UTF-16LE", yamada.getBytes(StandardCharsets.UTF_16LE));
+        errors.put("UTF-16LE", "00 at 1 on line 1");
+
+        Map<String, String> expected = new LinkedHashMap<>();
+        Map<String, String> outcomes = new LinkedHashMap<>();
+        for (Map.Entry<String, byte[]> file : files.entrySet()) {
+            for (String type : List.of("text/csv", "text/csv; charset=UTF-8")) {
+                HttpResponse<String> response = api.postBytes("/imports/csv/org-units?effectiveDate=2026-04-01",
+                        type, file.getValue());
+                JsonNode body = Api.json(response);
+                JsonNode params = body.path("params");
+                expected.put(file.getKey() + " as " + type, "400 csv.bad_encoding UTF-8 " + errors.get(file.getKey()));
+                outcomes.put(file.getKey() + " as " + type, response.statusCode() + " " + body.path("error").asText()
+                        + " " + params.path("charset").asText() + " " + params.path("bytes").asText() + " at "
+                        + params.path("offset").asText() + " on line " + params.path("line").asText());
+            }
+        }
+
+        assertEquals(expected, outcomes);
+        assertEquals("0", KeycloakEnvironment.sql(
+                "select count(*) from fuhito_org_unit where realm_id = '" + realm.id() + "'"));
+        HttpResponse<String> japanese = api.withAcceptLanguage("ja").postBytes(
+                "/imports/csv/org-units?effectiveDate=2026-04-01", "text/csv", files.get("Shift_JIS"));
+        assertEquals("ファイルを UTF-8 として読めません。2 行目、オフセット 37 のバイト 8E は UTF-8 の文字ではありません。"
+                + "ファイルが別の文字コードのときは、Content-Type の charset で指定してください（例「text/csv; charset=Shift_JIS」）。"
+                + "FF FE か FE FF で始まるファイルや、1 行目に 00 のバイトがあるファイルは、おそらく UTF-16 です。",
+                Api.json(japanese).get("message").asText());
+    }
+
+    // A file of one org unit whose name has the bytes between x and y.
+    private static byte[] nameWithBytes(int... bytes) {
+        ByteArrayOutputStream file = new ByteArrayOutputStream();
+        file.writeBytes("externalId,primaryLanguage,name\nH,ja,x".getBytes(StandardCharsets.UTF_8));
+        for (int b : bytes) {
+            file.write(b);
+        }
+        file.writeBytes("y\n".getBytes(StandardCharsets.UTF_8));
+        return file.toByteArray();
     }
 
     @Test
