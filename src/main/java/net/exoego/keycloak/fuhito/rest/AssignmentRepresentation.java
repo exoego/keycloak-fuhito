@@ -74,7 +74,8 @@ public record AssignmentRepresentation(
         Boolean primary,
         @Schema(
                 description = "True to take the primary flag away from other assignments of the employment for the "
-                        + "same dates.",
+                        + "same dates. True needs `primary` true. Without it, the request fails with "
+                        + "`assignment.switch_primary_unused`.",
                 writeOnly = true)
         Boolean switchPrimary,
         @Schema(
@@ -137,7 +138,8 @@ public record AssignmentRepresentation(
             Boolean primary,
             @Schema(
                     description = "True to take the primary flag away from other assignments of the employment for "
-                            + "the same dates.",
+                            + "the same dates. True needs `primary` true. Without it, the request fails with "
+                            + "`assignment.switch_primary_unused`.",
                     writeOnly = true)
             Boolean switchPrimary,
             @Schema(

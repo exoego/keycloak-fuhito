@@ -47,15 +47,15 @@ class ReorganizationServiceTest {
     }
 
     private ReorganizationStep move(String id, String unitRef, String parentId, String parentRef) {
-        return new ReorganizationStep("move", null, id, unitRef, version(id), parentId, parentRef, null, "ja", ja(null), null, null, null, null, null, null, null);
+        return new ReorganizationStep("move", null, id, unitRef, version(id), parentId, parentRef, null, null, null, null, null, null, null, null, null, null);
     }
 
     private ReorganizationStep end(String id) {
-        return new ReorganizationStep("end", null, id, null, version(id), null, null, null, "ja", ja(null), null, null, null, null, null, null, null);
+        return new ReorganizationStep("end", null, id, null, version(id), null, null, null, null, null, null, null, null, null, null, null, null);
     }
 
     private ReorganizationStep succeed(String id, List<String> successorIds, List<String> successorRefs) {
-        return new ReorganizationStep("succeed", null, id, null, version(id), null, null, null, "ja", ja(null), null, null, null, null, null, successorIds, successorRefs);
+        return new ReorganizationStep("succeed", null, id, null, version(id), null, null, null, null, null, null, null, null, null, null, successorIds, successorRefs);
     }
 
     private List<ReorganizationService.Result> apply(String date, List<ReorganizationStep> steps) {
@@ -215,12 +215,12 @@ class ReorganizationServiceTest {
         assertEquals(List.of(List.of(a)), locked);
         assertEquals(List.of("B", "A2 < B"), tree("2027-04-01"));
         FuhitoException none = failure("2028-04-01", List.of(change(b, "B2"), new ReorganizationStep("end", null, a,
-                null, null, null, null, null, "ja", ja(null), null, null, null, null, null, null, null)));
+                null, null, null, null, null, null, null, null, null, null, null, null, null, null)));
         assertEquals(FuhitoException.Reason.INVALID, none.reason());
         assertEquals("version.required", none.code());
         assertEquals(Map.of("step", "1"), none.params());
         FuhitoException old = failure("2028-04-01", List.of(new ReorganizationStep("end", null, a, null, current - 1,
-                null, null, null, "ja", ja(null), null, null, null, null, null, null, null)));
+                null, null, null, null, null, null, null, null, null, null, null, null)));
         assertEquals(FuhitoException.Reason.CONFLICT, old.reason());
         assertEquals(Map.of("version", Long.toString(current), "step", "0"), old.params());
         // The check comes before every step, so the change of the first step was not written.
@@ -251,6 +251,49 @@ class ReorganizationServiceTest {
         assertEquals(Map.of("field", "names.ja.name", "step", "1"), e.params());
         assertEquals("A", orgUnits.get(a, "2027-04-01").version().names().primary().name());
         assertEquals(Map.of("field", "effectiveDate"), failure(" ", List.of(end(a))).params());
+    }
+
+    @Test
+    void aFieldThatTheOperationDoesNotReadFailsBeforeAnyStepRuns() {
+        String a = unit("A", null);
+        String b = unit("B", null);
+        Long v = version(b);
+        List<String> successors = List.of(a);
+        List<String> before = tree("2027-04-01");
+        Map<String, ReorganizationStep> steps = Map.of(
+                "create id", new ReorganizationStep("create", null, b, null, null, null, null, null, "ja", ja("C"),
+                        null, null, null, null, null, null, null),
+                "create version", new ReorganizationStep("create", null, null, null, 1L, null, null, null, "ja",
+                        ja("C"), null, null, null, null, null, null, null),
+                "change ref", new ReorganizationStep("change", "x", b, null, v, null, null, null, "ja", ja("B2"),
+                        null, null, null, null, null, null, null),
+                "change parentId", new ReorganizationStep("change", null, b, null, v, a, null, null, "ja", ja("B2"),
+                        null, null, null, null, null, null, null),
+                "move names", new ReorganizationStep("move", null, b, null, v, a, null, null, null, ja("B2"), null,
+                        null, null, null, null, null, null),
+                "move displayOrder", new ReorganizationStep("move", null, b, null, v, a, null, null, null, null, null,
+                        null, null, 1, null, null, null),
+                "move version", new ReorganizationStep("move", null, null, "new", 1L, a, null, null, null, null, null,
+                        null, null, null, null, null, null),
+                "end successorIds", new ReorganizationStep("end", null, b, null, v, null, null, null, null, null,
+                        null, null, null, null, null, successors, null),
+                "succeed parentId", new ReorganizationStep("succeed", null, b, null, v, a, null, null, null, null,
+                        null, null, null, null, null, successors, null),
+                "succeed attributes", new ReorganizationStep("succeed", null, b, null, v, null, null, null, null,
+                        null, null, null, null, null, Map.of("k", "v"), successors, null));
+
+        steps.forEach((name, step) -> {
+            FuhitoException e = failure("2027-04-01", List.of(create("new", "New", null, null), change(a, "A2"),
+                    step));
+            assertEquals(FuhitoException.Reason.INVALID, e.reason(), name);
+            assertEquals("reorganization.field_unused", e.code(), name);
+            String field = name.substring(name.indexOf(' ') + 1);
+            assertEquals(Map.of("field", field, "op", step.op(), "step", "2"), e.params(), name);
+        });
+
+        // The check comes before the lock, so no step ran.
+        assertEquals(List.of(), locked);
+        assertEquals(before, tree("2027-04-01"));
     }
 
     @Test

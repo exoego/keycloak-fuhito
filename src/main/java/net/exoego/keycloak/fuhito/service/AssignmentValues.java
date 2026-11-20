@@ -19,7 +19,7 @@ import java.util.Map;
  * @param head true when the person leads the org unit, or null for false
  * @param primary true when this is the main assignment of the employment, or null for false
  * @param switchPrimary true to take the primary flag away from other assignments of the employment for the
- *        same dates, or null for false. It matters only when {@code primary} is true.
+ *        same dates, or null for false. Only a request with {@code primary} true may give true.
  * @param allocationPercent the share of the person's work in percent, or null
  * @param displayOrder the position among the members of the org unit, or null for 0
  * @param attributes free values, or null
@@ -44,7 +44,7 @@ public record AssignmentValues(String employmentId, String orgUnitId, String val
      * @param head true when the person leads the org unit, or null for false
      * @param primary true when this is the main assignment of the employment, or null for false
      * @param switchPrimary true to take the primary flag away from other assignments of the employment for the
-     *        same dates, or null for false
+     *        same dates, or null for false. Only a request with {@code primary} true may give true.
      * @param allocationPercent the share of the person's work in percent, or null
      * @param displayOrder the position among the members of the org unit, or null for 0
      * @param attributes free values, or null

@@ -1,5 +1,6 @@
 package net.exoego.keycloak.fuhito.service;
 
+import java.lang.reflect.RecordComponent;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -41,6 +42,16 @@ public class ReorganizationService {
 
     private static final Set<String> CHANGES = Set.of("change", "move", "end", "succeed");
 
+    // A step that gives a field that its operation does not read fails, so that no value is dropped with no word.
+    private static final Map<String, Set<String>> READS = Map.of(
+            "create", Set.of("ref", "parentId", "parentRef", "code", "primaryLanguage", "names", "unitType",
+                    "workLocation", "costCenter", "displayOrder", "attributes"),
+            "change", Set.of("id", "unitRef", "version", "code", "primaryLanguage", "names", "unitType",
+                    "workLocation", "costCenter", "displayOrder", "attributes"),
+            "move", Set.of("id", "unitRef", "version", "parentId", "parentRef"),
+            "end", Set.of("id", "unitRef", "version"),
+            "succeed", Set.of("id", "unitRef", "version", "successorIds", "successorRefs"));
+
     private final OrgUnitService orgUnits;
 
     /**
@@ -56,14 +67,15 @@ public class ReorganizationService {
      * Applies the steps in the order given, all on the effective date.
      * A later step can name a unit that an earlier create step made, by the {@code ref} of that step.
      * A step that changes a stored unit names the version of the unit that the caller read.
-     * An empty text, a text of only spaces, or an empty list in a step fails before any step runs.
+     * An empty text, a text of only spaces, or an empty list in a step fails before any step runs. So does a
+     * field that the operation of the step does not read, and a version of a step with no {@code id}.
      *
      * @param effectiveDate the date of every step, as {@code YYYY-MM-DD}
      * @param steps the steps
      * @param lock locks the stored units until the end of the transaction, before their versions are read
      * @return what each step did, in the same order
-     * @throws FuhitoException when a step fails, has an empty value, or names no version or an old one. Its values
-     *         hold the position of the step, counted from 0, under the key "step".
+     * @throws FuhitoException when a step fails, has an empty value or a field that it does not read, or names no
+     *         version or an old one. Its values hold the position of the step, counted from 0, under the key "step".
      */
     public List<Result> apply(String effectiveDate, List<ReorganizationStep> steps,
             Consumer<Collection<String>> lock) {
@@ -73,7 +85,7 @@ public class ReorganizationService {
         for (int i = 0; i < steps.size(); i++) {
             ReorganizationStep step = steps.get(i);
             if (step != null) {
-                atStep(i, () -> EmptyValues.withoutEmptyValues(step));
+                atStep(i, () -> requireRead(EmptyValues.withoutEmptyValues(step)));
             }
             if (step != null && step.op() != null && CHANGES.contains(step.op()) && step.unitRef() == null
                     && step.id() != null) {
@@ -94,6 +106,24 @@ public class ReorganizationService {
             results.add(atStep(i, () -> apply(effectiveDate, step, created)));
         }
         return results;
+    }
+
+    // A step with no operation or an unknown one fails later, with the reason of that.
+    private static ReorganizationStep requireRead(ReorganizationStep step) {
+        Set<String> reads = step.op() == null ? null : READS.get(step.op());
+        if (reads == null) {
+            return step;
+        }
+        for (RecordComponent component : ReorganizationStep.class.getRecordComponents()) {
+            String field = component.getName();
+            // Only a step with an ID names a stored unit, which has a version.
+            boolean unread = !field.equals("op")
+                    && (!reads.contains(field) || (field.equals("version") && step.id() == null));
+            if (unread && EmptyValues.valueOf(component, step) != null) {
+                throw FuhitoException.invalid("reorganization.field_unused", Map.of("field", field, "op", step.op()));
+            }
+        }
+        return step;
     }
 
     private static <T> T atStep(int index, Supplier<T> work) {
