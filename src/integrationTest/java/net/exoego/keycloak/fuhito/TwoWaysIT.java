@@ -11,11 +11,15 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
- * A request that names one thing in two ways fails, and writes nothing. Each way alone still works.
+ * A request that names one thing in two ways fails, and writes nothing. Each way alone still works. A person ID and
+ * a user ID are two names of one person, so a create can give both when they name the same person.
  */
 class TwoWaysIT {
 
     private static final String START = "\"validFrom\": \"2026-04-01\"";
+
+    private static final List<String> CREATES = List.of("/employments", "/staff", "/qualifications",
+            "/reporting-lines");
 
     private static JsonNode created(HttpResponse<String> response) throws Exception {
         assertEquals(201, response.statusCode(), response.body());
@@ -39,54 +43,105 @@ class TwoWaysIT {
         return outcome.toString();
     }
 
+    // A create on the path that names its person, or the manager of its line, by the given IDs. Null leaves an ID
+    // out.
+    private static String create(String path, String ward, String assignment, String personId, String userId) {
+        boolean line = path.equals("/reporting-lines");
+        StringBuilder body = new StringBuilder("{").append(switch (path) {
+            case "/staff" -> "\"orgUnitId\": \"" + ward + "\", ";
+            case "/qualifications" -> "\"kind\": \"license\", ";
+            // A dotted line can have the same dates as another one.
+            case "/reporting-lines" -> "\"assignmentId\": \"" + assignment + "\", \"kind\": \"DOTTED\", ";
+            default -> "";
+        });
+        if (personId != null) {
+            body.append('"').append(line ? "managerPersonId" : "personId").append("\": \"").append(personId)
+                    .append("\", ");
+        }
+        if (userId != null) {
+            body.append('"').append(line ? "managerUserId" : "userId").append("\": \"").append(userId).append("\", ");
+        }
+        return body.append(START).append('}').toString();
+    }
+
+    // The person that a created resource names, by its person ID and its user ID.
+    private static String personOf(String path, JsonNode created) {
+        if (path.equals("/reporting-lines")) {
+            return created.path("managerPersonId").asText() + " " + created.path("managerUserId").asText();
+        }
+        JsonNode resource = path.equals("/staff") ? created.get("employment") : created;
+        return resource.path("personId").asText() + " " + resource.path("userId").asText();
+    }
+
     @Test
-    void aPersonOrAManagerByPersonIdAndByUserIdFailsAndWritesNothing() throws Exception {
+    void aPersonOrAManagerByTheIdsOfTwoPeopleFailsAndWritesNothing() throws Exception {
         TestRealm realm = TestRealm.withEmployer("two-ways-person");
         Api api = realm.api;
         realm.refItem("QUALIFICATION", "license", "免許");
         String ward = unit(api, "病棟", null);
-        String person = created(api.post("/people", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": "
+        String nurse = realm.user("nurse");
+        String ofNurse = created(api.post("/people", "{\"userId\": \"" + nurse + "\"}")).get("id").asText();
+        String doctor = realm.user("doctor");
+        created(api.post("/people", "{\"userId\": \"" + doctor + "\"}"));
+        String plain = created(api.post("/people", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": "
                 + "\"Nurse\"}}}")).get("id").asText();
         // The user has no person yet, so a write that used the user would create one.
-        String doctor = realm.user("doctor");
+        String nobody = realm.user("nobody");
         String assignment = created(api.post("/staff", "{\"userId\": \"" + realm.user("clerk") + "\", "
                 + "\"orgUnitId\": \"" + ward + "\", " + START + "}")).get("assignment").get("id").asText();
-        String both = "\"personId\": \"" + person + "\", \"userId\": \"" + doctor + "\", ";
-        String managers = "\"managerPersonId\": \"" + person + "\", \"managerUserId\": \"" + doctor + "\", ";
+        List<List<String>> pairs = List.of(List.of("nurse doctor", ofNurse, doctor),
+                List.of("nurse nobody", ofNurse, nobody), List.of("plain doctor", plain, doctor),
+                List.of("plain nobody", plain, nobody));
         ObjectNode before = RealmExportIT.export(api);
 
         List<String> expected = new ArrayList<>();
         List<String> got = new ArrayList<>();
-        for (String path : List.of("/employments", "/staff", "/qualifications")) {
-            String rest = switch (path) {
-                case "/staff" -> "\"orgUnitId\": \"" + ward + "\", ";
-                case "/qualifications" -> "\"kind\": \"license\", ";
-                default -> "";
-            };
-            expected.add(path + " 400 invalid.twice personId userId");
-            got.add(path + " " + outcome(api.post(path, "{" + both + rest + START + "}"), "field", "otherField"));
+        for (List<String> pair : pairs) {
+            for (String path : CREATES) {
+                String name = path + " " + pair.getFirst();
+                expected.add(name + (path.equals("/reporting-lines")
+                        ? " 400 invalid.mismatch managerPersonId managerUserId"
+                        : " 400 invalid.mismatch personId userId"));
+                got.add(name + " " + outcome(api.post(path, create(path, ward, assignment, pair.get(1),
+                        pair.get(2))), "field", "otherField"));
+            }
         }
-        expected.add("/reporting-lines 400 invalid.twice managerPersonId managerUserId");
-        got.add("/reporting-lines " + outcome(api.post("/reporting-lines", "{\"assignmentId\": \"" + assignment
-                + "\", " + managers + START + "}"), "field", "otherField"));
         assertEquals(expected, got);
-        String body = "{" + both + START + "}";
-        assertEquals("personId and userId name one thing in two ways. Give one of them.",
-                Api.json(api.post("/employments", body)).get("message").asText());
-        assertEquals("personId と userId は同じものを二通りで指しています。どちらか一方にしてください。",
+        String body = create("/employments", ward, assignment, ofNurse, doctor);
+        assertEquals("personId and userId name different things. Give one of them, or values that name the same "
+                + "thing.", Api.json(api.post("/employments", body)).get("message").asText());
+        assertEquals("personId と userId は別々のものを指しています。どちらか一方にするか、同じものを指す値にしてください。",
                 Api.json(api.withAcceptLanguage("ja").post("/employments", body)).get("message").asText());
         assertEquals(before, RealmExportIT.export(api));
 
-        for (String way : List.of("\"personId\": \"" + person + "\", ", "\"userId\": \"" + doctor + "\", ")) {
-            created(api.post("/employments", "{" + way + START + "}"));
-            created(api.post("/staff", "{" + way + "\"orgUnitId\": \"" + ward + "\", " + START + "}"));
-            created(api.post("/qualifications", "{" + way + "\"kind\": \"license\", " + START + "}"));
+        // Each way works alone.
+        for (String path : CREATES) {
+            assertEquals(ofNurse + " " + nurse,
+                    personOf(path, created(api.post(path, create(path, ward, assignment, ofNurse, null)))), path);
+            assertEquals(ofNurse + " " + nurse,
+                    personOf(path, created(api.post(path, create(path, ward, assignment, null, nurse)))), path);
         }
-        created(api.post("/reporting-lines", "{\"assignmentId\": \"" + assignment + "\", \"managerPersonId\": \""
-                + person + "\", " + START + "}"));
-        JsonNode dotted = created(api.post("/reporting-lines", "{\"assignmentId\": \"" + assignment + "\", "
-                + "\"managerUserId\": \"" + doctor + "\", \"kind\": \"DOTTED\", " + START + "}"));
-        assertEquals(doctor, dotted.get("managerUserId").asText());
+    }
+
+    @Test
+    void aPersonOrAManagerByBothIdsOfOnePersonWorks() throws Exception {
+        TestRealm realm = TestRealm.withEmployer("two-ways-same-person");
+        Api api = realm.api;
+        realm.refItem("QUALIFICATION", "license", "免許");
+        String ward = unit(api, "病棟", null);
+        String nurse = realm.user("nurse");
+        String assignment = created(api.post("/staff", "{\"userId\": \"" + realm.user("clerk") + "\", "
+                + "\"orgUnitId\": \"" + ward + "\", " + START + "}")).get("assignment").get("id").asText();
+        // A read of an employment of a person with a user has both IDs.
+        JsonNode read = Api.json(api.get("/employments/" + created(api.post("/employments", "{\"userId\": \""
+                + nurse + "\", " + START + "}")).get("id").asText()));
+        String person = read.get("personId").asText();
+        assertEquals(nurse, read.get("userId").asText());
+
+        for (String path : CREATES) {
+            assertEquals(person + " " + nurse,
+                    personOf(path, created(api.post(path, create(path, ward, assignment, person, nurse)))), path);
+        }
     }
 
     @Test

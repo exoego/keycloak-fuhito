@@ -74,6 +74,18 @@ class ChecksTest {
     }
 
     @Test
+    void takesTwoNamesOfOneThing() {
+        Checks.agree("personId", "u1", "userId", "u1");
+        Checks.agree("personId", "u1", "userId", null);
+        Checks.agree("personId", null, "userId", null);
+        FuhitoException e = invalid(() -> Checks.agree("personId", "u1", "userId", "u2"));
+        assertEquals("invalid.mismatch", e.code());
+        assertEquals(Map.of("field", "personId", "otherField", "userId"), e.params());
+        // A person with no user has no user to agree with.
+        assertEquals("invalid.mismatch", invalid(() -> Checks.agree("personId", null, "userId", "u1")).code());
+    }
+
+    @Test
     void stripsAName() {
         assertEquals("内科", Checks.name("name", " 内科　"));
     }
