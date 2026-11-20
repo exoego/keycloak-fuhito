@@ -10,6 +10,7 @@ import java.util.function.Supplier;
 import net.exoego.keycloak.fuhito.domain.BusinessDay;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.jpa.RealmData;
+import net.exoego.keycloak.fuhito.jpa.RowLocks;
 import net.exoego.keycloak.fuhito.rest.FuhitoResource;
 import net.exoego.keycloak.fuhito.store.UserDirectory;
 import org.keycloak.connections.jpa.JpaConnectionProvider;
@@ -112,6 +113,9 @@ public class FuhitoAdminRealmResourceProvider implements AdminRealmResourceProvi
                         return KeycloakModelUtils.runJobInTransactionWithResult(session.getKeycloakSessionFactory(),
                                 own -> {
                                     RealmModel ownRealm = own.realms().getRealm(realm.getId());
+                                    if (ownRealm == null) {
+                                        throw RowLocks.realmNotFound(realm.getId());
+                                    }
                                     own.getContext().setRealm(ownRealm);
                                     T result = piece.apply(resource(request, own, ownRealm, auth,
                                             new AdminEventBuilder(ownRealm, auth.adminAuth(), own,

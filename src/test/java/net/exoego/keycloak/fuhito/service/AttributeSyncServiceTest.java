@@ -169,11 +169,15 @@ class AttributeSyncServiceTest {
     private final class Transactions implements AttributeSyncService.Work {
 
         private int count;
+        private int realmGoneAfter = Integer.MAX_VALUE;
         private Predicate<ImportReport.Write> rejected = write -> false;
 
         @Override
         public <T> T inNewTransaction(Function<AttributeSyncService.Parts, T> piece) {
             count++;
+            if (count > realmGoneAfter) {
+                throw FuhitoException.notFound("realm.not_found", Map.of("id", "removed"));
+            }
             Map<String, Employment> employments = new LinkedHashMap<>(employmentStore.employments);
             List<Assignment> rows = List.copyOf(assignmentStore.rows);
             List<ReportingLine> lines = List.copyOf(lineStore.lines);
@@ -224,6 +228,20 @@ class AttributeSyncServiceTest {
         assertEquals(bobBefore, assignmentsOf("bob"));
         // The plan, the piece that failed, and then each user of that piece alone.
         assertEquals(5, work.count);
+    }
+
+    @Test
+    void aRealmThatIsGoneEndsTheRunAndNoUserRunsAgainOnItsOwn() {
+        set("alice", "med", null, null, null);
+        set("bob", "med", null, null, null);
+        Transactions work = new Transactions();
+        work.realmGoneAfter = 1;
+
+        FuhitoException e = assertThrows(FuhitoException.class, () -> new AttributeSyncService(work).run());
+
+        assertEquals("realm.not_found", e.code());
+        // The plan, and the piece that found the realm gone.
+        assertEquals(2, work.count);
     }
 
     @Test

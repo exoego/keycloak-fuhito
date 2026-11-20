@@ -7,11 +7,13 @@ import java.util.Map;
 import java.util.SequencedMap;
 
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.FlushModeType;
 import jakarta.persistence.LockModeType;
 import jakarta.persistence.TypedQuery;
 import jakarta.persistence.criteria.CriteriaBuilder;
 import jakarta.persistence.criteria.CriteriaQuery;
 import jakarta.persistence.criteria.Root;
+import net.exoego.keycloak.fuhito.domain.FuhitoException;
 
 /**
  * Keeps two writes of one resource apart. It locks the stored rows of resources until the end of the transaction,
@@ -58,10 +60,12 @@ public final class RowLocks {
      * locks it alone, and every other write shares it. So the other writes of the realm wait while a bulk write
      * runs, and a bulk write waits for the writes that run. A write calls it once, before it locks or reads
      * anything that it changes. The first write of a realm adds the row.
+     * The removal of the realm makes a write wait too. The write then finds the realm gone, and fails.
      *
      * @param em the entity manager of the transaction
      * @param realmId the ID of the realm
      * @param alone true for a bulk write
+     * @throws FuhitoException with {@code realm.not_found} when Keycloak removed the realm
      */
     public static void lockRealm(EntityManager em, String realmId, boolean alone) {
         TypedQuery<RealmWriteEntity> row = em.createQuery(
@@ -69,12 +73,40 @@ public final class RowLocks {
                 .setParameter("realmId", realmId)
                 .setLockMode(alone ? LockModeType.PESSIMISTIC_WRITE : LockModeType.PESSIMISTIC_READ);
         if (row.getResultList().isEmpty()) {
-            // A second first write waits here until the first one ends, and then adds nothing.
-            em.createQuery("insert into RealmWriteEntity (realmId) values (:realmId) on conflict (realmId) do nothing")
-                    .setParameter("realmId", realmId)
-                    .executeUpdate();
+            // A second first write waits here until the first one ends, and then adds nothing. A write during the
+            // removal of the realm waits above or here, and then finds the realm gone.
+            addRow(em, realmId);
+            if (!realmExists(em, realmId)) {
+                throw realmNotFound(realmId);
+            }
             row.getSingleResult();
         }
+    }
+
+    /**
+     * Makes the error of a write whose realm Keycloak removed.
+     *
+     * @param realmId the ID of the realm
+     * @return the error, with the status 404
+     */
+    public static FuhitoException realmNotFound(String realmId) {
+        return FuhitoException.notFound("realm.not_found", Map.of("id", realmId));
+    }
+
+    // Waits for a write that added the row and has not ended.
+    static void addRow(EntityManager em, String realmId) {
+        em.createQuery("insert into RealmWriteEntity (realmId) values (:realmId) on conflict (realmId) do nothing")
+                .setParameter("realmId", realmId)
+                .executeUpdate();
+    }
+
+    private static boolean realmExists(EntityManager em, String realmId) {
+        return !em.createQuery("select r.id from RealmEntity r where r.id = :realmId", String.class)
+                .setParameter("realmId", realmId)
+                // Keycloak writes a new realm to the database when it creates it, so no change needs a flush here.
+                .setFlushMode(FlushModeType.COMMIT)
+                .getResultList()
+                .isEmpty();
     }
 
     /**
