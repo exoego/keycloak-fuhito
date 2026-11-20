@@ -302,6 +302,7 @@ public class UsersResource {
             summary = "Returns every employment and every assignment of a user, with all their periods.")
     @APIResponse(responseCode = "200", description = "The history of the user.")
     @NotFound
+    @BadRequest
     @ApiErrors
     public UserHistoryRepresentation history(
             @Parameter(description = "The ID of the Keycloak user.")

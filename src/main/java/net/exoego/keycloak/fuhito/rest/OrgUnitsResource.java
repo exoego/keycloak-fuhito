@@ -741,6 +741,7 @@ public class OrgUnitsResource {
                     + "`fuhito.structure.daysAhead` limits how far ahead the caller may read.")
     @APIResponse(responseCode = "200", description = "The details of every period and the parent of every period.")
     @NotFound
+    @BadRequest
     @ApiErrors
     public OrgUnitHistoryRepresentation history(
             @Parameter(description = "The ID of the resource.")
@@ -833,6 +834,7 @@ public class OrgUnitsResource {
                     + "read.")
     @APIResponse(responseCode = "200", description = "The units before and after, oldest first.")
     @NotFound
+    @BadRequest
     @ApiErrors
     public OrgUnitSuccessionsRepresentation succession(
             @Parameter(description = "The ID of the resource.")

@@ -77,6 +77,7 @@ public class ChangeLogResource {
             operationId = "countChangeLog",
             summary = "Counts the writes that `GET /change-log` lists with the same filters, from the start.")
     @APIResponse(responseCode = "200", description = "The number of entries.")
+    @BadRequest
     @ApiErrors
     public CountRepresentation count(
             @Parameter(
