@@ -133,7 +133,7 @@ public class QualificationsResource {
     @Operation(
             operationId = "addQualification",
             summary = "Adds a qualification of a person.",
-            description = "The body needs `personId` or `userId`.")
+            description = "The body needs `personId` or `userId`, not both.")
     @Parameter(ref = "changeOrder")
     @APIResponse(
             responseCode = "201",
@@ -147,8 +147,8 @@ public class QualificationsResource {
         context.requireWrite();
         return Calls.run(context, () -> {
             Calls.body(body);
-            var qualification = represent(service.add(
-                    body.toValues(Writes.personId(context, people, "personId", body.personId(), body.userId()))));
+            var qualification = represent(service.add(body.toValues(
+                    Writes.personId(context, people, "personId", body.personId(), "userId", body.userId()))));
             context.recordChange(Change.CREATE, RESOURCE_TYPE, qualification.id(), path(qualification.id()),
                     qualification);
             return Response.status(Response.Status.CREATED).entity(qualification).build();

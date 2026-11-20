@@ -91,6 +91,9 @@ final class PeopleImport {
     }
 
     String userId(String userId, String username) {
+        if (userId != null && username != null) {
+            throw FuhitoException.invalid("import.user_twice", Map.of("field", "userId"));
+        }
         if (userId != null) {
             return userId;
         }

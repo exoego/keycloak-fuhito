@@ -78,7 +78,7 @@ public class ReportingLinesResource {
         return Calls.run(context, () -> {
             Calls.body(body);
             String manager = Writes.personId(context, people, "managerPersonId", body.managerPersonId(),
-                    body.managerUserId());
+                    "managerUserId", body.managerUserId());
             var line = represent(externalIds.create(ExternalId.Kind.REPORTING_LINE, body.source(), body.externalId(),
                     () -> service.add(body.assignmentId(), manager, body.kind(), body.validFrom(), body.validTo()),
                     ReportingLine::id));

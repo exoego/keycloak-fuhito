@@ -33,6 +33,16 @@ class ChecksTest {
         assertEquals(Map.of("field", "f"), e.params());
     }
 
+    @Test
+    void requiresAtMostOneOfTwoWays() {
+        Checks.notBoth("f", "x", "g", null);
+        Checks.notBoth("f", null, "g", "y");
+        Checks.notBoth("f", null, "g", null);
+        FuhitoException e = invalid(() -> Checks.notBoth("f", "x", "g", "x"));
+        assertEquals("invalid.twice", e.code());
+        assertEquals(Map.of("field", "f", "otherField", "g"), e.params());
+    }
+
     @ParameterizedTest
     @ValueSource(strings = {"a", "A1", "unit_type", "a.b-c", "9lives"})
     void acceptsACode(String code) {

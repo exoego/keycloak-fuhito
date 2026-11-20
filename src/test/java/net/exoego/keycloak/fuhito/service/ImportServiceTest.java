@@ -936,6 +936,20 @@ class ImportServiceTest {
         assertEquals(List.of("people[0] person.user_taken"), errors(importPersons(ofUser(null, "nurse", nurse))));
     }
 
+    @Test
+    void aRowThatNamesTheUserByIdAndByUsernameFails() {
+        importTwoUnits();
+
+        ImportReport person = importPersons(new PersonRow(null, "P1", "nurse", "user-doctor", null, null, null, null));
+        assertEquals(List.of("people[0] import.user_twice"), errors(person));
+        assertEquals(Map.of("field", "userId"), person.errors().getFirst().error().params());
+        assertEquals(List.of("employments[0] import.user_twice"), errors(importEmployments(new EmploymentRow(null,
+                "E1", "nurse", "user-doctor", null, null, null, null, null, null, null, "2020-04-01", null, null, null,
+                null, null, null, null))));
+        assertTrue(personStore.findByUser("user-nurse").isEmpty());
+        assertTrue(personStore.findByUser("user-doctor").isEmpty());
+    }
+
     private static EmploymentRow byIds(String externalId, String personId, String employerId, String grade,
             String id) {
         return new EmploymentRow(null, externalId, null, null, null, null, grade, null, null, null, null,
