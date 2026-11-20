@@ -555,7 +555,8 @@ components:
           description: The number that the employer gives to the person.
         endReason:
           type: string
-          description: The code of the end reason.
+          description: The code of the end reason. Only an employment with an end
+            has one.
           readOnly: true
         externalId:
           type: string
@@ -623,6 +624,25 @@ components:
             $ref: "#/components/schemas/EmploymentTerms"
           description: "The terms of each period, oldest first."
           readOnly: true
+    EmploymentEnd:
+      required:
+      - version
+      - validTo
+      description: A request to end an employment on a date.
+      type: object
+      properties:
+        version:
+          type: integer
+          format: int64
+          description: The version of the employment that the caller read.
+        validTo:
+          type: string
+          description: The first date on which the employment no longer holds.
+          format: date
+        endReason:
+          type: string
+          description: The code of the end reason. A request without it removes a
+            stored reason.
     EmploymentStatus:
       type: string
       enum:
@@ -684,7 +704,8 @@ components:
       required:
       - version
       - validTo
-      description: A request to end something on a date.
+      description: A request to end something on a date. It has no end reason. Only
+        an `EmploymentEnd` has one.
       type: object
       properties:
         version:
@@ -695,10 +716,6 @@ components:
           type: string
           description: The first date on which it no longer exists.
           format: date
-        endReason:
-          type: string
-          description: The code of the end reason. Only the end of an employment uses
-            it.
     Error:
       required:
       - error
@@ -5828,8 +5845,9 @@ paths:
   /employments/{id}/end:
     delete:
       summary: "Removes the end of an employment, for example to take back a resignation."
-      description: "An employment that another one continues, as after a transfer,\
-        \ keeps its end. The request then fails with 409 and `employment.continues_holds`."
+      description: "The end reason goes with the end, because an employment with no\
+        \ end has no end reason. An employment that another one continues, as after\
+        \ a transfer, keeps its end. The request then fails with 409 and `employment.continues_holds`."
       operationId: removeEmploymentEnd
       tags:
       - employments
@@ -5886,7 +5904,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/End"
+              $ref: "#/components/schemas/EmploymentEnd"
         required: true
       responses:
         "200":
