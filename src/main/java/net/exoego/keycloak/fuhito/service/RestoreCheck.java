@@ -21,7 +21,7 @@ import net.exoego.keycloak.fuhito.domain.FuhitoException;
 /**
  * Checks an export before a restore writes it. A row may name only rows of the same export, so that a restore
  * never links to the rows of another realm, and fails with a clear error and not in the database. A row has no empty
- * value, as a row of an import, and each of its texts fits its column.
+ * value and no text that cannot be stored, as a row of an import, and each of its texts fits its column.
  */
 final class RestoreCheck {
 
@@ -58,15 +58,16 @@ final class RestoreCheck {
 
     /**
      * Requires every row of an export and every value that the table of a row needs, and requires that no value is an
-     * empty text, a text of only spaces, or an empty list, as in a row of an import. A text must fit its column, and a
-     * value that a write checks by a rule of its own, such as a code, must pass the rule. A row inside a row, such as
-     * a version of an org unit, is named by the list and the ID that {@code restore.id_taken} gives it.
+     * empty text, a text of only spaces, an empty list, or a text that cannot be stored, as in a row of an import. A
+     * text must fit its column, and a value that a write checks by a rule of its own, such as a code, must pass the
+     * rule. A row inside a row, such as a version of an org unit, is named by the list and the ID that
+     * {@code restore.id_taken} gives it.
      *
      * @param document the export
      * @param lengths gives the longest text of each field of a row of a list
-     * @throws FuhitoException when a row or a needed value is missing, a value is empty, a text is too long for its
-     *         column, or a value breaks its rule. The error names the list, the ID of the row when it has one, and
-     *         the field.
+     * @throws FuhitoException when a row or a needed value is missing, a value is empty, a text cannot be stored or
+     *         is too long for its column, or a value breaks its rule. The error names the list, the ID of the row
+     *         when it has one, and the field.
      */
     static void requireValues(RealmExport document, Function<String, Map<String, Integer>> lengths) {
         Values values = new Values(lengths);

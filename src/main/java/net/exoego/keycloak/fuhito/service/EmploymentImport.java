@@ -78,7 +78,7 @@ final class EmploymentImport {
 
     // The stored employments that the rows name. The people and the staff numbers of the new ones.
     private void read(List<EmploymentRow> rows) {
-        List<EmploymentRow> given = rows.stream().filter(Objects::nonNull).toList();
+        List<EmploymentRow> given = rows.stream().filter(EmptyValues::passes).toList();
         for (EmploymentRow row : given) {
             String source = document.sourceOf(row.source());
             ids.want(ExternalId.Kind.EMPLOYMENT, source, row.externalId())
