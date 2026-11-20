@@ -536,6 +536,12 @@ class CsvImportServiceTest {
         assertEquals("csv.bad_column", failure("orgUnits", "外部ID,名称,name\nH,x,y\n").code());
         assertEquals("csv.bad_column", failure("orgUnits", "外部ID,名称,ユーザー名\nH,x,y\n").code());
         assertEquals("csv.bad_column", failure("orgUnits", "外部ID,名称,表示順:en\nH,x,1\n").code());
+        // Two columns of one name in one language, as the tags are written in any case.
+        FuhitoException twice = failure("orgUnits", "外部ID,主言語,名称:ja,name:JA\nH,ja,x,y\n");
+        assertEquals("invalid.duplicate_language", twice.code());
+        assertEquals(Map.of("field", "name:JA", "value", "ja"), twice.params());
+        assertEquals(Map.of("field", "phoneticName:en-US", "value", "en-US"), failure("people",
+                "externalId,phoneticName:en-us,name:en-us,phoneticName:en-US\nP,x,y,z\n").params());
         assertEquals("csv.open_quote", failure("orgUnits", "外部ID,名称\nH,\"x\n").code());
         assertEquals("invalid.choice", failure("rooms", "a\n1\n").code());
         assertEquals("invalid.required", failure(null, "a\n1\n").code());

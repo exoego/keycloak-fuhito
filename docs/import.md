@@ -104,6 +104,7 @@ The lists are applied in the order change orders, kinds of reference data, attri
 | An empty array `[]` | Fails. Use `null` to clear a list |
 
 - An object such as `attributes` or `names` merges by key. A missing key keeps the stored value, and a key with `null` clears it. For example, `"names": {"en": null}` removes the names in English, as `name:en` with `#CLEAR` does in CSV. The names of one language merge by field too, so `"names": {"ja": {"shortName": null}}` removes the short name and keeps the name.
+- Two keys of `names` with one language tag in standard form, such as `ja` and `JA`, fail the row with `invalid.duplicate_language`, as in a REST write. This holds also when one of them is `null`, such as `{"ja": {"name": "営業部"}, "JA": null}`.
 - `null` for a value that a thing must have, such as a name of the primary language or the start of a stored thing, fails with `invalid.required`, as a missing value of a new thing does. A value with a default, such as `status`, `active`, `head`, or `displayOrder`, takes the default.
 - A new thing has nothing stored, so a missing key and `null` both mean no value, and required values must be there.
 - An empty text, a text of only spaces, and an empty array fail with `invalid.blank`, which names the field, for example `names.en.shortName` or `attributes.beds`. This holds for every field, also for a text in the attributes. A REST write rejects an empty text and an empty array with the same error.
@@ -209,6 +210,7 @@ curl -X POST \
 
 - True is `true`, `1`, `yes`, `はい`, or `○`. False is `false`, `0`, `no`, `いいえ`, or `×`.
 - A name in another language has its own column, for example `name:en` or `名称:en`.
+- Two columns of one name in one language fail the file with `invalid.duplicate_language`, such as `name:ja` and `name:JA`, or `name:en-us` and `名称:en-US`. The error names the second column as the file writes it in `field`, and the language tag in standard form in `value`. Columns of different names may write one tag in another case, such as `name:en` and `shortName:EN`.
 - In a file of org units, `name`, `shortName`, and `phoneticName` are the names of the primary language, which `primaryLanguage` names. A new unit needs `primaryLanguage`. `name:en`, `shortName:en`, and `phoneticName:en` are the names of one language. `name:en` with `#CLEAR` removes that language. A CSV export leaves the columns of a language empty for a unit whose primary language it is.
 - A file of people has the names in the same way, with `primaryLanguage`, `name`, `phoneticName`, `name:en`, and `phoneticName:en`. A row with a name needs `primaryLanguage`, unless the person has a primary language already.
 - A file of reference items has the names in the same way, with `primaryLanguage`, `name`, and `name:en`. A new item needs `primaryLanguage`. A row for a stored item keeps the primary language of the names of its date when the cell is blank.

@@ -39,15 +39,16 @@ public record PersonRepresentation(
         @Schema(description = "The reading of the name in the language of `name`.", readOnly = true)
         String phoneticName,
         @Schema(
-                description = "The language tag of the primary names, such as `ja`. It is a key of `names`. A "
-                        + "person with no names has none.",
+                description = "The language tag of the primary names, such as `ja`. It matches a key of `names` in "
+                        + "standard form. A person with no names has none.",
                 maxLength = 64)
         String primaryLanguage,
         @Schema(
                 description = "The names by language tag, such as `ja`, `en`, or `zh-Hant`. A read gives the tags in "
                         + "their standard form, such as `en-US` for `en-us`. A person with no linked user needs "
                         + "them. A person with a linked user can have none, and a response then has the name of "
-                        + "the user in `name`.")
+                        + "the user in `name`. Two keys of one tag in standard form, such as `ja` and `JA`, fail "
+                        + "with `invalid.duplicate_language`.")
         Map<String, PersonName> names,
         @Schema(description = "Free values that the realm defines.")
         Map<String, Object> attributes,
