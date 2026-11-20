@@ -52,12 +52,13 @@ public class RestoreResource {
     @Operation(
             operationId = "restore",
             summary = "Loads an export into a realm that has no data of the extension, or in place of its data.",
-            description = "Every row keeps its ID, so products that stored IDs find the same resources. The rows "
-                    + "are written all or nothing. A row that is null, or a row with no value that its table needs, "
-                    + "such as `attributes`, fails with 400 and `restore.bad_value`. An empty text, a text of only "
-                    + "spaces, or an empty array in a row fails with 400 and `invalid.blank`, as in a write. The error "
-                    + "names the list, the `id` of the row, and the field. A row may have an empty list of its own "
-                    + "rows, such as `parents`. A username must name a user of this realm. An org unit names its "
+            description = "Every row keeps its ID, so products that stored IDs find the same resources. The rows are "
+                    + "written all or nothing. A row that is null, or a row with no value that its table needs, such "
+                    + "as `attributes`, fails with 400 and `restore.bad_value`. So does a text longer than its column, "
+                    + "or a value that breaks the rule of a write, such as a code or a name. An empty text, a text of "
+                    + "only spaces, or an empty array in a row fails with 400 and `invalid.blank`, as in a write. The "
+                    + "error names the list, the `id` of the row, and the field. A row may have an empty list of its "
+                    + "own rows, such as `parents`. A username must name a user of this realm. An org unit names its "
                     + "Keycloak organization by alias, and the restore asks for the permission to manage it.")
     @Parameter(ref = "changeOrder")
     @APIResponse(

@@ -102,11 +102,7 @@ public class AttributeDefinitionService implements AttributeRules {
             Boolean required) {
         AttributeDefinition.Target of = Checks.optionalEnum("target", AttributeDefinition.Target.class,
                 Checks.required("target", target), null);
-        String checkedName = Checks.required("name", name);
-        if (checkedName.isBlank() || !checkedName.strip().equals(checkedName)
-                || checkedName.codePointCount(0, checkedName.length()) > MAX_NAME_LENGTH) {
-            throw FuhitoException.invalid("attribute.bad_name", Map.of("name", checkedName));
-        }
+        String checkedName = name(name);
         if (store.list(of).stream().anyMatch(other -> other.name().equals(checkedName))) {
             throw FuhitoException.conflict("attribute.name_taken", Map.of("target", of.name(), "name", checkedName));
         }
@@ -198,6 +194,21 @@ public class AttributeDefinitionService implements AttributeRules {
                             Map.of("target", target.name(), "name", definition.name()));
                 });
         return values;
+    }
+
+    /**
+     * Checks the name of an attribute.
+     *
+     * @param name the name
+     * @return the same name
+     * @throws FuhitoException when the name is missing, blank, too long, or has spaces around it
+     */
+    static String name(String name) {
+        Checks.required("name", name);
+        if (name.isBlank() || !name.strip().equals(name) || name.codePointCount(0, name.length()) > MAX_NAME_LENGTH) {
+            throw FuhitoException.invalid("attribute.bad_name", Map.of("name", name));
+        }
+        return name;
     }
 
     private boolean fitsAll(AttributeDefinition definition, Object value) {

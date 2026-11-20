@@ -1,6 +1,9 @@
 package net.exoego.keycloak.fuhito.service;
 
 import java.lang.reflect.RecordComponent;
+import java.math.BigDecimal;
+import java.time.LocalTime;
+import java.time.ZoneOffset;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -11,14 +14,19 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 
+import net.exoego.keycloak.fuhito.domain.BusinessDay;
+import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 
 /**
  * Checks an export before a restore writes it. A row may name only rows of the same export, so that a restore
  * never links to the rows of another realm, and fails with a clear error and not in the database. A row has no empty
- * value, as a row of an import.
+ * value, as a row of an import, and each of its texts fits its column.
  */
 final class RestoreCheck {
+
+    // Any rule will do for the check of the time settings of a unit.
+    private static final BusinessDay.Rule ANY_DAY = new BusinessDay.Rule(ZoneOffset.UTC, LocalTime.MIDNIGHT);
 
     private final Set<String> refItems;
     private final Set<String> orgUnits;
@@ -50,66 +58,113 @@ final class RestoreCheck {
 
     /**
      * Requires every row of an export and every value that the table of a row needs, and requires that no value is an
-     * empty text, a text of only spaces, or an empty list, as in a row of an import. A row inside a row, such as a
-     * version of an org unit, is named by the list and the ID that {@code restore.id_taken} gives it.
+     * empty text, a text of only spaces, or an empty list, as in a row of an import. A text must fit its column, and a
+     * value that a write checks by a rule of its own, such as a code, must pass the rule. A row inside a row, such as
+     * a version of an org unit, is named by the list and the ID that {@code restore.id_taken} gives it.
      *
      * @param document the export
-     * @throws FuhitoException when a row or a needed value is missing, or a value is empty. The error names the list,
-     *         the ID of the row when it has one, and the field.
+     * @param lengths gives the longest text of each field of a row of a list
+     * @throws FuhitoException when a row or a needed value is missing, a value is empty, a text is too long for its
+     *         column, or a value breaks its rule. The error names the list, the ID of the row when it has one, and
+     *         the field.
      */
-    static void requireValues(RealmExport document) {
-        values("ref-kinds", document.refKinds(), "id", "code");
-        values("ref-items", document.refItems(), "id", "kind", "code", "attributes");
-        all(document.refItems()).forEach(i -> values("ref-item-names", i.versions(), "id"));
-        values("attribute-definitions", document.attributeDefinitions(), "id", "target", "name", "type");
-        values("hierarchies", document.hierarchies(), "id", "code", "name");
-        values("org-units", document.orgUnits(), "id");
+    static void requireValues(RealmExport document, Function<String, Map<String, Integer>> lengths) {
+        Values values = new Values(lengths);
+        values.check("ref-kinds", document.refKinds(), "id", "code");
+        values.check("ref-items", document.refItems(), "id", "kind", "code", "attributes");
+        all(document.refItems()).forEach(i -> values.check("ref-item-names", i.versions(), "id"));
+        values.check("attribute-definitions", document.attributeDefinitions(), "id", "target", "name", "type");
+        values.check("hierarchies", document.hierarchies(), "id", "code", "name");
+        values.check("org-units", document.orgUnits(), "id");
         for (RealmExport.Unit unit : all(document.orgUnits())) {
-            values("org-unit-versions", unit.versions(), "id", "validFrom", "attributes");
-            values("org-unit-parents", unit.parents(), "id", "hierarchy", "parentId", "validFrom");
-            values("org-unit-successions", unit.successors(), "id", "successorId", "effectiveDate");
+            values.check("org-unit-versions", unit.versions(), "id", "validFrom", "attributes");
+            values.check("org-unit-parents", unit.parents(), "id", "hierarchy", "parentId", "validFrom");
+            values.check("org-unit-successions", unit.successors(), "id", "successorId", "effectiveDate");
         }
-        values("people", document.people(), "id", "attributes");
-        values("employments", document.employments(), "id", "personId", "validFrom");
-        all(document.employments()).forEach(e -> values("employment-terms", e.terms(), "id", "validFrom", "status",
-                "attributes"));
-        values("assignments", document.assignments(), "assignmentId");
-        all(document.assignments()).forEach(a -> values("assignments", a.periods(), "rowId", "employmentId",
+        values.check("people", document.people(), "id", "attributes");
+        values.check("employments", document.employments(), "id", "personId", "validFrom");
+        all(document.employments()).forEach(e -> values.check("employment-terms", e.terms(), "id", "validFrom",
+                "status", "attributes"));
+        values.check("assignments", document.assignments(), "assignmentId");
+        all(document.assignments()).forEach(a -> values.check("assignments", a.periods(), "rowId", "employmentId",
                 "orgUnitId", "validFrom", "attributes"));
-        values("reporting-lines", document.reportingLines(), "id", "assignmentId", "managerPersonId", "kind",
+        values.check("reporting-lines", document.reportingLines(), "id", "assignmentId", "managerPersonId", "kind",
                 "validFrom");
-        values("unit-roles", document.unitRoles(), "id", "employmentId", "orgUnitId", "roleId", "validFrom");
-        values("qualifications", document.qualifications(), "id", "personId", "kindId", "validFrom", "attributes");
-        values("external-ids", document.externalIds(), "id", "resourceType", "resourceId", "source", "externalId");
-        values("change-orders", document.changeOrders(), "id", "title", "effectiveDate", "createdAt");
-        values("erasures", document.erasures(), "personId", "erasedAt");
+        values.check("unit-roles", document.unitRoles(), "id", "employmentId", "orgUnitId", "roleId", "validFrom");
+        values.check("qualifications", document.qualifications(), "id", "personId", "kindId", "validFrom",
+                "attributes");
+        values.check("external-ids", document.externalIds(), "id", "resourceType", "resourceId", "source",
+                "externalId");
+        values.check("change-orders", document.changeOrders(), "id", "title", "effectiveDate", "createdAt");
+        values.check("erasures", document.erasures(), "personId", "erasedAt");
     }
 
-    // The needed fields have columns that are not null, and the first one is the ID of the row. A list in a row holds
-    // the rows of the row, and a row may have none. Each of them is checked as a row.
-    private static <T extends Record> void values(String list, List<T> rows, String... needed) {
-        for (T row : all(rows)) {
-            if (row == null) {
-                throw FuhitoException.invalid("restore.bad_value", Map.of("list", list));
-            }
-            Map<String, Object> values = new HashMap<>();
-            for (RecordComponent component : row.getClass().getRecordComponents()) {
-                values.put(component.getName(), EmptyValues.valueOf(component, row));
-            }
-            Map<String, String> params = new HashMap<>(Map.of("list", list));
-            Optional.ofNullable(values.get(needed[0])).ifPresent(id -> params.put("id", id.toString()));
-            for (String field : needed) {
-                if (values.get(field) == null) {
-                    params.put("field", field);
-                    throw FuhitoException.invalid("restore.bad_value", params);
+    private record Values(Function<String, Map<String, Integer>> lengths) {
+
+        // The needed fields have columns that are not null, and the first one is the ID of the row. A list in a row
+        // holds the rows of the row, and a row may have none. Each of them is checked as a row.
+        <T extends Record> void check(String list, List<T> rows, String... needed) {
+            Map<String, Integer> longest = lengths.apply(list);
+            for (T row : all(rows)) {
+                if (row == null) {
+                    throw FuhitoException.invalid("restore.bad_value", Map.of("list", list));
                 }
+                Map<String, Object> fields = new LinkedHashMap<>();
+                for (RecordComponent component : row.getClass().getRecordComponents()) {
+                    fields.put(component.getName(), EmptyValues.valueOf(component, row));
+                }
+                Map<String, String> params = new HashMap<>(Map.of("list", list));
+                Optional.ofNullable(fields.get(needed[0])).ifPresent(id -> params.put("id", id.toString()));
+                for (String field : needed) {
+                    if (fields.get(field) == null) {
+                        params.put("field", field);
+                        throw FuhitoException.invalid("restore.bad_value", params);
+                    }
+                }
+                try {
+                    EmptyValues.withoutEmptyValues(row, component -> component.getType() != List.class);
+                } catch (FuhitoException e) {
+                    Map<String, String> named = new HashMap<>(e.params());
+                    named.putAll(params);
+                    throw new FuhitoException(e.reason(), e.code(), named).causedBy(e);
+                }
+                fields.forEach((field, value) -> requireFit(params, field, value, longest.get(field)));
             }
-            try {
-                EmptyValues.withoutEmptyValues(row, component -> component.getType() != List.class);
-            } catch (FuhitoException e) {
-                Map<String, String> named = new HashMap<>(e.params());
-                named.putAll(params);
-                throw new FuhitoException(e.reason(), e.code(), named).causedBy(e);
+        }
+    }
+
+    // A text must fit its column, and a value that a write checks by a rule of its own must pass the rule.
+    private static void requireFit(Map<String, String> params, String field, Object value, Integer length) {
+        Map<String, String> named = new HashMap<>(params);
+        named.put("field", field);
+        if (value instanceof String text && length != null && text.codePointCount(0, text.length()) > length) {
+            throw FuhitoException.invalid("restore.bad_value", named);
+        }
+        try {
+            rule(params.get("list"), field, value);
+        } catch (FuhitoException e) {
+            throw FuhitoException.invalid("restore.bad_value", named).causedBy(e);
+        }
+    }
+
+    private static void rule(String list, String field, Object value) {
+        if (value == null) {
+            return;
+        }
+        switch (list + "." + field) {
+            case "ref-kinds.code", "ref-items.code", "hierarchies.code", "org-unit-versions.code", "org-units.source",
+                    "people.source", "employments.source", "employments.staffNumber", "assignments.source",
+                    "qualifications.source", "external-ids.source", "change-orders.number", "change-orders.kind" ->
+                    Checks.code(field, (String) value);
+            case "hierarchies.name", "qualifications.number", "change-orders.title" ->
+                    Checks.name(field, (String) value);
+            case "attribute-definitions.name" -> AttributeDefinitionService.name((String) value);
+            case "external-ids.externalId" -> ExternalIdService.value((String) value);
+            case "employment-terms.workPercent", "assignments.allocationPercent" ->
+                    Checks.optionalPercent(field, (BigDecimal) value);
+            case "org-units.timeZone" -> ANY_DAY.with((String) value, null);
+            case "org-units.dayStart" -> ANY_DAY.with(null, (String) value);
+            default -> {
             }
         }
     }

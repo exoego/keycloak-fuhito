@@ -1,5 +1,6 @@
 package net.exoego.keycloak.fuhito.jpa;
 
+import java.lang.reflect.Field;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.HashMap;
@@ -9,7 +10,9 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
+import jakarta.persistence.Column;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.criteria.CriteriaBuilder;
 import jakarta.persistence.criteria.CriteriaQuery;
@@ -248,10 +251,39 @@ public class JpaRealmExportStore implements RealmExportStore {
             Map.entry("unit-roles", UnitRoleEntity.class),
             Map.entry("qualifications", QualificationEntity.class),
             Map.entry("external-ids", ExternalIdEntity.class),
-            Map.entry("change-orders", ChangeOrderEntity.class));
+            Map.entry("change-orders", ChangeOrderEntity.class),
+            Map.entry("erasures", ErasureEntity.class));
 
-    // The rows of the names of one period share the ID of the period.
-    private static final Map<Class<?>, String> ID_FIELDS = Map.of(RefItemNameEntity.class, "periodId");
+    // The fields of an export whose field in the entity has another name. The rows of the names of one period share
+    // the ID of the period.
+    private static final Map<String, Map<String, String>> RENAMED = Map.of(
+            "ref-item-names", Map.of("id", "periodId"),
+            "assignments", Map.of("rowId", "id"),
+            "external-ids", Map.of("resourceType", "kind"));
+
+    // A CLOB takes a text of any length, but @Column gives it the default length.
+    private static final Set<String> CLOBS = Set.of("note");
+
+    private static final Map<String, Map<String, Integer>> LENGTHS = TABLES.keySet().stream()
+            .collect(Collectors.toUnmodifiableMap(Function.identity(), JpaRealmExportStore::lengthsOf));
+
+    private static Map<String, Integer> lengthsOf(String list) {
+        Map<String, Integer> lengths = new HashMap<>();
+        for (Field field : TABLES.get(list).getDeclaredFields()) {
+            Column column = field.getAnnotation(Column.class);
+            if (column != null && field.getType() == String.class && !CLOBS.contains(field.getName())) {
+                lengths.put(field.getName(), column.length());
+            }
+        }
+        RENAMED.getOrDefault(list, Map.of()).forEach((exported, stored) -> lengths.put(exported,
+                lengths.remove(stored)));
+        return Map.copyOf(lengths);
+    }
+
+    @Override
+    public Map<String, Integer> lengths(String list) {
+        return LENGTHS.get(list);
+    }
 
     @Override
     public Optional<String> takenId(String list, Collection<String> ids) {
@@ -259,7 +291,7 @@ public class JpaRealmExportStore implements RealmExportStore {
         if (table == null || ids.isEmpty()) {
             return Optional.empty();
         }
-        String id = "x." + ID_FIELDS.getOrDefault(table, "id");
+        String id = "x." + RENAMED.getOrDefault(list, Map.of()).getOrDefault("id", "id");
         return em.createQuery("select %s from %s x where %s".formatted(id, table.getSimpleName(),
                         ManyIds.has(id, "ids")), String.class)
                 .setParameter("ids", ManyIds.of(ids))
