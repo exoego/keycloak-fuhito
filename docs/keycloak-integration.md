@@ -298,8 +298,8 @@ The date of the org unit decides these.
 
 | What | Which date |
 |---|---|
-| A read about one org unit with no `asOf`. They are the unit itself, its children, its subtree, its path, and its members. | The date of that unit |
-| `GET /users/{userId}/assignments` with no `asOf`, and the assignments in tokens | Each assignment is judged on the date of its own unit |
+| A read about one org unit with no `asOf`. They are the unit itself, its children, its subtree, its path, its members, and the holders of roles over it. | The date of that unit |
+| `GET /users/{userId}/assignments` and `GET /people/{id}/assignments` with no `asOf`, and the assignments in tokens | Each assignment is judged on the date of its own unit |
 | The projection into organization groups | The date of the linked unit, for everything below it |
 | The sync from user attributes | The date of the org unit that the department matches |
 

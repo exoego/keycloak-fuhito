@@ -7237,8 +7237,9 @@ paths:
         required: true
         schema:
           type: string
-      - description: The date to read. The default is today in the time zone of the
-          realm.
+      - description: The date to read. The default is today for the org unit. It is
+          the date of the realm unless the unit or a unit above it sets its own time
+          zone or day start.
         schema:
           type: string
           format: date
@@ -7324,7 +7325,8 @@ paths:
         schema:
           type: string
       - description: The date to read. The default is today for the org unit. It is
-          the date of the realm unless a unit sets its own time zone.
+          the date of the realm unless the unit or a unit above it sets its own time
+          zone or day start.
         schema:
           type: string
           format: date
@@ -7392,7 +7394,8 @@ paths:
         schema:
           type: string
       - description: The date to read. The default is today for the org unit. It is
-          the date of the realm unless a unit sets its own time zone.
+          the date of the realm unless the unit or a unit above it sets its own time
+          zone or day start.
         schema:
           type: string
           format: date
@@ -7561,7 +7564,8 @@ paths:
         schema:
           type: string
       - description: The date to read. The default is today for the org unit. It is
-          the date of the realm unless a unit sets its own time zone.
+          the date of the realm unless the unit or a unit above it sets its own time
+          zone or day start.
         schema:
           type: string
           format: date
@@ -7675,7 +7679,8 @@ paths:
         schema:
           type: string
       - description: The date to read. The default is today for the org unit. It is
-          the date of the realm unless a unit sets its own time zone.
+          the date of the realm unless the unit or a unit above it sets its own time
+          zone or day start.
         schema:
           type: string
           format: date
@@ -7883,7 +7888,8 @@ paths:
         schema:
           type: string
       - description: The date to read. The default is today for the org unit. It is
-          the date of the realm unless a unit sets its own time zone.
+          the date of the realm unless the unit or a unit above it sets its own time
+          zone or day start.
         schema:
           type: string
           format: date
@@ -7932,7 +7938,8 @@ paths:
         schema:
           type: string
       - description: The date to read. The default is today for the org unit. It is
-          the date of the realm unless a unit sets its own time zone.
+          the date of the realm unless the unit or a unit above it sets its own time
+          zone or day start.
         schema:
           type: string
           format: date
@@ -8003,7 +8010,8 @@ paths:
         schema:
           type: string
       - description: The date to read. The default is today for the org unit. It is
-          the date of the realm unless a unit sets its own time zone.
+          the date of the realm unless the unit or a unit above it sets its own time
+          zone or day start.
         schema:
           type: string
           format: date
@@ -8055,7 +8063,8 @@ paths:
         schema:
           type: string
       - description: The date to read. The default is today for the org unit. It is
-          the date of the realm unless a unit sets its own time zone.
+          the date of the realm unless the unit or a unit above it sets its own time
+          zone or day start.
         schema:
           type: string
           format: date
@@ -8125,7 +8134,8 @@ paths:
         schema:
           type: string
       - description: The date to read. The default is today for the org unit. It is
-          the date of the realm unless a unit sets its own time zone.
+          the date of the realm unless the unit or a unit above it sets its own time
+          zone or day start.
         schema:
           type: string
           format: date
@@ -10161,8 +10171,8 @@ paths:
         required: true
         schema:
           type: string
-      - description: The date to read. The default is today in the time zone of the
-          realm.
+      - description: The date to read. The default is today for the org unit of each
+          assignment.
         schema:
           type: string
           format: date
