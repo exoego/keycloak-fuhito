@@ -17,7 +17,10 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
 public record RefKindRepresentation(
         @Schema(description = "The ID of a kind that the realm added. A fixed kind has none.", readOnly = true)
         String id,
-        @Schema(description = "The code that items name as their kind.", maxLength = 32,
+        @Schema(
+                description = "The code that items name as their kind. It never changes. A write of a stored kind "
+                        + "with another code fails with 400 and `invalid.value_fixed`.",
+                maxLength = 32,
                 pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$")
         String code,
         @Schema(

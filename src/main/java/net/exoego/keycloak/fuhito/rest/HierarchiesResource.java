@@ -13,6 +13,7 @@ import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
+import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.domain.Hierarchy;
 import net.exoego.keycloak.fuhito.rest.RequestContext.Change;
@@ -129,7 +130,8 @@ public class HierarchiesResource {
     @Operation(
             operationId = "renameHierarchy",
             summary = "Changes the name of a hierarchy.",
-            description = "The code never changes. The body can leave it out.")
+            description = "The code never changes. The body can leave it out or give the stored one. Another code "
+                    + "fails with 400 and `invalid.value_fixed`.")
     @Parameter(ref = "changeOrder")
     @APIResponse(responseCode = "200", description = "The changed hierarchy.")
     @BadRequest
@@ -143,6 +145,7 @@ public class HierarchiesResource {
             HierarchyRepresentation body) {
         context.requireWrite();
         return Calls.guarded(context, body, () -> version(id), () -> {
+            Checks.fixed("code", service.get(id).code(), body.code());
             var hierarchy = represent(service.rename(id, body.name()));
             context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, path(id), hierarchy);
             return hierarchy;

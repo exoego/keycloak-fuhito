@@ -47,6 +47,11 @@
                         `version.required`. When the resource changed since the read, the write fails with 409 and
                         `version.conflict`, and the values of the error have the current version.
 
+                        Some fields of a stored resource never change, such as the code of a hierarchy and the
+                        person of a qualification. A write of the resource can leave them out, or give the stored
+                        values, as a read has them. Another value fails with 400 and `invalid.value_fixed`, which
+                        names the field.
+
                         A failed request writes nothing.
                         """,
                 license = @License(name = "Apache License, Version 2.0", identifier = "Apache-2.0")),
@@ -100,7 +105,8 @@
                                     In a write, an empty text, a text of only spaces, or an empty array gets
                                     `invalid.blank`. A text with NUL or half of a surrogate pair gets
                                     `invalid.character`. A body that gives one key twice in one object gets
-                                    `invalid.duplicate_key`.
+                                    `invalid.duplicate_key`. A write of a stored resource with another value of a
+                                    field that never changes gets `invalid.value_fixed`.
                                     """,
                             content = @Content(mediaType = "application/json",
                                     schema = @Schema(implementation = ErrorRepresentation.class))),

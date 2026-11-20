@@ -15,6 +15,7 @@ import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
+import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.rest.RequestContext.Change;
 import net.exoego.keycloak.fuhito.service.ExternalIdLists;
@@ -101,7 +102,8 @@ public class RefKindsResource {
     @Operation(
             operationId = "renameRefKind",
             summary = "Changes the names of a kind of the realm.",
-            description = "The code never changes. The body can leave it out.")
+            description = "The code never changes. The body can leave it out or give the code of the path. Another "
+                    + "code fails with 400 and `invalid.value_fixed`.")
     @Parameter(ref = "changeOrder")
     @APIResponse(responseCode = "200", description = "The changed kind.")
     @BadRequest
@@ -115,6 +117,7 @@ public class RefKindsResource {
             RefKindRepresentation body) {
         context.requireWrite();
         return Calls.guarded(context, body, () -> version(code), () -> {
+            Checks.fixed("code", code, body.code());
             var kind = represent(service.rename(code, body.primaryLanguage(), body.names()));
             context.recordChange(Change.UPDATE, RESOURCE_TYPE, code, path(code), kind);
             return kind;

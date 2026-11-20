@@ -34,7 +34,7 @@ The ID is the key that never changes. So is `source`, the name of the system tha
 ### Reference items keep their old names
 
 A reference item, such as a job title or a unit type, keeps its old names for old dates.
-Only the names have valid periods. The code never changes. The display order, the attributes, `active`, and the marks have no dates.
+Only the names have valid periods. The kind and the code never change. A `PUT` with another kind or code fails with 400 and `invalid.value_fixed`. The display order, the attributes, `active`, and the marks have no dates.
 The item itself has no dates either. Data of any date may use it.
 
 - `POST /ref-items` takes `validFrom`. Without it, the first names hold for every date.

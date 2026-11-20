@@ -53,6 +53,17 @@ class ChecksTest {
     }
 
     @Test
+    void takesNoOtherValueOfAFieldThatNeverChanges() {
+        Checks.fixed("code", "a", "a");
+        Checks.fixed("code", "a", null);
+        Checks.fixed("code", null, null);
+        FuhitoException e = invalid(() -> Checks.fixed("code", "a", "b"));
+        assertEquals("invalid.value_fixed", e.code());
+        assertEquals(Map.of("field", "code"), e.params());
+        assertEquals("invalid.value_fixed", invalid(() -> Checks.fixed("source", null, "hr")).code());
+    }
+
+    @Test
     void stripsAName() {
         assertEquals("内科", Checks.name("name", " 内科　"));
     }

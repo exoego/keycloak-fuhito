@@ -114,7 +114,8 @@ public class OrgUnitsResource {
             summary = "Replaces the details of an org unit from the `validFrom` date of the body.",
             description = "The details are the code, the names, the unit type, the display order, and the "
                     + "attributes. The parent does not change here. With `source` and `externalId`, the unit gets "
-                    + "that ID of that system. No other org unit may have the same code on a date of the change.")
+                    + "that ID of that system. Another `source` with no `externalId` fails with 400 and "
+                    + "`invalid.value_fixed`. No other org unit may have the same code on a date of the change.")
     @Parameter(ref = "changeOrder")
     @APIResponse(responseCode = "200", description = "The unit as it is on that date.")
     @BadRequest
@@ -127,8 +128,10 @@ public class OrgUnitsResource {
                     schema = @Schema(allOf = {OrgUnitRepresentation.class, VersionCheckRepresentation.class})))
             OrgUnitRepresentation body) {
         context.requireWrite();
-        return Calls.guarded(context, body, () -> version(id),
-                () -> updated(path(id), service.changeDetails(id, body.toChange(), body.source(), body.externalId())));
+        return Calls.guarded(context, body, () -> version(id), () -> {
+            Writes.requireSource(service.source(id), body.source(), body.externalId());
+            return updated(path(id), service.changeDetails(id, body.toChange(), body.source(), body.externalId()));
+        });
     }
 
     @PUT

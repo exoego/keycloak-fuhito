@@ -140,7 +140,7 @@ Each realm defines its own items.
 An item has a code, a name, and optional names in other languages.
 The names have valid periods, so a rename that keeps the code shows the old name in a read of an old date. The code and the other values have no dates. See [history.md](history.md).
 
-These kinds are fixed, because fields of the resources point to them. A realm can add kinds of its own with `POST /ref-kinds`, for example a working time system or a collective agreement. `PUT /ref-kinds/{code}` changes their names.
+These kinds are fixed, because fields of the resources point to them. A realm can add kinds of its own with `POST /ref-kinds`, for example a working time system or a collective agreement. `PUT /ref-kinds/{code}` changes their names. The code never changes, and a `PUT` with another code fails with 400 and `invalid.value_fixed`.
 
 - The items of such a kind are reference items like the others. `/ref-items?kind=<code>` reads and writes them, and the import takes them.
 - A free attribute of the type `REF_ITEM` can point to such a kind, so that its value is the code of one of its items.
@@ -154,7 +154,7 @@ Every ID of every system is one row of one table, also the ID of the system that
 An org unit, a person, an employment, an assignment, and a qualification keep `source`, the name of the system that made them. The other resources keep no system.
 
 - A write with `source` and `externalId` stores the ID of that system for the resource. It replaces the ID that the system had. A write without them leaves the IDs as they are.
-- A create also sets `source` of the resource. It never changes, also when the ID of that system is removed.
+- A create also sets `source` of the resource. It never changes, also when the ID of that system is removed. A `PUT` with no `externalId` can give the `source` that a read has. Another `source` then fails with 400 and `invalid.value_fixed`.
 - The other resources take `source` and `externalId` only in a create. `PUT /external-ids` changes their IDs later.
 - A read of a resource gives `externalIds`, the list of every ID, and `source` when the resource keeps it. The ID of the system of `source` comes first, then the others by system. A resource with no ID has no `externalIds`. A read of many resources reads the IDs of all of them at once.
 - An ID is part of its resource. A change of an ID counts up the version of the resource, once in a write.

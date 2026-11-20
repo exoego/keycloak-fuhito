@@ -162,7 +162,8 @@ public class PeopleResource {
             operationId = "replacePerson",
             summary = "Replaces the names, the attributes, and the link to a Keycloak user.",
             description = "A body with no `userId` removes the link. The person keeps `source`. With `source` and "
-                    + "`externalId`, the person gets that ID of that system.")
+                    + "`externalId`, the person gets that ID of that system. Another `source` with no `externalId` "
+                    + "fails with 400 and `invalid.value_fixed`.")
     @Parameter(ref = "changeOrder")
     @APIResponse(responseCode = "200", description = "The changed person.")
     @BadRequest
@@ -176,6 +177,7 @@ public class PeopleResource {
             PersonRepresentation body) {
         context.requireWrite();
         return Calls.guarded(context, body, () -> version(id), () -> {
+            Writes.requireSource(service.get(id).person().source(), body.source(), body.externalId());
             var person = represent(service.replace(id, body.toValues()));
             context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, path(id), person);
             return person;

@@ -105,7 +105,8 @@ public record OrgUnitRepresentation(
         String externalId,
         @Schema(
                 description = "The name of the system that made the unit. A create sets it, and it never "
-                        + "changes. With `externalId`, it names the system of that ID.",
+                        + "changes. With `externalId`, it names the system of that ID. Without it, a write of a stored "
+                        + "unit with another value fails with 400 and `invalid.value_fixed`.",
                 maxLength = 64,
                 pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$")
         String source,
