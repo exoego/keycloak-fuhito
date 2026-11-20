@@ -13,11 +13,13 @@ import net.exoego.keycloak.fuhito.domain.RefItem;
  * @param parentId the ID of the parent in the hierarchy of the read on the date, or null for a root
  * @param legalEntity true when the unit type on the date marks the unit as a legal entity
  * @param lateral true when the unit type on the date marks the unit as a lateral unit outside the line organization
+ * @param rollup true when the unit type on the date marks the unit as a rollup unit, which is not in the default
+ *        hierarchy
  * @param places the work location and the cost center of the unit and the ones that apply to it, or
  *        {@link LocationAndCost#NONE} when a read does not need them
  */
 public record OrgUnitState(OrgUnit unit, OrgUnitVersion version, String unitType, String parentId,
-        boolean legalEntity, boolean lateral, LocationAndCost places) {
+        boolean legalEntity, boolean lateral, boolean rollup, LocationAndCost places) {
 
     /**
      * Makes the state from the unit type of the date.
@@ -31,7 +33,7 @@ public record OrgUnitState(OrgUnit unit, OrgUnitVersion version, String unitType
     public static OrgUnitState of(OrgUnit unit, OrgUnitVersion version, RefItem unitType, String parentId) {
         return new OrgUnitState(unit, version, unitType == null ? null : unitType.code(), parentId,
                 unitType != null && unitType.legalEntity(), unitType != null && unitType.lateral(),
-                LocationAndCost.NONE);
+                unitType != null && unitType.rollup(), LocationAndCost.NONE);
     }
 
     /**
@@ -41,6 +43,6 @@ public record OrgUnitState(OrgUnit unit, OrgUnitVersion version, String unitType
      * @return the new state
      */
     public OrgUnitState withPlaces(LocationAndCost newPlaces) {
-        return new OrgUnitState(unit, version, unitType, parentId, legalEntity, lateral, newPlaces);
+        return new OrgUnitState(unit, version, unitType, parentId, legalEntity, lateral, rollup, newPlaces);
     }
 }

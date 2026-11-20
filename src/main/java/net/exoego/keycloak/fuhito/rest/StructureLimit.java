@@ -89,7 +89,8 @@ final class StructureLimit {
             return state;
         }
         return new OrgUnitState(state.unit(), version.withPeriod(ValidPeriod.startingAt(version.period().from())),
-                state.unitType(), state.parentId(), state.legalEntity(), state.lateral(), state.places());
+                state.unitType(), state.parentId(), state.legalEntity(), state.lateral(), state.rollup(),
+                state.places());
     }
 
     /**

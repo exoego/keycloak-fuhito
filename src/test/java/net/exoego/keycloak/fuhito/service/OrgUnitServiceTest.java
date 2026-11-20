@@ -52,15 +52,15 @@ class OrgUnitServiceTest {
     }
 
     private static OrgUnitService.Search search(String q, String code, String unitType, String asOf) {
-        return new OrgUnitService.Search(q, code, unitType, null, null, false, null, asOf);
+        return new OrgUnitService.Search(q, code, unitType, null, null, null, false, null, asOf);
     }
 
     private static OrgUnitService.Search roots(String asOf, String hierarchy, Boolean lateral) {
-        return new OrgUnitService.Search(null, null, null, lateral, null, true, hierarchy, asOf);
+        return new OrgUnitService.Search(null, null, null, lateral, null, null, true, hierarchy, asOf);
     }
 
     private static OrgUnitService.Search legalEntities(String asOf) {
-        return new OrgUnitService.Search(null, null, null, null, true, false, null, asOf);
+        return new OrgUnitService.Search(null, null, null, null, null, true, false, null, asOf);
     }
 
     private RefItem unitType(String code, boolean active) {
@@ -152,6 +152,157 @@ class OrgUnitServiceTest {
         service.changeDetails(board, new OrgUnitChange("2026-10-01", null, "ja", ja("Board"), null,
                 null, null));
         service.create(named("Office", board, "2026-10-01"));
+    }
+
+    private void rollupTypes() {
+        store.refItems = refItems;
+        refItems.insert(new RefItem("type-region", RefKind.UNIT_TYPE, "region", ItemNames.of("region"), 0,
+                Map.of(), true, false, false, false, true));
+        unitType("branch", true);
+    }
+
+    private static OrgUnitService.Search rollups(Boolean rollup, boolean roots) {
+        return new OrgUnitService.Search(null, null, null, null, rollup, null, roots, null, null);
+    }
+
+    @Test
+    void aRollupUnitGathersUnitsInAnotherHierarchyAndIsNotInTheDefaultOne() {
+        rollupTypes();
+        store.hierarchyCodes.put("region-id", "region");
+        String company = unitOfType("Company", null, null);
+        String tokyo = unitOfType("Tokyo", "branch", company);
+        String kanto = unitOfType("Kanto", "region", null);
+        service.move(tokyo, kanto, "2026-04-01", "region");
+        Page all = Page.of(null, null);
+
+        OrgUnitState read = service.get(kanto, null);
+        assertTrue(read.rollup());
+        assertFalse(read.lateral());
+        assertNull(read.parentId());
+        assertFalse(service.get(tokyo, null).rollup());
+        // The reads of the default tree leave it out. The list of every unit has it.
+        assertEquals(List.of("Company"), names(service.list(roots(null, null, null), all, null)));
+        assertEquals(1, service.count(roots(null, null, null)));
+        assertEquals(List.of(), names(service.list(rollups(true, true), all, null)));
+        assertEquals(List.of("Company"), names(service.list(rollups(false, true), all, null)));
+        assertEquals(List.of("Company", "Kanto", "Tokyo"), names(service.list(rollups(null, false), all, null)));
+        assertEquals(List.of("Kanto"), names(service.list(rollups(true, false), all, null)));
+        assertEquals(2, service.count(rollups(false, false)));
+        assertEquals(List.of(), service.subtree(kanto, null, null, null, all));
+        assertEquals(0, service.countSubtree(kanto, null, null, null));
+        assertEquals(0, service.countSubtree(kanto, null, "default", false));
+        assertEquals(List.of(), service.path(kanto, null, null));
+        assertEquals(List.of(), service.path(kanto, null, "default"));
+        assertEquals(List.of(), service.children(kanto, null, null, null, all));
+        assertEquals(List.of("Company", "Tokyo"), names(service.subtree(company, null, null, null, all)));
+        assertEquals(List.of("Company", "Tokyo"), names(service.path(tokyo, null, null)));
+        // In the other hierarchy, it is a root with its children.
+        assertEquals(List.of("Kanto"), names(service.list(roots(null, "region", null), all, null)));
+        assertEquals(List.of("Kanto", "Tokyo"), names(service.subtree(kanto, null, "region", null, all)));
+        assertEquals(2, service.countSubtree(kanto, null, "region", null));
+        assertEquals(List.of("Kanto", "Tokyo"), names(service.path(tokyo, null, "region")));
+        assertEquals(List.of("Kanto"), names(service.path(kanto, null, "region")));
+    }
+
+    @Test
+    void aRollupUnitHasNoParentAndNoChildInTheDefaultHierarchy() {
+        rollupTypes();
+        String company = unitOfType("Company", null, null);
+        String tokyo = unitOfType("Tokyo", "branch", company);
+        String kanto = unitOfType("Kanto", "region", null);
+
+        FuhitoException below = failure(new NewOrgUnit(null, "ja", ja("Kansai"), "region", company, "2026-05-01",
+                null, null, null, null));
+        assertEquals("org_unit.rollup_has_parent", below.code());
+        assertEquals(company, below.params().get("parentId"));
+        assertEquals("2026-05-01", below.params().get("date"));
+        FuhitoException above = failure(named("Yokohama", kanto, "2026-05-01"));
+        assertEquals("org_unit.rollup_has_child", above.code());
+        assertEquals(kanto, above.params().get("parentId"));
+        assertEquals(Map.of("id", kanto, "parentId", company, "date", "2026-07-01"),
+                assertThrows(FuhitoException.class, () -> service.move(kanto, company, "2026-07-01")).params());
+        assertEquals("org_unit.rollup_has_child",
+                assertThrows(FuhitoException.class, () -> service.move(tokyo, kanto, "2026-07-01")).code());
+        // Taking away a parent that it does not have changes nothing.
+        assertNull(service.move(kanto, null, "2026-07-01").parentId());
+
+        // A unit cannot get a rollup type from a date on which it has a parent or a child.
+        assertEquals(Map.of("id", tokyo, "parentId", company, "date", "2026-08-01"), assertThrows(
+                FuhitoException.class, () -> service.changeDetails(tokyo, new OrgUnitChange("2026-08-01", null, "ja",
+                        ja("Tokyo"), "region", null, null))).params());
+        FuhitoException parent = assertThrows(FuhitoException.class, () -> service.changeDetails(company,
+                new OrgUnitChange("2026-08-01", null, "ja", ja("Company"), "region", null, null)));
+        assertEquals("org_unit.rollup_has_child", parent.code());
+        assertEquals(Map.of("id", tokyo, "parentId", company, "date", "2026-08-01"), parent.params());
+        // A child that comes later in the period of the new type fails too, from its date.
+        String later = unitOfType("Later", "branch", null);
+        String child = unitOfType("Child", "branch", null);
+        service.move(child, later, "2026-10-01");
+        FuhitoException fromLater = assertThrows(FuhitoException.class, () -> service.changeDetails(later,
+                new OrgUnitChange("2026-08-01", null, "ja", ja("Later"), "region", null, null)));
+        assertEquals("org_unit.rollup_has_child", fromLater.code());
+        assertEquals("2026-10-01", fromLater.params().get("date"));
+        service.move(child, null, "2026-10-01");
+        assertTrue(service.changeDetails(later, new OrgUnitChange("2026-08-01", null, "ja", ja("Later"), "region",
+                null, null)).rollup());
+    }
+
+    @Test
+    void aUnitThatLeavesARollupTypeIsARootOfTheDefaultHierarchyFromThatDate() {
+        rollupTypes();
+        String company = unitOfType("Company", null, null);
+        String kanto = unitOfType("Kanto", "region", null);
+        Page all = Page.of(null, null);
+
+        OrgUnitState left = service.changeDetails(kanto, new OrgUnitChange("2026-10-01", null, "ja", ja("Kanto"),
+                "branch", null, null));
+
+        assertFalse(left.rollup());
+        assertEquals(List.of("Company"), names(service.list(roots("2026-09-30", null, null), all, null)));
+        assertEquals(List.of("Company", "Kanto"), names(service.list(roots("2026-10-01", null, null), all, null)));
+        assertEquals(List.of("Kanto"), names(service.path(kanto, "2026-10-01", null)));
+        // From that date it can get a parent, but not before.
+        assertEquals("org_unit.rollup_has_parent",
+                assertThrows(FuhitoException.class, () -> service.move(kanto, company, "2026-09-01")).code());
+        assertEquals(company, service.move(kanto, company, "2026-10-01").parentId());
+        assertEquals(List.of("Company", "Kanto"), names(service.subtree(company, "2026-10-01", null, null, all)));
+    }
+
+    @Test
+    void aLaterEndDoesNotPutAUnitBelowARollupUnit() {
+        rollupTypes();
+        String area = unitOfType("Area", "branch", null);
+        String shop = unitOfType("Shop", "branch", area);
+        service.end(shop, "2026-10-01");
+        service.changeDetails(area, new OrgUnitChange("2026-10-01", null, "ja", ja("Area"), "region", null, null));
+
+        assertEquals("org_unit.rollup_has_child",
+                assertThrows(FuhitoException.class, () -> service.removeEnd(shop)).code());
+        assertEquals("org_unit.rollup_has_child",
+                assertThrows(FuhitoException.class, () -> service.end(shop, "2026-11-01")).code());
+    }
+
+    @Test
+    void aRollupUnitTakesNoWorkLocationOrCostCenterFromAbove() {
+        rollupTypes();
+        store.hierarchyCodes.put("region-id", "region");
+        place(RefKind.WORK_LOCATION, "tokyo", true);
+        place(RefKind.WORK_LOCATION, "japan", true);
+        place(RefKind.COST_CENTER, "cc-hq", true);
+        String company = placed("Company", null, "tokyo", "cc-hq");
+        String japan = service.create(new NewOrgUnit(null, "ja", ja("Japan"), "region", "japan", null, null,
+                "2026-04-01", null, null, null, null)).unit().id();
+        String kanto = unitOfType("Kanto", "region", null);
+        String branch = unitOfType("Tokyo", "branch", company);
+        service.move(kanto, japan, "2026-04-01", "region");
+        service.move(branch, kanto, "2026-04-01", "region");
+        Page all = Page.of(null, null);
+
+        assertEquals("japan null japan null", places(service.get(japan, null)));
+        assertEquals("null null null null", places(service.get(kanto, null, "region")));
+        // A unit that it gathers keeps the values that the default hierarchy gives.
+        assertEquals(List.of("japan null japan null", "null null null null", "null null tokyo cc-hq"),
+                service.subtree(japan, null, "region", null, all).stream().map(OrgUnitServiceTest::places).toList());
     }
 
     @Test
@@ -852,14 +1003,14 @@ class OrgUnitServiceTest {
                 names(service.list(OrgUnitService.Search.all(null), all, null)));
         assertEquals(List.of("Branch", "Company"), names(service.list(legalEntities(null), all, null)));
         assertEquals(List.of("Safety", "Sales", "Union"), names(service.list(
-                new OrgUnitService.Search(null, null, null, null, false, false, null, null), all, null)));
+                new OrgUnitService.Search(null, null, null, null, null, false, false, null, null), all, null)));
         assertEquals(List.of("Union"), names(service.list(
-                new OrgUnitService.Search(null, null, null, null, false, true, null, null), all, null)));
+                new OrgUnitService.Search(null, null, null, null, null, false, true, null, null), all, null)));
         assertEquals(List.of("Company"), names(service.list(
-                new OrgUnitService.Search(null, null, null, null, true, true, null, null), all, null)));
+                new OrgUnitService.Search(null, null, null, null, null, true, true, null, null), all, null)));
         assertEquals(List.of("Safety"), names(service.list(
-                new OrgUnitService.Search("a", null, "committee", true, null, false, null, null), all, null)));
-        assertEquals(1, service.count(new OrgUnitService.Search(null, null, null, false, null, true, null, null)));
+                new OrgUnitService.Search("a", null, "committee", true, null, null, false, null, null), all, null)));
+        assertEquals(1, service.count(new OrgUnitService.Search(null, null, null, false, null, null, true, null, null)));
     }
 
     @Test

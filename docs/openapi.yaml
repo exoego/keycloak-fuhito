@@ -1062,6 +1062,8 @@ components:
           type: boolean
         lateral:
           type: boolean
+        rollup:
+          type: boolean
         versions:
           type: array
           items:
@@ -2028,6 +2030,11 @@ components:
           description: "True for a unit type whose org units are lateral units, outside\
             \ the line organization. A row that leaves it out keeps the mark of a\
             \ stored item."
+        rollup:
+          type: boolean
+          description: "True for a unit type whose org units are rollup units, which\
+            \ gather units in another hierarchy and are not in the default hierarchy.\
+            \ A row that leaves it out keeps the mark of a stored item."
         validFrom:
           type: string
           description: The first date of the names of the row. A new item without
@@ -2602,9 +2609,16 @@ components:
           description: "True when the unit type marks the unit as a lateral unit outside\
             \ the line organization, such as a committee."
           readOnly: true
+        rollup:
+          type: boolean
+          description: "True when the unit type marks the unit as a rollup unit, such\
+            \ as a region. A rollup unit gathers units in another hierarchy and is\
+            \ not in the default hierarchy."
+          readOnly: true
         parentId:
           type: string
-          description: The ID of the parent in the default hierarchy. A root has none.
+          description: The ID of the parent in the default hierarchy. A root and a
+            rollup unit have none.
         validFrom:
           type: string
           description: The first date of these details.
@@ -3213,6 +3227,14 @@ components:
             \ lateral unit cuts across the line organization, such as a committee\
             \ or a project team. Only the kind `UNIT_TYPE` can have it. It cannot\
             \ change while an org unit has the type."
+          default: false
+        rollup:
+          type: boolean
+          description: "True for a unit type whose org units are rollup units. A rollup\
+            \ unit gathers units in another hierarchy, such as a region, and is not\
+            \ in the default hierarchy. Only the kind `UNIT_TYPE` can have it, and\
+            \ not with `lateral` or `legalEntity`. It cannot change while an org unit\
+            \ has the type."
           default: false
         validFrom:
           type: string
@@ -6677,7 +6699,14 @@ paths:
         in: query
         schema:
           type: string
+      - description: "True for rollup units only, such as regions. False for the other\
+          \ units only. Leave it out for both."
+        name: rollup
+        in: query
+        schema:
+          type: boolean
       - description: "True for the units with no parent in `hierarchy` only, the roots.\
+          \ A rollup unit is not in the default hierarchy, so it is no root there.\
           \ In a hierarchy other than the default one, a root also has a child in\
           \ it."
         schema:
@@ -6788,7 +6817,14 @@ paths:
         in: query
         schema:
           type: string
+      - description: "True for rollup units only, such as regions. False for the other\
+          \ units only. Leave it out for both."
+        name: rollup
+        in: query
+        schema:
+          type: boolean
       - description: "True for the units with no parent in `hierarchy` only, the roots.\
+          \ A rollup unit is not in the default hierarchy, so it is no root there.\
           \ In a hierarchy other than the default one, a root also has a child in\
           \ it."
         schema:
@@ -7492,6 +7528,8 @@ paths:
   /org-units/{id}/path:
     get:
       summary: Lists the units from the root down to an org unit on a date.
+      description: "A rollup unit is not in the default hierarchy, so its path there\
+        \ is empty."
       operationId: getOrgUnitPath
       tags:
       - org-units
@@ -7662,7 +7700,8 @@ paths:
   /org-units/{id}/subtree:
     get:
       summary: Lists an org unit and everything below it on a date.
-      description: Each parent comes before its children.
+      description: "Each parent comes before its children. A rollup unit is not in\
+        \ the default hierarchy, so the list there is empty for it."
       operationId: listOrgUnitSubtree
       tags:
       - org-units
@@ -7731,7 +7770,8 @@ paths:
     get:
       summary: "Counts the units that `GET /org-units/{id}/subtree` lists with the\
         \ same filters."
-      description: "The org unit itself counts too, unless `lateral` leaves it out."
+      description: "The org unit itself counts too, unless `lateral` leaves it out,\
+        \ or it is a rollup unit and the hierarchy is the default one."
       operationId: countOrgUnitSubtree
       tags:
       - org-units

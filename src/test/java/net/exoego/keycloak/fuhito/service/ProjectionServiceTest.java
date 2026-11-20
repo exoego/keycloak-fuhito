@@ -16,6 +16,8 @@ import java.util.Set;
 import net.exoego.keycloak.fuhito.domain.BusinessDay;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.OrgUnit;
+import net.exoego.keycloak.fuhito.domain.RefItem;
+import net.exoego.keycloak.fuhito.domain.RefKind;
 import net.exoego.keycloak.fuhito.store.OrganizationGroups;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -340,6 +342,25 @@ class ProjectionServiceTest {
         // The ward is no longer below the hospital, so the nurse left its organization.
         assertEquals(Set.of("director", "head-nurse"), keycloak.organizationMembers.get("org-x"));
         assertEquals(new ProjectionReport(1, 0, 0, 0, 0, 0, 0, 0, 0, 1), rebuild());
+    }
+
+    @Test
+    void aRollupUnitGetsNoGroup() {
+        keycloak.realmGroup = "org";
+        refItems.insert(new RefItem("region", RefKind.UNIT_TYPE, "region", ItemNames.of("Region"), 0, Map.of(),
+                true, false, false, false, true));
+        orgUnitStore.hierarchyCodes.put("region-id", "region");
+        String kanto = orgUnits.create(new NewOrgUnit(null, "ja", ja("Kanto"), "region", null, "2026-04-01", null,
+                null, null, null)).unit().id();
+        orgUnits.move(hospital, kanto, "2026-04-01", "region");
+        assign("regional-head", kanto, "2026-04-01");
+
+        rebuild();
+
+        assertEquals(List.of("Hospital [director]", "Nursing < Hospital [head-nurse]", "Ward < Nursing [nurse]"),
+                keycloak.describe("realm:org"));
+        assertEquals(List.of("Nursing [head-nurse]", "Ward < Nursing [nurse]"), keycloak.describe("org-x"));
+        assertEquals(Set.of("director", "head-nurse", "nurse"), keycloak.organizationMembers.get("org-x"));
     }
 
     @Test

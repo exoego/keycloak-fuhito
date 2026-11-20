@@ -264,12 +264,17 @@ public class OrgUnitsResource {
                             + "Leave it out for both.")
             @QueryParam("lateral") Boolean lateral,
             @Parameter(
+                    description = "True for rollup units only, such as regions. False for the other units only. "
+                            + "Leave it out for both.")
+            @QueryParam("rollup") Boolean rollup,
+            @Parameter(
                     description = "True for the units that are legal entities only, such as companies. False for "
                             + "the other units only. Leave it out for both. A unit is one when its unit type says so.")
             @QueryParam("legalEntity") Boolean legalEntity,
             @Parameter(
-                    description = "True for the units with no parent in `hierarchy` only, the roots. In a hierarchy "
-                            + "other than the default one, a root also has a child in it.",
+                    description = "True for the units with no parent in `hierarchy` only, the roots. A rollup unit is "
+                            + "not in the default hierarchy, so it is no root there. In a hierarchy other than the "
+                            + "default one, a root also has a child in it.",
                     schema = @Schema(defaultValue = "false"))
             @QueryParam("roots") boolean roots,
             @Parameter(
@@ -293,8 +298,8 @@ public class OrgUnitsResource {
         context.requireReadStructure();
         return Calls.run(context, () -> {
             Cursor.requireAlone(after, first);
-            OrgUnitService.Search search = new OrgUnitService.Search(q, code, unitType, lateral, legalEntity, roots,
-                    hierarchy, limit.checked(asOf));
+            OrgUnitService.Search search = new OrgUnitService.Search(q, code, unitType, lateral, rollup,
+                    legalEntity, roots, hierarchy, limit.checked(asOf));
             return Pages.of(context, represent(service.list(search, Page.of(first, max), after)),
                     Page.of(first, max).max(),
                     unit -> Cursor.encode(Cursor.ORG_UNITS, unit.id()));
@@ -323,12 +328,17 @@ public class OrgUnitsResource {
                             + "Leave it out for both.")
             @QueryParam("lateral") Boolean lateral,
             @Parameter(
+                    description = "True for rollup units only, such as regions. False for the other units only. "
+                            + "Leave it out for both.")
+            @QueryParam("rollup") Boolean rollup,
+            @Parameter(
                     description = "True for the units that are legal entities only, such as companies. False for "
                             + "the other units only. Leave it out for both. A unit is one when its unit type says so.")
             @QueryParam("legalEntity") Boolean legalEntity,
             @Parameter(
-                    description = "True for the units with no parent in `hierarchy` only, the roots. In a hierarchy "
-                            + "other than the default one, a root also has a child in it.",
+                    description = "True for the units with no parent in `hierarchy` only, the roots. A rollup unit is "
+                            + "not in the default hierarchy, so it is no root there. In a hierarchy other than the "
+                            + "default one, a root also has a child in it.",
                     schema = @Schema(defaultValue = "false"))
             @QueryParam("roots") boolean roots,
             @Parameter(
@@ -340,7 +350,7 @@ public class OrgUnitsResource {
             @QueryParam("asOf") String asOf) {
         context.requireReadStructure();
         return Calls.run(context, () -> new CountRepresentation(service.count(new OrgUnitService.Search(q, code,
-                unitType, lateral, legalEntity, roots, hierarchy, limit.checked(asOf)))));
+                unitType, lateral, rollup, legalEntity, roots, hierarchy, limit.checked(asOf)))));
     }
 
     @GET
@@ -410,7 +420,8 @@ public class OrgUnitsResource {
     @Operation(
             operationId = "listOrgUnitSubtree",
             summary = "Lists an org unit and everything below it on a date.",
-            description = "Each parent comes before its children.")
+            description = "Each parent comes before its children. A rollup unit is not in the default hierarchy, so "
+                    + "the list there is empty for it.")
     @APIResponse(responseCode = "200", description = "The unit and its descendants on the date.")
     @BadRequest
     @NotFound
@@ -447,7 +458,8 @@ public class OrgUnitsResource {
     @Operation(
             operationId = "countOrgUnitSubtree",
             summary = "Counts the units that `GET /org-units/{id}/subtree` lists with the same filters.",
-            description = "The org unit itself counts too, unless `lateral` leaves it out.")
+            description = "The org unit itself counts too, unless `lateral` leaves it out, or it is a rollup unit "
+                    + "and the hierarchy is the default one.")
     @APIResponse(responseCode = "200", description = "The number of units on all pages.")
     @BadRequest
     @NotFound
@@ -475,7 +487,8 @@ public class OrgUnitsResource {
     @Path("{id}/path")
     @Operation(
             operationId = "getOrgUnitPath",
-            summary = "Lists the units from the root down to an org unit on a date.")
+            summary = "Lists the units from the root down to an org unit on a date.",
+            description = "A rollup unit is not in the default hierarchy, so its path there is empty.")
     @APIResponse(responseCode = "200", description = "The path, with the root first and the unit last.")
     @BadRequest
     @NotFound

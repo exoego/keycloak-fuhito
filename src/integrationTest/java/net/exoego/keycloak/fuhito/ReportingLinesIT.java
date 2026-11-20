@@ -287,6 +287,51 @@ class ReportingLinesIT {
     }
 
     @Test
+    void theHeadOfARollupUnitLeadsItsMembersAndHasNoManagerAbove() throws Exception {
+        TestRealm scratch = TestRealm.withEmployer("reporting-rollup");
+        Api scratchApi = scratch.api;
+        assertEquals(201, scratchApi.post("/ref-items", "{\"kind\": \"UNIT_TYPE\", \"code\": \"region\", "
+                + "\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"地域\"}}, \"rollup\": true}").statusCode());
+        assertEquals(201, scratchApi.post("/hierarchies", "{\"code\": \"region\", \"name\": \"地域\"}").statusCode());
+        String company = id(scratchApi.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": "
+                + "{\"name\": \"本社\"}}, \"validFrom\": \"2026-04-01\"}"));
+        String branch = id(scratchApi.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": "
+                + "{\"name\": \"東京支店\"}}, \"parentId\": \"" + company + "\", \"validFrom\": \"2026-04-01\"}"));
+        String kanto = id(scratchApi.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": "
+                + "{\"name\": \"関東\"}}, \"unitType\": \"region\", \"validFrom\": \"2026-04-01\"}"));
+        // Managers come from the default hierarchy, so the branch below the region in another hierarchy keeps its
+        // manager.
+        assertEquals(200, scratchApi.putWithVersion("/org-units/" + branch + "/parent?hierarchy=region",
+                "{\"parentId\": \"" + kanto + "\", \"validFrom\": \"2026-04-01\"}").statusCode());
+        Map<String, String> users = new LinkedHashMap<>();
+        for (String[] person : new String[][] {{"president", company, "true"}, {"branch-head", branch, "true"},
+                {"regional-head", kanto, "true"}, {"coordinator", kanto, "false"}}) {
+            users.put(person[0], scratch.user(person[0]));
+            HttpResponse<String> response = scratchApi.post("/staff", "{\"userId\": \"" + users.get(person[0])
+                    + "\", \"orgUnitId\": \"" + person[1] + "\", \"validFrom\": \"2026-04-01\", \"head\": "
+                    + person[2] + "}");
+            assertEquals(201, response.statusCode(), response.body());
+        }
+        Map<String, String> names = new LinkedHashMap<>();
+        users.forEach((name, userId) -> names.put(userId, name));
+        java.util.function.Function<String, List<String>> read = path -> {
+            try {
+                return Api.json(scratchApi.get(path + "?asOf=2026-05-01")).findValuesAsText("userId").stream()
+                        .map(names::get).sorted().toList();
+            } catch (Exception e) {
+                throw new IllegalStateException(e);
+            }
+        };
+
+        assertEquals(List.of("regional-head"), read.apply("/users/" + users.get("coordinator") + "/managers"));
+        assertEquals(List.of(), read.apply("/users/" + users.get("regional-head") + "/managers"));
+        assertEquals(List.of("coordinator"), read.apply("/users/" + users.get("regional-head") + "/reports"));
+        assertEquals(1, scratchApi.count("/users/" + users.get("regional-head") + "/reports/count?asOf=2026-05-01"));
+        assertEquals(List.of("president"), read.apply("/users/" + users.get("branch-head") + "/managers"));
+        assertEquals(List.of("branch-head"), read.apply("/users/" + users.get("president") + "/reports"));
+    }
+
+    @Test
     void theDatabaseFindsTheReportsDownToTheNextHeadAndPagesThem() throws Exception {
         TestRealm scratch = TestRealm.withEmployer("reporting-down");
         Api scratchApi = scratch.api;

@@ -196,14 +196,26 @@ public class RefItemService {
      * @param actingHead true for an assignment kind whose heads stand in for an absent head, or null for false
      * @param lateral true for a unit type whose org units are lateral units outside the line organization, or null for
      *        false
+     * @param rollup true for a unit type whose org units are rollup units, or null for false
      */
-    public record Marks(Boolean legalEntity, Boolean actingHead, Boolean lateral) {
+    public record Marks(Boolean legalEntity, Boolean actingHead, Boolean lateral, Boolean rollup) {
 
         /** No mark. */
-        public static final Marks NONE = new Marks(null, null, null);
+        public static final Marks NONE = new Marks(null, null, null, null);
+
+        /**
+         * Makes the marks of an item that is no unit type of rollup units.
+         *
+         * @param legalEntity true for a unit type whose org units are legal entities, or null for false
+         * @param actingHead true for an assignment kind whose heads stand in for an absent head, or null for false
+         * @param lateral true for a unit type whose org units are lateral units, or null for false
+         */
+        public Marks(Boolean legalEntity, Boolean actingHead, Boolean lateral) {
+            this(legalEntity, actingHead, lateral, null);
+        }
 
         static Marks of(RefItem item) {
-            return new Marks(item.legalEntity(), item.actingHead(), item.lateral());
+            return new Marks(item.legalEntity(), item.actingHead(), item.lateral(), item.rollup());
         }
     }
 
@@ -326,8 +338,8 @@ public class RefItemService {
      * @param marks the marks
      * @param validFrom the first date of the names as {@code YYYY-MM-DD}, or null to change the names of today
      * @return the changed item with the names of that date
-     * @throws FuhitoException when the item does not exist, a value is bad, the kind cannot have a mark, or the
-     *         mark of a legal entity is in use
+     * @throws FuhitoException when the item does not exist, a value is bad, the kind cannot have a mark, or a mark
+     *         that cannot change is in use
      */
     public RefItem update(String id, String primaryLanguage, Map<String, RefItemName> names, Integer displayOrder,
             Map<String, Object> attributes, Boolean active, Marks marks, String validFrom) {
@@ -341,6 +353,9 @@ public class RefItemService {
         // Only org units refer to a unit type, so an item in use is the type of an org unit.
         if (changed.lateral() != current.lateral() && store.isInUse(id)) {
             throw FuhitoException.conflict("ref_item.lateral_in_use", Map.of("id", id, "code", current.code()));
+        }
+        if (changed.rollup() != current.rollup() && store.isInUse(id)) {
+            throw FuhitoException.conflict("ref_item.rollup_in_use", Map.of("id", id, "code", current.code()));
         }
         store.update(changed);
         LocalDate date = from == null ? today.ofRealm() : from;
@@ -384,12 +399,20 @@ public class RefItemService {
         boolean legalEntity = mark(kind, RefKind.UNIT_TYPE, marks.legalEntity(), "ref_item.legal_entity_kind");
         boolean actingHead = mark(kind, RefKind.ASSIGNMENT_KIND, marks.actingHead(), "ref_item.acting_head_kind");
         boolean lateral = mark(kind, RefKind.UNIT_TYPE, marks.lateral(), "ref_item.lateral_kind");
+        boolean rollup = mark(kind, RefKind.UNIT_TYPE, marks.rollup(), "ref_item.rollup_kind");
         if (legalEntity && lateral) {
             throw FuhitoException.invalid("ref_item.lateral_legal_entity", Map.of("code", code));
         }
+        // A lateral unit sits in the default hierarchy, and so does an employer for the check of secondments.
+        if (rollup && lateral) {
+            throw FuhitoException.invalid("ref_item.rollup_lateral", Map.of("code", code));
+        }
+        if (rollup && legalEntity) {
+            throw FuhitoException.invalid("ref_item.rollup_legal_entity", Map.of("code", code));
+        }
         return new RefItem(id, kind, code, RefItemName.check(primaryLanguage, names),
                 displayOrder == null ? 0 : displayOrder, attributeRules.check(AttributeDefinition.Target.REF_ITEM, attributes),
-                active, legalEntity, actingHead, lateral, version, null, null);
+                active, legalEntity, actingHead, lateral, rollup, version, null, null);
     }
 
     private static boolean mark(String kind, RefKind allowed, Boolean value, String error) {

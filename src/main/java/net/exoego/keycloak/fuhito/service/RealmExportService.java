@@ -177,7 +177,8 @@ public class RealmExportService {
                         Collectors.toList())));
         return new ExportPage(items.stream()
                 .map(i -> new RealmExport.Item(i.id(), i.version(), i.kind(), i.code(), i.displayOrder(),
-                        i.attributes(), i.active(), i.legalEntity(), i.actingHead(), i.lateral(), names.get(i.id())))
+                        i.attributes(), i.active(), i.legalEntity(), i.actingHead(), i.lateral(), i.rollup(),
+                        names.get(i.id())))
                 .toList(), items.getLast().id());
     }
 
@@ -399,7 +400,7 @@ public class RealmExportService {
 
     private void restoreRefItem(RealmExport.Item i) {
         RefItem item = new RefItem(i.id(), i.kind(), i.code(), null, i.displayOrder(), i.attributes(), i.active(),
-                i.legalEntity(), i.actingHead(), i.lateral(), version(i.version()), null, null);
+                i.legalEntity(), i.actingHead(), i.lateral(), i.rollup(), version(i.version()), null, null);
         stores.refItems().insert(item, Checks.required("versions", i.versions()).stream()
                 .map(n -> new RefItemPeriod(n.id(), i.id(), date(n.validFrom()), date(n.validTo()),
                         RefItemName.check(n.primaryLanguage(), n.names())))

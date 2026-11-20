@@ -470,6 +470,8 @@ class CsvImportIT {
                 + "\"source\": \"hr\", \"externalId\": \"T-1\"}")).get("id").asText();
         assertEquals(201, api.post("/ref-items", "{\"kind\": \"UNIT_TYPE\", \"code\": \"committee\", "
                 + "\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"委員会\"}}, \"lateral\": true}").statusCode());
+        assertEquals(201, api.post("/ref-items", "{\"kind\": \"UNIT_TYPE\", \"code\": \"region\", "
+                + "\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"地域\"}}, \"rollup\": true}").statusCode());
         assertEquals(201, api.post("/ref-items", "{\"kind\": \"ASSIGNMENT_KIND\", \"code\": \"acting\", "
                 + "\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"代行\"}}, \"actingHead\": true}").statusCode());
         String old = realm.refItem("JOB_TITLE", "old", "旧役職");
@@ -479,12 +481,17 @@ class CsvImportIT {
             HttpResponse<String> exported = api.get("/imports/csv/ref-items?header=" + header);
             assertEquals(200, exported.statusCode(), exported.body());
             assertTrue(exported.body().startsWith("﻿" + (header.equals("en") ? "id,externalId,source,kind,code,"
-                    + "primaryLanguage,name,name:en,displayOrder,active,legalEntity,actingHead,lateral,attributes.note"
-                    : "ID,外部ID,ソース,種類,コード,主言語,名称,名称:en,表示順,有効,法人,代行,横断,attributes.note")),
+                    + "primaryLanguage,name,name:en,displayOrder,active,legalEntity,actingHead,lateral,rollup,"
+                    + "attributes.note"
+                    : "ID,外部ID,ソース,種類,コード,主言語,名称,名称:en,表示順,有効,法人,代行,横断,集計,attributes.note")),
                     exported.body());
-            assertTrue(exported.body().contains(tokyo + ",T-1,hr,site,tokyo,ja,東京,Tokyo,2,true,,,,\"1F, west\""),
+            assertTrue(exported.body().contains(tokyo + ",T-1,hr,site,tokyo,ja,東京,Tokyo,2,true,,,,,\"1F, west\""),
                     exported.body());
-            assertTrue(exported.body().contains(old + ",,,JOB_TITLE,old,ja,旧役職,,0,false,,,,"), exported.body());
+            assertTrue(exported.body().contains(old + ",,,JOB_TITLE,old,ja,旧役職,,0,false,,,,,"), exported.body());
+            assertTrue(exported.body().contains(",UNIT_TYPE,committee,ja,委員会,,0,true,false,,true,false,"),
+                    exported.body());
+            assertTrue(exported.body().contains(",UNIT_TYPE,region,ja,地域,,0,true,false,,false,true,"),
+                    exported.body());
 
             JsonNode counts = load(api, "ref-items", "effectiveDate=2026-05-01", exported.body()).get("counts")
                     .get("refItems");
@@ -823,6 +830,47 @@ class CsvImportIT {
                 transfer.replace("E4,suzuki,Y,,E3\n", "")).get("counts").get("employments");
         assertEquals(1, moved.get("created").asInt(), moved.toString());
         assertEquals(1, moved.get("changed").asInt(), moved.toString());
+    }
+
+    @Test
+    void aCsvFileMarksARollupTypeAndItsUnitsStayOutOfTheDefaultHierarchy() throws Exception {
+        TestRealm realm = TestRealm.create("csv-rollup");
+        Api api = realm.api;
+        load(api, "ref-items", "effectiveDate=2026-04-01", """
+                外部ID,種類,コード,主言語,名称,集計
+                UT-region,UNIT_TYPE,region,ja,地域,はい
+                UT-branch,UNIT_TYPE,branch,ja,支店,
+                """);
+        load(api, "org-units", "effectiveDate=2026-04-01&source=sheet", """
+                外部ID,主言語,名称,組織種別,親の外部ID
+                K,ja,関東,region,
+                H,ja,本社,,
+                B,ja,東京支店,branch,H
+                """);
+        assertEquals("org_unit.rollup_has_parent", failure(api, "org-units", "effectiveDate=2026-04-01&source=sheet",
+                "外部ID,主言語,名称,組織種別,親の外部ID\nW,ja,関西,region,H\n"));
+        assertEquals("org_unit.rollup_has_child", failure(api, "org-units", "effectiveDate=2026-04-01&source=sheet",
+                "外部ID,主言語,名称,親の外部ID\nY,ja,横浜支店,K\n"));
+        assertEquals(List.of("本社"), Api.names(Api.json(api.get("/org-units?roots=true&asOf=2026-04-01"))));
+        assertEquals(List.of("関東"), Api.names(Api.json(api.get("/org-units?rollup=true&asOf=2026-04-01"))));
+
+        // The exports load again with no change.
+        for (String list : List.of("ref-items", "org-units")) {
+            String exported = api.get("/imports/csv/" + list + "?asOf=2026-05-01&header=ja").body();
+            JsonNode again = load(api, list, "effectiveDate=2026-05-01", exported);
+            JsonNode counts = again.get("counts").get(list.equals("org-units") ? "orgUnits" : "refItems");
+            assertEquals(0, counts.get("created").asInt() + counts.get("changed").asInt(), again.toString());
+        }
+        // A row that makes a unit a rollup unit and takes its parent away loads in one go.
+        load(api, "org-units", "effectiveDate=2026-06-01&source=sheet", """
+                外部ID,組織種別,親のID
+                B,region,#CLEAR
+                """);
+        JsonNode branch = Api.json(api.get("/org-units?q=" + java.net.URLEncoder.encode("東京支店",
+                StandardCharsets.UTF_8) + "&asOf=2026-06-01")).get(0);
+        assertTrue(branch.get("rollup").asBoolean(), branch.toString());
+        assertFalse(branch.has("parentId"), branch.toString());
+        assertEquals(List.of("本社"), Api.names(Api.json(api.get("/org-units?roots=true&asOf=2026-06-01"))));
     }
 
     @Test

@@ -17,11 +17,28 @@ All data in this document belongs to one realm.
 | Hierarchy | 階層 | A named tree of org units. Each realm has one default hierarchy. More hierarchies put the same units in other trees, such as regions that gather branches of several divisions. |
 | Legal Entity | 法人 | An org unit whose unit type has the mark `legalEntity`, such as a company or a medical corporation. A realm can have several. `GET /org-units?legalEntity=true` lists them. |
 | Lateral Unit | 横断組織 | An org unit outside the line organization, such as a committee, a project team, or a labor union. The line organization is the vertical structure, and a lateral unit cuts across it. Its unit type has the mark `lateral`. A lateral unit can be a root or sit below any org unit, and lateral units can nest, such as a committee with subcommittees, a labor union with branches, or squads below a tribe. A line unit is never below a lateral unit in the default hierarchy. A lateral unit gives no derived manager. `lateral=true` and `lateral=false` on the reads of the tree pick lateral units or line units. |
-| Root | ルート | An org unit with no parent in a hierarchy. A realm can have several roots, for example one for each hospital. `GET /org-units?roots=true` lists them. |
+| Rollup Unit | 集計組織 | An org unit that gathers org units of other trees in a hierarchy other than the default one, such as a region that gathers branches of several divisions. Its unit type has the mark `rollup`. A rollup unit is not in the default hierarchy, so it has no parent and no child there and is no root there. It can have a parent and children in other hierarchies. See "Rollup units" below. |
+| Root | ルート | An org unit with no parent in a hierarchy. A realm can have several roots, for example one for each hospital. `GET /org-units?roots=true` lists them. A rollup unit is no root of the default hierarchy. |
 
 An org unit keeps its identity when its name or its parent changes.
 The name and the other details live in dated versions.
 The parent lives in dated parent links, one set for each hierarchy.
+
+### Rollup units
+
+A rollup unit exists to gather other units in another hierarchy.
+For example, the region "Kanto" gathers the Tokyo branch of one division and the Yokohama branch of another.
+Every other org unit is in the default hierarchy.
+
+- A rollup unit is not in the default hierarchy. The reads of the default tree never show it. These are the roots, the children, the subtree below a unit, and the path. Its own subtree and path in the default hierarchy are empty.
+- `GET /org-units` still lists it. Its read has `rollup: true`. The list takes `rollup=true` for rollup units only, and `rollup=false` for the others.
+- A unit cannot get a rollup type from a date on which it has a parent or a child in the default hierarchy. A rollup unit cannot get a parent or a child there. Both fail with the status 409, `org_unit.rollup_has_parent` or `org_unit.rollup_has_child`, and the message names the rollup unit.
+- A unit that leaves a rollup type for another type is a root of the default hierarchy from that date. From then on, it can get a parent and children there.
+- A rollup unit can have a head and members. Managers come from the default hierarchy, so its head gets no derived manager from a unit above. Its head is the derived manager of its other members, as in any unit.
+- It takes no work location and no cost center from a unit above. It can have its own, and its members take them.
+- The projection makes no group for it.
+- One unit type cannot carry `rollup` with `lateral` or with `legalEntity`. A lateral unit sits in the default tree, and an employer must be there for the check of secondments.
+- The mark of a unit type that is in use does not change, as for `lateral`.
 
 ## People
 
@@ -287,6 +304,7 @@ A kind of reference data that a realm added keeps its names the same way, with o
 - One root for the company, with divisions, departments, and sections below it.
 - Each employee has a grade.
 - A second hierarchy puts the same org units in another tree, such as regions that gather branches of several divisions. `POST /hierarchies` creates it, and `PUT /org-units/{id}/parent?hierarchy=` gives a unit a parent in it.
+- A region is a rollup unit. It is in the second hierarchy only, and the default tree does not show it.
 - A person is in an org unit, not in a hierarchy. So the members of a unit show in every tree that has the unit.
 - A project team is a lateral unit. Its members hold concurrent assignments, and keep their managers in the line organization.
 - A dotted reporting line links a member to a project manager.

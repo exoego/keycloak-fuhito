@@ -448,9 +448,9 @@ class ImportServiceTest {
     void importsTheNamesOfAReferenceItemFromTheirDates() {
         List<RefItemRow> rows = List.of(
                 new RefItemRow(null, null, "M1", "JOB_TITLE", "m1", "en", ItemNames.english("Manager"), null, null,
-                        null, null, null, null, "2020-04-01"),
+                        null, null, null, null, null, "2020-04-01"),
                 new RefItemRow(null, null, "M1", "JOB_TITLE", "m1", "en", ItemNames.english("Senior Manager"), null,
-                        null, null, null, null, null, "2023-04-01"));
+                        null, null, null, null, null, null, "2023-04-01"));
 
         ImportReport first = service.apply(doc("2026-04-01", false, null, rows, null));
         ImportReport again = service.apply(doc("2026-04-01", false, null, rows, null));
@@ -472,7 +472,7 @@ class ImportServiceTest {
         assertEquals(LocalDate.of(2026, 4, 1), refItems.names(item.id()).getLast().validFrom());
         assertEquals(List.of("refItems[0] invalid.date"), errors(service.apply(doc("2026-04-01", false, null,
                 List.of(new RefItemRow(null, null, "M1", "JOB_TITLE", "m1", "en", ItemNames.english("Head"), null, null,
-                        null, null, null, null, "soon")),
+                        null, null, null, null, null, "soon")),
                 null))));
         // Two rows of the same names of an item would hide one of them.
         assertEquals(List.of("refItems[1] import.duplicate_row"), errors(service.apply(doc("2026-04-01", false, null,
@@ -526,10 +526,10 @@ class ImportServiceTest {
                 new RefItemRow(null, "UNIT_TYPE", "room", "en", ItemNames.english("Room"), null, null, null),
                 new RefItemRow("W2", "UNIT_TYPE", "ward", "en", ItemNames.english("Ward"), null, null, null),
                 new RefItemRow(ward, null, null, null, null, "en", ItemNames.english("Ward"), null, null, null, null,
-                        null, null, null),
+                        null, null, null, null),
                 new RefItemRow("W", "OCCUPATION", "ward", "en", ItemNames.english("Ward"), null, null, null),
                 new RefItemRow("nope", null, null, "UNIT_TYPE", "x", "en", ItemNames.english("x"), null, null, null,
-                        null, null, null, null)), null));
+                        null, null, null, null, null)), null));
 
         assertEquals(List.of("refItems[0] invalid.required", "refItems[1] ref_item.code_taken",
                 "refItems[3] import.value_fixed", "refItems[4] import.id_unknown"), errors(report));
@@ -629,6 +629,48 @@ class ImportServiceTest {
 
         assertEquals(List.of(), errors(importUnits("2026-10-01", unit("N", "Nursing", "H"))));
         assertEquals(List.of("Hospital", "Nursing < Hospital"), tree("2026-10-01"));
+    }
+
+    private static OrgUnitRow typed(String externalId, String name, String unitType, String parentExternalId) {
+        return new OrgUnitRow(null, externalId, null, "ja", ja(name), unitType, parentExternalId, null, null, null,
+                null, null, null);
+    }
+
+    @Test
+    void importsTheMarkOfRollupUnitsAndKeepsTheirUnitsOutOfTheDefaultHierarchy() {
+        orgUnitStore.refItems = refItems;
+        ImportReport items = service.apply(doc("2026-04-01", false, null, List.of(
+                new RefItemRow(null, null, "R", "UNIT_TYPE", "region", "en", ItemNames.english("Region"), null, null,
+                        null, null, null, null, true, null),
+                new RefItemRow(null, null, "X", "UNIT_TYPE", "x", "en", ItemNames.english("X"), null, null, null,
+                        null, null, true, true, null),
+                new RefItemRow(null, null, "Y", "UNIT_TYPE", "y", "en", ItemNames.english("Y"), null, null, null,
+                        true, null, null, true, null)), null));
+        assertEquals(List.of("refItems[1] ref_item.rollup_lateral", "refItems[2] ref_item.rollup_legal_entity"),
+                errors(items));
+        assertTrue(refItems.findByCode(RefKind.UNIT_TYPE, "region").orElseThrow().rollup());
+        // A row that leaves the mark out keeps it.
+        assertEquals(List.of(), errors(service.apply(doc("2026-04-01", false, null, List.of(new RefItemRow("R",
+                "UNIT_TYPE", "region", "en", ItemNames.english("Region"), 1, null, null)), null))));
+        assertTrue(refItems.findByCode(RefKind.UNIT_TYPE, "region").orElseThrow().rollup());
+
+        ImportReport units = importUnits("2026-04-01", unit("H", "Hospital", null), unit("W", "Ward", "H"),
+                typed("K", "Kanto", "region", null), typed("B", "Bad", "region", "H"), unit("C", "Child", "K"));
+
+        assertEquals(List.of("orgUnits[3] org_unit.rollup_has_parent", "orgUnits[4] org_unit.rollup_has_child"),
+                errors(units));
+        assertEquals(List.of("Hospital", "Ward < Hospital"), tree("2026-04-01"));
+        String ward = stored(ExternalId.Kind.ORG_UNIT, "import", "W");
+        // A row that makes a unit a rollup unit takes its parent away first.
+        assertEquals(List.of(), errors(importUnits("2026-06-01", typed("W", "Ward", "region", null))));
+        assertTrue(orgUnits.get(ward, "2026-06-01").rollup());
+        assertEquals(List.of("Hospital"), tree("2026-06-01"));
+        assertEquals(List.of("orgUnits[0] org_unit.rollup_has_parent"),
+                errors(importUnits("2026-07-01", typed("W", "Ward", "region", "H"))));
+        // A row that leaves the rollup type can give the unit a parent at once.
+        assertEquals(List.of(), errors(importUnits("2026-08-01", unit("W", "Ward", "H"))));
+        assertEquals(List.of("Hospital", "Ward < Hospital"), tree("2026-08-01"));
+        assertEquals(List.of("Hospital"), tree("2026-07-31"));
     }
 
     private static OrgUnitRow coded(String externalId, String code, String parentExternalId) {
@@ -1047,7 +1089,7 @@ class ImportServiceTest {
         importTwoUnits();
         importPeople("2026-04-01", List.of(employment("E1", "nurse", null, null, null)), null);
         refItems.insert(new RefItem("approver-id", RefKind.UNIT_ROLE.name(), "approver", ItemNames.of("承認者"), 0,
-                Map.of(), true, false, false, false, 1, null, null));
+                Map.of(), true, false, false, false, false, 1, null, null));
 
         ImportReport first = importRoles("2026-04-01", role(null, "R1", "E1", "H", "approver", null, null));
         ImportReport again = importRoles("2026-04-01", role(null, "R1", "E1", "H", "approver", false, null));
@@ -1131,7 +1173,7 @@ class ImportServiceTest {
     @Test
     void aRowOfAStoredThingLeavesOutItsStartOrGivesTheStoredOne() {
         refItems.insert(new RefItem("approver-id", RefKind.UNIT_ROLE.name(), "approver", ItemNames.of("承認者"), 0,
-                Map.of(), true, false, false, false, 1, null, null));
+                Map.of(), true, false, false, false, false, 1, null, null));
         assertEquals(List.of(), errors(unitAndStaff("2026-04-01", "Hospital", null, null, "2020-04-01")));
         assertEquals(List.of(), errors(importLines("2026-04-01", lineFrom("2021-04-01"))));
         assertEquals(List.of(), errors(importRoles("2026-04-01", roleFrom("2021-04-01"))));
@@ -1177,7 +1219,7 @@ class ImportServiceTest {
     @Test
     void importsQualificationsAndReplacesAStoredOne() {
         refItems.insert(new RefItem("license-id", RefKind.QUALIFICATION.name(), "license", ItemNames.of("免許"), 0,
-                Map.of(), true, false, false, false, 1, null, null));
+                Map.of(), true, false, false, false, false, 1, null, null));
         service.apply(new ImportDocument("2026-04-01", false, null, null, null, null, null,
                 List.of(new PersonRow(null, "P1", null, null, "ja", japanese("Ann"), null, null),
                         new PersonRow(null, "P2", null, null, "ja", japanese("Ben"), null, null))));
@@ -1218,7 +1260,7 @@ class ImportServiceTest {
     @Test
     void aQualificationRowWithNoStartKeepsTheStoredStart() {
         refItems.insert(new RefItem("license-id", RefKind.QUALIFICATION.name(), "license", ItemNames.of("免許"), 0,
-                Map.of(), true, false, false, false, 1, null, null));
+                Map.of(), true, false, false, false, false, 1, null, null));
         service.apply(new ImportDocument("2026-04-01", false, null, null, null, null, null,
                 List.of(new PersonRow(null, "P1", null, null, "ja", japanese("Ann"), null, null))));
         importQualifications(qualification(null, "Q1", "P1", null, "123", null));

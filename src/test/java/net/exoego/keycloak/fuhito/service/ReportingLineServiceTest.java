@@ -223,6 +223,30 @@ class ReportingLineServiceTest {
     }
 
     @Test
+    void theHeadOfARollupUnitIsTheManagerOfItsMembersAndHasNoManagerAbove() {
+        refItems.insert(new RefItem("region", RefKind.UNIT_TYPE, "region", ItemNames.of("Region"), 0, Map.of(),
+                true, false, false, false, true));
+        orgUnitStore.refItems = refItems;
+        orgUnitStore.hierarchyCodes.put("region-id", "region");
+        String kanto = orgUnits.create(new NewOrgUnit(null, "ja", ja("Kanto"), "region", null, "2026-04-01", null,
+                null, null, null)).unit().id();
+        // Managers come from the default hierarchy, so the hospital below it in another hierarchy changes nothing.
+        orgUnits.move(hospital, kanto, "2026-04-01", "region");
+        assign(employ("idle"), kanto, true);
+        assign(nurseAEmployment, kanto, false);
+
+        assertEquals(List.of("head-nurse SOLID derived", "idle SOLID derived"),
+                summary(service.managersOf("nurse-a", null)));
+        assertEquals(List.of(), summary(service.managersOf("idle", null)));
+        assertEquals(List.of(), summary(service.managersOf("director", null)));
+        assertEquals(List.of("nurse-a SOLID derived"),
+                summary(service.reportsOf("idle", null, Page.of(null, null))));
+        assertEquals(1, service.countReportsOf("idle", null));
+        assertEquals(List.of("head-nurse SOLID derived"),
+                summary(service.reportsOf("director", null, Page.of(null, null))));
+    }
+
+    @Test
     void anAssignmentHasOneSolidLineAtATime() {
         ReportingLine first = service.add(nurseA, "director", "SOLID", "2026-04-01", "2027-04-01");
 

@@ -62,6 +62,32 @@ class RealmGroupProjectionIT {
     }
 
     @Test
+    void aRollupUnitGetsNoGroup() throws Exception {
+        TestRealm realm = TestRealm.withEmployer("realm-groups-rollup", Map.of("fuhito.projection.enabled", "true",
+                "fuhito.projection.realmGroup", "/org"));
+        Api api = realm.api;
+        RealmResource keycloak = KEYCLOAK.getKeycloakAdminClient().realm(realm.name);
+        GroupRepresentation org = new GroupRepresentation();
+        org.setName("org");
+        String orgId = CreatedResponseUtil.getCreatedId(keycloak.groups().add(org));
+        assertEquals(201, api.post("/ref-items", "{\"kind\": \"UNIT_TYPE\", \"code\": \"region\", "
+                + "\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"地域\"}}, \"rollup\": true}").statusCode());
+        String kanto = Api.json(api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": "
+                + "\"関東\"}}, \"unitType\": \"region\", \"validFrom\": \"2020-04-01\"}")).get("id").asText();
+        HttpResponse<String> staff = api.post("/staff", "{\"userId\": \"" + realm.user("coordinator")
+                + "\", \"orgUnitId\": \"" + kanto + "\", \"validFrom\": \"2020-04-01\"}");
+        assertEquals(201, staff.statusCode(), staff.body());
+
+        HttpResponse<String> report = api.post("/projection/rebuild", "");
+
+        assertEquals(200, report.statusCode(), report.body());
+        assertEquals(List.of("法人"), keycloak.groups().group(orgId).getSubGroups(0, 100, false).stream()
+                .map(GroupRepresentation::getName).toList());
+        assertEquals(1, Api.json(report).get("groupsCreated").asInt());
+        assertEquals(0, Api.json(report).get("membersJoined").asInt());
+    }
+
+    @Test
     void aPathThatNamesNoGroupFailsTheRebuild() throws Exception {
         TestRealm realm = TestRealm.create("realm-groups-missing", Map.of("fuhito.projection.enabled", "true",
                 "fuhito.projection.realmGroup", "/nowhere"));

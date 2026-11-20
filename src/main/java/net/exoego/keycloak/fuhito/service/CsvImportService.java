@@ -102,7 +102,7 @@ public class CsvImportService {
             Map.entry("employmentExternalId", "雇用の外部ID"), Map.entry("orgUnitExternalId", "組織の外部ID"),
             Map.entry("jobTitle", "役職"), Map.entry("occupation", "職種"), Map.entry("assignmentKind", "所属区分"),
             Map.entry("employerExternalId", "雇用主の外部ID"), Map.entry("legalEntity", "法人"), Map.entry("actingHead", "代行"),
-            Map.entry("lateral", "横断"), Map.entry("personExternalId", "人の外部ID"),
+            Map.entry("lateral", "横断"), Map.entry("rollup", "集計"), Map.entry("personExternalId", "人の外部ID"),
             Map.entry("head", "長"), Map.entry("primary", "主務"), Map.entry("allocationPercent", "配分割合"),
             Map.entry("id", "ID"), Map.entry("parentId", "親のID"), Map.entry("personId", "人のID"),
             Map.entry("employerId", "雇用主のID"), Map.entry("employmentId", "雇用のID"),
@@ -179,7 +179,7 @@ public class CsvImportService {
                     "assignmentId", "managerPersonExternalId", "managerPersonId", "managerUsername", "kind",
                     "validFrom", "validTo")),
             Map.entry(Kind.REF_ITEMS, Set.of("id", "externalId", "source", "kind", "code", "primaryLanguage", "name",
-                    "displayOrder", "active", "legalEntity", "actingHead", "lateral", "validFrom")),
+                    "displayOrder", "active", "legalEntity", "actingHead", "lateral", "rollup", "validFrom")),
             Map.entry(Kind.ORG_UNITS, Set.of("id", "externalId", "source", "code", "primaryLanguage", "name",
                     "shortName", "phoneticName", "unitType", "workLocation", "costCenter", "parentExternalId",
                     "parentId", "displayOrder", "validFrom", "validTo", "successorExternalIds", "successorIds",
@@ -491,7 +491,7 @@ public class CsvImportService {
                 cells.attributes(stored.map(RefItem::attributes).orElse(null)),
                 cells.bool("active", stored.map(RefItem::active).orElse(null)),
                 cells.bool("legalEntity", null), cells.bool("actingHead", null), cells.bool("lateral", null),
-                validFrom);
+                cells.bool("rollup", null), validFrom);
     }
 
     private OrgUnitRow orgUnit(Cells cells, LocalDate date, String defaultSource) {

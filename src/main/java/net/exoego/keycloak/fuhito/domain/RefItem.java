@@ -17,13 +17,15 @@ import java.util.Map;
  * @param actingHead true for an assignment kind whose heads stand in for an absent head
  * @param lateral true for a unit type whose org units are lateral units outside the line organization, such as a
  *        committee
+ * @param rollup true for a unit type whose org units are rollup units, which gather units in another hierarchy and
+ *        are not in the default hierarchy
  * @param version the number that each write of the item counts up. A new item has 1.
  * @param validFrom the first date of the names, or null when they hold from the start
  * @param validTo the first date after the names, or null when they have no end
  */
 public record RefItem(String id, String kind, String code, Localized<RefItemName> names, int displayOrder,
         Map<String, Object> attributes, boolean active, boolean legalEntity, boolean actingHead,
-        boolean lateral, long version, LocalDate validFrom, LocalDate validTo) {
+        boolean lateral, boolean rollup, long version, LocalDate validFrom, LocalDate validTo) {
 
     /**
      * Makes a new item of a fixed kind.
@@ -38,10 +40,12 @@ public record RefItem(String id, String kind, String code, Localized<RefItemName
      * @param legalEntity true for a unit type whose org units are legal entities, such as a company
      * @param actingHead true for an assignment kind whose heads stand in for an absent head
      * @param lateral true for a unit type whose org units are lateral units outside the line organization
+     * @param rollup true for a unit type whose org units are rollup units
      */
     public RefItem(String id, RefKind kind, String code, Localized<RefItemName> names, int displayOrder,
-            Map<String, Object> attributes, boolean active, boolean legalEntity, boolean actingHead, boolean lateral) {
-        this(id, kind.name(), code, names, displayOrder, attributes, active, legalEntity, actingHead, lateral,
+            Map<String, Object> attributes, boolean active, boolean legalEntity, boolean actingHead, boolean lateral,
+            boolean rollup) {
+        this(id, kind.name(), code, names, displayOrder, attributes, active, legalEntity, actingHead, lateral, rollup,
                 1, null, null);
     }
 
@@ -53,7 +57,7 @@ public record RefItem(String id, String kind, String code, Localized<RefItemName
      */
     public RefItem withNames(RefItemPeriod period) {
         return new RefItem(id, kind, code, period.names(), displayOrder, attributes, active,
-                legalEntity, actingHead, lateral, version, period.validFrom(), period.validTo());
+                legalEntity, actingHead, lateral, rollup, version, period.validFrom(), period.validTo());
     }
 
     /**
@@ -64,6 +68,25 @@ public record RefItem(String id, String kind, String code, Localized<RefItemName
      */
     public boolean is(RefKind fixed) {
         return kind.equals(fixed.name());
+    }
+
+    /**
+     * Makes a new item of a fixed kind that is no unit type of rollup units.
+     *
+     * @param id the ID
+     * @param kind the kind
+     * @param code the code
+     * @param names the names by language tag
+     * @param displayOrder the position in lists, lowest first
+     * @param attributes free values that the realm defines
+     * @param active false when the item must not be used for new data
+     * @param legalEntity true for a unit type whose org units are legal entities, such as a company
+     * @param actingHead true for an assignment kind whose heads stand in for an absent head
+     * @param lateral true for a unit type whose org units are lateral units outside the line organization
+     */
+    public RefItem(String id, RefKind kind, String code, Localized<RefItemName> names, int displayOrder,
+            Map<String, Object> attributes, boolean active, boolean legalEntity, boolean actingHead, boolean lateral) {
+        this(id, kind, code, names, displayOrder, attributes, active, legalEntity, actingHead, lateral, false);
     }
 
     /**

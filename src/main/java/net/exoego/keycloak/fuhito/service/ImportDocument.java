@@ -714,6 +714,10 @@ public record ImportDocument(
             @Schema(description = "True for a unit type whose org units are lateral units, outside the line "
                     + "organization. A row that leaves it out keeps the mark of a stored item.")
             Boolean lateral,
+            @Schema(description = "True for a unit type whose org units are rollup units, which gather units in "
+                    + "another hierarchy and are not in the default hierarchy. A row that leaves it out keeps the "
+                    + "mark of a stored item.")
+            Boolean rollup,
             @Schema(
                     description = "The first date of the names of the row. A new item without it has names that "
                             + "hold for every date. A stored item without it gets the names from the effective "
@@ -737,7 +741,7 @@ public record ImportDocument(
         public RefItemRow(String externalId, String kind, String code, String primaryLanguage,
                 Map<String, RefItemName> names, Integer displayOrder, Map<String, Object> attributes, Boolean active) {
             this(null, null, externalId, kind, code, primaryLanguage, names, displayOrder, attributes, active, null,
-                    null, null, null);
+                    null, null, null, null);
         }
     }
 

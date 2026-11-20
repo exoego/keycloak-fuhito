@@ -69,6 +69,7 @@ public record RealmExport(
     @Schema(name = "ExportRefItem", description = "A reference item with every period of its names.")
     public record Item(String id, Long version, String kind, String code, int displayOrder,
             Map<String, Object> attributes, boolean active, boolean legalEntity, boolean actingHead, boolean lateral,
+            boolean rollup,
             @Schema(description = "The names of each period, oldest first.")
             List<ItemNames> versions) {
     }

@@ -12,7 +12,7 @@ final class Trees {
 
     static List<OrgUnitState> all(OrgUnitService service, String asOf, String hierarchy) {
         Page page = Page.of(null, 1000);
-        return service.list(new OrgUnitService.Search(null, null, null, null, null, true, hierarchy, asOf), page, null)
+        return service.list(new OrgUnitService.Search(null, null, null, null, null, null, true, hierarchy, asOf), page, null)
                 .stream()
                 .flatMap(root -> service.subtree(root.unit().id(), asOf, hierarchy, null, page).stream())
                 .toList();

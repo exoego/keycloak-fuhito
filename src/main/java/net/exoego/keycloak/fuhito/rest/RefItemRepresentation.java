@@ -67,6 +67,13 @@ public record RefItemRepresentation(
                 defaultValue = "false")
         Boolean lateral,
         @Schema(
+                description = "True for a unit type whose org units are rollup units. A rollup unit gathers units in "
+                        + "another hierarchy, such as a region, and is not in the default hierarchy. Only the kind "
+                        + "`UNIT_TYPE` can have it, and not with `lateral` or `legalEntity`. It cannot change while an "
+                        + "org unit has the type.",
+                defaultValue = "false")
+        Boolean rollup,
+        @Schema(
                 description = "The first date of the names. A create without it gives names that hold for every "
                         + "date. A change without it changes the names of today. A change with it keeps the old "
                         + "names for the dates before. A read leaves it out for names that hold from the start.",
@@ -93,7 +100,7 @@ public record RefItemRepresentation(
         List<ExternalIdPairRepresentation> externalIds) implements Versioned {
 
     RefItemService.Marks marks() {
-        return new RefItemService.Marks(legalEntity, actingHead, lateral);
+        return new RefItemService.Marks(legalEntity, actingHead, lateral, rollup);
     }
 
     static RefItemRepresentation of(RefItem item, ExternalIdLists ids, Locale language) {
@@ -101,7 +108,8 @@ public record RefItemRepresentation(
                 item.names().in(language).name(), item.names().primaryLanguage(), item.names().byLanguage(),
                 item.displayOrder(), item.attributes(), item.active(),
                 item.legalEntity() ? Boolean.TRUE : null, item.actingHead() ? Boolean.TRUE : null,
-                item.lateral() ? Boolean.TRUE : null, Objects.toString(item.validFrom(), null),
+                item.lateral() ? Boolean.TRUE : null, item.rollup() ? Boolean.TRUE : null,
+                Objects.toString(item.validFrom(), null),
                 Objects.toString(item.validTo(), null), null, null,
                 ExternalIdPairRepresentation.of(ids.of(item.id(), null)));
     }

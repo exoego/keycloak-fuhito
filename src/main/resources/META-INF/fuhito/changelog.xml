@@ -1212,4 +1212,13 @@
             WHERE (daterange(VALID_FROM, VALID_TO) IS NOT NULL)
         </sql>
     </changeSet>
+
+    <!-- A unit type can mark rollup units, which gather units in another hierarchy and are not in the default one. -->
+    <changeSet id="0.1.0-ref-item-rollup-unit" author="keycloak-fuhito">
+        <addColumn tableName="FUHITO_REF_ITEM">
+            <column name="ROLLUP_UNIT" type="BOOLEAN" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+    </changeSet>
 </databaseChangeLog>
