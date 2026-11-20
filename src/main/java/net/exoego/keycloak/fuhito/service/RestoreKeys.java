@@ -78,7 +78,8 @@ final class RestoreKeys {
      * Requires that no two rows of an export have the same ID or the same unique key, and that no two rows that the
      * database keeps apart are valid on the same date.
      *
-     * @param document the export, with every value that its tables need and only dates that can be read
+     * @param document the export, with every value that its tables need, only dates that can be read, and only
+     *        periods that end after they start
      * @throws FuhitoException when two rows have the same ID or key, or overlap. The error names the list, the ID of
      *         the row, the field, and the other row.
      */
@@ -162,7 +163,7 @@ final class RestoreKeys {
     // Two rows of a group must not share a date. Sorted by their starts, each row must end before the next starts.
     private static void apart(String list, String field, Stream<Dated> rows) {
         Map<Object, List<Dated>> groups = new LinkedHashMap<>();
-        rows.filter(row -> row.group() != null && row.period() != null)
+        rows.filter(row -> row.group() != null)
                 .forEach(row -> groups.computeIfAbsent(row.group(), group -> new ArrayList<>()).add(row));
         for (List<Dated> group : groups.values()) {
             group.sort(Comparator.comparing((Dated row) -> row.period().from()));
@@ -175,14 +176,10 @@ final class RestoreKeys {
         }
     }
 
-    // Names with no start hold from the start. A period that ends before it starts fails in the write, as before.
+    // Names with no start hold from the start.
     private static Dated dated(String id, Object group, String from, String to) {
-        try {
-            return new Dated(id, group, new ValidPeriod(from == null ? LocalDate.MIN : LocalDate.parse(from),
-                    to == null ? null : LocalDate.parse(to)));
-        } catch (IllegalArgumentException e) {
-            return new Dated(id, group, null);
-        }
+        return new Dated(id, group, new ValidPeriod(from == null ? LocalDate.MIN : LocalDate.parse(from),
+                to == null ? null : LocalDate.parse(to)));
     }
 
     private static <T> Ids ids(String list, String field, List<T> rows, Function<T, String> id) {
