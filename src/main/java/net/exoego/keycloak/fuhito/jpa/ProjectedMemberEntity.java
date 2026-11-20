@@ -19,7 +19,7 @@ public class ProjectedMemberEntity {
     @Column(name = "REALM_ID", nullable = false, length = 36)
     String realmId;
 
-    @Column(name = "KC_ORG_ID", nullable = false, length = 36)
+    @Column(name = "KC_ORG_ID", nullable = false, length = 255)
     String organizationId;
 
     @Column(name = "USER_ID", nullable = false, length = 255)
