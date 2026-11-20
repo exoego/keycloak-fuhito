@@ -105,9 +105,15 @@ public class JpaReportingLineStore implements ReportingLineStore {
                         looksAbove("a"), onDate("gv"), beforeRows, afterRows);
     }
 
-    private static final String REPORTS = reports("\n", "\norder by derived, depth, orgUnitId, assignmentId, lineId");
+    // HQL binds an order by after a union to the last part only. So the rows of both parts go into one more table of
+    // the with clause, and the list sorts them there.
+    private static final String REPORTS = reports(",\nReports as (\n", """
 
-    // The count needs the rows of both parts of the union, so they go into one more table of the with clause.
+            )
+            select r.derived, r.depth, r.orgUnitId, r.assignmentId, r.lineId, r.kind, r.personId, r.userId
+            from Reports r order by r.derived, r.depth, r.orgUnitId, r.assignmentId, r.lineId""");
+
+    // The count needs the rows of both parts of the union too.
     private static final String COUNT_REPORTS = reports(",\nReports as (\n", "\n)\nselect count(*) from Reports r");
 
     private final EntityManager em;

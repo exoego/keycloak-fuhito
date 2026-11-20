@@ -3,6 +3,8 @@ package net.exoego.keycloak.fuhito;
 import java.net.http.HttpResponse;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -143,6 +145,33 @@ class ReportingLinesIT {
         // Ending the assignment ends its line.
         assertEquals(200, api.putWithVersion("/assignments/" + nurseAAssignment + "/end", "{\"validTo\": \"2030-04-01\"}").statusCode());
         assertEquals("2030-04-01", Api.json(api.get("/reporting-lines/" + solid.get("id").asText())).get("validTo").asText());
+    }
+
+    // The lines are written in the reverse of the order of the reports, so the order of the rows does not give it.
+    @Test
+    void theStoredLinesComeInTheOrderOfTheirOrgUnitAndAssignment() throws Exception {
+        TestRealm scratch = TestRealm.withEmployer("reporting-order");
+        String lead = scratch.user("lead");
+        List<String[]> reports = new ArrayList<>();
+        for (int i = 1; i <= 4; i++) {
+            String orgUnit = id(scratch.api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": "
+                    + "{\"name\": \"課" + i + "\"}}, \"validFrom\": \"2026-04-01\"}"));
+            HttpResponse<String> staffed = scratch.api.post("/staff", "{\"userId\": \"" + scratch.user("member-" + i)
+                    + "\", \"orgUnitId\": \"" + orgUnit + "\", \"validFrom\": \"2026-04-01\", \"head\": false}");
+            assertEquals(201, staffed.statusCode(), staffed.body());
+            reports.add(new String[] {orgUnit, Api.json(staffed).get("assignment").get("id").asText()});
+        }
+        reports.sort(Comparator.<String[], String>comparing(report -> report[0]).thenComparing(report -> report[1]));
+        for (String[] report : reports.reversed()) {
+            id(scratch.api.post("/reporting-lines", "{\"assignmentId\": \"" + report[1] + "\", \"managerUserId\": \""
+                    + lead + "\", \"kind\": \"DOTTED\", \"validFrom\": \"2026-04-01\"}"));
+        }
+
+        List<String> ordered = reports.stream().map(report -> report[1]).toList();
+        String path = "/users/" + lead + "/reports?asOf=2026-04-01";
+        assertEquals(ordered, Api.json(scratch.api.get(path)).findValuesAsText("assignmentId"));
+        assertEquals(ordered.subList(1, 3), Api.json(scratch.api.get(path + "&first=1&max=2"))
+                .findValuesAsText("assignmentId"));
     }
 
     @Test
