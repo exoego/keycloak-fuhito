@@ -4,8 +4,10 @@ import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.ZoneOffset;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -33,6 +35,7 @@ import net.exoego.keycloak.fuhito.domain.OrgUnitVersion;
 import net.exoego.keycloak.fuhito.domain.PlacedOrgUnit;
 import net.exoego.keycloak.fuhito.domain.RefItem;
 import net.exoego.keycloak.fuhito.domain.RefKind;
+import net.exoego.keycloak.fuhito.domain.UnitDefaults;
 import net.exoego.keycloak.fuhito.domain.ValidPeriod;
 import net.exoego.keycloak.fuhito.store.AssignmentStore;
 import net.exoego.keycloak.fuhito.store.ExternalIdStore;
@@ -1020,6 +1023,64 @@ public class OrgUnitService {
      */
     public String source(String id) {
         return requireUnit(id).source();
+    }
+
+    /**
+     * The values that a read of an org unit has on the dates of the details that a change of details replaces.
+     *
+     * @param parentIds the IDs of the parents in the default hierarchy
+     * @param workLocations the codes of the work locations that apply
+     * @param costCenters the codes of the cost centers that apply
+     */
+    public record ReplacedDetails(Set<String> parentIds, Set<String> workLocations, Set<String> costCenters) {
+    }
+
+    /**
+     * Returns the values that a read of an org unit has on the dates of the details that a change of details from a
+     * date replaces. These dates run from that date to the end of the stored details of that date. The parent and the
+     * work location and cost center that apply can change inside them, when the unit moves or a unit above changes.
+     *
+     * @param id the ID
+     * @param validFrom the first date of the change, as {@code YYYY-MM-DD}
+     * @return the values. A value that no date has, such as the parent of a root, is not there.
+     * @throws FuhitoException when the date is bad, or the unit does not exist on it
+     */
+    public ReplacedDetails replacedDetails(String id, String validFrom) {
+        LocalDate from = Checks.date("validFrom", validFrom);
+        requireUnit(id);
+        ValidPeriod replaced = new ValidPeriod(from, versionOn(id, from).period().to());
+        String hierarchyId = store.defaultHierarchyId();
+        Set<String> parentIds = new HashSet<>();
+        // What applies changes only where the details or the parent of the unit or of a unit above change.
+        Set<LocalDate> changes = new HashSet<>(List.of(from));
+        Deque<Map.Entry<String, ValidPeriod>> line = new ArrayDeque<>(List.of(Map.entry(id, replaced)));
+        while (!line.isEmpty()) {
+            Map.Entry<String, ValidPeriod> unit = line.pop();
+            ValidPeriod period = unit.getValue();
+            store.versions(unit.getKey()).stream()
+                    .map(version -> version.period().from())
+                    .filter(period::contains)
+                    .forEach(changes::add);
+            for (OrgUnitLink link : store.parentLinks(hierarchyId, unit.getKey())) {
+                link.period().intersection(period).ifPresent(shared -> {
+                    if (unit.getKey().equals(id)) {
+                        parentIds.add(link.parentId());
+                    }
+                    changes.add(shared.from());
+                    Optional.ofNullable(shared.to()).filter(period::contains).ifPresent(changes::add);
+                    line.push(Map.entry(link.parentId(), shared));
+                });
+            }
+        }
+        Function<String, String> code = UnitPlaces.codes(refItems);
+        Set<String> workLocations = new HashSet<>();
+        Set<String> costCenters = new HashSet<>();
+        for (LocalDate date : changes) {
+            UnitDefaults applying = store.defaultsOn(List.of(id), date).getOrDefault(id, UnitDefaults.NONE);
+            Optional.ofNullable(code.apply(applying.workLocationId())).ifPresent(workLocations::add);
+            Optional.ofNullable(code.apply(applying.costCenterId())).ifPresent(costCenters::add);
+        }
+        return new ReplacedDetails(Set.copyOf(parentIds), Set.copyOf(workLocations), Set.copyOf(costCenters));
     }
 
     /**

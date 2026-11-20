@@ -9,6 +9,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import net.exoego.keycloak.fuhito.domain.Assignment;
 import net.exoego.keycloak.fuhito.domain.Employer;
@@ -674,6 +675,35 @@ class OrgUnitServiceTest {
 
         assertNull(service.move(unit, null, "2026-04-01").parentId());
         assertTrue(store.links.isEmpty());
+    }
+
+    @Test
+    void listsWhatAReadHasOnTheDatesOfTheDetailsThatAChangeReplaces() {
+        place(RefKind.WORK_LOCATION, "tokyo", true);
+        place(RefKind.WORK_LOCATION, "osaka", true);
+        place(RefKind.WORK_LOCATION, "nagoya", true);
+        place(RefKind.COST_CENTER, "cc-a", true);
+        String a = placed("A", null, "tokyo", "cc-a");
+        String b = placed("B", null, "nagoya", null);
+        String unit = child("Unit", a);
+        // The unit above changes its work location inside the details of the unit, and the unit moves later.
+        service.changeDetails(a, new OrgUnitChange("2026-07-01", null, "ja", ja("A"), null, "osaka", "cc-a", null,
+                null));
+        service.move(unit, b, "2026-10-01");
+        service.changeDetails(unit, rename("2027-04-01", "Later"));
+
+        assertEquals(new OrgUnitService.ReplacedDetails(Set.of(a, b), Set.of("tokyo", "osaka", "nagoya"),
+                Set.of("cc-a")), service.replacedDetails(unit, "2026-04-01"));
+        assertEquals(new OrgUnitService.ReplacedDetails(Set.of(a, b), Set.of("osaka", "nagoya"), Set.of("cc-a")),
+                service.replacedDetails(unit, "2026-08-01"));
+        assertEquals(new OrgUnitService.ReplacedDetails(Set.of(b), Set.of("nagoya"), Set.of()),
+                service.replacedDetails(unit, "2027-04-01"));
+        assertEquals(new OrgUnitService.ReplacedDetails(Set.of(), Set.of("tokyo"), Set.of("cc-a")),
+                service.replacedDetails(a, "2026-04-01"));
+        assertEquals("org_unit.not_valid_on",
+                assertThrows(FuhitoException.class, () -> service.replacedDetails(unit, "2026-03-31")).code());
+        assertEquals("invalid.required",
+                assertThrows(FuhitoException.class, () -> service.replacedDetails(unit, null)).code());
     }
 
     @Test

@@ -109,6 +109,21 @@ public final class Checks {
     }
 
     /**
+     * Requires that a write of a stored resource gives no value of a field but one of the stored ones. It is for a
+     * field that the write does not change but that has other values on other dates, such as a parent.
+     *
+     * @param field the name of the field, for the error
+     * @param stored the stored values
+     * @param given the value of the write, or null
+     * @throws FuhitoException when the write gives another value
+     */
+    public static void fixedAmong(String field, Collection<?> stored, Object given) {
+        if (given != null && !stored.contains(given)) {
+            throw FuhitoException.invalid("invalid.value_fixed", Map.of("field", field));
+        }
+    }
+
+    /**
      * Requires that two fields that are two names of one thing name the same one, when a request gives both, as a
      * read gives them. A request that leaves out the other field agrees. The values compare as in
      * {@link #fixed(String, Object, Object)}.

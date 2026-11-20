@@ -37,7 +37,7 @@ class FixedValuesIT {
     }
 
     // The status, the code, and the values of the error, so that one assertion shows every case.
-    private static String outcome(HttpResponse<String> response, String... params) throws Exception {
+    static String outcome(HttpResponse<String> response, String... params) throws Exception {
         JsonNode body = Api.json(response);
         StringBuilder outcome = new StringBuilder().append(response.statusCode()).append(' ')
                 .append(body.path("error").asText());
