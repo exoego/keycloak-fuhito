@@ -80,8 +80,9 @@
                         of the period that holds on `validFrom` of the body. Without `validFrom`, the names of a
                         reference item are the ones of today. A read leaves out a flag that is false, such as
                         `legalEntity`, so false is the same as no flag. Another value fails with 400 and
-                        `invalid.value_fixed`, which names the field. The effective work location and cost center of
-                        an org unit are not checked, because they can differ between the dates of its details.
+                        `invalid.value_fixed`, which names the field. The parent and the effective work location and
+                        cost center of an org unit can differ between the dates of its details. So a write of the
+                        unit takes the values of any date of the details that it replaces.
 
                         A failed request writes nothing.
                         """,
@@ -141,9 +142,9 @@
                                     `invalid.duplicate_key`. A write that names one thing in two ways gets
                                     `invalid.twice`. A create with a person ID and a user ID that do not name the
                                     same person gets `invalid.mismatch`. A write of a stored resource with another
-                                    value of a field that never changes, or of a field that only a response fills,
-                                    gets `invalid.value_fixed`. A read with two values that do not go together gets
-                                    `invalid.not_together`.
+                                    value of a field that never changes, of a field that only a response fills, or
+                                    of a field that the write does not change, gets `invalid.value_fixed`. A read
+                                    with two values that do not go together gets `invalid.not_together`.
                                     """,
                             content = @Content(mediaType = "application/json",
                                     schema = @Schema(implementation = ErrorRepresentation.class))),
