@@ -112,7 +112,7 @@ public final class EmptyValues {
      * @param row the record
      * @return the value, or null
      */
-    static Object valueOf(RecordComponent component, Record row) {
+    public static Object valueOf(RecordComponent component, Record row) {
         try {
             return component.getAccessor().invoke(row);
         } catch (ReflectiveOperationException e) {

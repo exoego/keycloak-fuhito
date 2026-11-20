@@ -20,7 +20,8 @@ public record ExternalIdRepresentation(
         @Schema(description = "The ID in that system.", maxLength = 255)
         String externalId,
         @Schema(
-                description = "True when the system made the resource, as the `source` of the resource says.",
+                description = "True when the system made the resource, as the `source` of the resource says. A write "
+                        + "with another value fails with 400 and `invalid.value_fixed`.",
                 readOnly = true)
         Boolean own,
         @Schema(description = "The version of this ID. A new one has 1. Each write counts it up by one. A write of an "

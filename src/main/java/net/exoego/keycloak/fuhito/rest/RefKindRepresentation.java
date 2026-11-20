@@ -15,7 +15,10 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
 @Schema(name = "RefKindDefinition", description = "A kind of reference data.",
         requiredProperties = {"code", "primaryLanguage", "names"})
 public record RefKindRepresentation(
-        @Schema(description = "The ID of a kind that the realm added. A fixed kind has none.", readOnly = true)
+        @Schema(
+                description = "The ID of a kind that the realm added. A fixed kind has none. A write of a stored kind "
+                        + "with another ID fails with 400 and `invalid.value_fixed`.",
+                readOnly = true)
         String id,
         @Schema(
                 description = "The code that items name as their kind. It never changes. A write of a stored kind "
@@ -27,7 +30,8 @@ public record RefKindRepresentation(
                 description = "The name in the language of the request. It is the one of the first language of "
                         + "`Accept-Language`, else the one of that language with no region, such as `en` for "
                         + "`en-US`, else the primary one. A request with no `Accept-Language` reads the primary one. "
-                        + "A fixed kind has none.",
+                        + "A fixed kind has none. A write of a stored kind with another value fails with 400 and "
+                        + "`invalid.value_fixed`.",
                 readOnly = true)
         String name,
         @Schema(
@@ -40,26 +44,37 @@ public record RefKindRepresentation(
                         + "their standard form, such as `en-US` for `en-us`. A fixed kind has none. Two keys of one "
                         + "tag in standard form, such as `ja` and `JA`, fail with `invalid.duplicate_language`.")
         Map<String, RefKindName> names,
-        @Schema(description = "True for a kind that every realm has.", readOnly = true)
+        @Schema(
+                description = "True for a kind that every realm has. A write of a stored kind with another value fails "
+                        + "with 400 and `invalid.value_fixed`.",
+                readOnly = true)
         Boolean fixed,
         @Schema(description = "The version of a kind that the realm added. A new kind has 1. Each write counts it "
                 + "up by one, also a change of an ID of another system. A fixed kind has none. A write of a stored "
                 + "kind sends the version that the caller read. A create needs none.")
         Long version,
         @Schema(
-                description = "The ID of the kind in the system that `source` names. Only a create reads it. "
-                        + "A read gives every ID in `externalIds`.",
+                description = "The ID of the kind in the system that `source` names. A write stores it as the ID of "
+                        + "that system, in place of the one that the system had. A read gives every ID in "
+                        + "`externalIds`.",
                 maxLength = 255,
                 writeOnly = true)
         String externalId,
         @Schema(
-                description = "The name of the system of `externalId`. Only a create reads it.",
+                description = "The name of the system of `externalId`. A kind keeps no system that made it, so a write "
+                        + "of a stored kind with this and no `externalId` fails with 400 and `invalid.value_fixed`.",
                 maxLength = 64,
                 pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$",
                 writeOnly = true)
         String source,
-        @Schema(description = "Every ID that a system has for the kind, by system.", readOnly = true)
+        @Schema(
+                description = "Every ID that a system has for the kind, by system. A write of a stored kind with "
+                        + "another list fails with 400 and `invalid.value_fixed`.",
+                readOnly = true)
         List<ExternalIdPairRepresentation> externalIds) implements Versioned {
+
+    // The fields that only a response fills.
+    static final List<String> READ_ONLY = List.of("id", "name", "fixed", "externalIds");
 
     static RefKindRepresentation of(RealmKindService.View view, ExternalIdLists ids, Locale language) {
         if (view.names() == null) {

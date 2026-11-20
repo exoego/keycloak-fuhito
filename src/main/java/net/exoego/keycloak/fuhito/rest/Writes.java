@@ -1,17 +1,24 @@
 package net.exoego.keycloak.fuhito.rest;
 
+import java.lang.reflect.RecordComponent;
+import java.time.LocalDate;
+import java.util.Arrays;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
+import net.exoego.keycloak.fuhito.domain.ValidPeriod;
 import net.exoego.keycloak.fuhito.rest.RequestContext.Change;
 import net.exoego.keycloak.fuhito.rest.RequestContext.ChangeRecord;
+import net.exoego.keycloak.fuhito.service.EmptyValues;
 import net.exoego.keycloak.fuhito.service.ExternalIdLists;
 import net.exoego.keycloak.fuhito.service.ExternalIdService;
 import net.exoego.keycloak.fuhito.service.ImportReport.Write;
@@ -19,7 +26,7 @@ import net.exoego.keycloak.fuhito.service.PersonService;
 
 /**
  * Records the writes of a bulk operation in the event log and the change log, finds the person of a write, and
- * checks the source of a write of a stored resource.
+ * checks the source and the fields that only a response fills of a write of a stored resource.
  */
 final class Writes {
 
@@ -53,6 +60,64 @@ final class Writes {
         if (externalId == null) {
             Checks.fixed("source", stored, source);
         }
+    }
+
+    // A resource of a kind that keeps no source takes source only as the system of externalId.
+    static void requireNoSource(String source, String externalId) {
+        requireSource(null, source, externalId);
+    }
+
+    /**
+     * Requires that a body gives the fields that only a response fills with the values of a read of the stored
+     * resource, or leaves them out. A read is the body of a write. The read is made only when the body gives one of
+     * the fields.
+     *
+     * @param <R> the type of the body and of the read
+     * @param body the body
+     * @param read reads the stored resource, or gives null when the write fails on its own, as on a date that no
+     *         period holds
+     * @param fields the names of the fields that only a response fills
+     * @throws FuhitoException when the body gives another value of one of the fields
+     */
+    static <R extends Record> void requireRead(R body, Supplier<R> read, List<String> fields) {
+        R stored = null;
+        for (String field : fields) {
+            RecordComponent component = Arrays.stream(body.getClass().getRecordComponents())
+                    .filter(each -> each.getName().equals(field))
+                    .findFirst()
+                    .orElseThrow();
+            Object given = EmptyValues.valueOf(component, body);
+            if (given == null) {
+                continue;
+            }
+            if (stored == null) {
+                stored = read.get();
+                if (stored == null) {
+                    return;
+                }
+            }
+            Object value = EmptyValues.valueOf(component, stored);
+            // A read leaves out a flag that is false.
+            Checks.fixed(field, value == null && given instanceof Boolean ? false : value, given);
+        }
+    }
+
+    /**
+     * Finds the period of a read that holds on a date, such as the details of an assignment of one period.
+     *
+     * @param <P> the type of a period
+     * @param periods the periods of the read
+     * @param from gives the first date of a period
+     * @param to gives the first date after a period, or null for no end
+     * @param date the date
+     * @return the period, or null when none holds on the date
+     */
+    static <P> P periodOn(List<P> periods, Function<P, String> from, Function<P, String> to, LocalDate date) {
+        return periods.stream()
+                .filter(period -> new ValidPeriod(LocalDate.parse(from.apply(period)),
+                        Optional.ofNullable(to.apply(period)).map(LocalDate::parse).orElse(null)).contains(date))
+                .findFirst()
+                .orElse(null);
     }
 
     static void record(RequestContext context, ExternalIdService externalIds, Write write) {
