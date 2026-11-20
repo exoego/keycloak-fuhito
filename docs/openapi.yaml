@@ -273,7 +273,8 @@ components:
             \ A create needs none."
         target:
           type: string
-          description: The kind of resource. Only a create request reads it.
+          description: The kind of resource. It never changes. A write of a stored
+            definition with another kind fails with 400 and `invalid.value_fixed`.
           enum:
           - ORG_UNIT
           - PERSON
@@ -284,7 +285,8 @@ components:
         name:
           type: string
           maxLength: 64
-          description: The name in `attributes`. Only a create request reads it.
+          description: The name in `attributes`. It never changes. A write of a stored
+            definition with another name fails with 400 and `invalid.value_fixed`.
         type:
           type: string
           description: "The type of the value. A `STRING` value must not be empty\
@@ -1258,8 +1260,9 @@ components:
           type: string
           maxLength: 64
           pattern: "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
-          description: The code. It is unique in the realm and never changes. Every
-            realm has the hierarchy `default`.
+          description: The code. It is unique in the realm and never changes. A write
+            of a stored hierarchy with another code fails with 400 and `invalid.value_fixed`.
+            Every realm has the hierarchy `default`.
         name:
           type: string
           maxLength: 255
@@ -2718,7 +2721,8 @@ components:
           pattern: "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
           description: "The name of the system that made the unit. A create sets it,\
             \ and it never changes. With `externalId`, it names the system of that\
-            \ ID."
+            \ ID. Without it, a write of a stored unit with another value fails with\
+            \ 400 and `invalid.value_fixed`."
         externalIds:
           type: array
           items:
@@ -2965,7 +2969,8 @@ components:
           pattern: "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
           description: "The name of the system that made the person. A create sets\
             \ it, and it never changes. With `externalId`, it names the system of\
-            \ that ID."
+            \ that ID. Without it, a write of a stored person with another value fails\
+            \ with 400 and `invalid.value_fixed`."
         externalIds:
           type: array
           items:
@@ -3112,16 +3117,18 @@ components:
             \ caller read. A create needs none."
         personId:
           type: string
-          description: "The ID of the person. Only a request to add reads it, and\
-            \ takes this or `userId`. A request to add with both fails with 400 and\
-            \ `invalid.twice`."
+          description: The ID of the person. A request to add takes this or `userId`.
+            A request to add with both fails with 400 and `invalid.twice`. The person
+            never changes. A write of a stored qualification with another person fails
+            with 400 and `invalid.value_fixed`.
         userId:
           type: string
           description: "The ID of the Keycloak user that the person is linked to.\
             \ A request to add can give it in place of `personId`, not with it. The\
             \ person of the user is then used, and created when the user has none.\
             \ A read of a person with a user has both, so a request to add made from\
-            \ a read leaves one out."
+            \ a read leaves one out. A write of a stored qualification with a user\
+            \ that is not the one of its person fails with 400 and `invalid.value_fixed`."
         kind:
           type: string
           description: The code of the qualification kind.
@@ -3155,7 +3162,8 @@ components:
           pattern: "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
           description: "The name of the system that made the qualification. A create\
             \ sets it, and it never changes. With `externalId`, it names the system\
-            \ of that ID."
+            \ of that ID. Without it, a write of a stored qualification with another\
+            \ value fails with 400 and `invalid.value_fixed`."
         externalIds:
           type: array
           items:
@@ -3249,12 +3257,14 @@ components:
         kind:
           type: string
           description: "A fixed kind such as `UNIT_TYPE`, or the code of a kind that\
-            \ the realm added. Only a create request reads it."
+            \ the realm added. It never changes. A write of a stored item with another\
+            \ kind fails with 400 and `invalid.value_fixed`."
         code:
           type: string
           maxLength: 64
           pattern: "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
-          description: Only a create request reads it.
+          description: It never changes. A write of a stored item with another code
+            fails with 400 and `invalid.value_fixed`.
         name:
           type: string
           description: "The name of the date in the language of the request. It is\
@@ -3448,7 +3458,8 @@ components:
           type: string
           maxLength: 32
           pattern: "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
-          description: The code that items name as their kind.
+          description: The code that items name as their kind. It never changes. A
+            write of a stored kind with another code fails with 400 and `invalid.value_fixed`.
         name:
           type: string
           description: "The name in the language of the request. It is the one of\
@@ -4317,7 +4328,8 @@ components:
         `invalid.blank`. A text with NUL or half of a surrogate pair gets
         `invalid.character`. A body that gives one key twice in one object gets
         `invalid.duplicate_key`. A write that names one thing in two ways gets
-        `invalid.twice`.
+        `invalid.twice`. A write of a stored resource with another value of a field
+        that never changes gets `invalid.value_fixed`.
       content:
         application/json:
           schema:
@@ -4403,6 +4415,11 @@ info:
     It is in the body, or in the query of a `DELETE`. A write with no version fails with 400 and
     `version.required`. When the resource changed since the read, the write fails with 409 and
     `version.conflict`, and the values of the error have the current version.
+
+    Some fields of a stored resource never change, such as the code of a hierarchy and the
+    person of a qualification. A write of the resource can leave them out, or give the stored
+    values, as a read has them. Another value fails with 400 and `invalid.value_fixed`, which
+    names the field.
 
     A failed request writes nothing.
   license:
@@ -4905,8 +4922,9 @@ paths:
   /attribute-definitions/{id}:
     put:
       summary: Replaces the type and the rule of a definition.
-      description: The kind of resource and the name never change. Stored values stay
-        as they are.
+      description: The kind of resource and the name never change. The body can leave
+        them out or give the stored ones. Another kind of resource or name fails with
+        400 and `invalid.value_fixed`. Stored values stay as they are.
       operationId: replaceAttributeDefinition
       tags:
       - ref-items
@@ -6502,7 +6520,8 @@ paths:
   /hierarchies/{id}:
     put:
       summary: Changes the name of a hierarchy.
-      description: The code never changes. The body can leave it out.
+      description: The code never changes. The body can leave it out or give the stored
+        one. Another code fails with 400 and `invalid.value_fixed`.
       operationId: renameHierarchy
       tags:
       - org-units
@@ -7101,8 +7120,9 @@ paths:
         body.
       description: "The details are the code, the names, the unit type, the display\
         \ order, and the attributes. The parent does not change here. With `source`\
-        \ and `externalId`, the unit gets that ID of that system. No other org unit\
-        \ may have the same code on a date of the change."
+        \ and `externalId`, the unit gets that ID of that system. Another `source`\
+        \ with no `externalId` fails with 400 and `invalid.value_fixed`. No other\
+        \ org unit may have the same code on a date of the change."
       operationId: changeOrgUnitDetails
       tags:
       - org-units
@@ -8206,7 +8226,8 @@ paths:
     put:
       summary: "Replaces the names, the attributes, and the link to a Keycloak user."
       description: "A body with no `userId` removes the link. The person keeps `source`.\
-        \ With `source` and `externalId`, the person gets that ID of that system."
+        \ With `source` and `externalId`, the person gets that ID of that system.\
+        \ Another `source` with no `externalId` fails with 400 and `invalid.value_fixed`."
       operationId: replacePerson
       tags:
       - people
@@ -8932,6 +8953,9 @@ paths:
     put:
       summary: "Replaces the kind, the number, the dates, and the attributes of a\
         \ qualification."
+      description: "The person never changes. The body can leave out `personId` and\
+        \ `userId`, or give the ones of the stored person. Another person fails with\
+        \ 400 and `invalid.value_fixed`."
       operationId: replaceQualification
       tags:
       - qualifications
@@ -9162,7 +9186,8 @@ paths:
   /ref-items/{id}:
     put:
       summary: Replaces the changeable values of an item.
-      description: "The kind and the code never change. The body can leave them out.\
+      description: "The kind and the code never change. The body can leave them out\
+        \ or give the stored ones. Another kind or code fails with 400 and `invalid.value_fixed`.\
         \ Only the names have dates. With `validFrom`, the new names hold from that\
         \ date until the next stored names, and the old names stay for the dates before.\
         \ A date that starts stored names corrects them. Without `validFrom`, the\
@@ -9358,7 +9383,8 @@ paths:
   /ref-kinds/{code}:
     put:
       summary: Changes the names of a kind of the realm.
-      description: The code never changes. The body can leave it out.
+      description: The code never changes. The body can leave it out or give the code
+        of the path. Another code fails with 400 and `invalid.value_fixed`.
       operationId: renameRefKind
       tags:
       - ref-items
