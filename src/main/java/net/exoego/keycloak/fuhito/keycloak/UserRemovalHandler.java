@@ -36,6 +36,8 @@ final class UserRemovalHandler {
     static void retire(EntityManager em, RealmModel realm, String userId) {
         String realmId = realm.getId();
         // The removal ends the employments of the user with what belongs to them, as a write of the API does.
+        // It finds them after a bulk write of the realm that runs.
+        RowLocks.lockRealm(em, realmId, false);
         RowLocks.lock(em, realmId, new JpaWriteScopes(em, realmId).userData(userId));
         var employments = new JpaEmploymentStore(em, realmId);
         var assignments = new JpaAssignmentStore(em, realmId);

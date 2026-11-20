@@ -110,6 +110,9 @@ public final class RealmData {
      * @param realmId the ID of the realm
      */
     public static void delete(EntityManager em, String realmId) {
+        // The row for writes goes first, so that the removal waits for the writes of the realm that run. A restore
+        // keeps it.
+        deleteOfRealm(em, RealmWriteEntity.class, realmId);
         ENTITIES.forEach(entity -> deleteOfRealm(em, entity, realmId));
     }
 
