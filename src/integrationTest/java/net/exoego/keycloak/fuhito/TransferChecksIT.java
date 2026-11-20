@@ -116,49 +116,76 @@ class TransferChecksIT {
         assertEquals("2027-04-01", ended.get("endedEmployer").get("validTo").asText());
     }
 
-    private static String closingOn(Api on, String name, String validTo) throws Exception {
+    private interface Request {
+        HttpResponse<String> send() throws Exception;
+    }
+
+    private static String closingOn(Api on, String name) throws Exception {
         String id = TestRealm.legalEntity(on, name);
-        assertEquals(200, on.putWithVersion("/org-units/" + id + "/end", "{\"validTo\": \"" + validTo + "\"}")
+        assertEquals(200, on.putWithVersion("/org-units/" + id + "/end", "{\"validTo\": \"2030-04-01\"}")
                 .statusCode());
         return id;
     }
 
-    private static String employment(Api on, String userId, String employerId, String validFrom, String validTo)
-            throws Exception {
+    private static String employment(Api on, String userId, String employerId, String fields) throws Exception {
         return created(on.post("/employments", "{\"userId\": \"" + userId + "\", \"employerId\": \"" + employerId
-                + "\", \"validFrom\": \"" + validFrom + "\""
-                + (validTo == null ? "" : ", \"validTo\": \"" + validTo + "\"") + "}")).get("id").asText();
+                + "\", " + fields + "}")).get("id").asText();
     }
 
-    private static String transfer(String employerId) {
-        return "{\"employerId\": \"" + employerId + "\", \"validFrom\": \"2027-04-01\"}";
+    private static Request transfer(Api on, String employmentId, String employerId) {
+        return () -> on.postWithVersion("/employments/" + employmentId + "/transfer", "{\"employerId\": \""
+                + employerId + "\", \"validFrom\": \"2027-04-01\"}");
+    }
+
+    private static String failure(HttpResponse<String> response) throws Exception {
+        JsonNode error = Api.json(response);
+        Map<String, String> params = new TreeMap<>();
+        error.path("params").properties().forEach(param -> params.put(param.getKey(), param.getValue().asText()));
+        return response.statusCode() + " " + error.path("error").asText() + " " + params;
+    }
+
+    private static void eachFailsAndWritesNothing(String failure, Map<String, Request> requests) throws Exception {
+        ObjectNode before = RealmExportIT.export(api);
+        Map<String, String> expected = new TreeMap<>();
+        Map<String, String> actual = new TreeMap<>();
+        for (var request : requests.entrySet()) {
+            expected.put(request.getKey(), failure);
+            actual.put(request.getKey(), failure(request.getValue().send()));
+        }
+        assertEquals(expected, actual);
+        assertEquals(before, RealmExportIT.export(api));
     }
 
     @Test
     void aTransferToAnEmployerThatEndsFirstFailsAndWritesNothing() throws Exception {
         String hospital = TestRealm.legalEntity(api, "X病院");
-        String closing = closingOn(api, "閉鎖予定の会社", "2030-04-01");
+        String closing = closingOn(api, "閉鎖予定の会社");
         // The first employment ends in time, so a merger fails only on a later one.
-        employment(api, realm.user("in-time"), hospital, "2019-04-01", "2030-04-01");
-        String open = employment(api, realm.user("open"), hospital, "2020-04-01", null);
-        String late = employment(api, realm.user("late"), hospital, "2020-04-01", "2031-04-01");
-        ObjectNode before = RealmExportIT.export(api);
+        employment(api, realm.user("in-time"), hospital, "\"validFrom\": \"2019-04-01\", \"validTo\": \"2030-04-01\"");
+        String open = employment(api, realm.user("open"), hospital, "\"validFrom\": \"2020-04-01\"");
+        String late = employment(api, realm.user("late"), hospital,
+                "\"validFrom\": \"2020-04-01\", \"validTo\": \"2031-04-01\"");
 
-        Map<String, String> expected = new TreeMap<>();
-        Map<String, String> actual = new TreeMap<>();
-        Map<String, HttpResponse<String>> responses = Map.of(
-                "open", api.postWithVersion("/employments/" + open + "/transfer", transfer(closing)),
-                "late", api.postWithVersion("/employments/" + late + "/transfer", transfer(closing)),
-                "merger", api.post("/employments/transfers", merger(hospital, closing, "merger", false)));
-        for (var response : responses.entrySet()) {
-            expected.put(response.getKey(), "409 employment.employer_ends " + closing + " 2030-04-01");
-            JsonNode error = Api.json(response.getValue());
-            actual.put(response.getKey(), response.getValue().statusCode() + " " + error.path("error").asText() + " "
-                    + error.path("params").path("employerId").asText() + " "
-                    + error.path("params").path("date").asText());
-        }
-        assertEquals(expected, actual);
-        assertEquals(before, RealmExportIT.export(api));
+        eachFailsAndWritesNothing("409 employment.employer_ends {date=2030-04-01, employerId=" + closing + "}", Map.of(
+                "open", transfer(api, open, closing),
+                "late", transfer(api, late, closing),
+                "merger", () -> api.post("/employments/transfers", merger(hospital, closing, "merger", false))));
+    }
+
+    @Test
+    void aTransferOfTermsWhoseContractEndsBeforeTheDateFailsAndWritesNothing() throws Exception {
+        String clinic = TestRealm.legalEntity(api, "Xクリニック");
+        // A contract that ends on the date is fine, so a merger fails only on a later employment.
+        employment(api, realm.user("on-the-date"), clinic,
+                "\"validFrom\": \"2019-04-01\", \"contractEndDate\": \"2027-04-01\"");
+        String ended = employment(api, realm.user("contract-ended"), clinic,
+                "\"validFrom\": \"2020-04-01\", \"contractEndDate\": \"2025-03-31\"");
+
+        eachFailsAndWritesNothing(
+                "400 employment.contract_end_before_terms {contractEndDate=2025-03-31, validFrom=2027-04-01}", Map.of(
+                        "transfer", transfer(api, ended, corporation),
+                        "merger", () -> api.post("/employments/transfers",
+                                merger(clinic, corporation, "merger", false))));
     }
 
     @Test
@@ -168,15 +195,18 @@ class TransferChecksIT {
             Api on = scratch.api;
             String hospital = TestRealm.legalEntity(on, "X病院");
             String clinic = TestRealm.legalEntity(on, "Xクリニック");
-            String closing = closingOn(on, "閉鎖予定の会社", "2030-04-01");
+            String closing = closingOn(on, "閉鎖予定の会社");
             scratch.refItem("END_REASON", "merger", "合併");
-            String one = employment(on, scratch.user("one"), hospital, "2020-04-01", "2030-04-01");
-            employment(on, scratch.user("early"), clinic, "2020-04-01", "2029-04-01");
-            employment(on, scratch.user("last-day"), clinic, "2020-04-01", "2030-04-01");
+            String one = employment(on, scratch.user("one"), hospital,
+                    "\"validFrom\": \"2020-04-01\", \"validTo\": \"2030-04-01\", \"contractEndDate\": \"2027-04-01\"");
+            employment(on, scratch.user("early"), clinic, "\"validFrom\": \"2020-04-01\", \"validTo\": \"2029-04-01\"");
+            employment(on, scratch.user("last-day"), clinic,
+                    "\"validFrom\": \"2020-04-01\", \"validTo\": \"2030-04-01\"");
 
-            JsonNode transfer = created(on.postWithVersion("/employments/" + one + "/transfer", transfer(closing)));
-            assertEquals(closing, transfer.get("started").get("employerId").asText());
-            assertEquals("2030-04-01", transfer.get("started").get("validTo").asText());
+            JsonNode started = created(transfer(on, one, closing).send()).get("started");
+            assertEquals(closing, started.get("employerId").asText());
+            assertEquals("2030-04-01", started.get("validTo").asText());
+            assertEquals("2027-04-01", started.get("terms").get(0).get("contractEndDate").asText());
             JsonNode merger = created(on.post("/employments/transfers", merger(clinic, closing, "merger", false)));
             assertEquals(2, merger.get("transferred").asInt());
 
