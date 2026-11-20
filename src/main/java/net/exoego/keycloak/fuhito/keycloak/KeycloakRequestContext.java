@@ -116,9 +116,13 @@ final class KeycloakRequestContext implements RequestContext {
     }
 
     private Response error(Response.Status status, String code, Map<String, String> params) {
+        return error(status, code, params, locale());
+    }
+
+    static Response error(Response.Status status, String code, Map<String, String> params, Locale locale) {
         return Response.status(status)
                 .type(MediaType.APPLICATION_JSON_TYPE)
-                .entity(new ErrorRepresentation(code, params, Messages.format(code, params, locale())))
+                .entity(new ErrorRepresentation(code, params, Messages.format(code, params, locale)))
                 .build();
     }
 
@@ -208,11 +212,19 @@ final class KeycloakRequestContext implements RequestContext {
 
     @Override
     public Locale locale() {
-        return Objects.requireNonNullElse(nameLanguage(), Locale.ENGLISH);
+        return locale(session);
     }
 
     @Override
     public Locale nameLanguage() {
+        return nameLanguage(session);
+    }
+
+    static Locale locale(KeycloakSession session) {
+        return Objects.requireNonNullElse(nameLanguage(session), Locale.ENGLISH);
+    }
+
+    private static Locale nameLanguage(KeycloakSession session) {
         return session.getContext().getHttpRequest().getHttpHeaders().getAcceptableLanguages().stream()
                 .filter(locale -> !"*".equals(locale.getLanguage()))
                 .findFirst()
