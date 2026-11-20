@@ -19,7 +19,7 @@ class RestoreRulesIT {
 
     private static final ObjectMapper JSON = new ObjectMapper();
 
-    private static final String NAMES = "\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"X\"}}";
+    static final String NAMES = "\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"X\"}}";
 
     private static final String TERMS = "{\"id\": \"t-2\", \"validFrom\": \"2022-04-01\", \"status\": \"ACTIVE\", "
             + "\"attributes\": {}}";
@@ -30,7 +30,7 @@ class RestoreRulesIT {
      * @param at the JSON pointer
      * @param row the row or the fields
      */
-    private record Change(String at, String row) {
+    record Change(String at, String row) {
     }
 
     /**
@@ -42,7 +42,7 @@ class RestoreRulesIT {
      * @param rule the error of a write for the rule, or null when a write has none
      * @param changes the changes
      */
-    private record Case(String list, String id, String field, String rule, List<Change> changes) {
+    record Case(String list, String id, String field, String rule, List<Change> changes) {
 
         Map<String, String> params() {
             Map<String, String> params = new HashMap<>(Map.of("list", list, "id", id, "field", field));
@@ -53,11 +53,11 @@ class RestoreRulesIT {
         }
     }
 
-    private static Change at(String at, String row) {
+    static Change at(String at, String row) {
         return new Change(at, row);
     }
 
-    private static Case breaks(String list, String id, String field, String rule, Change... changes) {
+    static Case breaks(String list, String id, String field, String rule, Change... changes) {
         return new Case(list, id, field, rule, List.of(changes));
     }
 
@@ -66,13 +66,13 @@ class RestoreRulesIT {
                 + "\"validFrom\": \"2020-04-01\"}";
     }
 
-    private static String item(String id, String kind, String marks) {
+    static String item(String id, String kind, String marks) {
         return "{\"id\": \"" + id + "\", \"kind\": \"" + kind + "\", \"code\": \"" + id + "\", " + marks
                 + "\"attributes\": {}, \"versions\": [{\"id\": \"n-" + id + "\", " + NAMES + "}]}";
     }
 
     // Each case fails before anything is written. So the document restores into the realm at the end.
-    private static void assertEachBreaks(String prefix, List<Case> cases) throws Exception {
+    static void assertEachBreaks(String prefix, List<Case> cases) throws Exception {
         TestRealm target = RestoreKeysIT.target(prefix);
         try {
             assertAll(cases.stream().map(rule -> (Executable) () -> {

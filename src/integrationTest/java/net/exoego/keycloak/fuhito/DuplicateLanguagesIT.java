@@ -49,16 +49,17 @@ class DuplicateLanguagesIT {
     }
 
     private static void assertDuplicate(String field, String language, Write write) throws Exception {
-        assertDuplicate(realm, field, language, write);
+        assertFails(realm, "invalid.duplicate_language", Map.of("field", field, "value", language), write);
     }
 
-    private static void assertDuplicate(TestRealm of, String field, String language, Write write) throws Exception {
+    private static void assertFails(TestRealm of, String code, Map<String, String> params, Write write)
+            throws Exception {
         List<String> before = counts(of);
         HttpResponse<String> response = write.send();
         assertEquals(400, response.statusCode(), response.body());
         JsonNode error = Api.json(response);
-        assertEquals("invalid.duplicate_language", error.get("error").asText(), response.body());
-        assertEquals(JSON.valueToTree(Map.of("field", field, "value", language)), error.get("params"));
+        assertEquals(code, error.get("error").asText(), response.body());
+        assertEquals(JSON.valueToTree(params), error.get("params"));
         assertEquals(before, counts(of));
     }
 
@@ -331,8 +332,12 @@ class DuplicateLanguagesIT {
         stored.putArray("parents");
         stored.putArray("successors");
 
-        assertDuplicate(target, "names.JA", "ja", () -> target.api.post("/restore", JSON.writeValueAsString(person)));
-        assertDuplicate(target, "names.en-US", "en-US",
+        // A restore names the row.
+        assertFails(target, "restore.bad_value", Map.of("list", "people", "id", "dup-lang-p", "field", "names.JA",
+                "rule", "invalid.duplicate_language"),
+                () -> target.api.post("/restore", JSON.writeValueAsString(person)));
+        assertFails(target, "restore.bad_value", Map.of("list", "org-unit-versions", "id", "dup-lang-v", "field",
+                "names.en-US", "rule", "invalid.duplicate_language"),
                 () -> target.api.post("/restore", JSON.writeValueAsString(unit)));
 
         names.remove("ja");

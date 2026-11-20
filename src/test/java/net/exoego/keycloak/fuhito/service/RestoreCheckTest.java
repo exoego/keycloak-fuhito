@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Map;
 
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
+import net.exoego.keycloak.fuhito.domain.PersonName;
 import net.exoego.keycloak.fuhito.domain.RefItemName;
 import org.junit.jupiter.api.Test;
 
@@ -44,17 +45,31 @@ class RestoreCheckTest {
     }
 
     private static RealmExport terms(String validFrom, String validTo, String contractEndDate) {
-        RealmExport.Terms terms = new RealmExport.Terms("t-1", validFrom, validTo, null, null, "ACTIVE", null, null,
+        return terms(validFrom, validTo, contractEndDate, "ACTIVE");
+    }
+
+    private static RealmExport terms(String validFrom, String validTo, String contractEndDate, String status) {
+        RealmExport.Terms terms = new RealmExport.Terms("t-1", validFrom, validTo, null, null, status, null, null,
                 contractEndDate, Map.of());
         return of(null, null, List.of(new RealmExport.EmploymentRow("e-1", 1L, "p-1", "u-1", null, "2020-04-01",
                 null, null, null, null, null, List.of(terms))), null, null);
     }
 
     private static RealmExport names(String validFrom, String validTo) {
+        return names(validFrom, validTo, "ja");
+    }
+
+    private static RealmExport names(String validFrom, String validTo, String primaryLanguage) {
         return new RealmExport(RealmExport.FORMAT, null, List.of(new RealmExport.Item("i-1", 1L, "JOB_TITLE", "chief",
                 0, Map.of(), true, false, false, false, false, List.of(new RealmExport.ItemNames("n-1", validFrom,
-                        validTo, "ja", Map.of("ja", new RefItemName("Chief")))))), null, null, null, null, null, null,
-                null, null, null, null, null, null);
+                        validTo, primaryLanguage, Map.of("ja", new RefItemName("Chief")))))), null, null, null, null,
+                null, null, null, null, null, null, null, null);
+    }
+
+    private static RealmExport person(String primaryLanguage, Map<String, PersonName> names) {
+        return new RealmExport(RealmExport.FORMAT, null, null, null, null, null, List.of(new RealmExport.PersonRow(
+                "p-1", 1L, null, primaryLanguage, names, Map.of(), null, null)), null, null, null, null, null, null,
+                null, null);
     }
 
     private static RealmExport erasure(String erasedAt) {
@@ -80,6 +95,12 @@ class RestoreCheckTest {
         FuhitoException e = assertThrows(FuhitoException.class, () -> check(document));
         assertEquals("restore.bad_value", e.code());
         assertEquals(Map.of("list", list, "id", id, "field", field), e.params());
+    }
+
+    private static void assertBroken(RealmExport document, String list, String id, String field, String rule) {
+        FuhitoException e = assertThrows(FuhitoException.class, () -> check(document));
+        assertEquals("restore.bad_value", e.code());
+        assertEquals(Map.of("list", list, "id", id, "field", field, "rule", rule), e.params());
     }
 
     @Test
@@ -125,5 +146,22 @@ class RestoreCheckTest {
         assertDoesNotThrow(() -> check(terms("2020-04-01", "2020-04-02", null)));
         assertBadValue(names("2020-04-01", "2020-04-01"), "ref-item-names", "n-1", "validTo");
         assertDoesNotThrow(() -> check(names(null, "0001-01-01")));
+    }
+
+    @Test
+    void aChoiceIsOneThatAWriteTakes() {
+        assertBroken(terms("2020-04-01", null, null, "RETIRED"), "employment-terms", "t-1", "status",
+                "invalid.choice");
+        assertDoesNotThrow(() -> check(terms("2020-04-01", null, null, "ON_LEAVE")));
+    }
+
+    @Test
+    void theNamesOfARowAreOnesThatAWriteTakes() {
+        assertBroken(names(null, null, "en"), "ref-item-names", "n-1", "primaryLanguage",
+                "invalid.primary_language");
+        assertBroken(person(null, Map.of("ja", new PersonName("Hanako", null))), "people", "p-1", "primaryLanguage",
+                "invalid.required");
+        assertDoesNotThrow(() -> check(person(null, null)));
+        assertDoesNotThrow(() -> check(names(null, null, "JA")));
     }
 }

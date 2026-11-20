@@ -2,7 +2,6 @@ package net.exoego.keycloak.fuhito.service;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -40,8 +39,8 @@ final class RestoreRules {
     /**
      * Requires that the rows of an export keep the rules between rows of the writes.
      *
-     * @param document the export, whose references name rows of the export, whose IDs and keys are unique, and whose
-     *        rows that must not share a date do not
+     * @param document the export, whose values are checked, whose references name rows of the export and items of
+     *        the right kind, whose IDs and keys are unique, and whose rows that must not share a date do not
      * @throws FuhitoException when a row breaks a rule. The error is {@code restore.bad_value} and names the list, the
      *         ID of the row, the field, and the error of the write for the rule in {@code rule} when the write has one.
      */
@@ -89,16 +88,11 @@ final class RestoreRules {
             throw broken("employment-terms", terms.getLast().id(), "validTo", null);
         }
         for (RealmExport.Terms t : terms) {
-            status(t.status()).ifPresent(status -> check("employment-terms", t.id(), "leaveReasonId",
-                    () -> EmploymentService.requireLeave(status, t.leaveReasonId())));
+            check("employment-terms", t.id(), "leaveReasonId",
+                    () -> EmploymentService.requireLeave(EmploymentStatus.valueOf(t.status()), t.leaveReasonId()));
             check("employment-terms", t.id(), "contractEndDate", () -> EmploymentService.requireContractEnd(
                     date(t.contractEndDate()), LocalDate.parse(t.validFrom())));
         }
-    }
-
-    // A status that cannot be read fails in the write.
-    private static Optional<EmploymentStatus> status(String name) {
-        return Arrays.stream(EmploymentStatus.values()).filter(status -> status.name().equals(name)).findFirst();
     }
 
     // The rows of every assignment come first, as a row may continue an assignment that comes later.
