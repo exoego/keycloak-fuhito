@@ -250,6 +250,8 @@ class MembershipServiceTest {
         for (String bad : List.of(Cursor.encode(Cursor.MEMBERS, "one"),
                 Cursor.encode(Cursor.MEMBERS, "u", "x", "2026-04-01", "a"),
                 Cursor.encode(Cursor.MEMBERS, "u", "1", "soon", "a"),
+                // The database cannot hold this date.
+                Cursor.encode(Cursor.MEMBERS, "u", "1", "-5000-01-01", "a"),
                 // A cursor of the list of people does not fit this list.
                 Cursor.encode(Cursor.PEOPLE, "p"))) {
             assertEquals("invalid.cursor", assertThrows(FuhitoException.class, () -> service.members(hospital,

@@ -1,8 +1,8 @@
 package net.exoego.keycloak.fuhito.service;
 
 import java.time.Clock;
+import java.time.DateTimeException;
 import java.time.LocalDate;
-import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -286,9 +286,9 @@ public class MembershipService {
         }
         List<String> values = Cursor.decode(Cursor.MEMBERS, after);
         try {
-            return new MemberCursor(values.get(0), Integer.parseInt(values.get(1)), LocalDate.parse(values.get(2)),
-                    values.get(3));
-        } catch (NumberFormatException | DateTimeParseException e) {
+            return new MemberCursor(values.get(0), Integer.parseInt(values.get(1)),
+                    Checks.inRange(LocalDate.parse(values.get(2))), values.get(3));
+        } catch (NumberFormatException | DateTimeException e) {
             throw FuhitoException.invalid("invalid.cursor",
                     Map.of("field", "after", "format", Cursor.MEMBERS.name())).causedBy(e);
         }

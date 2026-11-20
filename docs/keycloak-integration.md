@@ -385,7 +385,9 @@ For example, an org unit with no end date has no `validTo` field.
 
 ## Dates
 
-Dates have the form `YYYY-MM-DD`.
+Dates have the form `YYYY-MM-DD`, from `0001-01-01` to `9999-12-31`.
+A date in another form or outside that range fails with 400 and `invalid.date`, which names the field.
+This holds for every date of a write, of an import, and of a query, such as `asOf`.
 A period includes its `validFrom` date and does not include its `validTo` date.
 
 Read endpoints take an `asOf` date.
