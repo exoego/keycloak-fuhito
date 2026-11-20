@@ -1,10 +1,19 @@
 package net.exoego.keycloak.fuhito;
 
+import java.net.http.HttpResponse;
+import java.sql.Connection;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CompletableFuture;
+import java.util.function.Function;
 
 import org.junit.jupiter.api.Test;
 
+import static net.exoego.keycloak.fuhito.KeycloakEnvironment.holding;
+import static net.exoego.keycloak.fuhito.KeycloakEnvironment.sql;
+import static net.exoego.keycloak.fuhito.KeycloakEnvironment.waiterOf;
+import static net.exoego.keycloak.fuhito.KeycloakEnvironment.waitingFor;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
@@ -16,6 +25,9 @@ class RealmRemovalIT {
             "fuhito_assignment", "fuhito_change_order", "fuhito_change_log", "fuhito_change_log_counter", "fuhito_qualification",
             "fuhito_reporting_line", "fuhito_unit_role", "fuhito_user_mask", "fuhito_person", "fuhito_person_name", "fuhito_erasure",
             "fuhito_projected_member", "fuhito_realm_write");
+
+    private static final String UNIT = "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"%s\"}}, "
+            + "\"validFrom\": \"2026-04-01\"}";
 
     // A new table must be added to this test and to the cleanup. This test fails until that is done.
     @Test
@@ -44,6 +56,77 @@ class RealmRemovalIT {
         for (String table : TABLES) {
             assertEquals("0", rows(table, removedId), table);
             assertNotEquals("0", rows(table, keptId), table);
+        }
+    }
+
+    @Test
+    void aWriteThatWaitsForTheRemovalOfItsRealmFailsAndLeavesNoRows() throws Exception {
+        record Write(String name, Function<Api, Callable<HttpResponse<String>>> call) {
+        }
+        List<Write> writes = List.of(
+                new Write("write", api -> () -> api.post("/org-units", UNIT.formatted("A"))),
+                new Write("bulk write", api -> () -> api.post("/imports", """
+                        {"effectiveDate": "2026-04-01", "hierarchies": [{"externalId": "p", "code": "p", "name": "P"}]}""")));
+        for (Write write : writes) {
+            // A realm from before the row has none, and its first write adds it.
+            for (boolean withRow : List.of(true, false)) {
+                String name = write.name() + (withRow ? "" : " of a realm without its row");
+                TestRealm realm = TestRealm.create("removal-wait");
+                String realmId = realm.id();
+                if (!withRow) {
+                    sql("delete from fuhito_realm_write where realm_id = '" + realmId + "'");
+                }
+                String hierarchy = sql("select id from fuhito_hierarchy where realm_id = '" + realmId + "'");
+                CompletableFuture<HttpResponse<String>> removal;
+                CompletableFuture<HttpResponse<String>> late;
+                try (Connection first = holding("fuhito_hierarchy", hierarchy)) {
+                    // The removal deleted the row of the realm, and waits for the hierarchy.
+                    removal = waitingFor(first, () -> {
+                        realm.remove();
+                        return null;
+                    });
+                    late = waitingFor(waiterOf(first), write.call().apply(realm.api));
+                    first.commit();
+                }
+
+                removal.get();
+                HttpResponse<String> response = late.get();
+                for (String table : TABLES) {
+                    assertEquals("0", rows(table, realmId), name + " " + table);
+                }
+                assertEquals(404, response.statusCode(), name + " " + response.body());
+                assertEquals("realm.not_found", Api.json(response).get("error").asText(), name);
+            }
+        }
+    }
+
+    @Test
+    void theRemovalWaitsForTheFirstWriteOfARealmWithoutItsRowAndDeletesWhatItWrote() throws Exception {
+        TestRealm realm = TestRealm.create("removal-after-write");
+        Api api = realm.api;
+        String realmId = realm.id();
+        var created = api.post("/org-units", UNIT.formatted("A"));
+        assertEquals(201, created.statusCode(), created.body());
+        String unit = Api.json(created).get("id").asText();
+        sql("delete from fuhito_realm_write where realm_id = '" + realmId + "'");
+
+        CompletableFuture<HttpResponse<String>> write;
+        CompletableFuture<HttpResponse<String>> removal;
+        try (Connection first = holding("fuhito_org_unit", unit)) {
+            // The write added the row of the realm, and waits for the unit.
+            write = waitingFor(first, () -> api.putWithVersion("/org-units/" + unit, UNIT.formatted("B")));
+            removal = waitingFor(waiterOf(first), () -> {
+                realm.remove();
+                return null;
+            });
+            first.commit();
+        }
+
+        HttpResponse<String> written = write.get();
+        assertEquals(200, written.statusCode(), written.body());
+        removal.get();
+        for (String table : TABLES) {
+            assertEquals("0", rows(table, realmId), table);
         }
     }
 

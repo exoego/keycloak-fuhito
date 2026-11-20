@@ -208,6 +208,8 @@ The projection can also mirror the whole tree into realm groups. A client that u
 ## Removal of a realm or a user
 
 When a realm is removed, the extension deletes every row of that realm in the same transaction.
+The removal waits for the writes of the realm that run, and deletes what they wrote too.
+A write of the realm that comes during the removal waits for it. It then fails with 404 and `realm.not_found`, and writes nothing.
 
 When a user is removed from Keycloak, the extension keeps the history of that person.
 In the same transaction it ends only what would still hold.
@@ -471,6 +473,7 @@ So a product cannot overwrite a change that another product made after its read.
 - So the other writes of the realm wait while a bulk write runs, and a bulk write waits for the writes that run. Two bulk writes of one realm run one after the other. During the attribute sync, the other writes wait for one piece at a time. Writes that share the lock do not wait for each other on it, and the writes of other realms do not wait at all.
 - Reads take no lock and never wait.
 - The lock is the row of the realm in `FUHITO_REALM_WRITE`. A realm gets it when it is created, and a realm from before the table gets it at its first write. The removal of the realm removes it, and a restore keeps it.
+- A write that waited for the removal of its realm fails with 404 and `realm.not_found`. It does not add the row again.
 - A write can still meet a row that another write changed without a lock, for example a row of an ID of another system that another write changed at the same moment. The later write then fails with 409 and `version.conflict` too. Its error has no version, because the conflict was on another row.
 
 For example, a product reads an employment, and changes its terms with the version that it read.
