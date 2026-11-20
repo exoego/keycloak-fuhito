@@ -20,6 +20,8 @@ import net.exoego.keycloak.fuhito.store.UserDirectory;
  */
 public class ChangeOrderService {
 
+    private static final int MAX_EXTERNAL_REFERENCE_LENGTH = 255;
+
     private final ChangeOrderStore store;
     private final ChangeLogStore changeLog;
     private final UserDirectory users;
@@ -163,9 +165,10 @@ public class ChangeOrderService {
                 Checks.optionalDate("orderDate", request.orderDate()),
                 Checks.date("effectiveDate", request.effectiveDate()),
                 knownUser("approverUserId", request.approverUserId()),
-                knownUser("requesterUserId", request.requesterUserId()), request.externalReference(), createdAt,
-                before == null ? null : before.announcedAt(), before == null ? null : before.announcedByUserId(),
-                before == null ? 1 : before.version());
+                knownUser("requesterUserId", request.requesterUserId()),
+                Checks.optionalText("externalReference", request.externalReference(), MAX_EXTERNAL_REFERENCE_LENGTH),
+                createdAt, before == null ? null : before.announcedAt(),
+                before == null ? null : before.announcedByUserId(), before == null ? 1 : before.version());
         if (number != null && store.findByNumber(number).filter(other -> !other.id().equals(id)).isPresent()) {
             throw FuhitoException.conflict("change_order.number_taken", Map.of("number", number));
         }

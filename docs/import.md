@@ -108,6 +108,7 @@ The lists are applied in the order change orders, kinds of reference data, attri
 - A new thing has nothing stored, so a missing key and `null` both mean no value, and required values must be there.
 - An empty text, a text of only spaces, and an empty array fail with `invalid.blank`, which names the field, for example `names.en.shortName` or `attributes.beds`. This holds for every field, also for a text in the attributes. A REST write rejects an empty text and an empty array with the same error.
 - A text with NUL (U+0000) or with half of a surrogate pair, such as `"\ud800"`, fails with `invalid.character`. The database cannot store such a text as it is sent. The error names the field and the `codePoint`, for example `U+0000`. This holds for every field, also for a code, a staff number, and a text or a key in the attributes. A REST write rejects such a text with the same error. Other characters, such as control characters, emoji, and combining marks, are stored as sent.
+- A text longer than its field fails, as in a REST write. The length counts characters, so an emoji is one character. A text with no other rule, such as the `externalReference` of a change order, fails with `invalid.too_long`, which names the field and the `max`.
 - A CSV file follows the same rule. A blank cell is a missing key, and `#CLEAR` is `null`. A cell with NUL fails with `invalid.character`, which names the column.
 
 ### Rules for lists

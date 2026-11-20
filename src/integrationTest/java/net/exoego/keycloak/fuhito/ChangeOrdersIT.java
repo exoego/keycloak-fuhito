@@ -92,6 +92,26 @@ class ChangeOrdersIT {
     }
 
     @Test
+    void anExternalReferenceFitsItsColumnOf255Characters() throws Exception {
+        // An emoji is one character in the column, though Java holds it in two chars.
+        String fits = "😀".repeat(255);
+        String body = "{\"title\": \"参照\", \"effectiveDate\": \"2027-04-01\", \"externalReference\": \"%s\"}";
+        JsonNode order = created(api.post("/change-orders", body.formatted(fits)));
+        assertEquals(fits, order.get("externalReference").asText());
+        String path = "/change-orders/" + order.get("id").asText();
+
+        for (String tooLong : List.of("😀".repeat(256), "x".repeat(256))) {
+            HttpResponse<String> response = api.post("/change-orders", body.formatted(tooLong));
+            assertEquals("invalid.too_long", errorOf(400, response));
+            JsonNode params = Api.json(response).get("params");
+            assertEquals("externalReference", params.get("field").asText());
+            assertEquals("255", params.get("max").asText());
+            assertEquals("invalid.too_long", errorOf(400, api.putWithVersion(path, body.formatted(tooLong))));
+        }
+        assertEquals(fits, Api.json(api.get(path)).get("externalReference").asText());
+    }
+
+    @Test
     void recordsThatAnOrderWasAnnounced() throws Exception {
         JsonNode order = created(api.post("/change-orders", "{\"title\": \"内示\", \"effectiveDate\": \"2027-04-01\"}"));
         String id = order.get("id").asText();

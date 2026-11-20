@@ -96,7 +96,7 @@ public class ExternalIdService {
      * @throws FuhitoException when the ID is blank or too long
      */
     static String value(String externalId) {
-        if (externalId != null && (externalId.isBlank() || externalId.length() > MAX_EXTERNAL_ID_LENGTH)) {
+        if (externalId != null && (externalId.isBlank() || !Checks.fits(externalId, MAX_EXTERNAL_ID_LENGTH))) {
             throw FuhitoException.invalid("external_id.bad_value", Map.of("externalId", externalId));
         }
         return externalId;

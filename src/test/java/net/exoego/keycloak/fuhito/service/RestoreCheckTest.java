@@ -78,5 +78,7 @@ class RestoreCheckTest {
         assertDoesNotThrow(() -> check(unit("hr", "Asia/Tokyo", "04:00")));
         assertDoesNotThrow(() -> check(workPercent("100.00")));
         assertDoesNotThrow(() -> check(externalId("x".repeat(255))));
+        assertDoesNotThrow(() -> check(externalId("😀".repeat(255))));
+        assertBadValue(externalId("😀".repeat(256)), "external-ids", "x-1", "externalId");
     }
 }

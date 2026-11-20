@@ -136,7 +136,7 @@ public record ImportDocument(
             String requesterUserId,
             @Schema(description = "The username of the user who asked for it.")
             String requesterUsername,
-            @Schema(description = "A reference in another system, such as a workflow.")
+            @Schema(description = "A reference in another system, such as a workflow.", maxLength = 255)
             String externalReference,
             @Schema(hidden = true)
             Set<String> nulls) implements ImportRow {
