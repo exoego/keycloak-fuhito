@@ -3,13 +3,15 @@ package net.exoego.keycloak.fuhito.service;
 import java.lang.reflect.RecordComponent;
 import java.util.Collection;
 import java.util.Map;
+import java.util.function.Predicate;
 
 import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 
 /**
  * Finds an empty value in a write. An empty text, a text of only spaces, and an empty list fail in every field of a
- * REST write and of an import row, also in the names and the attributes. Null is the way to clear a value.
+ * REST write, of an import row, and of a row of a restore, also in the names and the attributes. Null is the way to
+ * clear a value.
  */
 public final class EmptyValues {
 
@@ -38,8 +40,21 @@ public final class EmptyValues {
      * @throws FuhitoException when a text is empty or only spaces, or a list is empty
      */
     public static <R extends Record> R withoutEmptyValues(R values) {
+        return withoutEmptyValues(values, component -> !component.getName().equals("nulls"));
+    }
+
+    /**
+     * Requires no empty text and no empty list in the components of a record that a test picks.
+     *
+     * @param <R> the type of the values
+     * @param values the values
+     * @param checked picks the components to check
+     * @return the values
+     * @throws FuhitoException when a text is empty or only spaces, or a list is empty
+     */
+    static <R extends Record> R withoutEmptyValues(R values, Predicate<RecordComponent> checked) {
         for (RecordComponent component : values.getClass().getRecordComponents()) {
-            if (!component.getName().equals("nulls")) {
+            if (checked.test(component)) {
                 rejectEmptyValues(component.getName(), valueOf(component, values));
             }
         }

@@ -1,10 +1,12 @@
 package net.exoego.keycloak.fuhito.service;
 
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
@@ -13,7 +15,8 @@ import net.exoego.keycloak.fuhito.domain.FuhitoException;
 
 /**
  * Checks an export before a restore writes it. A row may name only rows of the same export, so that a restore
- * never links to the rows of another realm, and fails with a clear error and not in the database.
+ * never links to the rows of another realm, and fails with a clear error and not in the database. A row has no empty
+ * value, as a row of an import.
  */
 final class RestoreCheck {
 
@@ -43,6 +46,58 @@ final class RestoreCheck {
         refKinds = ids(document.refKinds(), RealmExport.Kind::id);
         hierarchies = ids(document.hierarchies(), RealmExport.HierarchyRow::id);
         definitions = ids(document.attributeDefinitions(), RealmExport.Definition::id);
+    }
+
+    /**
+     * Requires that no value of an export is an empty text, a text of only spaces, or an empty list, as in a row of
+     * an import. A row inside a row, such as a version of an org unit, is named by the list and the ID that
+     * {@code restore.id_taken} gives it.
+     *
+     * @param document the export
+     * @throws FuhitoException when a value is empty. The error names the list and the ID of the row, and the field.
+     */
+    static void requireValues(RealmExport document) {
+        values("ref-kinds", document.refKinds(), RealmExport.Kind::id);
+        values("ref-items", document.refItems(), RealmExport.Item::id);
+        rows(document.refItems()).forEach(i -> values("ref-item-names", i.versions(), RealmExport.ItemNames::id));
+        values("attribute-definitions", document.attributeDefinitions(), RealmExport.Definition::id);
+        values("hierarchies", document.hierarchies(), RealmExport.HierarchyRow::id);
+        values("org-units", document.orgUnits(), RealmExport.Unit::id);
+        for (RealmExport.Unit unit : rows(document.orgUnits())) {
+            values("org-unit-versions", unit.versions(), RealmExport.Version::id);
+            values("org-unit-parents", unit.parents(), RealmExport.Parent::id);
+            values("org-unit-successions", unit.successors(), RealmExport.Succession::id);
+        }
+        values("people", document.people(), RealmExport.PersonRow::id);
+        values("employments", document.employments(), RealmExport.EmploymentRow::id);
+        rows(document.employments()).forEach(e -> values("employment-terms", e.terms(), RealmExport.Terms::id));
+        values("assignments", document.assignments(), RealmExport.AssignmentRows::assignmentId);
+        rows(document.assignments()).forEach(a -> values("assignments", a.periods(), RealmExport.Period::rowId));
+        values("reporting-lines", document.reportingLines(), RealmExport.Line::id);
+        values("unit-roles", document.unitRoles(), RealmExport.Role::id);
+        values("qualifications", document.qualifications(), RealmExport.QualificationRow::id);
+        values("external-ids", document.externalIds(), RealmExport.ExternalIdRow::id);
+        values("change-orders", document.changeOrders(), RealmExport.Order::id);
+        values("erasures", document.erasures(), RealmExport.Erasure::personId);
+    }
+
+    // A list in a row holds the rows of the row, and a row may have none. Each of them is checked as a row.
+    private static <T extends Record> void values(String list, List<T> rows, Function<T, String> id) {
+        for (T row : rows(rows)) {
+            try {
+                EmptyValues.withoutEmptyValues(row, component -> component.getType() != List.class);
+            } catch (FuhitoException e) {
+                Map<String, String> params = new HashMap<>(e.params());
+                params.put("list", list);
+                params.put("id", String.valueOf(id.apply(row)));
+                throw new FuhitoException(e.reason(), e.code(), params).causedBy(e);
+            }
+        }
+    }
+
+    // A missing row is no empty value.
+    private static <T> List<T> rows(List<T> rows) {
+        return all(rows).stream().filter(Objects::nonNull).toList();
     }
 
     /**

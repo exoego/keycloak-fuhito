@@ -379,10 +379,10 @@ class RealmExportIT {
         assertEquals(0, Api.json(target.api.get("/export/org-units")).size());
     }
 
-    // Gives a version of an org unit in a document of a restore its names.
-    private static ObjectNode named(ObjectNode version) {
-        version.put("primaryLanguage", "ja").putObject("names").putObject("ja").put("name", "X");
-        return version;
+    // Gives a row of a document of a restore its names.
+    static ObjectNode named(ObjectNode row) {
+        row.put("primaryLanguage", "ja").putObject("names").putObject("ja").put("name", "X");
+        return row;
     }
 
     private static String error(HttpResponse<String> response) throws Exception {
