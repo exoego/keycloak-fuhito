@@ -179,8 +179,8 @@ public class ImportService {
             peopleImport.assignments(document.assignments());
         }
         if (document.unitRoles() != null) {
-            new UnitRoleImport(records.unitRoles(), records.externalIds(), document.effectiveDate(), defaultSource,
-                    report, rowDone).run(document.unitRoles());
+            new UnitRoleImport(records.unitRoles(), people.employments(), records.externalIds(),
+                    document.effectiveDate(), defaultSource, report, rowDone).run(document.unitRoles());
         }
         if (document.reportingLines() != null) {
             new ReportingLineImport(records.reportingLines(), people, records.externalIds(),

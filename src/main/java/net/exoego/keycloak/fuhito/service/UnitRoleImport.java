@@ -14,6 +14,7 @@ import net.exoego.keycloak.fuhito.domain.UnitRole;
 import net.exoego.keycloak.fuhito.service.ImportDocument.UnitRoleRow;
 import net.exoego.keycloak.fuhito.service.ImportReport.Outcome;
 import net.exoego.keycloak.fuhito.service.ImportReport.Write;
+import net.exoego.keycloak.fuhito.store.EmploymentStore;
 
 /**
  * The roles over org units of one document. A row is matched by source and external ID, or by ID. The employment,
@@ -30,6 +31,7 @@ final class UnitRoleImport {
     }
 
     private final UnitRoleService roles;
+    private final EmploymentStore employments;
     private final ExternalIdService externalIds;
     private final LocalDate date;
     private final String defaultSource;
@@ -37,10 +39,11 @@ final class UnitRoleImport {
     private final ImportMatch match;
     private final Runnable rowDone;
 
-    UnitRoleImport(UnitRoleService roles, ExternalIdService externalIds, String effectiveDate, String defaultSource,
-            ImportReport report, Runnable rowDone) {
+    UnitRoleImport(UnitRoleService roles, EmploymentStore employments, ExternalIdService externalIds,
+            String effectiveDate, String defaultSource, ImportReport report, Runnable rowDone) {
         this.rowDone = rowDone;
         this.roles = roles;
+        this.employments = employments;
         this.externalIds = externalIds;
         this.date = Checks.date("effectiveDate", effectiveDate);
         this.defaultSource = defaultSource;
@@ -54,7 +57,7 @@ final class UnitRoleImport {
         Map<Integer, Role> added = new LinkedHashMap<>();
         for (int i = 0; i < rows.size(); i++) {
             try {
-                Role role = resolve(Checks.required("row", rows.get(i)));
+                Role role = resolve(EmptyValues.checked(rows.get(i)));
                 if (role.stored().isEmpty()) {
                     added.put(i, role);
                 } else {
@@ -81,9 +84,11 @@ final class UnitRoleImport {
                 id -> roles.find(id).isPresent()).flatMap(roles::find);
         String employmentId = employmentId(row, source, stored);
         String orgUnitId = orgUnitId(row, source, stored);
-        String role = row.role() != null ? row.role() : stored.map(UnitRoleService.View::code).orElseThrow(
-                () -> FuhitoException.invalid("invalid.required", Map.of("field", "role")));
-        boolean below = row.includesDescendants() != null ? row.includesDescendants()
+        String role = row.role() != null ? row.role() : stored.filter(view -> !row.isNull("role"))
+                .map(UnitRoleService.View::code)
+                .orElseThrow(() -> FuhitoException.invalid("invalid.required", Map.of("field", "role")));
+        boolean below = row.gives("includesDescendants", row.includesDescendants())
+                ? Boolean.TRUE.equals(row.includesDescendants())
                 : stored.map(view -> view.role().includesDescendants()).orElse(false);
         stored.ifPresent(view -> {
             String id = view.role().id();
@@ -91,16 +96,24 @@ final class UnitRoleImport {
             ImportMatch.fixed(id, "orgUnitId", view.role().orgUnitId(), orgUnitId);
             ImportMatch.fixed(id, "role", view.code(), role);
             ImportMatch.fixed(id, "includesDescendants", view.role().includesDescendants(), below);
-            ImportMatch.start(id, view.role().period().from(), row.validFrom());
+            ImportMatch.start(row, id, view.role().period().from(), row.validFrom());
         });
         return new Role(row, source, employmentId, orgUnitId, role, below, stored.map(UnitRoleService.View::role));
     }
 
+    // With no end of its own, a role ends with its employment. A role can only end earlier.
     private Outcome change(UnitRole before, UnitRoleRow row) {
-        if (row.validTo() == null || row.validTo().equals(Objects.toString(before.period().to(), null))) {
+        LocalDate end = before.period().to();
+        String validTo = row.or("validTo", row.validTo(), Objects.toString(end, null));
+        if (validTo == null) {
+            ImportMatch.clearedEnd(before.id(), end,
+                    employments.find(before.employmentId()).orElseThrow().period().to());
             return Outcome.UNCHANGED;
         }
-        report.write(new Write.OfUnitRole(false, "/end", roles.end(before.id(), row.validTo())));
+        if (validTo.equals(Objects.toString(end, null))) {
+            return Outcome.UNCHANGED;
+        }
+        report.write(new Write.OfUnitRole(false, "/end", roles.end(before.id(), validTo)));
         return Outcome.CHANGED;
     }
 
@@ -122,8 +135,9 @@ final class UnitRoleImport {
             return row.employmentId();
         }
         if (row.employmentExternalId() == null) {
-            return stored.map(view -> view.role().employmentId()).orElseThrow(() -> FuhitoException.invalid(
-                    "invalid.required", Map.of("field", "employmentExternalId")));
+            return stored.filter(view -> !row.isNull("employmentExternalId") && !row.isNull("employmentId"))
+                    .map(view -> view.role().employmentId()).orElseThrow(() -> FuhitoException.invalid(
+                            "invalid.required", Map.of("field", "employmentExternalId")));
         }
         return externalIds.resourceOf(ExternalId.Kind.EMPLOYMENT, source, row.employmentExternalId())
                 .orElseThrow(() -> FuhitoException.invalid("import.employment_unknown",
@@ -139,8 +153,9 @@ final class UnitRoleImport {
             return row.orgUnitId();
         }
         if (row.orgUnitExternalId() == null) {
-            return stored.map(view -> view.role().orgUnitId()).orElseThrow(() -> FuhitoException.invalid(
-                    "invalid.required", Map.of("field", "orgUnitExternalId")));
+            return stored.filter(view -> !row.isNull("orgUnitExternalId") && !row.isNull("orgUnitId"))
+                    .map(view -> view.role().orgUnitId()).orElseThrow(() -> FuhitoException.invalid(
+                            "invalid.required", Map.of("field", "orgUnitExternalId")));
         }
         return externalIds.resourceOf(ExternalId.Kind.ORG_UNIT, source, row.orgUnitExternalId())
                 .orElseThrow(() -> FuhitoException.invalid("import.org_unit_unknown",

@@ -169,7 +169,7 @@ class ImportIT {
         JsonNode report = Api.json(response);
         assertFalse(report.get("applied").asBoolean());
         assertEquals(List.of("1", "2", "3"), report.get("errors").findValuesAsText("row"));
-        assertEquals(List.of("invalid.name", "import.parent_unknown", "import.parent_failed"),
+        assertEquals(List.of("invalid.blank", "import.parent_unknown", "import.parent_failed"),
                 report.get("errors").findValuesAsText("error"));
         assertEquals("orgUnits", report.get("errors").get(0).get("list").asText());
         assertEquals("NOPE", report.get("errors").get(1).get("params").get("parentExternalId").asText());

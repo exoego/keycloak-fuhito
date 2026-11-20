@@ -68,7 +68,7 @@ final class AssignmentImport {
         Map<Integer, Outcome> outcomes = new HashMap<>();
         for (int i : order) {
             try {
-                AssignmentRow row = Checks.required("row", rows.get(i));
+                AssignmentRow row = EmptyValues.checked(rows.get(i));
                 document.requireFirst(seen, row.source(), row.externalId(), row.id());
                 outcomes.put(i, apply(row, i));
             } catch (FuhitoException e) {
@@ -136,13 +136,13 @@ final class AssignmentImport {
         Optional<Assignment> firstRow = storedId.map(id -> find(id).orElseThrow().rows().getFirst().row());
         String employmentId = employmentId(row, source, firstRow);
         String orgUnitId = orgUnitId(row, source, firstRow);
-        AssignmentValues values = new AssignmentValues(employmentId, orgUnitId,
-                row.validFrom() == null ? document.effectiveDate : row.validFrom(), row.validTo(), row.jobTitle(),
-                row.occupation(), row.kind(), row.workLocation(), row.costCenter(), row.head(), row.primary(), false,
-                row.allocationPercent(), row.displayOrder(), row.attributes(), row.externalId(), source);
-
         String continues = continued(row, source);
         if (storedId.isEmpty()) {
+            AssignmentValues values = new AssignmentValues(employmentId, orgUnitId,
+                    row.validFrom() == null ? document.effectiveDate : row.validFrom(), row.validTo(), row.jobTitle(),
+                    row.occupation(), row.kind(), row.workLocation(), row.costCenter(), row.head(), row.primary(),
+                    false, row.allocationPercent(), row.displayOrder(), Merged.attributes(row, row.attributes(), null),
+                    row.externalId(), source);
             String id = ids.create(ExternalId.Kind.ASSIGNMENT, source, row.externalId(),
                     () -> added.add(values, continues), Function.identity());
             writes.add(() -> new Write.OfAssignment(true, "", views.get(id)));
@@ -157,10 +157,12 @@ final class AssignmentImport {
         if (!first.employmentId().equals(employmentId) || !first.orgUnitId().equals(orgUnitId)) {
             throw FuhitoException.conflict("import.assignment_mismatch", Map.of("externalId", name));
         }
-        if (continues != null && !continues.equals(first.continuesAssignmentId())) {
+        boolean givesContinued = row.gives("continuesAssignmentExternalId", row.continuesAssignmentExternalId())
+                || row.gives("continuesAssignmentId", row.continuesAssignmentId());
+        if (givesContinued && !Objects.equals(continues, first.continuesAssignmentId())) {
             throw FuhitoException.conflict("import.continues_mismatch", Map.of("externalId", name));
         }
-        ImportMatch.start(id, before.period().from(), row.validFrom());
+        ImportMatch.start(row, id, before.period().from(), row.validFrom());
         boolean changed = false;
         LocalDate date = Checks.date("effectiveDate", document.effectiveDate);
         boolean endsBefore = !before.period().endsAfter(date);
@@ -172,26 +174,43 @@ final class AssignmentImport {
                     .findFirst()
                     .orElseThrow(() -> FuhitoException.notFound("assignment.not_valid_on",
                             Map.of("id", id, "date", document.effectiveDate)));
-            if (!sameDetails(row, current)) {
+            AssignmentValues wanted = details(row, current);
+            if (!sameDetails(wanted, current)) {
                 if (later) {
                     throw FuhitoException.notFound("assignment.not_valid_on",
                             Map.of("id", id, "date", document.effectiveDate));
                 }
-                written("/details", first, () -> service.changeDetails(id,
-                        new AssignmentValues(null, null, document.effectiveDate, null, row.jobTitle(),
-                                row.occupation(), row.kind(), row.workLocation(), row.costCenter(), row.head(),
-                                row.primary(), false, row.allocationPercent(), row.displayOrder(), row.attributes(),
-                                null, null)));
+                written("/details", first, () -> service.changeDetails(id, wanted));
                 changed = true;
             }
         }
         String storedEnd = Objects.toString(before.period().to(), null);
-        if (row.validTo() != null && !row.validTo().equals(storedEnd)) {
-            written("/end", first, () -> service.end(id, row.validTo(), false));
+        String validTo = row.or("validTo", row.validTo(), storedEnd);
+        // With no end of its own, an assignment ends with its employment.
+        if (validTo == null && !Objects.equals(storedEnd, Objects.toString(document.people.employments()
+                .find(first.employmentId()).orElseThrow().period().to(), null))) {
+            written("/end", first, () -> service.removeEnd(id));
+            changed = true;
+        } else if (validTo != null && !validTo.equals(storedEnd)) {
+            written("/end", first, () -> service.end(id, validTo, false));
             ends.put(id, index);
             changed = true;
         }
         return changed ? Outcome.CHANGED : Outcome.UNCHANGED;
+    }
+
+    private AssignmentValues details(AssignmentRow row, AssignmentView.Row current) {
+        Assignment stored = current.row();
+        return new AssignmentValues(null, null, document.effectiveDate, null,
+                row.or("jobTitle", row.jobTitle(), current.jobTitle()),
+                row.or("occupation", row.occupation(), current.occupation()),
+                row.or("kind", row.kind(), current.kind()),
+                row.or("workLocation", row.workLocation(), current.places().workLocation()),
+                row.or("costCenter", row.costCenter(), current.places().costCenter()),
+                row.or("head", row.head(), stored.head()), row.or("primary", row.primary(), stored.primary()), false,
+                row.or("allocationPercent", row.allocationPercent(), stored.allocationPercent()),
+                row.or("displayOrder", row.displayOrder(), stored.displayOrder()),
+                Merged.attributes(row, row.attributes(), stored.attributes()), null, null);
     }
 
     // An assignment that another one continues must end by the start of that one. Its rows end when its employment
@@ -257,7 +276,7 @@ final class AssignmentImport {
                         Map.of("assignmentExternalId", row.continuesAssignmentExternalId())));
     }
 
-    // A row of a stored assignment that names no employment keeps the stored one.
+    // A row of a stored assignment that leaves out the employment keeps the stored one.
     private String employmentId(AssignmentRow row, String source, Optional<Assignment> stored) {
         if (row.employmentExternalId() != null && row.employmentId() != null) {
             throw FuhitoException.invalid("import.employment_twice",
@@ -269,7 +288,8 @@ final class AssignmentImport {
             }
             return row.employmentId();
         }
-        if (row.employmentExternalId() == null && stored.isPresent()) {
+        if (!row.gives("employmentExternalId", row.employmentExternalId()) && !row.isNull("employmentId")
+                && stored.isPresent()) {
             return stored.get().employmentId();
         }
         String externalId = Checks.required("employmentExternalId", row.employmentExternalId());
@@ -278,7 +298,7 @@ final class AssignmentImport {
                         Map.of("employmentExternalId", externalId)));
     }
 
-    // A row of a stored assignment that names no org unit keeps the stored one.
+    // A row of a stored assignment that leaves out the org unit keeps the stored one.
     private String orgUnitId(AssignmentRow row, String source, Optional<Assignment> stored) {
         if (row.orgUnitExternalId() != null && row.orgUnitId() != null) {
             throw FuhitoException.invalid("import.org_unit_twice",
@@ -290,7 +310,8 @@ final class AssignmentImport {
             }
             return row.orgUnitId();
         }
-        if (row.orgUnitExternalId() == null && stored.isPresent()) {
+        if (!row.gives("orgUnitExternalId", row.orgUnitExternalId()) && !row.isNull("orgUnitId")
+                && stored.isPresent()) {
             return stored.get().orgUnitId();
         }
         String externalId = Checks.required("orgUnitExternalId", row.orgUnitExternalId());
@@ -299,17 +320,17 @@ final class AssignmentImport {
                         Map.of("orgUnitExternalId", externalId)));
     }
 
-    private static boolean sameDetails(AssignmentRow row, AssignmentView.Row current) {
+    private static boolean sameDetails(AssignmentValues wanted, AssignmentView.Row current) {
         Assignment stored = current.row();
-        return Objects.equals(row.jobTitle(), current.jobTitle())
-                && Objects.equals(row.occupation(), current.occupation())
-                && Objects.equals(row.kind(), current.kind())
-                && Objects.equals(row.workLocation(), current.places().workLocation())
-                && Objects.equals(row.costCenter(), current.places().costCenter())
-                && Boolean.TRUE.equals(row.head()) == stored.head()
-                && Boolean.TRUE.equals(row.primary()) == stored.primary()
-                && PeopleImport.sameNumber(row.allocationPercent(), stored.allocationPercent())
-                && (row.displayOrder() == null ? 0 : row.displayOrder()) == stored.displayOrder()
-                && (row.attributes() == null ? Map.of() : row.attributes()).equals(stored.attributes());
+        return Objects.equals(wanted.jobTitle(), current.jobTitle())
+                && Objects.equals(wanted.occupation(), current.occupation())
+                && Objects.equals(wanted.kind(), current.kind())
+                && Objects.equals(wanted.workLocation(), current.places().workLocation())
+                && Objects.equals(wanted.costCenter(), current.places().costCenter())
+                && Boolean.TRUE.equals(wanted.head()) == stored.head()
+                && Boolean.TRUE.equals(wanted.primary()) == stored.primary()
+                && PeopleImport.sameNumber(wanted.allocationPercent(), stored.allocationPercent())
+                && (wanted.displayOrder() == null ? 0 : wanted.displayOrder()) == stored.displayOrder()
+                && (wanted.attributes() == null ? Map.of() : wanted.attributes()).equals(stored.attributes());
     }
 }

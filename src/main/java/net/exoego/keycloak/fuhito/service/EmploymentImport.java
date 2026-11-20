@@ -15,6 +15,7 @@ import java.util.stream.Collectors;
 
 import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.Employment;
+import net.exoego.keycloak.fuhito.domain.EmploymentStatus;
 import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.Person;
@@ -58,7 +59,7 @@ final class EmploymentImport {
         Map<Integer, Outcome> outcomes = new HashMap<>();
         for (int i = 0; i < rows.size(); i++) {
             try {
-                outcomes.put(i, apply(Checks.required("row", rows.get(i)), i, seen));
+                outcomes.put(i, apply(EmptyValues.checked(rows.get(i)), i, seen));
             } catch (FuhitoException e) {
                 document.report.error(EMPLOYMENTS, i, e);
             }
@@ -129,8 +130,8 @@ final class EmploymentImport {
             NewEmployment request = new NewEmployment(personId,
                     row.validFrom() == null ? document.effectiveDate : row.validFrom(), row.validTo(),
                     row.staffNumber(), row.employmentType(), row.grade(), row.status(), row.leaveReason(),
-                    row.workPercent(), row.contractEndDate(), row.attributes(), row.externalId(), source, employerId,
-                    row.externalEmployer());
+                    row.workPercent(), row.contractEndDate(), Merged.attributes(row, row.attributes(), null),
+                    row.externalId(), source, employerId, row.externalEmployer());
             Employment employment = ids.create(ExternalId.Kind.EMPLOYMENT, source, row.externalId(),
                     () -> started.start(request, continues), Employment::id);
             String id = employment.id();
@@ -157,15 +158,20 @@ final class EmploymentImport {
             throw FuhitoException.conflict("import.user_mismatch", Map.of("externalId", name));
         }
         // The employer never changes. A transfer to another employer is the way to move a person. The code of an
-        // external employer is compared, so a row may name an item that is no longer active.
-        if ((employerId != null && !employerId.equals(employment.employer().legalEntityId()))
-                || (row.externalEmployer() != null && !row.externalEmployer().equals(before.externalEmployer()))) {
+        // external employer is compared, so a row may name an item that is no longer active. Null names none.
+        boolean givesEmployer = row.gives("employerExternalId", row.employerExternalId())
+                || row.gives("employerId", row.employerId());
+        if ((givesEmployer && !Objects.equals(employerId, employment.employer().legalEntityId()))
+                || (row.gives("externalEmployer", row.externalEmployer())
+                        && !Objects.equals(row.externalEmployer(), before.externalEmployer()))) {
             throw FuhitoException.conflict("import.employer_mismatch", Map.of("externalId", name));
         }
-        if (continues != null && !continues.equals(employment.continuesEmploymentId())) {
+        boolean givesContinued = row.gives("continuesEmploymentExternalId", row.continuesEmploymentExternalId())
+                || row.gives("continuesEmploymentId", row.continuesEmploymentId());
+        if (givesContinued && !Objects.equals(continues, employment.continuesEmploymentId())) {
             throw FuhitoException.conflict("import.continues_mismatch", Map.of("externalId", name));
         }
-        ImportMatch.start(id, employment.period().from(), row.validFrom());
+        ImportMatch.start(row, id, employment.period().from(), row.validFrom());
         boolean changed = false;
         // An employment that ended by the effective date has no terms to compare. One that starts later can only
         // come again as it is, for example in the document that made it.
@@ -179,26 +185,43 @@ final class EmploymentImport {
                     .findFirst()
                     .orElseThrow(() -> FuhitoException.notFound("employment.not_valid_on",
                             Map.of("id", id, "date", document.effectiveDate)));
-            if (!sameTerms(row, terms)) {
+            TermsChange wanted = terms(row, terms);
+            if (!sameTerms(wanted, terms)) {
                 if (later) {
                     throw FuhitoException.notFound("employment.not_valid_on",
                             Map.of("id", id, "date", document.effectiveDate));
                 }
-                written("/terms", id, () -> service.changeTerms(id, new TermsChange(document.effectiveDate,
-                        row.employmentType(), row.grade(), row.status(), row.leaveReason(), row.workPercent(),
-                        row.contractEndDate(), row.attributes())));
+                written("/terms", id, () -> service.changeTerms(id, wanted));
                 changed = true;
             }
         }
         String storedEnd = Objects.toString(employment.period().to(), null);
-        boolean sameEnd = Objects.equals(row.validTo(), storedEnd)
-                && (row.endReason() == null || row.endReason().equals(before.endReason()));
-        if (row.validTo() != null && !sameEnd) {
-            written("/end", id, () -> service.end(id, row.validTo(), row.endReason(), false));
+        String validTo = row.or("validTo", row.validTo(), storedEnd);
+        String endReason = row.or("endReason", row.endReason(), before.endReason());
+        if (validTo == null && storedEnd != null) {
+            written("/end", id, () -> service.removeEnd(id));
+            changed = true;
+        } else if (validTo != null && (!validTo.equals(storedEnd) || !Objects.equals(endReason, before.endReason()))) {
+            written("/end", id, () -> service.end(id, validTo, endReason, false));
             ends.put(id, index);
             changed = true;
         }
         return changed ? Outcome.CHANGED : Outcome.UNCHANGED;
+    }
+
+    // A status that is not a leave drops the stored reason, unless the row gives one.
+    private TermsChange terms(EmploymentRow row, EmploymentView.TermsView terms) {
+        var stored = terms.terms();
+        String status = row.or("status", row.status(), stored.status().name());
+        boolean hasReason = row.gives("leaveReason", row.leaveReason())
+                || EmploymentStatus.ON_LEAVE.name().equals(status);
+        String leaveReason = hasReason ? row.or("leaveReason", row.leaveReason(), terms.leaveReason()) : null;
+        return new TermsChange(document.effectiveDate,
+                row.or("employmentType", row.employmentType(), terms.employmentType()),
+                row.or("grade", row.grade(), terms.grade()), status, leaveReason,
+                row.or("workPercent", row.workPercent(), stored.workPercent()),
+                row.or("contractEndDate", row.contractEndDate(), Objects.toString(stored.contractEndDate(), null)),
+                Merged.attributes(row, row.attributes(), stored.attributes()));
     }
 
     // An employment that another one continues must end by the start of that one. The row that ends it may come
@@ -310,7 +333,9 @@ final class EmploymentImport {
             }
             return id;
         }
-        if (!namesUser && before.isPresent()) {
+        boolean givesPerson = row.gives("userId", row.userId()) || row.gives("username", row.username())
+                || row.gives("personExternalId", row.personExternalId()) || row.gives("personId", row.personId());
+        if (!givesPerson && before.isPresent()) {
             return before.get().employment().personId();
         }
         PersonService.Resolved resolved = document.people.personService()
@@ -322,15 +347,15 @@ final class EmploymentImport {
         return resolved.person().id();
     }
 
-    private static boolean sameTerms(EmploymentRow row, EmploymentView.TermsView terms) {
+    private static boolean sameTerms(TermsChange wanted, EmploymentView.TermsView terms) {
         var stored = terms.terms();
-        String status = row.status() == null ? "ACTIVE" : row.status();
-        return Objects.equals(row.employmentType(), terms.employmentType())
-                && Objects.equals(row.grade(), terms.grade())
+        String status = wanted.status() == null ? "ACTIVE" : wanted.status();
+        return Objects.equals(wanted.employmentType(), terms.employmentType())
+                && Objects.equals(wanted.grade(), terms.grade())
                 && status.equals(stored.status().name())
-                && Objects.equals(row.leaveReason(), terms.leaveReason())
-                && PeopleImport.sameNumber(row.workPercent(), stored.workPercent())
-                && Objects.equals(row.contractEndDate(), Objects.toString(stored.contractEndDate(), null))
-                && (row.attributes() == null ? Map.of() : row.attributes()).equals(stored.attributes());
+                && Objects.equals(wanted.leaveReason(), terms.leaveReason())
+                && PeopleImport.sameNumber(wanted.workPercent(), stored.workPercent())
+                && Objects.equals(wanted.contractEndDate(), Objects.toString(stored.contractEndDate(), null))
+                && (wanted.attributes() == null ? Map.of() : wanted.attributes()).equals(stored.attributes());
     }
 }

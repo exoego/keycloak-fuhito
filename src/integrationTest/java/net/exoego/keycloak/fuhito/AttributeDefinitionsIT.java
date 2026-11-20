@@ -131,7 +131,8 @@ class AttributeDefinitionsIT {
                 ]}
                 """);
         assertEquals(400, imported.statusCode(), imported.body());
-        assertEquals(List.of("attribute.empty_item"), Api.json(imported).get("errors").findValuesAsText("error"));
+        // The import rejects an empty text in every field before the attribute is checked.
+        assertEquals(List.of("invalid.blank"), Api.json(imported).get("errors").findValuesAsText("error"));
 
         JsonNode ward = created(api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": "
                 + "{\"name\": \"1病棟\"}}, \"validFrom\": \"2026-04-01\", "

@@ -16,8 +16,7 @@ import net.exoego.keycloak.fuhito.store.UserDirectory;
 
 /**
  * The change orders of one document. A row is matched by source and external ID, or by ID. A row of a stored order
- * replaces its values, as {@code PUT} does, but keeps the stored effective date when the row has none. The
- * announcement is a fact of its own and is not part of a row.
+ * changes the values that it gives. The announcement is a fact of its own and is not part of a row.
  */
 final class ChangeOrderImport {
 
@@ -46,7 +45,7 @@ final class ChangeOrderImport {
         report.startList(CHANGE_ORDERS);
         for (int i = 0; i < rows.size(); i++) {
             try {
-                report.count(CHANGE_ORDERS, apply(Checks.required("row", rows.get(i))));
+                report.count(CHANGE_ORDERS, apply(EmptyValues.checked(rows.get(i))));
             } catch (FuhitoException e) {
                 report.error(CHANGE_ORDERS, i, e);
             }
@@ -58,17 +57,32 @@ final class ChangeOrderImport {
         String source = Checks.code("source", row.source() == null ? defaultSource : row.source());
         Optional<ChangeOrder> stored = match.stored(source, row.id(), row.externalId(),
                 id -> orders.find(id).isPresent()).map(orders::get);
-        ChangeOrderValues values = new ChangeOrderValues(row.number(), row.kind(), row.title(), row.note(),
-                row.orderDate(), row.effectiveDate() != null ? row.effectiveDate()
-                        : stored.map(o -> o.effectiveDate().toString()).orElse(effectiveDate),
-                userId(row.approverUserId(), row.approverUsername(), "approverUserId"),
-                userId(row.requesterUserId(), row.requesterUsername(), "requesterUserId"), row.externalReference());
+        String approver = userId(row.approverUserId(), row.approverUsername(), "approverUserId");
+        String requester = userId(row.requesterUserId(), row.requesterUsername(), "requesterUserId");
         if (stored.isEmpty()) {
+            ChangeOrderValues values = new ChangeOrderValues(row.number(), row.kind(), row.title(), row.note(),
+                    row.orderDate(), row.effectiveDate() == null ? effectiveDate : row.effectiveDate(), approver,
+                    requester, row.externalReference());
             report.write(new Write.OfChangeOrder(true, match.create(source, row.externalId(),
                     () -> orders.create(values), ChangeOrder::id)));
             return Outcome.CREATED;
         }
         ChangeOrder before = stored.get();
+        // A row that leaves out both keys of a user keeps the stored user. An effective date that the row clears is
+        // the one of the import, as for a new order.
+        boolean keepsApprover = !row.gives("approverUserId", row.approverUserId())
+                && !row.gives("approverUsername", row.approverUsername());
+        boolean keepsRequester = !row.gives("requesterUserId", row.requesterUserId())
+                && !row.gives("requesterUsername", row.requesterUsername());
+        String date = row.or("effectiveDate", row.effectiveDate(), before.effectiveDate().toString());
+        ChangeOrderValues values = new ChangeOrderValues(row.or("number", row.number(), before.number()),
+                row.or("kind", row.kind(), before.kind()), row.or("title", row.title(), before.title()),
+                row.or("note", row.note(), before.note()),
+                row.or("orderDate", row.orderDate(), Objects.toString(before.orderDate(), null)),
+                date == null ? effectiveDate : date,
+                keepsApprover ? before.approverUserId() : approver,
+                keepsRequester ? before.requesterUserId() : requester,
+                row.or("externalReference", row.externalReference(), before.externalReference()));
         boolean same = Objects.equals(before.number(), values.number())
                 && Objects.equals(before.kind(), values.kind())
                 && before.title().equals(Checks.name("title", values.title()))

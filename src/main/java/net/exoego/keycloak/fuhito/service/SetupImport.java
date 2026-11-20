@@ -12,6 +12,7 @@ import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.Hierarchy;
+import net.exoego.keycloak.fuhito.domain.Localized;
 import net.exoego.keycloak.fuhito.domain.RefItem;
 import net.exoego.keycloak.fuhito.domain.RefItemName;
 import net.exoego.keycloak.fuhito.domain.RefKindName;
@@ -77,11 +78,11 @@ final class SetupImport {
         each(HIERARCHIES, rows, row -> hierarchy(row, match));
     }
 
-    private <R> void each(String list, List<R> rows, Function<R, Outcome> apply) {
+    private <R extends Record> void each(String list, List<R> rows, Function<R, Outcome> apply) {
         report.startList(list);
         for (int i = 0; i < rows.size(); i++) {
             try {
-                report.count(list, apply.apply(Checks.required("row", rows.get(i))));
+                report.count(list, apply.apply(EmptyValues.checked(rows.get(i))));
             } catch (FuhitoException e) {
                 report.error(list, i, e);
             }
@@ -99,16 +100,20 @@ final class SetupImport {
         Optional<String> stored = match.stored(source, row.id(), row.externalId(),
                 id -> kinds.codeOf(id).isPresent());
         if (stored.isEmpty()) {
+            Map<String, RefKindName> names = Merged.names(row, row.names(), null, Merged.KIND_NAMES);
             report.write(new Write.OfRefKind(true, match.create(source, row.externalId(),
-                    () -> kinds.create(row.code(), row.primaryLanguage(), row.names()), RealmKindService.View::id)));
+                    () -> kinds.create(row.code(), row.primaryLanguage(), names), RealmKindService.View::id)));
             return Outcome.CREATED;
         }
         String id = stored.get();
-        String code = ImportMatch.fixed(id, "code", kinds.codeOf(id).orElseThrow(), row.code());
-        if (RefKindName.check(row.primaryLanguage(), row.names()).equals(kinds.get(code).names())) {
+        String code = ImportMatch.fixed(row, id, "code", kinds.codeOf(id).orElseThrow(), row.code());
+        Localized<RefKindName> before = kinds.get(code).names();
+        String primaryLanguage = row.or("primaryLanguage", row.primaryLanguage(), before.primaryLanguage());
+        Map<String, RefKindName> names = Merged.names(row, row.names(), before.byLanguage(), Merged.KIND_NAMES);
+        if (RefKindName.check(primaryLanguage, names).equals(before)) {
             return Outcome.UNCHANGED;
         }
-        report.write(new Write.OfRefKind(false, kinds.rename(code, row.primaryLanguage(), row.names())));
+        report.write(new Write.OfRefKind(false, kinds.rename(code, primaryLanguage, names)));
         return Outcome.CHANGED;
     }
 
@@ -124,15 +129,19 @@ final class SetupImport {
             return Outcome.CREATED;
         }
         AttributeDefinition before = definitions.get(stored.get());
-        ImportMatch.fixed(before.id(), "target", before.target().name(), row.target());
-        ImportMatch.fixed(before.id(), "name", before.name(), row.name());
-        if (before.type().name().equals(row.type()) && Objects.equals(before.refKind(), row.refKind())
-                && before.multiple() == Boolean.TRUE.equals(row.multiple())
-                && before.required() == Boolean.TRUE.equals(row.required())) {
+        ImportMatch.fixed(row, before.id(), "target", before.target().name(), row.target());
+        ImportMatch.fixed(row, before.id(), "name", before.name(), row.name());
+        String type = row.or("type", row.type(), before.type().name());
+        String refKind = row.or("refKind", row.refKind(), before.refKind());
+        Boolean multiple = row.or("multiple", row.multiple(), before.multiple());
+        Boolean required = row.or("required", row.required(), before.required());
+        if (before.type().name().equals(type) && Objects.equals(before.refKind(), refKind)
+                && before.multiple() == Boolean.TRUE.equals(multiple)
+                && before.required() == Boolean.TRUE.equals(required)) {
             return Outcome.UNCHANGED;
         }
-        report.write(new Write.OfAttributeDefinition(false, definitions.replace(before.id(), row.type(),
-                row.refKind(), row.multiple(), row.required())));
+        report.write(new Write.OfAttributeDefinition(false, definitions.replace(before.id(), type, refKind,
+                multiple, required)));
         return Outcome.CHANGED;
     }
 
@@ -147,16 +156,17 @@ final class SetupImport {
             return Outcome.CREATED;
         }
         Hierarchy before = hierarchies.get(stored.get());
-        ImportMatch.fixed(before.id(), "code", before.code(), row.code());
-        if (Checks.name("name", row.name()).equals(before.name())) {
+        ImportMatch.fixed(row, before.id(), "code", before.code(), row.code());
+        String name = row.or("name", row.name(), before.name());
+        if (Checks.name("name", name).equals(before.name())) {
             return Outcome.UNCHANGED;
         }
-        report.write(new Write.OfHierarchy(false, hierarchies.rename(before.id(), row.name())));
+        report.write(new Write.OfHierarchy(false, hierarchies.rename(before.id(), name)));
         return Outcome.CHANGED;
     }
 
     // A row compares with the names of its date, so the same row on the same date changes nothing. Rows of one item
-    // with other dates give the names of each date.
+    // with other dates give the names of each date. A mark that the row clears is off.
     private Outcome refItem(RefItemRow row, ImportMatch match) {
         String source = source(row.source());
         LocalDate validFrom = Checks.optionalDate("validFrom", row.validFrom());
@@ -166,31 +176,37 @@ final class SetupImport {
         if (stored.isEmpty()) {
             RefItemService.Marks marks = new RefItemService.Marks(row.legalEntity(), row.actingHead(), row.lateral(),
                     row.rollup());
+            Map<String, RefItemName> names = Merged.names(row, row.names(), null, Merged.ITEM_NAMES);
             RefItem item = match.create(source, row.externalId(), () -> refItemService.create(
-                    Checks.required("kind", row.kind()), row.code(), row.primaryLanguage(), row.names(),
-                    row.displayOrder(), row.attributes(), marks, !Boolean.FALSE.equals(row.active()),
-                    row.validFrom()), RefItem::id);
+                    Checks.required("kind", row.kind()), row.code(), row.primaryLanguage(), names,
+                    row.displayOrder(), Merged.attributes(row, row.attributes(), null), marks,
+                    !Boolean.FALSE.equals(row.active()), row.validFrom()), RefItem::id);
             report.write(new Write.OfRefItem(true, item));
             return Outcome.CREATED;
         }
         RefItem before = refItems.find(stored.get(), date).orElseThrow();
-        ImportMatch.fixed(before.id(), "kind", before.kind(), row.kind());
-        ImportMatch.fixed(before.id(), "code", before.code(), row.code());
+        ImportMatch.fixed(row, before.id(), "kind", before.kind(), row.kind());
+        ImportMatch.fixed(row, before.id(), "code", before.code(), row.code());
+        String primaryLanguage = row.or("primaryLanguage", row.primaryLanguage(), before.names().primaryLanguage());
+        Map<String, RefItemName> names = Merged.names(row, row.names(), before.names().byLanguage(),
+                Merged.ITEM_NAMES);
+        Integer displayOrder = row.or("displayOrder", row.displayOrder(), before.displayOrder());
+        Map<String, Object> attributes = Merged.attributes(row, row.attributes(), before.attributes());
+        Boolean active = row.or("active", row.active(), before.active());
         RefItem wanted = new RefItem(before.id(), before.kind(), before.code(),
-                RefItemName.check(row.primaryLanguage(), row.names()),
-                row.displayOrder() == null ? 0 : row.displayOrder(),
-                row.attributes() == null ? Map.of() : row.attributes(), row.active() == null || row.active(),
-                row.legalEntity() == null ? before.legalEntity() : row.legalEntity(),
-                row.actingHead() == null ? before.actingHead() : row.actingHead(),
-                row.lateral() == null ? before.lateral() : row.lateral(),
-                row.rollup() == null ? before.rollup() : row.rollup(), before.version(), before.validFrom(),
-                before.validTo());
+                RefItemName.check(primaryLanguage, names), displayOrder == null ? 0 : displayOrder, attributes,
+                active == null || active,
+                Boolean.TRUE.equals(row.or("legalEntity", row.legalEntity(), before.legalEntity())),
+                Boolean.TRUE.equals(row.or("actingHead", row.actingHead(), before.actingHead())),
+                Boolean.TRUE.equals(row.or("lateral", row.lateral(), before.lateral())),
+                Boolean.TRUE.equals(row.or("rollup", row.rollup(), before.rollup())), before.version(),
+                before.validFrom(), before.validTo());
         if (wanted.equals(before)) {
             return Outcome.UNCHANGED;
         }
-        RefItem item = refItemService.update(before.id(), row.primaryLanguage(), row.names(), row.displayOrder(),
-                row.attributes(), row.active(), new RefItemService.Marks(wanted.legalEntity(), wanted.actingHead(),
-                        wanted.lateral(), wanted.rollup()), date.toString());
+        RefItem item = refItemService.update(before.id(), primaryLanguage, names, displayOrder, attributes, active,
+                new RefItemService.Marks(wanted.legalEntity(), wanted.actingHead(), wanted.lateral(),
+                        wanted.rollup()), date.toString());
         report.write(new Write.OfRefItem(false, item));
         return Outcome.CHANGED;
     }

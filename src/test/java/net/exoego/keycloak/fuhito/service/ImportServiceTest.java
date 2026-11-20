@@ -12,6 +12,7 @@ import java.util.function.Supplier;
 import net.exoego.keycloak.fuhito.domain.ChangeOrder;
 import net.exoego.keycloak.fuhito.domain.Employer;
 import net.exoego.keycloak.fuhito.domain.Employment;
+import net.exoego.keycloak.fuhito.domain.EmploymentStatus;
 import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.Localized;
@@ -221,7 +222,9 @@ class ImportServiceTest {
         assertEquals(Map.of("refKinds", new Counts(0, 1, 0)), renamed.counts());
         // A fixed kind is in every realm, so a row cannot add it.
         assertEquals(List.of("refKinds[1] ref_kind.code_taken"), errors(renamed));
-        assertEquals(Localized.of("ja", new RefKindName("勤務地")), kinds.get("site").names());
+        // The names merge by language, so the English name stays.
+        assertEquals(new Localized<>("ja", Map.of("ja", new RefKindName("勤務地"), "en", new RefKindName("Site"))),
+                kinds.get("site").names());
         assertEquals(kinds.get("site").id(), stored(ExternalId.Kind.REF_KIND, "import", "SITE"));
     }
 
@@ -379,7 +382,7 @@ class ImportServiceTest {
         ImportReport first = importUnits("2026-04-01", timed("H", "Asia/Tokyo", "05:00"));
         ImportReport again = importUnits("2026-04-01", timed("H", null, null));
         ImportReport same = importUnits("2026-04-01", timed("H", "Asia/Tokyo", null));
-        ImportReport cleared = importUnits("2026-04-01", timed("H", null, ""));
+        ImportReport cleared = importUnits("2026-04-01", ImportRows.clearing(timed("H", null, null), "dayStart"));
 
         String h = stored(ExternalId.Kind.ORG_UNIT, "import", "H");
         assertEquals(List.of(), errors(first));
@@ -390,13 +393,15 @@ class ImportServiceTest {
         assertEquals("Asia/Tokyo", orgUnitStore.findUnit(h).orElseThrow().timeZone());
         assertEquals(null, orgUnitStore.findUnit(h).orElseThrow().dayStart());
         assertEquals(1, errors(importUnits("2026-04-01", timed("H", "Nowhere/City", null))).size());
+        assertEquals(List.of("orgUnits[0] invalid.blank"), errors(importUnits("2026-04-01", timed("H", "", null))));
     }
 
     @Test
     void linksAUnitToAnOrganizationByItsAliasAndAsksToManageIt() {
         ImportReport first = importUnits("2026-04-01", linked("H", "x-hospital"), linked("K", null));
         ImportReport again = importUnits("2026-04-01", linked("H", "x-hospital"), linked("K", null));
-        ImportReport moved = importUnits("2026-04-01", linked("H", ""), linked("K", "x-hospital"),
+        ImportReport moved = importUnits("2026-04-01",
+                ImportRows.clearing(linked("H", null), "organizationAlias"), linked("K", "x-hospital"),
                 linked("N", "nope"));
 
         String h = stored(ExternalId.Kind.ORG_UNIT, "import", "H");
@@ -511,7 +516,7 @@ class ImportServiceTest {
         ImportReport report = service.apply(doc("2026-04-01", false, null, rows, null));
 
         assertEquals(List.of("refItems[1] invalid.kind", "refItems[2] invalid.required",
-                "refItems[3] invalid.required", "refItems[4] invalid.code", "refItems[5] invalid.name"),
+                "refItems[3] invalid.required", "refItems[4] invalid.code", "refItems[5] invalid.blank"),
                 errors(report));
         assertEquals(Map.of("refItems", new Counts(1, 0, 0)), report.counts());
     }
@@ -662,14 +667,18 @@ class ImportServiceTest {
                 errors(units));
         assertEquals(List.of("Hospital", "Ward < Hospital"), tree("2026-04-01"));
         String ward = stored(ExternalId.Kind.ORG_UNIT, "import", "W");
-        // A row that makes a unit a rollup unit takes its parent away first.
-        assertEquals(List.of(), errors(importUnits("2026-06-01", typed("W", "Ward", "region", null))));
+        // A row that makes a unit a rollup unit and clears the parent takes the parent away first.
+        assertEquals(List.of("orgUnits[0] org_unit.rollup_has_parent"),
+                errors(importUnits("2026-06-01", typed("W", "Ward", "region", null))));
+        assertEquals(List.of(), errors(importUnits("2026-06-01",
+                ImportRows.clearing(typed("W", "Ward", "region", null), "parentExternalId"))));
         assertTrue(orgUnits.get(ward, "2026-06-01").rollup());
         assertEquals(List.of("Hospital"), tree("2026-06-01"));
         assertEquals(List.of("orgUnits[0] org_unit.rollup_has_parent"),
                 errors(importUnits("2026-07-01", typed("W", "Ward", "region", "H"))));
-        // A row that leaves the rollup type can give the unit a parent at once.
-        assertEquals(List.of(), errors(importUnits("2026-08-01", unit("W", "Ward", "H"))));
+        // A row that clears the rollup type can give the unit a parent at once.
+        assertEquals(List.of(), errors(importUnits("2026-08-01",
+                ImportRows.clearing(unit("W", "Ward", "H"), "unitType"))));
         assertEquals(List.of("Hospital", "Ward < Hospital"), tree("2026-08-01"));
         assertEquals(List.of("Hospital"), tree("2026-07-31"));
     }
@@ -746,8 +755,8 @@ class ImportServiceTest {
                 "orgUnits[1] invalid.required",
                 "orgUnits[2] invalid.required",
                 "orgUnits[3] import.duplicate_row",
+                "orgUnits[5] invalid.blank",
                 "orgUnits[4] import.parent_unknown",
-                "orgUnits[5] invalid.name",
                 "orgUnits[6] import.parent_failed",
                 "orgUnits[8] import.parent_cycle",
                 "orgUnits[7] import.parent_failed",
@@ -756,7 +765,8 @@ class ImportServiceTest {
                 "orgUnits[11] import.parent_twice",
                 "orgUnits[12] import.parent_id_unknown"), errors(report));
         assertEquals(new Counts(1, 0, 0), report.counts().get("orgUnits"));
-        assertEquals(Map.of("parentExternalId", "NOPE"), report.errors().get(3).error().params());
+        assertEquals(Map.of("field", "names.ja.name"), report.errors().get(3).error().params());
+        assertEquals(Map.of("parentExternalId", "NOPE"), report.errors().get(4).error().params());
     }
 
     @Test
@@ -1335,15 +1345,16 @@ class ImportServiceTest {
     }
 
     @Test
-    void importsTheIdsOfOtherSystemsAndRemovesOneWithAnEmptyText() {
+    void importsTheIdsOfOtherSystemsAndRemovesOneWithNull() {
         externalIdStore.resource(ExternalId.Kind.ORG_UNIT, "u-1", "hr");
         externalIdStore.insert(new ExternalId("row-h", ExternalId.Kind.ORG_UNIT, "u-1", "hr", "H", 1));
 
         ImportReport first = importExternalIds(new ExternalIdRow("ORG_UNIT", "u-1", "payroll", "P-1"));
         ImportReport again = importExternalIds(new ExternalIdRow("ORG_UNIT", "u-1", "payroll", "P-1"));
         ImportReport changed = importExternalIds(new ExternalIdRow("ORG_UNIT", "u-1", "payroll", "P-2"));
-        ImportReport removed = importExternalIds(new ExternalIdRow("ORG_UNIT", "u-1", "payroll", ""),
-                new ExternalIdRow("ORG_UNIT", "u-1", "ledger", ""));
+        ImportReport removed = importExternalIds(
+                ImportRows.clearing(new ExternalIdRow("ORG_UNIT", "u-1", "payroll", null), "externalId"),
+                ImportRows.clearing(new ExternalIdRow("ORG_UNIT", "u-1", "ledger", null), "externalId"));
 
         assertEquals(Map.of("externalIds", new Counts(1, 0, 0)), first.counts());
         assertEquals("fuhito/external-ids/" + first.writes().getFirst().resourceId(), first.writes().getFirst().path());
@@ -1352,14 +1363,15 @@ class ImportServiceTest {
         assertEquals(Map.of("externalIds", new Counts(0, 1, 1)), removed.counts());
         assertTrue(removed.writes().getFirst().deleted());
         assertEquals(List.of("H"), externalIdStore.rows.stream().map(ExternalId::externalId).toList());
-        // A row of the system that made the resource replaces its ID too.
+        // A row of the system that made the resource replaces its ID too. A row that leaves out the ID keeps it.
         assertEquals(List.of("externalIds[1] import.duplicate_row", "externalIds[3] external_id.resource_unknown",
-                "externalIds[4] invalid.required"),
+                "externalIds[5] invalid.blank"),
                 errors(importExternalIds(new ExternalIdRow("ORG_UNIT", "u-1", "payroll", "P-3"),
                         new ExternalIdRow("ORG_UNIT", "u-1", "payroll", "P-4"),
                         new ExternalIdRow("ORG_UNIT", "u-1", "hr", "X"),
                         new ExternalIdRow("ORG_UNIT", "nope", "payroll", "P-5"),
-                        new ExternalIdRow("ORG_UNIT", "u-1", "ledger", null))));
+                        new ExternalIdRow("ORG_UNIT", "u-1", "ledger", null),
+                        new ExternalIdRow("ORG_UNIT", "u-1", "audit", " "))));
     }
 
     private static ChangeOrderRow order(String id, String externalId, String number, String title,
@@ -1907,9 +1919,9 @@ class ImportServiceTest {
                         new BigDecimal("60"), null, null, null, null),
                 new EmploymentRow(null, "E", "nurse", null, null, "part-time", "g2", "ON_LEAVE",
                         new BigDecimal("60"), Map.of("shift", "night"), null, null, null),
-                // A row with no work percent removes the stored one.
-                new EmploymentRow(null, "E", "nurse", null, null, "part-time", "g2", "ON_LEAVE", null,
-                        Map.of("shift", "night"), null, null, null),
+                // A row with null for the work percent removes the stored one.
+                ImportRows.clearing(new EmploymentRow(null, "E", "nurse", null, null, "part-time", "g2", "ON_LEAVE",
+                        null, Map.of("shift", "night"), null, null, null), "workPercent"),
                 new EmploymentRow(null, "E", "nurse", null, null, "part-time", "g2", "ON_LEAVE", null, null,
                         "2027-03-31", Map.of("shift", "night"), null, null, null, null, null, null, null, null, null,
                         null),
@@ -2102,5 +2114,591 @@ class ImportServiceTest {
         ImportReport report = importPeople("2026-04-01", null, List.of(assignment("A", "E2", "W", true, null)));
 
         assertEquals(List.of("assignments[0] import.assignment_mismatch"), errors(report));
+    }
+
+    // One list of a document as the JSON import reads it.
+    private ImportReport rows(String effectiveDate, String list, String rows) {
+        return service.apply(ImportRows.read(ImportDocument.class,
+                "{\"effectiveDate\": \"" + effectiveDate + "\", \"" + list + "\": [" + rows + "]}"));
+    }
+
+    private static List<String> fields(ImportReport report) {
+        return report.errors().stream()
+                .map(e -> e.error().code() + " " + e.error().params().getOrDefault("field", ""))
+                .toList();
+    }
+
+    private void item(RefKind kind, String code) {
+        refItems.insert(new RefItem(code + "-id", kind, code, ItemNames.of(code), 0, Map.of(), true));
+    }
+
+    @Test
+    void aRowOfAStoredUnitKeepsWhatItLeavesOutAndClearsWhatIsNull() {
+        item(RefKind.UNIT_TYPE, "ward");
+        rows("2026-04-01", "orgUnits", """
+                {"externalId": "H", "primaryLanguage": "ja", "names": {"ja": {"name": "病院"}}},
+                {"externalId": "W", "primaryLanguage": "ja", "parentExternalId": "H", "code": "w1", "unitType": "ward",
+                 "displayOrder": 2, "timeZone": "Asia/Tokyo", "attributes": {"beds": 10, "floor": 3},
+                 "names": {"ja": {"name": "病棟", "shortName": "病"}, "en": {"name": "Ward"}}}
+                """);
+        String hospital = stored(ExternalId.Kind.ORG_UNIT, "import", "H");
+        String ward = stored(ExternalId.Kind.ORG_UNIT, "import", "W");
+
+        ImportReport kept = rows("2026-05-01", "orgUnits", """
+                {"externalId": "W"}
+                """);
+        ImportReport cleared = rows("2026-06-01", "orgUnits", """
+                {"externalId": "W", "code": null, "displayOrder": null, "timeZone": null,
+                 "names": {"ja": {"shortName": null}, "en": null}, "attributes": {"floor": null, "beds": 12}}
+                """);
+        ImportReport root = rows("2026-07-01", "orgUnits", """
+                {"externalId": "W", "parentExternalId": null, "unitType": null, "attributes": null}
+                """);
+
+        assertEquals(new Counts(0, 0, 1), kept.counts().get("orgUnits"));
+        assertEquals(new Counts(0, 1, 0), cleared.counts().get("orgUnits"));
+        OrgUnitState june = orgUnits.get(ward, "2026-06-01");
+        assertNull(june.version().code());
+        assertEquals(0, june.version().displayOrder());
+        assertEquals(new Localized<>("ja", Map.of("ja", new OrgUnitName("病棟", "病", null),
+                "en", new OrgUnitName("Ward", null, null))), orgUnits.get(ward, "2026-05-01").version().names());
+        assertEquals(Localized.of("ja", new OrgUnitName("病棟", null, null)), june.version().names());
+        assertEquals(Map.of("beds", 12), june.version().attributes());
+        assertEquals("ward", june.unitType());
+        assertEquals(hospital, june.parentId());
+        assertNull(orgUnitStore.findUnit(ward).orElseThrow().timeZone());
+        assertEquals(List.of(), errors(root));
+        OrgUnitState july = orgUnits.get(ward, "2026-07-01");
+        assertNull(july.parentId());
+        assertNull(july.unitType());
+        assertEquals(Map.of(), july.version().attributes());
+    }
+
+    @Test
+    void aRowOfAUnitFailsForAnEmptyValueAndForNullOfAValueThatTheUnitMustHave() {
+        importUnits("2026-04-01", unit("A", "A", null), unit("B", "B", null), unit("C", "C", null),
+                unit("D", "D", null), unit("E", "E", null), unit("F", "F", null), unit("G", "G", null),
+                unit("I", "I", null), unit("J", "J", null));
+
+        ImportReport report = rows("2026-05-01", "orgUnits", """
+                {"externalId": "A", "code": " "},
+                {"externalId": "B", "names": {"ja": {"shortName": ""}}},
+                {"externalId": "C", "attributes": {"note": ""}},
+                {"externalId": "D", "attributes": {"tags": []}},
+                {"externalId": "E", "validTo": "2027-04-01", "successorExternalIds": []},
+                {"externalId": "F", "primaryLanguage": null},
+                {"externalId": "G", "validFrom": null},
+                {"externalId": "I", "names": {"ja": null}},
+                {"externalId": "J", "names": null}
+                """);
+
+        assertEquals(List.of("invalid.blank code", "invalid.blank names.ja.shortName", "invalid.blank attributes.note",
+                "invalid.blank attributes.tags", "invalid.blank successorExternalIds", "invalid.required primaryLanguage",
+                "invalid.required validFrom", "invalid.primary_language ", "invalid.required names"), fields(report));
+    }
+
+    @Test
+    void aNewUnitTakesNullAsNoValue() {
+        ImportReport report = rows("2026-04-01", "orgUnits", """
+                {"externalId": "N", "primaryLanguage": "ja", "names": {"ja": {"name": "新", "shortName": null},
+                 "en": null}, "unitType": null, "parentExternalId": null, "attributes": {"beds": null},
+                 "timeZone": null, "organizationAlias": null, "validFrom": null, "validTo": null,
+                 "successorIds": null}
+                """);
+
+        assertEquals(List.of(), errors(report));
+        OrgUnitState state = orgUnits.get(stored(ExternalId.Kind.ORG_UNIT, "import", "N"), "2026-04-01");
+        assertEquals(Localized.of("ja", new OrgUnitName("新", null, null)), state.version().names());
+        assertEquals(Map.of(), state.version().attributes());
+        assertNull(state.parentId());
+        assertEquals("2026-04-01", state.version().period().from().toString());
+    }
+
+    @Test
+    void aRowOfAStoredUnitRemovesItsEndWithNull() {
+        rows("2026-04-01", "orgUnits", """
+                {"externalId": "H", "primaryLanguage": "ja", "names": {"ja": {"name": "病院"}}, "validTo": "2027-04-01"}
+                """);
+        String hospital = stored(ExternalId.Kind.ORG_UNIT, "import", "H");
+
+        ImportReport kept = rows("2026-05-01", "orgUnits", """
+                {"externalId": "H"}
+                """);
+        ImportReport removed = rows("2026-05-01", "orgUnits", """
+                {"externalId": "H", "validTo": null}
+                """);
+        ImportReport again = rows("2026-05-01", "orgUnits", """
+                {"externalId": "H", "validTo": null}
+                """);
+
+        assertEquals(new Counts(0, 0, 1), kept.counts().get("orgUnits"));
+        assertEquals(new Counts(0, 1, 0), removed.counts().get("orgUnits"));
+        assertEquals(new Counts(0, 0, 1), again.counts().get("orgUnits"));
+        assertNull(orgUnitStore.versions(hospital).getLast().period().to());
+    }
+
+    @Test
+    void aRowOfAUnitWithSuccessorsCannotClearThem() {
+        importUnits("2020-04-01", ending("OLD", "2026-04-01", List.of("NEW"), null), starting("NEW", "2026-04-01"));
+
+        ImportReport kept = rows("2020-04-01", "orgUnits", """
+                {"externalId": "OLD", "successorExternalIds": ["NEW"]}
+                """);
+        ImportReport cleared = rows("2020-04-01", "orgUnits", """
+                {"externalId": "OLD", "successorExternalIds": null}
+                """);
+
+        assertEquals(List.of(), errors(kept));
+        assertEquals(new Counts(0, 0, 1), kept.counts().get("orgUnits"));
+        assertEquals(List.of("orgUnits[0] import.successors_differ"), errors(cleared));
+    }
+
+    @Test
+    void aRowOfAParentKeepsTheParentThatItLeavesOutAndTakesTheUnitOutWithNull() {
+        importUnits("2026-04-01", unit("P", "P", null), unit("C", "C", null));
+        orgUnitStore.hierarchyCodes.put("project-id", "project");
+        String child = stored(ExternalId.Kind.ORG_UNIT, "import", "C");
+
+        ImportReport placed = rows("2026-04-01", "orgUnitParents", """
+                {"hierarchy": "project", "orgUnitExternalId": "C", "parentExternalId": "P"}
+                """);
+        ImportReport kept = rows("2026-05-01", "orgUnitParents", """
+                {"hierarchy": "project", "orgUnitExternalId": "C"}
+                """);
+        ImportReport out = rows("2026-06-01", "orgUnitParents", """
+                {"hierarchy": "project", "orgUnitExternalId": "C", "parentExternalId": null}
+                """);
+        ImportReport blank = rows("2026-06-01", "orgUnitParents", """
+                {"hierarchy": "project", "orgUnitExternalId": "C", "parentId": ""}
+                """);
+
+        assertEquals(new Counts(0, 1, 0), placed.counts().get("orgUnitParents"));
+        assertEquals(new Counts(0, 0, 1), kept.counts().get("orgUnitParents"));
+        assertEquals(new Counts(0, 1, 0), out.counts().get("orgUnitParents"));
+        assertEquals(stored(ExternalId.Kind.ORG_UNIT, "import", "P"),
+                orgUnits.get(child, "2026-05-01", "project").parentId());
+        assertNull(orgUnits.get(child, "2026-06-01", "project").parentId());
+        assertEquals(List.of("invalid.blank parentId"), fields(blank));
+    }
+
+    @Test
+    void aRowOfAStoredKindKeepsItsNamesAndNullRemovesALanguage() {
+        ImportReport created = rows("2026-04-01", "refKinds", """
+                {"externalId": "SITE", "code": "site", "primaryLanguage": "ja",
+                 "names": {"ja": {"name": "拠点"}, "en": {"name": "Site"}, "zh": null}}
+                """);
+        ImportReport kept = rows("2026-04-01", "refKinds", """
+                {"externalId": "SITE"}
+                """);
+        ImportReport cleared = rows("2026-04-01", "refKinds", """
+                {"externalId": "SITE", "names": {"en": null}}
+                """);
+
+        assertEquals(new Counts(1, 0, 0), created.counts().get("refKinds"));
+        assertEquals(new Counts(0, 0, 1), kept.counts().get("refKinds"));
+        assertEquals(new Counts(0, 1, 0), cleared.counts().get("refKinds"));
+        assertEquals(Localized.of("ja", new RefKindName("拠点")), kinds.get("site").names());
+        assertEquals(List.of("invalid.required code"), fields(rows("2026-04-01", "refKinds", """
+                {"externalId": "SITE", "code": null}
+                """)));
+        assertEquals(List.of("invalid.blank names.ja.name"), fields(rows("2026-04-01", "refKinds", """
+                {"externalId": "SITE", "names": {"ja": {"name": " "}}}
+                """)));
+        assertEquals(List.of("invalid.required primaryLanguage"), fields(rows("2026-04-01", "refKinds", """
+                {"externalId": "SITE", "primaryLanguage": null}
+                """)));
+    }
+
+    @Test
+    void aRowOfAStoredDefinitionKeepsWhatItLeavesOut() {
+        rows("2026-04-01", "attributeDefinitions", """
+                {"externalId": "D", "target": "ORG_UNIT", "name": "tags", "type": "STRING", "multiple": true,
+                 "required": null, "refKind": null}
+                """);
+        String id = stored(ExternalId.Kind.ATTRIBUTE_DEFINITION, "import", "D");
+
+        ImportReport kept = rows("2026-04-01", "attributeDefinitions", """
+                {"externalId": "D"}
+                """);
+        ImportReport cleared = rows("2026-04-01", "attributeDefinitions", """
+                {"externalId": "D", "multiple": null}
+                """);
+
+        assertEquals(new Counts(0, 0, 1), kept.counts().get("attributeDefinitions"));
+        assertEquals(new Counts(0, 1, 0), cleared.counts().get("attributeDefinitions"));
+        assertFalse(definitions.get(id).multiple());
+        assertEquals("STRING", definitions.get(id).type().name());
+        assertEquals(List.of("invalid.required name"), fields(rows("2026-04-01", "attributeDefinitions", """
+                {"externalId": "D", "name": null}
+                """)));
+        assertEquals(List.of("invalid.required type"), fields(rows("2026-04-01", "attributeDefinitions", """
+                {"externalId": "D", "type": null}
+                """)));
+        assertEquals(List.of("invalid.blank refKind"), fields(rows("2026-04-01", "attributeDefinitions", """
+                {"externalId": "D", "refKind": ""}
+                """)));
+    }
+
+    @Test
+    void aRowOfAStoredItemKeepsWhatItLeavesOutAndMergesItsNamesAndAttributes() {
+        rows("2026-04-01", "refItems", """
+                {"externalId": "T", "kind": "UNIT_TYPE", "code": "company", "primaryLanguage": "ja",
+                 "names": {"ja": {"name": "会社"}, "en": {"name": "Company"}}, "displayOrder": 3,
+                 "attributes": {"a": 1, "b": 2}, "active": false, "legalEntity": true}
+                """);
+
+        ImportReport kept = rows("2026-04-01", "refItems", """
+                {"externalId": "T"}
+                """);
+        ImportReport cleared = rows("2026-04-01", "refItems", """
+                {"externalId": "T", "names": {"en": null}, "attributes": {"a": null}, "displayOrder": null,
+                 "active": null, "legalEntity": null}
+                """);
+
+        assertEquals(new Counts(0, 0, 1), kept.counts().get("refItems"));
+        assertEquals(new Counts(0, 1, 0), cleared.counts().get("refItems"));
+        RefItem item = refItems.findByCode(RefKind.UNIT_TYPE, "company").orElseThrow();
+        assertEquals(Localized.of("ja", new RefItemName("会社")), item.names());
+        assertEquals(0, item.displayOrder());
+        assertEquals(Map.of("b", 2), item.attributes());
+        assertTrue(item.active());
+        assertFalse(item.legalEntity());
+        assertEquals(List.of("invalid.required kind"), fields(rows("2026-04-01", "refItems", """
+                {"externalId": "T", "kind": null}
+                """)));
+        assertEquals(List.of("invalid.blank code"), fields(rows("2026-04-01", "refItems", """
+                {"externalId": "T", "code": " "}
+                """)));
+        assertEquals(List.of("invalid.required names.ja.name"), fields(rows("2026-04-01", "refItems", """
+                {"externalId": "T", "names": {"ja": {"name": null}}}
+                """)));
+    }
+
+    @Test
+    void aRowOfAStoredHierarchyKeepsItsName() {
+        rows("2026-04-01", "hierarchies", """
+                {"externalId": "P", "code": "project", "name": "Project"}
+                """);
+
+        assertEquals(new Counts(0, 0, 1), rows("2026-04-01", "hierarchies", """
+                {"externalId": "P"}
+                """).counts().get("hierarchies"));
+        assertEquals(List.of("invalid.required name"), fields(rows("2026-04-01", "hierarchies", """
+                {"externalId": "P", "name": null}
+                """)));
+        assertEquals(List.of("invalid.blank name"), fields(rows("2026-04-01", "hierarchies", """
+                {"externalId": "P", "name": ""}
+                """)));
+        assertEquals(List.of("invalid.required code"), fields(rows("2026-04-01", "hierarchies", """
+                {"externalId": "P", "code": null}
+                """)));
+    }
+
+    @Test
+    void aRowOfAStoredPersonKeepsWhatItLeavesOutAndMergesItsNamesAndAttributes() {
+        rows("2026-04-01", "people", """
+                {"externalId": "P", "username": "nurse", "primaryLanguage": "ja",
+                 "names": {"ja": {"name": "山田", "phoneticName": "やまだ"}, "en": {"name": "Yamada"}},
+                 "attributes": {"a": 1, "b": 2}}
+                """);
+        String id = stored(ExternalId.Kind.PERSON, "import", "P");
+
+        ImportReport kept = rows("2026-04-01", "people", """
+                {"externalId": "P"}
+                """);
+        ImportReport cleared = rows("2026-04-01", "people", """
+                {"externalId": "P", "names": {"ja": {"phoneticName": null}, "en": null}, "attributes": {"a": null}}
+                """);
+        Person afterClear = personStore.find(id).orElseThrow();
+        ImportReport unlinked = rows("2026-04-01", "people", """
+                {"externalId": "P", "username": null}
+                """);
+
+        assertEquals(new Counts(0, 0, 1), kept.counts().get("people"));
+        assertEquals(new Counts(0, 1, 0), cleared.counts().get("people"));
+        assertEquals(Localized.of("ja", new PersonName("山田", null)), afterClear.names());
+        assertEquals(Map.of("b", 2), afterClear.attributes());
+        assertEquals("user-nurse", afterClear.userId());
+        assertEquals(new Counts(0, 1, 0), unlinked.counts().get("people"));
+        assertNull(personStore.find(id).orElseThrow().userId());
+        assertEquals(List.of("invalid.blank primaryLanguage"), fields(rows("2026-04-01", "people", """
+                {"externalId": "P", "primaryLanguage": ""}
+                """)));
+    }
+
+    @Test
+    void aRowOfAStoredEmploymentKeepsWhatItLeavesOutAndClearsWhatIsNull() {
+        importTwoUnits();
+        item(RefKind.EMPLOYMENT_TYPE, "full-time");
+        item(RefKind.GRADE, "g1");
+        item(RefKind.LEAVE_REASON, "sick");
+        rows("2026-04-01", "employments", """
+                {"externalId": "E", "username": "nurse", "employmentType": "full-time", "grade": "g1",
+                 "status": "ON_LEAVE", "leaveReason": "sick", "workPercent": 80, "contractEndDate": "2027-03-31",
+                 "attributes": {"a": 1, "b": 2}}
+                """);
+        String id = stored(ExternalId.Kind.EMPLOYMENT, "import", "E");
+
+        ImportReport kept = rows("2026-05-01", "employments", """
+                {"externalId": "E"}
+                """);
+        ImportReport cleared = rows("2026-06-01", "employments", """
+                {"externalId": "E", "grade": null, "workPercent": null, "contractEndDate": null,
+                 "attributes": {"a": null}}
+                """);
+        ImportReport back = rows("2026-07-01", "employments", """
+                {"externalId": "E", "status": "ACTIVE"}
+                """);
+
+        assertEquals(new Counts(0, 0, 1), kept.counts().get("employments"));
+        assertEquals(new Counts(0, 1, 0), cleared.counts().get("employments"));
+        EmploymentView.TermsView june = termsOn(id, "2026-06-01");
+        assertEquals("full-time", june.employmentType());
+        assertNull(june.grade());
+        assertEquals("sick", june.leaveReason());
+        assertEquals(EmploymentStatus.ON_LEAVE, june.terms().status());
+        assertNull(june.terms().workPercent());
+        assertNull(june.terms().contractEndDate());
+        assertEquals(Map.of("b", 2), june.terms().attributes());
+        // A status that is not a leave drops the reason that the row leaves out.
+        assertEquals(List.of(), errors(back));
+        assertNull(termsOn(id, "2026-07-01").leaveReason());
+        assertEquals(List.of("invalid.required validFrom"), fields(rows("2026-07-01", "employments", """
+                {"externalId": "E", "validFrom": null}
+                """)));
+        assertEquals(List.of("invalid.required username"), fields(rows("2026-07-01", "employments", """
+                {"externalId": "E", "username": null}
+                """)));
+        assertEquals(List.of("invalid.blank grade"), fields(rows("2026-07-01", "employments", """
+                {"externalId": "E", "grade": ""}
+                """)));
+        assertEquals(new Counts(0, 0, 1), rows("2026-07-01", "employments", """
+                {"externalId": "E", "externalEmployer": null, "continuesEmploymentId": null}
+                """).counts().get("employments"));
+    }
+
+    private EmploymentView.TermsView termsOn(String employmentId, String date) {
+        return employments.get(employmentId).terms().stream()
+                .filter(t -> t.terms().period().contains(LocalDate.parse(date)))
+                .findFirst()
+                .orElseThrow();
+    }
+
+    @Test
+    void aRowOfAStoredEmploymentRemovesItsEndWithNullAndKeepsTheEndReason() {
+        importTwoUnits();
+        item(RefKind.END_REASON, "moved");
+        item(RefKind.END_REASON, "retired");
+        rows("2026-04-01", "employments", """
+                {"externalId": "E", "username": "nurse", "validTo": "2027-04-01", "endReason": "moved"}
+                """);
+        String id = stored(ExternalId.Kind.EMPLOYMENT, "import", "E");
+
+        ImportReport later = rows("2026-04-01", "employments", """
+                {"externalId": "E", "validTo": "2027-05-01"}
+                """);
+        String reason = employments.get(id).endReason();
+        ImportReport other = rows("2026-04-01", "employments", """
+                {"externalId": "E", "endReason": "retired"}
+                """);
+        ImportReport removed = rows("2026-04-01", "employments", """
+                {"externalId": "E", "validTo": null}
+                """);
+
+        assertEquals(new Counts(0, 1, 0), later.counts().get("employments"));
+        assertEquals("moved", reason);
+        assertEquals(new Counts(0, 1, 0), other.counts().get("employments"));
+        assertEquals(new Counts(0, 1, 0), removed.counts().get("employments"));
+        assertNull(employmentStore.find(id).orElseThrow().period().to());
+    }
+
+    @Test
+    void aRowOfAStoredAssignmentKeepsWhatItLeavesOutAndClearsWhatIsNull() {
+        importTwoUnits();
+        item(RefKind.JOB_TITLE, "chief");
+        importPeople("2026-04-01", List.of(employment("E1", "nurse", null, null, null)), null);
+        rows("2026-04-01", "assignments", """
+                {"externalId": "A", "employmentExternalId": "E1", "orgUnitExternalId": "W", "jobTitle": "chief",
+                 "head": true, "primary": true, "allocationPercent": 50, "displayOrder": 2,
+                 "attributes": {"a": 1, "b": 2}}
+                """);
+        String id = stored(ExternalId.Kind.ASSIGNMENT, "import", "A");
+
+        ImportReport kept = rows("2026-05-01", "assignments", """
+                {"externalId": "A"}
+                """);
+        ImportReport cleared = rows("2026-06-01", "assignments", """
+                {"externalId": "A", "jobTitle": null, "head": null, "allocationPercent": null, "displayOrder": null,
+                 "attributes": {"a": null}}
+                """);
+        ImportReport ended = rows("2026-06-01", "assignments", """
+                {"externalId": "A", "validTo": "2026-09-01"}
+                """);
+        ImportReport open = rows("2026-06-01", "assignments", """
+                {"externalId": "A", "validTo": null}
+                """);
+        ImportReport again = rows("2026-06-01", "assignments", """
+                {"externalId": "A", "validTo": null}
+                """);
+
+        assertEquals(new Counts(0, 0, 1), kept.counts().get("assignments"));
+        assertEquals(new Counts(0, 1, 0), cleared.counts().get("assignments"));
+        AssignmentView.Row june = assignments.get(id).rows().getLast();
+        assertNull(june.jobTitle());
+        assertFalse(june.row().head());
+        assertTrue(june.row().primary());
+        assertNull(june.row().allocationPercent());
+        assertEquals(0, june.row().displayOrder());
+        assertEquals(Map.of("b", 2), june.row().attributes());
+        assertEquals(new Counts(0, 1, 0), ended.counts().get("assignments"));
+        assertEquals(new Counts(0, 1, 0), open.counts().get("assignments"));
+        assertEquals(new Counts(0, 0, 1), again.counts().get("assignments"));
+        assertNull(assignments.get(id).period().to());
+        assertEquals(List.of("invalid.required orgUnitExternalId"), fields(rows("2026-06-01", "assignments", """
+                {"externalId": "A", "orgUnitExternalId": null}
+                """)));
+        assertEquals(List.of("invalid.required validFrom"), fields(rows("2026-06-01", "assignments", """
+                {"externalId": "A", "validFrom": null}
+                """)));
+        assertEquals(List.of("invalid.blank occupation"), fields(rows("2026-06-01", "assignments", """
+                {"externalId": "A", "occupation": ""}
+                """)));
+    }
+
+    @Test
+    void aRowOfAStoredLineKeepsItsEndAndCannotRemoveIt() {
+        importTwoUnits();
+        importPeople("2026-04-01", List.of(employment("E1", "nurse", null, null, null)),
+                List.of(assignment("A1", "E1", "W", true, null)));
+        service.apply(new ImportDocument("2026-04-01", false, null, null, null, null, null,
+                List.of(new PersonRow(null, "P3", null, null, "ja", japanese("Chief"), null, null))));
+        rows("2026-04-01", "reportingLines", """
+                {"externalId": "L1", "assignmentExternalId": "A1", "managerPersonExternalId": "P3", "kind": "DOTTED",
+                 "validTo": "2026-10-01"},
+                {"externalId": "L2", "assignmentExternalId": "A1", "managerUsername": "doctor"}
+                """);
+
+        assertEquals(new Counts(0, 0, 2), rows("2026-05-01", "reportingLines", """
+                {"externalId": "L1"},
+                {"externalId": "L2", "validTo": null}
+                """).counts().get("reportingLines"));
+        assertEquals(List.of("import.end_kept "), fields(rows("2026-05-01", "reportingLines", """
+                {"externalId": "L1", "validTo": null}
+                """)));
+        assertEquals(List.of("import.value_fixed kind"), fields(rows("2026-05-01", "reportingLines", """
+                {"externalId": "L1", "kind": null}
+                """)));
+        assertEquals(List.of("invalid.required managerPersonExternalId"), fields(rows("2026-05-01",
+                "reportingLines", """
+                {"externalId": "L1", "managerPersonExternalId": null}
+                """)));
+        assertEquals(List.of("invalid.required assignmentExternalId"), fields(rows("2026-05-01",
+                "reportingLines", """
+                {"externalId": "L1", "assignmentId": null}
+                """)));
+        assertEquals(List.of("invalid.blank kind"), fields(rows("2026-05-01", "reportingLines", """
+                {"externalId": "L2", "kind": ""}
+                """)));
+    }
+
+    @Test
+    void aRowOfAStoredRoleKeepsItsEndAndCannotRemoveIt() {
+        importTwoUnits();
+        importPeople("2026-04-01", List.of(employment("E1", "nurse", null, null, null)), null);
+        item(RefKind.UNIT_ROLE, "approver");
+        rows("2026-04-01", "unitRoles", """
+                {"externalId": "R1", "employmentExternalId": "E1", "orgUnitExternalId": "H", "role": "approver",
+                 "includesDescendants": true, "validTo": "2026-10-01"},
+                {"externalId": "R2", "employmentExternalId": "E1", "orgUnitExternalId": "W", "role": "approver"}
+                """);
+
+        assertEquals(new Counts(0, 0, 2), rows("2026-05-01", "unitRoles", """
+                {"externalId": "R1"},
+                {"externalId": "R2", "validTo": null}
+                """).counts().get("unitRoles"));
+        assertEquals(List.of("import.end_kept "), fields(rows("2026-05-01", "unitRoles", """
+                {"externalId": "R1", "validTo": null}
+                """)));
+        assertEquals(List.of("import.value_fixed includesDescendants"), fields(rows("2026-05-01", "unitRoles", """
+                {"externalId": "R1", "includesDescendants": null}
+                """)));
+        assertEquals(List.of("invalid.required role"), fields(rows("2026-05-01", "unitRoles", """
+                {"externalId": "R1", "role": null}
+                """)));
+        assertEquals(List.of("invalid.required employmentExternalId"), fields(rows("2026-05-01", "unitRoles", """
+                {"externalId": "R1", "employmentExternalId": null}
+                """)));
+        assertEquals(List.of("invalid.required orgUnitExternalId"), fields(rows("2026-05-01", "unitRoles", """
+                {"externalId": "R1", "orgUnitId": null}
+                """)));
+        assertEquals(List.of("invalid.blank role"), fields(rows("2026-05-01", "unitRoles", """
+                {"externalId": "R2", "role": ""}
+                """)));
+    }
+
+    @Test
+    void aRowOfAStoredQualificationKeepsWhatItLeavesOutAndClearsWhatIsNull() {
+        item(RefKind.QUALIFICATION, "license");
+        service.apply(new ImportDocument("2026-04-01", false, null, null, null, null, null,
+                List.of(new PersonRow(null, "P1", null, null, "ja", japanese("Ann"), null, null))));
+        rows("2026-04-01", "qualifications", """
+                {"externalId": "Q1", "personExternalId": "P1", "kind": "license", "number": "123",
+                 "validFrom": "2020-04-01", "validTo": "2030-04-01", "attributes": {"a": 1, "b": 2}}
+                """);
+        String id = stored(ExternalId.Kind.QUALIFICATION, "import", "Q1");
+
+        ImportReport kept = rows("2026-04-01", "qualifications", """
+                {"externalId": "Q1"}
+                """);
+        ImportReport cleared = rows("2026-04-01", "qualifications", """
+                {"externalId": "Q1", "number": null, "validTo": null, "attributes": {"a": null}}
+                """);
+
+        assertEquals(new Counts(0, 0, 1), kept.counts().get("qualifications"));
+        assertEquals(new Counts(0, 1, 0), cleared.counts().get("qualifications"));
+        Qualification q = qualificationStore.find(id).orElseThrow();
+        assertNull(q.number());
+        assertNull(q.period().to());
+        assertEquals("2020-04-01", q.period().from().toString());
+        assertEquals(Map.of("b", 2), q.attributes());
+        assertEquals(List.of("invalid.required validFrom"), fields(rows("2026-04-01", "qualifications", """
+                {"externalId": "Q1", "validFrom": null}
+                """)));
+        assertEquals(List.of("invalid.required personExternalId"), fields(rows("2026-04-01", "qualifications", """
+                {"externalId": "Q1", "personExternalId": null}
+                """)));
+        assertEquals(List.of("invalid.blank number"), fields(rows("2026-04-01", "qualifications", """
+                {"externalId": "Q1", "number": ""}
+                """)));
+    }
+
+    @Test
+    void aRowOfAStoredChangeOrderKeepsWhatItLeavesOutAndClearsWhatIsNull() {
+        rows("2026-04-01", "changeOrders", """
+                {"externalId": "O1", "number": "2026-01", "title": "異動", "note": "memo", "orderDate": "2026-03-01",
+                 "effectiveDate": "2026-04-01", "approverUsername": "doctor", "externalReference": "wf-1"}
+                """);
+
+        ImportReport kept = rows("2026-05-01", "changeOrders", """
+                {"externalId": "O1"}
+                """);
+        ImportReport cleared = rows("2026-05-01", "changeOrders", """
+                {"externalId": "O1", "note": null, "approverUsername": null, "effectiveDate": null}
+                """);
+
+        assertEquals(new Counts(0, 0, 1), kept.counts().get("changeOrders"));
+        assertEquals(new Counts(0, 1, 0), cleared.counts().get("changeOrders"));
+        ChangeOrder order = orderStore.findByNumber("2026-01").orElseThrow();
+        assertNull(order.note());
+        assertNull(order.approverUserId());
+        assertEquals("2026-05-01", order.effectiveDate().toString());
+        assertEquals("2026-03-01", order.orderDate().toString());
+        assertEquals("wf-1", order.externalReference());
+        assertEquals(List.of("invalid.required title"), fields(rows("2026-05-01", "changeOrders", """
+                {"externalId": "O1", "title": null}
+                """)));
+        assertEquals(List.of("invalid.blank note"), fields(rows("2026-05-01", "changeOrders", """
+                {"externalId": "O1", "note": " "}
+                """)));
     }
 }

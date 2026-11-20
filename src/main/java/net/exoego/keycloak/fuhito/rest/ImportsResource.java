@@ -114,7 +114,8 @@ public class ImportsResource {
             operationId = "applyCsvImport",
             summary = "Loads one CSV file in one transaction.",
             description = "The first row has the column names, in English or in Japanese. A blank cell keeps the "
-                    + "stored value. The cell `#CLEAR` removes it. A cell of a list separates its items with `|`. "
+                    + "stored value, as a key that a JSON row leaves out does. The cell `#CLEAR` removes it, as "
+                    + "`null` in a JSON row does. A cell of a list separates its items with `|`. "
                     + "In an item, `\\|` is a `|` and `\\\\` is a `\\`. The `charset` of the content type says how "
                     + "the file is encoded. The default is UTF-8.")
     @Parameter(ref = "changeOrder")
@@ -159,7 +160,12 @@ public class ImportsResource {
     @Operation(
             operationId = "applyImport",
             summary = "Loads many rows in one transaction.",
-            description = "All rows are written, or none. A dry run does all checks and writes nothing. The lists "
+            description = "All rows are written, or none. A dry run does all checks and writes nothing. A row of a "
+                    + "stored thing changes the values that it gives. A key that a row leaves out keeps the stored "
+                    + "value, and `null` clears it. An object such as `names` or `attributes` merges by key in the "
+                    + "same way. An empty text, a text of only spaces, and an empty array fail with "
+                    + "`invalid.blank`. A new thing has nothing stored, so a missing key and `null` both give no "
+                    + "value. The lists "
                     + "are applied in the order change orders, kinds of reference data, definitions of attributes, "
                     + "reference items, hierarchies, org units, parents in hierarchies, people, qualifications, "
                     + "employments, roles over org units, assignments, reporting lines, IDs of other systems.")
