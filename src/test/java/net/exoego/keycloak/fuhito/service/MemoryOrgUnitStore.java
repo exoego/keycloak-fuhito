@@ -176,8 +176,10 @@ final class MemoryOrgUnitStore implements OrgUnitStore {
         String text = search.text() == null ? null : search.text().toLowerCase(Locale.ROOT);
         OrgUnitTree tree = new OrgUnitTree(this, refItems, date, hierarchyId);
         List<OrgUnitState> units = search.roots() == null ? tree.all()
-                : search.roots() == Roots.LINKED ? tree.linkedRoots() : tree.roots();
+                : search.roots() == Roots.LINKED ? tree.linkedRoots()
+                : tree.roots().stream().filter(state -> !state.rollup()).toList();
         return of(search.lateral(), units).stream()
+                .filter(state -> search.rollup() == null || state.rollup() == search.rollup())
                 .filter(state -> text == null || state.version().names().byLanguage().values().stream()
                         .flatMap(names -> java.util.stream.Stream.of(names.name(), names.shortName(),
                                 names.phoneticName()))

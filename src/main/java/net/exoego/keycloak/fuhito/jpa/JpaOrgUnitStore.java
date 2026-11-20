@@ -42,6 +42,9 @@ public class JpaOrgUnitStore implements OrgUnitStore {
              and exists (select 1 from OrgUnitLinkEntity c where c.realmId = :realmId
             and c.hierarchyId = :hierarchyId and c.parentId = v.orgUnitId and c.%s)""".formatted(TreeQuery.onDate("c"));
 
+    // A rollup unit is not in the default hierarchy.
+    private static final String DEFAULT_ROOT = NO_PARENT + marked("rollupUnit", false);
+
     private static final String PLACED = """
             select u, v, (select l.parentId from OrgUnitLinkEntity l where l.realmId = :realmId
                 and l.hierarchyId = :hierarchyId and l.childId = v.orgUnitId and l.%s)
@@ -327,9 +330,10 @@ public class JpaOrgUnitStore implements OrgUnitStore {
             text.append(" and v.unitTypeId = :unitTypeId");
         }
         text.append(nature(search.lateral()));
+        text.append(marked("rollupUnit", search.rollup()));
         text.append(marked("legalEntity", search.legalEntity()));
         if (search.roots() != null) {
-            text.append(" and ").append(search.roots() == OrgUnitStore.Roots.LINKED ? LINKED_ROOT : NO_PARENT);
+            text.append(" and ").append(search.roots() == OrgUnitStore.Roots.LINKED ? LINKED_ROOT : DEFAULT_ROOT);
         }
         if (after != null) {
             text.append(after.names().primary().phoneticName() == null ? AFTER_NO_PHONETIC : AFTER);

@@ -23,6 +23,7 @@ import net.exoego.keycloak.fuhito.domain.BusinessDay;
 import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
+import net.exoego.keycloak.fuhito.domain.Hierarchy;
 import net.exoego.keycloak.fuhito.domain.Localized;
 import net.exoego.keycloak.fuhito.domain.OrgUnit;
 import net.exoego.keycloak.fuhito.domain.OrgUnitLink;
@@ -302,8 +303,8 @@ public class OrgUnitService {
             if (parentId != null) {
                 List<OrgUnitVersion> parent = versions(parentId);
                 requireParentCovers(parentId, parent, period);
-                requireLineParent(unit.id(), List.of(new Nature(period, unitType != null && unitType.lateral())),
-                        parentId, natures(parent), period);
+                requireDefaultLink(unit.id(), List.of(Nature.of(period, unitType)), parentId, natures(parent),
+                        period);
             }
 
             OrgUnitVersion version = version(newId(), unit.id(), period, new OrgUnitChange(request.validFrom(),
@@ -405,13 +406,13 @@ public class OrgUnitService {
         ValidPeriod changed = current.period().from().equals(from) ? current.period()
                 : current.period().splitAt(from).get(1);
         requireFreeCode(Checks.optionalCode("code", request.code()), id, changed);
-        List<Nature> nature = List.of(new Nature(changed, unitType != null && unitType.lateral()));
+        List<Nature> nature = List.of(Nature.of(changed, unitType));
         String hierarchyId = store.defaultHierarchyId();
         for (OrgUnitLink link : store.parentLinks(hierarchyId, id)) {
-            requireLineParent(id, nature, link.parentId(), natures(link.parentId()), link.period());
+            requireDefaultLink(id, nature, link.parentId(), natures(link.parentId()), link.period());
         }
         for (OrgUnitLink link : store.childLinks(hierarchyId, id)) {
-            requireLineParent(link.childId(), natures(link.childId()), id, nature, link.period());
+            requireDefaultLink(link.childId(), natures(link.childId()), id, nature, link.period());
         }
 
         if (current.period().from().equals(from)) {
@@ -471,7 +472,7 @@ public class OrgUnitService {
             requireParentCovers(parentId, period);
             requireNoCycle(hierarchyId, id, parentId, period);
             if (hierarchyId.equals(store.defaultHierarchyId())) {
-                requireLineParent(id, natures(id), parentId, natures(parentId), period);
+                requireDefaultLink(id, natures(id), parentId, natures(parentId), period);
             }
         }
         if (current != null && current.period().from().equals(from)) {
@@ -593,7 +594,7 @@ public class OrgUnitService {
         for (OrgUnitLink link : ending) {
             requireParentCovers(link.parentId(), added);
             if (link.hierarchyId().equals(store.defaultHierarchyId())) {
-                requireLineParent(id, List.of(new Nature(added, natures(id).getLast().lateral())), link.parentId(),
+                requireDefaultLink(id, natures(List.of(last.withPeriod(added))), link.parentId(),
                         natures(link.parentId()), added);
             }
         }
@@ -779,6 +780,7 @@ public class OrgUnitService {
 
     /**
      * Lists a page of an org unit and everything below it on a date. Each parent comes before its children.
+     * A rollup unit is not in the default hierarchy, so the list there is empty for it.
      *
      * @param id the ID
      * @param asOf the date as {@code YYYY-MM-DD}, or null for today
@@ -790,7 +792,10 @@ public class OrgUnitService {
      */
     public List<OrgUnitState> subtree(String id, String asOf, String hierarchy, Boolean lateral, Page page) {
         LocalDate date = dateOfUnit(id, asOf);
-        return states(store.treeOn(hierarchyId(hierarchy), id, lateral, date, page.first(), page.max()), date);
+        List<OrgUnitState> units = states(store.treeOn(hierarchyId(hierarchy), id, lateral, date, page.first(),
+                page.max()), date);
+        // A rollup unit is not in the default hierarchy. It can only be the unit of the read there, with no child.
+        return isDefault(hierarchy) ? units.stream().filter(unit -> !unit.rollup()).toList() : units;
     }
 
     /**
@@ -805,7 +810,9 @@ public class OrgUnitService {
      */
     public long countSubtree(String id, String asOf, String hierarchy, Boolean lateral) {
         LocalDate date = dateOfUnit(id, asOf);
-        return store.countTreeOn(hierarchyId(hierarchy), id, lateral, date);
+        long count = store.countTreeOn(hierarchyId(hierarchy), id, lateral, date);
+        // A rollup unit has no child in the default hierarchy, so only a count of one can be the rollup unit.
+        return count == 1 && isDefault(hierarchy) && isRollup(versionOn(id, date)) ? 0 : count;
     }
 
     /**
@@ -815,13 +822,14 @@ public class OrgUnitService {
      * @param code the code
      * @param unitType the code of the unit type
      * @param lateral true for lateral units only, false for line units only
+     * @param rollup true for rollup units only, false for the other units
      * @param legalEntity true for legal entities only, false for the other units
      * @param roots true for the roots of the hierarchy only, false for every unit
      * @param hierarchy the code of the hierarchy of the parents and of the roots, or null for the default one
      * @param asOf the date as {@code YYYY-MM-DD}, or null for today of the realm
      */
-    public record Search(String q, String code, String unitType, Boolean lateral, Boolean legalEntity,
-            boolean roots, String hierarchy, String asOf) {
+    public record Search(String q, String code, String unitType, Boolean lateral, Boolean rollup,
+            Boolean legalEntity, boolean roots, String hierarchy, String asOf) {
 
         /**
          * Makes a search that keeps every unit of a date.
@@ -830,15 +838,15 @@ public class OrgUnitService {
          * @return the search
          */
         public static Search all(String asOf) {
-            return new Search(null, null, null, null, null, false, null, asOf);
+            return new Search(null, null, null, null, null, null, false, null, asOf);
         }
     }
 
     /**
      * Lists a page of the org units of a date that match a search, at any depth, each with its parent in the
      * hierarchy of the search. They follow the display order, then the primary names, then the ID.
-     * Every unit is in the default hierarchy. The roots of another hierarchy are the units with no parent and with
-     * a child in it.
+     * Every unit but a rollup unit is in the default hierarchy. The roots of another hierarchy are the units with no
+     * parent and with a child in it.
      *
      * @param search what to keep, the hierarchy, and the date
      * @param page the part of the list to return
@@ -875,10 +883,10 @@ public class OrgUnitService {
                         Map.of("unitType", search.unitType())));
         String text = search.q() == null || search.q().isBlank() ? null : search.q().strip();
         OrgUnitStore.Roots roots = !search.roots() ? null
-                : hierarchyId.equals(store.defaultHierarchyId()) ? OrgUnitStore.Roots.NO_PARENT
+                : hierarchyId.equals(store.defaultHierarchyId()) ? OrgUnitStore.Roots.DEFAULT
                 : OrgUnitStore.Roots.LINKED;
-        return new OrgUnitStore.Search(text, search.code(), unitTypeId, search.lateral(), search.legalEntity(),
-                roots);
+        return new OrgUnitStore.Search(text, search.code(), unitTypeId, search.lateral(), search.rollup(),
+                search.legalEntity(), roots);
     }
 
     // The cursor has only the ID. The details of the unit on the date give the other values of the order.
@@ -896,6 +904,16 @@ public class OrgUnitService {
         LocalDate date = dateOrToday(asOf, id);
         versionOn(id, date);
         return date;
+    }
+
+    // The code of the default hierarchy never changes.
+    private static boolean isDefault(String hierarchy) {
+        return hierarchy == null || hierarchy.equals(Hierarchy.DEFAULT_CODE);
+    }
+
+    private boolean isRollup(OrgUnitVersion version) {
+        return version.unitTypeId() != null
+                && items.byId().apply(version.unitTypeId()).map(RefItem::rollup).orElse(false);
     }
 
     private List<OrgUnitState> states(List<PlacedOrgUnit> placed, LocalDate date) {
@@ -916,6 +934,7 @@ public class OrgUnitService {
 
     /**
      * Lists the units from the root down to an org unit on a date, in a hierarchy.
+     * A rollup unit is not in the default hierarchy, so its path there is empty.
      *
      * @param id the ID
      * @param asOf the date as {@code YYYY-MM-DD}, or null for today
@@ -926,8 +945,12 @@ public class OrgUnitService {
     public List<OrgUnitState> path(String id, String asOf, String hierarchy) {
         requireUnit(id);
         LocalDate date = dateOrToday(asOf, id);
-        return UnitPlaces.on(OrgUnitPaths.on(store, refItems, hierarchyId(hierarchy), id, date), store, refItems,
-                date);
+        List<OrgUnitState> path = OrgUnitPaths.on(store, refItems, hierarchyId(hierarchy), id, date);
+        // A rollup unit is not in the default hierarchy.
+        if (path.getLast().rollup() && isDefault(hierarchy)) {
+            return List.of();
+        }
+        return UnitPlaces.on(path, store, refItems, date);
     }
 
     /**
@@ -1059,8 +1082,12 @@ public class OrgUnitService {
         }
     }
 
-    // Whether a unit is a lateral unit in a period of its details.
-    private record Nature(ValidPeriod period, boolean lateral) {
+    // Whether a unit is a lateral unit or a rollup unit in a period of its details.
+    private record Nature(ValidPeriod period, boolean lateral, boolean rollup) {
+
+        static Nature of(ValidPeriod period, RefItem unitType) {
+            return new Nature(period, unitType != null && unitType.lateral(), unitType != null && unitType.rollup());
+        }
     }
 
     private List<Nature> natures(String unitId) {
@@ -1069,24 +1096,32 @@ public class OrgUnitService {
 
     private List<Nature> natures(List<OrgUnitVersion> versions) {
         return versions.stream()
-                .map(v -> new Nature(v.period(), v.unitTypeId() != null
-                        && items.byId().apply(v.unitTypeId()).map(RefItem::lateral).orElse(false)))
+                .map(v -> Nature.of(v.period(), v.unitTypeId() == null ? null
+                        : items.byId().apply(v.unitTypeId()).orElse(null)))
                 .toList();
     }
 
-    // In the default hierarchy, the parent of a line unit is a line unit on every date. A lateral unit may be anywhere.
-    private static void requireLineParent(String childId, List<Nature> child, String parentId, List<Nature> parent,
+    // A link of the default hierarchy joins no rollup unit on any date. The parent of a line unit there is a line unit
+    // on every date. A lateral unit may be anywhere.
+    private static void requireDefaultLink(String childId, List<Nature> child, String parentId, List<Nature> parent,
             ValidPeriod link) {
         for (Nature below : child) {
             for (Nature above : parent) {
-                if (below.lateral() || !above.lateral()) {
-                    continue;
-                }
                 Optional<ValidPeriod> both = link.intersection(below.period())
                         .flatMap(period -> period.intersection(above.period()));
-                if (both.isPresent()) {
-                    throw FuhitoException.conflict("org_unit.line_below_lateral", Map.of("id", childId,
-                            "parentId", parentId, "date", both.get().from().toString()));
+                if (both.isEmpty()) {
+                    continue;
+                }
+                Map<String, String> params = Map.of("id", childId, "parentId", parentId,
+                        "date", both.get().from().toString());
+                if (below.rollup()) {
+                    throw FuhitoException.conflict("org_unit.rollup_has_parent", params);
+                }
+                if (above.rollup()) {
+                    throw FuhitoException.conflict("org_unit.rollup_has_child", params);
+                }
+                if (!below.lateral() && above.lateral()) {
+                    throw FuhitoException.conflict("org_unit.line_below_lateral", params);
                 }
             }
         }

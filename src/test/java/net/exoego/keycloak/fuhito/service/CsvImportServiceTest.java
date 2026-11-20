@@ -111,6 +111,21 @@ class CsvImportServiceTest {
     }
 
     @Test
+    void loadsTheMarkOfRollupUnitsAndABlankCellKeepsIt() {
+        CsvImportService.Result result = load("refItems", "2026-04-01", """
+                ﻿外部ID,種類,コード,主言語,名称,集計
+                R,UNIT_TYPE,region,ja,地域,はい
+                C,UNIT_TYPE,committee,ja,委員会,
+                """);
+
+        assertEquals(List.of(), errors(result));
+        assertTrue(refItems.findByCode(RefKind.UNIT_TYPE, "region").orElseThrow().rollup());
+        assertFalse(refItems.findByCode(RefKind.UNIT_TYPE, "committee").orElseThrow().rollup());
+        load("refItems", "2026-04-01", "externalId,name,rollup\nR,地方,\n");
+        assertTrue(refItems.findByCode(RefKind.UNIT_TYPE, "region").orElseThrow().rollup());
+    }
+
+    @Test
     void loadsTheNamesOfAReferenceItemFromTheDateOfTheRow() {
         load("refItems", "2026-04-01",
                 "externalId,kind,code,primaryLanguage,name,name:en\nC,JOB_TITLE,chief,ja,主任,Chief\n");

@@ -160,8 +160,11 @@ public interface OrgUnitStore {
      * The roots that a search of org units keeps.
      */
     enum Roots {
-        /** The units with no parent in the hierarchy. */
-        NO_PARENT,
+        /**
+         * The roots of the default hierarchy. These are the units with no parent in it, but not the rollup units,
+         * which are not in it.
+         */
+        DEFAULT,
         /**
          * The units with no parent and with a child in the hierarchy. These are the roots of a hierarchy other than
          * the default one.
@@ -176,10 +179,12 @@ public interface OrgUnitStore {
      * @param code the code
      * @param unitTypeId the ID of the unit type
      * @param lateral true for lateral units only, false for line units only
+     * @param rollup true for rollup units only, false for the other units
      * @param legalEntity true for legal entities only, false for the other units
      * @param roots the roots to keep in the hierarchy of the search, or null for every unit
      */
-    record Search(String text, String code, String unitTypeId, Boolean lateral, Boolean legalEntity, Roots roots) {
+    record Search(String text, String code, String unitTypeId, Boolean lateral, Boolean rollup, Boolean legalEntity,
+            Roots roots) {
     }
 
     /**

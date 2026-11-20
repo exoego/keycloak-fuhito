@@ -195,6 +195,36 @@ class RealmExportIT {
         assertEquals("主任", Api.json(target.api.get("/ref-items/" + chief + "?asOf=2024-03-31")).get("name").asText());
     }
 
+    @Test
+    void aRestoreKeepsTheMarkOfRollupUnitsAndKeepsTheirUnitsOutOfTheDefaultHierarchy() throws Exception {
+        TestRealm source = TestRealm.create("export-rollup");
+        Api api = source.api;
+        String region = id(api.post("/ref-items", "{\"kind\": \"UNIT_TYPE\", \"code\": \"region\", "
+                + "\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"地域\"}}, \"rollup\": true}"));
+        ok(api.post("/hierarchies", "{\"code\": \"region\", \"name\": \"地域\"}"));
+        String company = id(api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": "
+                + "\"本社\"}}, \"validFrom\": \"2020-04-01\"}"));
+        String kanto = id(api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": "
+                + "\"関東\"}}, \"unitType\": \"region\", \"validFrom\": \"2020-04-01\"}"));
+        ok(api.putWithVersion("/org-units/" + company + "/parent?hierarchy=region", "{\"parentId\": \"" + kanto
+                + "\", \"validFrom\": \"2020-04-01\"}"));
+        ObjectNode first = export(api);
+        for (JsonNode item : first.get("refItems")) {
+            assertEquals(item.get("id").asText().equals(region), item.get("rollup").asBoolean(), item.toString());
+        }
+        TestRealm target = TestRealm.create("export-rollup-target");
+        source.remove();
+
+        ok(target.api.post("/restore", JSON.writeValueAsString(first)));
+
+        assertEquals(first, export(target.api));
+        assertTrue(Api.json(target.api.get("/ref-items/" + region)).get("rollup").asBoolean());
+        assertTrue(Api.json(target.api.get("/org-units/" + kanto + "?asOf=2024-04-01")).get("rollup").asBoolean());
+        assertEquals(List.of("本社"), Api.names(Api.json(target.api.get("/org-units?roots=true&asOf=2024-04-01"))));
+        assertEquals(List.of("関東", "本社"), Api.names(Api.json(target.api.get("/org-units/" + kanto
+                + "/subtree?hierarchy=region&asOf=2024-04-01"))));
+    }
+
     // A unit names only the system that made it. Every ID is in the list of IDs.
     private static void assertIdsAreApart(JsonNode export, String unit) {
         JsonNode exported = null;

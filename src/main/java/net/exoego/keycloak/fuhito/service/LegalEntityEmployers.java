@@ -17,8 +17,8 @@ import net.exoego.keycloak.fuhito.store.RefItemStore;
  */
 public class LegalEntityEmployers implements Employers {
 
-    private static final OrgUnitStore.Search LEGAL_ENTITIES = new OrgUnitStore.Search(null, null, null, null, true,
-            null);
+    private static final OrgUnitStore.Search LEGAL_ENTITIES = new OrgUnitStore.Search(null, null, null, null, null,
+            true, null);
 
     private final OrgUnitStore orgUnits;
     private final RefItemStore refItems;

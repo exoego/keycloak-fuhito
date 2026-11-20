@@ -197,6 +197,7 @@ The projection can also mirror the whole tree into realm groups. A client that u
 
 - The realm attribute `fuhito.projection.realmGroup` names a realm group by its path, for example `/org`. An administrator makes that group first.
 - Every root of the default hierarchy becomes a group right below it, with the units below the root nested the same way.
+- A rollup unit is not in the default hierarchy, so it gets no group, and its members join no group for it.
 - Each assignment that holds today becomes a membership of the group of its unit. There is nothing like the members of an organization.
 - Each root is mirrored as it is on its own date.
 - The rules of what the projection owns are the same as for organization groups. Two roots must have different names too.
@@ -532,7 +533,7 @@ The database applies the filters, the order, and the page.
 | Path | Purpose |
 |---|---|
 | `/ref-items` | The lists that a realm defines, such as unit types and occupations |
-| `/org-units` | Org units. The list has every unit of a date, found by name, code, unit type, lateral, legal entity, or root |
+| `/org-units` | Org units. The list has every unit of a date, found by name, code, unit type, lateral, rollup, legal entity, or root |
 | `/org-units/{id}/children`, `/subtree`, `/path` | The tree of a date, one level, one branch, or the way up |
 | `/org-units/{id}/succession` | The org units that a unit follows after a merger or a split, and the ones that follow it |
 | `/people` | The people that the realm knows, with or without a Keycloak user |

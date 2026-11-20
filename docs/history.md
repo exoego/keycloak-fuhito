@@ -150,6 +150,7 @@ When an assignment has no solid line on a date, the manager is derived from the 
 - A member of a unit with no head does the same.
 - Two heads of one unit are not each other's managers.
 - An assignment in a lateral unit gets no derived manager, and the head of a lateral unit is nobody's derived manager. A stored line still works.
+- A rollup unit has no parent in the default hierarchy, so its head gets no derived manager. Its head is the derived manager of its other members.
 
 A head can be away, and another person can stand in.
 
@@ -164,13 +165,14 @@ These rules cover a head who is away for long, with a leave of the employment or
 `GET /people/{id}/managers` and `GET /people/{id}/reports` use these rules.
 Each entry says whether it is stored or derived.
 
-Checked by `ReportingLinesIT.derivesManagersAndReportsFromTheHeadsOfTheTree`, `ReportingLinesIT.storedLinesChangeTheAnswerFromTheirDate`, and `ReportingLinesIT.anActingHeadLeadsTheUnitWhileItHolds`.
+Checked by `ReportingLinesIT.derivesManagersAndReportsFromTheHeadsOfTheTree`, `ReportingLinesIT.storedLinesChangeTheAnswerFromTheirDate`, `ReportingLinesIT.anActingHeadLeadsTheUnitWhileItHolds`, and `ReportingLinesIT.theHeadOfARollupUnitLeadsItsMembersAndHasNoManagerAbove`.
 
 ## Rules that hold on every date
 
 - An org unit has one set of details and at most one parent in a hierarchy.
 - A parent exists on every date of its child.
 - No unit is below itself.
+- A rollup unit has no parent and no child in the default hierarchy.
 - An employment has one set of terms, with no gaps.
 - An assignment lies inside its employment and inside the life of its org unit.
 - An employment has at most one primary assignment.
@@ -178,7 +180,7 @@ Checked by `ReportingLinesIT.derivesManagersAndReportsFromTheHeadsOfTheTree`, `R
 The application checks these rules on every write.
 On PostgreSQL the database checks the overlap rules again.
 
-Checked by `OrgUnitsIT.rejectsAMoveBelowItselfAndOtherBadMoves`, `AssignmentsIT.rejectsBadRequests`, `AssignmentsIT.anEmploymentHasOnePrimaryAssignmentAtATime`, and `SchemaIT`.
+Checked by `OrgUnitsIT.rejectsAMoveBelowItselfAndOtherBadMoves`, `RollupUnitsIT.aRollupUnitGetsNoParentOrChildInTheDefaultHierarchy`, `AssignmentsIT.rejectsBadRequests`, `AssignmentsIT.anEmploymentHasOnePrimaryAssignmentAtATime`, and `SchemaIT`.
 
 ## Many changes on one date
 

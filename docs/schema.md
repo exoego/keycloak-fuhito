@@ -184,6 +184,7 @@ erDiagram
         boolean ACTING_HEAD
         boolean LATERAL_UNIT
         bigint VERSION
+        boolean ROLLUP_UNIT
     }
     FUHITO_REF_ITEM_NAME {
         varchar(36) PERIOD_ID PK

@@ -246,6 +246,38 @@ class RefItemServiceTest {
         assertEquals("Board", name(service.update(committee.id(), "en", english("Board"), null, null, null)));
     }
 
+    @Test
+    void aRollupUnitTypeIsNoLateralUnitOrLegalEntityAndKeepsItsMarkWhileInUse() {
+        RefItem region = service.create(RefKind.UNIT_TYPE, "region", "en", english("Region"), null, null,
+                new RefItemService.Marks(null, null, null, true));
+
+        assertTrue(region.rollup());
+        assertFalse(region.lateral());
+        assertTrue(store.find(region.id()).orElseThrow().rollup());
+        assertEquals("ref_item.rollup_kind", assertThrows(FuhitoException.class,
+                () -> service.create(RefKind.JOB_TITLE, "chair", "en", english("Chair"), null, null,
+                        new RefItemService.Marks(null, null, null, true))).code());
+        assertEquals("ref_item.rollup_lateral", assertThrows(FuhitoException.class,
+                () -> service.create(RefKind.UNIT_TYPE, "area", "en", english("Area"), null, null,
+                        new RefItemService.Marks(null, null, true, true))).code());
+        assertEquals("ref_item.rollup_legal_entity", assertThrows(FuhitoException.class,
+                () -> service.create(RefKind.UNIT_TYPE, "group", "en", english("Group"), null, null,
+                        new RefItemService.Marks(true, null, null, true))).code());
+        assertEquals("ref_item.rollup_lateral", assertThrows(FuhitoException.class,
+                () -> service.update(region.id(), "en", english("Region"), null, null, null,
+                        new RefItemService.Marks(null, null, true, true), null)).code());
+        // A change that names no marks keeps them.
+        assertTrue(service.update(region.id(), "en", english("Area"), null, null, null).rollup());
+        assertFalse(service.update(region.id(), "en", english("Region"), null, null, null, RefItemService.Marks.NONE,
+                null).rollup());
+
+        store.inUse.add(region.id());
+        assertEquals("ref_item.rollup_in_use", assertThrows(FuhitoException.class,
+                () -> service.update(region.id(), "en", english("Region"), null, null, null,
+                        new RefItemService.Marks(null, null, null, true), null)).code());
+        assertEquals("Kanto", name(service.update(region.id(), "en", english("Kanto"), null, null, null)));
+    }
+
     // Today is 2026-06-15 for the tests of dated names.
     private final RefItemService dated = new RefItemService(store, AttributeRules.NONE, kind -> true,
             Today.of(Clock.fixed(Instant.parse("2026-06-15T03:00:00Z"), ZoneOffset.UTC)));

@@ -49,6 +49,9 @@ public class RefItemEntity implements VersionedRow {
     @Column(name = "LATERAL_UNIT", nullable = false)
     boolean lateralUnit;
 
+    @Column(name = "ROLLUP_UNIT", nullable = false)
+    boolean rollupUnit;
+
     @Column(name = "VERSION", nullable = false)
     long version;
 

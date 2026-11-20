@@ -125,6 +125,8 @@ The lists are applied in the order change orders, kinds of reference data, attri
 - A row of a unit type can carry `legalEntity`. The CSV header is `法人`. A row that leaves it out keeps the mark of a stored item.
 - A row of an assignment kind can carry `actingHead`. The CSV header is `代行`. A row that leaves it out keeps the mark of a stored item.
 - A row of a unit type can carry `lateral`. The CSV header is `横断`. A row that leaves it out keeps the mark of a stored item.
+- A row of a unit type can carry `rollup`. The CSV header is `集計`. A row that leaves it out keeps the mark of a stored item. One row cannot carry `rollup` with `lateral` or with `legalEntity`.
+- A row of an org unit follows the rules of rollup units in "Rollup units" of the concepts. A row cannot give a rollup unit a parent, or put a unit below one. A row that gives a stored unit a rollup type and no parent takes the parent away first, then changes the details. The children of the unit must move away in earlier rows or documents.
 - The user of an employment is named by `username` or by `userId`. The user must exist.
 - The employment belongs to the person of that user. The import creates the person when the user has none.
 

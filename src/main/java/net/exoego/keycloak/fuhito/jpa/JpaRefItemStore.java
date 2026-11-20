@@ -251,6 +251,7 @@ public class JpaRefItemStore implements RefItemStore {
         entity.legalEntity = item.legalEntity();
         entity.actingHead = item.actingHead();
         entity.lateralUnit = item.lateral();
+        entity.rollupUnit = item.rollup();
     }
 
     /**
@@ -290,7 +291,8 @@ public class JpaRefItemStore implements RefItemStore {
         periods.forEach(period -> byItem.put(period.refItemId(), period));
         return items.stream()
                 .map(e -> new RefItem(e.id, e.kind, e.code, null, e.displayOrder, e.attributes, e.active,
-                        e.legalEntity, e.actingHead, e.lateralUnit, e.version, null, null).withNames(byItem.get(e.id)))
+                        e.legalEntity, e.actingHead, e.lateralUnit, e.rollupUnit, e.version, null, null)
+                        .withNames(byItem.get(e.id)))
                 .toList();
     }
 

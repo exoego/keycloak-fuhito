@@ -364,18 +364,22 @@ public class ProjectionService {
         return true;
     }
 
-    // Every root becomes a group right below the realm group, each as it is on its own date.
+    // Every root becomes a group right below the realm group, each as it is on its own date. A rollup unit is not in
+    // the default hierarchy, so it is no root there. It has no child there either, so its tree is only itself.
     private void projectRealm(String rootGroupId) {
         Target target = new Target(rootGroupId, false);
         List<Linked> roots = piece(parts -> new OrgUnitTree(parts.orgUnits(), parts.refItems(),
                 parts.today().ofRealm()).roots().stream()
+                .filter(root -> !root.rollup())
                 .map(root -> new Linked(root.unit(), parts.today().ofUnit(root.unit().id())))
                 .toList());
         Map<Linked, List<OrgUnitState>> trees = new LinkedHashMap<>();
         for (Linked root : roots) {
             trees.put(root, piece(parts -> {
                 OrgUnitTree tree = new OrgUnitTree(parts.orgUnits(), parts.refItems(), root.date());
-                return tree.exists(root.unit().id()) ? tree.subtree(root.unit().id()) : List.<OrgUnitState>of();
+                return tree.exists(root.unit().id()) ? tree.subtree(root.unit().id()).stream()
+                        .filter(unit -> !unit.rollup())
+                        .toList() : List.<OrgUnitState>of();
             }));
         }
         List<OrgUnitState> all = trees.values().stream().flatMap(List::stream).toList();

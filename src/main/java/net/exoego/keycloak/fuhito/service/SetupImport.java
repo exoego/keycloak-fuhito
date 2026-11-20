@@ -164,7 +164,8 @@ final class SetupImport {
         Optional<String> stored = match.stored(source, row.id(), row.externalId(), date.toString(),
                 id -> refItems.find(id).isPresent());
         if (stored.isEmpty()) {
-            RefItemService.Marks marks = new RefItemService.Marks(row.legalEntity(), row.actingHead(), row.lateral());
+            RefItemService.Marks marks = new RefItemService.Marks(row.legalEntity(), row.actingHead(), row.lateral(),
+                    row.rollup());
             RefItem item = match.create(source, row.externalId(), () -> refItemService.create(
                     Checks.required("kind", row.kind()), row.code(), row.primaryLanguage(), row.names(),
                     row.displayOrder(), row.attributes(), marks, !Boolean.FALSE.equals(row.active()),
@@ -181,14 +182,15 @@ final class SetupImport {
                 row.attributes() == null ? Map.of() : row.attributes(), row.active() == null || row.active(),
                 row.legalEntity() == null ? before.legalEntity() : row.legalEntity(),
                 row.actingHead() == null ? before.actingHead() : row.actingHead(),
-                row.lateral() == null ? before.lateral() : row.lateral(), before.version(), before.validFrom(),
+                row.lateral() == null ? before.lateral() : row.lateral(),
+                row.rollup() == null ? before.rollup() : row.rollup(), before.version(), before.validFrom(),
                 before.validTo());
         if (wanted.equals(before)) {
             return Outcome.UNCHANGED;
         }
         RefItem item = refItemService.update(before.id(), row.primaryLanguage(), row.names(), row.displayOrder(),
                 row.attributes(), row.active(), new RefItemService.Marks(wanted.legalEntity(), wanted.actingHead(),
-                        wanted.lateral()), date.toString());
+                        wanted.lateral(), wanted.rollup()), date.toString());
         report.write(new Write.OfRefItem(false, item));
         return Outcome.CHANGED;
     }

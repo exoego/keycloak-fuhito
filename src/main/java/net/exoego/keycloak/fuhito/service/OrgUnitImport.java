@@ -282,16 +282,21 @@ final class OrgUnitImport {
             }
         } else if (end == null || end.isAfter(date)) {
             OrgUnitState before = units.stateOn(id, date);
+            boolean moves = !Objects.equals(parentId, before.parentId());
+            // A unit that becomes a rollup unit leaves its parent first. A rollup unit has no parent.
+            if (moves && parentId == null) {
+                written("/parent", id, () -> orgUnitService.move(id, null, effectiveDate));
+            }
             if (!sameDetails(row, before)) {
                 written("", id, () -> orgUnitService.changeDetails(id, new OrgUnitChange(effectiveDate, row.code(),
                         row.primaryLanguage(), row.names(), row.unitType(), row.workLocation(), row.costCenter(),
                         row.displayOrder(), row.attributes())));
                 changed = true;
             }
-            if (!Objects.equals(parentId, before.parentId())) {
+            if (moves && parentId != null) {
                 written("/parent", id, () -> orgUnitService.move(id, parentId, effectiveDate));
-                changed = true;
             }
+            changed |= moves;
         }
         changed |= link(id, row.organizationAlias());
         changed |= time(id, row);

@@ -77,7 +77,12 @@ public record OrgUnitRepresentation(
                         + "such as a committee.",
                 readOnly = true)
         Boolean lateral,
-        @Schema(description = "The ID of the parent in the default hierarchy. A root has none.")
+        @Schema(
+                description = "True when the unit type marks the unit as a rollup unit, such as a region. A rollup "
+                        + "unit gathers units in another hierarchy and is not in the default hierarchy.",
+                readOnly = true)
+        Boolean rollup,
+        @Schema(description = "The ID of the parent in the default hierarchy. A root and a rollup unit have none.")
         String parentId,
         @Schema(description = "The first date of these details.", format = "date")
         String validFrom,
@@ -125,7 +130,8 @@ public record OrgUnitRepresentation(
                 read.phoneticName(), version.names().primaryLanguage(), version.names().byLanguage(),
                 state.unitType(), places.workLocation(), places.costCenter(), places.effectiveWorkLocation(),
                 places.effectiveCostCenter(), state.legalEntity() ? Boolean.TRUE : null,
-                state.lateral() ? Boolean.TRUE : null, state.parentId(), period.from().toString(),
+                state.lateral() ? Boolean.TRUE : null, state.rollup() ? Boolean.TRUE : null, state.parentId(),
+                period.from().toString(),
                 Objects.toString(period.to(), null), version.displayOrder(), version.attributes(), null,
                 unit.source(), ExternalIdPairRepresentation.of(ids.of(unit.id(), unit.source())),
                 unit.keycloakOrganizationId(), unit.timeZone(), unit.dayStart());
