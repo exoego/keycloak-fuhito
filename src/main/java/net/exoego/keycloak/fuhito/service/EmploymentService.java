@@ -481,9 +481,9 @@ public class EmploymentService {
      * @param id the ID of the employment to end
      * @param request the new employer, the date, and the new staff number
      * @return the two employments and what the new one got
-     * @throws FuhitoException when the employment has an external employer, does not hold on the day before and on
-     *         the date, or has a contract that ends before the date in the terms of the date, the new employer is not
-     *         a legal entity, is the old one, or ends before the new employment, or a value is bad
+     * @throws FuhitoException when the employment has an external employer or does not hold on the day before and on
+     *         the date, its terms of the date have a contract that ends before the date, the new employer is not a
+     *         legal entity, is the old one, or ends before the new employment, or a value is bad
      */
     public Transfer transfer(String id, TransferRequest request) {
         Checks.required("body", request);
