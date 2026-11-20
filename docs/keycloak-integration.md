@@ -614,6 +614,7 @@ A person with no linked user must have names in the record.
 An employment and a qualification have `personId`. They also have `userId` when the person is linked to a user.
 A reporting line has `managerPersonId`, and `managerUserId` in the same way.
 A request to create one of them takes either ID. With the ID of a user, the person of the user is used, and created when the user has none.
+A request with both IDs fails with 400 and `invalid.twice`, also when they name the same person. So a request made from a read of a person with a user leaves one of them out.
 A person with no linked user gets no token claim and no group in the projection.
 
 ### Paths by user

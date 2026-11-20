@@ -68,14 +68,16 @@ public class ReorganizationService {
      * A later step can name a unit that an earlier create step made, by the {@code ref} of that step.
      * A step that changes a stored unit names the version of the unit that the caller read.
      * An empty text, a text of only spaces, or an empty list in a step fails before any step runs. So does a
-     * field that the operation of the step does not read, and a version of a step with no {@code id}.
+     * field that the operation of the step does not read, a version of a step with no {@code id}, and a step that
+     * names its unit or its parent both by ID and by {@code ref}.
      *
      * @param effectiveDate the date of every step, as {@code YYYY-MM-DD}
      * @param steps the steps
      * @param lock locks the stored units until the end of the transaction, before their versions are read
      * @return what each step did, in the same order
-     * @throws FuhitoException when a step fails, has an empty value or a field that it does not read, or names no
-     *         version or an old one. Its values hold the position of the step, counted from 0, under the key "step".
+     * @throws FuhitoException when a step fails, has an empty value or a field that it does not read, names a unit
+     *         in two ways, or names no version or an old one. Its values hold the position of the step, counted
+     *         from 0, under the key "step".
      */
     public List<Result> apply(String effectiveDate, List<ReorganizationStep> steps,
             Consumer<Collection<String>> lock) {
@@ -85,7 +87,7 @@ public class ReorganizationService {
         for (int i = 0; i < steps.size(); i++) {
             ReorganizationStep step = steps.get(i);
             if (step != null) {
-                atStep(i, () -> requireRead(EmptyValues.withoutEmptyValues(step)));
+                atStep(i, () -> namedOnce(requireRead(EmptyValues.withoutEmptyValues(step))));
             }
             if (step != null && step.op() != null && CHANGES.contains(step.op()) && step.unitRef() == null
                     && step.id() != null) {
@@ -123,6 +125,12 @@ public class ReorganizationService {
                 throw FuhitoException.invalid("reorganization.field_unused", Map.of("field", field, "op", step.op()));
             }
         }
+        return step;
+    }
+
+    private static ReorganizationStep namedOnce(ReorganizationStep step) {
+        Checks.notBoth("id", step.id(), "unitRef", step.unitRef());
+        Checks.notBoth("parentId", step.parentId(), "parentRef", step.parentRef());
         return step;
     }
 

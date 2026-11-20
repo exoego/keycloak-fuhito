@@ -187,8 +187,9 @@ Checked by `OrgUnitsIT.rejectsAMoveBelowItselfAndOtherBadMoves`, `RollupUnitsIT.
 `POST /reorganizations` applies many org unit changes on one date in one transaction.
 When one step fails, nothing is written.
 Each operation reads only its own fields. A step that gives another field fails with `reorganization.field_unused` before any step runs, so no value is dropped with no word.
+A step that names its unit by `id` and by `unitRef`, or its parent by `parentId` and by `parentRef`, fails with `invalid.twice` before any step runs too.
 
-Checked by `ReorganizationIT.appliesAReorganizationUnderAChangeOrder`, `ReorganizationIT.aFailedStepWritesNothing`, and `UnusedFieldsIT.aReorganizationStepWithAFieldThatItsOperationDoesNotReadFailsAndWritesNothing`.
+Checked by `ReorganizationIT.appliesAReorganizationUnderAChangeOrder`, `ReorganizationIT.aFailedStepWritesNothing`, `UnusedFieldsIT.aReorganizationStepWithAFieldThatItsOperationDoesNotReadFailsAndWritesNothing`, and `TwoWaysIT.aStepThatNamesItsUnitOrItsParentByIdAndByRefFailsAndWritesNothing`.
 
 ### A merger and a split
 

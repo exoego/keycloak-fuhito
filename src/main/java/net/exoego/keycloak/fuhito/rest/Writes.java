@@ -28,7 +28,8 @@ final class Writes {
 
     // A write may name a person by the ID of a Keycloak user. The person is created when the user has none.
     static String personId(RequestContext context, PersonService people, String field, String personId,
-            String userId) {
+            String userField, String userId) {
+        Checks.notBoth(field, personId, userField, userId);
         if (personId != null) {
             return personId;
         }

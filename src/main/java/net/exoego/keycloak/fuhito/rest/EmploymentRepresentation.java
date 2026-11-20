@@ -13,8 +13,8 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
 @Schema(
         name = "Employment",
         description = "A request to start an employment gives the first terms in the fields of the employment "
-                + "itself. It names the person by `personId` or by `userId`. A response gives the terms of every "
-                + "period in `terms`.",
+                + "itself. It names the person by `personId` or by `userId`, not both. A response gives the terms "
+                + "of every period in `terms`.",
         requiredProperties = {"validFrom"})
 public record EmploymentRepresentation(
         @Schema(readOnly = true)
@@ -24,12 +24,15 @@ public record EmploymentRepresentation(
                         + "also a change of the terms or of an ID of another system.",
                 readOnly = true)
         Long version,
-        @Schema(description = "The ID of the person.")
+        @Schema(
+                description = "The ID of the person. A request gives this or `userId`. A request with both fails "
+                        + "with 400 and `invalid.twice`.")
         String personId,
         @Schema(
                 description = "The ID of the Keycloak user that the person is linked to. A request can give it in "
-                        + "place of `personId`. The person of the user is then used, and created when the user "
-                        + "has none.")
+                        + "place of `personId`, not with it. The person of the user is then used, and created when "
+                        + "the user has none. A read of a person with a user has both, so a request made from a read "
+                        + "leaves one out.")
         String userId,
         @Schema(
                 description = "The ID of the org unit that employs the person. It is a legal entity on the first "

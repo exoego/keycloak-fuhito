@@ -19,17 +19,19 @@ public record ReorganizationStep(
                 description = "For a create step, a name that later steps of the same request can use for the unit "
                         + "that it makes.")
         String ref,
-        @Schema(description = "The ID of the unit to change, move, end, or succeed.")
+        @Schema(description = "The ID of the unit to change, move, end, or succeed. A step gives this or `unitRef`. A "
+                + "step with both fails with 400 and `invalid.twice` before any step runs.")
         String id,
-        @Schema(description = "The `ref` of an earlier create step, in place of `id`.")
+        @Schema(description = "The `ref` of an earlier create step, in place of `id`, not with it.")
         String unitRef,
         @Schema(description = "The version of the unit of `id` that the caller read. A change, move, end, or "
                 + "succeed step with `id` needs it. Two steps of one unit name the same version. A create step and "
                 + "a step with no `id` have no version to give.")
         Long version,
-        @Schema(description = "The ID of the parent for a create or a move.")
+        @Schema(description = "The ID of the parent for a create or a move. A step gives this or `parentRef`. A step "
+                + "with both fails with 400 and `invalid.twice` before any step runs.")
         String parentId,
-        @Schema(description = "The `ref` of an earlier create step, in place of `parentId`.")
+        @Schema(description = "The `ref` of an earlier create step, in place of `parentId`, not with it.")
         String parentRef,
         @Schema(
                 description = "The code of a new unit, or of a unit after `change`. A `change` that leaves it out "
@@ -57,6 +59,7 @@ public record ReorganizationStep(
         Map<String, Object> attributes,
         @Schema(description = "For a succeed step, the IDs of the units that follow the unit that ends.")
         List<String> successorIds,
-        @Schema(description = "For a succeed step, the `ref` of earlier create steps, in place of `successorIds`.")
+        @Schema(description = "For a succeed step, the `ref` of earlier create steps. A step can give it with "
+                + "`successorIds`, and the units of both lists follow.")
         List<String> successorRefs) {
 }

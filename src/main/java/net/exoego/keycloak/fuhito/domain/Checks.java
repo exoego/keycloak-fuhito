@@ -63,6 +63,21 @@ public final class Checks {
     }
 
     /**
+     * Requires at most one of two fields that name one thing in two ways, so that neither is dropped.
+     *
+     * @param field the name of the first field, for the error
+     * @param value the value of the first field, or null
+     * @param otherField the name of the other field, for the error
+     * @param other the value of the other field, or null
+     * @throws FuhitoException when both fields have a value
+     */
+    public static void notBoth(String field, Object value, String otherField, Object other) {
+        if (value != null && other != null) {
+            throw FuhitoException.invalid("invalid.twice", Map.of("field", field, "otherField", otherField));
+        }
+    }
+
+    /**
      * Requires a code of ASCII letters, digits, underscores, dots, and hyphens that starts with a letter or digit.
      *
      * @param field the name of the field, for the error
