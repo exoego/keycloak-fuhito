@@ -2524,7 +2524,7 @@ class ImportServiceTest {
     }
 
     @Test
-    void aRowOfAStoredEmploymentRemovesItsEndWithNullAndKeepsTheEndReason() {
+    void aLaterEndKeepsTheEndReasonAndNullRemovesTheEndWithItsReason() {
         importTwoUnits();
         item(RefKind.END_REASON, "moved");
         item(RefKind.END_REASON, "retired");
@@ -2549,6 +2549,34 @@ class ImportServiceTest {
         assertEquals(new Counts(0, 1, 0), other.counts().get("employments"));
         assertEquals(new Counts(0, 1, 0), removed.counts().get("employments"));
         assertNull(employmentStore.find(id).orElseThrow().period().to());
+        assertNull(employments.get(id).endReason());
+    }
+
+    @Test
+    void aRowWithAnEndReasonAndNoEndFails() {
+        importTwoUnits();
+        item(RefKind.END_REASON, "moved");
+        rows("2026-04-01", "employments", """
+                {"externalId": "E", "username": "nurse", "validTo": "2027-04-01", "endReason": "moved"},
+                {"externalId": "F", "username": "doctor"}
+                """);
+        String ended = stored(ExternalId.Kind.EMPLOYMENT, "import", "E");
+        String open = stored(ExternalId.Kind.EMPLOYMENT, "import", "F");
+
+        ImportReport report = rows("2026-04-01", "employments", """
+                {"externalId": "G", "username": "doctor", "validFrom": "2028-04-01", "endReason": "moved"},
+                {"externalId": "E", "validTo": null, "endReason": "moved"},
+                {"externalId": "F", "endReason": "moved"}
+                """);
+
+        assertEquals(List.of("employments[0] employment.end_reason_without_end",
+                "employments[1] employment.end_reason_without_end", "employments[2] employment.end_reason_without_end"),
+                errors(report));
+        assertEquals(Map.of("endReason", "moved"), report.errors().getFirst().error().params());
+        assertTrue(externalIdStore.idOf(ExternalId.Kind.EMPLOYMENT, "import", "G").isEmpty());
+        assertEquals(LocalDate.parse("2027-04-01"), employmentStore.find(ended).orElseThrow().period().to());
+        assertEquals("moved", employments.get(ended).endReason());
+        assertNull(employments.get(open).endReason());
     }
 
     @Test

@@ -291,7 +291,7 @@ public class EmploymentsResource {
     public EmploymentRepresentation end(
             @Parameter(description = "The ID of the resource.")
             @PathParam("id") String id,
-            EndRepresentation body) {
+            EmploymentEndRepresentation body) {
         context.requireWrite();
         return Calls.guarded(context, body, () -> version(id), () -> scopes.employment(id), () -> {
             var employment = represent(service.end(id, body.validTo(), body.endReason()));
@@ -519,7 +519,8 @@ public class EmploymentsResource {
     @Operation(
             operationId = "removeEmploymentEnd",
             summary = "Removes the end of an employment, for example to take back a resignation.",
-            description = "An employment that another one continues, as after a transfer, keeps its end. The "
+            description = "The end reason goes with the end, because an employment with no end has no end reason. "
+                    + "An employment that another one continues, as after a transfer, keeps its end. The "
                     + "request then fails with 409 and `employment.continues_holds`.")
     @Parameter(ref = "changeOrder")
     @APIResponse(responseCode = "200", description = "The employment with the terms of every period.")

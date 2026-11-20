@@ -4,13 +4,12 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
 
 @Schema(
         name = "End",
-        description = "A request to end something on a date.",
+        description = "A request to end something on a date. It has no end reason. Only an `EmploymentEnd` has "
+                + "one.",
         requiredProperties = {"version", "validTo"})
 public record EndRepresentation(
         @Schema(description = "The version of the resource that the caller read.")
         Long version,
         @Schema(description = "The first date on which it no longer exists.", format = "date")
-        String validTo,
-        @Schema(description = "The code of the end reason. Only the end of an employment uses it.")
-        String endReason) implements Versioned {
+        String validTo) implements Versioned {
 }
