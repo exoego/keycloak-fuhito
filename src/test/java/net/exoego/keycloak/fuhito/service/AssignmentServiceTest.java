@@ -580,6 +580,28 @@ class AssignmentServiceTest {
     }
 
     @Test
+    void aSwitchOfAnAssignmentThatIsNotPrimaryFailsAndWritesNothing() {
+        String old = service.add(primary(ward, "2026-04-01", null, null)).assignmentId();
+        String other = service.add(to(xHospital, "2026-04-01")).assignmentId();
+
+        for (Boolean flag : new Boolean[] {null, false}) {
+            FuhitoException added = addFailure(new AssignmentValues(employment, yHospital, "2027-04-01", null, null,
+                    null, null, null, flag, true, null, null, null, null, null));
+            assertEquals(FuhitoException.Reason.INVALID, added.reason());
+            assertEquals("assignment.switch_primary_unused", added.code());
+            assertEquals(Map.of(), added.params());
+            FuhitoException changed = assertThrows(FuhitoException.class, () -> service.changeDetails(other,
+                    new AssignmentValues(null, null, "2027-04-01", null, null, null, null, null, flag, true, null,
+                            null, null, null, null)));
+            assertEquals("assignment.switch_primary_unused", changed.code());
+        }
+
+        assertEquals(2, store.rows.size());
+        assertEquals(List.of("2026-04-01 null true"), primaryPeriods(old));
+        assertEquals(List.of("2026-04-01 null false"), primaryPeriods(other));
+    }
+
+    @Test
     void readsAnAssignmentWhoseEmploymentOrItemIsGone() {
         RefItem title = item(RefKind.JOB_TITLE, "staff", true);
         String id = service.add(new AssignmentValues(employment, ward, "2026-04-01", null, "staff", null, null, null,

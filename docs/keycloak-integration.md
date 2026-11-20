@@ -473,7 +473,7 @@ So a product cannot overwrite a change that another product made after its read.
 - A write with no version fails with 400 and `version.required`, and writes nothing.
 - A write with an old version fails with 409 and `version.conflict`, and writes nothing. The values of the error have the version of now in `version`. The caller reads again and decides.
 - An operation that changes several resources takes the version of the resource that its path names. For example, `POST /employments/{id}/transfer` takes the version of the employment, and also ends its assignments.
-- A step of `POST /reorganizations` that changes a stored unit has the version of that unit. Two steps of one unit name the same version, the one that the caller read. A step of a unit that an earlier step creates needs none.
+- A step of `POST /reorganizations` that changes a stored unit has the version of that unit. Two steps of one unit name the same version, the one that the caller read. A step of a unit that an earlier step creates has none to give. A version there fails with `reorganization.field_unused`.
 - `PUT /external-ids` of a stored ID has the version of that ID, and `DELETE /external-ids` has it in the query. A new ID needs none.
 - A create needs no version. The import, the attribute sync, the restore, and the rebuild of the projection need none either, because they load data from the system of record or from Keycloak.
 - `POST /employments/transfers` and the writes of `/users/{userId}` need no version. Their path names no resource with a version.

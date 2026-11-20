@@ -625,6 +625,9 @@ public class AssignmentService {
     // Tells whether the claimant took the flag from rows that held it, which then changed.
     private boolean claimPrimary(Assignment claimant, AssignmentValues request, List<Assignment> ofEmployment) {
         if (!claimant.primary()) {
+            if (Boolean.TRUE.equals(request.switchPrimary())) {
+                throw FuhitoException.invalid("assignment.switch_primary_unused", Map.of());
+            }
             return false;
         }
         List<Assignment> holders = ofEmployment.stream()
