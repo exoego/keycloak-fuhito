@@ -81,6 +81,16 @@ public interface EmploymentStore {
     List<Employment> findByPerson(String personId);
 
     /**
+     * Lists the employments of several people.
+     *
+     * @param personIds the IDs of the people
+     * @return the employments of those people
+     */
+    default List<Employment> findByPeople(Collection<String> personIds) {
+        return personIds.stream().distinct().flatMap(id -> findByPerson(id).stream()).toList();
+    }
+
+    /**
      * Lists the terms that are valid on a date for the given employments.
      *
      * @param employmentIds the IDs of the employments

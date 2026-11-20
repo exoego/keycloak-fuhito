@@ -29,7 +29,7 @@ class ImportIT {
              ]}
             """;
 
-    private static JsonNode ok(HttpResponse<String> response) throws Exception {
+    static JsonNode ok(HttpResponse<String> response) throws Exception {
         assertEquals(200, response.statusCode(), response.body());
         return Api.json(response);
     }
@@ -38,7 +38,7 @@ class ImportIT {
         return Api.names(api.tree("asOf=" + asOf));
     }
 
-    private static String rows(TestRealm realm, String table) throws Exception {
+    static String rows(TestRealm realm, String table) throws Exception {
         return KeycloakEnvironment.sql("select count(*) from " + table + " where realm_id = '" + realm.id() + "'");
     }
 
@@ -273,7 +273,7 @@ class ImportIT {
         assertEquals(2, again.get("counts").get("assignments").get("unchanged").asInt());
     }
 
-    private static String lookup(Api api, String resourceType, String externalId) throws Exception {
+    static String lookup(Api api, String resourceType, String externalId) throws Exception {
         return ok(api.get("/external-ids/lookup?resourceType=" + resourceType + "&source=sheet&externalId="
                 + externalId)).get("resourceId").asText();
     }

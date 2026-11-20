@@ -513,7 +513,7 @@ public record ImportDocument(
             String id,
             @Schema(description = "The external ID of the employment that this one continues after a transfer "
                     + "between employers, with the same source. A new employment gets the link. A stored one must "
-                    + "have the same.")
+                    + "have the same. The one it continues must end by the start of this one.")
             String continuesEmploymentExternalId,
             @Schema(description = "The ID of the employment that this one continues. Give this or "
                     + "`continuesEmploymentExternalId`, not both.")
@@ -626,7 +626,7 @@ public record ImportDocument(
             String id,
             @Schema(description = "The external ID of the assignment that this one continues after a transfer "
                     + "between employers, with the same source. A new assignment gets the link. A stored one must "
-                    + "have the same.")
+                    + "have the same. The one it continues must end by the start of this one.")
             String continuesAssignmentExternalId,
             @Schema(description = "The ID of the assignment that this one continues. Give this or "
                     + "`continuesAssignmentExternalId`, not both.")

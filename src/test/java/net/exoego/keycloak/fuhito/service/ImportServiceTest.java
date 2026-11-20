@@ -1402,6 +1402,114 @@ class ImportServiceTest {
                 List.of(continuing("E6", null, doctor)), List.of(unknown, ofDoctor))));
     }
 
+    private static EmploymentRow employmentAfter(String externalId, String username, String validFrom,
+            String continuesExternalId) {
+        return new EmploymentRow(null, externalId, username, null, null, null, null, null, null, null, null,
+                validFrom, null, null, null, null, null, null, null, continuesExternalId, null);
+    }
+
+    private static AssignmentRow assignmentAfter(String externalId, String employment, String orgUnit,
+            String validFrom, String continuesExternalId) {
+        return new AssignmentRow(null, externalId, employment, orgUnit, null, null, null, null, false, null, null,
+                null, validFrom, null, null, null, null, continuesExternalId, null, null, null);
+    }
+
+    // The nurse and the doctor work from 2020. The nurse has assignments to the ward and to the hospital.
+    private void staffOf2020() {
+        importUnits("2020-04-01", unit("H", "Hospital", null), unit("W", "Ward", "H"));
+        assertEquals(List.of(), errors(importPeople("2020-04-01",
+                List.of(employment("E1", "nurse", null, null, null), employment("D1", "doctor", null, null, null)),
+                List.of(assignment("A1", "E1", "W", false, null), assignment("C1", "E1", "H", false, null),
+                        assignment("B1", "D1", "W", false, null)))));
+    }
+
+    @Test
+    void aFileEndsTheEmploymentThatANewOneContinuesInAnyOrder() {
+        staffOf2020();
+
+        // The doctor starts at the new employer a month after the old employment ends. The assignments of the old
+        // employments end with them.
+        ImportReport report = importPeople("2026-04-01",
+                List.of(employment("E1", "nurse", null, "2026-04-01", null),
+                        employmentAfter("E2", "nurse", "2026-04-01", "E1"),
+                        employmentAfter("D2", "doctor", "2026-05-01", "D1"),
+                        employment("D1", "doctor", null, "2026-04-01", null)),
+                List.of(assignmentAfter("A2", "E2", "W", "2026-04-01", "A1"),
+                        assignmentAfter("B2", "D2", "W", "2026-05-01", "B1")));
+
+        assertEquals(List.of(), errors(report));
+        assertEquals(new Counts(2, 2, 0), report.counts().get("employments"));
+        assertEquals(new Counts(2, 0, 0), report.counts().get("assignments"));
+        assertEquals(stored(ExternalId.Kind.EMPLOYMENT, "import", "D1"), employmentStore
+                .find(stored(ExternalId.Kind.EMPLOYMENT, "import", "D2")).orElseThrow().continuesEmploymentId());
+    }
+
+    @Test
+    void aFileEndsTheAssignmentThatANewOneContinuesInAnyOrder() {
+        staffOf2020();
+
+        // The new assignment to the ward starts a month after the one to the hospital ends.
+        ImportReport report = importPeople("2026-04-01", null, List.of(
+                assignmentAfter("A2", "E1", "H", "2026-04-01", "A1"),
+                assignment("A1", "E1", "W", false, "2026-04-01"),
+                assignment("C1", "E1", "H", false, "2026-04-01"),
+                assignmentAfter("C2", "E1", "W", "2026-05-01", "C1")));
+
+        assertEquals(List.of(), errors(report));
+        assertEquals(new Counts(2, 2, 0), report.counts().get("assignments"));
+    }
+
+    @Test
+    void aNewRowFailsWhileTheOneItContinuesHasNotEnded() {
+        staffOf2020();
+        String e1 = stored(ExternalId.Kind.EMPLOYMENT, "import", "E1");
+        String d1 = stored(ExternalId.Kind.EMPLOYMENT, "import", "D1");
+
+        // The file does not end the employment of the nurse, and ends the one of the doctor after the new one
+        // starts. The same for the two assignments of the nurse.
+        ImportReport report = importPeople("2026-04-01",
+                List.of(employmentAfter("E2", "nurse", "2026-04-01", "E1"),
+                        employment("D1", "doctor", null, "2026-05-01", null),
+                        employmentAfter("D2", "doctor", "2026-04-01", "D1")),
+                List.of(assignmentAfter("A2", "E1", "H", "2026-04-01", "A1"),
+                        assignment("C1", "E1", "H", false, "2026-05-01"),
+                        assignmentAfter("C2", "E1", "W", "2026-04-01", "C1")));
+
+        assertEquals(List.of("employments[0] employment.continues_holds", "employments[2] employment.continues_holds",
+                "assignments[0] assignment.continues_holds", "assignments[2] assignment.continues_holds"),
+                errors(report));
+        assertEquals(List.of(Map.of("id", e1, "date", "2026-04-01"), Map.of("id", d1, "date", "2026-04-01"),
+                Map.of("id", stored(ExternalId.Kind.ASSIGNMENT, "import", "A1"), "date", "2026-04-01"),
+                Map.of("id", stored(ExternalId.Kind.ASSIGNMENT, "import", "C1"), "date", "2026-04-01")),
+                report.errors().stream().map(e -> e.error().params()).toList());
+        assertEquals(new Counts(0, 1, 0), report.counts().get("employments"));
+        assertEquals(new Counts(0, 1, 0), report.counts().get("assignments"));
+    }
+
+    @Test
+    void aLaterFileCannotOpenAgainWhatAnotherOneContinues() {
+        staffOf2020();
+        assertEquals(List.of(), errors(importPeople("2026-04-01",
+                List.of(employment("E1", "nurse", null, "2026-04-01", null),
+                        employmentAfter("E2", "nurse", "2026-04-01", "E1")),
+                List.of(assignment("B1", "D1", "W", false, "2026-04-01"),
+                        assignmentAfter("B2", "D1", "H", "2026-04-01", "B1")))));
+
+        // An earlier end leaves a gap, which is fine.
+        assertEquals(List.of(), errors(importPeople("2026-04-01",
+                List.of(employment("E1", "nurse", null, "2026-03-01", null)),
+                List.of(assignment("B1", "D1", "W", false, "2026-03-01")))));
+        ImportReport reopened = importPeople("2026-04-01",
+                List.of(employment("E1", "nurse", null, "2026-10-01", null)),
+                List.of(assignment("B1", "D1", "W", false, "2026-10-01")));
+
+        assertEquals(List.of("employments[0] employment.continues_holds", "assignments[0] assignment.continues_holds"),
+                errors(reopened));
+        assertEquals(List.of(stored(ExternalId.Kind.EMPLOYMENT, "import", "E1"),
+                stored(ExternalId.Kind.ASSIGNMENT, "import", "B1")),
+                reopened.errors().stream().map(e -> e.error().params().get("id")).toList());
+    }
+
     private void importTwoUnits() {
         importUnits("2026-04-01", unit("H", "Hospital", null), unit("W", "Ward", "H"));
     }
@@ -1479,8 +1587,8 @@ class ImportServiceTest {
         assertEquals(6, externalIdStore.manyFinds - many);
         // An employment that continues one of an earlier row of its list finds it.
         assertEquals(List.of(), errors(importPeople("2027-04-01", List.of(
-                new EmploymentRow(null, "E4", "nurse", null, null, null, null, null, null, null, null, "2026-04-01",
-                        "2027-04-01", null, null, null, null, null, null, null, null),
+                new EmploymentRow(null, "E4", "nurse", null, null, null, null, null, null, null, null, "2025-04-01",
+                        "2026-04-01", null, null, null, null, null, null, null, null),
                 continuing("E5", "E4", null)), null)));
     }
 

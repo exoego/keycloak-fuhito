@@ -227,6 +227,24 @@ class CsvImportServiceTest {
     }
 
     @Test
+    void aFileOfATransferEndsTheOldEmploymentInAnyOrder() {
+        load("employments", "2020-04-01", "外部ID,ユーザー名\nE1,nurse\nD1,doctor\n");
+
+        // The nurse moves, and the file ends the old employment after the row of the new one. The doctor moves
+        // with no end of the old employment.
+        CsvImportService.Result transfer = load("employments", "2026-04-01", """
+                外部ID,ユーザー名,開始日,終了日,引き継ぎ元の雇用の外部ID
+                E2,nurse,2026-04-01,,E1
+                E1,nurse,,2026-04-01,
+                D2,doctor,2026-04-01,,D1
+                """);
+
+        assertEquals(List.of("line 4 row 2 employment.continues_holds"), errors(transfer));
+        assertEquals(stored(ExternalId.Kind.EMPLOYMENT, "import", "D1"),
+                transfer.errors().getFirst().error().params().get("id"));
+    }
+
+    @Test
     void aBlankParentKeepsAParentThatHasNoExternalIdOfTheSource() {
         String hospital = orgUnits.create(new NewOrgUnit(null, "ja", ja("Hospital"), null, null,
                 "2026-04-01", null, null, null, null)).unit().id();
