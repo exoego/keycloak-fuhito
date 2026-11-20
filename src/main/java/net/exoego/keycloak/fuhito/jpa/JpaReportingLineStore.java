@@ -39,9 +39,8 @@ public class JpaReportingLineStore implements ReportingLineStore {
     private static String actingPresent(String row, String prefix) {
         String r = prefix + "r";
         return """
-                exists (select 1 from AssignmentEntity %2$s where %2$s.realmId = :realmId
-                    and %2$s.orgUnitId = %1$s.orgUnitId and %2$s.head = true and %2$s.%3$s
-                    and %4$s and %5$s)"""
+                exists (select 1 from AssignmentEntity %2$s where %2$s.orgUnitId = %1$s.orgUnitId
+                    and %2$s.head = true and %2$s.%3$s and %4$s and %5$s)"""
                 .formatted(row, r, onDate(r), present(r, prefix + "rt"), acting(r, prefix + "rk"));
     }
 
@@ -60,24 +59,28 @@ public class JpaReportingLineStore implements ReportingLineStore {
     // The database goes down from the line units that the manager leads. It does not go below an org unit that
     // has a head of its own, nor into a lateral unit. So a read of one page does not load the tree or the people of
     // the whole realm.
+    // Each step takes the hierarchy and the realm from the row of the parent, for the reason in TreeQuery.tree. The
+    // other rows are found by the manager, a unit, or an assignment of the realm, so they are of the realm too.
     private static String reports(String beforeRows, String afterRows) {
         return """
                 with Down as (
-                    select a.orgUnitId as id, 0 as depth, 1 as open
-                    from AssignmentEntity a join EmploymentEntity e on e.id = a.employmentId
-                    where a.realmId = :realmId and e.personId = :managerId and a.%1$s and %6$s
-                    and not exists (select 1 from OrgUnitVersionEntity gv, RefItemEntity g where gv.realmId = :realmId
-                        and gv.orgUnitId = a.orgUnitId and gv.%9$s and g.id = gv.unitTypeId and g.lateralUnit = true)
+                    select a.orgUnitId as id, 0 as depth, 1 as open, cast(:hierarchyId as String) as hierarchyId,
+                        e.realmId as realmId
+                    from EmploymentEntity e join AssignmentEntity a on a.employmentId = e.id
+                    where e.personId = :managerId and %12$s and a.%1$s and %6$s
+                    and not exists (select 1 from OrgUnitVersionEntity gv, RefItemEntity g
+                        where gv.orgUnitId = a.orgUnitId and gv.%9$s and g.id = gv.unitTypeId and g.lateralUnit = true)
                     union all
                     select l.childId as id, d.depth + 1 as depth,
                         case when exists (select 1 from AssignmentEntity h join EmploymentEntity he
                                 on he.id = h.employmentId
-                            where h.realmId = :realmId and h.orgUnitId = l.childId and he.personId <> :managerId
-                            and h.%2$s and %7$s) then 0 else 1 end as open
+                            where h.orgUnitId = l.childId and he.personId <> :managerId
+                            and h.%2$s and %7$s) then 0 else 1 end as open,
+                        d.hierarchyId as hierarchyId, d.realmId as realmId
                     from Down d
-                    join OrgUnitLinkEntity l on l.parentId = d.id and l.realmId = :realmId
-                        and l.hierarchyId = :hierarchyId and l.%3$s
-                    join OrgUnitVersionEntity v on v.orgUnitId = l.childId and v.realmId = :realmId and v.%4$s
+                    join OrgUnitLinkEntity l on l.parentId = d.id and l.hierarchyId = d.hierarchyId
+                        and l.realmId = d.realmId and l.%3$s
+                    join OrgUnitVersionEntity v on v.orgUnitId = l.childId and v.%4$s
                     where d.open = 1 and not exists (select 1 from RefItemEntity g where g.id = v.unitTypeId
                         and g.lateralUnit = true)
                 ),
@@ -85,25 +88,30 @@ public class JpaReportingLineStore implements ReportingLineStore {
                 select 0 as derived, 0 as depth, a.orgUnitId as orgUnitId, a.assignmentId as assignmentId,
                     l.id as lineId, l.kind as kind, e.personId as personId, p.userId as userId
                 from ReportingLineEntity l
-                join AssignmentEntity a on a.assignmentId = l.assignmentId and a.realmId = :realmId and a.%1$s
+                join AssignmentEntity a on a.assignmentId = l.assignmentId and a.%1$s
                 join EmploymentEntity e on e.id = a.employmentId
                 join PersonEntity p on p.id = e.personId
-                where l.realmId = :realmId and l.managerPersonId = :managerId and l.%3$s
+                where l.managerPersonId = :managerId and %12$s and l.%3$s
                 union all
                 select 1 as derived, d.depth as depth, a.orgUnitId as orgUnitId, a.assignmentId as assignmentId,
                     cast(null as String) as lineId, 'SOLID' as kind, e.personId as personId, p.userId as userId
                 from Units d
-                join AssignmentEntity a on a.orgUnitId = d.id and a.realmId = :realmId and a.%1$s
+                join AssignmentEntity a on a.orgUnitId = d.id and a.%1$s
                 join EmploymentEntity e on e.id = a.employmentId
                 join PersonEntity p on p.id = e.personId
                 where e.personId <> :managerId
                 and ((d.depth = 0 and not %8$s) or (d.depth > 0 and d.open = 1) or (d.depth > 0 and d.open = 0
                     and %8$s))
-                and not exists (select 1 from ReportingLineEntity s where s.realmId = :realmId
-                    and s.assignmentId = a.assignmentId and s.kind = 'SOLID' and s.%5$s)%11$s"""
+                and not exists (select 1 from ReportingLineEntity s
+                    where s.assignmentId = a.assignmentId and s.kind = 'SOLID' and s.%5$s)%11$s"""
                 .formatted(onDate("a"), onDate("h"), onDate("l"), onDate("v"), onDate("s"), leads("a"), leads("h"),
-                        looksAbove("a"), onDate("gv"), beforeRows, afterRows);
+                        looksAbove("a"), onDate("gv"), beforeRows, afterRows, MANAGER_IN_REALM);
     }
+
+    // The manager is found by the ID alone, for the reason in Rows.inRealm. With the realm of the manager on the rows,
+    // as Rows.ofRecord gives it, PostgreSQL also read the lines of the whole realm when the statistics knew many realms.
+    private static final String MANAGER_IN_REALM =
+            "(select m.realmId from PersonEntity m where m.id = :managerId) = :realmId";
 
     // HQL binds an order by after a union to the last part only. So the rows of both parts go into one more table of
     // the with clause, and the list sorts them there.

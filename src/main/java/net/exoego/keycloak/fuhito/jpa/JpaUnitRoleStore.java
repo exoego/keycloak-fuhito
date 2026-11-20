@@ -24,25 +24,24 @@ public class JpaUnitRoleStore implements UnitRoleStore {
 
     private static final String WITH_PERSON = "select r, e.personId, p.userId" + FROM_PERSON;
 
-    // The database goes up from the unit, so a read does not load the tree.
+    // The database goes up from the unit, so a read does not load the tree. The walk looks up each step as
+    // JpaOrgUnitStore.LINE does, and the last row has no unit.
     private static final String HOLDERS = """
             with Above as (
-                select u.id as id, 0 as depth
+                select u.id as id, 0 as depth, u.realmId as realmId
                 from OrgUnitEntity u
-                where u.realmId = :realmId and u.id = :orgUnitId
+                where u.id = :orgUnitId
                 union all
-                select l.parentId as id, a.depth + 1 as depth
-                from Above a
-                join OrgUnitLinkEntity l on l.childId = a.id and l.realmId = :realmId
-                    and l.hierarchyId = :hierarchyId and l.%1$s
+                select %1$s as id, a.depth + 1 as depth, a.realmId as realmId
+                from Above a where a.id is not null
             )
             select %%s from Above a
             join UnitRoleEntity r on r.orgUnitId = a.id and r.realmId = :realmId and r.%2$s
             join EmploymentEntity e on e.id = r.employmentId
             join PersonEntity p on p.id = e.personId
             join RefItemEntity k on k.id = r.roleId
-            where (a.depth = 0 or r.includesDescendants = true)%%s%%s""".formatted(TreeQuery.onDate("l"),
-            TreeQuery.onDate("r"));
+            where a.realmId = :realmId and (a.depth = 0 or r.includesDescendants = true)%%s%%s"""
+            .formatted(TreeQuery.parentOf("a.id", "hierarchyId"), TreeQuery.onDate("r"));
 
     // A role is left out when a nearer unit has a holder of the same role over the unit.
     private static final String NEAREST = " and not exists (select 1 from Above b"

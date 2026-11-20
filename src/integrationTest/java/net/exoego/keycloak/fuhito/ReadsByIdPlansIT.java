@@ -145,14 +145,14 @@ class ReadsByIdPlansIT {
         });
     }
 
-    // The check of a head looks up the terms of each row by its employment. The rest of the walk of the reports is
-    // out of this check.
+    // The check of a head looks up the terms of each row by its employment. ReportsAndHoldersPlanIT checks the rest
+    // of the walk of the reports.
     @Test
     void theReadsOfReportingLinesFindThemByTheirIds() throws Exception {
         withOldStatistics(statement -> {
             Set<String> head = indexes(statement, """
                     select a.id from fuhito_assignment a join fuhito_employment e on e.id = a.employment_id
-                    where a.realm_id = 'ex-new-realm' and a.org_unit_id = 'ex-new-unit-7' and %s and a.is_head
+                    where a.org_unit_id = 'ex-new-unit-7' and %s and a.is_head
                     and exists (select 1 from fuhito_employment_terms t where t.employment_id = a.employment_id
                     and t.status = 'ACTIVE' and %s)""".formatted(ON.formatted("a"), ON.formatted("t")));
             assertTrue(head.contains("uk_fuhito_employment_terms_from"), head::toString);
