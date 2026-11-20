@@ -395,14 +395,16 @@ public class JpaOrgUnitStore implements OrgUnitStore {
     }
 
     // The employments are found by the employer alone and counted for each realm, for the reason in Rows.inRealm.
+    // No date stands in for a missing end. The end is not in the range, so a stand-in leaves out the last date.
     @Override
     public long employmentsStartingIn(String employerId, LocalDate from, LocalDate to) {
-        return countInRealm(em.createQuery("""
+        TypedQuery<Object[]> counts = em.createQuery("""
                         select e.realmId, count(e) from EmploymentEntity e where e.employerId = :employerId
-                        and e.validFrom >= :from and e.validFrom < :to group by e.realmId""", Object[].class)
+                        and e.validFrom >= :from%s group by e.realmId""".formatted(
+                                to == null ? "" : " and e.validFrom < :to"), Object[].class)
                 .setParameter("employerId", employerId)
-                .setParameter("from", from)
-                .setParameter("to", to == null ? LocalDate.of(9999, 12, 31) : to));
+                .setParameter("from", from);
+        return countInRealm(to == null ? counts : counts.setParameter("to", to));
     }
 
     @Override
