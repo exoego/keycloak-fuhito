@@ -43,6 +43,7 @@ public class JpaJobRunStore implements JobRunStore {
 
     @Override
     public void started(String job, Instant at) {
+        RowLocks.lockRealm(em, realmId, false);
         Optional<JobRunEntity> stored = entity(job);
         JobRunEntity run = stored.orElseGet(JobRunEntity::new);
         run.state = "RUNNING";
@@ -61,6 +62,7 @@ public class JpaJobRunStore implements JobRunStore {
 
     @Override
     public void ended(String job, Instant at, String state, String report, String errorCode) {
+        RowLocks.lockRealm(em, realmId, false);
         entity(job).ifPresent(run -> {
             run.state = state;
             run.endedAt = at;

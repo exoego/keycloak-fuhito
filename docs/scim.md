@@ -103,6 +103,7 @@ Every write of the sync is in the change log, like any other write.
 A run does its work in pieces of 100 users, and each piece is one transaction. One transaction for a large realm would run into the transaction timeout of Keycloak.
 So a run that stops in the middle keeps the pieces that it finished, with their entries in the change log. The next run does the rest.
 A dry run works in the same pieces, and undoes each piece at its end.
+Each piece keeps the other writes of the realm waiting until it ends, so they wait for one piece at a time and not for the whole run.
 
 When a piece fails, each of its users runs again in a transaction of its own.
 An error of the database can spoil the transaction of the whole piece, so the users that did not fail run again too.

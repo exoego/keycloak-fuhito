@@ -1,6 +1,5 @@
 package net.exoego.keycloak.fuhito.service;
 
-import java.time.DateTimeException;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -79,7 +78,7 @@ final class RestoreKeys {
      * Requires that no two rows of an export have the same ID or the same unique key, and that no two rows that the
      * database keeps apart are valid on the same date.
      *
-     * @param document the export, with every value that its tables need
+     * @param document the export, with every value that its tables need and only dates that can be read
      * @throws FuhitoException when two rows have the same ID or key, or overlap. The error names the list, the ID of
      *         the row, the field, and the other row.
      */
@@ -176,12 +175,12 @@ final class RestoreKeys {
         }
     }
 
-    // Names with no start hold from the start. A period that cannot be read fails in the write, as before.
+    // Names with no start hold from the start. A period that ends before it starts fails in the write, as before.
     private static Dated dated(String id, Object group, String from, String to) {
         try {
             return new Dated(id, group, new ValidPeriod(from == null ? LocalDate.MIN : LocalDate.parse(from),
                     to == null ? null : LocalDate.parse(to)));
-        } catch (DateTimeException | IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             return new Dated(id, group, null);
         }
     }

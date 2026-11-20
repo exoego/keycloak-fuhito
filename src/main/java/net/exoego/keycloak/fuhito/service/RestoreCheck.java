@@ -2,6 +2,9 @@ package net.exoego.keycloak.fuhito.service;
 
 import java.lang.reflect.RecordComponent;
 import java.math.BigDecimal;
+import java.time.DateTimeException;
+import java.time.Instant;
+import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.ZoneOffset;
 import java.util.HashMap;
@@ -26,6 +29,12 @@ final class RestoreCheck {
 
     // Any rule will do for the check of the time settings of a unit.
     private static final BusinessDay.Rule ANY_DAY = new BusinessDay.Rule(ZoneOffset.UTC, LocalTime.MIDNIGHT);
+
+    private static final Set<String> DATES = Set.of("validFrom", "validTo", "effectiveDate", "orderDate",
+            "contractEndDate");
+
+    // A time must be on a date that a write takes, in UTC.
+    private static final Set<String> TIMES = Set.of("createdAt", "announcedAt", "maskedAt", "erasedAt");
 
     private final Set<String> refItems;
     private final Set<String> orgUnits;
@@ -58,8 +67,8 @@ final class RestoreCheck {
     /**
      * Requires every row of an export and every value that the table of a row needs, and requires that no value is an
      * empty text, a text of only spaces, an empty list, or a text that cannot be stored, as in a row of an import. A
-     * text must fit its column, and a value that a write checks by a rule of its own, such as a code, must pass the
-     * rule. A row inside a row, such as a version of an org unit, is named by the list and the ID that
+     * text must fit its column, and a value that a write checks by a rule of its own, such as a code or a date, must
+     * pass the rule. A row inside a row, such as a version of an org unit, is named by the list and the ID that
      * {@code restore.id_taken} gives it.
      *
      * @param document the export
@@ -142,7 +151,7 @@ final class RestoreCheck {
         }
         try {
             rule(params.get("list"), field, value);
-        } catch (FuhitoException e) {
+        } catch (FuhitoException | DateTimeException e) {
             throw FuhitoException.invalid("restore.bad_value", named).causedBy(e);
         }
     }
@@ -150,6 +159,11 @@ final class RestoreCheck {
     private static void rule(String list, String field, Object value) {
         if (value == null) {
             return;
+        }
+        if (DATES.contains(field)) {
+            Checks.optionalDate(field, (String) value);
+        } else if (TIMES.contains(field)) {
+            Checks.inRange(LocalDate.ofInstant(Instant.parse((String) value), ZoneOffset.UTC));
         }
         switch (list + "." + field) {
             case "ref-kinds.code", "ref-items.code", "hierarchies.code", "org-unit-versions.code", "org-units.source",

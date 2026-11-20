@@ -8,6 +8,7 @@ import java.util.SequencedMap;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
+import jakarta.persistence.TypedQuery;
 import jakarta.persistence.criteria.CriteriaBuilder;
 import jakarta.persistence.criteria.CriteriaQuery;
 import jakarta.persistence.criteria.Root;
@@ -16,9 +17,9 @@ import jakarta.persistence.criteria.Root;
  * Keeps two writes of one resource apart. It locks the stored rows of resources until the end of the transaction,
  * and sends the writes of a request before the commit, so that a conflict fails the request.
  *
- * <p>Every write locks in one order. The kinds come in the order in which an import applies its lists, and the
- * resources of one kind in the order of their IDs. So two writes that change the same resources never wait for
- * each other at once.
+ * <p>Every write locks in one order. The row of the realm comes first. Then the kinds come in the order in which an
+ * import applies its lists, and the resources of one kind in the order of their IDs. So two writes that change the
+ * same resources never wait for each other at once.
  */
 public final class RowLocks {
 
@@ -50,6 +51,30 @@ public final class RowLocks {
     private static final int IDS_AT_A_TIME = 1000;
 
     private RowLocks() {
+    }
+
+    /**
+     * Locks the row of the realm for writes until the end of the transaction. A bulk write, such as an import,
+     * locks it alone, and every other write shares it. So the other writes of the realm wait while a bulk write
+     * runs, and a bulk write waits for the writes that run. A write calls it once, before it locks or reads
+     * anything that it changes. The first write of a realm adds the row.
+     *
+     * @param em the entity manager of the transaction
+     * @param realmId the ID of the realm
+     * @param alone true for a bulk write
+     */
+    public static void lockRealm(EntityManager em, String realmId, boolean alone) {
+        TypedQuery<RealmWriteEntity> row = em.createQuery(
+                        "select r from RealmWriteEntity r where r.realmId = :realmId", RealmWriteEntity.class)
+                .setParameter("realmId", realmId)
+                .setLockMode(alone ? LockModeType.PESSIMISTIC_WRITE : LockModeType.PESSIMISTIC_READ);
+        if (row.getResultList().isEmpty()) {
+            // A second first write waits here until the first one ends, and then adds nothing.
+            em.createQuery("insert into RealmWriteEntity (realmId) values (:realmId) on conflict (realmId) do nothing")
+                    .setParameter("realmId", realmId)
+                    .executeUpdate();
+            row.getSingleResult();
+        }
     }
 
     /**

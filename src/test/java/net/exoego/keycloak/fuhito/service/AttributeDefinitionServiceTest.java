@@ -50,6 +50,7 @@ class AttributeDefinitionServiceTest {
         assertEquals("attribute.required", code(() -> service.check(Target.ASSIGNMENT, missing)));
         for (Map<String, Object> bad : List.<Map<String, Object>>of(Map.of("shift", 1), Map.of("shift", "a", "beds", "3"),
                 Map.of("shift", "a", "night", "yes"), Map.of("shift", "a", "since", "April"),
+                Map.of("shift", "a", "since", "0000-12-31"), Map.of("shift", "a", "since", "+10000-01-01"),
                 Map.of("shift", "a", "also", "clerk"))) {
             assertEquals("attribute.bad_value", code(() -> service.check(Target.ASSIGNMENT, bad)), bad.toString());
         }

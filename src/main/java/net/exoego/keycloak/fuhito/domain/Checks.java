@@ -1,8 +1,8 @@
 package net.exoego.keycloak.fuhito.domain;
 
 import java.math.BigDecimal;
+import java.time.DateTimeException;
 import java.time.LocalDate;
-import java.time.format.DateTimeParseException;
 import java.util.Collection;
 import java.util.IllformedLocaleException;
 import java.util.Locale;
@@ -28,6 +28,16 @@ public final class Checks {
      * The longest language tag.
      */
     public static final int MAX_LANGUAGE_TAG_LENGTH = 64;
+
+    /**
+     * The first date that the extension takes.
+     */
+    public static final LocalDate FIRST_DATE = LocalDate.of(1, 1, 1);
+
+    /**
+     * The last date that the extension takes.
+     */
+    public static final LocalDate LAST_DATE = LocalDate.of(9999, 12, 31);
 
     private static final BigDecimal HUNDRED = BigDecimal.valueOf(100);
 
@@ -192,34 +202,50 @@ public final class Checks {
     }
 
     /**
-     * Reads a date in the form {@code YYYY-MM-DD}.
+     * Reads a date in the form {@code YYYY-MM-DD}, from {@link #FIRST_DATE} to {@link #LAST_DATE}.
      *
      * @param field the name of the field, for the error
      * @param value the text, or null
      * @return the date, or null when the text is null
-     * @throws FuhitoException when the text is not a date
+     * @throws FuhitoException when the text is not such a date
      */
     public static LocalDate optionalDate(String field, String value) {
         if (value == null) {
             return null;
         }
         try {
-            return LocalDate.parse(value);
-        } catch (DateTimeParseException e) {
+            return inRange(LocalDate.parse(value));
+        } catch (DateTimeException e) {
             throw FuhitoException.invalid("invalid.date", Map.of("field", field, "value", value)).causedBy(e);
         }
     }
 
     /**
-     * Reads a required date in the form {@code YYYY-MM-DD}.
+     * Reads a required date in the form {@code YYYY-MM-DD}, from {@link #FIRST_DATE} to {@link #LAST_DATE}.
      *
      * @param field the name of the field, for the error
      * @param value the text
      * @return the date
-     * @throws FuhitoException when the text is missing or not a date
+     * @throws FuhitoException when the text is missing or not such a date
      */
     public static LocalDate date(String field, String value) {
         return optionalDate(field, required(field, value));
+    }
+
+    /**
+     * Requires a date from {@link #FIRST_DATE} to {@link #LAST_DATE}. Java reads other dates too, but PostgreSQL
+     * cannot hold some of them and gives year 0 back as year 1. These are the years that {@code YYYY-MM-DD} writes
+     * with no sign, without year 0.
+     *
+     * @param date the date
+     * @return the date
+     * @throws DateTimeException when the date is outside that range
+     */
+    public static LocalDate inRange(LocalDate date) {
+        if (date.isBefore(FIRST_DATE) || date.isAfter(LAST_DATE)) {
+            throw new DateTimeException(date + " is not from " + FIRST_DATE + " to " + LAST_DATE);
+        }
+        return date;
     }
 
     /**

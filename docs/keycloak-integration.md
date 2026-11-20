@@ -385,7 +385,9 @@ For example, an org unit with no end date has no `validTo` field.
 
 ## Dates
 
-Dates have the form `YYYY-MM-DD`.
+Dates have the form `YYYY-MM-DD`, from `0001-01-01` to `9999-12-31`.
+A date in another form or outside that range fails with 400 and `invalid.date`, which names the field.
+This holds for every date of a write, of an import, and of a query, such as `asOf`.
 A period includes its `validFrom` date and does not include its `validTo` date.
 
 Read endpoints take an `asOf` date.
@@ -466,8 +468,12 @@ So a product cannot overwrite a change that another product made after its read.
 - `POST /employments/transfers` locks every employment of the old employer, with what the end of each one changes. With `endEmployer`, it locks the old employer too. `POST /reorganizations` locks every stored unit of its steps at the start.
 - Every write takes its locks in one order of kinds, and in the order of the IDs within one kind. So two writes that change the same resources wait for each other in turn, and never each for the other.
 - A second write with the same version at the same moment waits, reads the new version, and fails with 409. A write that waits for the lock of another resource reads what the first write left.
-- The import and the attribute sync lock nothing first. They write what the system of record has.
-- A write can still meet a row that another write changed without a lock, for example a row of an ID of another system that an import changed. The later write then fails with 409 and `version.conflict` too. Its error has no version, because the conflict was on another row.
+- Each realm has one lock for its writes. A bulk write takes it alone, at its start and before anything else. The bulk writes are `POST /imports`, also as a dry run, `POST /imports/csv/{list}`, and `POST /restore`. The attribute sync takes it alone for each piece of users.
+- Every other write of the realm shares this lock, before its other locks. These are the other writes of the API, the removal of a user or of an organization in Keycloak, the rebuild of the projection, and the record of the last run of a job.
+- So the other writes of the realm wait while a bulk write runs, and a bulk write waits for the writes that run. Two bulk writes of one realm run one after the other. During the attribute sync, the other writes wait for one piece at a time. Writes that share the lock do not wait for each other on it, and the writes of other realms do not wait at all.
+- Reads take no lock and never wait.
+- The lock is the row of the realm in `FUHITO_REALM_WRITE`. A realm gets it when it is created, and a realm from before the table gets it at its first write. The removal of the realm removes it, and a restore keeps it.
+- A write can still meet a row that another write changed without a lock, for example a row of an ID of another system that another write changed at the same moment. The later write then fails with 409 and `version.conflict` too. Its error has no version, because the conflict was on another row.
 
 For example, a product reads an employment, and changes its terms with the version that it read.
 

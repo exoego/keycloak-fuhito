@@ -1243,4 +1243,14 @@
             OR (EMPLOYER_ID IS NULL AND EXTERNAL_EMPLOYER_ID IS NOT NULL))
         </sql>
     </changeSet>
+
+    <!-- One row for each realm. A bulk write locks it alone, and every other write shares it. The first write of a
+         realm adds it. -->
+    <changeSet id="0.1.0-realm-write" author="keycloak-fuhito">
+        <createTable tableName="FUHITO_REALM_WRITE">
+            <column name="REALM_ID" type="VARCHAR(36)">
+                <constraints primaryKey="true" primaryKeyName="PK_FUHITO_REALM_WRITE" nullable="false"/>
+            </column>
+        </createTable>
+    </changeSet>
 </databaseChangeLog>

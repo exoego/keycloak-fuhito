@@ -146,7 +146,7 @@ public class ImportsResource {
             @QueryParam("source") String source,
             @HeaderParam("Content-Type") String contentType,
             byte[] file) {
-        context.requireWrite();
+        context.requireBulkWrite();
         return Calls.run(context, () -> {
             String name = CSV_LISTS.get(list);
             if (name == null) {
@@ -180,7 +180,7 @@ public class ImportsResource {
     @APIResponse(responseCode = "400", ref = "ImportFailed")
     @ApiErrors
     public ImportReportRepresentation apply(ImportDocument body) {
-        context.requireWrite();
+        context.requireBulkWrite();
         return Calls.run(context, () -> {
             Checks.required("body", body);
             ImportReport report = service.apply(body);
