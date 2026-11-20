@@ -93,12 +93,13 @@ class MigrationIT {
                     select table_name, character_maximum_length, is_nullable from information_schema.columns
                     where column_name = 'kc_org_id' order by table_name"""));
             assertEquals(List.of("unit-1 org-1"), rows(statement, "select id, kc_org_id from fuhito_org_unit"));
-            String organization = "o".repeat(255);
-            statement.execute("insert into fuhito_org_unit (id, realm_id, kc_org_id) values ('unit-2', 'realm-1', '"
-                    + organization + "')");
+            statement.execute("""
+                    insert into fuhito_org_unit (id, realm_id, kc_org_id)
+                    values ('unit-2', 'realm-1', repeat('o', 255))""");
             assertTrue(assertThrows(SQLException.class, () -> statement.execute("""
-                    insert into fuhito_org_unit (id, realm_id, kc_org_id) values ('unit-3', 'realm-1', '%s')"""
-                    .formatted(organization))).getMessage().contains("uk_fuhito_org_unit_kc_org"));
+                    insert into fuhito_org_unit (id, realm_id, kc_org_id)
+                    values ('unit-3', 'realm-1', repeat('o', 255))"""))
+                    .getMessage().contains("uk_fuhito_org_unit_kc_org"));
         }
     }
 
