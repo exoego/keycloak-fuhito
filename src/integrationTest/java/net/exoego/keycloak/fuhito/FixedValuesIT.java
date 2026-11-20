@@ -178,7 +178,6 @@ class FixedValuesIT {
             assertTrue(Api.externalIds(written).contains("payroll=X-" + suffix), path);
             assertEquals(version + 1, written.get("version").asLong(), path);
             assertEquals(written.get("externalIds"), read(api, path).get("externalIds"), path);
-            // The ID replaces the one that the system had.
             assertEquals(List.of("payroll=Y-" + suffix), Api.externalIds(ok(api.put(path, read(api, path)
                     .put("source", "payroll").put("externalId", "Y-" + suffix).toString()))).stream()
                     .filter(id -> id.startsWith("payroll=")).toList(), path);
@@ -194,13 +193,52 @@ class FixedValuesIT {
         assertEquals(before, RealmExportIT.export(api));
     }
 
+
     // A write of a read with one field set to another value, as JSON.
     private record Case(String path, ObjectNode read, String field, String value) {
     }
 
-    @Test
-    void aPutWithAnotherValueOfAFieldThatOnlyAResponseFillsFailsAndWritesNothing() throws Exception {
-        TestRealm realm = TestRealm.withEmployer("read-only");
+    // Resources with a value in each field that only a response fills.
+    private record Stored(String parent, String unit, String organization, String nurse, String person, String item,
+            String hierarchy, String definition, String qualification, String order, String employment,
+            String assignment) {
+
+        String ofUnit() {
+            return "/org-units/" + unit;
+        }
+
+        String ofItem() {
+            return "/ref-items/" + item;
+        }
+
+        String ofAssignment() {
+            return "/assignments/" + assignment;
+        }
+
+        String ofEmployment() {
+            return "/employments/" + employment;
+        }
+
+        List<String> paths() {
+            return List.of(ofUnit(), "/people/" + person, "/ref-kinds/site", ofItem(), "/hierarchies/" + hierarchy,
+                    "/attribute-definitions/" + definition, "/qualifications/" + qualification,
+                    "/change-orders/" + order);
+        }
+
+        ObjectNode link() {
+            return JSON.createObjectNode().put("orgUnitId", unit)
+                    .put("organizationId", organization);
+        }
+
+        ObjectNode time() {
+            return JSON.createObjectNode().put("orgUnitId", unit)
+                    .put("timeZone", "Asia/Tokyo").put("dayStart", "05:00");
+        }
+    }
+
+    private static final String OF_EXTERNAL_ID = "/external-ids/lookup?resourceType=ORG_UNIT&source=hr&externalId=U1";
+
+    private static Stored stored(TestRealm realm) throws Exception {
         Api api = realm.api;
         realm.refItem("QUALIFICATION", "license", "免許");
         realm.refItem("WORK_LOCATION", "tokyo", "東京");
@@ -211,21 +249,21 @@ class FixedValuesIT {
         String unit = created(api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": "
                 + "\"病棟\", \"shortName\": \"棟\", \"phoneticName\": \"びょうとう\"}}, \"validFrom\": \"2020-04-01\", "
                 + "\"parentId\": \"" + parent + "\"" + fromHr.formatted("U1") + "}"));
-        String ofUnit = "/org-units/" + unit;
-        ok(api.putWithVersion(ofUnit, "{" + NAMES + ", \"validFrom\": \"2025-04-01\"}"));
+        ok(api.putWithVersion("/org-units/" + unit, "{" + NAMES + ", \"validFrom\": \"2025-04-01\"}"));
         String organization = realm.organization("read-only");
-        ok(api.putWithVersion(ofUnit + "/organization", "{\"organizationId\": \"" + organization + "\"}"));
-        ok(api.putWithVersion(ofUnit + "/time-settings", "{\"timeZone\": \"Asia/Tokyo\", \"dayStart\": \"05:00\"}"));
+        ok(api.putWithVersion("/org-units/" + unit + "/organization", "{\"organizationId\": \"" + organization
+                + "\"}"));
+        ok(api.putWithVersion("/org-units/" + unit + "/time-settings", "{\"timeZone\": \"Asia/Tokyo\", "
+                + "\"dayStart\": \"05:00\"}"));
         String nurse = realm.user("nurse");
         String person = created(api.post("/people", "{\"userId\": \"" + nurse + "\", \"primaryLanguage\": \"ja\", "
                 + "\"names\": {\"ja\": {\"name\": \"山田\", \"phoneticName\": \"やまだ\"}}" + fromHr.formatted("P1") + "}"));
         created(api.post("/ref-kinds", "{\"code\": \"site\", " + NAMES + fromHr.formatted("K1") + "}"));
         String item = created(api.post("/ref-items", "{\"kind\": \"site\", \"code\": \"tokyo\", " + NAMES
                 + fromHr.formatted("I1") + "}"));
-        String ofItem = "/ref-items/" + item;
         for (String from : List.of("2021-01-01", "2090-01-01")) {
-            ok(api.putWithVersion(ofItem, "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"" + from
-                    + "\"}}, \"validFrom\": \"" + from + "\"}"));
+            ok(api.putWithVersion("/ref-items/" + item, "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": "
+                    + "\"" + from + "\"}}, \"validFrom\": \"" + from + "\"}"));
         }
         String hierarchy = created(api.post("/hierarchies", "{\"code\": \"project\", \"name\": \"P\""
                 + fromHr.formatted("H1") + "}"));
@@ -244,66 +282,75 @@ class FixedValuesIT {
                 + "\"orgUnitId\": \"" + unit + "\", \"validFrom\": \"2020-04-01\"}"));
         ok(api.putWithVersion("/assignments/" + assignment + "/details", "{\"validFrom\": \"2025-04-01\", "
                 + "\"displayOrder\": 1}"));
+        return new Stored(parent, unit, organization, nurse, person, item, hierarchy, definition, qualification, order,
+                employment, assignment);
+    }
 
+    // Another value of each field that only a response fills, in a read of its resource.
+    private static List<Case> cases(Api api, Stored stored) throws Exception {
+        String ofUnit = stored.ofUnit();
         // The details of this read end on 2025-04-01.
         ObjectNode unitRead = read(api, ofUnit + "?asOf=2022-01-01");
-        assertEquals(List.of("2025-04-01", "tokyo", organization, "Asia/Tokyo"), List.of(unitRead.get("validTo").asText(),
-                unitRead.get("effectiveWorkLocation").asText(), unitRead.get("keycloakOrganizationId").asText(),
-                unitRead.get("timeZone").asText()));
-        long unitVersion = unitRead.get("version").asLong();
-        ObjectNode link = JSON.createObjectNode().put("version", unitVersion).put("orgUnitId", unit)
-                .put("organizationId", organization);
-        ObjectNode time = JSON.createObjectNode().put("version", unitVersion).put("orgUnitId", unit)
-                .put("timeZone", "Asia/Tokyo").put("dayStart", "05:00");
-        ObjectNode personRead = read(api, "/people/" + person);
-        ObjectNode kindRead = read(api, "/ref-kinds/site");
-        ObjectNode itemRead = read(api, ofItem);
-        assertEquals("2090-01-01", itemRead.get("validTo").asText());
-        ObjectNode orderRead = read(api, "/change-orders/" + order);
-        String ofExternalId = "/external-ids/lookup?resourceType=ORG_UNIT&source=hr&externalId=U1";
-        ObjectNode idRead = read(api, ofExternalId);
-        String otherIds = "[{\"source\": \"hr\", \"externalId\": \"X\"}]";
+        assertEquals(List.of("2025-04-01", "tokyo", stored.organization(), "Asia/Tokyo"), List.of(
+                unitRead.get("validTo").asText(), unitRead.get("effectiveWorkLocation").asText(),
+                unitRead.get("keycloakOrganizationId").asText(), unitRead.get("timeZone").asText()));
+        String other = "\"" + stored.parent() + "\"";
         List<Case> cases = new ArrayList<>();
         for (String field : List.of("id", "name", "shortName", "phoneticName", "validTo", "keycloakOrganizationId",
                 "timeZone", "dayStart")) {
-            cases.add(new Case(ofUnit, unitRead, field, "\"" + parent + "\""));
+            cases.add(new Case(ofUnit, unitRead, field, other));
         }
         for (String field : List.of("legalEntity", "lateral", "rollup")) {
             cases.add(new Case(ofUnit, unitRead, field, "true"));
         }
+        String ofPerson = "/people/" + stored.person();
         for (String field : List.of("id", "name", "nameSource", "phoneticName")) {
-            cases.add(new Case("/people/" + person, personRead, field, "\"KEYCLOAK\""));
+            cases.add(new Case(ofPerson, read(api, ofPerson), field, "\"KEYCLOAK\""));
         }
-        cases.addAll(List.of(new Case("/ref-kinds/site", kindRead, "id", "\"" + parent + "\""),
+        ObjectNode kindRead = read(api, "/ref-kinds/site");
+        ObjectNode itemRead = read(api, stored.ofItem());
+        assertEquals("2090-01-01", itemRead.get("validTo").asText());
+        cases.addAll(List.of(new Case("/ref-kinds/site", kindRead, "id", other),
                 new Case("/ref-kinds/site", kindRead, "name", "\"Other\""),
                 new Case("/ref-kinds/site", kindRead, "fixed", "true"),
-                new Case(ofItem, itemRead, "id", "\"" + parent + "\""),
-                new Case(ofItem, itemRead, "name", "\"Other\""),
-                new Case(ofItem, itemRead, "validTo", "\"2091-01-01\"")));
-        for (String path : List.of("/hierarchies/" + hierarchy, "/attribute-definitions/" + definition,
-                "/qualifications/" + qualification, "/change-orders/" + order)) {
-            cases.add(new Case(path, read(api, path), "id", "\"" + parent + "\""));
+                new Case(stored.ofItem(), itemRead, "id", other),
+                new Case(stored.ofItem(), itemRead, "name", "\"Other\""),
+                new Case(stored.ofItem(), itemRead, "validTo", "\"2091-01-01\"")));
+        String ofOrder = "/change-orders/" + stored.order();
+        for (String path : stored.paths().subList(4, 8)) {
+            cases.add(new Case(path, read(api, path), "id", other));
         }
         for (String field : List.of("createdAt", "announcedAt")) {
-            cases.add(new Case("/change-orders/" + order, orderRead, field, "\"2020-01-01T00:00:00Z\""));
+            cases.add(new Case(ofOrder, read(api, ofOrder), field, "\"2020-01-01T00:00:00Z\""));
         }
-        cases.add(new Case("/change-orders/" + order, orderRead, "announcedByUserId", "\"" + nurse + "\""));
-        for (String path : List.of(ofUnit, "/people/" + person, "/ref-kinds/site", ofItem, "/hierarchies/" + hierarchy,
-                "/attribute-definitions/" + definition, "/qualifications/" + qualification, "/change-orders/" + order)) {
-            cases.add(new Case(path, path.equals(ofUnit) ? unitRead : read(api, path), "externalIds", otherIds));
+        cases.add(new Case(ofOrder, read(api, ofOrder), "announcedByUserId", "\"" + stored.nurse() + "\""));
+        for (String path : stored.paths()) {
+            cases.add(new Case(path, path.equals(ofUnit) ? unitRead : read(api, path), "externalIds",
+                    "[{\"source\": \"hr\", \"externalId\": \"X\"}]"));
         }
-        ObjectNode details = period(read(api, "/assignments/" + assignment), "periods");
+        ObjectNode details = period(read(api, stored.ofAssignment()), "periods");
         for (String field : List.of("validTo", "effectiveWorkLocation", "effectiveCostCenter")) {
-            cases.add(new Case("/assignments/" + assignment + "/details", details, field, "\"2026-04-01\""));
+            cases.add(new Case(stored.ofAssignment() + "/details", details, field, "\"2026-04-01\""));
         }
-        cases.addAll(List.of(new Case("/employments/" + employment + "/terms",
-                        period(read(api, "/employments/" + employment), "terms"), "validTo", "\"2026-04-01\""),
-                new Case(ofUnit + "/organization", link, "orgUnitId", "\"" + parent + "\""),
-                new Case(ofUnit + "/time-settings", time, "orgUnitId", "\"" + parent + "\""),
+        cases.addAll(List.of(new Case(stored.ofEmployment() + "/terms", period(read(api, stored.ofEmployment()),
+                        "terms"), "validTo", "\"2026-04-01\""),
+                new Case(ofUnit + "/organization", stored.link(), "orgUnitId", other),
+                new Case(ofUnit + "/time-settings", stored.time(), "orgUnitId", other),
                 // The write of the ID comes before the check, so this also shows that the failure undoes it.
-                new Case("/external-ids", idRead.deepCopy().put("externalId", "U9"), "own", "false")));
+                new Case("/external-ids", read(api, OF_EXTERNAL_ID).put("externalId", "U9"), "own", "false")));
+        return cases;
+    }
+
+    @Test
+    void aPutWithAnotherValueOfAFieldThatOnlyAResponseFillsFailsAndWritesNothing() throws Exception {
+        TestRealm realm = TestRealm.withEmployer("read-only");
+        Api api = realm.api;
+        Stored stored = stored(realm);
+        List<Case> cases = cases(api, stored);
         // A read of old names has no validFrom, so a write of it would change the names of today.
-        ObjectNode oldNames = read(api, ofItem + "?asOf=2020-06-01");
+        ObjectNode oldNames = read(api, stored.ofItem() + "?asOf=2020-06-01").without("version");
+        // No details hold before the start, so the write fails on its own.
+        ObjectNode early = period(read(api, stored.ofAssignment()), "periods").without("version");
         ObjectNode before = RealmExportIT.export(api);
 
         List<String> expected = new ArrayList<>();
@@ -316,33 +363,30 @@ class FixedValuesIT {
             expected.add(name + " 400 invalid.value_fixed " + each.field());
             got.add(name + " " + outcome(api.putWithVersion(each.path(), body.toString()), "field"));
         }
-        expected.add("old names 400 invalid.value_fixed name");
-        got.add("old names " + outcome(api.putWithVersion(ofItem, oldNames.without("version").toString()), "field"));
-        // No details hold before the start, so the write fails on its own.
-        ObjectNode early = details.deepCopy().without("version");
-        expected.add("early details 404 assignment.not_valid_on");
-        got.add("early details " + outcome(api.putWithVersion("/assignments/" + assignment + "/details",
+        expected.addAll(List.of("old names 400 invalid.value_fixed name", "early details 404 assignment.not_valid_on"));
+        got.add("old names " + outcome(api.putWithVersion(stored.ofItem(), oldNames.toString()), "field"));
+        got.add("early details " + outcome(api.putWithVersion(stored.ofAssignment() + "/details",
                 early.put("validFrom", "2019-01-01").toString())));
         assertEquals(expected, got);
         assertEquals(before, RealmExportIT.export(api));
 
+        String ofUnit = stored.ofUnit();
         // Each read is the body of a write. A flag that a read leaves out can be false.
         ok(api.put(ofUnit, read(api, ofUnit + "?asOf=2022-01-01").put("legalEntity", false).put("lateral", false)
                 .put("rollup", false).toString()));
         // A change inside the details keeps their end.
         ok(api.put(ofUnit, read(api, ofUnit + "?asOf=2022-01-01").put("validFrom", "2023-04-01").toString()));
-        for (String path : List.of(ofUnit, "/people/" + person, "/ref-kinds/site", ofItem, ofItem + "?asOf=2095-01-01",
-                "/hierarchies/" + hierarchy, "/attribute-definitions/" + definition, "/qualifications/" + qualification,
-                "/change-orders/" + order)) {
+        List<String> paths = new ArrayList<>(stored.paths());
+        paths.add(stored.ofItem() + "?asOf=2095-01-01");
+        for (String path : paths) {
             ok(api.put(path.replaceAll("\\?.*", ""), read(api, path).toString()));
         }
-        ok(api.put("/assignments/" + assignment + "/details", period(read(api, "/assignments/" + assignment),
-                "periods").toString()));
-        ok(api.put("/employments/" + employment + "/terms", period(read(api, "/employments/" + employment),
-                "terms").toString()));
-        ok(api.putWithVersion(ofUnit + "/organization", link.without("version").toString()));
-        ok(api.putWithVersion(ofUnit + "/time-settings", time.without("version").toString()));
-        ok(api.put("/external-ids", read(api, ofExternalId).toString()));
+        ok(api.put(stored.ofAssignment() + "/details", period(read(api, stored.ofAssignment()), "periods")
+                .toString()));
+        ok(api.put(stored.ofEmployment() + "/terms", period(read(api, stored.ofEmployment()), "terms").toString()));
+        ok(api.putWithVersion(ofUnit + "/organization", stored.link().toString()));
+        ok(api.putWithVersion(ofUnit + "/time-settings", stored.time().toString()));
+        ok(api.put("/external-ids", read(api, OF_EXTERNAL_ID).toString()));
     }
 
     // The first period of a read, with the version of the resource, as the body of a change of that period.
