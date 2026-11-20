@@ -178,6 +178,7 @@ The files of org units and of assignments have the work location and the cost ce
 `GET /imports/csv/change-orders` gives every change order, newest effective date first.
 The kinds, the definitions of attributes, the hierarchies, the people, the IDs of other systems, and the change orders have no date. So `ref-kinds`, `attribute-definitions`, `hierarchies`, `people`, `external-ids`, and `change-orders` take no `asOf`. A read of one of them with `asOf` fails with 400 and `csv.export_no_date`, so that no date is dropped.
 The query has `effectiveDate`, and optionally `dryRun` and `source`.
+Another query parameter fails with 400 and `invalid.unknown_parameter`, and nothing is written. The case of each letter counts, so `dryrun=true` fails and is no dry run.
 The content type is `text/csv`.
 
 ```sh
