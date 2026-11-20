@@ -423,6 +423,7 @@ components:
           description: The ID of the Keycloak user who asked for the order.
         externalReference:
           type: string
+          maxLength: 255
           description: A reference to the order in another system.
         createdAt:
           type: string
@@ -1476,6 +1477,7 @@ components:
           description: The username of the user who asked for it.
         externalReference:
           type: string
+          maxLength: 255
           description: "A reference in another system, such as a workflow."
     ImportCounts:
       type: object
@@ -4318,6 +4320,10 @@ info:
     It is in the body, or in the query of a `DELETE`. A write with no version fails with 400 and
     `version.required`. When the resource changed since the read, the write fails with 409 and
     `version.conflict`, and the values of the error have the current version.
+
+    The `maxLength` of a text counts characters, as the database does, so an emoji is one
+    character. A longer text fails with 400. A text with no other rule, such as
+    `externalReference`, fails with `invalid.too_long`, which names the field and the `max`.
 
     A failed request writes nothing.
   license:

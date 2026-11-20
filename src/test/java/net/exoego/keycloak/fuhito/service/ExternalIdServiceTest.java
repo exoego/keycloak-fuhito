@@ -87,6 +87,13 @@ class ExternalIdServiceTest {
     }
 
     @Test
+    void anIdFitsItsColumnByCharacters() {
+        String fits = "😀".repeat(255);
+        assertEquals(fits, service.put("ORG_UNIT", "ward", "payroll", fits).externalId());
+        assertEquals("external_id.bad_value", code(() -> service.put("ORG_UNIT", "ward", "payroll", "😀".repeat(256))));
+    }
+
+    @Test
     void readsTheIdsOfManyResourcesAtOnce() {
         service.put("ORG_UNIT", "ward", "payroll", "P-9");
         service.put("ORG_UNIT", "clinic", "payroll", "P-8");

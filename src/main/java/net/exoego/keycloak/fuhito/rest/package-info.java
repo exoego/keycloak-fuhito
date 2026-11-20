@@ -31,6 +31,10 @@
                         `version.required`. When the resource changed since the read, the write fails with 409 and
                         `version.conflict`, and the values of the error have the current version.
 
+                        The `maxLength` of a text counts characters, as the database does, so an emoji is one
+                        character. A longer text fails with 400. A text with no other rule, such as
+                        `externalReference`, fails with `invalid.too_long`, which names the field and the `max`.
+
                         A failed request writes nothing.
                         """,
                 license = @License(name = "Apache License, Version 2.0", identifier = "Apache-2.0")),

@@ -41,7 +41,7 @@ public record ChangeOrderRepresentation(
         String approverUserId,
         @Schema(description = "The ID of the Keycloak user who asked for the order.")
         String requesterUserId,
-        @Schema(description = "A reference to the order in another system.")
+        @Schema(description = "A reference to the order in another system.", maxLength = 255)
         String externalReference,
         @Schema(description = "When the order was stored, in UTC.", format = "date-time", readOnly = true)
         String createdAt,

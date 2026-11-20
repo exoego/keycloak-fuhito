@@ -12,8 +12,10 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ChecksTest {
 
@@ -67,6 +69,23 @@ class ChecksTest {
         String kanji = "𠮷";
         assertEquals(255, Checks.name("name", kanji.repeat(255)).codePointCount(0, 510));
         assertEquals("invalid.name", invalid(() -> Checks.name("name", kanji.repeat(256))).code());
+    }
+
+    @Test
+    void aTextFitsAColumnByCharacters() {
+        assertTrue(Checks.fits("😀".repeat(255), 255));
+        assertFalse(Checks.fits("😀".repeat(256), 255));
+        assertTrue(Checks.fits("", 0));
+    }
+
+    @Test
+    void anOptionalTextFitsItsColumn() {
+        assertNull(Checks.optionalText("ref", null, 255));
+        assertEquals("😀".repeat(255), Checks.optionalText("ref", "😀".repeat(255), 255));
+        FuhitoException e = invalid(() -> Checks.optionalText("ref", "x".repeat(256), 255));
+        assertEquals("invalid.too_long", e.code());
+        assertEquals(Map.of("field", "ref", "max", "255"), e.params());
+        assertEquals("invalid.blank", invalid(() -> Checks.optionalText("ref", " ", 255)).code());
     }
 
     @Test

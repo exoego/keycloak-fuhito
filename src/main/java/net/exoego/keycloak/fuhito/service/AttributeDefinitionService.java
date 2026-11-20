@@ -205,7 +205,7 @@ public class AttributeDefinitionService implements AttributeRules {
      */
     static String name(String name) {
         Checks.required("name", name);
-        if (name.isBlank() || !name.strip().equals(name) || name.codePointCount(0, name.length()) > MAX_NAME_LENGTH) {
+        if (name.isBlank() || !name.strip().equals(name) || !Checks.fits(name, MAX_NAME_LENGTH)) {
             throw FuhitoException.invalid("attribute.bad_name", Map.of("name", name));
         }
         return name;
