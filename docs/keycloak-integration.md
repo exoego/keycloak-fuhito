@@ -406,6 +406,9 @@ A period includes its `validFrom` date and does not include its `validTo` date.
 
 Read endpoints take an `asOf` date.
 The default is today, as the realm defines it. See "What today is" below.
+A read that takes `asOf` fails with 400 when it cannot use the date, so that no date is dropped.
+`asOf` with `all=true` of the qualifications of a person or a user fails with `invalid.not_together`.
+`asOf` with a CSV export of a list that has no date fails with `csv.export_no_date`.
 
 A list that grows with the realm is read in pages. These lists take `first` and `max`.
 

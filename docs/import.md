@@ -158,14 +158,14 @@ The lists are applied in the order change orders, kinds of reference data, attri
 
 `GET /imports/csv/org-units?asOf=` gives the org units of a date as such a file, for a change in a spreadsheet. Each row has the column `id`, so a unit with no external ID loads again too. The columns `source` and `externalId` hold the system that made the unit and the ID that the unit has there, as the other files of records do. The IDs of other systems are in the file of `external-ids`. The parent is in the column `parentId`. A unit that ends has `validTo`, and its successors are in `successorIds`. A linked unit has the alias of its Keycloak organization in `organizationAlias`. In a file, `#CLEAR` there removes the link. The file has `timeZone` and `dayStart` too, and `#CLEAR` removes one. With `header=ja`, the names of the columns are in Japanese. The file is UTF-8 with a byte order mark, which spreadsheets need to read it as UTF-8. The same file loaded on the same date changes nothing.
 
-`GET /imports/csv/ref-kinds` gives the kinds that the realm added the same way. It takes no `asOf`. `GET /imports/csv/attribute-definitions` gives the definitions of attributes the same way. `GET /imports/csv/hierarchies` gives the hierarchies the same way, the default one too.
+`GET /imports/csv/ref-kinds` gives the kinds that the realm added the same way. `GET /imports/csv/attribute-definitions` gives the definitions of attributes the same way. `GET /imports/csv/hierarchies` gives the hierarchies the same way, the default one too.
 Kinds, definitions, hierarchies, reference items, reporting lines, roles over org units, and change orders keep no system that made them. So the columns `source` and `externalId` of their files hold the first of their IDs, by the name of the system. The row loads again by its `id` all the same.
 
 `GET /imports/csv/ref-items?asOf=` gives the reference items of every kind the same way, the inactive ones too, with the names of the date. Each row has `id`, `source`, and `externalId`. A mark such as `legalEntity` is blank for a kind that cannot have it. The file has no `validFrom`, so a name changed in it loads as names from the effective date. A file to load can have the column `validFrom`, and blank cells of a row then keep the stored values of that date.
 
 `GET /imports/csv/org-unit-parents?asOf=` gives the parents of the date in every hierarchy but the default one. It names the units by `orgUnitId` and `parentId`. In a file, blank cells of the parent keep the stored parent, and `#CLEAR` takes the unit out of the hierarchy.
 
-`GET /imports/csv/people` gives the people the same way. A person has no date, so it takes no `asOf`. The file leaves out the link to a Keycloak user: a blank cell keeps the stored link, and the ID of a user who was removed from Keycloak would not load again.
+`GET /imports/csv/people` gives the people the same way. The file leaves out the link to a Keycloak user: a blank cell keeps the stored link, and the ID of a user who was removed from Keycloak would not load again.
 
 `GET /imports/csv/employments?asOf=` gives the employments that hold on the date, with the terms of that date. Each row has `id`, and `continuesEmploymentId` for an employment that continues another. It names the person by `personId` and the employer by `employerId`, because many have no external ID of the source of the row. An employment with an external employer names it by its code in `externalEmployer`, and has no `employerId`. A row of an employment that starts later is not in the file.
 
@@ -176,6 +176,7 @@ The files of org units and of assignments have the work location and the cost ce
 `GET /imports/csv/qualifications` gives every qualification, also those that expired. With `asOf`, it gives only those that hold on the date.
 `GET /imports/csv/external-ids` gives every ID of every system. The ID of the system that made a resource is in the file of the resource too. In a file, `#CLEAR` in `externalId` removes the stored ID.
 `GET /imports/csv/change-orders` gives every change order, newest effective date first.
+The kinds, the definitions of attributes, the hierarchies, the people, the IDs of other systems, and the change orders have no date. So `ref-kinds`, `attribute-definitions`, `hierarchies`, `people`, `external-ids`, and `change-orders` take no `asOf`. A read of one of them with `asOf` fails with 400 and `csv.export_no_date`, so that no date is dropped.
 The query has `effectiveDate`, and optionally `dryRun` and `source`.
 The content type is `text/csv`.
 

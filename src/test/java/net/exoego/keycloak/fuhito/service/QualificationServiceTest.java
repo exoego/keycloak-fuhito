@@ -110,6 +110,18 @@ class QualificationServiceTest {
         assertEquals(service.ofUser("doctor", null, false), service.ofPerson("doctor", null, false));
     }
 
+    @Test
+    void aReadOfEveryQualificationTakesNoDate() {
+        for (FuhitoException e : List.of(
+                assertThrows(FuhitoException.class, () -> service.ofUser("doctor", "2020-01-01", true)),
+                assertThrows(FuhitoException.class, () -> service.ofPerson("doctor", "2020-01-01", true)))) {
+            assertEquals("invalid.not_together", e.code());
+            assertEquals(Map.of("field", "asOf", "otherField", "all"), e.params());
+        }
+        assertEquals("invalid.date",
+                assertThrows(FuhitoException.class, () -> service.ofPerson("doctor", "2020-02-30", true)).code());
+    }
+
     private static List<String> kinds(List<QualificationView> views) {
         return views.stream().map(QualificationView::kind).toList();
     }
