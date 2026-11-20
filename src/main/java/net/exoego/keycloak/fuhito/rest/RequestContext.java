@@ -35,8 +35,16 @@ public interface RequestContext {
     /**
      * Requires the permission to change organization data. Throws when the caller lacks it.
      * Also throws when the request names a change order that does not exist.
+     * The write shares the lock of its realm until the end of the transaction. So it waits while a bulk write runs.
      */
     void requireWrite();
+
+    /**
+     * Requires the same as {@link #requireWrite()} for a bulk write, such as an import. The bulk write holds the lock
+     * of its realm alone until the end of the transaction. So it waits for the writes of the realm that run, and
+     * the writes that come later wait for it.
+     */
+    void requireBulkWrite();
 
     /**
      * Requires the permission of Keycloak to manage a user. Throws when the caller lacks it.
@@ -108,6 +116,7 @@ public interface RequestContext {
     /**
      * Locks the stored rows of resources until the end of the transaction. Every write locks in one order of kinds,
      * and in the order of the IDs within one kind. So two writes never wait for each other at once.
+     * These locks come after the lock of {@link #requireWrite()}.
      * A write calls it once, before it reads or changes any of them.
      *
      * @param ids the IDs of the resources by the first part of their path, for example {@code org-units}

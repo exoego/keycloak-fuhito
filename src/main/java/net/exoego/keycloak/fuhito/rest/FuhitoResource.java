@@ -36,6 +36,7 @@ import net.exoego.keycloak.fuhito.jpa.JpaReportingLineStore;
 import net.exoego.keycloak.fuhito.jpa.JpaUnitRoleStore;
 import net.exoego.keycloak.fuhito.jpa.JpaUserDataMasker;
 import net.exoego.keycloak.fuhito.jpa.JpaWriteScopes;
+import net.exoego.keycloak.fuhito.jpa.RowLocks;
 import net.exoego.keycloak.fuhito.service.AssignmentService;
 import net.exoego.keycloak.fuhito.service.AttributeDefinitionService;
 import net.exoego.keycloak.fuhito.service.AttributeSyncService;
@@ -464,7 +465,11 @@ public class FuhitoResource {
         return new AttributeSyncResource(context, dryRun -> new AttributeSyncService(new AttributeSyncService.Work() {
             @Override
             public <T> T inNewTransaction(Function<AttributeSyncService.Parts, T> piece) {
-                return pieces.inNewTransaction(dryRun, resource -> piece.apply(resource.syncParts()));
+                return pieces.inNewTransaction(dryRun, resource -> {
+                    // The other writes of the realm wait for one piece at a time, not for the whole run.
+                    RowLocks.lockRealm(resource.entityManager, realmId, true);
+                    return piece.apply(resource.syncParts());
+                });
             }
 
             @Override

@@ -15,6 +15,7 @@ import net.exoego.keycloak.fuhito.jpa.JpaEmploymentStore;
 import net.exoego.keycloak.fuhito.jpa.JpaOrgUnitStore;
 import net.exoego.keycloak.fuhito.jpa.JpaProjectedMemberStore;
 import net.exoego.keycloak.fuhito.jpa.JpaRefItemStore;
+import net.exoego.keycloak.fuhito.jpa.RowLocks;
 import net.exoego.keycloak.fuhito.service.InParallel;
 import net.exoego.keycloak.fuhito.service.ProjectionService;
 import net.exoego.keycloak.fuhito.service.ProjectionService.Parts;
@@ -82,6 +83,7 @@ public final class ProjectionTransactions implements ProjectionService.Work {
             RealmModel realm = session.realms().getRealm(realmId);
             session.getContext().setRealm(realm);
             EntityManager em = session.getProvider(JpaConnectionProvider.class).getEntityManager();
+            RowLocks.lockRealm(em, realmId, false);
             var orgUnits = new JpaOrgUnitStore(em, realmId);
             return piece.apply(new Parts(orgUnits, new JpaAssignmentStore(em, realmId),
                     new JpaEmploymentStore(em, realmId), new JpaRefItemStore(em, realmId),

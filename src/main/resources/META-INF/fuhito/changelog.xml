@@ -1244,6 +1244,16 @@
         </sql>
     </changeSet>
 
+    <!-- One row for each realm. A bulk write locks it alone, and every other write shares it. The first write of a
+         realm adds it. -->
+    <changeSet id="0.1.0-realm-write" author="keycloak-fuhito">
+        <createTable tableName="FUHITO_REALM_WRITE">
+            <column name="REALM_ID" type="VARCHAR(36)">
+                <constraints primaryKey="true" primaryKeyName="PK_FUHITO_REALM_WRITE" nullable="false"/>
+            </column>
+        </createTable>
+    </changeSet>
+
     <!-- Keycloak keeps the ID of an organization in VARCHAR(255). The admin API gives a new organization a UUID, but
          a realm import keeps the ID that its JSON gives. In PostgreSQL a wider VARCHAR rewrites neither the table nor
          its indexes. -->

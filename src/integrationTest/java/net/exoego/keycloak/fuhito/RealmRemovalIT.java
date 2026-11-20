@@ -15,7 +15,7 @@ class RealmRemovalIT {
             "fuhito_org_unit_version", "fuhito_org_unit_version_name", "fuhito_org_unit_link", "fuhito_org_unit_succession", "fuhito_employment", "fuhito_employment_terms",
             "fuhito_assignment", "fuhito_change_order", "fuhito_change_log", "fuhito_change_log_counter", "fuhito_qualification",
             "fuhito_reporting_line", "fuhito_unit_role", "fuhito_user_mask", "fuhito_person", "fuhito_person_name", "fuhito_erasure",
-            "fuhito_projected_member");
+            "fuhito_projected_member", "fuhito_realm_write");
 
     // A new table must be added to this test and to the cleanup. This test fails until that is done.
     @Test
