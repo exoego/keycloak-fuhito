@@ -57,6 +57,9 @@ class RestoreKeysIT {
 
     private static final String NAMES = "\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"X\"}}";
 
+    private static final String HIERARCHY =
+            "insert into fuhito_hierarchy (id, realm_id, code, name) values ('h-1', ?, 'race', 'Race')";
+
     /**
      * A change of the document and the error that it gives.
      *
@@ -154,8 +157,7 @@ class RestoreKeysIT {
         try {
             CompletableFuture<HttpResponse<String>> restore;
             try (Connection other = KeycloakEnvironment.connection();
-                    PreparedStatement insert = other.prepareStatement("insert into fuhito_hierarchy "
-                            + "(id, realm_id, code, name) values ('h-1', ?, 'race', 'Race')")) {
+                    PreparedStatement insert = other.prepareStatement(HIERARCHY)) {
                 other.setAutoCommit(false);
                 insert.setString(1, target.id());
                 insert.executeUpdate();
