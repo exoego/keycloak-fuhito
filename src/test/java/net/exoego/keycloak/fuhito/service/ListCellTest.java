@@ -62,11 +62,11 @@ class ListCellTest {
     }
 
     @Test
-    void aBlankCellKeepsTheStoredListAndClearRemovesIt() {
+    void aBlankCellAndClearHaveNoItems() {
         assertNull(ListCell.read("successorIds", ""));
         assertNull(ListCell.read("successorIds", "  "));
-        assertEquals(List.of(), ListCell.read("successorIds", "#CLEAR"));
-        assertEquals(List.of(), ListCell.read("successorIds", " #CLEAR "));
+        assertNull(ListCell.read("successorIds", "#CLEAR"));
+        assertNull(ListCell.read("successorIds", " #CLEAR "));
     }
 
     @Test

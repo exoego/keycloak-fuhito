@@ -3,7 +3,9 @@ package net.exoego.keycloak.fuhito.service;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import net.exoego.keycloak.fuhito.domain.OrgUnitName;
 import net.exoego.keycloak.fuhito.domain.PersonName;
 import net.exoego.keycloak.fuhito.domain.RefItemName;
@@ -13,7 +15,10 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
 @Schema(
         name = "ImportDocument",
         description = "The data of one import. The document describes the state from the effective date. A new "
-                + "thing starts on that date, and a change to an existing thing takes effect on that date.",
+                + "thing starts on that date, and a change to an existing thing takes effect on that date. A row "
+                + "of a stored thing changes the values that it gives. A key that a row leaves out keeps the "
+                + "stored value, and `null` clears it. An empty text, a text of only spaces, and an empty array "
+                + "fail.",
         requiredProperties = {"effectiveDate"})
 public record ImportDocument(
         @Schema(description = "The date of the state.", format = "date")
@@ -95,9 +100,9 @@ public record ImportDocument(
     @Schema(
             name = "ImportChangeOrderRow",
             description = "A change order. It is matched by its ID in the system of `source`, or by `id`. A row "
-                    + "needs one of them. A row of a stored order replaces its values, as `PUT` does. The "
-                    + "announcement is not part of a row.",
-            requiredProperties = {"title"})
+                    + "needs one of them. A row of a stored order changes the values that it gives. The "
+                    + "announcement is not part of a row. A new order needs a title.")
+    @JsonDeserialize(using = ImportRowReader.class)
     public record ChangeOrderRow(
             @Schema(description = "The ID of a stored order. A CSV export has it in every row. A new order has none.")
             String id,
@@ -120,7 +125,8 @@ public record ImportDocument(
             @Schema(format = "date")
             String orderDate,
             @Schema(description = "A new order without it takes the effective date of the import. A stored order "
-                    + "without it keeps its date.", format = "date")
+                    + "without it keeps its date, and one with `null` takes the effective date of the import.",
+                    format = "date")
             String effectiveDate,
             @Schema(description = "The ID of the Keycloak user who approved it. Give this or `approverUsername`.")
             String approverUserId,
@@ -131,15 +137,25 @@ public record ImportDocument(
             @Schema(description = "The username of the user who asked for it.")
             String requesterUsername,
             @Schema(description = "A reference in another system, such as a workflow.")
-            String externalReference) {
+            String externalReference,
+            @Schema(hidden = true)
+            Set<String> nulls) implements ImportRow {
+
+        public ChangeOrderRow(String id, String source, String externalId, String number, String kind, String title,
+                String note, String orderDate, String effectiveDate, String approverUserId, String approverUsername,
+                String requesterUserId, String requesterUsername, String externalReference) {
+            this(id, source, externalId, number, kind, title, note, orderDate, effectiveDate, approverUserId,
+                    approverUsername, requesterUserId, requesterUsername, externalReference, Set.of());
+        }
     }
 
     @Schema(
             name = "ImportExternalIdRow",
             description = "The ID that a system has for a resource. It is matched by type of resource, resource, "
-                    + "and source. Another external ID replaces the stored one, and an empty text removes it. The "
+                    + "and source. Another external ID replaces the stored one, and `null` removes it. The "
                     + "resource keeps the name of the system that made it.",
-            requiredProperties = {"resourceType", "resourceId", "externalId"})
+            requiredProperties = {"resourceType", "resourceId"})
+    @JsonDeserialize(using = ImportRowReader.class)
     public record ExternalIdRow(
             @Schema(enumeration = {"ORG_UNIT", "PERSON", "EMPLOYMENT", "ASSIGNMENT", "QUALIFICATION", "REPORTING_LINE",
                     "UNIT_ROLE", "CHANGE_ORDER", "REF_ITEM", "REF_KIND", "HIERARCHY", "ATTRIBUTE_DEFINITION"})
@@ -151,16 +167,24 @@ public record ImportDocument(
                     maxLength = 64,
                     pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$")
             String source,
-            @Schema(description = "The ID in that system, or an empty text to remove the stored one.")
-            String externalId) {
+            @Schema(description = "The ID in that system, or `null` to remove the stored one. A row that leaves "
+                    + "it out keeps the stored one.")
+            String externalId,
+            @Schema(hidden = true)
+            Set<String> nulls) implements ImportRow {
+
+        public ExternalIdRow(String resourceType, String resourceId, String source, String externalId) {
+            this(resourceType, resourceId, source, externalId, Set.of());
+        }
     }
 
     @Schema(
             name = "ImportQualificationRow",
             description = "A qualification of a person, such as a license. It is matched by its ID in the system of "
                     + "`source`, whichever system made it, or by `id`. A row needs one of them. A row of a stored "
-                    + "one replaces its kind, number, dates, and attributes, as `PUT` does.",
-            requiredProperties = {"kind"})
+                    + "one changes the kind, the number, the dates, and the attributes that it gives. A new one "
+                    + "needs a kind.")
+    @JsonDeserialize(using = ImportRowReader.class)
     public record QualificationRow(
             @Schema(description = "The ID of a stored qualification. A CSV export has it in every row.")
             String id,
@@ -187,10 +211,19 @@ public record ImportDocument(
             @Schema(description = "The first date. A new qualification starts on the effective date by default. A "
                     + "stored one keeps its start by default.", format = "date")
             String validFrom,
-            @Schema(description = "The first date on which it no longer holds. None for no end.", format = "date")
+            @Schema(description = "The first date on which it no longer holds. `null` for no end.", format = "date")
             String validTo,
             @Schema(description = "Free values that the realm defines.")
-            Map<String, Object> attributes) {
+            Map<String, Object> attributes,
+            @Schema(hidden = true)
+            Set<String> nulls) implements ImportRow {
+
+        public QualificationRow(String id, String source, String externalId, String personExternalId, String personId,
+                String username, String kind, String number, String validFrom, String validTo,
+                Map<String, Object> attributes) {
+            this(id, source, externalId, personExternalId, personId, username, kind, number, validFrom, validTo,
+                    attributes, Set.of());
+        }
     }
 
     @Schema(
@@ -199,6 +232,7 @@ public record ImportDocument(
                     + "of `source`, or by `id`. A row needs one of them. The employment, the org unit, the role, "
                     + "`includesDescendants`, and the start of a stored role do not change. A row with another value "
                     + "fails. A row that leaves one out keeps the stored value.")
+    @JsonDeserialize(using = ImportRowReader.class)
     public record UnitRoleRow(
             @Schema(description = "The ID of a stored role. A CSV export has it in every row. A new role has none.")
             String id,
@@ -228,7 +262,16 @@ public record ImportDocument(
             String validFrom,
             @Schema(description = "The first date on which the role no longer holds. The default is the end of the "
                     + "employment.", format = "date")
-            String validTo) {
+            String validTo,
+            @Schema(hidden = true)
+            Set<String> nulls) implements ImportRow {
+
+        public UnitRoleRow(String id, String source, String externalId, String employmentExternalId,
+                String employmentId, String orgUnitExternalId, String orgUnitId, String role,
+                Boolean includesDescendants, String validFrom, String validTo) {
+            this(id, source, externalId, employmentExternalId, employmentId, orgUnitExternalId, orgUnitId, role,
+                    includesDescendants, validFrom, validTo, Set.of());
+        }
     }
 
     @Schema(
@@ -238,6 +281,7 @@ public record ImportDocument(
                     + "the start of a stored line do not change. A row with another value fails. A row that leaves "
                     + "one out keeps the stored value. A new solid line fails while the assignment has a solid line "
                     + "on the same dates.")
+    @JsonDeserialize(using = ImportRowReader.class)
     public record ReportingLineRow(
             @Schema(description = "The ID of a stored line. A CSV export has it in every row. A new line has none.")
             String id,
@@ -270,14 +314,25 @@ public record ImportDocument(
             String validFrom,
             @Schema(description = "The first date on which the line no longer holds. The default is the end of the "
                     + "assignment.", format = "date")
-            String validTo) {
+            String validTo,
+            @Schema(hidden = true)
+            Set<String> nulls) implements ImportRow {
+
+        public ReportingLineRow(String id, String source, String externalId, String assignmentExternalId,
+                String assignmentId, String managerPersonExternalId, String managerPersonId, String managerUsername,
+                String kind, String validFrom, String validTo) {
+            this(id, source, externalId, assignmentExternalId, assignmentId, managerPersonExternalId, managerPersonId,
+                    managerUsername, kind, validFrom, validTo, Set.of());
+        }
     }
 
     @Schema(
             name = "ImportOrgUnitParentRow",
             description = "The parent of an org unit in a hierarchy from the effective date. It is matched by "
-                    + "hierarchy and org unit. A row with no parent takes the unit out of the hierarchy.",
+                    + "hierarchy and org unit. A row with `null` for the parent takes the unit out of the "
+                    + "hierarchy, and a row that leaves out the parent keeps it.",
             requiredProperties = {"hierarchy"})
+    @JsonDeserialize(using = ImportRowReader.class)
     public record OrgUnitParentRow(
             @Schema(description = "The code of the hierarchy.")
             String hierarchy,
@@ -291,17 +346,26 @@ public record ImportDocument(
             String orgUnitExternalId,
             @Schema(description = "The ID of the org unit.")
             String orgUnitId,
-            @Schema(description = "The external ID of the parent. Give this or `parentId`, or none for no parent.")
+            @Schema(description = "The external ID of the parent. Give this or `parentId`, or `null` for no "
+                    + "parent.")
             String parentExternalId,
             @Schema(description = "The ID of the parent.")
-            String parentId) {
+            String parentId,
+            @Schema(hidden = true)
+            Set<String> nulls) implements ImportRow {
+
+        public OrgUnitParentRow(String hierarchy, String source, String orgUnitExternalId, String orgUnitId,
+                String parentExternalId, String parentId) {
+            this(hierarchy, source, orgUnitExternalId, orgUnitId, parentExternalId, parentId, Set.of());
+        }
     }
 
     @Schema(
             name = "ImportHierarchyRow",
             description = "A hierarchy. It is matched by its ID in the system of `source`, or by `id`. A row needs "
-                    + "one of them. A row of a stored hierarchy changes its name. The code does not change.",
-            requiredProperties = {"name"})
+                    + "one of them. A row of a stored hierarchy changes its name. The code does not change. A new "
+                    + "hierarchy needs a name.")
+    @JsonDeserialize(using = ImportRowReader.class)
     public record HierarchyRow(
             @Schema(description = "The ID of a stored hierarchy. A CSV export has it in every row. A new hierarchy "
                     + "has none.")
@@ -318,7 +382,13 @@ public record ImportDocument(
                     maxLength = 64, pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$")
             String code,
             @Schema(maxLength = 255)
-            String name) {
+            String name,
+            @Schema(hidden = true)
+            Set<String> nulls) implements ImportRow {
+
+        public HierarchyRow(String id, String source, String externalId, String code, String name) {
+            this(id, source, externalId, code, name, Set.of());
+        }
     }
 
     @Schema(
@@ -326,8 +396,8 @@ public record ImportDocument(
             description = "The definition of a free attribute. It is matched by its ID in the system of `source`, "
                     + "or by `id`. A row needs one of them. A row of a stored definition changes the type, the kind, "
                     + "whether the value is a list, and whether a value is required. The target and the name do not "
-                    + "change.",
-            requiredProperties = {"type"})
+                    + "change. A new definition needs a type.")
+    @JsonDeserialize(using = ImportRowReader.class)
     public record AttributeDefinitionRow(
             @Schema(description = "The ID of a stored definition. A CSV export has it in every row. A new "
                     + "definition has none.")
@@ -357,7 +427,14 @@ public record ImportDocument(
                     defaultValue = "false")
             Boolean multiple,
             @Schema(description = "True when every write of the resource must give a value.", defaultValue = "false")
-            Boolean required) {
+            Boolean required,
+            @Schema(hidden = true)
+            Set<String> nulls) implements ImportRow {
+
+        public AttributeDefinitionRow(String id, String source, String externalId, String target, String name,
+                String type, String refKind, Boolean multiple, Boolean required) {
+            this(id, source, externalId, target, name, type, refKind, multiple, required, Set.of());
+        }
     }
 
     /**
@@ -389,8 +466,8 @@ public record ImportDocument(
             name = "ImportRefKindRow",
             description = "A kind of reference data that the realm adds. It is matched by its ID in the system of "
                     + "`source`, or by `id`. A row needs one of them. A row of a stored kind changes its names. The "
-                    + "code does not change.",
-            requiredProperties = {"primaryLanguage", "names"})
+                    + "code does not change. A new kind needs `primaryLanguage` and `names`.")
+    @JsonDeserialize(using = ImportRowReader.class)
     public record RefKindRow(
             @Schema(description = "The ID of a stored kind. A CSV export has it in every row. A new kind has none.")
             String id,
@@ -407,14 +484,23 @@ public record ImportDocument(
             String code,
             @Schema(description = "The language tag of the primary name, such as `ja`. It is a key of `names`.")
             String primaryLanguage,
-            @Schema(description = "The names by language tag, such as `ja`, `en`, or `zh-Hant`.")
-            Map<String, RefKindName> names) {
+            @Schema(description = "The names by language tag, such as `ja`, `en`, or `zh-Hant`. They merge with the "
+                    + "stored names by language, and `null` for a language removes its names.")
+            Map<String, RefKindName> names,
+            @Schema(hidden = true)
+            Set<String> nulls) implements ImportRow {
+
+        public RefKindRow(String id, String source, String externalId, String code, String primaryLanguage,
+                Map<String, RefKindName> names) {
+            this(id, source, externalId, code, primaryLanguage, names, Set.of());
+        }
     }
 
     @Schema(
             name = "ImportPersonRow",
             description = "A person, also one with no Keycloak user. It is matched by its ID in the system of "
                     + "`source`, whichever system made it, or by `id`. A row needs one of them.")
+    @JsonDeserialize(using = ImportRowReader.class)
     public record PersonRow(
             @Schema(
                     description = "The name of the system that the row comes from. The default is the source of the "
@@ -424,27 +510,35 @@ public record ImportDocument(
             String source,
             @Schema(description = "The ID of the person in that system.")
             String externalId,
-            @Schema(description = "The username of a Keycloak user to link. A row that names no user keeps the link "
-                    + "that is stored.")
+            @Schema(description = "The username of a Keycloak user to link. A row that leaves out the user keeps the "
+                    + "link that is stored, and `null` for both ways removes it.")
             String username,
             @Schema(description = "The ID of a Keycloak user to link.")
             String userId,
             @Schema(description = "The language tag of the primary names, such as `ja`. It is a key of `names`.")
             String primaryLanguage,
             @Schema(description = "The names by language tag, such as `ja`, `en`, or `zh-Hant`. A person with no "
-                    + "user needs them.")
+                    + "user needs them. They merge with the stored names by language and by field.")
             Map<String, PersonName> names,
             @Schema(description = "Free values of the person.")
             Map<String, Object> attributes,
             @Schema(description = "The ID of a stored person, for a row of a person with no external ID. A CSV export "
                     + "has it in every row. A new person has none.")
-            String id) {
+            String id,
+            @Schema(hidden = true)
+            Set<String> nulls) implements ImportRow {
+
+        public PersonRow(String source, String externalId, String username, String userId, String primaryLanguage,
+                Map<String, PersonName> names, Map<String, Object> attributes, String id) {
+            this(source, externalId, username, userId, primaryLanguage, names, attributes, id, Set.of());
+        }
     }
 
     @Schema(
             name = "ImportEmploymentRow",
             description = "An employment. It is matched by its ID in the system of `source`, whichever system made "
                     + "it, or by `id`. A row needs one of them.")
+    @JsonDeserialize(using = ImportRowReader.class)
     public record EmploymentRow(
             @Schema(
                     description = "The name of the system that the row comes from. The default is the source of the "
@@ -480,8 +574,7 @@ public record ImportDocument(
                     maximum = "100")
             BigDecimal workPercent,
             @Schema(
-                    description = "The last day of the fixed-term contract. Leave it out for an indefinite "
-                            + "contract.",
+                    description = "The last day of the fixed-term contract. `null` for an indefinite contract.",
                     format = "date")
             String contractEndDate,
             @Schema(description = "Free values of the terms.")
@@ -492,9 +585,10 @@ public record ImportDocument(
                             + "its terms. Another date fails.",
                     format = "date")
             String validFrom,
-            @Schema(description = "The first date on which the employment no longer holds.", format = "date")
+            @Schema(description = "The first date on which the employment no longer holds. `null` removes the end of "
+                    + "a stored employment.", format = "date")
             String validTo,
-            @Schema(description = "The code of the end reason. It is used only with `validTo`.")
+            @Schema(description = "The code of the end reason. It is used only with an end.")
             String endReason,
             @Schema(description = "The external ID of the org unit that employs the person. It is a legal entity. "
                     + "Leave it out when the realm has exactly one, or for an external employer. A stored employment "
@@ -523,7 +617,21 @@ public record ImportDocument(
                     + "`EXTERNAL_EMPLOYER`, such as a staffing agency. Give this or the employer, not both. A new "
                     + "employment needs an active item. A stored employment keeps its employer, so the value must "
                     + "name that one.")
-            String externalEmployer) {
+            String externalEmployer,
+            @Schema(hidden = true)
+            Set<String> nulls) implements ImportRow {
+
+        public EmploymentRow(String source, String externalId, String username, String userId, String staffNumber,
+                String employmentType, String grade, String status, String leaveReason, BigDecimal workPercent,
+                String contractEndDate, Map<String, Object> attributes, String validFrom, String validTo,
+                String endReason, String employerExternalId, String personExternalId, String personId,
+                String employerId, String id, String continuesEmploymentExternalId, String continuesEmploymentId,
+                String externalEmployer) {
+            this(source, externalId, username, userId, staffNumber, employmentType, grade, status, leaveReason,
+                    workPercent, contractEndDate, attributes, validFrom, validTo, endReason, employerExternalId,
+                    personExternalId, personId, employerId, id, continuesEmploymentExternalId, continuesEmploymentId,
+                    externalEmployer, Set.of());
+        }
 
         public EmploymentRow(String source, String externalId, String username, String userId, String staffNumber,
                 String employmentType, String grade, String status, String leaveReason, BigDecimal workPercent,
@@ -586,6 +694,7 @@ public record ImportDocument(
             description = "An assignment. It is matched by its ID in the system of `source`, whichever system made "
                     + "it, or by `id`. A row needs one of them. A new assignment names its employment and its org "
                     + "unit.")
+    @JsonDeserialize(using = ImportRowReader.class)
     public record AssignmentRow(
             @Schema(
                     description = "The name of the system that the row comes from. The default is the source of the "
@@ -596,10 +705,10 @@ public record ImportDocument(
             @Schema(description = "The ID of the assignment in that system.")
             String externalId,
             @Schema(description = "The external ID of the employment with the same source. A row of a stored "
-                    + "assignment that names no employment keeps the one that is stored.")
+                    + "assignment that leaves out the employment keeps the one that is stored.")
             String employmentExternalId,
             @Schema(description = "The external ID of the org unit with the same source. A row of a stored "
-                    + "assignment that names no org unit keeps the one that is stored.")
+                    + "assignment that leaves out the org unit keeps the one that is stored.")
             String orgUnitExternalId,
             @Schema(description = "The code of the job title.")
             String jobTitle,
@@ -629,7 +738,7 @@ public record ImportDocument(
             String validFrom,
             @Schema(
                     description = "The first date on which the assignment no longer holds. The default is the end "
-                            + "of the employment.",
+                            + "of the employment. `null` gives a stored assignment the end of its employment.",
                     format = "date")
             String validTo,
             @Schema(description = "The ID of the employment, for an employment with no external ID of the same "
@@ -651,7 +760,19 @@ public record ImportDocument(
             @Schema(description = "The code of the work location. With none, the one of the org unit applies.")
             String workLocation,
             @Schema(description = "The code of the cost center. With none, the one of the org unit applies.")
-            String costCenter) {
+            String costCenter,
+            @Schema(hidden = true)
+            Set<String> nulls) implements ImportRow {
+
+        public AssignmentRow(String source, String externalId, String employmentExternalId, String orgUnitExternalId,
+                String jobTitle, String occupation, String kind, Boolean head, Boolean primary,
+                BigDecimal allocationPercent, Integer displayOrder, Map<String, Object> attributes, String validFrom,
+                String validTo, String employmentId, String orgUnitId, String id, String continuesAssignmentExternalId,
+                String continuesAssignmentId, String workLocation, String costCenter) {
+            this(source, externalId, employmentExternalId, orgUnitExternalId, jobTitle, occupation, kind, head, primary,
+                    allocationPercent, displayOrder, attributes, validFrom, validTo, employmentId, orgUnitId, id,
+                    continuesAssignmentExternalId, continuesAssignmentId, workLocation, costCenter, Set.of());
+        }
 
         public AssignmentRow(String source, String externalId, String employmentExternalId,
                 String orgUnitExternalId, String jobTitle, String occupation, String kind, Boolean head,
@@ -693,8 +814,9 @@ public record ImportDocument(
     @Schema(
             name = "ImportRefItemRow",
             description = "A reference item. It is matched by its ID in the system of `source`, or by `id`. A row "
-                    + "needs one of them. The kind and the code of a stored item do not change.",
-            requiredProperties = {"primaryLanguage", "names"})
+                    + "needs one of them. The kind and the code of a stored item do not change. A new item needs "
+                    + "`primaryLanguage` and `names`.")
+    @JsonDeserialize(using = ImportRowReader.class)
     public record RefItemRow(
             @Schema(description = "The ID of a stored item. A CSV export has it in every row. A new item has none.")
             String id,
@@ -714,7 +836,8 @@ public record ImportDocument(
             String code,
             @Schema(description = "The language tag of the primary name, such as `ja`. It is a key of `names`.")
             String primaryLanguage,
-            @Schema(description = "The names by language tag, such as `ja`, `en`, or `zh-Hant`.")
+            @Schema(description = "The names by language tag, such as `ja`, `en`, or `zh-Hant`. They merge with the "
+                    + "stored names of the date by language, and `null` for a language removes its names.")
             Map<String, RefItemName> names,
             @Schema(description = "The position in lists.", defaultValue = "0")
             Integer displayOrder,
@@ -740,7 +863,16 @@ public record ImportDocument(
                             + "hold for every date. A stored item without it gets the names from the effective "
                             + "date. A date that starts stored names corrects them.",
                     format = "date")
-            String validFrom) {
+            String validFrom,
+            @Schema(hidden = true)
+            Set<String> nulls) implements ImportRow {
+
+        public RefItemRow(String id, String source, String externalId, String kind, String code, String primaryLanguage,
+                Map<String, RefItemName> names, Integer displayOrder, Map<String, Object> attributes, Boolean active,
+                Boolean legalEntity, Boolean actingHead, Boolean lateral, Boolean rollup, String validFrom) {
+            this(id, source, externalId, kind, code, primaryLanguage, names, displayOrder, attributes, active,
+                    legalEntity, actingHead, lateral, rollup, validFrom, Set.of());
+        }
 
         /**
          * Makes a row of the source of the document that does not speak about the marks, with names from the
@@ -765,8 +897,8 @@ public record ImportDocument(
     @Schema(
             name = "ImportOrgUnitRow",
             description = "An org unit. It is matched by its ID in the system of `source`, whichever system made "
-                    + "it, or by `id`. A row needs one of them.",
-            requiredProperties = {"primaryLanguage", "names"})
+                    + "it, or by `id`. A row needs one of them. A new unit needs `primaryLanguage` and `names`.")
+    @JsonDeserialize(using = ImportRowReader.class)
     public record OrgUnitRow(
             @Schema(
                     description = "The name of the system that the row comes from. The default is the source of the "
@@ -784,11 +916,13 @@ public record ImportDocument(
             String code,
             @Schema(description = "The language tag of the primary names, such as `ja`. It is a key of `names`.")
             String primaryLanguage,
-            @Schema(description = "The names by language tag, such as `ja`, `en`, or `zh-Hant`.")
+            @Schema(description = "The names by language tag, such as `ja`, `en`, or `zh-Hant`. They merge with the "
+                    + "stored names by language and by field, and `null` for a language removes its names.")
             Map<String, OrgUnitName> names,
             @Schema(description = "The code of the unit type.")
             String unitType,
-            @Schema(description = "The external ID of the parent with the same source. A root has none.")
+            @Schema(description = "The external ID of the parent with the same source. A root has none. A row of a "
+                    + "stored unit that leaves out the parent keeps it, and `null` makes a root.")
             String parentExternalId,
             @Schema(description = "The ID of the parent, for a parent that has no external ID with the same source. "
                     + "Give this or `parentExternalId`, not both.")
@@ -803,7 +937,8 @@ public record ImportDocument(
                             + "Another date fails.",
                     format = "date")
             String validFrom,
-            @Schema(description = "The first date on which the unit no longer exists.", format = "date")
+            @Schema(description = "The first date on which the unit no longer exists. `null` removes the end of a "
+                    + "stored unit.", format = "date")
             String validTo,
             @Schema(description = "The ID of a stored unit, for a row of a unit with no external ID. A CSV export has "
                     + "it in every row. A new unit has none.")
@@ -814,18 +949,30 @@ public record ImportDocument(
             @Schema(description = "The IDs of the units that follow this one from `validTo`.")
             List<String> successorIds,
             @Schema(description = "The alias of the Keycloak organization that the unit is linked to. A row that "
-                    + "leaves it out keeps the link. An empty text removes it.")
+                    + "leaves it out keeps the link. `null` removes it.")
             String organizationAlias,
             @Schema(description = "The time zone of the unit and the units below, for example `Asia/Tokyo`. A row "
-                    + "that leaves it out keeps it. An empty text removes it.")
+                    + "that leaves it out keeps it. `null` removes it.")
             String timeZone,
             @Schema(description = "The time of day when the date changes, as `HH:mm`. A row that leaves it out keeps "
-                    + "it. An empty text removes it.")
+                    + "it. `null` removes it.")
             String dayStart,
             @Schema(description = "The code of the work location that the unit gives its members.")
             String workLocation,
             @Schema(description = "The code of the cost center that the unit gives its members.")
-            String costCenter) {
+            String costCenter,
+            @Schema(hidden = true)
+            Set<String> nulls) implements ImportRow {
+
+        public OrgUnitRow(String source, String externalId, String code, String primaryLanguage,
+                Map<String, OrgUnitName> names, String unitType, String parentExternalId, String parentId,
+                Integer displayOrder, Map<String, Object> attributes, String validFrom, String validTo, String id,
+                List<String> successorExternalIds, List<String> successorIds, String organizationAlias, String timeZone,
+                String dayStart, String workLocation, String costCenter) {
+            this(source, externalId, code, primaryLanguage, names, unitType, parentExternalId, parentId, displayOrder,
+                    attributes, validFrom, validTo, id, successorExternalIds, successorIds, organizationAlias, timeZone,
+                    dayStart, workLocation, costCenter, Set.of());
+        }
 
         public OrgUnitRow(String source, String externalId, String code, String primaryLanguage,
                 Map<String, OrgUnitName> names, String unitType, String parentExternalId, String parentId,

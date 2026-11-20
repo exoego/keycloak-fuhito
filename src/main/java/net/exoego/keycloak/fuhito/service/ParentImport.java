@@ -15,7 +15,8 @@ import net.exoego.keycloak.fuhito.service.ImportReport.Write;
 import net.exoego.keycloak.fuhito.store.OrgUnitStore;
 
 /**
- * The parents of org units in hierarchies of one document. A row gives the parent from the effective date.
+ * The parents of org units in hierarchies of one document. A row gives the parent from the effective date. A row that
+ * leaves out the parent keeps it, and null takes the unit out of the hierarchy.
  */
 final class ParentImport {
 
@@ -45,7 +46,7 @@ final class ParentImport {
         report.startList(ORG_UNIT_PARENTS);
         for (int i = 0; i < rows.size(); i++) {
             try {
-                report.count(ORG_UNIT_PARENTS, apply(Checks.required("row", rows.get(i))));
+                report.count(ORG_UNIT_PARENTS, apply(EmptyValues.checked(rows.get(i))));
             } catch (FuhitoException e) {
                 report.error(ORG_UNIT_PARENTS, i, e);
             }
@@ -71,8 +72,11 @@ final class ParentImport {
             throw FuhitoException.invalid("import.duplicate_row",
                     Map.of("externalId", Objects.requireNonNullElse(row.orgUnitExternalId(), unitId)));
         }
-        String parentId = parentId(row, source);
         OrgUnitState before = orgUnitService.get(unitId, effectiveDate, hierarchy);
+        // A row that leaves out the parent keeps the stored one.
+        boolean keeps = !row.gives("parentExternalId", row.parentExternalId())
+                && !row.gives("parentId", row.parentId());
+        String parentId = keeps ? before.parentId() : parentId(row, source);
         if (Objects.equals(before.parentId(), parentId)) {
             return Outcome.UNCHANGED;
         }
@@ -81,7 +85,7 @@ final class ParentImport {
         return Outcome.CHANGED;
     }
 
-    // No parent takes the unit out of the hierarchy.
+    // Null for the parent takes the unit out of the hierarchy.
     private String parentId(OrgUnitParentRow row, String source) {
         if (row.parentExternalId() != null && row.parentId() != null) {
             throw FuhitoException.invalid("import.parent_twice",

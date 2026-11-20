@@ -3,6 +3,7 @@ package net.exoego.keycloak.fuhito.service;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 
@@ -14,7 +15,7 @@ import net.exoego.keycloak.fuhito.service.ImportReport.Write;
 
 /**
  * The IDs that systems have for resources, of one document. A row is matched by type of resource, resource, and
- * source. Another external ID replaces the stored one, and an empty text removes it.
+ * source. Another external ID replaces the stored one, and null removes it. A row that leaves it out keeps it.
  */
 final class ExternalIdImport {
 
@@ -37,7 +38,7 @@ final class ExternalIdImport {
         report.startList(EXTERNAL_IDS);
         for (int i = 0; i < rows.size(); i++) {
             try {
-                report.count(EXTERNAL_IDS, apply(Checks.required("row", rows.get(i))));
+                report.count(EXTERNAL_IDS, apply(EmptyValues.checked(rows.get(i))));
             } catch (FuhitoException e) {
                 report.error(EXTERNAL_IDS, i, e);
             }
@@ -49,14 +50,18 @@ final class ExternalIdImport {
         String kind = Checks.required("resourceType", row.resourceType());
         String resourceId = Checks.required("resourceId", row.resourceId());
         String source = Checks.code("source", row.source() == null ? defaultSource : row.source());
-        String value = Checks.required("externalId", row.externalId());
+        String value = row.externalId();
         if (!seen.add(kind + "\u0000" + resourceId + "\u0000" + source)) {
-            throw FuhitoException.invalid("import.duplicate_row", Map.of("externalId", value));
+            throw FuhitoException.invalid("import.duplicate_row",
+                    Map.of("externalId", Objects.requireNonNullElse(value, resourceId)));
         }
         Optional<ExternalIdService.View> stored = externalIds.list(kind, resourceId).stream()
                 .filter(view -> view.source().equals(source))
                 .findFirst();
-        if (value.isEmpty()) {
+        if (!row.gives("externalId", value)) {
+            return Outcome.UNCHANGED;
+        }
+        if (value == null) {
             if (stored.isEmpty()) {
                 return Outcome.UNCHANGED;
             }

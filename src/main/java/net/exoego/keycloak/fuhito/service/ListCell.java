@@ -21,17 +21,14 @@ final class ListCell {
      *
      * @param column the column of the cell, which an error names
      * @param cell the text of the cell
-     * @return null for a blank cell, which keeps the stored list, no items for {@code #CLEAR}, or the items
+     * @return null for a blank cell and for {@code #CLEAR}, or the items
      * @throws FuhitoException when an item is empty, or when a backslash comes before a character other than a
      *     vertical bar or a backslash
      */
     static List<String> read(String column, String cell) {
         String text = cell.strip();
-        if (text.isEmpty()) {
+        if (text.isEmpty() || text.equals(CsvImportService.CLEAR)) {
             return null;
-        }
-        if (text.equals(CsvImportService.CLEAR)) {
-            return List.of();
         }
         List<String> items = new ArrayList<>();
         StringBuilder item = new StringBuilder();

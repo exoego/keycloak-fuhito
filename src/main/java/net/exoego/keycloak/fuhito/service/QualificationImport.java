@@ -17,8 +17,8 @@ import net.exoego.keycloak.fuhito.service.ImportReport.Outcome;
 import net.exoego.keycloak.fuhito.service.ImportReport.Write;
 
 /**
- * The qualifications of one document. A row is matched by source and external ID, or by ID. A qualification is a
- * record with dates of its own, so a row replaces the stored one as {@code PUT} does.
+ * The qualifications of one document. A row is matched by source and external ID, or by ID. A row of a stored one
+ * changes the values that it gives.
  */
 final class QualificationImport {
 
@@ -49,7 +49,7 @@ final class QualificationImport {
         report.startList(QUALIFICATIONS);
         for (int i = 0; i < rows.size(); i++) {
             try {
-                report.count(QUALIFICATIONS, apply(Checks.required("row", rows.get(i))));
+                report.count(QUALIFICATIONS, apply(EmptyValues.checked(rows.get(i))));
             } catch (FuhitoException e) {
                 report.error(QUALIFICATIONS, i, e);
             }
@@ -68,23 +68,29 @@ final class QualificationImport {
         }
         Optional<QualificationView> stored = stored(row, source);
         String personId = personId(row, source, stored);
-        String validFrom = row.validFrom() != null ? row.validFrom()
-                : stored.map(view -> view.qualification().period().from().toString()).orElse(effectiveDate);
-        QualificationValues values = new QualificationValues(personId, row.kind(), row.number(), validFrom,
-                row.validTo(), row.attributes(), row.externalId(), source);
         if (stored.isEmpty()) {
-            report.write(new Write.OfQualification(true, qualifications.add(values)));
+            report.write(new Write.OfQualification(true, qualifications.add(new QualificationValues(personId,
+                    row.kind(), row.number(), row.validFrom() == null ? effectiveDate : row.validFrom(),
+                    row.validTo(), Merged.attributes(row, row.attributes(), null), row.externalId(), source))));
             return Outcome.CREATED;
         }
         Qualification before = stored.get().qualification();
         if (!before.personId().equals(personId)) {
             throw FuhitoException.invalid("import.id_mismatch", Map.of("id", before.id(), "externalId", personId));
         }
-        boolean same = Objects.equals(stored.get().kind(), row.kind())
-                && Objects.equals(before.number(), Checks.optionalName("number", row.number()))
+        if (row.isNull("validFrom")) {
+            throw FuhitoException.invalid("invalid.required", Map.of("field", "validFrom"));
+        }
+        QualificationValues values = new QualificationValues(personId,
+                row.or("kind", row.kind(), stored.get().kind()), row.or("number", row.number(), before.number()),
+                row.or("validFrom", row.validFrom(), before.period().from().toString()),
+                row.or("validTo", row.validTo(), Objects.toString(before.period().to(), null)),
+                Merged.attributes(row, row.attributes(), before.attributes()), row.externalId(), source);
+        boolean same = Objects.equals(stored.get().kind(), values.kind())
+                && Objects.equals(before.number(), Checks.optionalName("number", values.number()))
                 && before.period().from().toString().equals(values.validFrom())
-                && Objects.equals(Objects.toString(before.period().to(), null), row.validTo())
-                && (row.attributes() == null ? Map.of() : row.attributes()).equals(before.attributes());
+                && Objects.equals(Objects.toString(before.period().to(), null), values.validTo())
+                && values.attributes().equals(before.attributes());
         if (same) {
             return Outcome.UNCHANGED;
         }
@@ -107,7 +113,7 @@ final class QualificationImport {
         return Optional.of(view);
     }
 
-    // A row of a stored qualification may name nobody. A user who has no person yet gets one.
+    // A row of a stored qualification may leave out the person. A user who has no person yet gets one.
     private String personId(QualificationRow row, String source, Optional<QualificationView> stored) {
         if (Stream.of(row.personExternalId(), row.personId(), row.username()).filter(Objects::nonNull).count() > 1) {
             throw FuhitoException.invalid("import.person_ways", Map.of());
@@ -132,7 +138,8 @@ final class QualificationImport {
             }
             return resolved.person().id();
         }
-        return stored.map(view -> view.qualification().personId()).orElseThrow(() -> FuhitoException.invalid(
-                "invalid.required", Map.of("field", "personExternalId")));
+        boolean cleared = row.isNull("personExternalId") || row.isNull("personId") || row.isNull("username");
+        return stored.filter(view -> !cleared).map(view -> view.qualification().personId()).orElseThrow(
+                () -> FuhitoException.invalid("invalid.required", Map.of("field", "personExternalId")));
     }
 }

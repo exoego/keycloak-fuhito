@@ -134,6 +134,49 @@ class ImportIT {
     }
 
     @Test
+    void aRowKeepsWhatItLeavesOutAndClearsWhatIsNull() throws Exception {
+        TestRealm realm = TestRealm.create("import-null");
+        Api api = realm.api;
+        ok(api.post("/imports", """
+                {"effectiveDate": "2026-04-01", "orgUnits": [
+                  {"externalId": "H", "primaryLanguage": "ja", "names": {"ja": {"name": "X病院"}}},
+                  {"externalId": "W", "primaryLanguage": "ja", "parentExternalId": "H", "code": "w1", "displayOrder": 2,
+                   "timeZone": "Asia/Tokyo", "names": {"ja": {"name": "1病棟", "shortName": "1病"}, "en": {"name": "Ward 1"}}}
+                ]}
+                """));
+        String ward = Api.json(api.get("/org-units?asOf=2026-04-01&code=w1")).get(0).get("id").asText();
+
+        JsonNode kept = ok(api.post("/imports", """
+                {"effectiveDate": "2026-05-01", "orgUnits": [{"externalId": "W"}]}
+                """));
+        JsonNode cleared = ok(api.post("/imports", """
+                {"effectiveDate": "2026-06-01", "orgUnits": [
+                  {"externalId": "W", "code": null, "timeZone": null, "names": {"ja": {"shortName": null}, "en": null}}
+                ]}
+                """));
+        HttpResponse<String> blank = api.post("/imports", """
+                {"effectiveDate": "2026-06-01", "orgUnits": [{"externalId": "W", "code": " "},
+                  {"externalId": "H", "validTo": "2027-04-01", "successorIds": []}]}
+                """);
+
+        assertEquals(1, kept.get("counts").get("orgUnits").get("unchanged").asInt(), kept.toString());
+        assertEquals(1, cleared.get("counts").get("orgUnits").get("changed").asInt(), cleared.toString());
+        JsonNode june = Api.json(api.get("/org-units/" + ward + "?asOf=2026-06-01"));
+        assertFalse(june.has("code"), june.toString());
+        assertFalse(june.has("shortName"), june.toString());
+        assertFalse(june.has("timeZone"), june.toString());
+        assertEquals(1, june.get("names").size(), june.toString());
+        assertTrue(june.get("names").has("ja"), june.toString());
+        assertEquals(2, june.get("displayOrder").asInt());
+        assertEquals("1病棟", june.get("name").asText());
+        assertEquals(Api.json(api.get("/org-units?roots=true&asOf=2026-06-01")).get(0).get("id").asText(),
+                june.get("parentId").asText());
+        assertEquals(400, blank.statusCode(), blank.body());
+        assertEquals(List.of("invalid.blank", "invalid.blank"),
+                Api.json(blank).get("errors").findValuesAsText("error"));
+    }
+
+    @Test
     void aDryRunChecksEverythingAndWritesNothing() throws Exception {
         TestRealm realm = TestRealm.create("import-dry-run");
 
@@ -169,9 +212,11 @@ class ImportIT {
         JsonNode report = Api.json(response);
         assertFalse(report.get("applied").asBoolean());
         assertEquals(List.of("1", "2", "3"), report.get("errors").findValuesAsText("row"));
-        assertEquals(List.of("invalid.name", "import.parent_unknown", "import.parent_failed"),
+        assertEquals(List.of("invalid.blank", "import.parent_unknown", "import.parent_failed"),
                 report.get("errors").findValuesAsText("error"));
         assertEquals("orgUnits", report.get("errors").get(0).get("list").asText());
+        assertEquals("names.ja.name を空や空白だけにすることはできません。値がないときは null にしてください。",
+                report.get("errors").get(0).get("message").asText());
         assertEquals("NOPE", report.get("errors").get(1).get("params").get("parentExternalId").asText());
         assertEquals("外部 ID「NOPE」の親は、取り込みデータにも保存済みデータにもありません。",
                 report.get("errors").get(1).get("message").asText());

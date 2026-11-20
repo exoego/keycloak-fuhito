@@ -49,7 +49,7 @@ final class OrgUnitImport {
     private final Runnable rowDone;
 
     // An end with successors waits for every row, because a successor can come later in the document.
-    private record Ending(int index, String unitId, String source, OrgUnitRow row) {
+    private record Ending(int index, String unitId, String source, String validTo, OrgUnitRow row) {
     }
 
     OrgUnitImport(OrgUnitService orgUnitService, ExternalIdService externalIds,
@@ -75,6 +75,12 @@ final class OrgUnitImport {
                 fail(i, FuhitoException.invalid("invalid.required", Map.of("field", "externalId")));
             } else if (rowByKey.putIfAbsent(key(row), i) != null) {
                 fail(i, FuhitoException.invalid("import.duplicate_row", Map.of("externalId", name(row))));
+            } else {
+                try {
+                    EmptyValues.reject(row);
+                } catch (FuhitoException e) {
+                    fail(i, e);
+                }
             }
             if (row != null) {
                 ids.want(ExternalId.Kind.ORG_UNIT, sourceOf(row), row.externalId())
@@ -141,7 +147,7 @@ final class OrgUnitImport {
             String end = lastDay(ending.unitId());
             if (end == null) {
                 report.write(new Write.OfOrgUnit(false, "/end", units.write(ending.unitId(),
-                        () -> orgUnitService.succeed(ending.unitId(), ending.row().validTo(), successors))));
+                        () -> orgUnitService.succeed(ending.unitId(), ending.validTo(), successors))));
                 report.write(new Write.OfSuccession(ending.unitId(), orgUnitService.successions(ending.unitId())));
                 return;
             }
@@ -149,7 +155,7 @@ final class OrgUnitImport {
             orgUnitService.successions(ending.unitId()).successors().stream()
                     .filter(link -> link.effectiveDate().toString().equals(end))
                     .forEach(link -> stored.add(link.successorId()));
-            if (!end.equals(ending.row().validTo()) || !stored.equals(new HashSet<>(successors))) {
+            if (!end.equals(ending.validTo()) || !stored.equals(new HashSet<>(successors))) {
                 throw FuhitoException.conflict("import.successors_differ", Map.of("id", ending.unitId(),
                         "validTo", end));
             }
@@ -243,23 +249,23 @@ final class OrgUnitImport {
 
     private Outcome applyRow(int index, OrgUnitRow row, String source, String parentId) {
         boolean succeeds = hasSuccessors(row);
-        if (succeeds && row.validTo() == null) {
-            throw FuhitoException.invalid("invalid.required", Map.of("field", "validTo"));
-        }
         Optional<String> stored = stored(row, source);
         if (stored.isEmpty()) {
-            NewOrgUnit request = new NewOrgUnit(row.code(), row.primaryLanguage(), row.names(), row.unitType(),
-                    row.workLocation(), row.costCenter(), parentId,
-                    row.validFrom() == null ? effectiveDate : row.validFrom(), row.displayOrder(), row.attributes(),
-                    row.externalId(), source);
+            if (succeeds && row.validTo() == null) {
+                throw FuhitoException.invalid("invalid.required", Map.of("field", "validTo"));
+            }
+            NewOrgUnit request = new NewOrgUnit(row.code(), row.primaryLanguage(),
+                    Merged.names(row, row.names(), null, Merged.UNIT_NAMES), row.unitType(), row.workLocation(),
+                    row.costCenter(), parentId, row.validFrom() == null ? effectiveDate : row.validFrom(),
+                    row.displayOrder(), Merged.attributes(row, row.attributes(), null), row.externalId(), source);
             String id = ids.create(ExternalId.Kind.ORG_UNIT, source, row.externalId(),
                     () -> units.create(request), state -> state.unit().id()).unit().id();
             unitIdByRow.put(index, id);
             writes.add(() -> new Write.OfOrgUnit(true, "", units.state(id)));
-            link(id, row.organizationAlias());
+            link(id, row);
             time(id, row);
             if (succeeds) {
-                endings.add(new Ending(index, id, source, row));
+                endings.add(new Ending(index, id, source, row.validTo(), row));
             } else if (row.validTo() != null) {
                 written("/end", id, () -> orgUnitService.end(id, row.validTo()));
             }
@@ -271,43 +277,63 @@ final class OrgUnitImport {
         LocalDate date = Checks.date("effectiveDate", effectiveDate);
         LocalDate end = versions.getLast().period().to();
         LocalDate first = versions.getFirst().period().from();
-        ImportMatch.start(id, first, row.validFrom());
+        ImportMatch.start(row, id, first, row.validFrom());
+        String validTo = row.or("validTo", row.validTo(), Objects.toString(end, null));
+        if (succeeds && validTo == null) {
+            throw FuhitoException.invalid("invalid.required", Map.of("field", "validTo"));
+        }
+        if (!succeeds && end != null && clearsSuccessors(row)
+                && !orgUnitService.successions(id).successors().isEmpty()) {
+            throw FuhitoException.conflict("import.successors_differ", Map.of("id", id, "validTo", lastDay(id)));
+        }
+        // A row that leaves out the parent keeps the stored one.
+        boolean keepsParent = !row.gives("parentExternalId", row.parentExternalId())
+                && !row.gives("parentId", row.parentId());
         boolean changed = false;
         // A unit that ended by the effective date keeps its details. One that starts later can only come again as
         // it is, for example in the document that made it.
         if (first.isAfter(date)) {
             OrgUnitState onFirst = units.stateOn(id, first);
-            if (!quietlySame(row, onFirst) || !Objects.equals(parentId, onFirst.parentId())) {
+            String parent = keepsParent ? onFirst.parentId() : parentId;
+            if (!quietlySame(row, onFirst) || !Objects.equals(parent, onFirst.parentId())) {
                 throw FuhitoException.notFound("org_unit.not_valid_on", Map.of("id", id, "date", effectiveDate));
             }
         } else if (end == null || end.isAfter(date)) {
             OrgUnitState before = units.stateOn(id, date);
-            boolean moves = !Objects.equals(parentId, before.parentId());
+            String parent = keepsParent ? before.parentId() : parentId;
+            boolean moves = !Objects.equals(parent, before.parentId());
             // A unit that becomes a rollup unit leaves its parent first. A rollup unit has no parent.
-            if (moves && parentId == null) {
+            if (moves && parent == null) {
                 written("/parent", id, () -> orgUnitService.move(id, null, effectiveDate));
             }
-            if (!sameDetails(row, before)) {
-                written("", id, () -> orgUnitService.changeDetails(id, new OrgUnitChange(effectiveDate, row.code(),
-                        row.primaryLanguage(), row.names(), row.unitType(), row.workLocation(), row.costCenter(),
-                        row.displayOrder(), row.attributes())));
+            OrgUnitChange details = details(row, before);
+            if (!sameDetails(details, before)) {
+                written("", id, () -> orgUnitService.changeDetails(id, details));
                 changed = true;
             }
-            if (moves && parentId != null) {
-                written("/parent", id, () -> orgUnitService.move(id, parentId, effectiveDate));
+            if (moves && parent != null) {
+                written("/parent", id, () -> orgUnitService.move(id, parent, effectiveDate));
             }
             changed |= moves;
         }
-        changed |= link(id, row.organizationAlias());
+        changed |= link(id, row);
         changed |= time(id, row);
         if (succeeds) {
-            endings.add(new Ending(index, id, source, row));
+            endings.add(new Ending(index, id, source, validTo, row));
             changed |= lastDay(id) == null;
-        } else if (row.validTo() != null && !row.validTo().equals(lastDay(id))) {
-            written("/end", id, () -> orgUnitService.end(id, row.validTo()));
+        } else if (validTo == null && lastDay(id) != null) {
+            written("/end", id, () -> orgUnitService.removeEnd(id));
+            changed = true;
+        } else if (validTo != null && !validTo.equals(lastDay(id))) {
+            written("/end", id, () -> orgUnitService.end(id, validTo));
             changed = true;
         }
         return changed ? Outcome.CHANGED : Outcome.UNCHANGED;
+    }
+
+    private static boolean clearsSuccessors(OrgUnitRow row) {
+        return row.gives("successorExternalIds", row.successorExternalIds())
+                || row.gives("successorIds", row.successorIds());
     }
 
     // A row with an ID changes that unit. An external ID beside it must be one of that unit.
@@ -325,15 +351,14 @@ final class OrgUnitImport {
         return Optional.of(row.id());
     }
 
-    // A value that the row leaves out keeps the stored one. An empty text removes it.
     private boolean time(String id, OrgUnitRow row) {
-        if (row.timeZone() == null && row.dayStart() == null) {
+        if (!row.gives("timeZone", row.timeZone()) && !row.gives("dayStart", row.dayStart())) {
             return false;
         }
         OrgUnit unit = units.unit(id).orElseThrow();
-        String zone = row.timeZone() == null ? unit.timeZone() : row.timeZone();
-        String start = row.dayStart() == null ? unit.dayStart() : row.dayStart();
-        if (Objects.equals(setting(zone), unit.timeZone()) && Objects.equals(setting(start), unit.dayStart())) {
+        String zone = row.or("timeZone", row.timeZone(), unit.timeZone());
+        String start = row.or("dayStart", row.dayStart(), unit.dayStart());
+        if (Objects.equals(stripped(zone), unit.timeZone()) && Objects.equals(stripped(start), unit.dayStart())) {
             return false;
         }
         OrgUnit changed = units.write(id, () -> orgUnitService.setTime(id, zone, start));
@@ -342,16 +367,17 @@ final class OrgUnitImport {
         return true;
     }
 
-    private static String setting(String value) {
-        return value == null || value.isBlank() ? null : value.strip();
+    private static String stripped(String value) {
+        return value == null ? null : value.strip();
     }
 
     // A link decides who is a member of the organization, so the caller must manage the old and the new one.
-    private boolean link(String id, String alias) {
-        if (alias == null) {
+    private boolean link(String id, OrgUnitRow row) {
+        String alias = row.organizationAlias();
+        if (!row.gives("organizationAlias", alias)) {
             return false;
         }
-        String wanted = alias.isEmpty() ? null : organizations.directory().idOfAlias(alias).orElseThrow(
+        String wanted = alias == null ? null : organizations.directory().idOfAlias(alias).orElseThrow(
                 () -> FuhitoException.invalid("import.organization_unknown", Map.of("alias", alias)));
         String current = units.unit(id).orElseThrow().keycloakOrganizationId();
         if (Objects.equals(current, wanted)) {
@@ -374,25 +400,37 @@ final class OrgUnitImport {
         return Objects.toString(units.versions(id).getLast().period().to(), null);
     }
 
+    private OrgUnitChange details(OrgUnitRow row, OrgUnitState stored) {
+        OrgUnitVersion version = stored.version();
+        return new OrgUnitChange(effectiveDate, row.or("code", row.code(), version.code()),
+                row.or("primaryLanguage", row.primaryLanguage(), version.names().primaryLanguage()),
+                Merged.names(row, row.names(), version.names().byLanguage(), Merged.UNIT_NAMES),
+                row.or("unitType", row.unitType(), stored.unitType()),
+                row.or("workLocation", row.workLocation(), stored.places().workLocation()),
+                row.or("costCenter", row.costCenter(), stored.places().costCenter()),
+                row.or("displayOrder", row.displayOrder(), version.displayOrder()),
+                Merged.attributes(row, row.attributes(), version.attributes()));
+    }
+
     // A bad value is not the same as what is stored.
     private boolean quietlySame(OrgUnitRow row, OrgUnitState stored) {
         try {
-            return sameDetails(row, stored);
+            return sameDetails(details(row, stored), stored);
         } catch (FuhitoException e) {
             return false;
         }
     }
 
-    private boolean sameDetails(OrgUnitRow row, OrgUnitState before) {
+    private static boolean sameDetails(OrgUnitChange wanted, OrgUnitState before) {
         var version = before.version();
-        return Objects.equals(Checks.optionalCode("code", row.code()), version.code())
-                && Localized.check(row.primaryLanguage(), row.names(), (field, name) -> name.checked(field))
+        return Objects.equals(Checks.optionalCode("code", wanted.code()), version.code())
+                && Localized.check(wanted.primaryLanguage(), wanted.names(), (field, name) -> name.checked(field))
                         .equals(version.names())
-                && Objects.equals(row.unitType(), before.unitType())
-                && Objects.equals(row.workLocation(), before.places().workLocation())
-                && Objects.equals(row.costCenter(), before.places().costCenter())
-                && (row.displayOrder() == null ? 0 : row.displayOrder()) == version.displayOrder()
-                && (row.attributes() == null ? Map.of() : row.attributes()).equals(version.attributes());
+                && Objects.equals(wanted.unitType(), before.unitType())
+                && Objects.equals(wanted.workLocation(), before.places().workLocation())
+                && Objects.equals(wanted.costCenter(), before.places().costCenter())
+                && (wanted.displayOrder() == null ? 0 : wanted.displayOrder()) == version.displayOrder()
+                && (wanted.attributes() == null ? Map.of() : wanted.attributes()).equals(version.attributes());
     }
 
     private void written(String suffix, String id, Supplier<OrgUnitState> write) {

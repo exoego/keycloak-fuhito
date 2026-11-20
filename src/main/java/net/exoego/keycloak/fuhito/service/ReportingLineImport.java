@@ -57,7 +57,7 @@ final class ReportingLineImport {
         Map<Integer, Line> added = new LinkedHashMap<>();
         for (int i = 0; i < rows.size(); i++) {
             try {
-                Line line = resolve(Checks.required("row", rows.get(i)));
+                Line line = resolve(EmptyValues.checked(rows.get(i)));
                 if (line.stored().isEmpty()) {
                     added.put(i, line);
                 } else {
@@ -84,22 +84,30 @@ final class ReportingLineImport {
                 id -> lines.find(id).isPresent()).flatMap(lines::find);
         String assignmentId = assignmentId(row, source, stored);
         String managerId = managerId(row, source, stored);
-        Kind kind = Checks.optionalEnum("kind", Kind.class, row.kind(), stored.map(ReportingLine::kind)
-                .orElse(Kind.SOLID));
+        Kind kind = Checks.optionalEnum("kind", Kind.class, row.kind(),
+                stored.filter(line -> !row.isNull("kind")).map(ReportingLine::kind).orElse(Kind.SOLID));
         stored.ifPresent(line -> {
             ImportMatch.fixed(line.id(), "assignmentId", line.assignmentId(), assignmentId);
             ImportMatch.fixed(line.id(), "managerPersonId", line.managerPersonId(), managerId);
             ImportMatch.fixed(line.id(), "kind", line.kind(), kind);
-            ImportMatch.start(line.id(), line.period().from(), row.validFrom());
+            ImportMatch.start(row, line.id(), line.period().from(), row.validFrom());
         });
         return new Line(row, source, assignmentId, managerId, kind, stored);
     }
 
+    // With no end of its own, a line ends with its assignment. A line can only end earlier.
     private Outcome change(ReportingLine line, ReportingLineRow row) {
-        if (row.validTo() == null || Objects.equals(row.validTo(), Objects.toString(line.period().to(), null))) {
+        LocalDate end = line.period().to();
+        String validTo = row.or("validTo", row.validTo(), Objects.toString(end, null));
+        if (validTo == null) {
+            ImportMatch.clearedEnd(line.id(), end,
+                    people.assignments().rows(line.assignmentId()).getLast().period().to());
             return Outcome.UNCHANGED;
         }
-        report.write(new Write.OfReportingLine(false, "/end", lines.end(line.id(), row.validTo())));
+        if (validTo.equals(Objects.toString(end, null))) {
+            return Outcome.UNCHANGED;
+        }
+        report.write(new Write.OfReportingLine(false, "/end", lines.end(line.id(), validTo)));
         return Outcome.CHANGED;
     }
 
@@ -121,8 +129,9 @@ final class ReportingLineImport {
             return row.assignmentId();
         }
         if (row.assignmentExternalId() == null) {
-            return stored.map(ReportingLine::assignmentId).orElseThrow(() -> FuhitoException.invalid(
-                    "invalid.required", Map.of("field", "assignmentExternalId")));
+            return stored.filter(line -> !row.isNull("assignmentExternalId") && !row.isNull("assignmentId"))
+                    .map(ReportingLine::assignmentId).orElseThrow(() -> FuhitoException.invalid(
+                            "invalid.required", Map.of("field", "assignmentExternalId")));
         }
         return externalIds.resourceOf(ExternalId.Kind.ASSIGNMENT, source, row.assignmentExternalId())
                 .orElseThrow(() -> FuhitoException.invalid("import.assignment_unknown",
@@ -153,7 +162,9 @@ final class ReportingLineImport {
             }
             return resolved.person().id();
         }
-        return stored.map(ReportingLine::managerPersonId).orElseThrow(() -> FuhitoException.invalid(
-                "invalid.required", Map.of("field", "managerPersonExternalId")));
+        boolean cleared = row.isNull("managerPersonExternalId") || row.isNull("managerPersonId")
+                || row.isNull("managerUsername");
+        return stored.filter(line -> !cleared).map(ReportingLine::managerPersonId).orElseThrow(
+                () -> FuhitoException.invalid("invalid.required", Map.of("field", "managerPersonExternalId")));
     }
 }

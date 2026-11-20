@@ -11,6 +11,7 @@ import java.util.Optional;
 import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.Localized;
+import net.exoego.keycloak.fuhito.domain.OrgUnit;
 import net.exoego.keycloak.fuhito.domain.OrgUnitName;
 import net.exoego.keycloak.fuhito.domain.OrgUnitSuccession;
 import net.exoego.keycloak.fuhito.domain.PersonName;
@@ -555,12 +556,17 @@ class CsvImportServiceTest {
                 H,en,Hospital,Hosp
                 """);
 
-        // The unit starts in 2026. On a date in 2025 it has no stored values to keep.
-        CsvImportService.Result result = load("orgUnits", "2025-04-01", """
+        // The unit starts in 2026. A row on a date in 2025 matches it only when it gives no other value.
+        CsvImportService.Result blank = load("orgUnits", "2025-04-01", """
                 externalId,name,shortName
                 H,,
                 """);
+        CsvImportService.Result result = load("orgUnits", "2025-04-01", """
+                externalId,primaryLanguage,name,shortName
+                H,en,,#CLEAR
+                """);
 
+        assertEquals(List.of(), errors(blank));
         assertEquals(List.of("line 2 row 0 org_unit.not_valid_on"), errors(result));
     }
 
@@ -628,5 +634,29 @@ class CsvImportServiceTest {
         assertEquals(ItemNames.of("East ward"), changed.names());
         assertEquals(0, changed.displayOrder());
         assertTrue(changed.active());
+    }
+
+    @Test
+    void aBlankCellLeavesTheKeyOutAndClearGivesNull() {
+        item(RefKind.ASSIGNMENT_KIND, "concurrent");
+        load("orgUnits", "2026-04-01", "外部ID,主言語,名称,タイムゾーン,日の始まり\nW,ja,1病棟,Asia/Tokyo,05:00\n");
+        load("employments", "2026-04-01", "外部ID,ユーザー名\nE1,nurse\n");
+        load("assignments", "2026-04-01", "外部ID,雇用の外部ID,組織の外部ID,所属区分\nA1,E1,W,concurrent\n");
+        String assignment = stored(ExternalId.Kind.ASSIGNMENT, "import", "A1");
+
+        CsvImportService.Result kept = load("assignments", "2026-05-01", "externalId,assignmentKind\nA1,\n");
+        CsvImportService.Result cleared = load("assignments", "2026-05-01", "externalId,assignmentKind\nA1,#CLEAR\n");
+        CsvImportService.Result times = load("orgUnits", "2026-05-01", """
+                externalId,timeZone,dayStart,successorIds
+                W,#CLEAR,,#CLEAR
+                """);
+
+        assertEquals(new Counts(0, 0, 1), kept.report().counts().get("assignments"));
+        assertEquals(new Counts(0, 1, 0), cleared.report().counts().get("assignments"));
+        assertNull(assignments.get(assignment).rows().getLast().kind());
+        assertEquals(List.of(), errors(times));
+        OrgUnit unit = orgUnitStore.findUnit(stored(ExternalId.Kind.ORG_UNIT, "import", "W")).orElseThrow();
+        assertNull(unit.timeZone());
+        assertEquals("05:00", unit.dayStart());
     }
 }

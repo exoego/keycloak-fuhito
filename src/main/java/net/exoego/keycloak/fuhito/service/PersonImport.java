@@ -11,6 +11,7 @@ import java.util.Set;
 import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
+import net.exoego.keycloak.fuhito.domain.Localized;
 import net.exoego.keycloak.fuhito.domain.Person;
 import net.exoego.keycloak.fuhito.domain.PersonName;
 import net.exoego.keycloak.fuhito.service.ImportDocument.PersonRow;
@@ -43,7 +44,7 @@ final class PersonImport {
         Set<String> seen = new HashSet<>();
         for (int i = 0; i < rows.size(); i++) {
             try {
-                PersonRow row = Checks.required("row", rows.get(i));
+                PersonRow row = EmptyValues.checked(rows.get(i));
                 document.requireFirst(seen, row.source(), row.externalId(), row.id());
                 document.report.count(PEOPLE, apply(row));
             } catch (FuhitoException e) {
@@ -91,14 +92,23 @@ final class PersonImport {
                 throw FuhitoException.conflict("import.user_taken",
                         Map.of("userId", userId, "personId", ofUser.get().id()));
             }
+            PersonValues values = new PersonValues(userId, row.primaryLanguage(),
+                    Merged.names(row, row.names(), null, Merged.PERSON_NAMES),
+                    Merged.attributes(row, row.attributes(), null), row.externalId(), source);
             PersonView view = ids.create(ExternalId.Kind.PERSON, source, row.externalId(),
-                    () -> created.create(values(row, userId, source)), made -> made.person().id());
+                    () -> created.create(values), made -> made.person().id());
             document.report.write(new Write.OfPerson(true, view));
             return Outcome.CREATED;
         }
         Person person = before.get();
-        String linked = userId != null ? userId : person.userId();
-        PersonValues wanted = values(row, linked, source);
+        // A row that leaves out the user keeps the link, and null removes it.
+        boolean keepsUser = !row.gives("userId", row.userId()) && !row.gives("username", row.username());
+        String linked = keepsUser ? person.userId() : userId;
+        Localized<PersonName> names = person.names();
+        PersonValues wanted = new PersonValues(linked,
+                row.or("primaryLanguage", row.primaryLanguage(), names == null ? null : names.primaryLanguage()),
+                Merged.names(row, row.names(), names == null ? Map.of() : names.byLanguage(), Merged.PERSON_NAMES),
+                Merged.attributes(row, row.attributes(), person.attributes()), row.externalId(), source);
         boolean same = Objects.equals(linked, person.userId())
                 && Objects.equals(PersonName.check(wanted.primaryLanguage(), wanted.names()), person.names())
                 && (wanted.attributes() == null ? Map.of() : wanted.attributes()).equals(person.attributes());
@@ -119,10 +129,5 @@ final class PersonImport {
                 .orElseThrow(() -> FuhitoException.invalid("import.id_unknown", Map.of("id", row.id())));
         PeopleImport.requireNames(ids, ExternalId.Kind.PERSON, row.id(), source, row.externalId());
         return person;
-    }
-
-    private static PersonValues values(PersonRow row, String userId, String source) {
-        return new PersonValues(userId, row.primaryLanguage(), row.names(), row.attributes(), row.externalId(),
-                source);
     }
 }
