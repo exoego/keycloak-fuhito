@@ -60,6 +60,7 @@ public interface PersonStore {
     /**
      * Finds people of the realm, ordered by ID.
      *
+     * @param userId the ID of the Keycloak user that the person is linked to, or null for any
      * @param text a text that the name or the phonetic name of any language, or the name, the username, or the
      *        email of the Keycloak user has, in any case, or null for any
      * @param staffNumber a staff number that an employment of the person has, or null for any
@@ -68,17 +69,18 @@ public interface PersonStore {
      * @param max the largest number of people to return
      * @return the people
      */
-    List<Person> search(String text, String staffNumber, String afterId, int first, int max);
+    List<Person> search(String userId, String text, String staffNumber, String afterId, int first, int max);
 
     /**
      * Counts the people that {@link #search} finds on all pages together.
      *
+     * @param userId the ID of the Keycloak user that the person is linked to, or null for any
      * @param text a text that the name or the phonetic name of any language, or the name, the username, or the
      *        email of the Keycloak user has, in any case, or null for any
      * @param staffNumber a staff number that an employment of the person has, or null for any
      * @return the number of people
      */
-    long count(String text, String staffNumber);
+    long count(String userId, String text, String staffNumber);
 
     /**
      * Stores a new person.

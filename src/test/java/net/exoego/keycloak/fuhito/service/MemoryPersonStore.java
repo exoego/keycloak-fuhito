@@ -55,9 +55,11 @@ final class MemoryPersonStore implements PersonStore {
     }
 
     @Override
-    public List<Person> search(String text, String staffNumber, String afterId, int first, int max) {
-        // Only the names. The staff numbers are in the store of employments.
+    public List<Person> search(String userId, String text, String staffNumber, String afterId, int first,
+            int max) {
+        // Only the users and the names. The staff numbers are in the store of employments.
         return list(afterId, 0, Integer.MAX_VALUE).stream()
+                .filter(person -> userId == null || userId.equals(person.userId()))
                 .filter(person -> text == null || (person.names() != null && person.names().byLanguage().values()
                         .stream()
                         .flatMap(names -> Stream.of(names.name(), names.phoneticName()))
@@ -67,8 +69,8 @@ final class MemoryPersonStore implements PersonStore {
     }
 
     @Override
-    public long count(String text, String staffNumber) {
-        return search(text, staffNumber, null, 0, Integer.MAX_VALUE).size();
+    public long count(String userId, String text, String staffNumber) {
+        return search(userId, text, staffNumber, null, 0, Integer.MAX_VALUE).size();
     }
 
     @Override

@@ -154,6 +154,13 @@ class PersonServiceTest {
         assertTrue(service.list(null, 0, -1).isEmpty());
         assertEquals(List.of(b), service.list("hanako", null, null).stream().map(v -> v.person().id()).toList());
         assertTrue(service.list("taro", null, null).isEmpty());
+        assertEquals(1, service.count("hanako", null, null));
+        // The user is one more filter, and the paging values work with it.
+        assertTrue(service.list("hanako", "A", null, null, null, null).isEmpty());
+        assertEquals(0, service.count("hanako", "A", null));
+        assertTrue(service.list("hanako", 1, null).isEmpty());
+        assertTrue(service.list("hanako", null, 0).isEmpty());
+        assertEquals("invalid.cursor", failure(() -> service.list("hanako", null, null, "!")).code());
 
         // A cursor goes on after the person that it names.
         assertEquals(sorted.subList(1, 3), service.list(null, null, null, Cursor.encode(Cursor.PEOPLE, sorted.get(0))).stream()
