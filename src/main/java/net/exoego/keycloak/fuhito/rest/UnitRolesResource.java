@@ -152,6 +152,7 @@ public class UnitRolesResource {
         context.requireWrite();
         return Calls.run(context, () -> {
             Calls.body(body);
+            Writes.requireNoSource(body.source(), body.externalId());
             var role = represent(externalIds.create(ExternalId.Kind.UNIT_ROLE, body.source(), body.externalId(),
                     () -> service.add(body.employmentId(), body.orgUnitId(), body.role(), body.includesDescendants(),
                             body.validFrom(), body.validTo()),

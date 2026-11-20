@@ -91,6 +91,7 @@ public class RefKindsResource {
         context.requireWrite();
         return Calls.run(context, () -> {
             Calls.body(body);
+            Writes.requireNoSource(body.source(), body.externalId());
             var kind = represent(externalIds.create(ExternalId.Kind.REF_KIND, body.source(), body.externalId(),
                     () -> service.create(body.code(), body.primaryLanguage(), body.names()), RealmKindService.View::id));
             context.recordChange(Change.CREATE, RESOURCE_TYPE, kind.code(), path(kind.code()), kind);

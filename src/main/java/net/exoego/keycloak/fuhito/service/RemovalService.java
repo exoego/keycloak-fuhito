@@ -31,19 +31,34 @@ public class RemovalService {
      * @throws FuhitoException when the resource does not exist, or other data refers to it
      */
     public void remove(ResourceRemoval.Kind kind, String id) {
-        String prefix = switch (kind) {
+        if (!removal.exists(kind, id)) {
+            throw FuhitoException.notFound(prefix(kind) + ".not_found", Map.of("id", id));
+        }
+        List<String> dependents = removal.dependents(kind, id);
+        if (!dependents.isEmpty()) {
+            throw inUse(kind, id, dependents);
+        }
+        removal.remove(kind, id);
+    }
+
+    /**
+     * Returns the error of a removal of a resource that other data refers to.
+     *
+     * @param kind the kind of resource
+     * @param id the ID
+     * @param dependents the names of what refers to it, as {@link ResourceRemoval#dependents} gives them
+     * @return the error
+     */
+    static FuhitoException inUse(ResourceRemoval.Kind kind, String id, List<String> dependents) {
+        return FuhitoException.conflict(prefix(kind) + ".in_use", Map.of("id", id, "uses",
+                String.join(", ", dependents)));
+    }
+
+    private static String prefix(ResourceRemoval.Kind kind) {
+        return switch (kind) {
             case ORG_UNIT -> "org_unit";
             case EMPLOYMENT -> "employment";
             case ASSIGNMENT -> "assignment";
         };
-        if (!removal.exists(kind, id)) {
-            throw FuhitoException.notFound(prefix + ".not_found", Map.of("id", id));
-        }
-        List<String> dependents = removal.dependents(kind, id);
-        if (!dependents.isEmpty()) {
-            throw FuhitoException.conflict(prefix + ".in_use", Map.of("id", id, "uses",
-                    String.join(", ", dependents)));
-        }
-        removal.remove(kind, id);
     }
 }
