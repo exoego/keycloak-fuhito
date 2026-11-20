@@ -270,7 +270,7 @@ public class MembershipService {
             EmploymentTerms terms = termsByEmployment.get(row.employmentId());
             Employment employment = employmentsById.get(row.employmentId());
             boolean seconded = employment.secondedTo(legalEntities.get(row.orgUnitId()));
-            members.add(new Member(row, employment, terms,
+            members.add(new Member(row, employment, code.apply(employment.employer().externalEmployerId()), terms,
                     code.apply(row.jobTitleId()), code.apply(row.occupationId()), code.apply(row.kindId()),
                     code.apply(terms.employmentTypeId()), code.apply(terms.gradeId()),
                     unitOf.apply(row.orgUnitId()), pathOf == null ? null : pathOf.apply(row.orgUnitId()), seconded,

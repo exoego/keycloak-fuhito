@@ -19,6 +19,7 @@ import java.util.stream.Collectors;
 import net.exoego.keycloak.fuhito.domain.Assignment;
 import net.exoego.keycloak.fuhito.domain.AttributeDefinition;
 import net.exoego.keycloak.fuhito.domain.Checks;
+import net.exoego.keycloak.fuhito.domain.Employer;
 import net.exoego.keycloak.fuhito.domain.Employment;
 import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.domain.EmploymentStatus;
@@ -118,8 +119,9 @@ public class EmploymentService {
      *
      * @param request the values of the request
      * @return the new employment with its first terms
-     * @throws FuhitoException when a value is bad, the person does not exist, the employer is not a legal entity,
-     *         or another person has the staff number at the same employer
+     * @throws FuhitoException when a value is bad, the person does not exist, the employer is not a legal entity or
+     *         an active external employer, the request names both, or another person has the staff number at the
+     *         same employer
      */
     public EmploymentView start(NewEmployment request) {
         return start(request, null);
@@ -160,7 +162,7 @@ public class EmploymentService {
 
         private final ExternalIdWrites ids;
         private final Map<String, Optional<Person>> persons = new HashMap<>();
-        // Each legal entity gives its own numbers, so two of them may give the same number to two people.
+        // Each employer gives its own numbers, so two of them may give the same number to two people.
         private final Map<String, List<Employment>> holders = new HashMap<>();
         private final Map<String, Employment> started = new LinkedHashMap<>();
         private final List<EmploymentTerms> terms = new ArrayList<>();
@@ -216,10 +218,10 @@ public class EmploymentService {
             EmploymentTerms first = terms(newId(), null, period, firstTerms, null);
             Person person = person(personId).orElseThrow(
                     () -> FuhitoException.invalid("employment.person_unknown", Map.of("personId", personId)));
-            String employerId = employers.of(request.employerId(), from);
-            employers.requireCovers(employerId, period);
+            Employer employer = employers.of(request.employerId(), request.externalEmployer(), from);
+            employers.requireCovers(employer, period);
             if (staffNumber != null && holdersOf(staffNumber).stream()
-                    .anyMatch(e -> employerId.equals(e.employerId()) && !e.personId().equals(personId))) {
+                    .anyMatch(e -> employer.equals(e.employer()) && !e.personId().equals(personId))) {
                 throw FuhitoException.conflict("employment.staff_number_taken", Map.of("staffNumber", staffNumber));
             }
             ExternalId.Pair externalId = ids.check(null, request.source(), request.externalId());
@@ -233,7 +235,7 @@ public class EmploymentService {
                 }
             }
 
-            Employment employment = new Employment(newId(), personId, person.userId(), employerId, period,
+            Employment employment = new Employment(newId(), personId, person.userId(), employer, period,
                     staffNumber, null, Checks.optionalCode("source", request.source()), continuesEmploymentId, 1);
             started.put(employment.id(), employment);
             if (staffNumber != null) {
@@ -259,7 +261,7 @@ public class EmploymentService {
         void endReason(String id, String endReason) {
             Employment employment = started.get(id);
             String reasonId = usableItem(RefKind.END_REASON, endReason, null).id();
-            started.put(id, new Employment(id, employment.personId(), employment.userId(), employment.employerId(),
+            started.put(id, new Employment(id, employment.personId(), employment.userId(), employment.employer(),
                     employment.period(), employment.staffNumber(), reasonId, employment.source(),
                     employment.continuesEmploymentId(), employment.version()));
         }
@@ -454,25 +456,30 @@ public class EmploymentService {
      * @param id the ID of the employment to end
      * @param request the new employer, the date, and the new staff number
      * @return the two employments and what the new one got
-     * @throws FuhitoException when the employment does not hold on the day before and on the date, the new
-     *         employer is not a legal entity or is the old one, or a value is bad
+     * @throws FuhitoException when the employment has an external employer, does not hold on the day before and on
+     *         the date, the new employer is not a legal entity or is the old one, or a value is bad
      */
     public Transfer transfer(String id, TransferRequest request) {
         Checks.required("body", request);
         LocalDate date = Checks.date("validFrom", request.validFrom());
         Employment old = get(id).employment();
+        // A move from an agency to direct employment is the end of one employment and the start of another.
+        if (old.employer().isExternal()) {
+            throw FuhitoException.invalid("employment.transfer_external", Map.of("id", id));
+        }
         if (!old.period().contains(date) || date.equals(old.period().from())) {
             throw FuhitoException.notFound("employment.not_valid_on", Map.of("id", id, "date", request.validFrom()));
         }
-        String employerId = employers.of(Checks.required("employerId", request.employerId()), date);
-        return transfer(List.of(new Move(old, request.staffNumber())), employerId, date, request.endReason())
+        Employer employer = employers.of(Checks.required("employerId", request.employerId()), null, date);
+        return transfer(List.of(new Move(old, request.staffNumber())), employer, date, request.endReason())
                 .getFirst();
     }
 
     /**
      * Moves every person of one employer to another employer on a date, in one write.
      * It is a transfer of each employment that holds on the day before and on the date.
-     * An employment that starts on the date or later is not moved.
+     * An employment that starts on the date or later is not moved. Both employers are legal entities, so an
+     * employment with an external employer is never moved.
      *
      * @param request the two employers, the date, and the staff numbers
      * @return what each transfer wrote, in the order of the first dates of the old employments
@@ -503,7 +510,7 @@ public class EmploymentService {
                         ? staffNumbers.get(employment.id())
                         : request.keepStaffNumbers() ? employment.staffNumber() : null))
                 .toList();
-        return transfer(moves, employers.of(request.toEmployerId(), date), date, request.endReason());
+        return transfer(moves, employers.of(request.toEmployerId(), null, date), date, request.endReason());
     }
 
     private record Move(Employment employment, String staffNumber) {
@@ -523,16 +530,16 @@ public class EmploymentService {
     }
 
     // Every check comes before the first write.
-    private List<Transfer> transfer(List<Move> moves, String employerId, LocalDate date, String endReason) {
+    private List<Transfer> transfer(List<Move> moves, Employer employer, LocalDate date, String endReason) {
         Optional<RefItem> reason = Optional.ofNullable(endReason)
                 .flatMap(code -> refItems.findByCode(RefKind.END_REASON, code));
-        List<String> staffNumbers = check(moves, employerId, endReason, reason);
+        List<String> staffNumbers = check(moves, employer, endReason, reason);
         List<String> ids = moves.stream().map(move -> move.employment().id()).toList();
         Holding holding = holding(ids, date);
         List<Copy> copies = new ArrayList<>();
         for (int i = 0; i < moves.size(); i++) {
             Employment old = moves.get(i).employment();
-            copies.add(copy(old, new Employment(newId(), old.personId(), old.userId(), employerId,
+            copies.add(copy(old, new Employment(newId(), old.personId(), old.userId(), employer,
                     from(date, old.period()), staffNumbers.get(i), null, null, old.id(), 1), date, holding));
         }
 
@@ -565,17 +572,18 @@ public class EmploymentService {
     }
 
     // The checks of each move come in the order of the moves, as if they were made one by one.
-    private List<String> check(List<Move> moves, String employerId, String endReason, Optional<RefItem> reason) {
-        // Each legal entity gives its own numbers, so two of them may give the same number to two people.
+    private List<String> check(List<Move> moves, Employer employer, String endReason, Optional<RefItem> reason) {
+        // Each employer gives its own numbers, so two of them may give the same number to two people.
         Map<String, Set<String>> holders = new HashMap<>();
         store.findByStaffNumbers(moves.stream().map(Move::staffNumber).filter(Objects::nonNull).toList()).stream()
-                .filter(e -> employerId.equals(e.employerId()))
+                .filter(e -> employer.equals(e.employer()))
                 .forEach(e -> holders.computeIfAbsent(e.staffNumber(), any -> new HashSet<>()).add(e.personId()));
         List<String> staffNumbers = new ArrayList<>();
         for (Move move : moves) {
             Employment old = move.employment();
-            if (employerId.equals(old.employerId())) {
-                throw FuhitoException.invalid("employment.same_employer", Map.of("employerId", employerId));
+            if (employer.equals(old.employer())) {
+                throw FuhitoException.invalid("employment.same_employer",
+                        Map.of("employerId", employer.legalEntityId()));
             }
             String staffNumber = Checks.optionalCode("staffNumber", move.staffNumber());
             if (staffNumber != null) {
@@ -696,15 +704,15 @@ public class EmploymentService {
 
     private void setEnd(List<Employment> employments, LocalDate to, String endReasonId) {
         // Only the end of the period counts, and it is the same for every employment.
-        Set<String> checked = new HashSet<>();
+        Set<Employer> checked = new HashSet<>();
         for (Employment employment : employments) {
-            if (checked.add(employment.employerId())) {
-                employers.requireCovers(employment.employerId(), employment.period().endingAt(to));
+            if (checked.add(employment.employer())) {
+                employers.requireCovers(employment.employer(), employment.period().endingAt(to));
             }
         }
         for (Employment employment : employments) {
             store.update(new Employment(employment.id(), employment.personId(), employment.userId(),
-                    employment.employerId(), employment.period().endingAt(to), employment.staffNumber(), endReasonId,
+                    employment.employer(), employment.period().endingAt(to), employment.staffNumber(), endReasonId,
                     employment.source(), employment.continuesEmploymentId(), employment.version()));
         }
         List<String> ids = employments.stream().map(Employment::id).toList();
@@ -769,7 +777,8 @@ public class EmploymentService {
     public EmploymentView get(String id) {
         Employment employment = store.find(id)
                 .orElseThrow(() -> FuhitoException.notFound("employment.not_found", Map.of("id", id)));
-        return new EmploymentView(employment, codeOf(employment.endReasonId()), store.terms(id).stream()
+        return new EmploymentView(employment, codeOf(employment.employer().externalEmployerId()),
+                codeOf(employment.endReasonId()), store.terms(id).stream()
                 .map(t -> new EmploymentView.TermsView(t, codeOf(t.employmentTypeId()), codeOf(t.gradeId()),
                         codeOf(t.leaveReasonId())))
                 .toList());
@@ -793,14 +802,16 @@ public class EmploymentService {
      *
      * @param staffNumber the staff number
      * @param employerId the ID of the org unit that employs
+     * @param externalEmployer the code of the external employer that employs. An item that is no longer active
+     *        counts too, because stored employments may still name it.
      * @param asOf a date as {@code YYYY-MM-DD} on which the employment holds
      * @param contractEndFrom the first date of a range as {@code YYYY-MM-DD}. The contract end in the terms of
      *        {@code asOf} is on it or later.
      * @param contractEndTo the first date after that range as {@code YYYY-MM-DD}
      * @param today the date of the terms when {@code asOf} is null
      */
-    public record Search(String staffNumber, String employerId, String asOf, String contractEndFrom,
-            String contractEndTo, LocalDate today) {
+    public record Search(String staffNumber, String employerId, String externalEmployer, String asOf,
+            String contractEndFrom, String contractEndTo, LocalDate today) {
 
         /**
          * Makes a search that does not look at contracts.
@@ -810,10 +821,10 @@ public class EmploymentService {
          * @param asOf a date as {@code YYYY-MM-DD} on which the employment holds
          */
         public Search(String staffNumber, String employerId, String asOf) {
-            this(staffNumber, employerId, asOf, null, null, null);
+            this(staffNumber, employerId, null, asOf, null, null, null);
         }
 
-        EmploymentStore.Search toStore() {
+        EmploymentStore.Search toStore(RefItemStore refItems) {
             LocalDate date = Checks.optionalDate("asOf", asOf);
             LocalDate from = Checks.optionalDate("contractEndFrom", contractEndFrom);
             LocalDate to = Checks.optionalDate("contractEndTo", contractEndTo);
@@ -821,7 +832,12 @@ public class EmploymentService {
                 throw FuhitoException.invalid("invalid.period", Map.of("validFrom", contractEndFrom,
                         "validTo", contractEndTo));
             }
-            return new EmploymentStore.Search(staffNumber, employerId, date, date == null ? today : date, from, to);
+            String externalEmployerId = externalEmployer == null ? null
+                    : refItems.findByCode(RefKind.EXTERNAL_EMPLOYER, externalEmployer).map(RefItem::id)
+                            .orElseThrow(() -> FuhitoException.invalid("ref_item.unknown",
+                                    Map.of("kind", RefKind.EXTERNAL_EMPLOYER.name(), "code", externalEmployer)));
+            return new EmploymentStore.Search(staffNumber, employerId, externalEmployerId, date,
+                    date == null ? today : date, from, to);
         }
     }
 
@@ -836,7 +852,7 @@ public class EmploymentService {
      */
     public List<EmploymentView> list(Search search, Page page, String after) {
         String afterId = after == null ? null : Cursor.decode(Cursor.EMPLOYMENTS, after).getFirst();
-        return views(store.search(search.toStore(), afterId, page.first(), page.max()));
+        return views(store.search(search.toStore(refItems), afterId, page.first(), page.max()));
     }
 
     private List<EmploymentView> views(List<Employment> employments) {
@@ -845,7 +861,9 @@ public class EmploymentService {
                 .collect(Collectors.groupingBy(EmploymentTerms::employmentId));
         Map<String, String> codes = new HashMap<>();
         return employments.stream()
-                .map(employment -> new EmploymentView(employment, cachedCode(codes, employment.endReasonId()),
+                .map(employment -> new EmploymentView(employment,
+                        cachedCode(codes, employment.employer().externalEmployerId()),
+                        cachedCode(codes, employment.endReasonId()),
                         terms.getOrDefault(employment.id(), List.of()).stream()
                                 .map(t -> new EmploymentView.TermsView(t, cachedCode(codes, t.employmentTypeId()),
                                         cachedCode(codes, t.gradeId()), cachedCode(codes, t.leaveReasonId())))
@@ -861,7 +879,7 @@ public class EmploymentService {
      * @throws FuhitoException when a value is bad
      */
     public long count(Search search) {
-        return store.count(search.toStore());
+        return store.count(search.toStore(refItems));
     }
 
     private String cachedCode(Map<String, String> codes, String refItemId) {

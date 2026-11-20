@@ -20,6 +20,7 @@ import net.exoego.keycloak.fuhito.domain.Assignment;
 import net.exoego.keycloak.fuhito.domain.AttributeDefinition;
 import net.exoego.keycloak.fuhito.domain.ChangeOrder;
 import net.exoego.keycloak.fuhito.domain.Checks;
+import net.exoego.keycloak.fuhito.domain.Employer;
 import net.exoego.keycloak.fuhito.domain.Employment;
 import net.exoego.keycloak.fuhito.domain.EmploymentStatus;
 import net.exoego.keycloak.fuhito.domain.EmploymentTerms;
@@ -228,7 +229,8 @@ public class RealmExportService {
         Map<String, List<EmploymentTerms>> terms = found.isEmpty() ? Map.of()
                 : stores.export().termsOf(found.stream().map(Employment::id).toList()).stream()
                         .collect(Collectors.groupingBy(EmploymentTerms::employmentId));
-        return page(found, Employment::id, e -> new EmploymentRow(e.id(), e.version(), e.personId(), e.employerId(),
+        return page(found, Employment::id, e -> new EmploymentRow(e.id(), e.version(), e.personId(),
+                e.employer().legalEntityId(), e.employer().externalEmployerId(),
                 from(e.period()), to(e.period()), e.staffNumber(), e.endReasonId(), e.source(),
                 e.continuesEmploymentId(), terms.getOrDefault(e.id(), List.of()).stream()
                         .map(t -> new RealmExport.Terms(t.id(), from(t.period()), to(t.period()),
@@ -439,7 +441,8 @@ public class RealmExportService {
         ordered.sort(Comparator.comparing((EmploymentRow e) -> e.continuesEmploymentId() != null)
                 .thenComparing(EmploymentRow::validFrom));
         for (EmploymentRow e : ordered) {
-            stores.employments().insert(new Employment(e.id(), e.personId(), null, e.employerId(),
+            stores.employments().insert(new Employment(e.id(), e.personId(), null,
+                    new Employer(e.employerId(), e.externalEmployerId()),
                     period(e.validFrom(), e.validTo()), e.staffNumber(), e.endReasonId(), e.source(),
                     e.continuesEmploymentId(), version(e.version())));
             e.terms().forEach(t -> stores.employments().insertTerms(new EmploymentTerms(t.id(), e.id(),

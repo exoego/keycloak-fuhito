@@ -23,15 +23,19 @@ public record MemberRepresentation(
         String personId,
         @Schema(description = "The ID of the Keycloak user that the person is linked to.")
         String userId,
-        @Schema(description = "The ID of the org unit that employs the person.")
+        @Schema(description = "The ID of the org unit that employs the person. It is missing for an external "
+                + "employer.")
         String employerId,
+        @Schema(description = "The code of the external employer that employs the person.")
+        String externalEmployer,
         @Schema(
                 description = "True when the person works outside the employer. The org unit then belongs to "
                         + "another legal entity on the date. A unit belongs to the legal entity that it is, else to "
                         + "the nearest legal entity above it in the default hierarchy. A unit that belongs to none, "
-                        + "such as a rollup unit or a lateral root, gives no secondment.")
+                        + "such as a rollup unit or a lateral root, gives no secondment. Nor does an external "
+                        + "employer.")
         boolean seconded,
-        @Schema(description = "The number that the legal entity gives to the person.")
+        @Schema(description = "The number that the employer gives to the person.")
         String staffNumber,
         String orgUnitId,
         @Schema(description = "The name of the org unit on the date, in the language of the request.")
@@ -107,8 +111,8 @@ public record MemberRepresentation(
         var row = member.assignment();
         var terms = member.terms();
         return new MemberRepresentation(row.assignmentId(), row.version(), row.employmentId(),
-                member.employment().personId(), member.employment().userId(), member.employment().employerId(),
-                member.seconded(),
+                member.employment().personId(), member.employment().userId(),
+                member.employment().employer().legalEntityId(), member.externalEmployer(), member.seconded(),
                 member.employment().staffNumber(), row.orgUnitId(),
                 member.orgUnit().version().names().in(language).name(), member.orgUnitPath() == null ? null
                         : member.orgUnitPath().stream().map(unit -> PathEntry.of(unit, language)).toList(),

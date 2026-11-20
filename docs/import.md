@@ -119,7 +119,8 @@ The lists are applied in the order change orders, kinds of reference data, attri
 - A row replaces all details of an existing thing. A missing optional value clears it.
 - The same document can be sent again, for example after a timeout. A thing that ended by the effective date only compares its end. A thing that starts after the effective date must match what is stored on its first date, or the row fails with `not_valid_on`.
 - A new employment names its employer by `employerExternalId`. It is the external ID of an org unit that is a legal entity. A row can leave it out when the realm has exactly one legal entity.
-- The employer of a stored employment never changes. A row that names another employer is rejected.
+- A row of an employment can name an external employer, such as a staffing agency, by `externalEmployer`. It is the code of a reference item of the kind `EXTERNAL_EMPLOYER`. The CSV header is `外部の雇用主`. A row gives the employer or the external employer, not both, or it fails with `employment.employer_twice`. A new employment needs an active item. An unknown code fails with `employment.external_employer_unknown`, and an inactive item with `employment.external_employer_inactive`. The list `refItems` comes before the employments, so one document can add the agency and the people it employs.
+- The employer of a stored employment never changes. A row that names another employer or another external employer is rejected with `import.employer_mismatch`. A row of a stored employment may name an external employer that is no longer active.
 - After a transfer between employers, a row of the new employment can name the one it continues by `continuesEmploymentExternalId` or `continuesEmploymentId`. A row of a new assignment can name the assignment it continues by `continuesAssignmentExternalId` or `continuesAssignmentId`. Both must be of the same person. The link is set when the row makes the new thing. A stored one with another link fails with `import.continues_mismatch`.
 - The one that a new employment or assignment continues must end on the start of the new one or before. A gap between the two is fine. Otherwise the row of the new one fails with `employment.continues_holds` or `assignment.continues_holds`, and the error names the one it continues. An assignment ends on its own end or on the end of its employment. So a file of a transfer ends the old employment with `validTo` on the start of the new one. The row that ends it and the row of the new one can come in any order. A row that sets the end of an employment or an assignment that another one continues fails the same way when the end comes after the start of the other one. So a later file cannot open the old one again.
 - A row of a unit type can carry `legalEntity`. The CSV header is `法人`. A row that leaves it out keeps the mark of a stored item.
@@ -145,7 +146,7 @@ Kinds, definitions, hierarchies, reference items, reporting lines, roles over or
 
 `GET /imports/csv/people` gives the people the same way. A person has no date, so it takes no `asOf`. The file leaves out the link to a Keycloak user: a blank cell keeps the stored link, and the ID of a user who was removed from Keycloak would not load again.
 
-`GET /imports/csv/employments?asOf=` gives the employments that hold on the date, with the terms of that date. Each row has `id`, and `continuesEmploymentId` for an employment that continues another. It names the person by `personId` and the employer by `employerId`, because many have no external ID of the source of the row. A row of an employment that starts later is not in the file.
+`GET /imports/csv/employments?asOf=` gives the employments that hold on the date, with the terms of that date. Each row has `id`, and `continuesEmploymentId` for an employment that continues another. It names the person by `personId` and the employer by `employerId`, because many have no external ID of the source of the row. An employment with an external employer names it by its code in `externalEmployer`, and has no `employerId`. A row of an employment that starts later is not in the file.
 
 `GET /imports/csv/assignments?asOf=` gives the assignments that hold on the date the same way, with the details of that date. It names the employment by `employmentId` and the org unit by `orgUnitId`. `validFrom` and `validTo` are the dates of the whole assignment, not of the details. An assignment that continues another has `continuesAssignmentId`.
 The files of org units and of assignments have the work location and the cost center of the record itself, not the ones that apply. So a value that comes from a unit above is not copied into the rows.
@@ -319,6 +320,7 @@ Employments.
 | `personExternalId` | `人の外部ID` |
 | `id` | `ID` |
 | `employerId` | `雇用主のID` |
+| `externalEmployer` | `外部の雇用主` |
 | `personId` | `人のID` |
 | `continuesEmploymentExternalId` | `引き継ぎ元の雇用の外部ID` |
 | `continuesEmploymentId` | `引き継ぎ元の雇用のID` |
@@ -468,6 +470,7 @@ This copies a realm to a test environment, moves it to another Keycloak, or brin
 - `GET /export/{list}` reads one list in pages, ordered by ID. Follow the `Link` header to the end. The lists are `ref-kinds`, `ref-items`, `attribute-definitions`, `hierarchies`, `org-units`, `people`, `employments`, `assignments`, `reporting-lines`, `unit-roles`, `qualifications`, `external-ids`, `change-orders`, and `erasures`.
 - Put the lists together under their names in camel case, such as `refKinds`, with `"format": "fuhito.export.v1"`. `POST /restore` takes that document.
 - A reference item has every period of its names in `versions`, each with `primaryLanguage` and `names`. A restore needs them.
+- An employment has `employerId`, the ID of its legal entity, or `externalEmployerId`, the ID of the reference item of its external employer. A row with both fails with `employment.employer_twice`.
 - A restore keeps every ID, so products that stored IDs find the same resources. It writes all or nothing. The default hierarchy of the export takes the place of the one of the empty realm, with its ID and its name.
 - It fails with `restore.realm_not_empty` when the realm has any data of the extension. So a restore into the wrong realm does not remove its data.
 - With `?replace=true`, the restore first deletes every row of the extension in the realm, in the same transaction. The realm is then as it was at the export. The change log stays, with the changes after the export. The runs of jobs and the records of the members that the projection added to organizations stay too. The next projection makes the Keycloak groups and organizations match. A replace asks for the permission to manage each organization that a unit was linked to before it.

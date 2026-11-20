@@ -212,7 +212,7 @@ final class MemoryOrgUnitStore implements OrgUnitStore {
     @Override
     public long employmentsStartingIn(String employerId, LocalDate from, LocalDate to) {
         return employments == null ? 0 : employments.employments.values().stream()
-                .filter(e -> employerId.equals(e.employerId()) && !e.period().from().isBefore(from)
+                .filter(e -> employerId.equals(e.employer().legalEntityId()) && !e.period().from().isBefore(from)
                         && (to == null || e.period().from().isBefore(to)))
                 .count();
     }
@@ -220,7 +220,7 @@ final class MemoryOrgUnitStore implements OrgUnitStore {
     @Override
     public long employmentsHoldingFrom(String employerId, LocalDate date) {
         return employments == null ? 0 : employments.employments.values().stream()
-                .filter(e -> employerId.equals(e.employerId()) && e.period().endsAfter(date))
+                .filter(e -> employerId.equals(e.employer().legalEntityId()) && e.period().endsAfter(date))
                 .count();
     }
 

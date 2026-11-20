@@ -326,6 +326,78 @@ class EmploymentsIT {
     }
 
     @Test
+    void anAgencyOutsideTheRealmCanEmployAPerson() throws Exception {
+        TestRealm group = TestRealm.create("employments-agency");
+        Api groupApi = group.api;
+        String corporation = group.legalEntity("医療法人X会");
+        group.refItem("EXTERNAL_EMPLOYER", "staffing", "Yスタッフ");
+        group.refItem("EXTERNAL_EMPLOYER", "contracting", "Z請負");
+        String closed = group.refItem("EXTERNAL_EMPLOYER", "closed", "閉じた派遣会社");
+        assertEquals(200, groupApi.putWithVersion("/ref-items/" + closed, "{\"primaryLanguage\": \"ja\", "
+                + "\"names\": {\"ja\": {\"name\": \"閉じた派遣会社\"}}, \"active\": false}").statusCode());
+        String taro = group.user("taro");
+        String jiro = group.user("jiro");
+        String hanako = group.user("hanako");
+        String start = "\"validFrom\": \"2026-04-01\"";
+
+        JsonNode dispatched = created(groupApi.post("/employments", "{\"userId\": \"" + taro
+                + "\", \"externalEmployer\": \"staffing\", \"staffNumber\": \"1001\", " + start + "}"));
+        String id = dispatched.get("id").asText();
+        assertFalse(dispatched.has("employerId"));
+        assertEquals("staffing", dispatched.get("externalEmployer").asText());
+        assertEquals(dispatched, Api.json(groupApi.get("/employments/" + id)));
+        assertEquals(List.of("staffing"), Api.json(groupApi.get("/users/" + taro + "/history")).get("employments")
+                .findValuesAsText("externalEmployer"));
+
+        // Each employer gives its own staff numbers, also an agency.
+        created(groupApi.post("/employments", "{\"userId\": \"" + jiro
+                + "\", \"externalEmployer\": \"contracting\", \"staffNumber\": \"1001\", " + start + "}"));
+        JsonNode direct = created(groupApi.post("/employments", "{\"userId\": \"" + jiro
+                + "\", \"staffNumber\": \"1001\", " + start + "}"));
+        assertEquals(corporation, direct.get("employerId").asText());
+        assertFalse(direct.has("externalEmployer"));
+        assertEquals("employment.staff_number_taken", errorOf(409, groupApi.post("/employments", "{\"userId\": \""
+                + hanako + "\", \"externalEmployer\": \"staffing\", \"staffNumber\": \"1001\", " + start + "}")));
+
+        assertEquals("employment.employer_twice", errorOf(400, groupApi.post("/employments", "{\"userId\": \""
+                + hanako + "\", \"employerId\": \"" + corporation + "\", \"externalEmployer\": \"staffing\", "
+                + start + "}")));
+        assertEquals("employment.employer_twice", errorOf(400, groupApi.post("/staff", "{\"userId\": \"" + hanako
+                + "\", \"employerId\": \"" + corporation + "\", \"externalEmployer\": \"staffing\", \"orgUnitId\": \""
+                + corporation + "\", " + start + "}")));
+        assertEquals("employment.external_employer_unknown", errorOf(400, groupApi.post("/employments",
+                "{\"userId\": \"" + hanako + "\", \"externalEmployer\": \"nope\", " + start + "}")));
+        assertEquals("employment.external_employer_inactive", errorOf(400, groupApi.post("/employments",
+                "{\"userId\": \"" + hanako + "\", \"externalEmployer\": \"closed\", " + start + "}")));
+        assertEquals(0, Api.json(groupApi.get("/users/" + hanako + "/history")).get("employments").size());
+
+        // The list keeps the employments of one agency. A code that the realm does not have fails.
+        assertEquals(List.of(id), Api.json(groupApi.get("/employments?externalEmployer=staffing"))
+                .findValuesAsText("id"));
+        assertEquals(1, groupApi.count("/employments/count?externalEmployer=staffing&asOf=2026-04-01"));
+        assertEquals(0, groupApi.count("/employments/count?externalEmployer=closed"));
+        assertEquals(0, groupApi.count("/employments/count?externalEmployer=staffing&employerId=" + corporation));
+        assertEquals("ref_item.unknown", errorOf(400, groupApi.get("/employments?externalEmployer=nope")));
+        assertEquals("ref_item.unknown", errorOf(400, groupApi.get("/employments/count?externalEmployer=nope")));
+
+        // A transfer cannot move the person of an agency. A merger reads the employments of an org unit only.
+        String company = group.legalEntity("株式会社Yサービス");
+        assertEquals("employment.transfer_external", errorOf(400, groupApi.postWithVersion("/employments/" + id
+                + "/transfer", "{\"employerId\": \"" + company + "\", \"validFrom\": \"2027-04-01\"}")));
+        JsonNode merger = created(groupApi.post("/employments/transfers", "{\"fromEmployerId\": \"" + corporation
+                + "\", \"toEmployerId\": \"" + company + "\", \"validFrom\": \"2027-04-01\"}"));
+        assertEquals(List.of(direct.get("id").asText()),
+                merger.get("employments").findValuesAsText("endedEmploymentId"));
+        assertEquals(dispatched, Api.json(groupApi.get("/employments/" + id)));
+
+        // A move to direct employment ends one employment and starts another.
+        assertEquals("2027-04-01", Api.json(groupApi.putWithVersion("/employments/" + id + "/end",
+                "{\"validTo\": \"2027-04-01\"}")).get("validTo").asText());
+        assertEquals(company, created(groupApi.post("/employments", "{\"userId\": \"" + taro + "\", \"employerId\": \""
+                + company + "\", \"validFrom\": \"2027-04-01\"}")).get("employerId").asText());
+    }
+
+    @Test
     void anEmployerStaysALegalEntityWhileAnEmploymentNamesIt() throws Exception {
         TestRealm scratch = TestRealm.create("employments-keep-entity");
         Api scratchApi = scratch.api;

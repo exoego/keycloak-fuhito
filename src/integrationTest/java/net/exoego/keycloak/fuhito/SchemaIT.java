@@ -39,6 +39,32 @@ class SchemaIT {
         KeycloakEnvironment.sql(insert + "('ex-v4', 'ex-realm', 'ex-u2', '2026-04-01', null, '{}')");
     }
 
+    // Nothing is committed, so the plan checks find no more employments.
+    @Test
+    void theDatabaseRejectsAnEmploymentWithTwoEmployersOrNone() throws Exception {
+        try (Connection connection = KeycloakEnvironment.connection();
+                Statement statement = connection.createStatement()) {
+            connection.setAutoCommit(false);
+            statement.execute("insert into fuhito_person (id, realm_id, attributes) values ('ex-p8', 'ex-realm-8', '{}')");
+            statement.execute("insert into fuhito_org_unit (id, realm_id) values ('ex-u8', 'ex-realm-8')");
+            statement.execute("insert into fuhito_ref_item (id, realm_id, kind, code, attributes)"
+                    + " values ('ex-r8', 'ex-realm-8', 'EXTERNAL_EMPLOYER', 'staffing', '{}')");
+            String insert = "insert into fuhito_employment (id, realm_id, valid_from, person_id, employer_id,"
+                    + " external_employer_id) values ('ex-e8', 'ex-realm-8', '2026-04-01', 'ex-p8', ";
+            for (String[] bad : new String[][] {{"'ex-u8', 'ex-r8'", "ck_fuhito_employment_employer"},
+                    {"null, null", "ck_fuhito_employment_employer"},
+                    {"null, 'ex-u8'", "fk_fuhito_employment_external_employer"}}) {
+                var savepoint = connection.setSavepoint();
+                assertTrue(assertThrows(java.sql.SQLException.class, () -> statement.execute(insert + bad[0] + ")"))
+                        .getMessage().contains(bad[1]), bad[0]);
+                connection.rollback(savepoint);
+            }
+            statement.execute(insert + "null, 'ex-r8')");
+            statement.execute(insert.replace("ex-e8", "ex-e9") + "'ex-u8', null)");
+            connection.rollback();
+        }
+    }
+
     @Test
     void theDatabaseRejectsASecondPrimaryNameOfOneVersion() throws Exception {
         KeycloakEnvironment.sql("insert into fuhito_org_unit (id, realm_id) values ('ex-u5', 'ex-realm-4')");

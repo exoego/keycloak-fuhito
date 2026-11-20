@@ -129,7 +129,8 @@ final class EmploymentImport {
             NewEmployment request = new NewEmployment(personId,
                     row.validFrom() == null ? document.effectiveDate : row.validFrom(), row.validTo(),
                     row.staffNumber(), row.employmentType(), row.grade(), row.status(), row.leaveReason(),
-                    row.workPercent(), row.contractEndDate(), row.attributes(), row.externalId(), source, employerId);
+                    row.workPercent(), row.contractEndDate(), row.attributes(), row.externalId(), source, employerId,
+                    row.externalEmployer());
             Employment employment = ids.create(ExternalId.Kind.EMPLOYMENT, source, row.externalId(),
                     () -> started.start(request, continues), Employment::id);
             String id = employment.id();
@@ -155,8 +156,10 @@ final class EmploymentImport {
         if (!employment.personId().equals(personId)) {
             throw FuhitoException.conflict("import.user_mismatch", Map.of("externalId", name));
         }
-        // The employer never changes. A transfer to another employer is the way to move a person.
-        if (employerId != null && !employerId.equals(employment.employerId())) {
+        // The employer never changes. A transfer to another employer is the way to move a person. The code of an
+        // external employer is compared, so a row may name an item that is no longer active.
+        if ((employerId != null && !employerId.equals(employment.employer().legalEntityId()))
+                || (row.externalEmployer() != null && !row.externalEmployer().equals(before.externalEmployer()))) {
             throw FuhitoException.conflict("import.employer_mismatch", Map.of("externalId", name));
         }
         if (continues != null && !continues.equals(employment.continuesEmploymentId())) {
@@ -238,8 +241,9 @@ final class EmploymentImport {
 
     private static EmploymentView withoutEndReason(EmploymentView view) {
         Employment e = view.employment();
-        return new EmploymentView(new Employment(e.id(), e.personId(), e.userId(), e.employerId(), e.period(),
-                e.staffNumber(), null, e.source(), e.continuesEmploymentId(), e.version()), null, view.terms());
+        return new EmploymentView(new Employment(e.id(), e.personId(), e.userId(), e.employer(), e.period(),
+                e.staffNumber(), null, e.source(), e.continuesEmploymentId(), e.version()), view.externalEmployer(),
+                null, view.terms());
     }
 
     // A row with an ID changes that employment. An external ID beside it must be one of that employment.
@@ -250,10 +254,15 @@ final class EmploymentImport {
         return view;
     }
 
+    // The ID of the legal entity that a row names. The rule for a new employment checks the external employer.
     private String employerId(EmploymentRow row, String source) {
         if (row.employerExternalId() != null && row.employerId() != null) {
             throw FuhitoException.invalid("import.employer_twice",
                     Map.of("employerExternalId", row.employerExternalId(), "employerId", row.employerId()));
+        }
+        if (row.externalEmployer() != null && (row.employerExternalId() != null || row.employerId() != null)) {
+            throw FuhitoException.invalid("employment.employer_twice",
+                    Map.of("externalEmployer", row.externalEmployer()));
         }
         if (row.employerId() != null) {
             if (!units.computeIfAbsent(row.employerId(), id -> document.orgUnits.findUnit(id).isPresent())) {

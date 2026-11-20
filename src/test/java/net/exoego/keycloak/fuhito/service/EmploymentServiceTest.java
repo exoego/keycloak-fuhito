@@ -8,6 +8,7 @@ import java.util.Optional;
 import java.util.Set;
 
 import net.exoego.keycloak.fuhito.domain.Assignment;
+import net.exoego.keycloak.fuhito.domain.Employer;
 import net.exoego.keycloak.fuhito.domain.EmploymentStatus;
 import net.exoego.keycloak.fuhito.domain.EmploymentTerms;
 import net.exoego.keycloak.fuhito.domain.Employment;
@@ -36,7 +37,7 @@ class EmploymentServiceTest {
     private final EmploymentService service =
             new EmploymentService(store, externalIds, assignments, refItems,
             MemoryPersonStore.linked(Set.of("alice", "bob")),
-            lines, roles, new AnyEmployer());
+            lines, roles, new AnyEmployer(refItems));
 
     private static NewEmployment minimal(String userId, String validFrom) {
         return new NewEmployment(userId, validFrom, null, null, null, null, null, null, null, null, null);
@@ -191,22 +192,23 @@ class EmploymentServiceTest {
         LocalDate today = LocalDate.of(2026, 3, 1);
         Page all = Page.of(null, null);
 
-        assertEquals(List.of(a), ids(new EmploymentService.Search(null, null, null, "2026-03-01", "2026-04-01",
+        assertEquals(List.of(a), ids(new EmploymentService.Search(null, null, null, null, "2026-03-01",
+                "2026-04-01", today), all));
+        assertEquals(List.of(b), ids(new EmploymentService.Search(null, null, null, null, "2026-04-01", null,
                 today), all));
-        assertEquals(List.of(b), ids(new EmploymentService.Search(null, null, null, "2026-04-01", null, today),
-                all));
-        assertEquals(List.of(a), ids(new EmploymentService.Search(null, null, null, null, "2026-04-01", today),
-                all));
+        assertEquals(List.of(a), ids(new EmploymentService.Search(null, null, null, null, null, "2026-04-01",
+                today), all));
         // The terms of asOf decide. The renewal of the first one ends in 2027, and the second one has passed.
-        assertEquals(List.of(a), ids(new EmploymentService.Search(null, null, "2026-06-01", "2027-01-01", null,
-                today), all));
-        assertEquals(2, service.count(new EmploymentService.Search(null, null, null, "2026-01-01", "2027-01-01",
-                today)));
+        assertEquals(List.of(a), ids(new EmploymentService.Search(null, null, null, "2026-06-01", "2027-01-01",
+                null, today), all));
+        assertEquals(2, service.count(new EmploymentService.Search(null, null, null, null, "2026-01-01",
+                "2027-01-01", today)));
         assertEquals("invalid.period", assertThrows(FuhitoException.class,
-                () -> service.count(new EmploymentService.Search(null, null, null, "2026-04-01", "2026-04-01",
+                () -> service.count(new EmploymentService.Search(null, null, null, null, "2026-04-01", "2026-04-01",
                         today))).code());
         assertEquals("invalid.date", assertThrows(FuhitoException.class,
-                () -> service.count(new EmploymentService.Search(null, null, null, null, "later", today))).code());
+                () -> service.count(new EmploymentService.Search(null, null, null, null, null, "later", today)))
+                .code());
     }
 
     private List<String> ids(EmploymentService.Search search, Page page) {
@@ -219,19 +221,113 @@ class EmploymentServiceTest {
                 null, null, null, null, "company-a"));
         EmploymentView unnamed = service.start(minimal("bob", "2010-04-01"));
 
-        assertEquals("company-a", atA.employment().employerId());
-        assertEquals(AnyEmployer.DEFAULT, unnamed.employment().employerId());
-        assertEquals("company-a", service.end(atA.employment().id(), "2030-04-01", null).employment().employerId());
+        assertEquals(Employer.legalEntity("company-a"), atA.employment().employer());
+        assertEquals(Employer.legalEntity(AnyEmployer.DEFAULT), unnamed.employment().employer());
+        assertEquals(Employer.legalEntity("company-a"),
+                service.end(atA.employment().id(), "2030-04-01", null).employment().employer());
 
         // Another company may give the same number to another person. The same company may not.
         EmploymentView atB = service.start(new NewEmployment("bob", "2020-04-01", null, "1001", null, null, null, null,
                 null, null, null, null, "company-b"));
-        assertEquals("company-b", atB.employment().employerId());
+        assertEquals(Employer.legalEntity("company-b"), atB.employment().employer());
         assertEquals("employment.staff_number_taken", failure(new NewEmployment("bob", "2021-04-01", null, "1001",
                 null, null, null, null, null, null, null, null, "company-a")).code());
         // The same person keeps the number in a second employment at the same company.
         service.start(new NewEmployment("alice", "2031-04-01", null, "1001", null, null, null, null, null, null, null,
                 null, "company-a"));
+    }
+
+    private static NewEmployment atAgency(String personId, String validFrom, String staffNumber, String agency) {
+        return new NewEmployment(personId, validFrom, null, staffNumber, null, null, null, null, null, null, null,
+                null, null, null, agency);
+    }
+
+    @Test
+    void anEmploymentCanNameAnExternalEmployer() {
+        RefItem staffing = item(RefKind.EXTERNAL_EMPLOYER, "staffing", true);
+        RefItem closed = item(RefKind.EXTERNAL_EMPLOYER, "closed", true);
+        EmploymentView atAgency = service.start(atAgency("alice", "2026-04-01", "S-1", "staffing"));
+        EmploymentView atClosed = service.start(atAgency("bob", "2026-04-01", null, "closed"));
+        EmploymentView direct = service.start(minimal("bob", "2026-04-01"));
+        refItems.update(new RefItem(closed.id(), RefKind.EXTERNAL_EMPLOYER, "closed", ItemNames.of("closed"), 0,
+                Map.of(), false));
+
+        assertEquals(Employer.external(staffing.id()), atAgency.employment().employer());
+        assertEquals("staffing", atAgency.externalEmployer());
+        assertEquals(atAgency, service.get(atAgency.employment().id()));
+        assertNull(direct.externalEmployer());
+        Page all = Page.of(null, null);
+        assertEquals(List.of(atAgency), service.list(new EmploymentService.Search(null, null, "staffing", null, null,
+                null, null), all, null));
+        // A list may name an item that is no longer active, because stored employments may still name it.
+        assertEquals(1, service.count(new EmploymentService.Search(null, null, "closed", null, null, null, null)));
+        assertEquals("closed", service.get(atClosed.employment().id()).externalEmployer());
+        FuhitoException unknown = assertThrows(FuhitoException.class, () -> service.count(
+                new EmploymentService.Search(null, null, "nope", null, null, null, null)));
+        assertEquals("ref_item.unknown", unknown.code());
+        assertEquals(Map.of("kind", "EXTERNAL_EMPLOYER", "code", "nope"), unknown.params());
+        // An employment has one employer, so a list by an org unit and an external employer is empty.
+        assertEquals(0, service.count(new EmploymentService.Search(null, AnyEmployer.DEFAULT, "staffing", null,
+                null, null, null)));
+    }
+
+    @Test
+    void aNewEmploymentNeedsAKnownAndActiveExternalEmployerAndNoOrgUnitBeside() {
+        item(RefKind.EXTERNAL_EMPLOYER, "closed", false);
+        item(RefKind.EXTERNAL_EMPLOYER, "staffing", true);
+        item(RefKind.GRADE, "g1", true);
+
+        assertEquals("employment.external_employer_unknown",
+                failure(atAgency("alice", "2026-04-01", null, "nope")).code());
+        assertEquals("employment.external_employer_unknown",
+                failure(atAgency("alice", "2026-04-01", null, "g1")).code());
+        assertEquals("employment.external_employer_inactive",
+                failure(atAgency("alice", "2026-04-01", null, "closed")).code());
+        assertEquals("employment.employer_twice", failure(new NewEmployment("alice", "2026-04-01", null, null, null,
+                null, null, null, null, null, null, null, null, "company-a", "staffing")).code());
+        assertTrue(store.employments.isEmpty());
+    }
+
+    @Test
+    void eachExternalEmployerGivesItsOwnStaffNumbers() {
+        item(RefKind.EXTERNAL_EMPLOYER, "staffing", true);
+        item(RefKind.EXTERNAL_EMPLOYER, "contracting", true);
+        service.start(atAgency("alice", "2026-04-01", "1001", "staffing"));
+
+        // Another agency and a legal entity may give the same number to another person. The same agency may not.
+        service.start(atAgency("bob", "2026-04-01", "1001", "contracting"));
+        service.start(new NewEmployment("bob", "2026-04-01", null, "1001", null, null, null, null, null, null, null,
+                null, "company-a"));
+        FuhitoException taken = failure(atAgency("bob", "2027-04-01", "1001", "staffing"));
+        assertEquals("employment.staff_number_taken", taken.code());
+        assertEquals(Map.of("staffNumber", "1001"), taken.params());
+        // The same person keeps the number in a second employment at the same agency.
+        service.start(atAgency("alice", "2028-04-01", "1001", "staffing"));
+        assertEquals(4, store.employments.size());
+    }
+
+    @Test
+    void anEmploymentWithAnExternalEmployerIsNotTransferredButEndsAndStartsAnother() {
+        RefItem staffing = item(RefKind.EXTERNAL_EMPLOYER, "staffing", true);
+        String id = service.start(atAgency("alice", "2026-04-01", "S-1", "staffing")).employment().id();
+        assignment("ward-row", "ward", id, "2026-04-01", null);
+
+        FuhitoException e = assertThrows(FuhitoException.class,
+                () -> service.transfer(id, new TransferRequest("company-x", "2027-04-01", null, null)));
+        assertEquals(FuhitoException.Reason.INVALID, e.reason());
+        assertEquals("employment.transfer_external", e.code());
+        assertEquals(Map.of("id", id), e.params());
+        // A merger reads the employments of an org unit, so it never finds one of an agency.
+        assertEquals(List.of(), service.transferAll(new TransferAllRequest(staffing.id(), "company-x", "2027-04-01",
+                null, true, null)));
+        assertNull(service.get(id).employment().period().to());
+        assertNull(assignments.rows("ward").getFirst().period().to());
+
+        // The agency has no end, so the employment can end on any date.
+        assertEquals(LocalDate.of(2027, 4, 1), service.end(id, "2027-04-01", null).employment().period().to());
+        EmploymentView direct = service.start(new NewEmployment("alice", "2027-04-01", null, "S-1", null, null, null,
+                null, null, null, null, null, "company-x"));
+        assertEquals(Employer.legalEntity("company-x"), direct.employment().employer());
     }
 
     @Test
@@ -437,11 +533,11 @@ class EmploymentServiceTest {
 
         Employment ended = transfer.ended().employment();
         assertEquals(LocalDate.of(2027, 4, 1), ended.period().to());
-        assertEquals("company-y", ended.employerId());
+        assertEquals(Employer.legalEntity("company-y"), ended.employer());
         assertEquals("transfer", transfer.ended().endReason());
         Employment started = transfer.started().employment();
         assertEquals("alice", started.personId());
-        assertEquals("company-x", started.employerId());
+        assertEquals(Employer.legalEntity("company-x"), started.employer());
         assertEquals("X-2040", started.staffNumber());
         assertEquals(old, started.continuesEmploymentId());
         assertNull(started.source());
@@ -497,7 +593,7 @@ class EmploymentServiceTest {
 
         assertEquals(List.of(alice, bob), transfers.stream().map(t -> t.ended().employment().id()).toList());
         assertEquals(List.of("company-x", "company-x"),
-                transfers.stream().map(t -> t.started().employment().employerId()).toList());
+                transfers.stream().map(t -> t.started().employment().employer().legalEntityId()).toList());
         // Alice keeps her number, and Bob gets the one that the request names.
         assertEquals(List.of("1001", "X-2"),
                 transfers.stream().map(t -> t.started().employment().staffNumber()).toList());

@@ -63,5 +63,10 @@ public enum RefKind {
     /**
      * The accounting unit that bears the cost of a person.
      */
-    COST_CENTER
+    COST_CENTER,
+
+    /**
+     * An employer outside the realm, for example a staffing agency or a contractor.
+     */
+    EXTERNAL_EMPLOYER
 }

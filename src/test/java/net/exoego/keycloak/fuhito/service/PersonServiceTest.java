@@ -6,6 +6,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 
+import net.exoego.keycloak.fuhito.domain.Employer;
 import net.exoego.keycloak.fuhito.domain.Employment;
 import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
@@ -192,8 +193,8 @@ class PersonServiceTest {
     @Test
     void aPersonWithAnEmploymentCannotBeDeleted() {
         String id = service.forUser("taro").person().id();
-        employments.insert(new Employment("e1", id, "taro", "employer", ValidPeriod.startingAt(LocalDate.parse("2020-04-01")),
-                null, null, null, null, 1));
+        employments.insert(new Employment("e1", id, "taro", Employer.legalEntity("employer"),
+                ValidPeriod.startingAt(LocalDate.parse("2020-04-01")), null, null, null, null, 1));
 
         assertEquals("person.in_use", failure(() -> service.delete(id)).code());
     }

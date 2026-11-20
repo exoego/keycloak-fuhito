@@ -38,7 +38,7 @@ final class MemoryEmploymentStore implements EmploymentStore {
 
     @Override
     public List<Employment> findByEmployer(String employerId) {
-        return employments.values().stream().filter(e -> employerId.equals(e.employerId())).toList();
+        return employments.values().stream().filter(e -> employerId.equals(e.employer().legalEntityId())).toList();
     }
 
     @Override
@@ -91,7 +91,7 @@ final class MemoryEmploymentStore implements EmploymentStore {
 
     @Override
     public void update(Employment e) {
-        employments.put(e.id(), new Employment(e.id(), e.personId(), e.userId(), e.employerId(), e.period(),
+        employments.put(e.id(), new Employment(e.id(), e.personId(), e.userId(), e.employer(), e.period(),
                 e.staffNumber(), e.endReasonId(), e.source(), employments.get(e.id()).continuesEmploymentId(),
                 employments.get(e.id()).version()));
     }
@@ -110,7 +110,10 @@ final class MemoryEmploymentStore implements EmploymentStore {
     public List<Employment> search(Search search, String afterId, int first, int max) {
         return employments.values().stream()
                 .filter(e -> search.staffNumber() == null || search.staffNumber().equals(e.staffNumber()))
-                .filter(e -> search.employerId() == null || search.employerId().equals(e.employerId()))
+                .filter(e -> search.employerId() == null
+                        || search.employerId().equals(e.employer().legalEntityId()))
+                .filter(e -> search.externalEmployerId() == null
+                        || search.externalEmployerId().equals(e.employer().externalEmployerId()))
                 .filter(e -> search.date() == null || e.period().contains(search.date()))
                 .filter(e -> !search.byContractEnd() || terms.stream()
                         .filter(t -> t.employmentId().equals(e.id()) && t.period().contains(search.termsDate()))

@@ -317,6 +317,26 @@ class RefItemsIT {
         assertEquals("ref_item.not_found", errorOf(404, api.putWithVersion("/ref-items/" + id, "{\"primaryLanguage\": \"en\", \"names\": {\"en\": {\"name\": \"x\"}}}")));
     }
 
+    // The realm has no legal entity, and an employment by an agency does not need one.
+    @Test
+    void anExternalEmployerOfAnEmploymentIsInUse() throws Exception {
+        String agency = created(api.post("/ref-items", "{\"kind\": \"EXTERNAL_EMPLOYER\", \"code\": \"staffing\", "
+                + "\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"Yスタッフ\"}}}")).get("id").asText();
+        String person = created(api.post("/people", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": "
+                + "{\"name\": \"派遣 太郎\"}}}")).get("id").asText();
+        String employment = created(api.post("/employments", "{\"personId\": \"" + person + "\", "
+                + "\"externalEmployer\": \"staffing\", \"validFrom\": \"2026-04-01\"}")).get("id").asText();
+
+        assertEquals("ref_item.in_use", errorOf(409, api.deleteWithVersion("/ref-items/" + agency)));
+        // The item can stop taking new employments, and the stored one keeps it.
+        assertEquals(200, api.putWithVersion("/ref-items/" + agency, "{\"primaryLanguage\": \"ja\", "
+                + "\"names\": {\"ja\": {\"name\": \"Yスタッフ\"}}, \"active\": false}").statusCode());
+        assertEquals("staffing", Api.json(api.get("/employments/" + employment)).get("externalEmployer").asText());
+
+        assertEquals(204, api.deleteWithVersion("/employments/" + employment).statusCode());
+        assertEquals(204, api.deleteWithVersion("/ref-items/" + agency).statusCode());
+    }
+
     @Test
     void oneRealmDoesNotSeeTheItemsOfAnother() throws Exception {
         String body = "{\"kind\": \"UNIT_TYPE\", \"code\": \"per-realm\", \"primaryLanguage\": \"en\", "

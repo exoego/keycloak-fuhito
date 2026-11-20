@@ -537,7 +537,7 @@ The database applies the filters, the order, and the page.
 | `/org-units/{id}/children`, `/subtree`, `/path` | The tree of a date, one level, one branch, or the way up |
 | `/org-units/{id}/succession` | The org units that a unit follows after a merger or a split, and the ones that follow it |
 | `/people` | The people that the realm knows, with or without a Keycloak user |
-| `/employments` | Employments of people, with their terms over time. The list finds them by staff number, employer, and date |
+| `/employments` | Employments of people, with their terms over time. The list finds them by staff number, employer, external employer, and date |
 | `/assignments` | Assignments of employments to org units. The list has the assignments of a date across the realm, by org unit, job title, occupation, and kind |
 | `/staff` | A shortcut that starts an employment and adds its first assignment in one call |
 | `/org-units/{id}/members` | Who works in an org unit on a date, with or without the units below |

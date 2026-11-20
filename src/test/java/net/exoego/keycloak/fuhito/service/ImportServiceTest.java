@@ -10,6 +10,7 @@ import java.util.Optional;
 import java.util.function.Supplier;
 
 import net.exoego.keycloak.fuhito.domain.ChangeOrder;
+import net.exoego.keycloak.fuhito.domain.Employer;
 import net.exoego.keycloak.fuhito.domain.Employment;
 import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
@@ -923,7 +924,7 @@ class ImportServiceTest {
         assertEquals(List.of(), errors(importEmployments(byIds("E1", taro, hospital, null, null))));
         Employment stored = employmentStore.find(stored(ExternalId.Kind.EMPLOYMENT, "import", "E1")).orElseThrow();
         assertEquals(taro, stored.personId());
-        assertEquals(hospital, stored.employerId());
+        assertEquals(Employer.legalEntity(hospital), stored.employer());
 
         ImportReport changed = importEmployments(byIds(null, taro, hospital, "g2", stored.id()));
         assertEquals(List.of(), errors(changed));

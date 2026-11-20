@@ -119,7 +119,8 @@ public class CsvImportService {
             Map.entry("continuesEmploymentExternalId", "引き継ぎ元の雇用の外部ID"),
             Map.entry("continuesEmploymentId", "引き継ぎ元の雇用のID"),
             Map.entry("continuesAssignmentExternalId", "引き継ぎ元の所属の外部ID"),
-            Map.entry("continuesAssignmentId", "引き継ぎ元の所属のID"));
+            Map.entry("continuesAssignmentId", "引き継ぎ元の所属のID"),
+            Map.entry("externalEmployer", "外部の雇用主"));
 
     // The lists that a file can hold, each with the resource whose attributes it sets.
     private enum Kind {
@@ -181,8 +182,8 @@ public class CsvImportService {
                     "organizationAlias", "timeZone", "dayStart")),
             Map.entry(Kind.EMPLOYMENTS, Set.of("id", "externalId", "source", "username", "userId", "staffNumber",
                     "employmentType", "grade", "status", "leaveReason", "workPercent", "contractEndDate", "validFrom",
-                    "validTo", "endReason", "employerExternalId", "employerId", "personExternalId", "personId",
-                    "continuesEmploymentExternalId", "continuesEmploymentId")),
+                    "validTo", "endReason", "employerExternalId", "employerId", "externalEmployer",
+                    "personExternalId", "personId", "continuesEmploymentExternalId", "continuesEmploymentId")),
             Map.entry(Kind.PEOPLE, Set.of("id", "externalId", "source", "username", "userId", "primaryLanguage",
                     "name", "phoneticName")),
             Map.entry(Kind.ASSIGNMENTS, Set.of("id", "externalId", "source", "employmentExternalId", "employmentId",
@@ -587,7 +588,8 @@ public class CsvImportService {
                 cells.text("validFrom", null), cells.text("validTo", null), cells.text("endReason", null),
                 cells.text("employerExternalId", null), cells.text("personExternalId", null),
                 cells.text("personId", null), cells.text("employerId", null), id,
-                cells.text("continuesEmploymentExternalId", null), cells.text("continuesEmploymentId", null));
+                cells.text("continuesEmploymentExternalId", null), cells.text("continuesEmploymentId", null),
+                cells.text("externalEmployer", null));
     }
 
     private AssignmentRow assignment(Cells cells, LocalDate date, String defaultSource) {

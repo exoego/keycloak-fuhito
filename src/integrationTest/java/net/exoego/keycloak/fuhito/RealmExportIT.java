@@ -124,6 +124,9 @@ class RealmExportIT {
                 + ids.get("doctor") + "\"}"));
         ok(api.post("/employments", "{\"userId\": \"" + ids.get("former")
                 + "\", \"validFrom\": \"2010-04-01\", \"validTo\": \"2015-04-01\"}"));
+        String agency = source.refItem("EXTERNAL_EMPLOYER", "staffing", "Yスタッフ");
+        String dispatched = id(api.post("/employments", "{\"userId\": \"" + ids.get("doctor")
+                + "\", \"externalEmployer\": \"staffing\", \"staffNumber\": \"S-1\", \"validFrom\": \"2021-04-01\"}"));
         ok(api.post("/users/" + ids.get("former") + "/mask", ""));
         ok(api.post("/people", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"山田 花子\", \"phoneticName\": \"やまだ はなこ\"}, \"en\": {\"name\": \"Hanako Yamada\"}}, \"attributes\": {\"site\": [\"tokyo\"]}}"));
 
@@ -135,6 +138,10 @@ class RealmExportIT {
         assertEquals(2, first.get("orgUnits").get(0).get("versions").size() + first.get("orgUnits").get(1)
                 .get("versions").size() + first.get("orgUnits").get(2).get("versions").size()
                 + first.get("orgUnits").get(3).get("versions").size() - 3);
+        // An employment has the ID of its legal entity or of its external employer, never both.
+        assertEquals(List.of(agency), first.get("employments").findValuesAsText("externalEmployerId"));
+        assertEquals(first.get("employments").size() - 1,
+                first.get("employments").findValuesAsText("employerId").size(), first.toString());
 
         // A new realm with the same users, after the first one is gone.
         TestRealm target = TestRealm.create("export-target");
@@ -157,6 +164,10 @@ class RealmExportIT {
         assertEquals("cc-ward", nursePeriod.get("costCenter").asText());
         assertEquals(line, defaultHierarchy(target.api).get("id").asText());
         assertEquals("組織図", defaultHierarchy(target.api).get("name").asText());
+        assertEquals("staffing", Api.json(target.api.get("/employments/" + dispatched)).get("externalEmployer")
+                .asText());
+        assertEquals(List.of(dispatched), Api.json(target.api.get("/employments?externalEmployer=staffing"))
+                .findValuesAsText("id"));
         assertEquals("restore.realm_not_empty", Api.json(target.api.post("/restore", JSON.writeValueAsString(first)))
                 .get("error").asText());
         assertEquals(404, target.api.get("/export/nothing").statusCode());
@@ -345,6 +356,19 @@ class RealmExportIT {
         HttpResponse<String> location = target.api.post("/restore", JSON.writeValueAsString(located));
         assertEquals("restore.reference_unknown", error(location));
         assertEquals("workLocationId", Api.json(location).get("params").get("field").asText());
+
+        // An employment names an external employer of the same export, and never a legal entity beside it.
+        ObjectNode agency = JSON.createObjectNode().put("format", "fuhito.export.v1");
+        agency.putArray("people").addObject().put("id", "p-9");
+        ObjectNode employment = agency.putArray("employments").addObject().put("id", "e-9").put("personId", "p-9")
+                .put("externalEmployerId", "r-9").put("validFrom", "2020-04-01");
+        HttpResponse<String> unknownAgency = target.api.post("/restore", JSON.writeValueAsString(agency));
+        assertEquals("restore.reference_unknown", error(unknownAgency));
+        assertEquals("externalEmployerId", Api.json(unknownAgency).get("params").get("field").asText());
+        agency.putArray("refItems").addObject().put("id", "r-9");
+        agency.putArray("orgUnits").addObject().put("id", "u-9");
+        employment.put("employerId", "u-9");
+        assertEquals("employment.employer_twice", error(target.api.post("/restore", JSON.writeValueAsString(agency))));
 
         // The list of IDs keeps the rules of the table. One ID names one unit, and a unit has one ID of a system.
         for (String[] twice : new String[][] {{"u-3", "W-1", "u-4", "W-1", "restore.external_id_taken"},
