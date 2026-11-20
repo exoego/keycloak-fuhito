@@ -2,6 +2,7 @@ package net.exoego.keycloak.fuhito.rest;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.DELETE;
@@ -190,7 +191,9 @@ public class RefItemsResource {
                     + "dates. With `validFrom`, the new names hold from that date until the next stored names, and "
                     + "the old names stay for the dates before. A date that starts stored names corrects them. "
                     + "Without `validFrom`, the write changes the names of today. The response has the names of "
-                    + "that date.")
+                    + "that date. With `source` and `externalId`, the item gets that ID of that system. `source` with "
+                    + "no `externalId` fails with 400 and `invalid.value_fixed`, because an item keeps no system that "
+                    + "made it.")
     @Parameter(ref = "changeOrder")
     @APIResponse(responseCode = "200", description = "The changed item.")
     @BadRequest
@@ -207,8 +210,13 @@ public class RefItemsResource {
             RefItem stored = service.get(id);
             Checks.fixed("kind", stored.kind(), body.kind());
             Checks.fixed("code", stored.code(), body.code());
-            var item = represent(service.update(id, body.primaryLanguage(), body.names(), body.displayOrder(),
-                    body.attributes(), body.active(), body.marks(), body.validFrom()));
+            Writes.requireNoSource(body.source(), body.externalId());
+            Writes.requireRead(body, () -> represent(service.get(id,
+                    Objects.toString(Checks.optionalDate("validFrom", body.validFrom()), null))),
+                    RefItemRepresentation.READ_ONLY);
+            var item = represent(externalIds.write(ExternalId.Kind.REF_ITEM, id, body.source(), body.externalId(),
+                    () -> service.update(id, body.primaryLanguage(), body.names(), body.displayOrder(),
+                            body.attributes(), body.active(), body.marks(), body.validFrom())));
             context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, path(id), item);
             return item;
         });

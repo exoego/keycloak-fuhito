@@ -123,7 +123,9 @@ public class AttributeDefinitionsResource {
             summary = "Replaces the type and the rule of a definition.",
             description = "The kind of resource and the name never change. The body can leave them out or give the "
                     + "stored ones. Another kind of resource or name fails with 400 and `invalid.value_fixed`. Stored "
-                    + "values stay as they are.")
+                    + "values stay as they are. With `source` and `externalId`, the definition gets that ID of that "
+                    + "system. `source` with no `externalId` fails with 400 and `invalid.value_fixed`, because a "
+                    + "definition keeps no system that made it.")
     @Parameter(ref = "changeOrder")
     @APIResponse(responseCode = "200", description = "The changed definition.")
     @BadRequest
@@ -140,8 +142,11 @@ public class AttributeDefinitionsResource {
             AttributeDefinition stored = service.get(id);
             Checks.fixed("target", stored.target().name(), body.target());
             Checks.fixed("name", stored.name(), body.name());
-            var definition = represent(service.replace(id, body.type(), body.refKind(), body.multiple(),
-                    body.required()));
+            Writes.requireNoSource(body.source(), body.externalId());
+            Writes.requireRead(body, () -> represent(stored), AttributeDefinitionRepresentation.READ_ONLY);
+            var definition = represent(externalIds.write(ExternalId.Kind.ATTRIBUTE_DEFINITION, id, body.source(),
+                    body.externalId(), () -> service.replace(id, body.type(), body.refKind(), body.multiple(),
+                            body.required())));
             context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, path(id), definition);
             return definition;
         });

@@ -131,7 +131,9 @@ public class HierarchiesResource {
             operationId = "renameHierarchy",
             summary = "Changes the name of a hierarchy.",
             description = "The code never changes. The body can leave it out or give the stored one. Another code "
-                    + "fails with 400 and `invalid.value_fixed`.")
+                    + "fails with 400 and `invalid.value_fixed`. With `source` and `externalId`, the hierarchy gets "
+                    + "that ID of that system. `source` with no `externalId` fails with 400 and "
+                    + "`invalid.value_fixed`, because a hierarchy keeps no system that made it.")
     @Parameter(ref = "changeOrder")
     @APIResponse(responseCode = "200", description = "The changed hierarchy.")
     @BadRequest
@@ -145,8 +147,12 @@ public class HierarchiesResource {
             HierarchyRepresentation body) {
         context.requireWrite();
         return Calls.guarded(context, body, () -> version(id), () -> {
-            Checks.fixed("code", service.get(id).code(), body.code());
-            var hierarchy = represent(service.rename(id, body.name()));
+            Hierarchy stored = service.get(id);
+            Checks.fixed("code", stored.code(), body.code());
+            Writes.requireNoSource(body.source(), body.externalId());
+            Writes.requireRead(body, () -> represent(stored), HierarchyRepresentation.READ_ONLY);
+            var hierarchy = represent(externalIds.write(ExternalId.Kind.HIERARCHY, id, body.source(),
+                    body.externalId(), () -> service.rename(id, body.name())));
             context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, path(id), hierarchy);
             return hierarchy;
         });

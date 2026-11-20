@@ -15,6 +15,7 @@ import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
+import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.rest.RequestContext.Change;
 import net.exoego.keycloak.fuhito.service.AssignmentService;
@@ -239,6 +240,9 @@ public class AssignmentsResource {
         context.requireWrite();
         return Calls.guarded(context, body, () -> version(id),
                 () -> Boolean.TRUE.equals(body.switchPrimary()) ? scopes.assignmentsBeside(id) : Map.of(), () -> {
+            Writes.requireRead(body, () -> Writes.periodOn(represent(service.get(id)).periods(),
+                    AssignmentRepresentation.Details::validFrom, AssignmentRepresentation.Details::validTo,
+                    Checks.date("validFrom", body.validFrom())), AssignmentRepresentation.Details.READ_ONLY);
             var assignment = represent(service.changeDetails(id, body.toValues()));
             context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, path(id) + "/details", assignment);
             return assignment;

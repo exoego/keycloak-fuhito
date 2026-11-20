@@ -102,7 +102,9 @@ public record AssignmentRepresentation(
             @Schema(description = "The first date of these details.", format = "date")
             String validFrom,
             @Schema(
-                    description = "The first date after these details. It is missing for no end.",
+                    description = "The first date after these details. It is missing for no end. A change of the "
+                            + "details with another value than the end of the details on its `validFrom` fails with "
+                            + "400 and `invalid.value_fixed`.",
                     format = "date",
                     readOnly = true)
             String validTo,
@@ -123,13 +125,17 @@ public record AssignmentRepresentation(
             @Schema(
                     description = "The code of the work location that applies. It is the one of the assignment, "
                             + "else the one of the org unit, else the one of the nearest unit above it in the default "
-                            + "hierarchy. It is read on the date of the period nearest to today.",
+                            + "hierarchy. It is read on the date of the period nearest to today. A change of the "
+                            + "details with another value than the details on its `validFrom` have fails with 400 "
+                            + "and `invalid.value_fixed`.",
                     readOnly = true)
             String effectiveWorkLocation,
             @Schema(
                     description = "The code of the cost center that applies. It is the one of the assignment, else "
                             + "the one of the org unit, else the one of the nearest unit above it in the default "
-                            + "hierarchy. It is read on the date of the period nearest to today.",
+                            + "hierarchy. It is read on the date of the period nearest to today. A change of the "
+                            + "details with another value than the details on its `validFrom` have fails with 400 "
+                            + "and `invalid.value_fixed`.",
                     readOnly = true)
             String effectiveCostCenter,
             @Schema(description = "True when the person leads the org unit.")
@@ -152,6 +158,9 @@ public record AssignmentRepresentation(
             Integer displayOrder,
             @Schema(description = "Free values that the realm defines.")
             Map<String, Object> attributes) implements Versioned {
+
+        // The fields that only a response fills.
+        static final List<String> READ_ONLY = List.of("validTo", "effectiveWorkLocation", "effectiveCostCenter");
 
         AssignmentValues toValues() {
             return new AssignmentValues(null, null, validFrom, null, jobTitle, occupation, kind, workLocation,

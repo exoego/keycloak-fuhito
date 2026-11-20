@@ -190,10 +190,12 @@ public class QualificationsResource {
             QualificationRepresentation body) {
         context.requireWrite();
         return Calls.guarded(context, body, () -> version(id), () -> {
-            Qualification stored = service.get(id).qualification();
+            QualificationView view = service.get(id);
+            Qualification stored = view.qualification();
             Checks.fixed("personId", stored.personId(), body.personId());
             Checks.fixed("userId", stored.userId(), body.userId());
             Writes.requireSource(stored.source(), body.source(), body.externalId());
+            Writes.requireRead(body, () -> represent(view), QualificationRepresentation.READ_ONLY);
             var qualification = represent(service.replace(id, body.toValues(null)));
             context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, path(id), qualification);
             return qualification;

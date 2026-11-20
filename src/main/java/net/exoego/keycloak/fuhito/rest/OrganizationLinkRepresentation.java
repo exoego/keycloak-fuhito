@@ -7,7 +7,10 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
         description = "The link of an org unit to a Keycloak organization.",
         requiredProperties = {"version"})
 public record OrganizationLinkRepresentation(
-        @Schema(readOnly = true)
+        @Schema(
+                description = "The ID of the org unit. A request with another unit than the one of the path fails "
+                        + "with 400 and `invalid.value_fixed`.",
+                readOnly = true)
         String orgUnitId,
         @Schema(description = "The version of the org unit. A request sends the one that the caller read. A response "
                 + "has the one after the write.")

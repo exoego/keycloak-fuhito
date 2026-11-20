@@ -177,7 +177,9 @@ public class PeopleResource {
             PersonRepresentation body) {
         context.requireWrite();
         return Calls.guarded(context, body, () -> version(id), () -> {
-            Writes.requireSource(service.get(id).person().source(), body.source(), body.externalId());
+            PersonView stored = service.get(id);
+            Writes.requireSource(stored.person().source(), body.source(), body.externalId());
+            Writes.requireRead(body, () -> represent(stored), PersonRepresentation.READ_ONLY);
             var person = represent(service.replace(id, body.toValues()));
             context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, path(id), person);
             return person;

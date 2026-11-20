@@ -19,6 +19,7 @@ import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
+import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.rest.RequestContext.Change;
 import net.exoego.keycloak.fuhito.service.AssignmentService;
@@ -266,6 +267,9 @@ public class EmploymentsResource {
             EmploymentRepresentation.Terms body) {
         context.requireWrite();
         return Calls.guarded(context, body, () -> version(id), () -> {
+            Writes.requireRead(body, () -> Writes.periodOn(represent(service.get(id)).terms(),
+                    EmploymentRepresentation.Terms::validFrom, EmploymentRepresentation.Terms::validTo,
+                    Checks.date("validFrom", body.validFrom())), EmploymentRepresentation.Terms.READ_ONLY);
             var employment = represent(service.changeTerms(id, new TermsChange(body.validFrom(),
                     body.employmentType(), body.grade(), body.status(), body.leaveReason(), body.workPercent(),
                     body.contractEndDate(), body.attributes())));
