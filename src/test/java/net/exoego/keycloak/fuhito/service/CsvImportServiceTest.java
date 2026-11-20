@@ -248,6 +248,61 @@ class CsvImportServiceTest {
     }
 
     @Test
+    void aRowThatRemovesALanguageWithClearLeavesTheOtherNamesOfThatLanguageBlank() {
+        load("orgUnits", "2026-04-01", """
+                externalId,primaryLanguage,name,shortName,name:en,shortName:en,phoneticName:en,name:zh-Hant
+                U,ja,営業部,営業,Sales,Sales Dept,sales,營業部
+                """);
+        load("people", "2026-04-01", """
+                externalId,primaryLanguage,name,phoneticName,name:en,phoneticName:en
+                P,ja,山田,やまだ,Yamada,yamada
+                """);
+        Localized<OrgUnitName> unitNames = unit("U", "2027-04-01").version().names();
+        String person = stored(ExternalId.Kind.PERSON, "import", "P");
+        Localized<PersonName> personNames = personStore.find(person).orElseThrow().names();
+
+        // The order of the columns does not matter, and #CLEAR counts as a cell.
+        assertEquals("csv.clear_conflict shortName:en en",
+                rowError("orgUnits", "externalId,name:en,shortName:en\nU,#CLEAR,Sales Division\n"));
+        assertEquals("csv.clear_conflict shortName:en en",
+                rowError("orgUnits", "externalId,shortName:en,name:en\nU,Sales Division,#CLEAR\n"));
+        assertEquals("csv.clear_conflict よみがな:EN en", rowError("orgUnits", "外部ID,よみがな:EN,名称:en\nU,#CLEAR,#CLEAR\n"));
+        // The columns with no language hold names of the primary language, also the stored one.
+        assertEquals("csv.clear_conflict 略称 ja", rowError("orgUnits", "外部ID,名称:ja,略称\nU,#CLEAR,営業課\n"));
+        assertEquals("csv.clear_conflict よみがな ja",
+                rowError("orgUnits", "外部ID,よみがな,主言語,名称:JA\nU,えいぎょうぶ,ja,#CLEAR\n"));
+        assertEquals("csv.clear_conflict phoneticName:en en",
+                rowError("people", "externalId,name:en,phoneticName:en\nP,#CLEAR,Yamada\n"));
+        assertEquals("csv.clear_conflict phoneticName:en en",
+                rowError("people", "externalId,phoneticName:en,name:en\nP,Yamada,#CLEAR\n"));
+        assertEquals("csv.clear_conflict よみがな ja", rowError("people", "外部ID,よみがな,名称:ja\nP,やまだ,#CLEAR\n"));
+        assertEquals(unitNames, unit("U", "2027-04-01").version().names());
+        assertEquals(personNames, personStore.find(person).orElseThrow().names());
+
+        // #CLEAR of a language alone removes it, and a name alone sets it. Other languages may do either.
+        assertEquals(List.of(), errors(load("orgUnits", "2027-04-01", """
+                externalId,shortName,name:en,shortName:en,phoneticName:en,name:zh-Hant,shortName:zh-hant
+                U,営業課,#CLEAR,,,,營業
+                """)));
+        assertEquals(List.of(), errors(load("people", "2027-04-01", """
+                externalId,phoneticName,name:en,phoneticName:en
+                P,やまだ たろう,#CLEAR,
+                """)));
+        assertEquals(new Localized<>("ja", Map.of("ja", new OrgUnitName("営業部", "営業課", null),
+                "zh-Hant", new OrgUnitName("營業部", "營業", null))), unit("U", "2027-04-01").version().names());
+        assertEquals(Localized.of("ja", new PersonName("山田", "やまだ たろう")),
+                personStore.find(person).orElseThrow().names());
+    }
+
+    // The error of the only row of a file on 2027-04-01, with its field and value.
+    private String rowError(String list, String csv) {
+        CsvImportService.Result result = load(list, "2027-04-01", csv);
+        assertEquals(1, result.errors().size(), list + " " + csv + " " + result.errors());
+        FuhitoException error = result.errors().getFirst().error();
+        return error.code() + " " + error.params().get("field") + " " + error.params().get("value");
+    }
+
+    @Test
     void loadsStaffAndATransferFromCsv() {
         item(RefKind.OCCUPATION, "nurse");
         item(RefKind.EMPLOYMENT_TYPE, "part-time");

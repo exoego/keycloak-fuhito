@@ -737,10 +737,13 @@ public class CsvImportService {
         }
 
         // The columns with no language set the primary names. A column like "name:en" sets the names of one
-        // language, and "name:en" with #CLEAR removes them. The import keeps the other names that are stored.
+        // language, and "name:en" with #CLEAR removes them, so the other names of that language stay blank. The
+        // import keeps the other names that are stored.
         <T> Map<String, T> names(String primaryLanguage, List<String> fields, NameSetter<T> set) {
             List<String> given = fields.stream().filter(field -> !blank(field)).toList();
             Map<String, T> result = new LinkedHashMap<>();
+            Set<String> removed = new HashSet<>();
+            Map<String, String> others = new LinkedHashMap<>();
             values.forEach((column, value) -> {
                 int colon = column.indexOf(':');
                 if (colon < 0 || value.isEmpty() || column.startsWith(ATTRIBUTE_COLUMN)) {
@@ -753,9 +756,18 @@ public class CsvImportService {
                             Map.of("field", headers.get(column), "value", language));
                 }
                 if (field.equals("name") && value.equals(CLEAR)) {
+                    removed.add(language);
                     result.put(language, null);
                 } else {
+                    others.put(column, language);
                     result.put(language, name(result.get(language), language, field, column, set));
+                }
+            });
+            given.forEach(field -> others.put(field, primaryLanguage));
+            others.forEach((column, language) -> {
+                if (removed.contains(language)) {
+                    throw FuhitoException.invalid("csv.clear_conflict",
+                            Map.of("field", headers.get(column), "value", language));
                 }
             });
             if (given.isEmpty()) {
