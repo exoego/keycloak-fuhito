@@ -17,7 +17,10 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
         description = "An org unit as it is on one date.",
         requiredProperties = {"primaryLanguage", "names", "validFrom"})
 public record OrgUnitRepresentation(
-        @Schema(readOnly = true)
+        @Schema(
+                description = "The ID of the unit. A write of a stored unit with another ID fails with 400 and "
+                        + "`invalid.value_fixed`.",
+                readOnly = true)
         String id,
         @Schema(description = "The version of the unit. A new unit has 1. Each write counts it up by one, also a "
                 + "change of a period, of a parent, or of an ID of another system. A write of a stored unit sends "
@@ -32,12 +35,19 @@ public record OrgUnitRepresentation(
         @Schema(
                 description = "The name in the language of the request. It is the one of the first language of "
                         + "`Accept-Language`, else the one of that language with no region, such as `en` for "
-                        + "`en-US`, else the primary one. A request with no `Accept-Language` reads the primary one.",
+                        + "`en-US`, else the primary one. A request with no `Accept-Language` reads the primary one. "
+                        + "A write of a stored unit with another value fails with 400 and `invalid.value_fixed`.",
                 readOnly = true)
         String name,
-        @Schema(description = "The short name in the language of `name`.", readOnly = true)
+        @Schema(
+                description = "The short name in the language of `name`. A write of a stored unit with another value "
+                        + "fails with 400 and `invalid.value_fixed`.",
+                readOnly = true)
         String shortName,
-        @Schema(description = "The reading of the name in the language of `name`.", readOnly = true)
+        @Schema(
+                description = "The reading of the name in the language of `name`. A write of a stored unit with "
+                        + "another value fails with 400 and `invalid.value_fixed`.",
+                readOnly = true)
         String phoneticName,
         @Schema(
                 description = "The language tag of the primary names, such as `ja`. It matches a key of `names` in "
@@ -76,17 +86,22 @@ public record OrgUnitRepresentation(
                 readOnly = true)
         String effectiveCostCenter,
         @Schema(
-                description = "True when the unit type marks the unit as a legal entity, such as a company.",
+                description = "True when the unit type marks the unit as a legal entity, such as a company. A write of "
+                        + "a stored unit with another value fails with 400 and `invalid.value_fixed`. False is the "
+                        + "same as no value.",
                 readOnly = true)
         Boolean legalEntity,
         @Schema(
                 description = "True when the unit type marks the unit as a lateral unit outside the line organization, "
-                        + "such as a committee.",
+                        + "such as a committee. A write of a stored unit with another value fails with 400 and "
+                        + "`invalid.value_fixed`. False is the same as no value.",
                 readOnly = true)
         Boolean lateral,
         @Schema(
                 description = "True when the unit type marks the unit as a rollup unit, such as a region. A rollup "
-                        + "unit gathers units in another hierarchy and is not in the default hierarchy.",
+                        + "unit gathers units in another hierarchy and is not in the default hierarchy. A write of a "
+                        + "stored unit with another value fails with 400 and `invalid.value_fixed`. False is the same "
+                        + "as no value.",
                 readOnly = true)
         Boolean rollup,
         @Schema(
@@ -101,7 +116,9 @@ public record OrgUnitRepresentation(
         @Schema(description = "The first date of these details.", format = "date")
         String validFrom,
         @Schema(
-                description = "The first date after these details. It is missing for no end.",
+                description = "The first date after these details. It is missing for no end. A write of a stored unit "
+                        + "with another value than the end of the details on its `validFrom` fails with 400 and "
+                        + "`invalid.value_fixed`.",
                 format = "date",
                 readOnly = true)
         String validTo,
@@ -125,15 +142,32 @@ public record OrgUnitRepresentation(
         String source,
         @Schema(
                 description = "Every ID that a system has for the unit. The one of `source` comes first, then "
-                        + "the others by system.",
+                        + "the others by system. A write of a stored unit with another list fails with 400 and "
+                        + "`invalid.value_fixed`.",
                 readOnly = true)
         List<ExternalIdPairRepresentation> externalIds,
-        @Schema(description = "The ID of the linked Keycloak organization.", readOnly = true)
+        @Schema(
+                description = "The ID of the linked Keycloak organization. `PUT /org-units/{id}/organization` changes "
+                        + "it. A write of a stored unit with another value fails with 400 and `invalid.value_fixed`.",
+                readOnly = true)
         String keycloakOrganizationId,
-        @Schema(description = "The time zone that the unit sets for itself and the units below it.", readOnly = true)
+        @Schema(
+                description = "The time zone that the unit sets for itself and the units below it. "
+                        + "`PUT /org-units/{id}/time-settings` changes it. A write of a stored unit with another value "
+                        + "fails with 400 and `invalid.value_fixed`.",
+                readOnly = true)
         String timeZone,
-        @Schema(description = "The day start that the unit sets for itself and the units below it.", readOnly = true)
+        @Schema(
+                description = "The day start that the unit sets for itself and the units below it. "
+                        + "`PUT /org-units/{id}/time-settings` changes it. A write of a stored unit with another value "
+                        + "fails with 400 and `invalid.value_fixed`.",
+                readOnly = true)
         String dayStart) implements Versioned {
+
+    // The fields that only a response fills and that a read of validFrom has. The effective places can differ
+    // between the dates of the details, so a write compares them with every date, as it does the parent.
+    static final List<String> READ_ONLY = List.of("id", "name", "shortName", "phoneticName", "legalEntity",
+            "lateral", "rollup", "validTo", "externalIds", "keycloakOrganizationId", "timeZone", "dayStart");
 
     static OrgUnitRepresentation of(OrgUnitState state, ExternalIdLists ids, Locale language) {
         var unit = state.unit();

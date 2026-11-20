@@ -134,6 +134,8 @@ public class OrgUnitsResource {
         context.requireWrite();
         return Calls.guarded(context, body, () -> version(id), () -> {
             Writes.requireSource(service.source(id), body.source(), body.externalId());
+            Writes.requireRead(body, () -> represent(service.get(id,
+                    Checks.date("validFrom", body.validFrom()).toString())), OrgUnitRepresentation.READ_ONLY);
             requireReplacedValues(id, body);
             return updated(path(id), service.changeDetails(id, body.toChange(), body.source(), body.externalId()));
         });
@@ -532,6 +534,7 @@ public class OrgUnitsResource {
             OrganizationLinkRepresentation body) {
         context.requireWrite();
         return Calls.guarded(context, body, () -> version(id), () -> {
+            Checks.fixed("orgUnitId", id, body.orgUnitId());
             // A link decides who is a member of the organization, as the admin API of Keycloak does.
             organizationLinks.organizationOf(id).ifPresent(context::requireManageOrganization);
             context.requireManageOrganization(body.organizationId());
@@ -589,6 +592,7 @@ public class OrgUnitsResource {
             TimeSettingsRepresentation body) {
         context.requireWrite();
         return Calls.guarded(context, body, () -> version(id), () -> {
+            Checks.fixed("orgUnitId", id, body.orgUnitId());
             var unit = service.setTime(id, body.timeZone(), body.dayStart());
             var settings = new TimeSettingsRepresentation(unit.id(), unit.version(), unit.timeZone(),
                     unit.dayStart());

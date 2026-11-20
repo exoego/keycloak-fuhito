@@ -14,7 +14,10 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
         description = "The definition of one free attribute of one kind of resource.",
         requiredProperties = {"target", "name", "type"})
 public record AttributeDefinitionRepresentation(
-        @Schema(readOnly = true)
+        @Schema(
+                description = "The ID of the definition. A write of a stored definition with another ID fails with 400 "
+                        + "and `invalid.value_fixed`.",
+                readOnly = true)
         String id,
         @Schema(description = "The version of the definition. A new definition has 1. Each write counts it up by "
                 + "one, also a change of an ID of another system. A write of a stored definition sends the version "
@@ -48,19 +51,28 @@ public record AttributeDefinitionRepresentation(
                 defaultValue = "false")
         Boolean required,
         @Schema(
-                description = "The ID of the definition in the system that `source` names. Only a create reads it. "
-                        + "A read gives every ID in `externalIds`.",
+                description = "The ID of the definition in the system that `source` names. A write stores it as the ID "
+                        + "of that system, in place of the one that the system had. A read gives every ID in "
+                        + "`externalIds`.",
                 maxLength = 255,
                 writeOnly = true)
         String externalId,
         @Schema(
-                description = "The name of the system of `externalId`. Only a create reads it.",
+                description = "The name of the system of `externalId`. A definition keeps no system that made it, so a "
+                        + "write of a stored definition with this and no `externalId` fails with 400 and "
+                        + "`invalid.value_fixed`.",
                 maxLength = 64,
                 pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$",
                 writeOnly = true)
         String source,
-        @Schema(description = "Every ID that a system has for the definition, by system.", readOnly = true)
+        @Schema(
+                description = "Every ID that a system has for the definition, by system. A write of a stored "
+                        + "definition with another list fails with 400 and `invalid.value_fixed`.",
+                readOnly = true)
         List<ExternalIdPairRepresentation> externalIds) implements Versioned {
+
+    // The fields that only a response fills.
+    static final List<String> READ_ONLY = List.of("id", "externalIds");
 
     static AttributeDefinitionRepresentation of(AttributeDefinition definition, ExternalIdLists ids) {
         return new AttributeDefinitionRepresentation(definition.id(), definition.version(),

@@ -89,6 +89,27 @@ public class ExternalIdService {
     }
 
     /**
+     * Writes a stored resource of a kind that keeps no source, with the ID that the write gives for it. The ID
+     * replaces the one that the system had. The ID is checked before the write writes anything.
+     *
+     * @param <T> the type of the written resource
+     * @param kind the kind of resource
+     * @param resourceId the ID of the resource
+     * @param source the name of the system, or null
+     * @param externalId the ID in that system, or null to keep the IDs as they are
+     * @param write writes the resource
+     * @return the written resource
+     * @throws FuhitoException when a value is bad, the ID has no system, or the ID names another resource
+     */
+    public <T> T write(ExternalId.Kind kind, String resourceId, String source, String externalId, Supplier<T> write) {
+        ExternalIdWrites writes = new ExternalIdWrites(store, kind);
+        ExternalId.Pair pair = writes.check(resourceId, source, externalId);
+        T written = write.get();
+        writes.store(resourceId, pair);
+        return written;
+    }
+
+    /**
      * Checks an ID of a system, as the column can hold it.
      *
      * @param externalId the ID, or null for none
