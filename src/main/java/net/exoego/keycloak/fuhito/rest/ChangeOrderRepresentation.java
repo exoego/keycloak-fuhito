@@ -74,7 +74,7 @@ public record ChangeOrderRepresentation(
         String externalId,
         @Schema(
                 description = "The name of the system of `externalId`. An order keeps no system that made it, so a "
-                        + "write of a stored order with this and no `externalId` fails with 400 and "
+                        + "create or a write of a stored order with this and no `externalId` fails with 400 and "
                         + "`invalid.value_fixed`.",
                 maxLength = 64,
                 pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$",

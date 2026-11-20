@@ -109,6 +109,7 @@ public class AttributeDefinitionsResource {
         context.requireWrite();
         return Calls.run(context, () -> {
             Calls.body(body);
+            Writes.requireNoSource(body.source(), body.externalId());
             var definition = represent(externalIds.create(ExternalId.Kind.ATTRIBUTE_DEFINITION, body.source(),
                     body.externalId(), () -> service.create(body.target(), body.name(), body.type(), body.refKind(),
                             body.multiple(), body.required()), AttributeDefinition::id));

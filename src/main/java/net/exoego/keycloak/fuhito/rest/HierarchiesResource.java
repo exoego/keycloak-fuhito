@@ -121,6 +121,7 @@ public class HierarchiesResource {
         context.requireWrite();
         return Calls.run(context, () -> {
             Calls.body(body);
+            Writes.requireNoSource(body.source(), body.externalId());
             var hierarchy = represent(externalIds.create(ExternalId.Kind.HIERARCHY, body.source(), body.externalId(),
                     () -> service.create(body.code(), body.name()), Hierarchy::id));
             context.recordChange(Change.CREATE, RESOURCE_TYPE, hierarchy.id(), path(hierarchy.id()), hierarchy);
