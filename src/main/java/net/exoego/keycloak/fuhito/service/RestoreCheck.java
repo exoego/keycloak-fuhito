@@ -138,7 +138,7 @@ final class RestoreCheck {
     private static void requireFit(Map<String, String> params, String field, Object value, Integer length) {
         Map<String, String> named = new HashMap<>(params);
         named.put("field", field);
-        if (value instanceof String text && length != null && text.codePointCount(0, text.length()) > length) {
+        if (value instanceof String text && length != null && !Checks.fits(text, length)) {
             throw FuhitoException.invalid("restore.bad_value", named);
         }
         try {

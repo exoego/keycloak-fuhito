@@ -62,7 +62,7 @@ public final class Checks {
      */
     public static String code(String field, String value) {
         required(field, value);
-        if (value.length() > MAX_CODE_LENGTH || !CODE.matcher(value).matches()) {
+        if (!fits(value, MAX_CODE_LENGTH) || !CODE.matcher(value).matches()) {
             throw FuhitoException.invalid("invalid.code", Map.of("field", field));
         }
         return value;
@@ -79,10 +79,39 @@ public final class Checks {
     public static String name(String field, String value) {
         required(field, value);
         String trimmed = value.strip();
-        if (trimmed.isEmpty() || trimmed.codePointCount(0, trimmed.length()) > MAX_NAME_LENGTH) {
+        if (trimmed.isEmpty() || !fits(trimmed, MAX_NAME_LENGTH)) {
             throw FuhitoException.invalid("invalid.name", Map.of("field", field));
         }
         return trimmed;
+    }
+
+    /**
+     * Tells whether a text fits a column of a number of characters. The column counts one character for each code
+     * point, so an emoji is one character, though Java holds it in two chars.
+     *
+     * @param value the text
+     * @param length the number of characters of the column
+     * @return true when the text has at most that many characters
+     */
+    public static boolean fits(String value, int length) {
+        return value.codePointCount(0, value.length()) <= length;
+    }
+
+    /**
+     * Checks a text that may be missing, as {@link #optionalText(String, String)} does, and requires that it fits
+     * its column.
+     *
+     * @param field the name of the field, for the error
+     * @param value the text, or null
+     * @param length the number of characters of the column
+     * @return the text, or null
+     * @throws FuhitoException when the text is empty, only spaces, or has more characters than the column
+     */
+    public static String optionalText(String field, String value, int length) {
+        if (optionalText(field, value) != null && !fits(value, length)) {
+            throw FuhitoException.invalid("invalid.too_long", Map.of("field", field, "max", Integer.toString(length)));
+        }
+        return value;
     }
 
     /**
@@ -283,7 +312,7 @@ public final class Checks {
         try {
             // An empty tag gives "und", with no exception.
             String normalized = new Locale.Builder().setLanguageTag(tag).build().toLanguageTag();
-            if (normalized.equals("und") || normalized.length() > MAX_LANGUAGE_TAG_LENGTH) {
+            if (normalized.equals("und") || !fits(normalized, MAX_LANGUAGE_TAG_LENGTH)) {
                 throw bad;
             }
             return normalized;
