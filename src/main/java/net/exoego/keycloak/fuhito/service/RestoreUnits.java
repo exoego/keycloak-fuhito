@@ -99,7 +99,7 @@ final class RestoreUnits {
         units.forEach(this::requireSuccessors);
     }
 
-    // The order of a move: the parent covers the link, the link makes no cycle, and it joins no wrong nature.
+    // A link lies inside the life of its unit. The other rules come in the order of a move.
     private void requireParents(RealmExport.Unit unit) {
         ValidPeriod life = life(unit.id());
         for (RealmExport.Parent parent : all(unit.parents())) {
