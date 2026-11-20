@@ -3,6 +3,8 @@ package net.exoego.keycloak.fuhito.service;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.function.Supplier;
 
 import net.exoego.keycloak.fuhito.domain.Employer;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
@@ -67,16 +69,35 @@ public class LegalEntityEmployers implements Employers {
             }
             return entities.getFirst().unit().id();
         }
-        PlacedOrgUnit unit = orgUnits.placedOn(hierarchy, List.of(requestedId), firstDate).stream().findFirst()
-                .orElseThrow(() -> FuhitoException.invalid("employment.employer_unknown",
-                        Map.of("employerId", requestedId, "date", firstDate.toString())));
-        String unitTypeId = unit.version().unitTypeId();
-        boolean legalEntity = unitTypeId != null && refItems.find(unitTypeId).map(RefItem::legalEntity).orElse(false);
+        Optional<PlacedOrgUnit> unit = orgUnits.placedOn(hierarchy, List.of(requestedId), firstDate).stream()
+                .findFirst();
+        String unitTypeId = unit.map(placed -> placed.version().unitTypeId()).orElse(null);
+        requireLegalEntity(requestedId, firstDate, unit.isPresent(),
+                unitTypeId != null && refItems.find(unitTypeId).map(RefItem::legalEntity).orElse(false),
+                () -> unit.orElseThrow().version().names().primary().name());
+        return requestedId;
+    }
+
+    /**
+     * Requires that an org unit exists on the first date of an employment and is a legal entity on it.
+     *
+     * @param employerId the ID of the org unit
+     * @param firstDate the first date of the employment
+     * @param exists true when the unit exists on the date
+     * @param legalEntity true when the unit type of the unit on the date is marked as a legal entity
+     * @param name gives the name of the unit
+     * @throws FuhitoException when the unit does not exist on the date, or is not a legal entity
+     */
+    static void requireLegalEntity(String employerId, LocalDate firstDate, boolean exists, boolean legalEntity,
+            Supplier<String> name) {
+        if (!exists) {
+            throw FuhitoException.invalid("employment.employer_unknown",
+                    Map.of("employerId", employerId, "date", firstDate.toString()));
+        }
         if (!legalEntity) {
             throw FuhitoException.invalid("employment.employer_not_legal_entity",
-                    Map.of("employerId", requestedId, "name", unit.version().names().primary().name()));
+                    Map.of("employerId", employerId, "name", name.get()));
         }
-        return requestedId;
     }
 
     @Override
@@ -85,7 +106,18 @@ public class LegalEntityEmployers implements Employers {
             return;
         }
         String employerId = employer.legalEntityId();
-        LocalDate end = orgUnits.versions(employerId).getLast().period().to();
+        requireEndsBy(employerId, orgUnits.versions(employerId).getLast().period().to(), period);
+    }
+
+    /**
+     * Requires that an employment ends by the end of its employer.
+     *
+     * @param employerId the ID of the employer
+     * @param end the end of the employer, or null when it has none
+     * @param period the period of the employment
+     * @throws FuhitoException when the employer ends before the employment does
+     */
+    static void requireEndsBy(String employerId, LocalDate end, ValidPeriod period) {
         if (end != null && (period.to() == null || period.to().isAfter(end))) {
             throw FuhitoException.conflict("employment.employer_ends",
                     Map.of("employerId", employerId, "date", end.toString()));

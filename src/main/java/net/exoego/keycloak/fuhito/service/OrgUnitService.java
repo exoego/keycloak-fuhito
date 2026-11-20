@@ -7,6 +7,7 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -303,7 +304,7 @@ public class OrgUnitService {
             String parentId = request.parentId();
             if (parentId != null) {
                 List<OrgUnitVersion> parent = versions(parentId);
-                requireParentCovers(parentId, parent, period);
+                requireParentCovers(parentId, lifeOf(parent), period);
                 requireDefaultLink(unit.id(), List.of(Nature.of(period, unitType)), parentId, natures(parent),
                         period);
             }
@@ -471,7 +472,7 @@ public class OrgUnitService {
 
         if (parentId != null) {
             requireParentCovers(parentId, period);
-            requireNoCycle(hierarchyId, id, parentId, period);
+            requireNoCycle(unitId -> store.parentLinks(hierarchyId, unitId), id, parentId, period, new HashSet<>());
             if (hierarchyId.equals(store.defaultHierarchyId())) {
                 requireDefaultLink(id, natures(id), parentId, natures(parentId), period);
             }
@@ -517,7 +518,7 @@ public class OrgUnitService {
         if (to.equals(current)) {
             return get(id, to.minusDays(1).toString());
         }
-        requireLaterThanPredecessors(id, to);
+        requireLaterThanPredecessors(id, new ValidPeriod(versions.getFirst().period().from(), to));
         if (current != null) {
             requireNoSuccessors(id);
         }
@@ -604,14 +605,23 @@ public class OrgUnitService {
                 l.period().endingAt(to))));
     }
 
-    // A unit that follows others must exist on the date of each succession.
-    private void requireLaterThanPredecessors(String id, LocalDate to) {
-        Optional<OrgUnitSuccession> followed = store.successions(id).stream()
-                .filter(link -> link.successorId().equals(id) && !to.isAfter(link.effectiveDate()))
-                .findFirst();
-        if (followed.isPresent()) {
-            throw FuhitoException.conflict("org_unit.follows_others",
-                    Map.of("id", id, "date", followed.get().effectiveDate().toString()));
+    private void requireLaterThanPredecessors(String id, ValidPeriod life) {
+        store.successions(id).stream()
+                .filter(link -> link.successorId().equals(id))
+                .forEach(link -> requireFollows(id, life, link.effectiveDate()));
+    }
+
+    /**
+     * Requires that a unit that follows others exists on the date of a succession.
+     *
+     * @param id the ID of the unit that follows
+     * @param life the life of the unit
+     * @param date the date of the succession
+     * @throws FuhitoException when the unit does not exist on the date
+     */
+    static void requireFollows(String id, ValidPeriod life, LocalDate date) {
+        if (!life.contains(date)) {
+            throw FuhitoException.conflict("org_unit.follows_others", Map.of("id", id, "date", date.toString()));
         }
     }
 
@@ -673,15 +683,31 @@ public class OrgUnitService {
                 all.stream().filter(link -> link.predecessorId().equals(id)).toList());
     }
 
-    // Walks up from the new parent on every date of the period. Meeting the moved unit means a cycle.
-    private void requireNoCycle(String hierarchyId, String movedId, String ancestorId, ValidPeriod period) {
+    /**
+     * Requires that a parent link puts no unit below itself. It walks up from the parent on every date of the link.
+     * Meeting the child means a cycle. A walk that meets a unit of its path again found a cycle above the child,
+     * which the links of that cycle report.
+     *
+     * @param parentLinks gives the parent links of a unit in the hierarchy of the link
+     * @param movedId the ID of the child
+     * @param ancestorId the ID of the parent, or of a unit above it
+     * @param period the dates of the link that the walk is on
+     * @param path the units of the walk so far
+     * @throws FuhitoException when the child is above itself on a date
+     */
+    static void requireNoCycle(Function<String, List<OrgUnitLink>> parentLinks, String movedId, String ancestorId,
+            ValidPeriod period, Set<String> path) {
         if (ancestorId.equals(movedId)) {
             throw FuhitoException.conflict("org_unit.cycle", Map.of("id", movedId));
         }
-        for (OrgUnitLink link : store.parentLinks(hierarchyId, ancestorId)) {
-            link.period().intersection(period)
-                    .ifPresent(shared -> requireNoCycle(hierarchyId, movedId, link.parentId(), shared));
+        if (!path.add(ancestorId)) {
+            return;
         }
+        for (OrgUnitLink link : parentLinks.apply(ancestorId)) {
+            link.period().intersection(period)
+                    .ifPresent(shared -> requireNoCycle(parentLinks, movedId, link.parentId(), shared, path));
+        }
+        path.remove(ancestorId);
     }
 
     /**
@@ -1116,8 +1142,14 @@ public class OrgUnitService {
         }
     }
 
-    // Whether a unit is a lateral unit or a rollup unit in a period of its details.
-    private record Nature(ValidPeriod period, boolean lateral, boolean rollup) {
+    /**
+     * Whether a unit is a lateral unit or a rollup unit in a period of its details.
+     *
+     * @param period the period of the details
+     * @param lateral true for a lateral unit
+     * @param rollup true for a rollup unit
+     */
+    record Nature(ValidPeriod period, boolean lateral, boolean rollup) {
 
         static Nature of(ValidPeriod period, RefItem unitType) {
             return new Nature(period, unitType != null && unitType.lateral(), unitType != null && unitType.rollup());
@@ -1135,9 +1167,18 @@ public class OrgUnitService {
                 .toList();
     }
 
-    // A link of the default hierarchy joins no rollup unit on any date. The parent of a line unit there is a line unit
-    // on every date. A lateral unit may be anywhere.
-    private static void requireDefaultLink(String childId, List<Nature> child, String parentId, List<Nature> parent,
+    /**
+     * Requires that a link of the default hierarchy joins no rollup unit on any date, and that the parent of a line
+     * unit there is a line unit on every date. A lateral unit may be anywhere.
+     *
+     * @param childId the ID of the child
+     * @param child the natures of the child
+     * @param parentId the ID of the parent
+     * @param parent the natures of the parent
+     * @param link the period of the link
+     * @throws FuhitoException when the link breaks the rule on a date
+     */
+    static void requireDefaultLink(String childId, List<Nature> child, String parentId, List<Nature> parent,
             ValidPeriod link) {
         for (Nature below : child) {
             for (Nature above : parent) {
@@ -1162,16 +1203,26 @@ public class OrgUnitService {
     }
 
     private void requireParentCovers(String parentId, ValidPeriod period) {
-        requireParentCovers(parentId, store.versions(parentId), period);
+        requireParentCovers(parentId, lifeOf(store.versions(parentId)), period);
     }
 
-    // The parent must exist on every date of the child. Versions of one unit have no gaps.
-    private static void requireParentCovers(String parentId, List<OrgUnitVersion> versions, ValidPeriod period) {
-        if (versions.isEmpty()) {
-            throw FuhitoException.invalid("org_unit.parent_unknown", Map.of("parentId", parentId));
-        }
-        ValidPeriod life = new ValidPeriod(versions.getFirst().period().from(),
-                versions.getLast().period().to());
+    // Versions of one unit have no gaps.
+    private static Optional<ValidPeriod> lifeOf(List<OrgUnitVersion> versions) {
+        return versions.isEmpty() ? Optional.empty()
+                : Optional.of(new ValidPeriod(versions.getFirst().period().from(), versions.getLast().period().to()));
+    }
+
+    /**
+     * Requires that a parent exists on every date of a link to it.
+     *
+     * @param parentId the ID of the parent
+     * @param parentLife the life of the parent, or empty when the realm has no such unit
+     * @param period the period of the link
+     * @throws FuhitoException when the parent does not exist on a date of the link
+     */
+    static void requireParentCovers(String parentId, Optional<ValidPeriod> parentLife, ValidPeriod period) {
+        ValidPeriod life = parentLife.orElseThrow(
+                () -> FuhitoException.invalid("org_unit.parent_unknown", Map.of("parentId", parentId)));
         if (!life.encloses(period)) {
             throw FuhitoException.conflict("org_unit.parent_not_valid",
                     Map.of("parentId", parentId, "validFrom", period.from().toString()));
