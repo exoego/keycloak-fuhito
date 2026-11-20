@@ -56,10 +56,12 @@ public class RestoreResource {
                     + "written all or nothing. A row that is null, or a row with no value that its table needs, such "
                     + "as `attributes`, fails with 400 and `restore.bad_value`. So does a text longer than its column, "
                     + "or a value that breaks the rule of a write, such as a code or a name. An empty text, a text of "
-                    + "only spaces, or an empty array in a row fails with 400 and `invalid.blank`, as in a write. The "
-                    + "error names the list, the `id` of the row, and the field. A row may have an empty list of its "
-                    + "own rows, such as `parents`. A username must name a user of this realm. An org unit names its "
-                    + "Keycloak organization by alias, and the restore asks for the permission to manage it.")
+                    + "only spaces, or an empty array in a row fails with 400 and `invalid.blank`, as in a write. A "
+                    + "text with NUL (U+0000) or half of a surrogate pair fails with 400 and `invalid.character`, "
+                    + "as in a write. The error names the list, the `id` of the row, and the field. A row may have "
+                    + "an empty list of its own rows, such as `parents`. A username must name a user of this realm. "
+                    + "An org unit names its Keycloak organization by alias, and the restore asks for the permission "
+                    + "to manage it.")
     @Parameter(ref = "changeOrder")
     @APIResponse(
             responseCode = "200",
