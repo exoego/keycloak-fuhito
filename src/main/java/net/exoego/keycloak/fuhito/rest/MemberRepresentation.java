@@ -26,8 +26,10 @@ public record MemberRepresentation(
         @Schema(description = "The ID of the org unit that employs the person.")
         String employerId,
         @Schema(
-                description = "True when the person works outside the employer. The org unit is then not the "
-                        + "employer and not below it in the default hierarchy.")
+                description = "True when the person works outside the employer. The org unit then belongs to "
+                        + "another legal entity on the date. A unit belongs to the legal entity that it is, else to "
+                        + "the nearest legal entity above it in the default hierarchy. A unit that belongs to none, "
+                        + "such as a rollup unit or a lateral root, gives no secondment.")
         boolean seconded,
         @Schema(description = "The number that the legal entity gives to the person.")
         String staffNumber,

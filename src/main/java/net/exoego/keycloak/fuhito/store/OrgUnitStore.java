@@ -283,15 +283,17 @@ public interface OrgUnitStore {
     List<String> lineOn(String hierarchyId, String id, LocalDate date);
 
     /**
-     * Finds the work location and the cost center that apply to units on a date. Each comes from the unit, or
-     * else from the nearest unit above it in the default hierarchy. The database walks upward, so the whole tree
-     * is not loaded.
+     * Finds the work location and the cost center that apply to units on a date. Each comes from the unit, or else from
+     * the nearest unit above it in the default hierarchy. The database walks upward, so the whole tree is not loaded.
      *
      * @param ids the IDs of the units
      * @param date the date
      * @return the values, by the ID of the unit. A unit with neither has no entry.
      */
     Map<String, UnitDefaults> defaultsOn(Collection<String> ids, LocalDate date);
+
+    /** Maps units to the legal entity that each belongs to on a date. A unit that belongs to none has no entry. */
+    Map<String, String> legalEntitiesOn(Collection<String> ids, LocalDate date);
 
     /**
      * Returns the lives of some units, from the first date of the first version to the end of the last one.

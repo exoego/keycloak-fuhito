@@ -633,7 +633,8 @@ public class OrgUnitsResource {
                     schema = @Schema(ref = "EmploymentStatus"))
             @QueryParam("status") String status,
             @Parameter(description = "True to keep only the people who work outside the legal entity that employs "
-                    + "them. False to keep everyone else. The default is everyone.")
+                    + "them. The org unit then belongs to another legal entity, as `seconded` of a member says. False "
+                    + "to keep everyone else. The default is everyone.")
             @QueryParam("seconded") Boolean seconded,
             @Parameter(
                     description = "The code of a work location to keep. It keeps the members whose work location "
@@ -702,7 +703,8 @@ public class OrgUnitsResource {
                     schema = @Schema(ref = "EmploymentStatus"))
             @QueryParam("status") String status,
             @Parameter(description = "True to keep only the people who work outside the legal entity that employs "
-                    + "them. False to keep everyone else. The default is everyone.")
+                    + "them. The org unit then belongs to another legal entity, as `seconded` of a member says. False "
+                    + "to keep everyone else. The default is everyone.")
             @QueryParam("seconded") Boolean seconded,
             @Parameter(
                     description = "The code of a work location to keep. It keeps the members whose work location "

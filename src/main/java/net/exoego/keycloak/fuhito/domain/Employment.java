@@ -20,4 +20,16 @@ package net.exoego.keycloak.fuhito.domain;
  */
 public record Employment(String id, String personId, String userId, String employerId, ValidPeriod period,
         String staffNumber, String endReasonId, String source, String continuesEmploymentId, long version) {
+
+    /**
+     * Tells whether a person of this employment works in an org unit as a secondment. That is when the unit belongs
+     * to another legal entity than the employer. An employment with no employer is never a secondment.
+     *
+     * @param legalEntityId the ID of the legal entity that the org unit belongs to on the date, or null when it
+     *        belongs to none
+     * @return true for a secondment
+     */
+    public boolean secondedTo(String legalEntityId) {
+        return employerId != null && legalEntityId != null && !employerId.equals(legalEntityId);
+    }
 }

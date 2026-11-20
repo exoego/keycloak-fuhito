@@ -125,9 +125,9 @@ class MembershipIT {
         assertEquals(List.of(clerk), users(api.get(all + "&asOf=2026-04-01&first=1&max=1")));
         assertEquals(List.of(nurse), users(api.get(all + "&asOf=2026-10-01&first=2&max=5")));
         assertEquals(List.of(), users(api.get(all + "&asOf=2026-10-01&status=ON_LEAVE&occupation=physician")));
-        // The employer of the realm is not above X病院, so every member there is seconded.
-        assertEquals(List.of(nurse), users(api.get(all + "&asOf=2026-04-01&occupation=nurse&seconded=true")));
-        assertEquals(List.of(), users(api.get(all + "&asOf=2026-04-01&jobTitle=director&seconded=false")));
+        // X病院 belongs to no legal entity, so no member there is seconded.
+        assertEquals(List.of(), users(api.get(all + "&asOf=2026-04-01&occupation=nurse&seconded=true")));
+        assertEquals(List.of(physician), users(api.get(all + "&asOf=2026-04-01&jobTitle=director&seconded=false")));
         String direct = "/org-units/" + xHospital + "/members?asOf=2026-04-01";
         assertEquals(List.of(physician), users(api.get(direct + "&occupation=physician&jobTitle=director&status=ACTIVE")));
         assertEquals(List.of(), users(api.get(direct + "&occupation=nurse")));
@@ -217,16 +217,7 @@ class MembershipIT {
         for (String list : List.of("/org-units/" + hospital + "/members?includeDescendants=true&asOf=2026-04-01",
                 "/org-units/" + wardA + "/members?asOf=2026-04-01")) {
             List<String> all = Api.json(scratchApi.get(list)).findValuesAsText("assignmentId");
-            List<String> followed = new ArrayList<>();
-            String path = list + "&max=2";
-            while (path != null) {
-                HttpResponse<String> response = scratchApi.get(path);
-                assertEquals(200, response.statusCode(), response.body());
-                followed.addAll(Api.json(response).findValuesAsText("assignmentId"));
-                String link = response.headers().firstValue("Link").orElse(null);
-                path = link == null ? null : link.substring(link.indexOf(prefix) + prefix.length(), link.indexOf('>'));
-            }
-            assertEquals(all, followed, list);
+            assertEquals(all, followed(scratch, list + "&max=2"), list);
         }
         assertEquals(7, Api.json(scratchApi.get("/org-units/" + hospital
                 + "/members?includeDescendants=true&asOf=2026-04-01")).size());
@@ -245,5 +236,141 @@ class MembershipIT {
         HttpResponse<String> gone = scratchApi.get(next.replace("asOf=2026-04-01", "asOf=2026-06-01"));
         assertEquals(400, gone.statusCode(), gone.body());
         assertEquals("invalid.cursor_unit", Api.json(gone).get("error").asText());
+    }
+
+    // The assignments of every page, from the first page to the last by the Link header.
+    private static List<String> followed(TestRealm realm, String list) throws Exception {
+        String prefix = "/admin/realms/" + realm.name + "/fuhito";
+        List<String> followed = new ArrayList<>();
+        for (String path = list; path != null;) {
+            HttpResponse<String> response = realm.api.get(path);
+            assertEquals(200, response.statusCode(), response.body());
+            followed.addAll(Api.json(response).findValuesAsText("assignmentId"));
+            String link = response.headers().firstValue("Link").orElse(null);
+            path = link == null ? null : link.substring(link.indexOf(prefix) + prefix.length(), link.indexOf('>'));
+        }
+        return followed;
+    }
+
+    @Test
+    void anAssignmentIsASecondmentWhenItsUnitBelongsToAnotherLegalEntity() throws Exception {
+        TestRealm scratch = TestRealm.create("membership-secondment");
+        Api s = scratch.api;
+        for (String marks : List.of("company\", \"legalEntity\": true", "branch\"", "lateral\", \"lateral\": true",
+                "region\", \"rollup\": true")) {
+            created(s.post("/ref-items", "{\"kind\": \"UNIT_TYPE\", \"code\": \"" + marks
+                    + ", \"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"種別\"}}}"));
+        }
+        // A holding company above company A, and company B beside them, below a group that is no legal entity.
+        String group = typedUnit(s, "グループ", null, null, 0);
+        String holding = typedUnit(s, "持株会社H", "company", group, 1);
+        String companyA = typedUnit(s, "会社A", "company", holding, 0);
+        String branchA = typedUnit(s, "A支店", "branch", companyA, 0);
+        String companyB = typedUnit(s, "会社B", "company", group, 2);
+        String branchB = typedUnit(s, "B支店", "branch", companyB, 0);
+        String union = typedUnit(s, "労働組合", "lateral", null, 0);
+        String kanto = typedUnit(s, "関東", "region", null, 0);
+        // A committee is a lateral unit below a hospital of a medical corporation.
+        String corporation = typedUnit(s, "医療法人M", "company", null, 0);
+        String committee = typedUnit(s, "感染対策委員会", "lateral", typedUnit(s, "M病院", null, corporation, 0), 0);
+        assertEquals(201, s.post("/hierarchies", "{\"code\": \"region\", \"name\": \"地域\"}").statusCode());
+        for (String branch : List.of(branchA, branchB)) {
+            assertEquals(200, s.putWithVersion("/org-units/" + branch + "/parent?hierarchy=region",
+                    "{\"parentId\": \"" + kanto + "\", \"validFrom\": \"2026-04-01\"}").statusCode());
+        }
+        String staffA = scratch.user("staff-a");
+        String staffH = scratch.user("staff-h");
+        String staffM = scratch.user("staff-m");
+        String ofA = employ(s, staffA, companyA);
+        String inGroup = assign(s, ofA, group, true, 0);
+        String inBranchB = assign(s, ofA, branchB, false, 0);
+        String inBranchA = assign(s, ofA, branchA, false, 1);
+        String holdingInBranchA = assign(s, employ(s, staffH, holding), branchA, true, 2);
+        String inUnion = assign(s, ofA, union, false, 0);
+        String inKanto = assign(s, ofA, kanto, false, 0);
+        assign(s, employ(s, staffM, corporation), committee, true, 1);
+        assign(s, ofA, committee, false, 2);
+        String on = "asOf=2026-04-01";
+
+        // A rollup unit, a lateral root, and a unit above every legal entity belong to no legal entity.
+        assertEquals(Map.of(group, false, branchB, true, branchA, false, union, false, kanto, false, committee, true),
+                secondedByUnit(s, staffA, on));
+        // Company A is a legal entity below the holding company, so its branch belongs to company A.
+        assertEquals(Map.of(branchA, true), secondedByUnit(s, staffH, on));
+        // The committee belongs to the medical corporation, like the hospital above it.
+        JsonNode inCommittee = Api.json(s.get("/org-units/" + committee + "/members?" + on));
+        assertEquals(List.of(staffM, staffA), inCommittee.findValuesAsText("userId"));
+        assertEquals(List.of("false", "true"), inCommittee.findValuesAsText("seconded"));
+
+        // Both sides of the filter, on every page.
+        String below = "/org-units/" + group + "/members?includeDescendants=true&" + on;
+        assertEquals(List.of(holdingInBranchA, inBranchB), followed(scratch, below + "&seconded=true&max=1"));
+        assertEquals(List.of(inGroup, inBranchA), followed(scratch, below + "&seconded=false&max=1"));
+        assertEquals(List.of(inBranchB), Api.json(s.get(below + "&seconded=true&first=1&max=1"))
+                .findValuesAsText("assignmentId"));
+        String count = "/org-units/" + group + "/members/count?includeDescendants=true&" + on;
+        assertEquals(2, s.count(count + "&seconded=true"));
+        assertEquals(2, s.count(count + "&seconded=false"));
+        String inA = "/org-units/" + branchA + "/members?";
+        assertEquals(List.of(holdingInBranchA), followed(scratch, inA + on + "&seconded=true&max=1"));
+        assertEquals(List.of(inBranchA), followed(scratch, inA + on + "&seconded=false&max=1"));
+        assertEquals(List.of(), followed(scratch, "/org-units/" + union + "/members?seconded=true&" + on));
+        assertEquals(List.of(inUnion), followed(scratch, "/org-units/" + union + "/members?seconded=false&" + on));
+        // In the hierarchy of the regions, the branches still belong to their companies.
+        String region = "/org-units/" + kanto + "/members?includeDescendants=true&hierarchy=region&" + on;
+        assertEquals(List.of(holdingInBranchA, inBranchB), followed(scratch, region + "&seconded=true&max=1"));
+        assertEquals(List.of(inKanto, inBranchA), followed(scratch, region + "&seconded=false&max=1"));
+        assertEquals(2, s.count("/org-units/" + kanto + "/members/count?includeDescendants=true&hierarchy=region&"
+                + on + "&seconded=true"));
+
+        // The branch is a company of its own for one year. The unit type of the date decides.
+        for (String[] change : new String[][] {{"company", "2027-04-01"}, {"branch", "2028-04-01"}}) {
+            assertEquals(200, s.putWithVersion("/org-units/" + branchA, "{\"validFrom\": \"" + change[1]
+                    + "\", \"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"A支店\"}}, \"unitType\": \""
+                    + change[0] + "\"}").statusCode());
+        }
+        List<Boolean> byDate = new ArrayList<>();
+        for (String date : List.of("2027-03-31", "2027-04-01", "2028-04-01")) {
+            byDate.add(secondedByUnit(s, staffA, "asOf=" + date).get(branchA));
+        }
+        assertEquals(List.of(false, true, false), byDate);
+        assertEquals(List.of(holdingInBranchA), followed(scratch, inA + "asOf=2027-03-31&seconded=true"));
+        assertEquals(List.of(inBranchA, holdingInBranchA), followed(scratch, inA + "asOf=2027-04-01&seconded=true"));
+        assertEquals(List.of(holdingInBranchA), followed(scratch, inA + "asOf=2028-04-01&seconded=true"));
+        assertEquals(List.of(inBranchA, holdingInBranchA, inBranchB), followed(scratch,
+                "/org-units/" + group + "/members?includeDescendants=true&asOf=2027-04-01&seconded=true&max=2"));
+    }
+
+    private static JsonNode created(HttpResponse<String> response) throws Exception {
+        assertEquals(201, response.statusCode(), response.body());
+        return Api.json(response);
+    }
+
+    private static String typedUnit(Api api, String name, String unitType, String parentId, int displayOrder)
+            throws Exception {
+        return created(api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \""
+                + name + "\"}}" + (unitType == null ? "" : ", \"unitType\": \"" + unitType + "\"")
+                + (parentId == null ? "" : ", \"parentId\": \"" + parentId + "\"") + ", \"displayOrder\": "
+                + displayOrder + ", \"validFrom\": \"2026-04-01\"}")).get("id").asText();
+    }
+
+    private static String employ(Api api, String userId, String employerId) throws Exception {
+        return created(api.post("/employments", "{\"userId\": \"" + userId + "\", \"employerId\": \"" + employerId
+                + "\", \"validFrom\": \"2026-04-01\"}")).get("id").asText();
+    }
+
+    private static String assign(Api api, String employmentId, String orgUnitId, boolean primary, int displayOrder)
+            throws Exception {
+        return created(api.post("/assignments", "{\"employmentId\": \"" + employmentId + "\", \"orgUnitId\": \""
+                + orgUnitId + "\", \"primary\": " + primary + ", \"displayOrder\": " + displayOrder
+                + ", \"validFrom\": \"2026-04-01\"}")).get("id").asText();
+    }
+
+    private static Map<String, Boolean> secondedByUnit(Api api, String userId, String query) throws Exception {
+        Map<String, Boolean> byUnit = new LinkedHashMap<>();
+        for (JsonNode assignment : Api.json(api.get("/users/" + userId + "/assignments?" + query))) {
+            byUnit.put(assignment.get("orgUnitId").asText(), assignment.get("seconded").asBoolean());
+        }
+        return byUnit;
     }
 }

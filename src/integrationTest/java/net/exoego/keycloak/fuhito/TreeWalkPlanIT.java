@@ -54,8 +54,34 @@ class TreeWalkPlanIT {
             assertIndexFinds(places, LINK_OF_CHILD, "child_id", "\\(u(_\\d+)?\\.above_id\\)");
             assertIndexFinds(places, VERSION_OF_UNIT, "org_unit_id", "\\(u(_\\d+)?\\.above_id\\)");
             assertIndexFinds(places, "idx_fuhito_assignment_org_unit", "'ex-new-unit-15'");
+
+            assertWalksUpToTheLegalEntity(statement);
             connection.rollback();
         }
+    }
+
+    // The two employers are legal entities, so a walk up stops at one of them.
+    private static void employersAreLegalEntities(Statement statement) throws Exception {
+        statement.execute("""
+                insert into fuhito_ref_item (id, realm_id, kind, code, attributes, legal_entity)
+                values ('ex-new-company', 'ex-new-realm', 'UNIT_TYPE', 'company', '{}', true)""");
+        statement.execute("""
+                update fuhito_org_unit_version set unit_type_id = 'ex-new-company'
+                where org_unit_id in ('ex-new-unit-1', 'ex-new-unit-2')""");
+    }
+
+    private static void assertWalksUpToTheLegalEntity(Statement statement) throws Exception {
+        employersAreLegalEntities(statement);
+        String entities = walk(statement, legalEntitiesOn());
+        assertIndexFinds(entities, LINK_OF_CHILD, "child_id", "\\(e(_\\d+)?\\.above_id\\)");
+        assertIndexFinds(entities, VERSION_OF_UNIT, "org_unit_id", "\\(e(_\\d+)?\\.above_id\\)");
+        assertIndexFinds(entities, VERSION_OF_UNIT, "org_unit_id", "ANY");
+
+        String seconded = walk(statement, membersOfOneUnitBySecondment());
+        assertIndexFinds(seconded, LINK_OF_CHILD, "child_id", "\\(e(_\\d+)?\\.above_id\\)");
+        assertIndexFinds(seconded, VERSION_OF_UNIT, "org_unit_id", "\\(e(_\\d+)?\\.above_id\\)");
+        assertIndexFinds(seconded, "idx_fuhito_assignment_org_unit", "'ex-new-unit-15'");
+        assertIndexFinds(seconded, "pk_fuhito_employment", "\\(a(_\\d+)?\\.employment_id\\)");
     }
 
     // After an analyze, PostgreSQL took the indexes of the exclusion constraints for these lookups too.
@@ -89,6 +115,8 @@ class TreeWalkPlanIT {
             assertIndexFinds(page, LINK_OF_CHILD, "child_id", "\\(v(_\\d+)?\\.org_unit_id\\)");
             assertIndexFinds(page, VERSION_OF_UNIT, "org_unit_id", "'ex-new-unit-1'");
             assertIndexFinds(page, VERSION_OF_UNIT, "org_unit_id", "\\(l(_\\d+)?\\.child_id\\)");
+
+            assertWalksUpToTheLegalEntity(statement);
             connection.rollback();
         }
     }
@@ -137,39 +165,30 @@ class TreeWalkPlanIT {
             assertIndexFinds(withPlaces, LINK_OF_CHILD, "child_id", "\\(u(_\\d+)?\\.above_id\\)");
             assertIndexFinds(withPlaces, VERSION_OF_UNIT, "org_unit_id", "\\(u(_\\d+)?\\.above_id\\)");
 
-            // The members of one unit by a secondment. Each employer of the realm walks down, so the walk starts
-            // from every employment of the realm.
-            String seconded = walk(statement, """
-                    with recursive owned (employer_id, unit_id, hierarchy_id, realm_id) as (
-                        select m.employer_id, m.employer_id, cast('ex-new-hierarchy' as varchar), m.realm_id
-                        from fuhito_employment m where m.realm_id = 'ex-new-realm' and m.employer_id is not null
-                        group by m.employer_id, m.realm_id
-                        union all
-                        select o.employer_id, l.child_id, o.hierarchy_id, o.realm_id from owned o
-                        join fuhito_org_unit_link l on l.parent_id = o.unit_id and l.hierarchy_id = o.hierarchy_id
-                            and l.realm_id = o.realm_id and %s)
-                    select a.* from fuhito_assignment a where a.org_unit_id = 'ex-new-unit-7' and %s and %s
-                    and exists (select 1 from fuhito_employment m where m.id = a.employment_id
-                    and m.employer_id is not null and not exists (select 1 from owned o
-                    where o.employer_id = m.employer_id and o.unit_id = a.org_unit_id))
-                    order by a.display_order, a.valid_from, a.assignment_id fetch first 100 rows only"""
-                    .formatted(onDate("l"), realmOfUnit("a", "ex-new-unit-7"), onDate("a")), "hierarchy");
-            assertIndexOrHashFinds(seconded, "idx_fuhito_org_unit_link_parent", "parent_id",
-                    "\\(o(_\\d+)?\\.unit_id\\)", "\\(o(_\\d+)?\\.hierarchy_id\\)");
+            // By a secondment, the walk down gives each unit the legal entity of its parent unless it is one. Only
+            // the first unit walks up.
+            employersAreLegalEntities(statement);
+            String seconded = walk(statement, "with recursive " + legalEntities("""
+                    from fuhito_org_unit_version v where v.org_unit_id = 'ex-new-unit-1' and %s and %s"""
+                    .formatted(realmOfUnit("v", "ex-new-unit-1"), onDate("v"))) + ", " + tree(true)
+                    + members.formatted(realmOfUnit("a", "ex-new-unit-1"), onDate("a"), """
+                     and t.entity_id <> (select m.employer_id from fuhito_employment m
+                    where m.id = a.employment_id)"""));
+            assertIndexOrHashFinds(seconded, "idx_fuhito_org_unit_link_parent", children);
+            assertIndexOrHashFinds(seconded, "idx_fuhito_assignment_org_unit", unitsOfTheWalk);
+            assertIndexFinds(seconded, LINK_OF_CHILD, "child_id", "\\(v(_\\d+)?\\.org_unit_id\\)");
+            assertIndexFinds(seconded, "pk_fuhito_employment", "\\(a(_\\d+)?\\.employment_id\\)");
             connection.rollback();
         }
     }
 
+    // An index scan with only the realm or only the hierarchy reads every row of the new realm, or every link of its
+    // hierarchy. The indexes of the exclusion constraints on the versions and the links are slower than their unique
+    // keys.
     private static String walk(Statement statement, String query) throws Exception {
-        return walk(statement, query, "realm|hierarchy");
-    }
-
-    // An index scan with only one of the columns reads every row of the new realm, or every link of its hierarchy.
-    // The indexes of the exclusion constraints on the versions and the links are slower than their unique keys.
-    private static String walk(Statement statement, String query, String columns) throws Exception {
         // Without analyze, PostgreSQL does not show the lookups in the recursive part.
         String plan = plan(statement, "explain (analyze, costs off) " + query);
-        String onlyOne = "Index Cond: \\(+\\((" + columns + ")_id\\)::text = '[^']*'::text\\)"
+        String onlyOne = "Index Cond: \\(+\\((realm|hierarchy)_id\\)::text = '[^']*'::text\\)"
                 + "( AND \\(valid_\\w+ [^)]*\\))?\\)?";
         assertFalse(plan.lines().map(String::strip).anyMatch(line -> line.matches(onlyOne)), plan);
         assertFalse(plan.contains("ex_fuhito_org_unit_version_period"), plan);
@@ -299,16 +318,21 @@ class TreeWalkPlanIT {
 
     // TreeQuery.TREE from the first unit.
     private static String tree() {
+        return tree(false);
+    }
+
+    // TreeQuery.treeCarrying from the first unit, with the legal entity of each unit or without it.
+    private static String tree(boolean legalEntities) {
         return """
-                tree (id, version_id, parent_id, display_order, phonetic_name, name, hierarchy_id, realm_id) as (
+                tree (id, version_id, parent_id, display_order, phonetic_name, name, hierarchy_id, realm_id%s) as (
                     select v.org_unit_id, v.id, %s, v.display_order, n.phonetic_name, n.name,
-                        cast('ex-new-hierarchy' as varchar), v.realm_id
+                        cast('ex-new-hierarchy' as varchar), v.realm_id%s
                     from fuhito_org_unit_version v
                     join fuhito_org_unit_version_name n on n.version_id = v.id and n.is_primary = true
                     where v.org_unit_id = 'ex-new-unit-1' and %s and %s
                     union all
                     select v.org_unit_id, v.id, l.parent_id, v.display_order, n.phonetic_name, n.name, p.hierarchy_id,
-                        p.realm_id
+                        p.realm_id%s
                     from tree p
                     join fuhito_org_unit_link l on l.parent_id = p.id and l.hierarchy_id = p.hierarchy_id
                         and l.realm_id = p.realm_id and %s
@@ -318,8 +342,52 @@ class TreeWalkPlanIT {
                         and (v.valid_to is null or v.valid_to > '2026-04-01')
                     join fuhito_org_unit_version_name n on n.version_id = v.id and n.is_primary = true
                 ) search depth first by display_order, phonetic_name, name, id set position
-                """.formatted(parentOf("v.org_unit_id", false), realmOfUnit("v", "ex-new-unit-1"), onDate("v"),
-                onDate("l"));
+                """.formatted(legalEntities ? ", entity_id" : "", parentOf("v.org_unit_id", false),
+                legalEntities ? ", (select max(e.entity_id) from legal_entities e)" : "",
+                realmOfUnit("v", "ex-new-unit-1"), onDate("v"),
+                legalEntities ? ", case when %s then v.org_unit_id else p.entity_id end".formatted(legalEntity("v"))
+                        : "", onDate("l"));
+    }
+
+    // TreeQuery.legalEntities from the units of the alias v.
+    private static String legalEntities(String units) {
+        return """
+                legal_entities (unit_id, above_id, entity_id, realm_id) as (
+                    select v.org_unit_id, %s, case when %s then v.org_unit_id end, v.realm_id
+                    %s
+                    union all
+                    select e.unit_id, %s, case when exists (select 1 from fuhito_org_unit_version w
+                        where w.org_unit_id = e.above_id and %s and %s) then e.above_id end, e.realm_id
+                    from legal_entities e where e.entity_id is null and e.above_id is not null
+                )
+                """.formatted(parentOf("v.org_unit_id", false), legalEntity("v"), units,
+                parentOf("e.above_id", false), onDate("w"), legalEntity("w"));
+    }
+
+    private static String legalEntity(String version) {
+        return "exists (select 1 from fuhito_ref_item g where g.id = %s.unit_type_id and g.legal_entity = true)"
+                .formatted(version);
+    }
+
+    // JpaOrgUnitStore.LEGAL_ENTITIES.
+    private static String legalEntitiesOn() {
+        return "with recursive " + legalEntities("from fuhito_org_unit_version v where v.org_unit_id = %s and %s"
+                .formatted(IDS, onDate("v"))) + """
+                select e.unit_id, e.entity_id from legal_entities e
+                where e.realm_id = 'ex-new-realm' and e.entity_id is not null""";
+    }
+
+    // The read of the members of one unit by a secondment.
+    private static String membersOfOneUnitBySecondment() {
+        return "with recursive " + legalEntities("""
+                from fuhito_org_unit_version v where v.org_unit_id = 'ex-new-unit-15' and %s and %s"""
+                .formatted(realmOfUnit("v", "ex-new-unit-15"), onDate("v"))) + """
+                select a.* from fuhito_assignment a left join legal_entities le on le.unit_id = a.org_unit_id
+                    and le.entity_id is not null
+                where a.org_unit_id = 'ex-new-unit-15' and %s and %s
+                and le.entity_id <> (select m.employer_id from fuhito_employment m where m.id = a.employment_id)
+                order by a.display_order, a.valid_from, a.assignment_id fetch first 100 rows only"""
+                .formatted(realmOfUnit("a", "ex-new-unit-15"), onDate("a"));
     }
 
     // TreeQuery.places from the units of the alias v.

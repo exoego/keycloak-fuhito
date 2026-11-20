@@ -269,6 +269,17 @@ final class MemoryOrgUnitStore implements OrgUnitStore {
     }
 
     @Override
+    public Map<String, String> legalEntitiesOn(Collection<String> ids, LocalDate date) {
+        OrgUnitTree tree = new OrgUnitTree(this, refItems, date);
+        Map<String, String> result = new HashMap<>();
+        ids.stream().filter(tree::exists).forEach(id -> tree.path(id).reversed().stream()
+                .filter(OrgUnitState::legalEntity)
+                .findFirst()
+                .ifPresent(entity -> result.put(id, entity.unit().id())));
+        return result;
+    }
+
+    @Override
     public List<OrgUnit> unitsWithOwnTime() {
         return units.values().stream().filter(unit -> unit.timeZone() != null || unit.dayStart() != null).toList();
     }

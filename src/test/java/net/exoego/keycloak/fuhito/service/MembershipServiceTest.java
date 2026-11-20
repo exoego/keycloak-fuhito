@@ -7,6 +7,7 @@ import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import net.exoego.keycloak.fuhito.domain.BusinessDay;
 import net.exoego.keycloak.fuhito.domain.Assignment;
@@ -55,6 +56,12 @@ class MembershipServiceTest {
     void createTheHospital() {
         assignmentStore.orgUnits = orgUnitStore;
         assignmentStore.employments = employmentStore;
+        orgUnitStore.refItems = refItems;
+        // The marks are legal entity, acting head, lateral, and rollup.
+        unitType("company", true, false, false);
+        unitType("branch", false, false, false);
+        unitType("union", false, true, false);
+        unitType("region", false, false, true);
         for (String[] item : new String[][] {{"OCCUPATION", "physician"}, {"OCCUPATION", "nurse"},
                 {"JOB_TITLE", "director"}, {"EMPLOYMENT_TYPE", "part-time"}, {"GRADE", "g2"},
                 {"ASSIGNMENT_KIND", "regular"}, {"WORK_LOCATION", "tokyo"}, {"WORK_LOCATION", "osaka"},
@@ -63,17 +70,26 @@ class MembershipServiceTest {
             refItems.insert(new RefItem(item[0] + "-" + item[1], RefKind.valueOf(item[0]), item[1], ItemNames.of(item[1]),
                     0, Map.of(), true));
         }
-        hospital = unit("Hospital", null);
+        hospital = unit("Hospital", "company", null);
         nursing = unit("Nursing", hospital);
         ward = unit("Ward", nursing);
-        otherHospital = unit("Other Hospital", null);
+        otherHospital = unit("Other Hospital", "company", null);
         doctorEmployment = employ("doctor", "D-1", null, null);
         nurseEmployment = employ("nurse", "N-1", "part-time", "g2");
         clerkEmployment = employ("clerk", null, null, null);
     }
 
+    private void unitType(String code, boolean legalEntity, boolean lateral, boolean rollup) {
+        refItems.insert(new RefItem("UNIT_TYPE-" + code, RefKind.UNIT_TYPE, code, ItemNames.of(code), 0, Map.of(),
+                true, legalEntity, false, lateral, rollup));
+    }
+
     private String unit(String name, String parentId) {
-        return orgUnits.create(new NewOrgUnit(null, "ja", ja(name), null, parentId, "2026-04-01", null,
+        return unit(name, null, parentId);
+    }
+
+    private String unit(String name, String unitType, String parentId) {
+        return orgUnits.create(new NewOrgUnit(null, "ja", ja(name), unitType, parentId, "2026-04-01", null,
                 null, null, null)).unit().id();
     }
 
@@ -120,8 +136,86 @@ class MembershipServiceTest {
     }
 
     private static MemberQuery seconded(boolean wanted, boolean includeDescendants) {
-        return new MemberQuery("2026-04-01", includeDescendants, null, null, null, null, null, null, null, wanted, null,
-                null);
+        return seconded(wanted, includeDescendants, null, null);
+    }
+
+    private static MemberQuery seconded(boolean wanted, boolean includeDescendants, Integer first, Integer max) {
+        return new MemberQuery("2026-04-01", includeDescendants, null, null, null, first, max, null, null, wanted,
+                null, null);
+    }
+
+    @Test
+    void anAssignmentIsASecondmentWhenItsUnitBelongsToAnotherLegalEntity() {
+        // A holding company above company A, and company B beside them, below a group that is no legal entity.
+        String group = unit("Group", null);
+        String holding = unit("Holding", "company", group);
+        String companyA = unit("Company A", "company", holding);
+        String branchA = unit("A Branch", "branch", companyA);
+        String companyB = unit("Company B", "company", group);
+        String branchB = unit("B Branch", "branch", companyB);
+        String union = unit("Union", "union", null);
+        String kanto = unit("Kanto", "region", null);
+        String committee = unit("Committee", "union", hospital);
+        String ofA = employments.start(new NewEmployment("idle", "2026-04-01", null, null, null, null, null, null,
+                null, null, null, null, companyA)).employment().id();
+        String ofH = employments.start(new NewEmployment("clerk", "2026-04-01", null, null, null, null, null, null,
+                null, null, null, null, holding)).employment().id();
+        String ofHospital = employments.start(new NewEmployment("nurse", "2026-04-01", null, null, null, null, null,
+                null, null, null, null, null, hospital)).employment().id();
+        String guest = employments.start(new NewEmployment("doctor", "2026-04-01", null, null, null, null, null, null,
+                null, null, null, null, otherHospital)).employment().id();
+        String inGroup = assign(ofA, group, "2026-04-01", null, null, true, 0);
+        String inBranchB = assign(ofA, branchB, "2026-04-01", null, null, false, 0);
+        String inBranchA = assign(ofA, branchA, "2026-04-01", null, null, false, 1);
+        String holdingInBranchA = assign(ofH, branchA, "2026-04-01", null, null, true, 2);
+        assign(ofA, union, "2026-04-01", null, null, false, 0);
+        assign(ofA, kanto, "2026-04-01", null, null, false, 0);
+        assign(ofHospital, committee, "2026-04-01", null, null, true, 1);
+        assign(guest, committee, "2026-04-01", null, null, true, 2);
+
+        // A rollup unit, a lateral root, and a unit above every legal entity belong to none.
+        assertEquals(Map.of(group, false, branchB, true, branchA, false, union, false, kanto, false),
+                secondedByUnit("idle", "2026-04-01"));
+        // Company A is a legal entity below the holding company, so its branch belongs to company A.
+        assertEquals(Map.of(branchA, true), secondedByUnit("clerk", "2026-04-01"));
+        // A lateral unit below the hospital belongs to the hospital.
+        assertEquals(List.of(false, true), service.members(committee, on("2026-04-01")).stream()
+                .map(Member::seconded).toList());
+
+        // Both sides of the filter, before the page and the count.
+        assertEquals(List.of(inBranchB, holdingInBranchA), assignmentIds(service.members(group,
+                seconded(true, true))));
+        assertEquals(List.of(inBranchB), assignmentIds(service.members(group, seconded(true, true, null, 1))));
+        assertEquals(List.of(holdingInBranchA), assignmentIds(service.members(group, seconded(true, true, 1, 1))));
+        assertEquals(2, service.countMembers(group, seconded(true, true, 1, 1)));
+        assertEquals(List.of(inGroup, inBranchA), assignmentIds(service.members(group, seconded(false, true))));
+        assertEquals(List.of(inBranchA), assignmentIds(service.members(group, seconded(false, true, 1, 1))));
+        assertEquals(2, service.countMembers(group, seconded(false, true)));
+        assertEquals(List.of(holdingInBranchA), assignmentIds(service.members(branchA, seconded(true, false))));
+        assertEquals(List.of(inBranchA), assignmentIds(service.members(branchA, seconded(false, false))));
+        assertEquals(List.of(), assignmentIds(service.members(kanto, seconded(true, false))));
+        assertEquals(1, service.countMembers(union, seconded(false, false)));
+        assertEquals(List.of("doctor"), userIds(service.members(committee, seconded(true, false))));
+
+        // The branch is a company of its own for one year. The unit type of the date decides.
+        orgUnits.changeDetails(branchA, new OrgUnitChange("2027-04-01", null, "ja", ja("A Branch"), "company",
+                null, null));
+        orgUnits.changeDetails(branchA, new OrgUnitChange("2028-04-01", null, "ja", ja("A Branch"), "branch",
+                null, null));
+        assertEquals(List.of(false, true, false), List.of("2027-03-31", "2027-04-01", "2028-04-01").stream()
+                .map(date -> secondedByUnit("idle", date).get(branchA)).toList());
+        assertEquals(List.of("clerk"), userIds(service.members(branchA, secondedOn("2027-03-31"))));
+        assertEquals(List.of("idle", "clerk"), userIds(service.members(branchA, secondedOn("2027-04-01"))));
+        assertEquals(List.of("clerk"), userIds(service.members(branchA, secondedOn("2028-04-01"))));
+    }
+
+    private static MemberQuery secondedOn(String asOf) {
+        return new MemberQuery(asOf, false, null, null, null, null, null, null, null, true, null, null);
+    }
+
+    private Map<String, Boolean> secondedByUnit(String userId, String asOf) {
+        return service.assignmentsOf(userId, asOf, false).stream()
+                .collect(Collectors.toMap(member -> member.assignment().orgUnitId(), Member::seconded));
     }
 
     @Test

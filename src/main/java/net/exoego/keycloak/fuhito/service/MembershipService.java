@@ -259,8 +259,7 @@ public class MembershipService {
                 .collect(Collectors.toMap(Employment::id, Function.identity()));
         Map<String, EmploymentTerms> termsByEmployment = employments.termsOn(employmentIds, date).stream()
                 .collect(Collectors.toMap(EmploymentTerms::employmentId, Function.identity()));
-        // A person works outside the employer when the employer is not on the way up from the org unit.
-        Map<String, Set<String>> above = orgUnits.ancestorsOn(orgUnits.defaultHierarchyId(),
+        Map<String, String> legalEntities = orgUnits.legalEntitiesOn(
                 rows.stream().map(Assignment::orgUnitId).distinct().toList(), date);
         Function<String, String> code = UnitPlaces.codes(refItems);
         // The rows hold on the date, so this is one read of the units for all of them.
@@ -270,8 +269,7 @@ public class MembershipService {
             Assignment row = rows.get(i);
             EmploymentTerms terms = termsByEmployment.get(row.employmentId());
             Employment employment = employmentsById.get(row.employmentId());
-            boolean seconded = employment.employerId() != null
-                    && !above.getOrDefault(row.orgUnitId(), Set.of()).contains(employment.employerId());
+            boolean seconded = employment.secondedTo(legalEntities.get(row.orgUnitId()));
             members.add(new Member(row, employment, terms,
                     code.apply(row.jobTitleId()), code.apply(row.occupationId()), code.apply(row.kindId()),
                     code.apply(terms.employmentTypeId()), code.apply(terms.gradeId()),

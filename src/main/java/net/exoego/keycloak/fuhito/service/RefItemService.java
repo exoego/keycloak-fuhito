@@ -403,7 +403,7 @@ public class RefItemService {
         if (legalEntity && lateral) {
             throw FuhitoException.invalid("ref_item.lateral_legal_entity", Map.of("code", code));
         }
-        // A lateral unit sits in the default hierarchy, and so does an employer for the check of secondments.
+        // A lateral unit sits in the default hierarchy, and so does a legal entity for the check of secondments.
         if (rollup && lateral) {
             throw FuhitoException.invalid("ref_item.rollup_lateral", Map.of("code", code));
         }
