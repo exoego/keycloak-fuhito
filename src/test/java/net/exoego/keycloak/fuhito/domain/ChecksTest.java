@@ -114,11 +114,14 @@ class ChecksTest {
     @Test
     void readsADate() {
         assertEquals(LocalDate.of(2026, 4, 1), Checks.date("validFrom", "2026-04-01"));
+        assertEquals(Checks.FIRST_DATE, Checks.date("validFrom", "0001-01-01"));
+        assertEquals(Checks.LAST_DATE, Checks.date("validFrom", "9999-12-31"));
         assertEquals("invalid.required", invalid(() -> Checks.date("validFrom", null)).code());
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"", "2026/04/01", "2026-4-1", "2026-02-30", "today"})
+    @ValueSource(strings = {"", "2026/04/01", "2026-4-1", "2026-02-30", "today", "-5000-01-01", "+10000-01-01",
+            "0000-12-31", "+2026-04-01"})
     void rejectsABadDate(String text) {
         FuhitoException e = invalid(() -> Checks.date("validFrom", text));
         assertEquals("invalid.date", e.code());

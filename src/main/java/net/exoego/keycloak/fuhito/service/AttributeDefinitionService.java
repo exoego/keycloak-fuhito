@@ -1,7 +1,7 @@
 package net.exoego.keycloak.fuhito.service;
 
+import java.time.DateTimeException;
 import java.time.LocalDate;
-import java.time.format.DateTimeParseException;
 import java.util.Arrays;
 import java.util.EnumMap;
 import java.util.HashMap;
@@ -236,9 +236,9 @@ public class AttributeDefinitionService implements AttributeRules {
 
     private static boolean isDate(String text) {
         try {
-            LocalDate.parse(text);
+            Checks.inRange(LocalDate.parse(text));
             return true;
-        } catch (DateTimeParseException e) {
+        } catch (DateTimeException e) {
             return false;
         }
     }

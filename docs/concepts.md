@@ -128,6 +128,8 @@ A field with a date or a time is one of two kinds, and its name tells which.
 | Ends in `At`, such as `recordedAt`, `createdAt`, and `maskedAt` | A time that the system recorded. It is a fact. | The system, when the thing happens | No |
 | Ends in `Date`, such as `effectiveDate` and `orderDate`, and `validFrom` and `validTo` | A date of the business. It can be a plan. | The request | Yes |
 
+A date has the form `YYYY-MM-DD`, from `0001-01-01` to `9999-12-31`. Every date of a write, of an import, of a restore, and of a query such as `asOf` must be in that range. Java reads other dates too, but PostgreSQL cannot hold some of them and gives year 0 back as year 1. These are the years that the form writes with no sign, without year 0.
+
 A date of the business does not say whether the thing happened. An end of an employment next month is a plan today, and the field is the same after that day.
 When a reader must know that something happened, the field is an `At` field that an operation sets. No request gives it a value.
 
@@ -171,7 +173,7 @@ Org units, people, employment terms, assignments, qualifications, and reference 
 A realm defines each name with `POST /attribute-definitions` before a write gives it, so that products use one name for one thing.
 
 - The attributes of one write are at most 64 KB as JSON, counted in bytes of UTF-8. A larger write fails with `attribute.too_large`.
-- A definition is for one kind of resource and one name. It has a type, `STRING`, `NUMBER`, `BOOLEAN`, `DATE`, or `REF_ITEM` with a kind of reference data.
+- A definition is for one kind of resource and one name. It has a type, `STRING`, `NUMBER`, `BOOLEAN`, `DATE`, or `REF_ITEM` with a kind of reference data. A `DATE` value is a text in the form `YYYY-MM-DD`, in the range of every other date.
 - A definition with `multiple` holds a list. The value is a JSON array, and each element has the type. A `REF_ITEM` list checks the code of each element.
 - A text that is empty or only spaces fails with `invalid.blank`, also an element of a list, as a CSV cell cannot hold such a text. An empty array fails with `invalid.blank` too. The error names the field, for example `attributes.shifts`. Leave the name out, or give null, for no value.
 - Every write of the resource is checked against the definitions. A value of the wrong type fails with `attribute.bad_value`. A missing required one fails with `attribute.required`.

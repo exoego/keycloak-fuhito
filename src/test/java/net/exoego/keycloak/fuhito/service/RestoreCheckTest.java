@@ -38,6 +38,18 @@ class RestoreCheckTest {
                 null, null, null, null, null, List.of(terms))), null, null);
     }
 
+    private static RealmExport terms(String validFrom, String contractEndDate) {
+        RealmExport.Terms terms = new RealmExport.Terms("t-1", validFrom, null, null, null, "ACTIVE", null, null,
+                contractEndDate, Map.of());
+        return of(null, null, List.of(new RealmExport.EmploymentRow("e-1", 1L, "p-1", "u-1", null, "2020-04-01",
+                null, null, null, null, null, List.of(terms))), null, null);
+    }
+
+    private static RealmExport erasure(String erasedAt) {
+        return new RealmExport(RealmExport.FORMAT, null, null, null, null, null, null, null, null, null, null, null,
+                null, null, List.of(new RealmExport.Erasure("p-1", erasedAt)));
+    }
+
     private static RealmExport externalId(String value) {
         return of(null, null, null, List.of(new RealmExport.ExternalIdRow("x-1", 1L, "PERSON", "p-1", "hr", value)),
                 null);
@@ -78,5 +90,17 @@ class RestoreCheckTest {
         assertDoesNotThrow(() -> check(unit("hr", "Asia/Tokyo", "04:00")));
         assertDoesNotThrow(() -> check(workPercent("100.00")));
         assertDoesNotThrow(() -> check(externalId("x".repeat(255))));
+    }
+
+    @Test
+    void aDateOrATimeIsOneThatAWriteTakes() {
+        for (String date : List.of("-5000-01-01", "+10000-01-01", "0000-12-31", "someday")) {
+            assertBadValue(terms(date, null), "employment-terms", "t-1", "validFrom");
+            assertBadValue(terms("2020-04-01", date), "employment-terms", "t-1", "contractEndDate");
+            assertBadValue(erasure(date + "T00:00:00Z"), "erasures", "p-1", "erasedAt");
+        }
+        assertDoesNotThrow(() -> check(terms("0001-01-01", "9999-12-31")));
+        assertDoesNotThrow(() -> check(erasure("0001-01-01T00:00:00Z")));
+        assertDoesNotThrow(() -> check(erasure("9999-12-31T23:59:59.999999Z")));
     }
 }
