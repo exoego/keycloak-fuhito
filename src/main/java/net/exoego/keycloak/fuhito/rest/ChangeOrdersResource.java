@@ -184,7 +184,12 @@ public class ChangeOrdersResource {
 
     @PUT
     @Path("{id}")
-    @Operation(operationId = "updateChangeOrder", summary = "Replaces the values of a change order.")
+    @Operation(
+            operationId = "updateChangeOrder",
+            summary = "Replaces the values of a change order.",
+            description = "With `source` and `externalId`, the order gets that ID of that system. `source` with no "
+                    + "`externalId` fails with 400 and `invalid.value_fixed`, because an order keeps no system that "
+                    + "made it.")
     @Parameter(ref = "changeOrder")
     @APIResponse(responseCode = "200", description = "The changed order.")
     @BadRequest
@@ -198,7 +203,10 @@ public class ChangeOrdersResource {
             ChangeOrderRepresentation body) {
         context.requireWrite();
         return Calls.guarded(context, body, () -> version(id), () -> {
-            var order = represent(service.update(id, body.toValues()));
+            Writes.requireNoSource(body.source(), body.externalId());
+            Writes.requireRead(body, () -> represent(service.get(id)), ChangeOrderRepresentation.READ_ONLY);
+            var order = represent(externalIds.write(ExternalId.Kind.CHANGE_ORDER, id, body.source(),
+                    body.externalId(), () -> service.update(id, body.toValues())));
             context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, path(id), order);
             return order;
         });

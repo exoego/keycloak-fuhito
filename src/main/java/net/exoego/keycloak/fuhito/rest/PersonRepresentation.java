@@ -15,7 +15,10 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
  */
 @Schema(name = "Person", description = "A person that the realm knows. A person does not need a Keycloak user.")
 public record PersonRepresentation(
-        @Schema(readOnly = true)
+        @Schema(
+                description = "The ID of the person. A write of a stored person with another ID fails with 400 and "
+                        + "`invalid.value_fixed`.",
+                readOnly = true)
         String id,
         @Schema(description = "The version of the person. A new person has 1. Each write counts it up by one, also a "
                 + "mask or a change of an ID of another system. A write of a stored person sends the version that "
@@ -27,16 +30,21 @@ public record PersonRepresentation(
                 description = "The name in the language of the request. It is the one of the first language of "
                         + "`Accept-Language`, else the one of that language with no region, such as `en` for "
                         + "`en-US`, else the primary one. A request with no `Accept-Language` reads the primary one. "
-                        + "When the record has no names, it is the name of the linked user from Keycloak.",
+                        + "When the record has no names, it is the name of the linked user from Keycloak. A write of a "
+                        + "stored person with another value fails with 400 and `invalid.value_fixed`.",
                 readOnly = true)
         String name,
         @Schema(
                 description = "Where the name of a response came from. `RECORD` is the person record. `KEYCLOAK` "
-                        + "is the linked user. It is missing when there is no name.",
+                        + "is the linked user. It is missing when there is no name. A write of a stored person with "
+                        + "another value fails with 400 and `invalid.value_fixed`.",
                 enumeration = {"RECORD", "KEYCLOAK"},
                 readOnly = true)
         String nameSource,
-        @Schema(description = "The reading of the name in the language of `name`.", readOnly = true)
+        @Schema(
+                description = "The reading of the name in the language of `name`. A write of a stored person with "
+                        + "another value fails with 400 and `invalid.value_fixed`.",
+                readOnly = true)
         String phoneticName,
         @Schema(
                 description = "The language tag of the primary names, such as `ja`. It matches a key of `names` in "
@@ -68,9 +76,13 @@ public record PersonRepresentation(
         String source,
         @Schema(
                 description = "Every ID that a system has for the person. The one of `source` comes first, then "
-                        + "the others by system.",
+                        + "the others by system. A write of a stored person with another list fails with 400 and "
+                        + "`invalid.value_fixed`.",
                 readOnly = true)
         List<ExternalIdPairRepresentation> externalIds) implements Versioned {
+
+    // The fields that only a response fills.
+    static final List<String> READ_ONLY = List.of("id", "name", "nameSource", "phoneticName", "externalIds");
 
     static PersonRepresentation of(PersonView view, ExternalIdLists ids, Locale language) {
         var p = view.person();

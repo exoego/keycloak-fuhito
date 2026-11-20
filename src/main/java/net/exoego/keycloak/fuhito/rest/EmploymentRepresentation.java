@@ -120,7 +120,9 @@ public record EmploymentRepresentation(
             @Schema(description = "The first date of these conditions.", format = "date")
             String validFrom,
             @Schema(
-                    description = "The first date after these conditions. It is missing for no end.",
+                    description = "The first date after these conditions. It is missing for no end. A change of the "
+                            + "terms with another value than the end of the terms on its `validFrom` fails with 400 "
+                            + "and `invalid.value_fixed`.",
                     format = "date",
                     readOnly = true)
             String validTo,
@@ -146,6 +148,9 @@ public record EmploymentRepresentation(
             String contractEndDate,
             @Schema(description = "Free values that the realm defines.")
             Map<String, Object> attributes) implements Versioned {
+
+        // The fields that only a response fills.
+        static final List<String> READ_ONLY = List.of("validTo");
     }
 
     /**

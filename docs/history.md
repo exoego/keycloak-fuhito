@@ -40,6 +40,7 @@ The item itself has no dates either. Data of any date may use it.
 - `POST /ref-items` takes `validFrom`. Without it, the first names hold for every date.
 - `PUT /ref-items/{id}` with `validFrom` keeps the old names for the dates before it. A date inside stored names, a date in the past, and the first date of stored names follow the rules of a change on a date below.
 - `PUT /ref-items/{id}` without `validFrom` changes the names of today. This fits a fix of a typo.
+- A `PUT` can give `name` and `validTo` of a read. They must be the ones of the names that the `PUT` changes. Others fail with 400 and `invalid.value_fixed`. So a read of an old date with no `validFrom` does not change the names of today.
 - A date before the first names of an item gets its first names. A write on such a date gives names from that date until the first names start.
 - Names that are the same as the names of the date make no new period. Another primary language is a change of the names.
 - `GET /ref-items`, `GET /ref-items/{id}`, the role names of `GET /unit-roles`, and the CSV file of `GET /imports/csv/ref-items` show the names of their date. `GET /ref-items/count` takes no date, because every item has names on every date.
@@ -64,6 +65,9 @@ Checked by `OrgUnitTreeIT.listsTheWholeTreeOnTwoDates`, `OrgUnitTreeIT.readsTheH
 
 A change says "from this date, the details are these".
 It replaces all details. A missing optional value clears it.
+A read of the details is the body of a change. Its `validTo` must be the end of the details on the `validFrom` of the change, because the change keeps that end. Another `validTo` fails with 400 and `invalid.value_fixed`.
+
+Checked by `FixedValuesIT.aPutWithAnotherValueOfAFieldThatOnlyAResponseFillsFailsAndWritesNothing`.
 
 ### A change on a future date
 

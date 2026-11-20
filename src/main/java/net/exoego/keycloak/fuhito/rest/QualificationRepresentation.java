@@ -14,7 +14,10 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
  */
 @Schema(name = "Qualification", requiredProperties = {"kind", "validFrom"})
 public record QualificationRepresentation(
-        @Schema(readOnly = true)
+        @Schema(
+                description = "The ID of the qualification. A write of a stored qualification with another ID fails "
+                        + "with 400 and `invalid.value_fixed`.",
+                readOnly = true)
         String id,
         @Schema(description = "The version of the qualification. A new qualification has 1. Each write counts it up "
                 + "by one, also a change of an ID of another system. A write of a stored qualification sends the "
@@ -62,9 +65,13 @@ public record QualificationRepresentation(
         String source,
         @Schema(
                 description = "Every ID that a system has for the qualification. The one of `source` comes first, then "
-                        + "the others by system.",
+                        + "the others by system. A write of a stored qualification with another list fails with 400 "
+                        + "and `invalid.value_fixed`.",
                 readOnly = true)
         List<ExternalIdPairRepresentation> externalIds) implements Versioned {
+
+    // The fields that only a response fills.
+    static final List<String> READ_ONLY = List.of("id", "externalIds");
 
     static QualificationRepresentation of(QualificationView view, ExternalIdLists ids) {
         var q = view.qualification();
