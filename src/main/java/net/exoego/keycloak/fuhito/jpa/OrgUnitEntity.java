@@ -24,7 +24,7 @@ public class OrgUnitEntity implements VersionedRow {
     @Column(name = "SOURCE", length = 64)
     String source;
 
-    @Column(name = "KC_ORG_ID", length = 36)
+    @Column(name = "KC_ORG_ID", length = 255)
     String keycloakOrganizationId;
 
     @Column(name = "TIME_ZONE", length = 64)

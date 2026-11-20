@@ -1253,4 +1253,12 @@
             </column>
         </createTable>
     </changeSet>
+
+    <!-- Keycloak keeps the ID of an organization in VARCHAR(255). The admin API gives a new organization a UUID, but
+         a realm import keeps the ID that its JSON gives. In PostgreSQL a wider VARCHAR rewrites neither the table nor
+         its indexes. -->
+    <changeSet id="0.1.0-kc-org-id-length" author="keycloak-fuhito">
+        <modifyDataType tableName="FUHITO_ORG_UNIT" columnName="KC_ORG_ID" newDataType="VARCHAR(255)"/>
+        <modifyDataType tableName="FUHITO_PROJECTED_MEMBER" columnName="KC_ORG_ID" newDataType="VARCHAR(255)"/>
+    </changeSet>
 </databaseChangeLog>
