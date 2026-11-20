@@ -111,6 +111,28 @@ public final class Checks {
     }
 
     /**
+     * Requires a text that the database stores as it is sent. A text column cannot hold NUL, and UTF-8 has no form
+     * for half of a surrogate pair.
+     *
+     * @param field the name of the field, for the error
+     * @param value the text, or null
+     * @return the text, or null
+     * @throws FuhitoException when the text has NUL or half of a surrogate pair. The error names the code point.
+     */
+    public static String storable(String field, String value) {
+        if (value != null) {
+            value.codePoints()
+                    .filter(c -> c == 0 || Character.getType(c) == Character.SURROGATE)
+                    .findFirst()
+                    .ifPresent(c -> {
+                        throw FuhitoException.invalid("invalid.character",
+                                Map.of("field", field, "codePoint", String.format(Locale.ROOT, "U+%04X", c)));
+                    });
+        }
+        return value;
+    }
+
+    /**
      * Checks a list that may be missing. Null is the way to give no items, so an empty list fails.
      *
      * @param <C> the type of the list

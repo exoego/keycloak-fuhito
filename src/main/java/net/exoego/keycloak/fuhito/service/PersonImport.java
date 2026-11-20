@@ -58,7 +58,7 @@ final class PersonImport {
 
     // The stored people that the rows name, and the people of the users that they name by ID.
     private void read(List<PersonRow> rows) {
-        List<PersonRow> given = rows.stream().filter(Objects::nonNull).toList();
+        List<PersonRow> given = rows.stream().filter(EmptyValues::passes).toList();
         given.forEach(row -> ids.want(ExternalId.Kind.PERSON, document.sourceOf(row.source()), row.externalId()));
         ids.read();
         Set<String> personIds = new HashSet<>();

@@ -2198,6 +2198,22 @@ class ImportServiceTest {
     }
 
     @Test
+    void aTextThatCannotBeStoredFailsItsRowInEveryList() {
+        ImportReport report = service.apply(ImportRows.read(ImportDocument.class, """
+                {"effectiveDate": "2026-04-01",
+                 "orgUnits": [{"externalId": "A", "code": "a\\u0000b", "primaryLanguage": "ja",
+                   "names": {"ja": {"name": "A"}}}],
+                 "people": [{"externalId": "P", "primaryLanguage": "ja", "names": {"ja": {"name": "\\ud800"}}}],
+                 "employments": [{"externalId": "E", "personExternalId": "P", "staffNumber": "a\\udc00"}],
+                 "assignments": [{"externalId": "S", "employmentExternalId": "E", "orgUnitExternalId": "A",
+                   "attributes": {"a\\u0000": "x"}}]}
+                """));
+
+        assertEquals(List.of("invalid.character code", "invalid.character names.ja.name",
+                "invalid.character staffNumber", "invalid.character attributes.a" + (char) 0), fields(report));
+    }
+
+    @Test
     void aNewUnitTakesNullAsNoValue() {
         ImportReport report = rows("2026-04-01", "orgUnits", """
                 {"externalId": "N", "primaryLanguage": "ja", "names": {"ja": {"name": "新", "shortName": null},

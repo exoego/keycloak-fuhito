@@ -176,6 +176,7 @@ A realm defines each name with `POST /attribute-definitions` before a write give
 - A definition is for one kind of resource and one name. It has a type, `STRING`, `NUMBER`, `BOOLEAN`, `DATE`, or `REF_ITEM` with a kind of reference data. A `DATE` value is a text in the form `YYYY-MM-DD`, in the range of every other date.
 - A definition with `multiple` holds a list. The value is a JSON array, and each element has the type. A `REF_ITEM` list checks the code of each element.
 - A text that is empty or only spaces fails with `invalid.blank`, also an element of a list, as a CSV cell cannot hold such a text. An empty array fails with `invalid.blank` too. The error names the field, for example `attributes.shifts`. Leave the name out, or give null, for no value.
+- A text with NUL (U+0000) or with half of a surrogate pair fails with `invalid.character`, as in every other field, because the database cannot store it as sent. This holds for the name of a definition and for a key in `attributes` too. The error names the field and the code point.
 - Every write of the resource is checked against the definitions. A value of the wrong type fails with `attribute.bad_value`. A missing required one fails with `attribute.required`.
 - A name with no definition fails with `attribute.unknown`.
 - An object has no type. Split it into several names, such as `addressZip` and `addressCity`.

@@ -11,7 +11,7 @@ import net.exoego.keycloak.fuhito.domain.FuhitoException;
 /**
  * Finds an empty value in a write. An empty text, a text of only spaces, and an empty list fail in every field of a
  * REST write, of an import row, and of a row of a restore, also in the names and the attributes. Null is the way to
- * clear a value.
+ * clear a value. A text that the database cannot store as sent fails in the same fields.
  */
 public final class EmptyValues {
 
@@ -24,10 +24,26 @@ public final class EmptyValues {
      * @param <R> the type of the row
      * @param row the row
      * @return the row
-     * @throws FuhitoException when the row is missing or a value is empty
+     * @throws FuhitoException when the row is missing, a value is empty, or a text cannot be stored
      */
     static <R extends Record> R checked(R row) {
         return withoutEmptyValues(Checks.required("row", row));
+    }
+
+    /**
+     * Tells whether a row of an import passes {@link #checked(Record)}. An import reads stored data only for such
+     * rows, so that a text that the database cannot take never reaches it.
+     *
+     * @param row the row, or null
+     * @return true when the row passes
+     */
+    static boolean passes(Record row) {
+        try {
+            checked(row);
+            return true;
+        } catch (FuhitoException e) {
+            return false;
+        }
     }
 
     /**
@@ -37,7 +53,7 @@ public final class EmptyValues {
      * @param <R> the type of the values
      * @param values the values
      * @return the values
-     * @throws FuhitoException when a text is empty or only spaces, or a list is empty
+     * @throws FuhitoException when a text is empty, only spaces, or cannot be stored, or a list is empty
      */
     public static <R extends Record> R withoutEmptyValues(R values) {
         return withoutEmptyValues(values, component -> !component.getName().equals("nulls"));
@@ -50,7 +66,7 @@ public final class EmptyValues {
      * @param values the values
      * @param checked picks the components to check
      * @return the values
-     * @throws FuhitoException when a text is empty or only spaces, or a list is empty
+     * @throws FuhitoException when a text is empty, only spaces, or cannot be stored, or a list is empty
      */
     static <R extends Record> R withoutEmptyValues(R values, Predicate<RecordComponent> checked) {
         for (RecordComponent component : values.getClass().getRecordComponents()) {
@@ -66,14 +82,19 @@ public final class EmptyValues {
      *
      * @param field the name of the field, for the error
      * @param value the value, or null
-     * @throws FuhitoException when a text in the value is empty or only spaces, or a list in it is empty
+     * @throws FuhitoException when a text in the value is empty, only spaces, or cannot be stored, or a list in it
+     *         is empty. A key of an object that cannot be stored fails too.
      */
     static void rejectEmptyValues(String field, Object value) {
         switch (value) {
-            case String text -> Checks.optionalText(field, text);
+            case String text -> Checks.storable(field, Checks.optionalText(field, text));
             case Collection<?> items -> Checks.optionalList(field, items)
                     .forEach(item -> rejectEmptyValues(field, item));
-            case Map<?, ?> values -> values.forEach((key, item) -> rejectEmptyValues(field + "." + key, item));
+            case Map<?, ?> values -> values.forEach((key, item) -> {
+                String named = field + "." + key;
+                Checks.storable(named, String.valueOf(key));
+                rejectEmptyValues(named, item);
+            });
             case Record names -> {
                 for (RecordComponent component : names.getClass().getRecordComponents()) {
                     rejectEmptyValues(field + "." + component.getName(), valueOf(component, names));

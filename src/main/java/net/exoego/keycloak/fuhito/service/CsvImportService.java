@@ -586,7 +586,8 @@ public class CsvImportService {
             Set<String> cleared = new HashSet<>();
             for (int i = 0; i < columns.size(); i++) {
                 String column = columns.get(i);
-                String value = i < cells.size() ? cells.get(i).strip() : "";
+                // A row reads stored data by its cells, before the import checks the row.
+                String value = Checks.storable(column, i < cells.size() ? cells.get(i).strip() : "");
                 values.put(column, value);
                 if (value.equals(CLEAR) && column.indexOf(':') < 0 && !column.startsWith(ATTRIBUTE_COLUMN)) {
                     cleared.add(KEYS.getOrDefault(column, column));

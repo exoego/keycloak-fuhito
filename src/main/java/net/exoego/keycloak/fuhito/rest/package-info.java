@@ -22,6 +22,11 @@
                         `invalid.blank`, which names the field. An empty array fails in the same way, also a list
                         in `attributes`. A field that is left out or null has no value.
 
+                        The database cannot store NUL (U+0000) or half of a surrogate pair, such as `"\\ud800"`.
+                        A text with one fails with 400 and `invalid.character`, which names the field and the code
+                        point. This holds for every text of every write, also for a key in `attributes`. Other
+                        characters, such as control characters, emoji, and combining marks, are stored as sent.
+
                         A read of the org structure needs the role `fuhito-view-structure`. Every other read needs
                         `fuhito-view-people`. A write needs `fuhito-manage`. The roles are in the client
                         `realm-management` of the realm.
@@ -84,7 +89,8 @@
                             description = """
                                     A value in the request is bad.
                                     In a write, an empty text, a text of only spaces, or an empty array gets
-                                    `invalid.blank`.
+                                    `invalid.blank`. A text with NUL or half of a surrogate pair gets
+                                    `invalid.character`.
                                     """,
                             content = @Content(mediaType = "application/json",
                                     schema = @Schema(implementation = ErrorRepresentation.class))),

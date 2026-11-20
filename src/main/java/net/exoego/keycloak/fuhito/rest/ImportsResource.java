@@ -119,7 +119,8 @@ public class ImportsResource {
                     + "not valid in its charset fails with `csv.bad_encoding`, with the line and the offset of the "
                     + "first bad bytes. So does a file that starts with `FF FE` or `FE FF`, or has a `00` byte on its "
                     + "first line, unless the charset is UTF-16 or UTF-32. Such a file is most likely UTF-16. An "
-                    + "unknown charset fails with `csv.bad_charset`.")
+                    + "unknown charset fails with `csv.bad_charset`. A `00` byte after the first line is NUL in a "
+                    + "cell, which fails with `invalid.character` and names the column.")
     @Parameter(ref = "changeOrder")
     @APIResponse(
             responseCode = "200",
@@ -166,8 +167,9 @@ public class ImportsResource {
                     + "stored thing changes the values that it gives. A key that a row leaves out keeps the stored "
                     + "value, and `null` clears it. An object such as `names` or `attributes` merges by key in the "
                     + "same way. An empty text, a text of only spaces, and an empty array fail with "
-                    + "`invalid.blank`. A new thing has nothing stored, so a missing key and `null` both give no "
-                    + "value. The lists "
+                    + "`invalid.blank`. A text with NUL (U+0000) or half of a surrogate pair fails with "
+                    + "`invalid.character`, as the database cannot store it. A new thing has nothing stored, so a "
+                    + "missing key and `null` both give no value. The lists "
                     + "are applied in the order change orders, kinds of reference data, definitions of attributes, "
                     + "reference items, hierarchies, org units, parents in hierarchies, people, qualifications, "
                     + "employments, roles over org units, assignments, reporting lines, IDs of other systems.")
