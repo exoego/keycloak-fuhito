@@ -88,10 +88,7 @@ public class ReportingLineService {
         }
         ValidPeriod life = new ValidPeriod(rows.getFirst().period().from(), rows.getLast().period().to());
         ValidPeriod period = Checks.period(from, to == null ? life.to() : to);
-        if (!life.encloses(period)) {
-            throw FuhitoException.conflict("reporting_line.outside_assignment",
-                    Map.of("assignmentId", assignmentId, "validFrom", validFrom));
-        }
+        requireInsideAssignment(assignmentId, life, period);
         Person manager = sources.people().find(managerPersonId).orElseThrow(() -> FuhitoException.invalid(
                 "reporting_line.manager_unknown", Map.of("managerPersonId", managerPersonId)));
         if (managerPersonId.equals(employmentOf(rows.getFirst()).map(Employment::personId).orElse(null))) {
@@ -110,6 +107,21 @@ public class ReportingLineService {
                 manager.userId(), lineKind, period, 1);
         store.insert(line);
         return line;
+    }
+
+    /**
+     * Requires that a reporting line lies inside its assignment.
+     *
+     * @param assignmentId the ID of the assignment
+     * @param life the life of the assignment, from its first row to the end of its last
+     * @param period the period of the line
+     * @throws FuhitoException when the line is not inside the assignment
+     */
+    static void requireInsideAssignment(String assignmentId, ValidPeriod life, ValidPeriod period) {
+        if (!life.encloses(period)) {
+            throw FuhitoException.conflict("reporting_line.outside_assignment",
+                    Map.of("assignmentId", assignmentId, "validFrom", period.from().toString()));
+        }
     }
 
     /**

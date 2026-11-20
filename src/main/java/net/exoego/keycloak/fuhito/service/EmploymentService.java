@@ -332,18 +332,40 @@ public class EmploymentService {
         RefItem grade = usableItem(RefKind.GRADE, values.grade(), current == null ? null : current.gradeId());
         RefItem leaveReason = usableItem(RefKind.LEAVE_REASON, values.leaveReason(),
                 current == null ? null : current.leaveReasonId());
-        if (leaveReason != null && status != EmploymentStatus.ON_LEAVE) {
-            throw FuhitoException.invalid("employment.leave_reason_not_on_leave",
-                    Map.of("leaveReason", values.leaveReason(), "status", status.name()));
-        }
+        requireLeave(status, leaveReason == null ? null : values.leaveReason());
         LocalDate contractEnd = Checks.optionalDate("contractEndDate", values.contractEndDate());
-        if (contractEnd != null && contractEnd.isBefore(period.from())) {
-            throw FuhitoException.invalid("employment.contract_end_before_terms",
-                    Map.of("contractEndDate", contractEnd.toString(), "validFrom", period.from().toString()));
-        }
+        requireContractEnd(contractEnd, period.from());
         return new EmploymentTerms(termsId, employmentId, period, idOf(employmentType), idOf(grade), status,
                 idOf(leaveReason), Checks.optionalPercent("workPercent", values.workPercent()), contractEnd,
                 attributeRules.check(AttributeDefinition.Target.EMPLOYMENT_TERMS, values.attributes()));
+    }
+
+    /**
+     * Requires that only terms with the status {@code ON_LEAVE} have a leave reason.
+     *
+     * @param status the status of the terms
+     * @param leaveReason the leave reason, or null
+     * @throws FuhitoException when the terms have a leave reason and are not on leave
+     */
+    static void requireLeave(EmploymentStatus status, String leaveReason) {
+        if (leaveReason != null && status != EmploymentStatus.ON_LEAVE) {
+            throw FuhitoException.invalid("employment.leave_reason_not_on_leave",
+                    Map.of("leaveReason", leaveReason, "status", status.name()));
+        }
+    }
+
+    /**
+     * Requires that the contract of terms does not end before the terms start.
+     *
+     * @param contractEnd the end of the contract, or null
+     * @param from the first date of the terms
+     * @throws FuhitoException when the contract ends before the terms start
+     */
+    static void requireContractEnd(LocalDate contractEnd, LocalDate from) {
+        if (contractEnd != null && contractEnd.isBefore(from)) {
+            throw FuhitoException.invalid("employment.contract_end_before_terms",
+                    Map.of("contractEndDate", contractEnd.toString(), "validFrom", from.toString()));
+        }
     }
 
     /**
