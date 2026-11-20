@@ -28,18 +28,23 @@ class RestoreKeysIT {
             {"format": "fuhito.export.v1",
              "refKinds": [{"id": "k-1", "code": "site", "primaryLanguage": "ja", "names": {"ja": {"name": "拠点"}}}],
              "refItems": [{"id": "role-1", "kind": "UNIT_ROLE", "code": "approver", "attributes": {},
-                           "versions": [{"id": "n-1", "primaryLanguage": "ja", "names": {"ja": {"name": "承認者"}}}]}],
+                           "versions": [{"id": "n-1", "primaryLanguage": "ja", "names": {"ja": {"name": "承認者"}}}]},
+                          {"id": "corp", "kind": "UNIT_TYPE", "code": "corp", "legalEntity": true, "attributes": {},
+                           "versions": [{"id": "n-c", "primaryLanguage": "ja", "names": {"ja": {"name": "法人"}}}]}],
              "attributeDefinitions": [{"id": "d-1", "target": "PERSON", "name": "note", "type": "STRING"}],
              "hierarchies": [{"id": "h-1", "code": "project", "name": "Project"}],
              "orgUnits": [
-               {"id": "u-1", "organizationAlias": "x-hospital", "parents": [],
-                "versions": [{"id": "v-1", "validFrom": "2020-04-01", "code": "U1", "primaryLanguage": "ja",
-                              "names": {"ja": {"name": "本社"}}, "attributes": {}}],
-                "successors": [{"id": "s-1", "successorId": "u-2", "effectiveDate": "2021-04-01"}]},
+               {"id": "u-1", "organizationAlias": "x-hospital", "parents": [], "successors": [],
+                "versions": [{"id": "v-1", "validFrom": "2020-04-01", "code": "U1", "unitTypeId": "corp",
+                              "primaryLanguage": "ja", "names": {"ja": {"name": "本社"}}, "attributes": {}}]},
                {"id": "u-2", "successors": [],
                 "versions": [{"id": "v-2", "validFrom": "2020-04-01", "code": "U2", "primaryLanguage": "ja",
                               "names": {"ja": {"name": "病棟"}}, "attributes": {}}],
-                "parents": [{"id": "l-1", "hierarchy": "default", "parentId": "u-1", "validFrom": "2020-04-01"}]}],
+                "parents": [{"id": "l-1", "hierarchy": "default", "parentId": "u-1", "validFrom": "2020-04-01"}]},
+               {"id": "u-3", "parents": [],
+                "versions": [{"id": "v-9", "validFrom": "2020-04-01", "validTo": "2021-04-01", "primaryLanguage": "ja",
+                              "names": {"ja": {"name": "旧病棟"}}, "attributes": {}}],
+                "successors": [{"id": "s-1", "successorId": "u-2", "effectiveDate": "2021-04-01"}]}],
              "people": [{"id": "p-1", "username": "nurse", "primaryLanguage": "ja", "names": {"ja": {"name": "山田"}},
                          "attributes": {}}],
              "employments": [{"id": "e-1", "personId": "p-1", "employerId": "u-1", "validFrom": "2020-04-01",
@@ -87,13 +92,24 @@ class RestoreKeysIT {
 
     static ObjectNode changed(Case change) throws Exception {
         ObjectNode document = document();
-        JsonNode at = document.at(change.at());
-        if (at.isArray()) {
-            ((ArrayNode) at).add(JSON.readTree(change.row()));
-        } else {
-            ((ObjectNode) at).setAll((ObjectNode) JSON.readTree(change.row()));
-        }
+        change(document, change.at(), change.row());
         return document;
+    }
+
+    /**
+     * Changes a document.
+     *
+     * @param document the document
+     * @param pointer the JSON pointer of a list, which gets the row, or of a row, which gets its fields
+     * @param row the row or the fields
+     */
+    static void change(ObjectNode document, String pointer, String row) throws Exception {
+        JsonNode at = document.at(pointer);
+        if (at.isArray()) {
+            ((ArrayNode) at).add(JSON.readTree(row));
+        } else {
+            ((ObjectNode) at).setAll((ObjectNode) JSON.readTree(row));
+        }
     }
 
     // Each case fails before anything is written. So the document restores into the realm at the end. The IDs of the
@@ -139,7 +155,7 @@ class RestoreKeysIT {
                         "ref-items", "role-2", "code", "role-1"),
                 new Case("/attributeDefinitions", "{\"id\": \"d-2\", \"target\": \"PERSON\", \"name\": \"note\", "
                         + "\"type\": \"STRING\"}", "attribute-definitions", "d-2", "name", "d-1"),
-                new Case("/orgUnits/0/successors", "{\"id\": \"s-2\", \"successorId\": \"u-2\", "
+                new Case("/orgUnits/2/successors", "{\"id\": \"s-2\", \"successorId\": \"u-2\", "
                         + "\"effectiveDate\": \"2022-04-01\"}", "org-unit-successions", "s-2", "successorId", "s-1"),
                 new Case("/externalIds", "{\"id\": \"x-2\", \"resourceType\": \"ORG_UNIT\", \"resourceId\": \"u-2\", "
                         + "\"source\": \"hr\", \"externalId\": \"U-1\"}", "external-ids", "x-2", "externalId", "x-1"),
