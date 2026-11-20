@@ -15,7 +15,6 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import net.exoego.keycloak.fuhito.domain.Assignment;
 import net.exoego.keycloak.fuhito.domain.AttributeDefinition;
 import net.exoego.keycloak.fuhito.domain.ChangeOrder;
@@ -37,7 +36,6 @@ import net.exoego.keycloak.fuhito.domain.Qualification;
 import net.exoego.keycloak.fuhito.domain.RefKind;
 import net.exoego.keycloak.fuhito.domain.RefKindName;
 import net.exoego.keycloak.fuhito.domain.ReportingLine;
-import net.exoego.keycloak.fuhito.domain.Unchecked;
 import net.exoego.keycloak.fuhito.domain.UnitRole;
 import net.exoego.keycloak.fuhito.store.OrganizationDirectory;
 
@@ -49,7 +47,6 @@ public class CsvExportService {
     // The mark that tells a spreadsheet that the file is UTF-8.
     private static final String BYTE_ORDER_MARK = "﻿";
     private static final int ROWS_AT_A_TIME = 1000;
-    private static final ObjectMapper JSON = new ObjectMapper();
     private static final List<String> LISTS = List.of("ref-kinds", "attribute-definitions", "ref-items",
             "hierarchies", "org-units", "org-unit-parents", "people", "employments", "assignments",
             "reporting-lines", "unit-roles", "qualifications", "external-ids", "change-orders");
@@ -595,7 +592,7 @@ public class CsvExportService {
             Optional<LocalDate> end = version.period().to() == null ? Optional.empty()
                     : orgUnits.endOf(unit.unit().id());
             cells.add(text(end.orElse(null)));
-            cells.add(end.isEmpty() ? "" : String.join("|", orgUnits.successions(unit.unit().id()).successors()
+            cells.add(end.isEmpty() ? "" : ListCell.write(orgUnits.successions(unit.unit().id()).successors()
                     .stream().map(OrgUnitSuccession::successorId).toList()));
             cells.add(text(Optional.ofNullable(unit.unit().keycloakOrganizationId())
                     .flatMap(organizations::aliasOf).orElse(null)));
@@ -662,10 +659,9 @@ public class CsvExportService {
         return value == null ? "" : value.stripTrailingZeros().toPlainString();
     }
 
-    // A list is JSON, which the import reads for an attribute with several values.
     private static String text(Object value) {
         if (value instanceof List<?> list) {
-            return Unchecked.io(() -> JSON.writeValueAsString(list));
+            return ListCell.write(list);
         }
         return Objects.toString(value, "");
     }
