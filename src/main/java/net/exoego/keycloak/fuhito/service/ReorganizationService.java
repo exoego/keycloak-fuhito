@@ -56,14 +56,15 @@ public class ReorganizationService {
      * Applies the steps in the order given, all on the effective date.
      * A later step can name a unit that an earlier create step made, by the {@code ref} of that step.
      * A step that changes a stored unit names the version of the unit that the caller read.
-     * An empty text, a text of only spaces, or an empty list in a step fails before any step runs.
+     * An empty text, a text of only spaces, or an empty list in a step fails before any step runs. So does a step
+     * that names its unit or its parent both by ID and by {@code ref}.
      *
      * @param effectiveDate the date of every step, as {@code YYYY-MM-DD}
      * @param steps the steps
      * @param lock locks the stored units until the end of the transaction, before their versions are read
      * @return what each step did, in the same order
-     * @throws FuhitoException when a step fails, has an empty value, or names no version or an old one. Its values
-     *         hold the position of the step, counted from 0, under the key "step".
+     * @throws FuhitoException when a step fails, has an empty value, names a unit in two ways, or names no version
+     *         or an old one. Its values hold the position of the step, counted from 0, under the key "step".
      */
     public List<Result> apply(String effectiveDate, List<ReorganizationStep> steps,
             Consumer<Collection<String>> lock) {
@@ -74,6 +75,7 @@ public class ReorganizationService {
             ReorganizationStep step = steps.get(i);
             if (step != null) {
                 atStep(i, () -> EmptyValues.withoutEmptyValues(step));
+                atStep(i, () -> namedOnce(step));
             }
             if (step != null && step.op() != null && CHANGES.contains(step.op()) && step.unitRef() == null
                     && step.id() != null) {
@@ -94,6 +96,12 @@ public class ReorganizationService {
             results.add(atStep(i, () -> apply(effectiveDate, step, created)));
         }
         return results;
+    }
+
+    private static ReorganizationStep namedOnce(ReorganizationStep step) {
+        Checks.notBoth("id", step.id(), "unitRef", step.unitRef());
+        Checks.notBoth("parentId", step.parentId(), "parentRef", step.parentRef());
+        return step;
     }
 
     private static <T> T atStep(int index, Supplier<T> work) {

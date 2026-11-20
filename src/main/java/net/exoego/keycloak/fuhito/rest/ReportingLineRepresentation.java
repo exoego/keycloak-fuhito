@@ -21,12 +21,15 @@ public record ReportingLineRepresentation(
         Long version,
         @Schema(description = "The ID of the assignment of the person who reports.")
         String assignmentId,
-        @Schema(description = "The ID of the person who is the manager.")
+        @Schema(
+                description = "The ID of the person who is the manager. A request gives this or `managerUserId`. A "
+                        + "request with both fails with 400 and `invalid.twice`.")
         String managerPersonId,
         @Schema(
                 description = "The ID of the Keycloak user that the manager is linked to. A request can give it in "
-                        + "place of `managerPersonId`. The person of the user is then used, and created when the "
-                        + "user has none.")
+                        + "place of `managerPersonId`, not with it. The person of the user is then used, and created "
+                        + "when the user has none. A read of a manager with a user has both, so a request made from a "
+                        + "read leaves one out.")
         String managerUserId,
         @Schema(ref = "ReportingKind", defaultValue = "SOLID")
         String kind,

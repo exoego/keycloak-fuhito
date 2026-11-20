@@ -518,7 +518,8 @@ public record ImportDocument(
             @Schema(description = "The username of a Keycloak user to link. A row that leaves out the user keeps the "
                     + "link that is stored, and `null` for both ways removes it.")
             String username,
-            @Schema(description = "The ID of a Keycloak user to link.")
+            @Schema(description = "The ID of a Keycloak user to link. Give this or `username`. A row with both fails "
+                    + "with `import.user_twice`.")
             String userId,
             @Schema(description = "The language tag of the primary names, such as `ja`. It matches a key of `names` "
                     + "in standard form.")
@@ -558,7 +559,8 @@ public record ImportDocument(
             @Schema(description = "The username of the Keycloak user. A row needs this, `userId`, or "
                     + "`personExternalId`, except for a stored employment.")
             String username,
-            @Schema(description = "The ID of the Keycloak user.")
+            @Schema(description = "The ID of the Keycloak user. Give this or `username`. A row with both fails with "
+                    + "`import.user_twice`.")
             String userId,
             @Schema(
                     description = "The number that the legal entity gives to the person. It is used only when the "

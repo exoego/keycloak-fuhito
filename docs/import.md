@@ -59,7 +59,7 @@ Parents in hierarchies and the IDs of other systems have no ID of their own, so 
 
 The list `people` loads people, also those with no Keycloak user, such as staff who left long ago or never log in. It comes before the employments.
 
-- A row has `primaryLanguage`, `names`, and the attributes, as `POST /people` has them. It can link a user with `username` or `userId`. A row that leaves out both keeps the link that is stored, and null for them removes it. A row that links a user can leave out the names.
+- A row has `primaryLanguage`, `names`, and the attributes, as `POST /people` has them. It can link a user with `username` or `userId`. A row with both fails with `import.user_twice`. A row that leaves out both keeps the link that is stored, and null for them removes it. A row that links a user can leave out the names.
 - A row never finds a person by its user. A row with an external ID that names nothing makes a new person. If its user has a person already, the row fails with `import.user_taken`, and the error names that person by `personId`. A row of that person names it by `id` or by an external ID that it has. The list `externalIds` gives it the ID of another system.
 - A row of a stored person that names another user links the person to that user, as `PUT /people/{id}` does. A user who has another person fails with `person.user_taken`.
 - A row of an employment can name its person by `personExternalId`, with the same source. A person with no user is named this way. With a user as well, the user must be the one of that person.
@@ -149,7 +149,7 @@ The lists are applied in the order change orders, kinds of reference data, attri
 - A row of a unit type can carry `lateral`. The CSV header is `横断`. A row that leaves it out keeps the mark of a stored item.
 - A row of a unit type can carry `rollup`. The CSV header is `集計`. A row that leaves it out keeps the mark of a stored item. One row cannot carry `rollup` with `lateral` or with `legalEntity`.
 - A row of an org unit follows the rules of rollup units in "Rollup units" of the concepts. A row cannot give a rollup unit a parent, or put a unit below one. A row that gives a stored unit a rollup type and no parent takes the parent away first, then changes the details. The children of the unit must move away in earlier rows or documents.
-- The user of an employment is named by `username` or by `userId`. The user must exist.
+- The user of an employment is named by `username` or by `userId`. A row with both fails with `import.user_twice`. The user must exist.
 - The employment belongs to the person of that user. The import creates the person when the user has none.
 
 ## CSV

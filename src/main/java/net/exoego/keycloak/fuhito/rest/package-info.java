@@ -32,6 +32,11 @@
                         is dropped. This holds for every body, also for an import, a restore, and the steps of a
                         reorganization.
 
+                        A write that names one thing in two ways, such as a person by `personId` and by `userId`,
+                        fails with 400 and `invalid.twice`. The error names the two fields in `field` and
+                        `otherField`. No value is dropped. An employer named by `employerId` and by
+                        `externalEmployer` fails with `employment.employer_twice`.
+
                         The `maxLength` of a text counts characters, as the database does, so an emoji is one
                         character. A longer text fails with 400. A text with no other rule, such as
                         `externalReference`, fails with `invalid.too_long`, which names the field and the `max`.
@@ -100,7 +105,8 @@
                                     In a write, an empty text, a text of only spaces, or an empty array gets
                                     `invalid.blank`. A text with NUL or half of a surrogate pair gets
                                     `invalid.character`. A body that gives one key twice in one object gets
-                                    `invalid.duplicate_key`.
+                                    `invalid.duplicate_key`. A write that names one thing in two ways gets
+                                    `invalid.twice`.
                                     """,
                             content = @Content(mediaType = "application/json",
                                     schema = @Schema(implementation = ErrorRepresentation.class))),
