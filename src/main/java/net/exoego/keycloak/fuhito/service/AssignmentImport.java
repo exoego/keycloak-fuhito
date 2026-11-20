@@ -90,7 +90,7 @@ final class AssignmentImport {
     // The stored assignments that the rows name. The employments with the rows of their assignments, and the org
     // units, of the new ones.
     private void read(List<AssignmentRow> rows) {
-        List<AssignmentRow> given = rows.stream().filter(Objects::nonNull).toList();
+        List<AssignmentRow> given = rows.stream().filter(EmptyValues::passes).toList();
         for (AssignmentRow row : given) {
             String source = document.sourceOf(row.source());
             ids.want(ExternalId.Kind.ASSIGNMENT, source, row.externalId())

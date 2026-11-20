@@ -110,6 +110,22 @@ class ChecksTest {
     }
 
     @Test
+    void aStorableTextHasNoNulAndNoHalfOfASurrogatePair() {
+        assertNull(Checks.storable("note", null));
+        // Control characters, a whole surrogate pair, a ZWJ sequence, and a combining mark are stored as sent.
+        String kept = new String(new int[] {1, 0x1F, 0x7F, 0x2028, 0x1F600, 0x1F468, 0x200D, 0x1F467, 0x304B, 0x3099},
+                0, 10);
+        assertEquals(kept, Checks.storable("note", kept));
+        Map<String, String> bad = Map.of("a" + (char) 0 + "b", "U+0000", "a" + (char) 0xD800 + "b", "U+D800",
+                String.valueOf((char) 0xD83D), "U+D83D", (char) 0xDC00 + "a", "U+DC00");
+        bad.forEach((text, codePoint) -> {
+            FuhitoException e = invalid(() -> Checks.storable("note", text));
+            assertEquals("invalid.character", e.code());
+            assertEquals(Map.of("field", "note", "codePoint", codePoint), e.params());
+        });
+    }
+
+    @Test
     void anOptionalListIsNullOrHasItems() {
         assertNull(Checks.optionalList("tags", null));
         assertEquals(List.of("a"), Checks.optionalList("tags", List.of("a")));
