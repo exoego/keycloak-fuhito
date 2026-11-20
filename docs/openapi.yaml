@@ -2689,8 +2689,14 @@ components:
           readOnly: true
         parentId:
           type: string
-          description: The ID of the parent in the default hierarchy. A root and a
-            rollup unit have none.
+          description: "The ID of the parent in the default hierarchy. A root and\
+            \ a rollup unit have none. `PUT /org-units/{id}/parent` moves the unit,\
+            \ and `PUT /org-units/{id}` does not. A `PUT /org-units/{id}` can leave\
+            \ it out, or give a parent that the unit has on any date of the details\
+            \ that the write replaces, as a read of such a date has it. These dates\
+            \ run from `validFrom` to the end of the stored details of that date.\
+            \ Another value fails with 400 and `invalid.value_fixed`. So for a unit\
+            \ with no parent on those dates, it must be null or left out."
         validFrom:
           type: string
           description: The first date of these details.
@@ -4334,8 +4340,9 @@ components:
         `invalid.duplicate_key`. A write that names one thing in two ways gets
         `invalid.twice`. A create with a person ID and a user ID that do not name the
         same person gets `invalid.mismatch`. A write of a stored resource with another
-        value of a field that never changes gets `invalid.value_fixed`. A read with two
-        values that do not go together gets `invalid.not_together`.
+        value of a field that never changes, or that the write does not change, gets
+        `invalid.value_fixed`. A read with two values that do not go together gets
+        `invalid.not_together`.
       content:
         application/json:
           schema:
@@ -7138,10 +7145,12 @@ paths:
       summary: Replaces the details of an org unit from the `validFrom` date of the
         body.
       description: "The details are the code, the names, the unit type, the display\
-        \ order, and the attributes. The parent does not change here. With `source`\
-        \ and `externalId`, the unit gets that ID of that system. Another `source`\
-        \ with no `externalId` fails with 400 and `invalid.value_fixed`. No other\
-        \ org unit may have the same code on a date of the change."
+        \ order, and the attributes. The parent does not change here, and `PUT /org-units/{id}/parent`\
+        \ moves the unit. A `parentId` that the unit does not have on any date of\
+        \ the details that the write replaces fails with 400 and `invalid.value_fixed`.\
+        \ With `source` and `externalId`, the unit gets that ID of that system. Another\
+        \ `source` with no `externalId` fails with 400 and `invalid.value_fixed`.\
+        \ No other org unit may have the same code on a date of the change."
       operationId: changeOrgUnitDetails
       tags:
       - org-units
