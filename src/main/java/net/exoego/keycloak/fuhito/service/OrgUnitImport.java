@@ -82,7 +82,7 @@ final class OrgUnitImport {
                     fail(i, e);
                 }
             }
-            if (row != null) {
+            if (EmptyValues.passes(row)) {
                 ids.want(ExternalId.Kind.ORG_UNIT, sourceOf(row), row.externalId())
                         .want(ExternalId.Kind.ORG_UNIT, sourceOf(row), row.parentExternalId());
                 successorExternalIds(row).forEach(successor -> ids.want(ExternalId.Kind.ORG_UNIT, sourceOf(row),
@@ -109,7 +109,7 @@ final class OrgUnitImport {
         Set<String> named = new HashSet<>();
         Set<String> codes = new HashSet<>();
         for (OrgUnitRow row : rows) {
-            if (row == null) {
+            if (!EmptyValues.passes(row)) {
                 continue;
             }
             List<String> externalIds = new ArrayList<>(successorExternalIds(row));

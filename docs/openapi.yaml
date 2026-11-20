@@ -4253,7 +4253,8 @@ components:
       description: |
         A value in the request is bad.
         In a write, an empty text, a text of only spaces, or an empty array gets
-        `invalid.blank`.
+        `invalid.blank`. A text with NUL or half of a surrogate pair gets
+        `invalid.character`.
       content:
         application/json:
           schema:
@@ -4307,6 +4308,11 @@ info:
     also for a name and for a text in `attributes`. Such a text fails with 400 and
     `invalid.blank`, which names the field. An empty array fails in the same way, also a list
     in `attributes`. A field that is left out or null has no value.
+
+    The database cannot store NUL (U+0000) or half of a surrogate pair, such as `"\ud800"`.
+    A text with one fails with 400 and `invalid.character`, which names the field and the code
+    point. This holds for every text of every write, also for a key in `attributes`. Other
+    characters, such as control characters, emoji, and combining marks, are stored as sent.
 
     A read of the org structure needs the role `fuhito-view-structure`. Every other read needs
     `fuhito-view-people`. A write needs `fuhito-manage`. The roles are in the client
@@ -6523,11 +6529,13 @@ paths:
         \ that a row leaves out keeps the stored value, and `null` clears it. An object\
         \ such as `names` or `attributes` merges by key in the same way. An empty\
         \ text, a text of only spaces, and an empty array fail with `invalid.blank`.\
-        \ A new thing has nothing stored, so a missing key and `null` both give no\
-        \ value. The lists are applied in the order change orders, kinds of reference\
-        \ data, definitions of attributes, reference items, hierarchies, org units,\
-        \ parents in hierarchies, people, qualifications, employments, roles over\
-        \ org units, assignments, reporting lines, IDs of other systems."
+        \ A text with NUL (U+0000) or half of a surrogate pair fails with `invalid.character`,\
+        \ as the database cannot store it. A new thing has nothing stored, so a missing\
+        \ key and `null` both give no value. The lists are applied in the order change\
+        \ orders, kinds of reference data, definitions of attributes, reference items,\
+        \ hierarchies, org units, parents in hierarchies, people, qualifications,\
+        \ employments, roles over org units, assignments, reporting lines, IDs of\
+        \ other systems."
       operationId: applyImport
       tags:
       - bulk
@@ -6627,7 +6635,8 @@ paths:
         \ does. The cell `#CLEAR` removes it, as `null` in a JSON row does. A cell\
         \ of a list separates its items with `|`. In an item, `\\|` is a `|` and `\\\
         \\` is a `\\`. The `charset` of the content type says how the file is encoded.\
-        \ The default is UTF-8."
+        \ The default is UTF-8. A cell with NUL (U+0000) fails with `invalid.character`,\
+        \ which names the column."
       operationId: applyCsvImport
       tags:
       - bulk
@@ -9505,11 +9514,12 @@ paths:
         \ 400 and `restore.bad_value`. So does a text longer than its column, or a\
         \ value that breaks the rule of a write, such as a code or a name. An empty\
         \ text, a text of only spaces, or an empty array in a row fails with 400 and\
-        \ `invalid.blank`, as in a write. The error names the list, the `id` of the\
-        \ row, and the field. A row may have an empty list of its own rows, such as\
-        \ `parents`. A username must name a user of this realm. An org unit names\
-        \ its Keycloak organization by alias, and the restore asks for the permission\
-        \ to manage it."
+        \ `invalid.blank`, as in a write. A text with NUL (U+0000) or half of a surrogate\
+        \ pair fails with 400 and `invalid.character`, as in a write. The error names\
+        \ the list, the `id` of the row, and the field. A row may have an empty list\
+        \ of its own rows, such as `parents`. A username must name a user of this\
+        \ realm. An org unit names its Keycloak organization by alias, and the restore\
+        \ asks for the permission to manage it."
       operationId: restore
       tags:
       - bulk

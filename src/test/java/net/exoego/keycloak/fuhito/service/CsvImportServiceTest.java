@@ -303,6 +303,18 @@ class CsvImportServiceTest {
     }
 
     @Test
+    void aCellWithNulIsReportedByItsColumn() {
+        String nul = Character.toString(0);
+        CsvImportService.Result result = load("orgUnits", "2026-04-01",
+                "外部ID,主言語,名称\nW1,ja,a" + nul + "b\nW" + nul + ",,1病棟\nW3,ja,3病棟\n");
+
+        assertEquals(List.of("line 2 row 0 invalid.character", "line 3 row 1 invalid.character"), errors(result));
+        assertEquals(Map.of("field", "name", "codePoint", "U+0000"), result.errors().getFirst().error().params());
+        assertEquals("externalId", result.errors().getLast().error().params().get("field"));
+        assertEquals(new Counts(1, 0, 0), result.report().counts().get("orgUnits"));
+    }
+
+    @Test
     void aReasonStaysWithTheLeaveAndGoesWithTheReturn() {
         item(RefKind.LEAVE_REASON, "parental");
         load("orgUnits", "2026-04-01", "外部ID,主言語,名称\nH,ja,X病院\n");

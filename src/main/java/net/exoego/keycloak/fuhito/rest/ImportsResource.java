@@ -117,7 +117,8 @@ public class ImportsResource {
                     + "stored value, as a key that a JSON row leaves out does. The cell `#CLEAR` removes it, as "
                     + "`null` in a JSON row does. A cell of a list separates its items with `|`. "
                     + "In an item, `\\|` is a `|` and `\\\\` is a `\\`. The `charset` of the content type says how "
-                    + "the file is encoded. The default is UTF-8.")
+                    + "the file is encoded. The default is UTF-8. A cell with NUL (U+0000) fails with "
+                    + "`invalid.character`, which names the column.")
     @Parameter(ref = "changeOrder")
     @APIResponse(
             responseCode = "200",
@@ -164,8 +165,9 @@ public class ImportsResource {
                     + "stored thing changes the values that it gives. A key that a row leaves out keeps the stored "
                     + "value, and `null` clears it. An object such as `names` or `attributes` merges by key in the "
                     + "same way. An empty text, a text of only spaces, and an empty array fail with "
-                    + "`invalid.blank`. A new thing has nothing stored, so a missing key and `null` both give no "
-                    + "value. The lists "
+                    + "`invalid.blank`. A text with NUL (U+0000) or half of a surrogate pair fails with "
+                    + "`invalid.character`, as the database cannot store it. A new thing has nothing stored, so a "
+                    + "missing key and `null` both give no value. The lists "
                     + "are applied in the order change orders, kinds of reference data, definitions of attributes, "
                     + "reference items, hierarchies, org units, parents in hierarchies, people, qualifications, "
                     + "employments, roles over org units, assignments, reporting lines, IDs of other systems.")
