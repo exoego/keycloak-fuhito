@@ -20,12 +20,15 @@ public record QualificationRepresentation(
                 + "by one, also a change of an ID of another system. A write of a stored qualification sends the "
                 + "version that the caller read. A create needs none.")
         Long version,
-        @Schema(description = "The ID of the person. Only a request to add reads it.")
+        @Schema(
+                description = "The ID of the person. Only a request to add reads it, and takes this or `userId`. A "
+                        + "request to add with both fails with 400 and `invalid.twice`.")
         String personId,
         @Schema(
                 description = "The ID of the Keycloak user that the person is linked to. A request to add can give "
-                        + "it in place of `personId`. The person of the user is then used, and created when the "
-                        + "user has none.")
+                        + "it in place of `personId`, not with it. The person of the user is then used, and created "
+                        + "when the user has none. A read of a person with a user has both, so a request to add made "
+                        + "from a read leaves one out.")
         String userId,
         @Schema(description = "The code of the qualification kind.")
         String kind,

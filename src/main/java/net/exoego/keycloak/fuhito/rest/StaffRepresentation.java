@@ -12,11 +12,14 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
                 + "an employment and adds its first assignment.",
         requiredProperties = {"orgUnitId", "validFrom"})
 public record StaffRepresentation(
-        @Schema(description = "The ID of the person.", writeOnly = true)
+        @Schema(
+                description = "The ID of the person. Give this or `userId`. A request with both fails with 400 and "
+                        + "`invalid.twice`.",
+                writeOnly = true)
         String personId,
         @Schema(
-                description = "The ID of the Keycloak user, in place of `personId`. The person of the user is used, "
-                        + "and created when the user has none.",
+                description = "The ID of the Keycloak user, in place of `personId`, not with it. The person of the "
+                        + "user is used, and created when the user has none.",
                 writeOnly = true)
         String userId,
         @Schema(

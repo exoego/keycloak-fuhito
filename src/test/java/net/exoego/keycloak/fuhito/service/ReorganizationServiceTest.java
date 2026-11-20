@@ -297,6 +297,29 @@ class ReorganizationServiceTest {
     }
 
     @Test
+    void aStepThatNamesAUnitInTwoWaysFailsBeforeAnyStepRuns() {
+        String a = unit("A", null);
+        String b = unit("B", null);
+        List<String> before = tree("2027-04-01");
+        Map<String, ReorganizationStep> steps = Map.of(
+                "id unitRef", move(b, "new", a, null),
+                "parentId parentRef", create(null, "C", a, "new"),
+                "parentId parentRef of a move", move(b, null, a, "new"));
+
+        steps.forEach((name, step) -> {
+            FuhitoException e = failure("2027-04-01", List.of(create("new", "New", null, null), change(a, "A2"),
+                    step));
+            assertEquals(FuhitoException.Reason.INVALID, e.reason(), name);
+            assertEquals("invalid.twice", e.code(), name);
+            String[] fields = name.split(" ", -1);
+            assertEquals(Map.of("field", fields[0], "otherField", fields[1], "step", "2"), e.params(), name);
+        });
+
+        assertEquals(List.of(), locked);
+        assertEquals(before, tree("2027-04-01"));
+    }
+
+    @Test
     void rejectsBadRequests() {
         String a = unit("A", null);
 

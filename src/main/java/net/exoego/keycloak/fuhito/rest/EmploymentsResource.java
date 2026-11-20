@@ -213,8 +213,8 @@ public class EmploymentsResource {
         context.requireWrite();
         return Calls.run(context, () -> {
             Calls.body(body);
-            var employment = represent(service.start(
-                    body.toNewEmployment(Writes.personId(context, people, "personId", body.personId(), body.userId()))));
+            var employment = represent(service.start(body.toNewEmployment(
+                    Writes.personId(context, people, "personId", body.personId(), "userId", body.userId()))));
             context.recordChange(Change.CREATE, RESOURCE_TYPE, employment.id(), "fuhito/employments/" + employment.id(),
                     employment);
             return Response.status(Response.Status.CREATED).entity(employment).build();

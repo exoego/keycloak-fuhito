@@ -75,8 +75,8 @@ public class StaffResource {
             Calls.body(body);
             // The org unit is checked first, so that a request without it does not get as far as the employment.
             Checks.required("orgUnitId", body.orgUnitId());
-            EmploymentView started = employments.start(
-                    body.toNewEmployment(Writes.personId(context, people, "personId", body.personId(), body.userId())));
+            EmploymentView started = employments.start(body.toNewEmployment(
+                    Writes.personId(context, people, "personId", body.personId(), "userId", body.userId())));
             var employment = EmploymentRepresentation.of(started, externalIds.lists(ExternalId.Kind.EMPLOYMENT,
                     List.of(started.employment().id())));
             var assignment = AssignmentsResource.represent(

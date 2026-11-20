@@ -7,6 +7,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
 
+import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.rest.RequestContext.Change;
@@ -26,7 +27,8 @@ final class Writes {
 
     // A write may name a person by the ID of a Keycloak user. The person is created when the user has none.
     static String personId(RequestContext context, PersonService people, String field, String personId,
-            String userId) {
+            String userField, String userId) {
+        Checks.notBoth(field, personId, userField, userId);
         if (personId != null) {
             return personId;
         }
