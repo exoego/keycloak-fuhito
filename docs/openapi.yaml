@@ -332,8 +332,8 @@ components:
           maxLength: 64
           pattern: "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
           description: "The name of the system of `externalId`. A definition keeps\
-            \ no system that made it, so a write of a stored definition with this\
-            \ and no `externalId` fails with 400 and `invalid.value_fixed`."
+            \ no system that made it, so a create or a write of a stored definition\
+            \ with this and no `externalId` fails with 400 and `invalid.value_fixed`."
           writeOnly: true
         externalIds:
           type: array
@@ -475,8 +475,8 @@ components:
           maxLength: 64
           pattern: "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
           description: "The name of the system of `externalId`. An order keeps no\
-            \ system that made it, so a write of a stored order with this and no `externalId`\
-            \ fails with 400 and `invalid.value_fixed`."
+            \ system that made it, so a create or a write of a stored order with this\
+            \ and no `externalId` fails with 400 and `invalid.value_fixed`."
           writeOnly: true
         externalIds:
           type: array
@@ -1303,8 +1303,8 @@ components:
           maxLength: 64
           pattern: "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
           description: "The name of the system of `externalId`. A hierarchy keeps\
-            \ no system that made it, so a write of a stored hierarchy with this and\
-            \ no `externalId` fails with 400 and `invalid.value_fixed`."
+            \ no system that made it, so a create or a write of a stored hierarchy\
+            \ with this and no `externalId` fails with 400 and `invalid.value_fixed`."
           writeOnly: true
         externalIds:
           type: array
@@ -3422,8 +3422,8 @@ components:
           maxLength: 64
           pattern: "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
           description: "The name of the system of `externalId`. An item keeps no system\
-            \ that made it, so a write of a stored item with this and no `externalId`\
-            \ fails with 400 and `invalid.value_fixed`."
+            \ that made it, so a create or a write of a stored item with this and\
+            \ no `externalId` fails with 400 and `invalid.value_fixed`."
           writeOnly: true
         externalIds:
           type: array
@@ -3584,8 +3584,8 @@ components:
           maxLength: 64
           pattern: "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
           description: "The name of the system of `externalId`. A kind keeps no system\
-            \ that made it, so a write of a stored kind with this and no `externalId`\
-            \ fails with 400 and `invalid.value_fixed`."
+            \ that made it, so a create or a write of a stored kind with this and\
+            \ no `externalId` fails with 400 and `invalid.value_fixed`."
           writeOnly: true
         externalIds:
           type: array
@@ -3840,8 +3840,9 @@ components:
           type: string
           maxLength: 64
           pattern: "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
-          description: The name of the system of `externalId`. Only a create reads
-            it.
+          description: "The name of the system of `externalId`. Only a create reads\
+            \ it. A line keeps no system that made it, so a create with this and no\
+            \ `externalId` fails with 400 and `invalid.value_fixed`."
           writeOnly: true
         externalIds:
           type: array
@@ -4344,8 +4345,9 @@ components:
           type: string
           maxLength: 64
           pattern: "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
-          description: The name of the system of `externalId`. Only a create reads
-            it.
+          description: "The name of the system of `externalId`. Only a create reads\
+            \ it. A role keeps no system that made it, so a create with this and no\
+            \ `externalId` fails with 400 and `invalid.value_fixed`."
           writeOnly: true
         externalIds:
           type: array
@@ -4421,8 +4423,10 @@ components:
         `invalid.twice`. A create with a person ID and a user ID that do not name the
         same person gets `invalid.mismatch`. A write of a stored resource with another
         value of a field that never changes, of a field that only a response fills, or
-        of a field that the write does not change, gets `invalid.value_fixed`. A read
-        with two values that do not go together gets `invalid.not_together`.
+        of a field that the write does not change, gets `invalid.value_fixed`. So does a
+        write with `source` and no `externalId` of a resource that keeps no system that
+        made it. A read with two values that do not go together gets
+        `invalid.not_together`.
       content:
         application/json:
           schema:
