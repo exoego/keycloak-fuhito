@@ -267,7 +267,7 @@ class ReadsByIdPlansIT {
     // for each assignment, and an entry of the change log for each employment.
     private static void oldStatistics(Statement statement) throws Exception {
         KeycloakEnvironment.sql("""
-                vacuum fuhito_ref_item, fuhito_qualification, fuhito_reporting_line, fuhito_external_id,
+                vacuum full fuhito_ref_item, fuhito_qualification, fuhito_reporting_line, fuhito_external_id,
                 fuhito_change_order, fuhito_change_log""");
         OldStatistics.realmsWithOldStatistics(statement);
         moreRows(statement, "ex-old", 20);
