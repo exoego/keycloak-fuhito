@@ -4298,7 +4298,9 @@ info:
   description: |
     The API has no release yet and can still change.
 
-    Dates have the form `YYYY-MM-DD`.
+    Dates have the form `YYYY-MM-DD`, from `0001-01-01` to `9999-12-31`.
+    A date in another form or outside that range fails with 400 and `invalid.date`, which names
+    the field. This holds for every date of a write, of an import, and of a query, such as `asOf`.
     A period includes its `validFrom` date and does not include its `validTo` date.
 
     A response leaves out every field that has no value.
