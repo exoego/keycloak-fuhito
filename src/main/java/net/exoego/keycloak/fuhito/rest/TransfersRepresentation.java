@@ -12,7 +12,10 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
                 + "response. It is for a merger of two legal entities.",
         requiredProperties = {"fromEmployerId", "toEmployerId", "validFrom"})
 public record TransfersRepresentation(
-        @Schema(description = "The ID of the org unit that employs the people today.", writeOnly = true)
+        @Schema(
+                description = "The ID of the org unit that employs the people before the date. It is a legal entity "
+                        + "on the date.",
+                writeOnly = true)
         String fromEmployerId,
         @Schema(
                 description = "The ID of the org unit that employs them from the date. It is a legal entity on "

@@ -479,18 +479,24 @@ public class EmploymentService {
      * Moves every person of one employer to another employer on a date, in one write.
      * It is a transfer of each employment that holds on the day before and on the date.
      * An employment that starts on the date or later is not moved. Both employers are legal entities, so an
-     * employment with an external employer is never moved.
+     * employment with an external employer is never moved. A request that moves nobody gets the same checks.
      *
      * @param request the two employers, the date, and the staff numbers
      * @return what each transfer wrote, in the order of the first dates of the old employments
-     * @throws FuhitoException when a value is bad, a staff number names an employment that is not moved, or one
-     *         transfer cannot happen
+     * @throws FuhitoException when a value is bad, an employer is not a legal entity on the date, both employers are
+     *         the same, the realm has no active end reason with the code, a staff number names an employment that
+     *         is not moved, or one transfer cannot happen
      */
     public List<Transfer> transferAll(TransferAllRequest request) {
         Checks.required("body", request);
         String fromEmployerId = Checks.required("fromEmployerId", request.fromEmployerId());
-        Checks.required("toEmployerId", request.toEmployerId());
+        String toEmployerId = Checks.required("toEmployerId", request.toEmployerId());
         LocalDate date = Checks.date("validFrom", request.validFrom());
+        Employer from = employers.of(fromEmployerId, null, date);
+        Employer to = employers.of(toEmployerId, null, date);
+        if (from.equals(to)) {
+            throw FuhitoException.invalid("employment.same_employer", Map.of("employerId", toEmployerId));
+        }
         List<Employment> moving = store.findByEmployer(fromEmployerId).stream()
                 .filter(e -> e.period().contains(date) && e.period().from().isBefore(date))
                 .toList();
@@ -503,6 +509,8 @@ public class EmploymentService {
             }
         }
         if (moving.isEmpty()) {
+            // Each move checks the reason itself, as an employment may keep an inactive reason that it has.
+            usableItem(RefKind.END_REASON, request.endReason(), null);
             return List.of();
         }
         List<Move> moves = moving.stream()
@@ -510,7 +518,7 @@ public class EmploymentService {
                         ? staffNumbers.get(employment.id())
                         : request.keepStaffNumbers() ? employment.staffNumber() : null))
                 .toList();
-        return transfer(moves, employers.of(request.toEmployerId(), null, date), date, request.endReason());
+        return transfer(moves, to, date, request.endReason());
     }
 
     private record Move(Employment employment, String staffNumber) {
