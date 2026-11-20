@@ -191,7 +191,7 @@ final class EmploymentImport {
         boolean sameEnd = Objects.equals(row.validTo(), storedEnd)
                 && (row.endReason() == null || row.endReason().equals(before.endReason()));
         if (row.validTo() != null && !sameEnd) {
-            written("/end", id, () -> service.end(id, row.validTo(), row.endReason()));
+            written("/end", id, () -> service.end(id, row.validTo(), row.endReason(), false));
             ends.put(id, index);
             changed = true;
         }
@@ -210,38 +210,23 @@ final class EmploymentImport {
         Map<String, Employment> found = new HashMap<>();
         document.people.employments().findAll(ids).forEach(employment -> found.put(employment.id(), employment));
         Map<Integer, FuhitoException> failed = new TreeMap<>();
-        continuing.forEach((row, next) -> holds(found.get(next.continuesEmploymentId()), next)
-                .ifPresent(e -> failed.put(row, e)));
+        continuing.forEach((row, next) -> holds(found, next).ifPresent(e -> failed.put(row, e)));
         if (ends.isEmpty()) {
             return failed;
         }
         // A new one is checked on its own row.
         Set<String> newIds = continuing.values().stream().map(Employment::id).collect(Collectors.toSet());
-        for (Employment next : continuingOf(ends.keySet().stream().map(found::get).toList())) {
+        for (Employment next : service.continuing(ends.keySet().stream().map(found::get).toList())) {
             if (!newIds.contains(next.id())) {
-                holds(found.get(next.continuesEmploymentId()), next)
-                        .ifPresent(e -> failed.putIfAbsent(ends.get(next.continuesEmploymentId()), e));
+                holds(found, next).ifPresent(e -> failed.putIfAbsent(ends.get(next.continuesEmploymentId()), e));
             }
         }
         return failed;
     }
 
-    // The employments that continue some employments. Such an employment is of the same person.
-    private List<Employment> continuingOf(List<Employment> employments) {
-        Set<String> ids = employments.stream().map(Employment::id).collect(Collectors.toSet());
-        Set<String> people = employments.stream().map(Employment::personId).collect(Collectors.toSet());
-        return document.people.employments().findByPeople(people).stream()
-                .filter(employment -> ids.contains(employment.continuesEmploymentId()))
-                .toList();
-    }
-
-    private static Optional<FuhitoException> holds(Employment previous, Employment next) {
-        LocalDate from = next.period().from();
-        if (!previous.period().endsAfter(from)) {
-            return Optional.empty();
-        }
-        return Optional.of(FuhitoException.conflict("employment.continues_holds",
-                Map.of("id", previous.id(), "date", from.toString())));
+    private static Optional<FuhitoException> holds(Map<String, Employment> found, Employment next) {
+        Employment previous = found.get(next.continuesEmploymentId());
+        return EmploymentService.stillHolds(previous.id(), previous.period(), next.period().from());
     }
 
     private void written(String suffix, String id, Supplier<EmploymentView> write) {

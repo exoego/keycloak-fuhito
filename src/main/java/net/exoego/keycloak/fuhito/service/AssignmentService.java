@@ -6,10 +6,12 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -315,13 +317,28 @@ public class AssignmentService {
     /**
      * Sets the end of an assignment. Its history stays readable.
      * The end can move earlier or later. A later end must stay inside the employment and the life of the org unit.
+     * It cannot pass the start of an assignment that continues this one.
      *
      * @param id the ID of the assignment
      * @param validTo the first date on which the assignment no longer holds, as {@code YYYY-MM-DD}
      * @return the assignment with all its details
-     * @throws FuhitoException when the date would cut off a stored change, or the new period is not covered
+     * @throws FuhitoException when the date would cut off a stored change, the new period is not covered, or the
+     *         assignment would hold on the start of an assignment that continues it
      */
     public AssignmentView end(String id, String validTo) {
+        return end(id, validTo, true);
+    }
+
+    /**
+     * Sets the end of an assignment, as {@link #end(String, String)} does.
+     *
+     * @param id the ID of the assignment
+     * @param validTo the first date on which the assignment no longer holds, as {@code YYYY-MM-DD}
+     * @param checkNext false when the caller checks the assignments that continue this one itself
+     * @return the assignment with all its details
+     * @throws FuhitoException as {@link #end(String, String)} does
+     */
+    AssignmentView end(String id, String validTo, boolean checkNext) {
         LocalDate to = Checks.date("validTo", validTo);
         List<Assignment> rows = requireRows(id);
         if (!to.isAfter(rows.getFirst().period().from())) {
@@ -331,8 +348,64 @@ public class AssignmentService {
         if (!to.isAfter(last.period().from())) {
             throw FuhitoException.conflict("assignment.later_changes_exist", Map.of("id", id, "validTo", validTo));
         }
+        if (checkNext) {
+            requireEndsByNext(last, to);
+        }
         setEnd(last, to);
         return get(id);
+    }
+
+    /**
+     * Finds the assignments that continue some assignments. Such an assignment is of the same person.
+     *
+     * @param assignments a row of each assignment that others may continue
+     * @return the first row of each assignment that continues one of them
+     */
+    Collection<Assignment> continuing(Collection<Assignment> assignments) {
+        Set<String> ids = new HashSet<>();
+        Set<String> employmentIds = new HashSet<>();
+        assignments.forEach(row -> {
+            ids.add(row.assignmentId());
+            employmentIds.add(row.employmentId());
+        });
+        Set<String> personIds = employments.findAll(employmentIds).stream().map(Employment::personId)
+                .collect(Collectors.toSet());
+        List<String> all = employments.findByPeople(personIds).stream().map(Employment::id).toList();
+        Map<String, Assignment> firsts = new LinkedHashMap<>();
+        store.rowsOfEmployments(all).stream()
+                .filter(row -> ids.contains(row.continuesAssignmentId()))
+                .forEach(row -> firsts.putIfAbsent(row.assignmentId(), row));
+        return firsts.values();
+    }
+
+    /**
+     * Checks that an assignment ends by the start of an assignment that continues it.
+     *
+     * @param id the ID of the assignment
+     * @param period the period of the last row of the assignment
+     * @param from the start of the assignment that continues it
+     * @return the error when the assignment still holds on that start
+     */
+    static Optional<FuhitoException> stillHolds(String id, ValidPeriod period, LocalDate from) {
+        if (!period.endsAfter(from)) {
+            return Optional.empty();
+        }
+        return Optional.of(FuhitoException.conflict("assignment.continues_holds",
+                Map.of("id", id, "date", from.toString())));
+    }
+
+    // Only a later end or no end can make the assignment hold on the start of one that continues it.
+    private void requireEndsByNext(Assignment last, LocalDate to) {
+        LocalDate stored = last.period().to();
+        if (stored == null || (to != null && !to.isAfter(stored))) {
+            return;
+        }
+        ValidPeriod period = last.period().endingAt(to);
+        for (Assignment next : continuing(List.of(last))) {
+            stillHolds(last.assignmentId(), period, next.period().from()).ifPresent(e -> {
+                throw e;
+            });
+        }
     }
 
     /**
@@ -389,15 +462,18 @@ public class AssignmentService {
 
     /**
      * Removes the end of an assignment. The assignment then lasts as long as its employment.
+     * It cannot then hold on the start of an assignment that continues it.
      *
      * @param id the ID of the assignment
      * @return the assignment with all its details
-     * @throws FuhitoException when the org unit does not cover the new period
+     * @throws FuhitoException when the org unit does not cover the new period, or the assignment would hold on the
+     *         start of an assignment that continues it
      */
     public AssignmentView removeEnd(String id) {
         List<Assignment> rows = requireRows(id);
         Assignment last = rows.getLast();
         LocalDate employmentEnd = employments.find(last.employmentId()).orElseThrow().period().to();
+        requireEndsByNext(last, employmentEnd);
         setEnd(last, employmentEnd);
         return get(id);
     }

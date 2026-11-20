@@ -394,6 +394,37 @@ class AssignmentServiceTest {
     }
 
     @Test
+    void anEndDoesNotPassTheStartOfTheAssignmentThatContinuesIt() {
+        String old = service.add(to(ward, "2026-04-01")).assignmentId();
+        String next = service.move(old, new MoveRequest(yHospital, "2027-04-01", null, null, null)).started()
+                .assignmentId();
+
+        for (String date : List.of("2027-04-02", "2028-04-01")) {
+            FuhitoException e = assertThrows(FuhitoException.class, () -> service.end(old, date));
+            assertEquals(FuhitoException.Reason.CONFLICT, e.reason());
+            assertEquals("assignment.continues_holds", e.code());
+            assertEquals(Map.of("id", old, "date", "2027-04-01"), e.params());
+        }
+        assertEquals("assignment.continues_holds",
+                assertThrows(FuhitoException.class, () -> service.removeEnd(old)).code());
+        assertEquals(LocalDate.of(2027, 4, 1), store.rows(old).getLast().period().to());
+
+        // An end before the start of the next one leaves a gap, which is fine. So is an end on that start.
+        assertEquals(LocalDate.of(2027, 3, 1), service.end(old, "2027-03-01").period().to());
+        assertEquals(LocalDate.of(2027, 4, 1), service.end(old, "2027-04-01").period().to());
+        assertEquals(LocalDate.of(2030, 4, 1), service.end(next, "2030-04-01").period().to());
+        assertNull(service.removeEnd(next).period().to());
+    }
+
+    @Test
+    void anAssignmentThatEndedWithItsEmploymentKeepsThatEndAfterATransfer() {
+        String old = service.add(to(ward, "2026-04-01")).assignmentId();
+        employmentService.transfer(employment, new TransferRequest("company-x", "2027-04-01", null, null));
+
+        assertEquals(LocalDate.of(2027, 4, 1), service.removeEnd(old).period().to());
+    }
+
+    @Test
     void aLaterEndMustStayInsideTheEmploymentAndTheOrgUnit() {
         String fixed = employmentService.start(new NewEmployment("bob", "2026-04-01", "2027-04-01", null, null, null,
                 null, null, null, null, null)).employment().id();

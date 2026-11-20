@@ -454,6 +454,34 @@ class EmploymentsIT {
     }
 
     @Test
+    void anEndCannotOpenAgainAnEmploymentThatATransferEnded() throws Exception {
+        TestRealm group = TestRealm.create("employments-reopen");
+        Api groupApi = group.api;
+        String corporation = group.legalEntity("医療法人X会");
+        String company = group.legalEntity("株式会社Yサービス");
+        String user = group.user("tanaka");
+        String old = created(groupApi.post("/employments", "{\"userId\": \"" + user + "\", \"employerId\": \""
+                + company + "\", \"validFrom\": \"2020-04-01\"}")).get("id").asText();
+        created(groupApi.postWithVersion("/employments/" + old + "/transfer", "{\"employerId\": \"" + corporation
+                + "\", \"validFrom\": \"2027-04-01\"}"));
+        String end = "/employments/" + old + "/end";
+
+        HttpResponse<String> later = groupApi.putWithVersion(end, "{\"validTo\": \"2027-10-01\"}");
+        assertEquals("employment.continues_holds", errorOf(409, later));
+        JsonNode params = Api.json(later).get("params");
+        assertEquals(old, params.get("id").asText());
+        assertEquals("2027-04-01", params.get("date").asText());
+        assertEquals("employment.continues_holds", errorOf(409, groupApi.deleteWithVersion(end)));
+        assertEquals("2027-04-01", Api.json(groupApi.get("/employments/" + old)).get("validTo").asText());
+
+        // An end before the start of the new employment leaves a gap, which is fine. So is an end on that start.
+        assertEquals("2027-03-01", Api.json(groupApi.putWithVersion(end, "{\"validTo\": \"2027-03-01\"}"))
+                .get("validTo").asText());
+        assertEquals("2027-04-01", Api.json(groupApi.putWithVersion(end, "{\"validTo\": \"2027-04-01\"}"))
+                .get("validTo").asText());
+    }
+
+    @Test
     void aMergerMovesEveryPersonAndEndsTheOldEmployerInOneWrite() throws Exception {
         TestRealm group = TestRealm.create("employments-merger");
         Api groupApi = group.api;

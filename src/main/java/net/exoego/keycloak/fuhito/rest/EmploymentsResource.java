@@ -274,7 +274,9 @@ public class EmploymentsResource {
             operationId = "endEmployment",
             summary = "Sets the end of an employment.",
             description = "An earlier end is how a person leaves. It also ends the terms and the assignments on "
-                    + "that date. A later end extends a fixed-term employment.")
+                    + "that date. A later end extends a fixed-term employment. A later end that comes after the "
+                    + "start of an employment that continues this one fails with 409 and "
+                    + "`employment.continues_holds`.")
     @Parameter(ref = "changeOrder")
     @APIResponse(responseCode = "200", description = "The employment with the terms of every period.")
     @BadRequest
@@ -508,7 +510,9 @@ public class EmploymentsResource {
     @Path("{id}/end")
     @Operation(
             operationId = "removeEmploymentEnd",
-            summary = "Removes the end of an employment, for example to take back a resignation.")
+            summary = "Removes the end of an employment, for example to take back a resignation.",
+            description = "An employment that another one continues, as after a transfer, keeps its end. The "
+                    + "request then fails with 409 and `employment.continues_holds`.")
     @Parameter(ref = "changeOrder")
     @APIResponse(responseCode = "200", description = "The employment with the terms of every period.")
     @BadRequest
