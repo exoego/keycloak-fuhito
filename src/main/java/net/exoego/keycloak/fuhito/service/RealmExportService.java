@@ -4,7 +4,6 @@ import java.time.DateTimeException;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -293,7 +292,8 @@ public class RealmExportService {
      *        before anything is written
      * @return the number of rows of each list
      * @throws FuhitoException when the format is unknown, the realm has data and is not replaced, a value is empty or
-     *         too long for its column, a username has no user, or the realm has no organization with an alias
+     *         too long for its column, two rows have the same key or overlap, a username has no user, or the realm
+     *         has no organization with an alias
      */
     public Map<String, Integer> restore(RealmExport document, boolean replace, Consumer<String> linking) {
         Checks.required("body", document);
@@ -305,7 +305,9 @@ public class RealmExportService {
         }
         RestoreCheck.requireValues(document, stores.export()::lengths);
         RestoreCheck.requireReferences(document);
+        RestoreKeys.require(document);
         Map<String, String> organizations = organizations(document);
+        Map<String, String> users = users(document);
         if (replace) {
             stores.export().linkedOrganizations().stream()
                     .filter(id -> !organizations.containsValue(id))
@@ -315,13 +317,7 @@ public class RealmExportService {
         if (replace) {
             stores.export().deleteData();
         }
-        // A copy into a second realm of the same database names the rows of the first one by their IDs.
-        for (Map.Entry<String, Collection<String>> list : RestoreCheck.ids(document).entrySet()) {
-            Optional<String> taken = stores.export().takenId(list.getKey(), list.getValue());
-            if (taken.isPresent()) {
-                throw FuhitoException.conflict("restore.id_taken", Map.of("list", list.getKey(), "id", taken.get()));
-            }
-        }
+        requireFreeIds(document);
         Map<String, Integer> counts = new LinkedHashMap<>();
         counts.put("ref-kinds", each("ref-kinds", document.refKinds(), k -> stores.refKinds().insert(
                 new RealmKind(k.id(), k.code(), RefKindName.check(k.primaryLanguage(), k.names()),
@@ -346,7 +342,7 @@ public class RealmExportService {
         rows("org-units", () -> restoreOrgUnits(Optional.ofNullable(document.orgUnits()).orElse(List.of()),
                 hierarchyIds, organizations, counts));
         counts.put("people", each("people", document.people(), p -> {
-            stores.people().insert(new Person(p.id(), userId(p.username()),
+            stores.people().insert(new Person(p.id(), users.get(p.username()),
                     PersonName.check(p.primaryLanguage(), p.names()), p.attributes(), p.source(),
                     version(p.version())));
             if (p.maskedAt() != null) {
@@ -384,21 +380,48 @@ public class RealmExportService {
     // The IDs of the organizations by alias. One organization has one org unit.
     private Map<String, String> organizations(RealmExport document) {
         Map<String, String> ids = new HashMap<>();
-        Map<String, String> unitOfAlias = new HashMap<>();
+        Map<String, String> unitOfOrganization = new HashMap<>();
         for (RealmExport.Unit unit : Optional.ofNullable(document.orgUnits()).orElse(List.of())) {
-            String alias = unit == null ? null : unit.organizationAlias();
+            String alias = unit.organizationAlias();
             if (alias == null) {
                 continue;
             }
             String id = ids.computeIfAbsent(alias, a -> stores.organizations().idOfAlias(a).orElseThrow(
                     () -> FuhitoException.invalid("restore.organization_unknown", Map.of("alias", a))));
-            String other = unitOfAlias.putIfAbsent(alias, unit.id());
+            String other = unitOfOrganization.putIfAbsent(id, unit.id());
             if (other != null) {
-                throw FuhitoException.conflict("organization.linked",
-                        Map.of("organizationId", id, "orgUnitId", other));
+                throw RestoreKeys.duplicate("org-units", unit.id(), "organizationAlias", other);
             }
         }
         return ids;
+    }
+
+    // The IDs of the users of the people by username. One user has one person. Keycloak finds a user by a username
+    // in any case, so two usernames can name one user.
+    private Map<String, String> users(RealmExport document) {
+        Map<String, String> ids = new HashMap<>();
+        Map<String, String> personOfUser = new HashMap<>();
+        for (PersonRow person : Optional.ofNullable(document.people()).orElse(List.of())) {
+            if (person.username() == null) {
+                continue;
+            }
+            String id = userId(person.username());
+            ids.put(person.username(), id);
+            String other = personOfUser.putIfAbsent(id, person.id());
+            if (other != null) {
+                throw RestoreKeys.duplicate("people", person.id(), "username", other);
+            }
+        }
+        return ids;
+    }
+
+    // A copy into a second realm of the same database names the rows of the first one by their IDs.
+    private void requireFreeIds(RealmExport document) {
+        for (RestoreKeys.Ids ids : RestoreKeys.ids(document)) {
+            stores.export().takenId(ids.list(), ids.field(), ids.ids()).ifPresent(id -> {
+                throw FuhitoException.conflict("restore.id_taken", Map.of("list", ids.list(), "id", id));
+            });
+        }
     }
 
     private void restoreRefItem(RealmExport.Item i) {
