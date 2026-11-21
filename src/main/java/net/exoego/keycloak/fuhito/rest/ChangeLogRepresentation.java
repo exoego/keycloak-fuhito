@@ -27,7 +27,7 @@ public record ChangeLogRepresentation(
 
     static ChangeLogRepresentation of(ChangeLogEntry entry) {
         return new ChangeLogRepresentation(entry.id(), entry.sequence(), entry.recordedAt().toString(), entry.actorUserId(),
-                entry.resourceType(), entry.resourceId(), entry.operation(), entry.resourcePath(),
+                entry.resourceType().name(), entry.resourceId(), entry.operation(), entry.resourcePath(),
                 entry.changeOrderId());
     }
 }

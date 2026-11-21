@@ -4,7 +4,9 @@ import java.util.List;
 import java.util.Map;
 
 import net.exoego.keycloak.fuhito.domain.ChangeLogEntry;
+import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
+import net.exoego.keycloak.fuhito.domain.ResourceType;
 import net.exoego.keycloak.fuhito.store.ChangeLogStore;
 import net.exoego.keycloak.fuhito.store.ChangeOrderStore;
 
@@ -36,11 +38,12 @@ public class ChangeLogService {
      * @param first the number of entries to skip, or null for 0
      * @param max the largest number of entries to return, or null for 100. At most 1000 are returned.
      * @return the entries
+     * @throws FuhitoException when the change log has no such type
      */
     public List<ChangeLogEntry> list(Long after, String resourceType, String resourceId, Integer first,
             Integer max) {
         Page page = Page.of(first, max);
-        return store.list(after == null ? 0 : after, resourceType, resourceId, page.first(), page.max());
+        return store.list(after == null ? 0 : after, type(resourceType), resourceId, page.first(), page.max());
     }
 
     /**
@@ -49,9 +52,14 @@ public class ChangeLogService {
      * @param resourceType the type of the resource, for example {@code FUHITO_ORG_UNIT}, or null for every type
      * @param resourceId the ID of the resource, or null for every resource
      * @return the number of entries
+     * @throws FuhitoException when the change log has no such type
      */
     public long count(String resourceType, String resourceId) {
-        return store.count(resourceType, resourceId);
+        return store.count(type(resourceType), resourceId);
+    }
+
+    private static ResourceType type(String resourceType) {
+        return Checks.optionalEnum("resourceType", ResourceType.class, resourceType, null);
     }
 
     /**

@@ -4,12 +4,15 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import net.exoego.keycloak.fuhito.domain.ChangeLogEntry;
 import net.exoego.keycloak.fuhito.domain.ChangeOrder;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
+import net.exoego.keycloak.fuhito.domain.ResourceType;
 import net.exoego.keycloak.fuhito.store.ChangeLogStore;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.function.Executable;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -27,7 +30,8 @@ class ChangeLogServiceTest {
         }
 
         @Override
-        public List<ChangeLogEntry> list(long after, String resourceType, String resourceId, int first, int max) {
+        public List<ChangeLogEntry> list(long after, ResourceType resourceType, String resourceId, int first,
+                int max) {
             return entries.stream()
                     .filter(e -> e.sequence() > after)
                     .filter(e -> resourceType == null || e.resourceType().equals(resourceType))
@@ -36,7 +40,7 @@ class ChangeLogServiceTest {
         }
 
         @Override
-        public long count(String resourceType, String resourceId) {
+        public long count(ResourceType resourceType, String resourceId) {
             return list(0, resourceType, resourceId, 0, Integer.MAX_VALUE).size();
         }
 
@@ -63,7 +67,8 @@ class ChangeLogServiceTest {
 
     private void write(String resourceId, String operation, String changeOrderId) {
         store.append(new ChangeLogEntry("entry-" + store.entries.size(), 0, Instant.parse("2026-04-01T00:00:00Z"),
-                "admin", "FUHITO_ORG_UNIT", resourceId, operation, "fuhito/org-units/" + resourceId, changeOrderId));
+                "admin", ResourceType.FUHITO_ORG_UNIT, resourceId, operation, "fuhito/org-units/" + resourceId,
+                changeOrderId));
     }
 
     private static List<String> summary(List<ChangeLogEntry> entries) {
@@ -83,7 +88,7 @@ class ChangeLogServiceTest {
         assertEquals("entry-2", update.id());
         assertEquals(Instant.parse("2026-04-01T00:00:00Z"), update.recordedAt());
         assertEquals("admin", update.actorUserId());
-        assertEquals("FUHITO_ORG_UNIT", update.resourceType());
+        assertEquals(ResourceType.FUHITO_ORG_UNIT, update.resourceType());
         assertEquals("fuhito/org-units/u1", update.resourcePath());
         assertEquals("order", update.changeOrderId());
         assertEquals(List.of(), service.list(null, "FUHITO_REF_ITEM", "u1", null, null));
@@ -139,5 +144,23 @@ class ChangeLogServiceTest {
         assertEquals(1000, service.list(null, null, null, null, 1000).size());
         // The check of the query rejects a larger number before the service runs.
         assertThrows(IllegalArgumentException.class, () -> service.list(null, null, null, null, 1001));
+    }
+
+    @Test
+    void rejectsATypeThatTheChangeLogDoesNotWrite() {
+        write("u1", "CREATE", null);
+
+        for (String type : List.of("ORG_UNIT", "fuhito_org_unit", "FUHITO_UNKNOWN")) {
+            for (Executable read : List.<Executable>of(() -> service.list(null, type, null, null, null),
+                    () -> service.count(type, null))) {
+                FuhitoException e = assertThrows(FuhitoException.class, read, type);
+                assertEquals(FuhitoException.Reason.INVALID, e.reason());
+                assertEquals("invalid.choice", e.code());
+                assertEquals(Map.of("field", "resourceType", "value", type), e.params());
+            }
+        }
+        assertEquals(1, service.count("FUHITO_ORG_UNIT", null));
+        assertEquals(0, service.count("FUHITO_RESTORE", null));
+        assertEquals(1, service.count(null, null));
     }
 }

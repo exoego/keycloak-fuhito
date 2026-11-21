@@ -12,6 +12,7 @@ import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.Hierarchy;
 import net.exoego.keycloak.fuhito.domain.RefItem;
 import net.exoego.keycloak.fuhito.domain.ReportingLine;
+import net.exoego.keycloak.fuhito.domain.ResourceType;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 
 /**
@@ -80,7 +81,7 @@ public final class ImportReport {
          *
          * @return the type, as the event log names it
          */
-        String resourceType();
+        ResourceType resourceType();
 
         /**
          * Returns the ID of the written resource.
@@ -105,8 +106,8 @@ public final class ImportReport {
         record OfRefItem(boolean created, RefItem state) implements Write {
 
             @Override
-            public String resourceType() {
-                return "FUHITO_REF_ITEM";
+            public ResourceType resourceType() {
+                return ResourceType.FUHITO_REF_ITEM;
             }
 
             @Override
@@ -129,8 +130,8 @@ public final class ImportReport {
         record OfRefKind(boolean created, RealmKindService.View state) implements Write {
 
             @Override
-            public String resourceType() {
-                return "FUHITO_REF_KIND";
+            public ResourceType resourceType() {
+                return ResourceType.FUHITO_REF_KIND;
             }
 
             @Override
@@ -153,8 +154,8 @@ public final class ImportReport {
         record OfAttributeDefinition(boolean created, AttributeDefinition state) implements Write {
 
             @Override
-            public String resourceType() {
-                return "FUHITO_ATTRIBUTE_DEFINITION";
+            public ResourceType resourceType() {
+                return ResourceType.FUHITO_ATTRIBUTE_DEFINITION;
             }
 
             @Override
@@ -177,8 +178,8 @@ public final class ImportReport {
         record OfHierarchy(boolean created, Hierarchy state) implements Write {
 
             @Override
-            public String resourceType() {
-                return "FUHITO_HIERARCHY";
+            public ResourceType resourceType() {
+                return ResourceType.FUHITO_HIERARCHY;
             }
 
             @Override
@@ -210,8 +211,8 @@ public final class ImportReport {
             }
 
             @Override
-            public String resourceType() {
-                return "FUHITO_PERSON";
+            public ResourceType resourceType() {
+                return ResourceType.FUHITO_PERSON;
             }
 
             @Override
@@ -235,8 +236,8 @@ public final class ImportReport {
         record OfOrgUnit(boolean created, String suffix, OrgUnitState state) implements Write {
 
             @Override
-            public String resourceType() {
-                return "FUHITO_ORG_UNIT";
+            public ResourceType resourceType() {
+                return ResourceType.FUHITO_ORG_UNIT;
             }
 
             @Override
@@ -265,8 +266,8 @@ public final class ImportReport {
             }
 
             @Override
-            public String resourceType() {
-                return "FUHITO_ORG_UNIT";
+            public ResourceType resourceType() {
+                return ResourceType.FUHITO_ORG_UNIT;
             }
 
             @Override
@@ -296,8 +297,8 @@ public final class ImportReport {
             }
 
             @Override
-            public String resourceType() {
-                return "FUHITO_ORG_UNIT";
+            public ResourceType resourceType() {
+                return ResourceType.FUHITO_ORG_UNIT;
             }
 
             @Override
@@ -325,8 +326,8 @@ public final class ImportReport {
             }
 
             @Override
-            public String resourceType() {
-                return "FUHITO_ORG_UNIT";
+            public ResourceType resourceType() {
+                return ResourceType.FUHITO_ORG_UNIT;
             }
 
             @Override
@@ -350,8 +351,8 @@ public final class ImportReport {
         record OfEmployment(boolean created, String suffix, EmploymentView state) implements Write {
 
             @Override
-            public String resourceType() {
-                return "FUHITO_EMPLOYMENT";
+            public ResourceType resourceType() {
+                return ResourceType.FUHITO_EMPLOYMENT;
             }
 
             @Override
@@ -375,8 +376,8 @@ public final class ImportReport {
         record OfAssignment(boolean created, String suffix, AssignmentView state) implements Write {
 
             @Override
-            public String resourceType() {
-                return "FUHITO_ASSIGNMENT";
+            public ResourceType resourceType() {
+                return ResourceType.FUHITO_ASSIGNMENT;
             }
 
             @Override
@@ -400,8 +401,8 @@ public final class ImportReport {
         record OfReportingLine(boolean created, String suffix, ReportingLine state) implements Write {
 
             @Override
-            public String resourceType() {
-                return "FUHITO_REPORTING_LINE";
+            public ResourceType resourceType() {
+                return ResourceType.FUHITO_REPORTING_LINE;
             }
 
             @Override
@@ -425,8 +426,8 @@ public final class ImportReport {
         record OfUnitRole(boolean created, String suffix, UnitRoleService.View state) implements Write {
 
             @Override
-            public String resourceType() {
-                return "FUHITO_UNIT_ROLE";
+            public ResourceType resourceType() {
+                return ResourceType.FUHITO_UNIT_ROLE;
             }
 
             @Override
@@ -449,8 +450,8 @@ public final class ImportReport {
         record OfQualification(boolean created, QualificationView state) implements Write {
 
             @Override
-            public String resourceType() {
-                return "FUHITO_QUALIFICATION";
+            public ResourceType resourceType() {
+                return ResourceType.FUHITO_QUALIFICATION;
             }
 
             @Override
@@ -473,8 +474,8 @@ public final class ImportReport {
         record OfExternalId(boolean created, ExternalIdService.View state) implements Write {
 
             @Override
-            public String resourceType() {
-                return "FUHITO_EXTERNAL_ID";
+            public ResourceType resourceType() {
+                return ResourceType.FUHITO_EXTERNAL_ID;
             }
 
             @Override
@@ -497,8 +498,8 @@ public final class ImportReport {
         record OfChangeOrder(boolean created, ChangeOrder state) implements Write {
 
             @Override
-            public String resourceType() {
-                return "FUHITO_CHANGE_ORDER";
+            public ResourceType resourceType() {
+                return ResourceType.FUHITO_CHANGE_ORDER;
             }
 
             @Override
@@ -519,7 +520,7 @@ public final class ImportReport {
          * @param resourceId the ID of the removed resource
          * @param path the path that the same removal has in its own endpoint
          */
-        record Removed(String resourceType, String resourceId, String path) implements Write {
+        record Removed(ResourceType resourceType, String resourceId, String path) implements Write {
 
             @Override
             public boolean created() {
@@ -532,23 +533,23 @@ public final class ImportReport {
             }
 
             static Removed line(String id) {
-                return new Removed("FUHITO_REPORTING_LINE", id, "fuhito/reporting-lines/" + id);
+                return new Removed(ResourceType.FUHITO_REPORTING_LINE, id, "fuhito/reporting-lines/" + id);
             }
 
             static Removed assignment(String id) {
-                return new Removed("FUHITO_ASSIGNMENT", id, "fuhito/assignments/" + id);
+                return new Removed(ResourceType.FUHITO_ASSIGNMENT, id, "fuhito/assignments/" + id);
             }
 
             static Removed employment(String id) {
-                return new Removed("FUHITO_EMPLOYMENT", id, "fuhito/employments/" + id);
+                return new Removed(ResourceType.FUHITO_EMPLOYMENT, id, "fuhito/employments/" + id);
             }
 
             static Removed unitRole(String id) {
-                return new Removed("FUHITO_UNIT_ROLE", id, "fuhito/unit-roles/" + id);
+                return new Removed(ResourceType.FUHITO_UNIT_ROLE, id, "fuhito/unit-roles/" + id);
             }
 
             static Removed externalId(String id) {
-                return new Removed("FUHITO_EXTERNAL_ID", id, "fuhito/external-ids/" + id);
+                return new Removed(ResourceType.FUHITO_EXTERNAL_ID, id, "fuhito/external-ids/" + id);
             }
         }
     }

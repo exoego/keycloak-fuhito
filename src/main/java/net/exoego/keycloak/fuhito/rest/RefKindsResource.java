@@ -17,6 +17,7 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.ExternalId;
+import net.exoego.keycloak.fuhito.domain.ResourceType;
 import net.exoego.keycloak.fuhito.rest.RequestContext.Change;
 import net.exoego.keycloak.fuhito.service.ExternalIdLists;
 import net.exoego.keycloak.fuhito.service.ExternalIdService;
@@ -40,7 +41,7 @@ public class RefKindsResource {
     /**
      * The resource type of kinds of reference data in the admin event log.
      */
-    public static final String RESOURCE_TYPE = "FUHITO_REF_KIND";
+    public static final ResourceType RESOURCE_TYPE = ResourceType.FUHITO_REF_KIND;
 
     private final RequestContext context;
     private final RealmKindService service;

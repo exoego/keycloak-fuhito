@@ -26,6 +26,7 @@ import net.exoego.keycloak.fuhito.domain.RefItemName;
 import net.exoego.keycloak.fuhito.domain.RefKind;
 import net.exoego.keycloak.fuhito.domain.RefKindName;
 import net.exoego.keycloak.fuhito.domain.ReportingLine;
+import net.exoego.keycloak.fuhito.domain.ResourceType;
 import net.exoego.keycloak.fuhito.domain.UnitRole;
 import net.exoego.keycloak.fuhito.service.ImportDocument.AssignmentRow;
 import net.exoego.keycloak.fuhito.service.ImportDocument.AttributeDefinitionRow;
@@ -195,7 +196,7 @@ class ImportServiceTest {
         assertEquals(List.of(), first.errors());
         assertEquals(2, first.writes().size());
         assertTrue(first.writes().getFirst().created());
-        assertEquals("FUHITO_REF_ITEM", first.writes().getFirst().resourceType());
+        assertEquals(ResourceType.FUHITO_REF_ITEM, first.writes().getFirst().resourceType());
         assertEquals("fuhito/ref-items/" + first.writes().getFirst().resourceId(), first.writes().getFirst().path());
         assertEquals(List.of(), second.writes());
         RefItem hospital = refItems.findByCode(RefKind.UNIT_TYPE, "hospital").orElseThrow();
@@ -1685,7 +1686,7 @@ class ImportServiceTest {
         assertEquals(LocalDate.of(2020, 4, 1), nurse.period().from());
         assertEquals(List.of("FUHITO_ORG_UNIT", "FUHITO_ORG_UNIT", "FUHITO_PERSON", "FUHITO_EMPLOYMENT",
                 "FUHITO_PERSON", "FUHITO_EMPLOYMENT", "FUHITO_ASSIGNMENT", "FUHITO_ASSIGNMENT"),
-                first.writes().stream().map(ImportReport.Write::resourceType).toList());
+                first.writes().stream().map(write -> write.resourceType().name()).toList());
         assertTrue(first.writes().get(2) instanceof ImportReport.Write.OfPerson);
         assertEquals("fuhito/people/" + nurse.personId(), first.writes().get(2).path());
         assertTrue(first.writes().get(2).created());
@@ -2097,7 +2098,7 @@ class ImportServiceTest {
         // A new row with an end date and no reason is created with that end. Nothing ends it a second time.
         ImportReport created = importPeople("2026-04-01", List.of(open), null);
         assertEquals(List.of("FUHITO_PERSON", "FUHITO_EMPLOYMENT"),
-                created.writes().stream().map(ImportReport.Write::resourceType).toList());
+                created.writes().stream().map(write -> write.resourceType().name()).toList());
         // The employment still runs on the effective date, so its terms are compared.
         assertEquals(new Counts(0, 0, 1), changed(importPeople("2026-04-01", List.of(open), null), "employments"));
 

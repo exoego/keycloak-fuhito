@@ -15,6 +15,7 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.domain.ReportingLine;
+import net.exoego.keycloak.fuhito.domain.ResourceType;
 import net.exoego.keycloak.fuhito.rest.RequestContext.Change;
 import net.exoego.keycloak.fuhito.service.ExternalIdLists;
 import net.exoego.keycloak.fuhito.service.ExternalIdService;
@@ -38,7 +39,7 @@ public class ReportingLinesResource {
     /**
      * The resource type of reporting lines in the admin event log.
      */
-    public static final String RESOURCE_TYPE = "FUHITO_REPORTING_LINE";
+    public static final ResourceType RESOURCE_TYPE = ResourceType.FUHITO_REPORTING_LINE;
 
     private final RequestContext context;
     private final ReportingLineService service;

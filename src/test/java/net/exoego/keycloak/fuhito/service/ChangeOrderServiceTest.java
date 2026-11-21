@@ -12,6 +12,7 @@ import java.util.Set;
 import net.exoego.keycloak.fuhito.domain.ChangeLogEntry;
 import net.exoego.keycloak.fuhito.domain.ChangeOrder;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
+import net.exoego.keycloak.fuhito.domain.ResourceType;
 import net.exoego.keycloak.fuhito.store.ChangeLogStore;
 import org.junit.jupiter.api.Test;
 
@@ -33,12 +34,12 @@ class ChangeOrderServiceTest {
         }
 
         @Override
-        public List<ChangeLogEntry> list(long after, String resourceType, String resourceId, int first, int max) {
+        public List<ChangeLogEntry> list(long after, ResourceType resourceType, String resourceId, int first, int max) {
             return List.of();
         }
 
         @Override
-        public long count(String resourceType, String resourceId) {
+        public long count(ResourceType resourceType, String resourceId) {
             return 0;
         }
 

@@ -15,6 +15,7 @@ import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import net.exoego.keycloak.fuhito.domain.ExternalId;
+import net.exoego.keycloak.fuhito.domain.ResourceType;
 import net.exoego.keycloak.fuhito.rest.RequestContext.Change;
 import net.exoego.keycloak.fuhito.service.Cursor;
 import net.exoego.keycloak.fuhito.service.ExternalIdLists;
@@ -42,7 +43,7 @@ public class PeopleResource {
     /**
      * The resource type of people in the admin event log.
      */
-    public static final String RESOURCE_TYPE = "FUHITO_PERSON";
+    public static final ResourceType RESOURCE_TYPE = ResourceType.FUHITO_PERSON;
 
     private final RequestContext context;
     private final PersonService service;

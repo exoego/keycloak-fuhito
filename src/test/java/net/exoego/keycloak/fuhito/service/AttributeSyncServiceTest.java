@@ -317,7 +317,7 @@ class AttributeSyncServiceTest {
         assertEquals(List.of(), externalIds.ofResource(ExternalId.Kind.EMPLOYMENT, employment.id()));
         assertEquals(List.of("FUHITO_PERSON", "FUHITO_EMPLOYMENT", "FUHITO_ASSIGNMENT", "FUHITO_PERSON",
                         "FUHITO_EMPLOYMENT", "FUHITO_ASSIGNMENT", "FUHITO_REPORTING_LINE"),
-                report.writes().stream().map(ImportReport.Write::resourceType).toList());
+                report.writes().stream().map(write -> write.resourceType().name()).toList());
     }
 
     @Test

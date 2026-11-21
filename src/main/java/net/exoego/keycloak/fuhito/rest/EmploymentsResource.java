@@ -21,6 +21,7 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.ExternalId;
+import net.exoego.keycloak.fuhito.domain.ResourceType;
 import net.exoego.keycloak.fuhito.rest.RequestContext.Change;
 import net.exoego.keycloak.fuhito.service.AssignmentService;
 import net.exoego.keycloak.fuhito.service.Cursor;
@@ -59,7 +60,7 @@ public class EmploymentsResource {
     /**
      * The resource type of employments in the admin event log.
      */
-    public static final String RESOURCE_TYPE = "FUHITO_EMPLOYMENT";
+    public static final ResourceType RESOURCE_TYPE = ResourceType.FUHITO_EMPLOYMENT;
 
     private final RequestContext context;
     private final EmploymentService service;
