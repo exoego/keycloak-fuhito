@@ -38,6 +38,17 @@
                         steps of a reorganization. The keys of `attributes` are the names of attributes, which their
                         definitions check.
 
+                        A value of another JSON type than its field fails with 400 and `invalid.type`. The error
+                        names the field with its path in `field`, such as `displayOrder` or `steps[0].names.ja.name`,
+                        and the type of the field in `type`. The types are the ones of this document, `string`,
+                        `integer`, `number`, `boolean`, `object`, and `array`. No value is converted. So `"3"`, `3.7`,
+                        and `3.0` fail for an `integer`, `"true"` and `1` fail for a `boolean`, and `123` fails for a
+                        `string`. A `number` takes a whole number too, and `80.0` is the same number as `80`. `null`
+                        is no value, except for `dryRun` of an import and the flags and the `displayOrder` of the
+                        rows of a restore, which fail with `null`. This holds for every body, also for an import, a
+                        restore, and the steps of a reorganization. The values in `attributes` keep their JSON type,
+                        and their definitions check them.
+
                         Each operation lists the query parameters that it takes. A request with another query
                         parameter fails with 400 and `invalid.unknown_parameter`, which names the parameter in
                         `field`. The case of each letter counts, so `asof` is not `asOf`. A request that gives one
@@ -146,7 +157,8 @@
                                     `invalid.blank`. A text with NUL or half of a surrogate pair gets
                                     `invalid.character`. A body that gives one key twice in one object gets
                                     `invalid.duplicate_key`, and a body with a key that it does not have gets
-                                    `invalid.unknown_key`. A write that names one thing in two ways gets
+                                    `invalid.unknown_key`. A value of another JSON type than its field gets
+                                    `invalid.type`. A write that names one thing in two ways gets
                                     `invalid.twice`. A create with a person ID and a user ID that do not name the
                                     same person gets `invalid.mismatch`. A write of a stored resource with another
                                     value of a field that never changes, of a field that only a response fills, or

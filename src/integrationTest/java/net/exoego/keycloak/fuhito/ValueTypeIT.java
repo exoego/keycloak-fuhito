@@ -82,7 +82,7 @@ class ValueTypeIT {
         failures.add(failure(api.post("/ref-items", refItem.formatted("a", ", \"displayOrder\": 3.7"))));
         failures.add(failure(api.post("/ref-items", refItem.formatted("b", ", \"displayOrder\": \"3\""))));
         failures.add(failure(api.post("/ref-items", refItem.formatted("c", ", \"active\": \"false\""))));
-        failures.add(failure(api.post("/ref-items", refItem.formatted("d", ", \"legalEntity\": 1"))));
+        failures.add(failure(api.post("/ref-items", refItem.formatted("d", ", \"legalEntity\": 0"))));
         failures.add(failure(api.post("/hierarchies", "{\"code\": 123, \"name\": \"n\"}")));
         failures.add(failure(api.post("/hierarchies", "{\"code\": \"e\", \"name\": true}")));
         failures.add(failure(api.put("/hierarchies/" + hierarchy,

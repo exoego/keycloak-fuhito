@@ -3686,7 +3686,9 @@ components:
         \ fields. A step that gives a field that its operation does not read fails\
         \ with 400 and `reorganization.field_unused`, which names the field in `field`.\
         \ A key that no step has fails with 400 and `invalid.unknown_key`, which names\
-        \ the key with its path, such as `steps[1].nmae`."
+        \ the key with its path, such as `steps[1].nmae`. A value of another JSON\
+        \ type than its field fails with 400 and `invalid.type`, which names the field\
+        \ with its path, such as `steps[0].displayOrder`."
       properties:
         op:
           type: string
@@ -4447,7 +4449,8 @@ components:
         `invalid.blank`. A text with NUL or half of a surrogate pair gets
         `invalid.character`. A body that gives one key twice in one object gets
         `invalid.duplicate_key`, and a body with a key that it does not have gets
-        `invalid.unknown_key`. A write that names one thing in two ways gets
+        `invalid.unknown_key`. A value of another JSON type than its field gets
+        `invalid.type`. A write that names one thing in two ways gets
         `invalid.twice`. A create with a person ID and a user ID that do not name the
         same person gets `invalid.mismatch`. A write of a stored resource with another
         value of a field that never changes, of a field that only a response fills, or
@@ -4526,6 +4529,17 @@ info:
     counts. No key is ignored. This holds for every body, also for an import, a restore, and the
     steps of a reorganization. The keys of `attributes` are the names of attributes, which their
     definitions check.
+
+    A value of another JSON type than its field fails with 400 and `invalid.type`. The error
+    names the field with its path in `field`, such as `displayOrder` or `steps[0].names.ja.name`,
+    and the type of the field in `type`. The types are the ones of this document, `string`,
+    `integer`, `number`, `boolean`, `object`, and `array`. No value is converted. So `"3"`, `3.7`,
+    and `3.0` fail for an `integer`, `"true"` and `1` fail for a `boolean`, and `123` fails for a
+    `string`. A `number` takes a whole number too, and `80.0` is the same number as `80`. `null`
+    is no value, except for `dryRun` of an import and the flags and the `displayOrder` of the
+    rows of a restore, which fail with `null`. This holds for every body, also for an import, a
+    restore, and the steps of a reorganization. The values in `attributes` keep their JSON type,
+    and their definitions check them.
 
     Each operation lists the query parameters that it takes. A request with another query
     parameter fails with 400 and `invalid.unknown_parameter`, which names the parameter in
@@ -6835,11 +6849,15 @@ paths:
         \ This holds for the keys of the document, of each row, and of the names of\
         \ one language, as a CSV column that its list does not have fails with `csv.bad_column`.\
         \ The keys of `attributes` are the names of attributes, and their definitions\
-        \ check them. A new thing has nothing stored, so a missing key and `null`\
-        \ both give no value. The lists are applied in the order change orders, kinds\
-        \ of reference data, definitions of attributes, reference items, hierarchies,\
-        \ org units, parents in hierarchies, people, qualifications, employments,\
-        \ roles over org units, assignments, reporting lines, IDs of other systems."
+        \ check them. A value of another JSON type than its field fails as a whole\
+        \ with `invalid.type`, as in a write, such as `\"3\"` or `3.7` for `displayOrder`.\
+        \ It names the field with its path, such as `refItems[0].displayOrder`, and\
+        \ the type of the field. A new thing has nothing stored, so a missing key\
+        \ and `null` both give no value. The lists are applied in the order change\
+        \ orders, kinds of reference data, definitions of attributes, reference items,\
+        \ hierarchies, org units, parents in hierarchies, people, qualifications,\
+        \ employments, roles over org units, assignments, reporting lines, IDs of\
+        \ other systems."
       operationId: applyImport
       tags:
       - bulk
@@ -9896,20 +9914,22 @@ paths:
         \ as in a write. The error names the list, the `id` of the row, and the field.\
         \ A document that gives one key twice in one object fails with 400 and `invalid.duplicate_key`,\
         \ as in a write. A key that the document does not have fails with 400 and\
-        \ `invalid.unknown_key`, as in a write. These errors name the key with its\
-        \ path in the document, such as `orgUnits[0].versions[0].names.ja`. They have\
-        \ no list and no `id`, because the document is not read yet. A row may have\
-        \ an empty list of its own rows, such as `parents`. Two rows with the same\
-        \ ID or the same unique key, such as the `code` of a hierarchy, the `number`\
-        \ of a change order, or the user of a person, fail with 400 and `restore.duplicate`.\
-        \ Two rows that must not be valid on the same date, such as two versions of\
-        \ one org unit, fail with 400 and `restore.overlap`. These errors also name\
-        \ the `other` row. A row that breaks a rule of the database that the restore\
-        \ did not find, for example because another write stored the same row at the\
-        \ same time, fails with 409 and `restore.conflict`, with the name of the rule\
-        \ in `constraint`. A username of a person or of a change order must name a\
-        \ user of this realm. An org unit names its Keycloak organization by alias,\
-        \ and the restore asks for the permission to manage it."
+        \ `invalid.unknown_key`, as in a write. A value of another JSON type than\
+        \ its field fails with 400 and `invalid.type`, as in a write, such as `\"\
+        true\"` or `null` for `active`. These errors name the key with its path in\
+        \ the document, such as `orgUnits[0].versions[0].names.ja`. They have no list\
+        \ and no `id`, because the document is not read yet. A row may have an empty\
+        \ list of its own rows, such as `parents`. Two rows with the same ID or the\
+        \ same unique key, such as the `code` of a hierarchy, the `number` of a change\
+        \ order, or the user of a person, fail with 400 and `restore.duplicate`. Two\
+        \ rows that must not be valid on the same date, such as two versions of one\
+        \ org unit, fail with 400 and `restore.overlap`. These errors also name the\
+        \ `other` row. A row that breaks a rule of the database that the restore did\
+        \ not find, for example because another write stored the same row at the same\
+        \ time, fails with 409 and `restore.conflict`, with the name of the rule in\
+        \ `constraint`. A username of a person or of a change order must name a user\
+        \ of this realm. An org unit names its Keycloak organization by alias, and\
+        \ the restore asks for the permission to manage it."
       operationId: restore
       tags:
       - bulk
