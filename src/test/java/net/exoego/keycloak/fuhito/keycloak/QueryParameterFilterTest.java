@@ -310,7 +310,8 @@ class QueryParameterFilterTest {
             }
         }
         assertEquals(Set.of("dryRun", "roots", "nearest", "includePath", "includeInactive", "includeDescendants",
-                "clearKeycloakName", "all", "replace", "lateral", "seconded", "rollup", "legalEntity"), booleans);
+                "clearKeycloakName", "all", "replace", "lateral", "seconded", "rollup", "legalEntity", "clearValues"),
+                booleans);
     }
 
     private static String name(JsonNode ref) {
