@@ -151,10 +151,6 @@ class RestoreRulesIT {
                         at("/employments/0/terms/0", "{\"validTo\": \"2021-04-01\"}")),
                 breaks("assignments", "r-1", "validTo", "assignment.org_unit_not_valid",
                         at("/assignments/0/periods/0", "{\"orgUnitId\": \"u-3\"}")),
-                breaks("assignments", "r-1", "validTo", "assignment.continues_holds",
-                        at("/assignments", "{\"assignmentId\": \"a-2\", \"periods\": [{\"rowId\": \"r-2\", "
-                                + "\"employmentId\": \"e-1\", \"orgUnitId\": \"u-2\", \"validFrom\": \"2022-04-01\", "
-                                + "\"continuesAssignmentId\": \"a-1\", \"attributes\": {}}]}")),
                 breaks("reporting-lines", "rl-1", "validFrom", "reporting_line.outside_assignment",
                         at("/people", "{\"id\": \"p-2\", \"attributes\": {}}"),
                         at("", "{\"reportingLines\": [{\"id\": \"rl-1\", \"assignmentId\": \"a-1\", "
@@ -225,10 +221,6 @@ class RestoreRulesIT {
                         at("/assignments/0/periods/0", END), at("/unitRoles/0", END), at("/employments", EMPLOYMENT),
                         at("/employments/1", "{\"validFrom\": \"2022-04-01\", \"continuesEmploymentId\": \"e-1\"}"),
                         at("/employments/1/terms/0", "{\"validFrom\": \"2022-04-01\"}")),
-                breaks("assignments", "r-2", "continuesAssignmentId", "assignment.continues_other",
-                        at("/people", PERSON), at("/employments", EMPLOYMENT), at("/assignments/0/periods/0", END),
-                        at("/assignments", "{\"assignmentId\": \"a-2\", \"periods\": ["
-                                + row("e-2", "u-1", "\"continuesAssignmentId\": \"a-1\", ") + "]}")),
                 breaks("assignments", "r-2", "employmentId", null, at("/people", PERSON),
                         at("/employments", EMPLOYMENT), at("/assignments/0/periods/0", END),
                         at("/assignments/0/periods", row("e-2", "u-1", ""))),
@@ -321,8 +313,8 @@ class RestoreRulesIT {
         ObjectNode before = RealmExportIT.export(api);
         assertTrue(before.get("employments").findValuesAsText("continuesEmploymentId").contains(employment),
                 before.toString());
-        assertTrue(before.get("assignments").findValuesAsText("continuesAssignmentId").contains(assignment),
-                before.toString());
+        // A read works out the assignments that end on the start of each one, so the export has no link.
+        assertEquals(List.of(), before.get("assignments").findValuesAsText("continuesAssignmentId"));
 
         TestRealm target = TestRealm.create("restore-rules-target");
         target.user("nurse");

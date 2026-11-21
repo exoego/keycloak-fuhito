@@ -1,6 +1,7 @@
 package net.exoego.keycloak.fuhito;
 
 import java.net.http.HttpResponse;
+import java.util.ArrayList;
 import java.util.List;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -58,6 +59,13 @@ class AssignmentsIT {
     private static String assign(String orgUnitId, String more) {
         return "{\"employmentId\": \"" + employment + "\", \"orgUnitId\": \"" + orgUnitId
                 + "\", \"validFrom\": \"2026-04-01\"" + more + "}";
+    }
+
+    // The org unit of each entry, and not the ones in endedOnStart.
+    private static List<String> orgUnits(JsonNode list) {
+        List<String> ids = new ArrayList<>();
+        list.forEach(entry -> ids.add(entry.get("orgUnitId").asText()));
+        return ids;
     }
 
     private static String errorOf(int status, HttpResponse<String> response) throws Exception {
@@ -126,20 +134,23 @@ class AssignmentsIT {
         assertEquals("ref_item.in_use", errorOf(409, api.deleteWithVersion("/ref-items/" + directorId)));
     }
 
+    // A move keeps the primary flag, so the old assignment cannot hold on beside the new one.
     @Test
-    void anEndCannotOpenAgainAnAssignmentThatAMoveEnded() throws Exception {
-        String old = id(api.post("/assignments", assign(unit("移転前の課", null), "")));
+    void anEndCannotOpenAgainAPrimaryAssignmentThatAMoveEnded() throws Exception {
+        String nurse = realm.user("nurse-" + System.nanoTime());
+        String nurseEmployment = id(api.post("/employments", "{\"userId\": \"" + nurse + "\", \"validFrom\": \"2026-04-01\"}"));
+        String old = id(api.post("/assignments", "{\"employmentId\": \"" + nurseEmployment + "\", \"primary\": true, "
+                + "\"orgUnitId\": \"" + unit("移転前の課", null) + "\", \"validFrom\": \"2026-04-01\"}"));
         HttpResponse<String> move = api.postWithVersion("/assignments/" + old + "/move",
                 "{\"orgUnitId\": \"" + unit("移転先の課", null) + "\", \"validFrom\": \"2027-04-01\"}");
         assertEquals(201, move.statusCode(), move.body());
+        String next = Api.json(move).get("started").get("id").asText();
         String end = "/assignments/" + old + "/end";
 
         HttpResponse<String> later = api.putWithVersion(end, "{\"validTo\": \"2027-10-01\"}");
-        assertEquals("assignment.continues_holds", errorOf(409, later));
-        JsonNode params = Api.json(later).get("params");
-        assertEquals(old, params.get("id").asText());
-        assertEquals("2027-04-01", params.get("date").asText());
-        assertEquals("assignment.continues_holds", errorOf(409, api.deleteWithVersion(end)));
+        assertEquals("assignment.primary_exists", errorOf(409, later));
+        assertEquals(next, Api.json(later).get("params").get("assignmentId").asText());
+        assertEquals("assignment.primary_exists", errorOf(409, api.deleteWithVersion(end)));
         assertEquals("2027-04-01", Api.json(api.get("/assignments/" + old)).get("validTo").asText());
 
         // An end before the start of the new assignment leaves a gap, which is fine. So is an end on that start.
@@ -304,7 +315,11 @@ class AssignmentsIT {
         JsonNode started = move.get("started");
         String next = started.get("id").asText();
         assertEquals(surgery, started.get("orgUnitId").asText());
-        assertEquals(old, started.get("continuesAssignmentId").asText());
+        JsonNode endedOnStart = started.get("endedOnStart");
+        assertEquals(1, endedOnStart.size(), endedOnStart.toString());
+        assertEquals(List.of(old, medicine, "true"), List.of(endedOnStart.get(0).get("assignmentId").asText(),
+                endedOnStart.get(0).get("orgUnitId").asText(), endedOnStart.get(0).get("primary").asText()));
+        assertFalse(move.get("ended").has("endedOnStart"));
         assertEquals(hired.get("employment").get("id").asText(), started.get("employmentId").asText());
         assertEquals("director", started.get("periods").get(0).get("jobTitle").asText());
         assertTrue(started.get("periods").get(0).get("head").asBoolean());
@@ -312,9 +327,9 @@ class AssignmentsIT {
 
         // The person is in one place on every date.
         assertEquals(List.of(medicine),
-                Api.json(scratchApi.get("/users/" + doctor + "/assignments?asOf=2027-03-31")).findValuesAsText("orgUnitId"));
+                orgUnits(Api.json(scratchApi.get("/users/" + doctor + "/assignments?asOf=2027-03-31"))));
         assertEquals(List.of(surgery),
-                Api.json(scratchApi.get("/users/" + doctor + "/assignments?asOf=2027-04-01")).findValuesAsText("orgUnitId"));
+                orgUnits(Api.json(scratchApi.get("/users/" + doctor + "/assignments?asOf=2027-04-01"))));
         assertEquals(next, Api.json(scratchApi.get("/assignments/" + next)).get("id").asText());
         assertEquals(List.of("CREATE", "UPDATE"), Api.json(scratchApi.get(
                 "/change-log?resourceType=FUHITO_ASSIGNMENT&resourceId=" + old)).findValuesAsText("operation"));

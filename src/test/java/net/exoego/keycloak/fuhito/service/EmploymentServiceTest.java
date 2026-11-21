@@ -2,6 +2,7 @@ package net.exoego.keycloak.fuhito.service;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -696,8 +697,7 @@ class EmploymentServiceTest {
         assignment("first-row", "first", old, "2020-04-01", "2027-07-01");
         // The move to the ward is planned for July, and the transfer comes in April.
         assignments.insert(new Assignment("moved-row", "moved", old, "ward", ValidPeriod.startingAt(
-                LocalDate.of(2027, 7, 1)), null, null, null, "home", "cc", false, false, null, 0, Map.of(), "hr",
-                "first", 1));
+                LocalDate.of(2027, 7, 1)), null, null, null, "home", "cc", false, false, null, 0, Map.of(), "hr", 1));
         externalIds.insert(new ExternalId("x-moved", ExternalId.Kind.ASSIGNMENT, "moved", "hr", "M-1", 1));
 
         EmploymentService.Transfer transfer = service.transfer(old, new TransferRequest("company-z", "2027-04-01",
@@ -705,8 +705,12 @@ class EmploymentServiceTest {
 
         String first = transfer.assignmentIds().get(0);
         Assignment moved = assignments.rows(transfer.assignmentIds().get(1)).getFirst();
-        assertEquals("first", assignments.rows(first).getFirst().continuesAssignmentId());
-        assertEquals(first, moved.continuesAssignmentId());
+        // Each copy starts on the end of the one before it, in the old employment or in the new one.
+        assignments.employments = store;
+        Map<String, List<String>> ended = new HashMap<>();
+        assignments.endedOnStart(List.of(first, moved.assignmentId())).forEach((id, rows) -> ended.put(id,
+                rows.stream().map(Assignment::assignmentId).toList()));
+        assertEquals(Map.of(first, List.of("first"), moved.assignmentId(), List.of(first)), ended);
         // The old assignment of July is gone, so its copy takes its IDs of other systems.
         assertEquals(List.of(), assignments.rows("moved"));
         assertEquals(Optional.of(moved.assignmentId()), externalIds.idOf(ExternalId.Kind.ASSIGNMENT, "hr", "M-1"));
@@ -758,7 +762,7 @@ class EmploymentServiceTest {
     private Assignment assignment(String rowId, String assignmentId, String employmentId, String from, String to) {
         Assignment row = new Assignment(rowId, assignmentId, employmentId, "unit", new ValidPeriod(
                 LocalDate.parse(from), to == null ? null : LocalDate.parse(to)), null, null, null, null, null, false,
-                false, null, 0, Map.of(), null, null, 1);
+                false, null, 0, Map.of(), null, 1);
         assignments.insert(row);
         return row;
     }

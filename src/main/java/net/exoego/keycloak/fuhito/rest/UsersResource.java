@@ -290,9 +290,8 @@ public class UsersResource {
             @QueryParam("includePath") boolean includePath) {
         context.requireRead();
         Locale language = context.nameLanguage();
-        return Calls.run(context, () -> membership.assignmentsOf(userId, asOf, includePath).stream()
-                .map(member -> MemberRepresentation.of(member, language))
-                .toList());
+        return Calls.run(context, () -> MemberRepresentation.of(membership.assignmentsOf(userId, asOf, includePath),
+                language, membership));
     }
 
     @GET

@@ -1261,4 +1261,20 @@
         <modifyDataType tableName="FUHITO_ORG_UNIT" columnName="KC_ORG_ID" newDataType="VARCHAR(255)"/>
         <modifyDataType tableName="FUHITO_PROJECTED_MEMBER" columnName="KC_ORG_ID" newDataType="VARCHAR(255)"/>
     </changeSet>
+
+    <!-- A read of an assignment works out the assignments that end on its start, so no stored link names the one that
+         it continues. Nothing was released, so no link moves. -->
+    <changeSet id="0.1.0-assignment-without-continues" author="keycloak-fuhito">
+        <dropColumn tableName="FUHITO_ASSIGNMENT" columnName="CONTINUES_ASSIGNMENT_ID"/>
+    </changeSet>
+
+    <!-- That read looks up the assignments of the employments of a person that end on a date. The index of the
+         employment gets the end, so the lookup reads only the rows that end on the date. -->
+    <changeSet id="0.1.0-assignment-employment-end-index" author="keycloak-fuhito">
+        <dropIndex tableName="FUHITO_ASSIGNMENT" indexName="IDX_FUHITO_ASSIGNMENT_EMPLOYMENT"/>
+        <createIndex tableName="FUHITO_ASSIGNMENT" indexName="IDX_FUHITO_ASSIGNMENT_EMPLOYMENT">
+            <column name="EMPLOYMENT_ID"/>
+            <column name="VALID_TO"/>
+        </createIndex>
+    </changeSet>
 </databaseChangeLog>

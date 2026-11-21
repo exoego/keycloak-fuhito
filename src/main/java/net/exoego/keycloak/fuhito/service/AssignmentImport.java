@@ -10,10 +10,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 import net.exoego.keycloak.fuhito.domain.Assignment;
 import net.exoego.keycloak.fuhito.domain.AttributeDefinition.Target;
@@ -32,9 +30,6 @@ final class AssignmentImport {
 
     private static final String ASSIGNMENTS = "assignments";
 
-    private record Link(String id, String continues, LocalDate from) {
-    }
-
     private final PeopleImport document;
     private final ListIds ids;
     private final AssignmentService service;
@@ -44,9 +39,6 @@ final class AssignmentImport {
     private final Map<String, Boolean> units = new HashMap<>();
     private final List<Supplier<Write>> writes = new ArrayList<>();
     private final Map<String, AssignmentView> views = new HashMap<>();
-    // The new assignments that continue another, by row. The rows that set an end, by assignment.
-    private final Map<Integer, Link> continuing = new HashMap<>();
-    private final Map<String, Integer> ends = new HashMap<>();
 
     AssignmentImport(PeopleImport document) {
         this.document = document;
@@ -73,17 +65,13 @@ final class AssignmentImport {
             try {
                 AssignmentRow row = EmptyValues.checked(rows.get(i));
                 document.requireFirst(seen, row.source(), row.externalId(), row.id());
-                outcomes.put(i, apply(row, i));
+                outcomes.put(i, apply(row));
             } catch (FuhitoException e) {
                 document.report.error(ASSIGNMENTS, i, e);
             }
             document.rowDone.run();
         }
         added.insert();
-        unended().forEach((row, e) -> {
-            outcomes.remove(row);
-            document.report.error(ASSIGNMENTS, row, e);
-        });
         outcomes.values().forEach(outcome -> document.report.count(ASSIGNMENTS, outcome));
         views.putAll(added.views());
         writes.forEach(write -> document.report.write(write.get()));
@@ -97,7 +85,6 @@ final class AssignmentImport {
         for (AssignmentRow row : given) {
             String source = document.sourceOf(row.source());
             ids.want(ExternalId.Kind.ASSIGNMENT, source, row.externalId())
-                    .want(ExternalId.Kind.ASSIGNMENT, source, row.continuesAssignmentExternalId())
                     .want(ExternalId.Kind.EMPLOYMENT, source, row.employmentExternalId())
                     .want(ExternalId.Kind.ORG_UNIT, source, row.orgUnitExternalId());
         }
@@ -130,7 +117,7 @@ final class AssignmentImport {
         return stored.computeIfAbsent(id, key -> Optional.ofNullable(service.findAll(List.of(key)).get(key)));
     }
 
-    private Outcome apply(AssignmentRow row, int index) {
+    private Outcome apply(AssignmentRow row) {
         String source = Checks.code("source", row.source() == null ? document.defaultSource : row.source());
         String name = row.externalId() == null ? row.id() : row.externalId();
         Optional<String> storedId = row.id() == null
@@ -139,7 +126,6 @@ final class AssignmentImport {
         Optional<Assignment> firstRow = storedId.map(id -> find(id).orElseThrow().rows().getFirst().row());
         String employmentId = employmentId(row, source, firstRow);
         String orgUnitId = orgUnitId(row, source, firstRow);
-        String continues = continued(row, source);
         if (storedId.isEmpty()) {
             AssignmentValues values = new AssignmentValues(employmentId, orgUnitId,
                     row.validFrom() == null ? document.effectiveDate : row.validFrom(), row.validTo(), row.jobTitle(),
@@ -147,11 +133,8 @@ final class AssignmentImport {
                     false, row.allocationPercent(), row.displayOrder(),
                     Merged.attributes(row, row.attributes(), null, rules, Target.ASSIGNMENT), row.externalId(), source);
             String id = ids.create(ExternalId.Kind.ASSIGNMENT, source, row.externalId(),
-                    () -> added.add(values, continues), Function.identity());
+                    () -> added.add(values), Function.identity());
             writes.add(() -> new Write.OfAssignment(true, "", views.get(id)));
-            if (continues != null) {
-                continuing.put(index, new Link(id, continues, Checks.date("validFrom", values.validFrom())));
-            }
             return Outcome.CREATED;
         }
         String id = storedId.get();
@@ -159,11 +142,6 @@ final class AssignmentImport {
         Assignment first = before.rows().getFirst().row();
         if (!first.employmentId().equals(employmentId) || !first.orgUnitId().equals(orgUnitId)) {
             throw FuhitoException.conflict("import.assignment_mismatch", Map.of("externalId", name));
-        }
-        boolean givesContinued = row.gives("continuesAssignmentExternalId", row.continuesAssignmentExternalId())
-                || row.gives("continuesAssignmentId", row.continuesAssignmentId());
-        if (givesContinued && !Objects.equals(continues, first.continuesAssignmentId())) {
-            throw FuhitoException.conflict("import.continues_mismatch", Map.of("externalId", name));
         }
         ImportMatch.start(row, id, before.period().from(), row.validFrom());
         boolean changed = false;
@@ -195,8 +173,7 @@ final class AssignmentImport {
             written("/end", first, () -> service.removeEnd(id));
             changed = true;
         } else if (validTo != null && !validTo.equals(storedEnd)) {
-            written("/end", first, () -> service.end(id, validTo, false));
-            ends.put(id, index);
+            written("/end", first, () -> service.end(id, validTo));
             changed = true;
         }
         return changed ? Outcome.CHANGED : Outcome.UNCHANGED;
@@ -217,40 +194,6 @@ final class AssignmentImport {
                 null);
     }
 
-    // An assignment that another one continues must end by the start of that one. Its rows end when its employment
-    // ends, so they give its end. The row that ends it may come after the row of the new one, so the check looks at
-    // what the whole list made. It also keeps a later end from opening such an assignment again.
-    private Map<Integer, FuhitoException> unended() {
-        if (continuing.isEmpty() && ends.isEmpty()) {
-            return Map.of();
-        }
-        Set<String> ids = new HashSet<>(ends.keySet());
-        continuing.values().forEach(link -> ids.add(link.continues()));
-        Map<String, List<Assignment>> found = document.people.assignments().rowsOf(ids).stream()
-                .collect(Collectors.groupingBy(Assignment::assignmentId));
-        Map<Integer, FuhitoException> failed = new TreeMap<>();
-        continuing.forEach((row, link) -> holds(found.get(link.continues()), link.from())
-                .ifPresent(e -> failed.put(row, e)));
-        if (ends.isEmpty()) {
-            return failed;
-        }
-        // A new one is checked on its own row.
-        Set<String> newIds = continuing.values().stream().map(Link::id).collect(Collectors.toSet());
-        List<Assignment> ended = ends.keySet().stream().map(id -> found.get(id).getFirst()).toList();
-        for (Assignment next : service.continuing(ended)) {
-            if (!newIds.contains(next.assignmentId())) {
-                holds(found.get(next.continuesAssignmentId()), next.period().from())
-                        .ifPresent(e -> failed.putIfAbsent(ends.get(next.continuesAssignmentId()), e));
-            }
-        }
-        return failed;
-    }
-
-    private static Optional<FuhitoException> holds(List<Assignment> previous, LocalDate from) {
-        Assignment last = previous.getLast();
-        return AssignmentService.stillHolds(last.assignmentId(), last.period(), from);
-    }
-
     private void written(String suffix, Assignment first, Supplier<AssignmentView> write) {
         added.insert();
         AssignmentView after = write.get();
@@ -264,21 +207,9 @@ final class AssignmentImport {
         AssignmentView view = find(row.id())
                 .orElseThrow(() -> FuhitoException.invalid("import.id_unknown", Map.of("id", row.id())));
         ImportMatch.source(row.id(), view.rows().getFirst().row().source(), row.source(), row.externalId(),
-                row.employmentExternalId(), row.orgUnitExternalId(), row.continuesAssignmentExternalId());
+                row.employmentExternalId(), row.orgUnitExternalId());
         PeopleImport.requireNames(ids, ExternalId.Kind.ASSIGNMENT, row.id(), source, row.externalId());
         return row.id();
-    }
-
-    private String continued(AssignmentRow row, String source) {
-        if (row.continuesAssignmentExternalId() != null && row.continuesAssignmentId() != null) {
-            throw FuhitoException.invalid("import.continues_twice", Map.of());
-        }
-        if (row.continuesAssignmentExternalId() == null) {
-            return row.continuesAssignmentId();
-        }
-        return ids.resourceOf(ExternalId.Kind.ASSIGNMENT, source, row.continuesAssignmentExternalId())
-                .orElseThrow(() -> FuhitoException.invalid("import.assignment_unknown",
-                        Map.of("assignmentExternalId", row.continuesAssignmentExternalId())));
     }
 
     // A row of a stored assignment that leaves out the employment keeps the stored one.

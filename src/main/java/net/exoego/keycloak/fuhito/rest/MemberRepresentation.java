@@ -6,7 +6,9 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
+import net.exoego.keycloak.fuhito.domain.Assignment;
 import net.exoego.keycloak.fuhito.service.Member;
+import net.exoego.keycloak.fuhito.service.MembershipService;
 import net.exoego.keycloak.fuhito.service.OrgUnitState;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 
@@ -80,6 +82,12 @@ public record MemberRepresentation(
         int displayOrder,
         @Schema(description = "Free values that the realm defines.")
         Map<String, Object> attributes,
+        @Schema(
+                description = "The assignments of the same person, in any of the person's employments, whose "
+                        + "`validTo` is the first date of the whole assignment and that have the same primary flag, "
+                        + "by `assignmentId`. A move gives the old assignment, and so do a transfer and a merger of "
+                        + "employers. A gap gives none. It is missing when there is none.")
+        List<EndedAssignmentRepresentation> endedOnStart,
         @Schema(description = "The code of the employment type on the date.")
         String employmentType,
         @Schema(description = "The code of the grade on the date.")
@@ -107,7 +115,14 @@ public record MemberRepresentation(
         }
     }
 
-    static MemberRepresentation of(Member member, Locale language) {
+    // The assignments that end on the start of every member of a list are read with one query.
+    static List<MemberRepresentation> of(List<Member> members, Locale language, MembershipService membership) {
+        Map<String, List<Assignment>> endedOnStart = membership.endedOnStart(members);
+        return members.stream().map(member -> of(member, language, endedOnStart)).toList();
+    }
+
+    private static MemberRepresentation of(Member member, Locale language,
+            Map<String, List<Assignment>> endedOnStart) {
         var row = member.assignment();
         var terms = member.terms();
         return new MemberRepresentation(row.assignmentId(), row.version(), row.employmentId(),
@@ -121,6 +136,7 @@ public record MemberRepresentation(
                 member.places().costCenter(), member.places().effectiveWorkLocation(),
                 member.places().effectiveCostCenter(), row.head(), row.primary(),
                 Numbers.plain(row.allocationPercent()), row.displayOrder(), row.attributes(),
+                EndedAssignmentRepresentation.of(endedOnStart.getOrDefault(row.assignmentId(), List.of())),
                 member.employmentType(), member.grade(), terms.status().name(), Numbers.plain(terms.workPercent()));
     }
 }
