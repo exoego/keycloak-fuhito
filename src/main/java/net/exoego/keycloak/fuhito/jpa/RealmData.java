@@ -6,6 +6,7 @@ import java.util.Set;
 import java.util.UUID;
 
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
 import jakarta.persistence.criteria.CriteriaBuilder;
 import jakarta.persistence.criteria.CriteriaDelete;
 
@@ -187,19 +188,28 @@ public final class RealmData {
     }
 
     /**
-     * Removes the link to a Keycloak organization from the org unit that has it, which is a write of the unit.
+     * Removes the link to a Keycloak organization from the org unit that has it, and counts up the version of the
+     * unit. Nobody wrote the unit, so the caller records a propagated change of it.
      *
      * @param em the entity manager
      * @param realmId the ID of the realm
      * @param organizationId the ID of the organization
+     * @return the IDs of the units that had the link
+     * @throws ArithmeticException when a unit has the largest version
      */
-    public static void unlinkOrganization(EntityManager em, String realmId, String organizationId) {
-        // The database fails the count-up of the largest long, as PostgreSQL does with "bigint out of range".
-        em.createQuery("""
-                        update OrgUnitEntity u set u.keycloakOrganizationId = null, u.version = u.version + 1
-                        where u.realmId = :realmId and u.keycloakOrganizationId = :organizationId""")
+    public static List<String> unlinkOrganization(EntityManager em, String realmId, String organizationId) {
+        List<OrgUnitEntity> units = em.createQuery("""
+                        select u from OrgUnitEntity u
+                        where u.realmId = :realmId and u.keycloakOrganizationId = :organizationId""",
+                        OrgUnitEntity.class)
                 .setParameter("realmId", realmId)
                 .setParameter("organizationId", organizationId)
-                .executeUpdate();
+                .setLockMode(LockModeType.PESSIMISTIC_WRITE)
+                .getResultList();
+        units.forEach(unit -> {
+            unit.keycloakOrganizationId = null;
+            unit.countUp();
+        });
+        return units.stream().map(unit -> unit.id).toList();
     }
 }

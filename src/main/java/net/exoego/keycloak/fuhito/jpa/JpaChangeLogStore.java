@@ -1,5 +1,6 @@
 package net.exoego.keycloak.fuhito.jpa;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -25,6 +26,16 @@ public class JpaChangeLogStore implements ChangeLogStore {
 
     private static final String COUNT_OF_CHANGE_ORDER = "select count(l)" + OF_CHANGE_ORDER;
 
+    // The kind is a literal, so that PostgreSQL takes the index of the propagated changes, which has this condition.
+    private static final String OLD_PROPAGATED = """
+            from ChangeLogEntity l where l.realmId = :realmId and l.kind = 'PROPAGATED' and l.recordedAt < :before""";
+
+    // With "+ 0", PostgreSQL cannot read the key of the numbers backwards for the largest one, which would pass every
+    // newer entry of the realm.
+    private static final String LAST_OLD_PROPAGATED = "select max(l.sequence + 0) " + OLD_PROPAGATED;
+
+    private static final String DELETE_OLD_PROPAGATED = "delete " + OLD_PROPAGATED;
+
     private final EntityManager em;
     private final String realmId;
 
@@ -48,12 +59,15 @@ public class JpaChangeLogStore implements ChangeLogStore {
             entity.realmId = realmId;
             entity.sequence = ++sequence;
             entity.recordedAt = entry.recordedAt();
+            entity.kind = entry.kind().name();
             entity.actorUserId = entry.actorUserId();
             entity.resourceType = entry.resourceType().name();
             entity.resourceId = entry.resourceId();
             entity.operation = entry.operation();
             entity.resourcePath = entry.resourcePath();
             entity.changeOrderId = entry.changeOrderId();
+            entity.cause = entry.cause() == null ? null : entry.cause().name();
+            entity.causeSequence = entry.causeSequence();
             em.persist(entity);
         }
     }
@@ -85,11 +99,12 @@ public class JpaChangeLogStore implements ChangeLogStore {
     }
 
     @Override
-    public List<ChangeLogEntry> list(long after, ResourceType resourceType, String resourceId, int first, int max) {
+    public List<ChangeLogEntry> list(long after, ResourceType resourceType, String resourceId,
+            ChangeLogEntry.Kind kind, int first, int max) {
         CriteriaBuilder builder = em.getCriteriaBuilder();
         CriteriaQuery<ChangeLogEntity> query = builder.createQuery(ChangeLogEntity.class);
         Root<ChangeLogEntity> entry = query.from(ChangeLogEntity.class);
-        return em.createQuery(query.select(entry).where(where(builder, entry, after, resourceType, resourceId))
+        return em.createQuery(query.select(entry).where(where(builder, entry, after, resourceType, resourceId, kind))
                         .orderBy(builder.asc(entry.get("sequence"))))
                 .setFirstResult(first)
                 .setMaxResults(max)
@@ -99,17 +114,17 @@ public class JpaChangeLogStore implements ChangeLogStore {
     }
 
     @Override
-    public long count(ResourceType resourceType, String resourceId) {
+    public long count(ResourceType resourceType, String resourceId, ChangeLogEntry.Kind kind) {
         CriteriaBuilder builder = em.getCriteriaBuilder();
         CriteriaQuery<Long> query = builder.createQuery(Long.class);
         Root<ChangeLogEntity> entry = query.from(ChangeLogEntity.class);
         return em.createQuery(query.select(builder.count(entry))
-                        .where(where(builder, entry, 0, resourceType, resourceId)))
+                        .where(where(builder, entry, 0, resourceType, resourceId, kind)))
                 .getSingleResult();
     }
 
     private Predicate[] where(CriteriaBuilder builder, Root<ChangeLogEntity> entry, long after,
-            ResourceType resourceType, String resourceId) {
+            ResourceType resourceType, String resourceId, ChangeLogEntry.Kind kind) {
         List<Predicate> where = new ArrayList<>();
         where.add(builder.equal(entry.get("realmId"), realmId));
         where.add(builder.gt(entry.get("sequence"), after));
@@ -119,7 +134,46 @@ public class JpaChangeLogStore implements ChangeLogStore {
         if (resourceId != null) {
             where.add(builder.equal(entry.get("resourceId"), resourceId));
         }
+        if (kind != null) {
+            where.add(builder.equal(entry.get("kind"), kind.name()));
+        }
         return where.toArray(Predicate[]::new);
+    }
+
+    @Override
+    public Bounds bounds() {
+        return em.createQuery("""
+                        select c.lastSequence, c.expiredSequence from ChangeLogCounterEntity c
+                        where c.realmId = :realmId""", Object[].class)
+                .setParameter("realmId", realmId)
+                .getResultStream()
+                .map(row -> new Bounds((Long) row[0], (Long) row[1]))
+                .findFirst()
+                .orElse(new Bounds(0, 0));
+    }
+
+    // The entries go first, so that the counter stays locked only for a short time. Each write of the realm waits
+    // for it.
+    @Override
+    public long removePropagated(Instant before) {
+        Long expired = em.createQuery(LAST_OLD_PROPAGATED, Long.class)
+                .setParameter("realmId", realmId)
+                .setParameter("before", before)
+                .getSingleResult();
+        if (expired == null) {
+            return 0;
+        }
+        int removed = em.createQuery(DELETE_OLD_PROPAGATED)
+                .setParameter("realmId", realmId)
+                .setParameter("before", before)
+                .executeUpdate();
+        em.createQuery("""
+                        update ChangeLogCounterEntity c set c.expiredSequence = :expired
+                        where c.realmId = :realmId and c.expiredSequence < :expired""")
+                .setParameter("expired", expired)
+                .setParameter("realmId", realmId)
+                .executeUpdate();
+        return removed;
     }
 
     @Override
@@ -148,7 +202,8 @@ public class JpaChangeLogStore implements ChangeLogStore {
     }
 
     private static ChangeLogEntry toDomain(ChangeLogEntity e) {
-        return new ChangeLogEntry(e.id, e.sequence, e.recordedAt, e.actorUserId,
-                ResourceType.valueOf(e.resourceType), e.resourceId, e.operation, e.resourcePath, e.changeOrderId);
+        return new ChangeLogEntry(e.id, e.sequence, e.recordedAt, ChangeLogEntry.Kind.valueOf(e.kind), e.actorUserId,
+                ResourceType.valueOf(e.resourceType), e.resourceId, e.operation, e.resourcePath, e.changeOrderId,
+                e.cause == null ? null : ChangeLogEntry.Cause.valueOf(e.cause), e.causeSequence);
     }
 }

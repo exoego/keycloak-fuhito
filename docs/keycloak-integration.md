@@ -101,7 +101,7 @@ The link says that the unit, for example a hospital, stands for that organizatio
 - `PUT /org-units/{id}/organization` with `{"version": 3, "organizationId": "..."}` sets the link.
 - `DELETE /org-units/{id}/organization?version=3` removes it.
 - One organization is linked to at most one org unit.
-- When the organization is removed in Keycloak, the link is removed too. The org unit stays.
+- When the organization is removed in Keycloak, the link is removed too. The org unit stays. Its version counts up, and the change log gets a propagated change of it with the cause `KEYCLOAK_ORGANIZATION_REMOVED`. See "Change log" below.
 
 The Organizations API of Keycloak changes between minor versions.
 Only the class `KeycloakOrganizations` calls it.
@@ -733,16 +733,62 @@ The realm stores the events when admin events are turned on in its settings.
 The event has the new state as its representation when the realm keeps representations.
 A write of an attribute definition that fills or clears a value records an `UPDATE` of each resource whose rows it changed. Such an event has no representation, so that the write reads none of the rows back.
 A failed request records no event.
+A propagated change records no event. Only the write that caused it does.
 
 ## Change log
 
 Every successful write also adds an entry to the change log of the extension.
 The log is kept whether or not the realm stores admin events.
 
-An entry has its sequence number in the realm, the time, the user who did the write, the resource type, the resource ID, the operation, the path, and the change order.
+An entry has its sequence number in the realm, the time, the kind, the user who did the write, the resource type, the resource ID, the operation, the path, and the change order.
 It has no state of the resource. A reader that needs the state reads the resource again.
 Entries are only added. No endpoint changes or removes one.
 Another system can follow the log from a sequence number. See [history.md](history.md).
+
+### Propagated changes
+
+A read can give a value that comes from another resource or from Keycloak.
+When such a value changes, the read of a resource changes although nobody wrote that resource.
+The resource then gets a new version, in the same transaction, and an entry of its own with the kind `PROPAGATED`.
+A client that holds an old read gets 409, as for any other change.
+
+| Field | A write | A propagated change |
+|---|---|---|
+| `kind` | `WRITE` | `PROPAGATED` |
+| `actorUserId` | The user who wrote, or absent when no user did it | Absent |
+| `operation` | `CREATE`, `UPDATE`, or `DELETE` | `UPDATE` |
+| `resourcePath` | The path of the request | The path of the resource, such as `fuhito/org-units/{id}` |
+| `changeOrderId` | The change order of the request | The change order of the write that caused it |
+| `cause` | Absent | `WRITE` for a write to the API, or the change in Keycloak, such as `KEYCLOAK_ORGANIZATION_REMOVED` |
+| `causeSequence` | Absent | The sequence number of the entry of the write, for the cause `WRITE` |
+
+A write keeps its own entry, with its user and its change order. So the log still says who wrote what.
+A resource gets one propagated change for each write, also when several parts of the write change its read.
+A propagated change records no admin event.
+`GET /change-log?kind=WRITE` and `GET /change-log/count?kind=WRITE` leave the propagated changes out. `kind=PROPAGATED` lists only them.
+
+The enum `DerivedValue` lists every value that a read takes from elsewhere, what it is read from, and which writes change it.
+`DerivedReads` of the integration tests reads the resources of the listed types before and after a write. It fails for a read that changed with no new version or with no entry.
+
+| Value | Read of | Changed by |
+|---|---|---|
+| `keycloakOrganizationId` | Org units | The removal of the organization in Keycloak |
+
+### Keeping the log
+
+The entries of writes are kept for good.
+A scheduled task removes the propagated changes that are older than the realm keeps them.
+
+| Realm attribute | Value | Default |
+|---|---|---|
+| `fuhito.changeLog.keepPropagatedDays` | The number of days to keep a propagated change, 0 or more | 90 |
+
+- The task runs every 15 minutes. The server option `spi-admin-realm-restapi-extension--fuhito--change-log-cleanup-interval` sets the number of seconds between two runs.
+- In a cluster, one node runs it at a time, with the same runner as the scheduled tasks of Keycloak itself.
+- A realm with a value that is not such a number keeps every propagated change. Each node logs one warning for it.
+- A failure in one realm is logged and does not stop the other realms.
+
+A read of the log that would leave out a removed propagated change fails with 410 and `change_log.cursor_expired`. See [history.md](history.md).
 
 A write belongs to a change order when its request has the query parameter `changeOrder` with the ID of the order.
 For example, `PUT /org-units/{id}/end?changeOrder={orderId}`.
@@ -777,3 +823,4 @@ A failed request writes nothing.
 | 400 | A value in the request is bad |
 | 404 | The target does not exist in the realm |
 | 409 | The request conflicts with existing data |
+| 410 | A read of the change log would leave out a propagated change that is removed |

@@ -9,6 +9,7 @@ import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import net.exoego.keycloak.fuhito.service.ChangeLogService;
 import org.eclipse.microprofile.openapi.annotations.Operation;
+import org.eclipse.microprofile.openapi.annotations.media.Content;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 import org.eclipse.microprofile.openapi.annotations.parameters.Parameter;
 import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
@@ -38,17 +39,28 @@ public class ChangeLogResource {
     @GET
     @Operation(
             operationId = "listChangeLog",
-            summary = "Lists the writes to the realm, oldest first.",
+            summary = "Lists the writes to the realm and the propagated changes, oldest first.",
             description = "To follow the changes, keep the `sequence` of the last entry of each read and pass it as "
                     + "`after` in the next read. A read that returns fewer entries than `max` has reached the end. "
-                    + "The numbers of a realm start at 1 and have no gaps. An entry has no state of the resource. "
-                    + "Read the resource again for its state.")
+                    + "The numbers of a realm start at 1. An entry has no state of the resource. "
+                    + "Read the resource again for its state. The entries of writes are kept for good. A propagated "
+                    + "change is removed after the days of the realm attribute `fuhito.changeLog.keepPropagatedDays`, "
+                    + "90 by default. So the numbers can have gaps. `after` that no entry ever had, because it is "
+                    + "larger than the last number, fails with 400 and `invalid.out_of_range`, with the last number in "
+                    + "`max`.")
     @APIResponse(responseCode = "200", description = "The entries.")
+    @APIResponse(responseCode = "410",
+            description = "A propagated change after `after` is removed, so the read would leave it out. The error "
+                    + "is `change_log.cursor_expired`. Read every resource again, and then go on after the number in "
+                    + "`keptAfter`. A read with `kind=WRITE` never gets it, nor does a read with no `after`.",
+            content = @Content(mediaType = "application/json",
+                    schema = @Schema(implementation = ErrorRepresentation.class)))
     @BadRequest
     @ApiErrors
     public List<ChangeLogRepresentation> list(
             @Parameter(
-                    description = "The sequence number that the entries come after.",
+                    description = "The sequence number that the entries come after. Without it, or with 0, the read "
+                            + "starts at the first entry that is kept.",
                     schema = @Schema(minimum = "0", defaultValue = "0"))
             @QueryParam("after") Long after,
             @Parameter(
@@ -61,6 +73,11 @@ public class ChangeLogResource {
             @Parameter(description = "The ID of the resource. Without it, the writes to every resource are listed.")
             @QueryParam("resourceId") String resourceId,
             @Parameter(
+                    description = "`WRITE` lists only the writes, and leaves out the propagated changes. "
+                            + "`PROPAGATED` lists only the propagated changes. Without it, both are listed.",
+                    schema = @Schema(enumeration = {"WRITE", "PROPAGATED"}))
+            @QueryParam("kind") String kind,
+            @Parameter(
                     description = "The number of entries to skip.",
                     schema = @Schema(minimum = "0", defaultValue = "0"))
             @QueryParam("first") Integer first,
@@ -69,7 +86,7 @@ public class ChangeLogResource {
                     schema = @Schema(minimum = "0", maximum = "1000", defaultValue = "100"))
             @QueryParam("max") Integer max) {
         context.requireRead();
-        return Calls.run(context, () -> service.list(after, resourceType, resourceId, first, max).stream()
+        return Calls.run(context, () -> service.list(after, resourceType, resourceId, kind, first, max).stream()
                 .map(ChangeLogRepresentation::of)
                 .toList());
     }
@@ -78,7 +95,7 @@ public class ChangeLogResource {
     @Path("count")
     @Operation(
             operationId = "countChangeLog",
-            summary = "Counts the writes that `GET /change-log` lists with the same filters, from the start.")
+            summary = "Counts the entries that `GET /change-log` lists with the same filters, from the start.")
     @APIResponse(responseCode = "200", description = "The number of entries.")
     @BadRequest
     @ApiErrors
@@ -91,8 +108,13 @@ public class ChangeLogResource {
                             "FUHITO_HIERARCHY", "FUHITO_ATTRIBUTE_DEFINITION", "FUHITO_EXTERNAL_ID", "FUHITO_RESTORE"}))
             @QueryParam("resourceType") String resourceType,
             @Parameter(description = "The ID of the resource. Without it, the writes to every resource are counted.")
-            @QueryParam("resourceId") String resourceId) {
+            @QueryParam("resourceId") String resourceId,
+            @Parameter(
+                    description = "`WRITE` counts only the writes, and `PROPAGATED` only the propagated changes "
+                            + "that are kept. Without it, both are counted.",
+                    schema = @Schema(enumeration = {"WRITE", "PROPAGATED"}))
+            @QueryParam("kind") String kind) {
         context.requireRead();
-        return Calls.run(context, () -> new CountRepresentation(service.count(resourceType, resourceId)));
+        return Calls.run(context, () -> new CountRepresentation(service.count(resourceType, resourceId, kind)));
     }
 }
