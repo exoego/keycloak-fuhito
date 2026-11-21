@@ -177,7 +177,7 @@ public class ImportsResource {
                     + "`invalid.character`, as the database cannot store it. A document that gives one key twice "
                     + "in one object fails as a whole with `invalid.duplicate_key`, which names the key with its "
                     + "path, such as `orgUnits[1].names.ja`. A key that the document does not have fails as a whole "
-                    + "with `import.unknown_key`, which names the key with its path, such as "
+                    + "with `invalid.unknown_key`, as in a write. It names the key with its path, such as "
                     + "`employments[2].employerExternalID`. This holds for the keys of the document, of each row, "
                     + "and of the names of one language, as a CSV column that its list does not have fails with "
                     + "`csv.bad_column`. The keys of `attributes` are the names of attributes, and their "

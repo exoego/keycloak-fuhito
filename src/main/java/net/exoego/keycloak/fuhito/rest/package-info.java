@@ -32,6 +32,12 @@
                         is dropped. This holds for every body, also for an import, a restore, and the steps of a
                         reorganization.
 
+                        A key that a body does not have fails with 400 and `invalid.unknown_key`, which names the
+                        key with its path, such as `names.ja.shortname` or `steps[1].nmae`. The case of each letter
+                        counts. No key is ignored. This holds for every body, also for an import, a restore, and the
+                        steps of a reorganization. The keys of `attributes` are the names of attributes, which their
+                        definitions check.
+
                         Each operation lists the query parameters that it takes. A request with another query
                         parameter fails with 400 and `invalid.unknown_parameter`, which names the parameter in
                         `field`. The case of each letter counts, so `asof` is not `asOf`. A request that gives one
@@ -139,7 +145,8 @@
                                     In a write, an empty text, a text of only spaces, or an empty array gets
                                     `invalid.blank`. A text with NUL or half of a surrogate pair gets
                                     `invalid.character`. A body that gives one key twice in one object gets
-                                    `invalid.duplicate_key`. A write that names one thing in two ways gets
+                                    `invalid.duplicate_key`, and a body with a key that it does not have gets
+                                    `invalid.unknown_key`. A write that names one thing in two ways gets
                                     `invalid.twice`. A create with a person ID and a user ID that do not name the
                                     same person gets `invalid.mismatch`. A write of a stored resource with another
                                     value of a field that never changes, of a field that only a response fills, or

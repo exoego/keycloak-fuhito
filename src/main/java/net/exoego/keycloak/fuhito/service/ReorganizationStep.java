@@ -10,7 +10,8 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
         name = "ReorganizationStep",
         description = "One operation of a reorganization. Each operation reads only some fields. A step that gives "
                 + "a field that its operation does not read fails with 400 and `reorganization.field_unused`, which "
-                + "names the field in `field`.",
+                + "names the field in `field`. A key that no step has fails with 400 and `invalid.unknown_key`, which "
+                + "names the key with its path, such as `steps[1].nmae`.",
         requiredProperties = {"op"})
 public record ReorganizationStep(
         @Schema(enumeration = {"create", "change", "move", "end", "succeed"})

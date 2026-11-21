@@ -7,14 +7,12 @@ import java.util.List;
 import java.util.Map;
 
 import com.fasterxml.jackson.databind.exc.MismatchedInputException;
-import com.fasterxml.jackson.databind.exc.UnrecognizedPropertyException;
 import jakarta.ws.rs.core.MediaType;
 import org.junit.jupiter.api.Test;
 import org.keycloak.representations.idm.RealmRepresentation;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -52,11 +50,10 @@ class JsonBodyReaderTest {
         assertNull(read("null"));
     }
 
-    // A key twice and a body that is no JSON need the server of Keycloak to answer. The integration tests have them.
+    // A key twice, a key that the body does not have, and a body that is no JSON need the server of Keycloak to
+    // answer. The integration tests have them.
     @Test
     void passesTheErrorsOfAValueToKeycloakAsBefore() {
-        assertInstanceOf(UnrecognizedPropertyException.class,
-                assertThrows(MismatchedInputException.class, () -> read("{\"other\": 1}")));
         assertThrows(MismatchedInputException.class, () -> read("{\"rows\": 1}"));
     }
 }
