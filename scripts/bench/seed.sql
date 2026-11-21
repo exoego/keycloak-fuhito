@@ -1,7 +1,7 @@
 -- Fills one realm with a large organization. psql sets :realm to the ID of the realm, :units to the number of
 -- org units below the company, and :people to the number of people.
 -- 1 company, 50 divisions, 500 departments, and teams for the rest. One move for 30% of the people.
--- The realm has its default hierarchy from its start.
+-- The realm has its default hierarchy from its start. Every name is in English, the primary language.
 
 INSERT INTO fuhito_change_log_counter (realm_id, last_sequence) VALUES (:'realm', :people * 4);
 INSERT INTO fuhito_ref_item (id, realm_id, kind, code, display_order, attributes, active, legal_entity) VALUES
@@ -10,11 +10,11 @@ INSERT INTO fuhito_ref_item (id, realm_id, kind, code, display_order, attributes
   ('bench-nurse', :'realm', 'OCCUPATION', 'nurse', 0, '{}', true, false),
   ('bench-full', :'realm', 'EMPLOYMENT_TYPE', 'full-time', 0, '{}', true, false);
 -- The names of each item hold for every date.
-INSERT INTO fuhito_ref_item_name (id, realm_id, ref_item_id, valid_from, valid_to, name, names_i18n) VALUES
-  ('bench-company', :'realm', 'bench-company', NULL, NULL, 'Company', '{}'),
-  ('bench-unit', :'realm', 'bench-unit', NULL, NULL, 'Unit', '{}'),
-  ('bench-nurse', :'realm', 'bench-nurse', NULL, NULL, 'Nurse', '{}'),
-  ('bench-full', :'realm', 'bench-full', NULL, NULL, 'Full time', '{}');
+INSERT INTO fuhito_ref_item_name (period_id, language, realm_id, ref_item_id, valid_from, valid_to, is_primary, name) VALUES
+  ('bench-company', 'en', :'realm', 'bench-company', NULL, NULL, true, 'Company'),
+  ('bench-unit', 'en', :'realm', 'bench-unit', NULL, NULL, true, 'Unit'),
+  ('bench-nurse', 'en', :'realm', 'bench-nurse', NULL, NULL, true, 'Nurse'),
+  ('bench-full', 'en', :'realm', 'bench-full', NULL, NULL, true, 'Full time');
 
 -- n = 0 is the company. 1 to 50 are divisions, 51 to 550 departments, and the rest are teams.
 CREATE TEMP TABLE bench_unit AS
@@ -27,14 +27,17 @@ FROM generate_series(0, :units) n;
 
 INSERT INTO fuhito_org_unit (id, realm_id) SELECT id, :'realm' FROM bench_unit;
 -- One unit in five got a new name in 2023, so it has two versions.
-INSERT INTO fuhito_org_unit_version (id, realm_id, org_unit_id, valid_from, valid_to, code, name, names_i18n, short_names_i18n, phonetic_name, unit_type_id, display_order, attributes)
+INSERT INTO fuhito_org_unit_version (id, realm_id, org_unit_id, valid_from, valid_to, code, unit_type_id, display_order, attributes)
 SELECT 'v1-' || n, :'realm', id, DATE '2020-04-01', CASE WHEN n % 5 = 1 THEN DATE '2023-04-01' END,
-       'c' || n, 'Unit ' || n, '{}', '{}', 'unit ' || lpad(n::text, 5, '0'),
-       CASE WHEN n = 0 THEN 'bench-company' ELSE 'bench-unit' END, n % 7, '{}'
+       'c' || n, CASE WHEN n = 0 THEN 'bench-company' ELSE 'bench-unit' END, n % 7, '{}'
 FROM bench_unit;
-INSERT INTO fuhito_org_unit_version (id, realm_id, org_unit_id, valid_from, valid_to, code, name, names_i18n, short_names_i18n, phonetic_name, unit_type_id, display_order, attributes)
-SELECT 'v2-' || n, :'realm', id, DATE '2023-04-01', NULL, 'c' || n, 'New unit ' || n, '{}', '{}', 'unit ' || lpad(n::text, 5, '0'),
-       'bench-unit', n % 7, '{}'
+INSERT INTO fuhito_org_unit_version (id, realm_id, org_unit_id, valid_from, valid_to, code, unit_type_id, display_order, attributes)
+SELECT 'v2-' || n, :'realm', id, DATE '2023-04-01', NULL, 'c' || n, 'bench-unit', n % 7, '{}'
+FROM bench_unit WHERE n % 5 = 1;
+INSERT INTO fuhito_org_unit_version_name (version_id, language, realm_id, is_primary, name, phonetic_name)
+SELECT 'v1-' || n, 'en', :'realm', true, 'Unit ' || n, 'unit ' || lpad(n::text, 5, '0') FROM bench_unit;
+INSERT INTO fuhito_org_unit_version_name (version_id, language, realm_id, is_primary, name, phonetic_name)
+SELECT 'v2-' || n, 'en', :'realm', true, 'New unit ' || n, 'unit ' || lpad(n::text, 5, '0')
 FROM bench_unit WHERE n % 5 = 1;
 INSERT INTO fuhito_org_unit_link (id, realm_id, hierarchy_id, child_id, parent_id, valid_from, valid_to)
 SELECT 'l-' || n, :'realm', h.id, u.id, u.parent, DATE '2020-04-01', NULL
@@ -45,18 +48,18 @@ FROM bench_unit u JOIN fuhito_hierarchy h ON h.realm_id = :'realm' AND h.code = 
 INSERT INTO fuhito_ref_item (id, realm_id, kind, code, display_order, attributes, active, legal_entity)
 SELECT 'bench-wl-' || n, :'realm', 'WORK_LOCATION', 'site-' || n, 0, '{}', true, false
 FROM generate_series(0, 10) n;
-INSERT INTO fuhito_ref_item_name (id, realm_id, ref_item_id, valid_from, valid_to, name, names_i18n)
-SELECT 'bench-wl-' || n, :'realm', 'bench-wl-' || n, NULL, NULL, 'Site ' || n, '{}'
+INSERT INTO fuhito_ref_item_name (period_id, language, realm_id, ref_item_id, valid_from, valid_to, is_primary, name)
+SELECT 'bench-wl-' || n, 'en', :'realm', 'bench-wl-' || n, NULL, NULL, true, 'Site ' || n
 FROM generate_series(0, 10) n;
 INSERT INTO fuhito_ref_item (id, realm_id, kind, code, display_order, attributes, active, legal_entity)
 VALUES ('bench-home', :'realm', 'WORK_LOCATION', 'home', 0, '{}', true, false);
-INSERT INTO fuhito_ref_item_name (id, realm_id, ref_item_id, valid_from, valid_to, name, names_i18n)
-VALUES ('bench-home', :'realm', 'bench-home', NULL, NULL, 'Home', '{}');
+INSERT INTO fuhito_ref_item_name (period_id, language, realm_id, ref_item_id, valid_from, valid_to, is_primary, name)
+VALUES ('bench-home', 'en', :'realm', 'bench-home', NULL, NULL, true, 'Home');
 INSERT INTO fuhito_ref_item (id, realm_id, kind, code, display_order, attributes, active, legal_entity)
 SELECT 'bench-cc-' || n, :'realm', 'COST_CENTER', 'cc-' || n, 0, '{}', true, false
 FROM generate_series(0, 50) n;
-INSERT INTO fuhito_ref_item_name (id, realm_id, ref_item_id, valid_from, valid_to, name, names_i18n)
-SELECT 'bench-cc-' || n, :'realm', 'bench-cc-' || n, NULL, NULL, 'Cost center ' || n, '{}'
+INSERT INTO fuhito_ref_item_name (period_id, language, realm_id, ref_item_id, valid_from, valid_to, is_primary, name)
+SELECT 'bench-cc-' || n, 'en', :'realm', 'bench-cc-' || n, NULL, NULL, true, 'Cost center ' || n
 FROM generate_series(0, 50) n;
 UPDATE fuhito_org_unit_version v SET work_location_id = 'bench-wl-0', cost_center_id = 'bench-cc-0' FROM bench_unit u
 WHERE v.realm_id = :'realm' AND v.org_unit_id = u.id AND u.n = 0;
@@ -66,8 +69,10 @@ FROM bench_unit u WHERE v.realm_id = :'realm' AND v.org_unit_id = u.id AND u.n B
 UPDATE fuhito_org_unit_version v SET work_location_id = 'bench-wl-3' FROM bench_unit u
 WHERE v.realm_id = :'realm' AND v.org_unit_id = u.id AND u.n > 550 AND u.n % 10 = 3;
 
-INSERT INTO fuhito_person (id, realm_id, name, names_i18n, attributes)
-SELECT 'p-' || n, :'realm', 'Person ' || n, '{}', '{}' FROM generate_series(0, :people - 1) n;
+INSERT INTO fuhito_person (id, realm_id, attributes)
+SELECT 'p-' || n, :'realm', '{}' FROM generate_series(0, :people - 1) n;
+INSERT INTO fuhito_person_name (person_id, language, realm_id, is_primary, name)
+SELECT 'p-' || n, 'en', :'realm', true, 'Person ' || n FROM generate_series(0, :people - 1) n;
 INSERT INTO fuhito_employment (id, realm_id, valid_from, staff_number, person_id, employer_id)
 SELECT 'e-' || n, :'realm', DATE '2020-04-01', 'S' || n, 'p-' || n, 'u-0' FROM generate_series(0, :people - 1) n;
 INSERT INTO fuhito_employment_terms (id, realm_id, employment_id, valid_from, employment_type_id, status, work_percent, attributes)
