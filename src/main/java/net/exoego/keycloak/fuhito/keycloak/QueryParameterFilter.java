@@ -6,6 +6,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.TreeMap;
 
 import jakarta.ws.rs.GET;
@@ -25,7 +26,9 @@ import org.keycloak.utils.KeycloakSessionUtil;
  * Rejects a request to the extension with a query parameter that its endpoint does not take, or with one query
  * parameter twice. JAX-RS would drop such a value with no error. It also rejects a whole number that is not in the
  * form of JSON or is outside its limits. JAX-RS would answer 404 or take {@code ５}, {@code +5}, and an empty value.
- * Only an endpoint of the extension is checked, so every endpoint of Keycloak takes its query as before.
+ * It rejects a boolean other than {@code true} or {@code false}, which JAX-RS would read as false or as no value. It
+ * rejects a text that is empty or only spaces, which JAX-RS would read as no value or take. Only an endpoint of the
+ * extension is checked, so every endpoint of Keycloak takes its query as before.
  */
 @Provider
 public class QueryParameterFilter implements ContainerRequestFilter {
@@ -34,12 +37,15 @@ public class QueryParameterFilter implements ContainerRequestFilter {
     static final String TWICE = "invalid.parameter_twice";
     static final String TYPE = "invalid.type";
     static final String OUT_OF_RANGE = "invalid.out_of_range";
+    static final String BLANK = "invalid.blank";
 
     private static final Map<Class<?>, Limits> WHOLE = Map.of(
             Integer.class, new Limits(Integer.MIN_VALUE, Integer.MAX_VALUE),
             Integer.TYPE, new Limits(Integer.MIN_VALUE, Integer.MAX_VALUE),
             Long.class, new Limits(Long.MIN_VALUE, Long.MAX_VALUE),
             Long.TYPE, new Limits(Long.MIN_VALUE, Long.MAX_VALUE));
+
+    private static final Set<Class<?>> BOOLEAN = Set.of(Boolean.class, Boolean.TYPE);
 
     // The limits that the OpenAPI document gives to a whole number in a query, by the name of the parameter. Its
     // type gives the others.
@@ -108,7 +114,8 @@ public class QueryParameterFilter implements ContainerRequestFilter {
             if (parameter.getValue().size() > 1) {
                 return Optional.of(new Problem(TWICE, Map.of("field", name)));
             }
-            Optional<Limits> limits = limits(taken.get(name), name);
+            Class<?> type = taken.get(name);
+            Optional<Limits> limits = limits(type, name);
             String value = parameter.getValue().getFirst();
             if (limits.isPresent() && !NumberText.isWhole(value)) {
                 return Optional.of(new Problem(TYPE, Map.of("field", name, "type", "integer")));
@@ -117,8 +124,30 @@ public class QueryParameterFilter implements ContainerRequestFilter {
                 return Optional.of(new Problem(OUT_OF_RANGE, Map.of("field", name,
                         "min", Long.toString(limits.get().min()), "max", Long.toString(limits.get().max()))));
             }
+            // JSON has true and false only in lower case.
+            if (jsonType(type).equals("boolean") && !value.equals("true") && !value.equals("false")) {
+                return Optional.of(new Problem(TYPE, Map.of("field", name, "type", "boolean")));
+            }
+            // The same test as for a text of a body, so a no-break space is no space.
+            if (jsonType(type).equals("string") && value.isBlank()) {
+                return Optional.of(new Problem(BLANK, Map.of("field", name)));
+            }
         }
         return Optional.empty();
+    }
+
+    /**
+     * Returns the type of a query parameter by the names of JSON and of the OpenAPI document. A value of any type but
+     * a whole number or a boolean is a text, such as a date, a cursor, or a value of a fixed set.
+     *
+     * @param type the type of the parameter of the method
+     * @return {@code integer}, {@code boolean}, or {@code string}
+     */
+    static String jsonType(Class<?> type) {
+        if (WHOLE.containsKey(type)) {
+            return "integer";
+        }
+        return BOOLEAN.contains(type) ? "boolean" : "string";
     }
 
     /**

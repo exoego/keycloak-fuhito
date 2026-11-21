@@ -4456,7 +4456,9 @@ components:
         `invalid.unknown_parameter`, and one given twice gets `invalid.parameter_twice`.
         A query parameter of the type `integer` that is no whole number in the form of
         JSON gets `invalid.type`, and one outside its limits gets
-        `invalid.out_of_range`.
+        `invalid.out_of_range`. A query parameter of the type `boolean` other than
+        `true` or `false` gets `invalid.type`. A query parameter of the type `string`
+        that is empty or only spaces gets `invalid.blank`.
         In a write, an empty text, a text of only spaces, or an empty array gets
         `invalid.blank`. A text with NUL or half of a surrogate pair gets
         `invalid.character`. A body that gives one key twice in one object gets
@@ -4590,9 +4592,16 @@ info:
     an empty value fail. A number outside the `minimum` and the `maximum` of the parameter, or
     else outside the range of its format, fails with 400 and `invalid.out_of_range`, which names
     the parameter and the limits in `min` and `max`. So `max` takes a number from 0 to 1000 and
-    `first` a number from 0, and no number is read as another one. These checks come after
-    Keycloak checks the token, and before the roles of the extension. So a caller without the
-    role gets 400 for such a query, and 403 for any other query.
+    `first` a number from 0, and no number is read as another one. A query parameter of the type
+    `boolean` takes only `true` or `false`, in lower case as in JSON. Another value fails with
+    400 and `invalid.type`, which names the parameter in `field` and has `boolean` in `type`. So
+    `True`, `1`, `yes`, an empty value, and a name with no value, such as `?dryRun`, fail. A
+    query parameter of the type `string` with an empty value, with no value, or with only spaces
+    fails with 400 and `invalid.blank`, which names the parameter, as such a text in a body does.
+    This holds for a date such as `asOf`, for a cursor such as `after`, and for `changeOrder`. A
+    parameter that is left out has no value. These checks come after Keycloak checks the token,
+    and before the roles of the extension. So a caller without the role gets 400 for such a
+    query, and 403 for any other query.
 
     A write that names one thing in two ways, such as a unit of a reorganization step by `id` and
     by `unitRef`, fails with 400 and `invalid.twice`. The error names the two fields in `field`

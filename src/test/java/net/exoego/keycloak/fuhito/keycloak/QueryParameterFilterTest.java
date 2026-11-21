@@ -3,6 +3,8 @@ package net.exoego.keycloak.fuhito.keycloak;
 import java.io.File;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
+import java.time.DayOfWeek;
+import java.time.LocalDate;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -21,6 +23,8 @@ import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.QueryParam;
+import net.exoego.keycloak.fuhito.domain.Checks;
+import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.rest.FuhitoResource;
 import org.junit.jupiter.api.Test;
 
@@ -40,6 +44,12 @@ class QueryParameterFilterTest {
         public String list(@QueryParam("first") Integer first, @QueryParam("after") Long after,
                 @QueryParam("count") int count, @QueryParam("size") long size, @QueryParam("roots") boolean roots) {
             return first + " " + after + " " + count + " " + size + " " + roots;
+        }
+
+        @GET
+        public String search(@QueryParam("q") String q, @QueryParam("lateral") Boolean lateral,
+                @QueryParam("on") LocalDate on, @QueryParam("day") DayOfWeek day) {
+            return q + lateral + on + day;
         }
 
         @POST
@@ -78,7 +88,8 @@ class QueryParameterFilterTest {
         assertEquals(Optional.empty(), QueryParameterFilter.problem(read, Map.of()));
         assertEquals(Optional.empty(), QueryParameterFilter.problem(read, Map.of("asOf", List.of("2026-04-01"),
                 "max", List.of("1000"))));
-        assertEquals(Optional.empty(), QueryParameterFilter.problem(read, Map.of("asOf", List.of(""))));
+        assertEquals(problem(QueryParameterFilter.BLANK, "asOf"),
+                QueryParameterFilter.problem(read, Map.of("asOf", List.of(""))));
         assertEquals(problem(QueryParameterFilter.UNKNOWN, "asof"),
                 QueryParameterFilter.problem(read, Map.of("asof", List.of("2026-04-01"))));
         assertEquals(problem(QueryParameterFilter.TWICE, "asOf"),
@@ -102,6 +113,11 @@ class QueryParameterFilterTest {
                 Map.of("field", field, "type", "integer")));
     }
 
+    private static Optional<QueryParameterFilter.Problem> notBoolean(String field) {
+        return Optional.of(new QueryParameterFilter.Problem(QueryParameterFilter.TYPE,
+                Map.of("field", field, "type", "boolean")));
+    }
+
     private static Optional<QueryParameterFilter.Problem> outOfRange(String field, long min, long max) {
         return Optional.of(new QueryParameterFilter.Problem(QueryParameterFilter.OUT_OF_RANGE,
                 Map.of("field", field, "min", Long.toString(min), "max", Long.toString(max))));
@@ -119,7 +135,56 @@ class QueryParameterFilterTest {
         assertEquals(notWhole("version"),
                 QueryParameterFilter.problem(endpoint("remove"), Map.of("version", List.of("2e0"))));
         assertEquals(notWhole("count"), QueryParameterFilter.problem(endpoint("list"), Map.of("count", List.of("x"))));
-        assertEquals(Optional.empty(), QueryParameterFilter.problem(endpoint("list"), Map.of("roots", List.of("x"))));
+        assertEquals(notBoolean("roots"),
+                QueryParameterFilter.problem(endpoint("list"), Map.of("roots", List.of("1"))));
+    }
+
+    @Test
+    void aBooleanIsTrueOrFalseAsInJson() throws Exception {
+        Method write = endpoint("write");
+        Method search = endpoint("search");
+
+        for (String bad : List.of("", "abc", "True", "TRUE", "False", "FALSE", "1", "0", "yes", "no", " true",
+                "false ", "\"true\"", "t", "on")) {
+            assertEquals(notBoolean("dryRun"), QueryParameterFilter.problem(write, Map.of("dryRun", List.of(bad))),
+                    bad);
+            assertEquals(notBoolean("lateral"), QueryParameterFilter.problem(search, Map.of("lateral", List.of(bad))),
+                    bad);
+        }
+        for (String good : List.of("true", "false")) {
+            assertEquals(Optional.empty(), QueryParameterFilter.problem(write, Map.of("dryRun", List.of(good))), good);
+            assertEquals(Optional.empty(), QueryParameterFilter.problem(search, Map.of("lateral", List.of(good))),
+                    good);
+        }
+    }
+
+    // A text of a body fails as blank when Checks.optionalText fails.
+    @Test
+    void aTextIsNotEmptyOrOnlySpacesAsInABody() throws Exception {
+        Method search = endpoint("search");
+
+        for (String text : List.of("", " ", "   ", "\t", "\n", "\r\n", "\u3000", "\u2003", " \t\u3000", "\u00A0",
+                "\u2007", "\u202F", "x", " x ", "2026-04-01", "MONDAY")) {
+            boolean blankInABody = blankInABody(text);
+            for (String name : List.of("q", "on", "day")) {
+                assertEquals(blankInABody ? problem(QueryParameterFilter.BLANK, name) : Optional.empty(),
+                        QueryParameterFilter.problem(search, Map.of(name, List.of(text))), name + " " + text);
+            }
+            assertEquals(blankInABody ? problem(QueryParameterFilter.BLANK, "changeOrder") : Optional.empty(),
+                    QueryParameterFilter.problem(endpoint("write"), Map.of("changeOrder", List.of(text))), text);
+        }
+        assertEquals(problem(QueryParameterFilter.BLANK, "q"),
+                QueryParameterFilter.problem(search, Map.of("q", List.of(" "))));
+        assertEquals(Optional.empty(), QueryParameterFilter.problem(search, Map.of("q", List.of("\u00A0"))));
+    }
+
+    private static boolean blankInABody(String text) {
+        try {
+            Checks.optionalText("field", text);
+            return false;
+        } catch (FuhitoException e) {
+            return e.code().equals("invalid.blank");
+        }
     }
 
     @Test
@@ -216,10 +281,50 @@ class QueryParameterFilterTest {
         assertEquals(Set.of("first", "max", "after", "version"), numbers);
     }
 
+    // The filter checks each value by the type that the document gives.
+    @Test
+    void theOpenApiDocumentGivesTheTypeThatTheFilterChecks() throws Exception {
+        Map<String, Method> endpoints = endpoints();
+        JsonNode components = document().get("components");
+        Set<String> booleans = new HashSet<>();
+
+        for (Map.Entry<String, JsonNode> operation : operations().entrySet()) {
+            Map<String, Class<?>> taken = QueryParameterFilter.taken(endpoints.get(operation.getKey()));
+            for (JsonNode parameter : operation.getValue().path("parameters")) {
+                if (parameter.has("$ref")) {
+                    parameter = components.get("parameters").get(name(parameter));
+                }
+                if (!parameter.get("in").asText().equals("query")) {
+                    continue;
+                }
+                String name = parameter.get("name").asText();
+                JsonNode schema = parameter.get("schema");
+                if (schema.has("$ref")) {
+                    schema = components.get("schemas").get(name(schema));
+                }
+                assertEquals(schema.get("type").asText(), QueryParameterFilter.jsonType(taken.get(name)),
+                        operation.getKey() + " " + name);
+                if (schema.get("type").asText().equals("boolean")) {
+                    booleans.add(name);
+                }
+            }
+        }
+        assertEquals(Set.of("dryRun", "roots", "nearest", "includePath", "includeInactive", "includeDescendants",
+                "clearKeycloakName", "all", "replace", "lateral", "seconded", "rollup", "legalEntity"), booleans);
+    }
+
+    private static String name(JsonNode ref) {
+        String path = ref.get("$ref").asText();
+        return path.substring(path.lastIndexOf('/') + 1);
+    }
+
+    private static JsonNode document() throws Exception {
+        return new ObjectMapper(new YAMLFactory()).readTree(new File(System.getProperty("openapi.document")));
+    }
+
     // Each operation of the OpenAPI document by its HTTP method and path.
     private static Map<String, JsonNode> operations() throws Exception {
-        JsonNode paths = new ObjectMapper(new YAMLFactory())
-                .readTree(new File(System.getProperty("openapi.document"))).get("paths");
+        JsonNode paths = document().get("paths");
         Map<String, JsonNode> operations = new TreeMap<>();
         for (Map.Entry<String, JsonNode> path : paths.properties()) {
             for (Map.Entry<String, JsonNode> operation : path.getValue().properties()) {
