@@ -22,7 +22,6 @@ import net.exoego.keycloak.fuhito.service.ExternalIdLists;
 import net.exoego.keycloak.fuhito.service.ExternalIdService;
 import net.exoego.keycloak.fuhito.service.RealmKindService;
 import org.eclipse.microprofile.openapi.annotations.Operation;
-import org.eclipse.microprofile.openapi.annotations.enums.SchemaType;
 import org.eclipse.microprofile.openapi.annotations.media.Content;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 import org.eclipse.microprofile.openapi.annotations.parameters.Parameter;
@@ -145,9 +144,8 @@ public class RefKindsResource {
             @PathParam("code") String code,
             @Parameter(
                     description = "The version of the kind that the caller read.",
-                    required = true,
-                    schema = @Schema(type = SchemaType.INTEGER, format = "int64"))
-            @QueryParam("version") String version) {
+                    required = true)
+            @QueryParam("version") Long version) {
         context.requireWrite();
         return Calls.guarded(context, version, () -> version(code), () -> {
             service.delete(code);

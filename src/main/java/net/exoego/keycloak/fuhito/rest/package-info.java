@@ -76,8 +76,16 @@
                         parameter fails with 400 and `invalid.unknown_parameter`, which names the parameter in
                         `field`. The case of each letter counts, so `asof` is not `asOf`. A request that gives one
                         query parameter twice fails with 400 and `invalid.parameter_twice`. No value is dropped.
-                        The check comes after Keycloak checks the token, and before the roles of the extension. So a
-                        caller without the role gets 400 for such a query, and 403 for any other query.
+                        A query parameter of the type `integer` has the form of a whole number of JSON, with only the
+                        digits 0 to 9, `-` in front for a negative number, and no `0` in front of another digit.
+                        Another value fails with 400 and `invalid.type`, which names the parameter in `field` and has
+                        `integer` in `type`. So `abc`, `1.5`, `+5`, `05`, `５`, a value with a space around it, and
+                        an empty value fail. A number outside the `minimum` and the `maximum` of the parameter, or
+                        else outside the range of its format, fails with 400 and `invalid.out_of_range`, which names
+                        the parameter and the limits in `min` and `max`. So `max` takes a number from 0 to 1000 and
+                        `first` a number from 0, and no number is read as another one. These checks come after
+                        Keycloak checks the token, and before the roles of the extension. So a caller without the
+                        role gets 400 for such a query, and 403 for any other query.
 
                         A write that names one thing in two ways, such as a unit of a reorganization step by `id` and
                         by `unitRef`, fails with 400 and `invalid.twice`. The error names the two fields in `field`
@@ -176,6 +184,9 @@
                                     A value in the request is bad.
                                     A query parameter that the operation does not take gets
                                     `invalid.unknown_parameter`, and one given twice gets `invalid.parameter_twice`.
+                                    A query parameter of the type `integer` that is no whole number in the form of
+                                    JSON gets `invalid.type`, and one outside its limits gets
+                                    `invalid.out_of_range`.
                                     In a write, an empty text, a text of only spaces, or an empty array gets
                                     `invalid.blank`. A text with NUL or half of a surrogate pair gets
                                     `invalid.character`. A body that gives one key twice in one object gets

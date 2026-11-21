@@ -150,8 +150,8 @@ class PersonServiceTest {
         assertEquals(sorted, service.list(null, null, null).stream().map(v -> v.person().id()).toList());
         assertEquals(sorted.subList(1, 2),
                 service.list(null, 1, 1).stream().map(v -> v.person().id()).toList());
-        assertEquals(sorted, service.list(null, -5, 100).stream().map(v -> v.person().id()).toList());
-        assertTrue(service.list(null, 0, -1).isEmpty());
+        assertEquals(sorted, service.list(null, 0, 100).stream().map(v -> v.person().id()).toList());
+        assertTrue(service.list(null, 0, 0).isEmpty());
         assertEquals(List.of(b), service.list("hanako", null, null).stream().map(v -> v.person().id()).toList());
         assertTrue(service.list("taro", null, null).isEmpty());
         assertEquals(1, service.count("hanako", null, null));

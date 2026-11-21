@@ -21,7 +21,6 @@ import net.exoego.keycloak.fuhito.service.ChangeOrderService;
 import net.exoego.keycloak.fuhito.service.ExternalIdLists;
 import net.exoego.keycloak.fuhito.service.ExternalIdService;
 import org.eclipse.microprofile.openapi.annotations.Operation;
-import org.eclipse.microprofile.openapi.annotations.enums.SchemaType;
 import org.eclipse.microprofile.openapi.annotations.media.Content;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 import org.eclipse.microprofile.openapi.annotations.parameters.Parameter;
@@ -254,9 +253,8 @@ public class ChangeOrdersResource {
             @PathParam("id") String id,
             @Parameter(
                     description = "The version of the order that the caller read.",
-                    required = true,
-                    schema = @Schema(type = SchemaType.INTEGER, format = "int64"))
-            @QueryParam("version") String version) {
+                    required = true)
+            @QueryParam("version") Long version) {
         context.requireWrite();
         return Calls.guarded(context, version, () -> version(id), () -> {
             service.delete(id);

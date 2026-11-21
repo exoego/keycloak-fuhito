@@ -446,11 +446,14 @@ So every endpoint of Keycloak takes its query as before.
 - A request with another query parameter fails with 400 and `invalid.unknown_parameter`, which names the parameter in `field`. Quarkus REST would drop it.
 - The case of each letter counts. Quarkus REST itself finds a parameter in any case, so `asof` used to work as `asOf`. Now it fails.
 - A request that gives one query parameter twice fails with 400 and `invalid.parameter_twice`, which names it. Quarkus REST would take the first value. Two names that differ only in case count as one parameter given twice.
+- A parameter of the type `Integer`, `int`, `Long`, or `long` is a whole number, such as `first`, `max`, the `after` of the change log, and the `version` of a `DELETE`. Its value has the form of a whole number of JSON. It has only the digits 0 to 9, with `-` in front for a negative number, and no `0` in front of another digit. Another value fails with 400 and `invalid.type`, which names the parameter in `field` and has `integer` in `type`. So `abc`, `1.5`, `1e2`, `+5`, `05`, a value with a space around it, a full-width digit such as `５`, and an empty value fail. Quarkus REST would answer 404 to `abc`, and would take `+5`, `05`, and `５` as 5, and an empty value as no value. A value of the type `String` gave such a version as none, which failed with `version.required`.
+- A whole number outside its limits fails with 400 and `invalid.out_of_range`, which names the parameter in `field` and the limits in `min` and `max`. The limits are the `minimum` and the `maximum` of [openapi.yaml](openapi.yaml), or else those of the type. `first` takes a number from 0 to 2147483647, `max` from 0 to 1000, the `after` of the change log from 0 to 9223372036854775807, and `version` from -9223372036854775808 to 9223372036854775807. A page used to read a larger `max` as 1000, and a negative `first` or `max` as 0. A test checks that the filter and the document give the same limits.
+- A JSON body gives the same two errors for the same faults.
 - The check reads no data, and the request fails before the method runs. So nothing is written.
 
 The filter runs after Keycloak checked the token and the realm of the caller, and before the extension checks its roles.
 A request with no token still gets 401.
-A caller without the role gets 400 for a query that the endpoint does not take, and 403 for any other query.
+A caller without the role gets 400 for a query that the endpoint does not take or a number that its schema does not allow, and 403 for any other query.
 The 400 tells such a caller nothing that the OpenAPI document does not.
 
 The `Link` header of a list is the URL of the request without `first` and with `after`.
@@ -487,7 +490,7 @@ A list that grows with the realm is read in pages. These lists take `first` and 
 - `GET /change-orders`, the writes of a change order, `GET /change-log`, and `GET /effective-changes`.
 
 `first` is the number of entries to skip. `max` is the largest number of entries to return.
-`max` is 100 by default and 1000 at most. A larger value counts as 1000.
+`max` is 100 by default, and takes a number from 0 to 1000. `first` takes a number from 0. A number outside these limits fails with 400 and `invalid.out_of_range`, which names the parameter and the limits. It is not read as another number.
 A read with fewer entries than `max` has reached the end.
 
 A list that has a cursor is better read with it. These are the lists of org units, people, employments, assignments, qualifications, and unit roles, and the members of an org unit.

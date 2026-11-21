@@ -249,6 +249,10 @@ class MembershipServiceTest {
                 .code());
         for (String bad : List.of(Cursor.encode(Cursor.MEMBERS, "one"),
                 Cursor.encode(Cursor.MEMBERS, "u", "x", "2026-04-01", "a"),
+                // Java would read these as 1.
+                Cursor.encode(Cursor.MEMBERS, "u", "+1", "2026-04-01", "a"),
+                Cursor.encode(Cursor.MEMBERS, "u", "\uFF11", "2026-04-01", "a"),
+                Cursor.encode(Cursor.MEMBERS, "u", "2147483648", "2026-04-01", "a"),
                 Cursor.encode(Cursor.MEMBERS, "u", "1", "soon", "a"),
                 // The database cannot hold this date.
                 Cursor.encode(Cursor.MEMBERS, "u", "1", "-5000-01-01", "a"),
@@ -375,9 +379,9 @@ class MembershipServiceTest {
         assertEquals(List.of("clerk"), userIds(service.members(ward,
                 new MemberQuery("2026-04-01", false, null, null, null, 2, 5))));
         assertEquals(List.of(), userIds(service.members(ward,
-                new MemberQuery("2026-04-01", false, null, null, null, -1, 0))));
+                new MemberQuery("2026-04-01", false, null, null, null, 0, 0))));
         assertEquals(List.of("doctor"), userIds(service.members(ward,
-                new MemberQuery("2026-04-01", false, null, null, null, -1, 1))));
+                new MemberQuery("2026-04-01", false, null, null, null, 0, 1))));
         // The count is the same for every page.
         assertEquals(3, service.countMembers(ward, new MemberQuery("2026-04-01", false, null, null, null, 2, 1)));
     }

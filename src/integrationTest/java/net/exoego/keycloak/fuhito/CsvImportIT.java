@@ -851,7 +851,7 @@ class CsvImportIT {
         JsonNode report = Api.json(bad);
         assertEquals(List.of("4", "5"), report.get("errors").findValuesAsText("line"));
         assertEquals(List.of("csv.bad_number", "import.parent_unknown"), report.get("errors").findValuesAsText("error"));
-        assertEquals("表示順 は列に合う数値にしてください。指定された値は「多い」です。".replace("表示順", "displayOrder"),
+        assertEquals("表示順 は、JSON と同じ形で 0 から 9 の数字だけで書いた、列に合う数値にしてください。指定された値は「多い」です。".replace("表示順", "displayOrder"),
                 report.get("errors").get(0).get("message").asText());
 
         HttpResponse<String> badColumn = api.postBytes("/imports/csv/org-units?effectiveDate=2026-04-01",

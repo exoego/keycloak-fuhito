@@ -126,11 +126,14 @@ public class ImportsResource {
                     + "first bad bytes. So does a file that starts with `FF FE` or `FE FF`, or has a `00` byte on its "
                     + "first line, unless the charset is UTF-16 or UTF-32. Such a file is most likely UTF-16. An "
                     + "unknown charset fails with `csv.bad_charset`. A `00` byte after the first line is NUL in a "
-                    + "cell, which fails with `invalid.character` and names the column. A cell of a number that the "
-                    + "column cannot take fails the row with `csv.bad_number`, which names the column. Such a cell "
-                    + "is a `displayOrder` outside -2147483648 to 2147483647, or a number of an attribute of the "
-                    + "type `NUMBER` that a 64-bit floating point number does not give back the same, such as "
-                    + "`1e400` or `1e999999999`, as in a JSON import.")
+                    + "cell, which fails with `invalid.character` and names the column. A number has the form of a "
+                    + "number of JSON, with only the digits 0 to 9, no `+` in front, no `0` in front of another "
+                    + "digit, and digits on both sides of a point. A cell in another form, such as `５`, `+5`, `05`, "
+                    + "or `.5`, or a number that the column cannot take, fails the row with `csv.bad_number`, which "
+                    + "names the column. Such a number is a `displayOrder` that is no whole number from "
+                    + "-2147483648 to 2147483647, or a number of an attribute of the type `NUMBER` that a 64-bit "
+                    + "floating point number does not give back the same, such as `1e400` or `1e999999999`, as in a "
+                    + "JSON import.")
     @Parameter(ref = "changeOrder")
     @APIResponse(
             responseCode = "200",

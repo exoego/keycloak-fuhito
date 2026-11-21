@@ -20,7 +20,6 @@ import net.exoego.keycloak.fuhito.service.ExternalIdService;
 import net.exoego.keycloak.fuhito.service.OrgUnitService;
 import net.exoego.keycloak.fuhito.service.RealmKindService;
 import org.eclipse.microprofile.openapi.annotations.Operation;
-import org.eclipse.microprofile.openapi.annotations.enums.SchemaType;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 import org.eclipse.microprofile.openapi.annotations.parameters.Parameter;
 import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
@@ -167,13 +166,12 @@ public class ExternalIdsResource {
             @QueryParam("source") String source,
             @Parameter(
                     description = "The version of the ID that the caller read.",
-                    required = true,
-                    schema = @Schema(type = SchemaType.INTEGER, format = "int64"))
-            @QueryParam("version") String version) {
+                    required = true)
+            @QueryParam("version") Long version) {
         context.requireWrite();
         return Calls.run(context, () -> {
             lockOwner(resourceType, resourceId);
-            requireVersion(resourceType, resourceId, source, Calls.versionOf(version));
+            requireVersion(resourceType, resourceId, source, version);
             ExternalIdService.View view = service.remove(resourceType, resourceId, source);
             context.recordChange(Change.DELETE, RESOURCE_TYPE, view.rowId(), path(view.rowId()), null);
             return Response.noContent().build();

@@ -75,8 +75,8 @@ class ConditionalWritesIT {
                 .statusCode());
         String end = "/employments/" + id + "/end";
         assertEquals("version.required", error(400, api.delete(end)).get("error").asText());
-        // A version that is no number is no version.
-        assertEquals("version.required", error(400, api.delete(end + "?version=x")).get("error").asText());
+        // A version that is no number fails as such, and not as a write with no version.
+        assertEquals("invalid.type", error(400, api.delete(end + "?version=x")).get("error").asText());
         assertEquals("version.conflict", error(409, api.delete(end + "?version=2")).get("error").asText());
         assertEquals(4, ok(api.delete(end + "?version=3")).get("version").asLong());
         String other = ok(api.post("/employments", "{\"userId\": \"" + realm.user("clerk")
