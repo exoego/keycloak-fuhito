@@ -101,8 +101,9 @@ public class ImportsResource {
                     schema = @Schema(format = "date"))
             @QueryParam("asOf") String asOf,
             @Parameter(
-                    description = "`ja` for the Japanese names of the columns. The default is the English ones.",
-                    schema = @Schema(enumeration = {"en", "ja"}))
+                    description = "`en` for the English names of the columns, and `ja` for the Japanese ones. "
+                            + "Another value, such as `JA`, fails with 400 and `invalid.choice`.",
+                    schema = @Schema(enumeration = {"en", "ja"}, defaultValue = "en"))
             @QueryParam("header") String header) {
         context.requireRead();
         return Calls.run(context, () -> Response.ok(csvExport.write(list, asOf, header))
