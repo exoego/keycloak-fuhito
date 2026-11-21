@@ -202,6 +202,7 @@ The files of org units and of assignments have the work location and the cost ce
 `GET /imports/csv/external-ids` gives every ID of every system. The ID of the system that made a resource is in the file of the resource too. In a file, `#CLEAR` in `externalId` removes the stored ID.
 `GET /imports/csv/change-orders` gives every change order, newest effective date first.
 The kinds, the definitions of attributes, the hierarchies, the people, the IDs of other systems, and the change orders have no date. So `ref-kinds`, `attribute-definitions`, `hierarchies`, `people`, `external-ids`, and `change-orders` take no `asOf`. A read of one of them with `asOf` fails with 400 and `csv.export_no_date`, so that no date is dropped.
+`header` takes only `en` or `ja`, and the default is `en`. Another value, such as `JA` or `fr`, fails with 400 and `invalid.choice`, which names `header` in `field` and the value in `value`.
 The query has `effectiveDate`, and optionally `dryRun` and `source`.
 Another query parameter fails with 400 and `invalid.unknown_parameter`, and nothing is written. The case of each letter counts, so `dryrun=true` fails and is no dry run.
 `dryRun` takes only `true` or `false` in lower case, as JSON does. Another value, such as `True`, `1`, or an empty value, fails with 400 and `invalid.type`, and nothing is written.
