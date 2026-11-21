@@ -36,6 +36,11 @@ class RestoreMissingValuesIT {
         assertBadValue(target.api, noTitle, Map.of("list", "change-orders", "id", "o-1", "field", "title"));
         assertBadValue(target.api, nullRow, Map.of("list", "people"));
         assertBadValue(target.api, nullVersion, Map.of("list", "org-unit-versions"));
+        // An export gives each list of the rows of a unit, also when it is empty.
+        assertBadValue(target.api, withUnit("successors"), Map.of("list", "org-units", "id", "u-1", "field",
+                "parents"));
+        assertBadValue(target.api, withUnit("parents"), Map.of("list", "org-units", "id", "u-1", "field",
+                "successors"));
 
         // Not even the good person of each document was written.
         assertEquals(0, Api.json(target.api.get("/export/people")).size());
@@ -46,6 +51,15 @@ class RestoreMissingValuesIT {
     static ObjectNode withPerson() {
         ObjectNode document = JSON.createObjectNode().put("format", "fuhito.export.v1");
         named(document.putArray("people").addObject().put("id", "p-1")).putObject("attributes");
+        return document;
+    }
+
+    private static ObjectNode withUnit(String list) {
+        ObjectNode document = withPerson();
+        ObjectNode unit = document.putArray("orgUnits").addObject().put("id", "u-1");
+        named(unit.putArray("versions").addObject().put("id", "v-1").put("validFrom", "2020-04-01"))
+                .putObject("attributes");
+        unit.putArray(list);
         return document;
     }
 

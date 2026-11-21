@@ -22,6 +22,7 @@ import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.EmploymentStatus;
 import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
+import net.exoego.keycloak.fuhito.domain.Hierarchy;
 import net.exoego.keycloak.fuhito.domain.Localized;
 import net.exoego.keycloak.fuhito.domain.PersonName;
 import net.exoego.keycloak.fuhito.domain.RefItemName;
@@ -56,6 +57,7 @@ final class RestoreCheck {
     private final Set<String> orders;
     private final Set<String> refKinds;
     private final Set<String> hierarchies;
+    private final Set<String> hierarchyCodes;
     private final Set<String> definitions;
 
     private RestoreCheck(RealmExport document) {
@@ -70,6 +72,9 @@ final class RestoreCheck {
         orders = ids(document.changeOrders(), RealmExport.Order::id);
         refKinds = ids(document.refKinds(), RealmExport.Kind::id);
         hierarchies = ids(document.hierarchies(), RealmExport.HierarchyRow::id);
+        // Every realm has the default hierarchy, so a link may name it with no row.
+        hierarchyCodes = ids(document.hierarchies(), RealmExport.HierarchyRow::code);
+        hierarchyCodes.add(Hierarchy.DEFAULT_CODE);
         definitions = ids(document.attributeDefinitions(), RealmExport.Definition::id);
     }
 
@@ -95,7 +100,7 @@ final class RestoreCheck {
         all(document.refItems()).forEach(i -> values.check("ref-item-names", i.versions(), "id"));
         values.check("attribute-definitions", document.attributeDefinitions(), "id", "target", "name", "type");
         values.check("hierarchies", document.hierarchies(), "id", "code", "name");
-        values.check("org-units", document.orgUnits(), "id");
+        values.check("org-units", document.orgUnits(), "id", "parents", "successors");
         for (RealmExport.Unit unit : all(document.orgUnits())) {
             values.check("org-unit-versions", unit.versions(), "id", "validFrom", "attributes");
             values.check("org-unit-parents", unit.parents(), "id", "hierarchy", "parentId", "validFrom");
@@ -147,8 +152,9 @@ final class RestoreCheck {
 
     private record Values(Function<String, Map<String, Integer>> lengths) {
 
-        // The needed fields have columns that are not null, and the first one is the ID of the row. A list in a row
-        // holds the rows of the row, and a row may have none. Each of them is checked as a row.
+        // The needed fields have columns that are not null, or are lists that an export always gives, and the first
+        // one is the ID of the row. A list in a row holds the rows of the row, and a row may have none. Each of them
+        // is checked as a row.
         <T extends Record> void check(String list, List<T> rows, String... needed) {
             Map<String, Integer> longest = lengths.apply(list);
             for (T row : all(rows)) {
@@ -255,7 +261,8 @@ final class RestoreCheck {
     }
 
     /**
-     * Requires that every reference of an export names a row of the same export.
+     * Requires that every reference of an export names a row of the same export. A parent link names its hierarchy by
+     * code, and may name the default hierarchy with no row of it.
      *
      * @param document the export
      * @throws FuhitoException when a reference names a row that the export does not have
@@ -271,7 +278,10 @@ final class RestoreCheck {
                 optional("org-units", "workLocationId", v.workLocationId(), refItems);
                 optional("org-units", "costCenterId", v.costCenterId(), refItems);
             }
-            all(unit.parents()).forEach(p -> required("org-units", "parentId", p.parentId(), orgUnits));
+            for (RealmExport.Parent p : all(unit.parents())) {
+                required("org-units", "hierarchy", p.hierarchy(), hierarchyCodes);
+                required("org-units", "parentId", p.parentId(), orgUnits);
+            }
             all(unit.successors()).forEach(s -> required("org-units", "successorId", s.successorId(), orgUnits));
         }
         for (RealmExport.EmploymentRow e : all(document.employments())) {

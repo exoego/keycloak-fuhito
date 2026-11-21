@@ -125,7 +125,9 @@ class ExternalEmployerIT {
 
         document.putArray("refItems").addObject().put("id", "r-9").put("kind", "EXTERNAL_EMPLOYER")
                 .put("code", "agency").putObject("attributes");
-        document.putArray("orgUnits").addObject().put("id", "u-9");
+        ObjectNode unit = document.putArray("orgUnits").addObject().put("id", "u-9");
+        unit.putArray("parents");
+        unit.putArray("successors");
         employment.put("employerId", "u-9");
         HttpResponse<String> twice = target.api.post("/restore", JSON.writeValueAsString(document));
         assertEquals(400, twice.statusCode(), twice.body());
