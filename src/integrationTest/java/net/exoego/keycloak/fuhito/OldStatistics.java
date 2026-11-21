@@ -17,13 +17,13 @@ final class OldStatistics {
     }
 
     // An import into a new realm writes its rows in one transaction, so the statistics still say that the realm has
-    // no rows. The caller rolls them back. The rows that other tests rolled back leave space in the tables and their
-    // indexes, which a real import does not find, and that space changes the plans. A plain vacuum keeps the space when
-    // rows that other tests committed come after it, so the setup rewrites the tables.
+    // no rows. The caller rolls them back. Rows that other tests committed would change the statistics, and rows that
+    // they rolled back would leave space in the tables and their indexes. Both change the plans, so the setup empties
+    // the tables in its transaction. The rollback brings the rows of other tests back.
     static void realmsWithOldStatistics(Statement statement) throws Exception {
-        KeycloakEnvironment.sql("""
-                vacuum full fuhito_org_unit, fuhito_org_unit_version, fuhito_org_unit_version_name,
-                fuhito_org_unit_link, fuhito_person, fuhito_employment, fuhito_employment_terms, fuhito_assignment""");
+        statement.execute("""
+                truncate fuhito_org_unit, fuhito_org_unit_version, fuhito_org_unit_version_name, fuhito_org_unit_link,
+                fuhito_person, fuhito_employment, fuhito_employment_terms, fuhito_assignment cascade""");
         rowsOfRealm(statement, "ex-old", 20);
         statement.execute(ANALYZE);
         rowsOfRealm(statement, "ex-new", 3000);
