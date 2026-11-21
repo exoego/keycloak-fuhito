@@ -360,7 +360,8 @@ public final class Checks {
             return null;
         }
         if (value.signum() <= 0 || value.compareTo(HUNDRED) > 0 || value.stripTrailingZeros().scale() > 2) {
-            throw FuhitoException.invalid("invalid.percent", Map.of("field", field, "value", value.toPlainString()));
+            // 1e999999999 has a billion digits without an exponent.
+            throw FuhitoException.invalid("invalid.percent", Map.of("field", field, "value", value.toString()));
         }
         return value;
     }

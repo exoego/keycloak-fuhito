@@ -11,6 +11,7 @@ import java.util.Map;
 import java.util.Set;
 
 import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.BeanProperty;
 import com.fasterxml.jackson.databind.DeserializationContext;
 import com.fasterxml.jackson.databind.JsonDeserializer;
@@ -94,11 +95,12 @@ public final class ImportRowReader extends StdDeserializer<Object> implements Co
         return List.<Object>copyOf(keys);
     }
 
-    // A value read from the tree has no key of the row in the path of its error.
+    // A value read from the tree has no key of the row in the path of its error. A number too large for an int or a
+    // long fails with no path at all.
     private Object read(JsonNode value, RecordComponent component, DeserializationContext ctxt) throws IOException {
         try {
             return ctxt.readTreeAsValue(value, ctxt.getTypeFactory().constructType(component.getGenericType()));
-        } catch (JsonMappingException e) {
+        } catch (JsonProcessingException e) {
             throw JsonMappingException.wrapWithPath(e, handledType(), component.getName());
         }
     }

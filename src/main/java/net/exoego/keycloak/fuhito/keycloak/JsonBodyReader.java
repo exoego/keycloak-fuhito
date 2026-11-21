@@ -14,6 +14,8 @@ import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.JsonStreamContext;
 import com.fasterxml.jackson.core.StreamReadFeature;
+import com.fasterxml.jackson.core.exc.InputCoercionException;
+import com.fasterxml.jackson.core.exc.StreamConstraintsException;
 import com.fasterxml.jackson.databind.BeanDescription;
 import com.fasterxml.jackson.databind.DeserializationConfig;
 import com.fasterxml.jackson.databind.DeserializationContext;
@@ -50,8 +52,11 @@ import org.keycloak.utils.KeycloakSessionUtil;
  * have fails with 400 and {@code invalid.unknown_key}. Keycloak would name a Java type and a line in place of the
  * path of the key. A value of another JSON type than its field, such as {@code "3"} or {@code 3.7} for a whole
  * number, or {@code null} for a field that is never null, fails with 400 and {@code invalid.type}. Keycloak would
- * turn it into the type of the field. Every body of the extension is a record of the extension, and only such a
- * record is read here. So the endpoints of Keycloak read their bodies as before.
+ * turn it into the type of the field. A whole number outside the range of its field, such as {@code 2147483648} for
+ * an int, fails with 400 and {@code invalid.out_of_range}, and a number longer than Jackson reads fails with 400 and
+ * {@code invalid.too_long}. Keycloak would answer both with an error that names no field. Every body of the extension
+ * is a record of the extension, and only such a record is read here. So the endpoints of Keycloak read their bodies
+ * as before.
  */
 @Provider
 @Consumes(MediaType.APPLICATION_JSON)
@@ -60,12 +65,19 @@ public class JsonBodyReader implements MessageBodyReader<Record> {
     private static final String DUPLICATE_KEY = "invalid.duplicate_key";
     private static final String UNKNOWN_KEY = "invalid.unknown_key";
     private static final String TYPE = "invalid.type";
+    private static final String OUT_OF_RANGE = "invalid.out_of_range";
+    private static final String TOO_LONG = "invalid.too_long";
     private static final String EXTENSION = "net.exoego.keycloak.fuhito.";
 
     static final ObjectReader READER = strict(new ObjectMapperResolver().getContext(Record.class))
             .with(StreamReadFeature.STRICT_DUPLICATE_DETECTION)
             .with(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
             .without(DeserializationFeature.ACCEPT_FLOAT_AS_INT);
+
+    // The whole numbers of the bodies are int and long, and their columns have the same range.
+    private static final Map<Class<?>, List<String>> LIMITS = Map.of(
+            Integer.TYPE, List.of(Integer.toString(Integer.MIN_VALUE), Integer.toString(Integer.MAX_VALUE)),
+            Long.TYPE, List.of(Long.toString(Long.MIN_VALUE), Long.toString(Long.MAX_VALUE)));
 
     /**
      * Creates the reader.
@@ -96,6 +108,15 @@ public class JsonBodyReader implements MessageBodyReader<Record> {
                 Optional<Map<String, String>> wrongType = wrongType(e);
                 if (wrongType.isPresent()) {
                     throw error(TYPE, wrongType.get());
+                }
+                Optional<Map<String, String>> outOfRange = outOfRange(e);
+                if (outOfRange.isPresent()) {
+                    throw error(OUT_OF_RANGE, outOfRange.get());
+                }
+                Optional<String> longNumber = longNumber(parser, e);
+                if (longNumber.isPresent()) {
+                    throw error(TOO_LONG, Map.of("field", longNumber.get(),
+                            "max", Integer.toString(parser.streamReadConstraints().getMaxNumberLength())));
                 }
                 // As Keycloak reads a body, so that its error handlers answer as before.
                 if (e instanceof MismatchedInputException || e instanceof InvalidDefinitionException) {
@@ -187,6 +208,37 @@ public class JsonBodyReader implements MessageBodyReader<Record> {
         }
         if (Map.class.isAssignableFrom(type) || type.isRecord()) {
             return Optional.of("object");
+        }
+        return Optional.empty();
+    }
+
+    /**
+     * The field and the limits of a whole number outside the range of its field.
+     *
+     * @param error an error of Jackson
+     * @return the params of {@code invalid.out_of_range}, or empty for another error
+     */
+    static Optional<Map<String, String>> outOfRange(JsonProcessingException error) {
+        if (error instanceof JsonMappingException mapping) {
+            for (Throwable cause = error.getCause(); cause != null; cause = cause.getCause()) {
+                if (cause instanceof InputCoercionException coercion && LIMITS.containsKey(coercion.getTargetType())) {
+                    List<String> limits = LIMITS.get(coercion.getTargetType());
+                    return Optional.of(Map.of("field", path(mapping.getPath()), "min", limits.get(0),
+                            "max", limits.get(1)));
+                }
+            }
+        }
+        return Optional.empty();
+    }
+
+    // The path of a number that is longer than Jackson reads, whatever its field. The parser is still at the number.
+    private static Optional<String> longNumber(JsonParser parser, Throwable error) {
+        for (Throwable cause = error; cause != null; cause = cause.getCause()) {
+            // Jackson tells this error apart only by its text.
+            if (cause instanceof StreamConstraintsException limit
+                    && limit.getOriginalMessage().startsWith("Number value length")) {
+                return Optional.of(path(parser.getParsingContext()));
+            }
         }
         return Optional.empty();
     }

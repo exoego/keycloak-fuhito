@@ -3,6 +3,8 @@ package net.exoego.keycloak.fuhito.service;
 import java.util.List;
 import java.util.Set;
 
+import com.fasterxml.jackson.core.exc.InputCoercionException;
+import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.exc.MismatchedInputException;
 import com.fasterxml.jackson.databind.exc.UnrecognizedPropertyException;
@@ -84,6 +86,19 @@ class ImportRowReaderTest {
                 {"effectiveDate": "2026-04-01",
                  "orgUnits": [{"externalId": "V"}, {"externalId": "W", "names": {"ja": {"shortname": "病"}}}]}
                 """));
+    }
+
+    @Test
+    void aNumberTooLargeForItsFieldFailsWithTheKeyOfTheRowInItsPath() {
+        JsonMappingException error = assertThrows(JsonMappingException.class, () -> new ObjectMapper().readValue("""
+                {"effectiveDate": "2026-04-01",
+                 "orgUnits": [{"externalId": "V"}, {"externalId": "W", "displayOrder": 2147483648}]}
+                """, ImportDocument.class));
+
+        assertEquals(List.of("orgUnits", "[1]", "displayOrder"), error.getPath().stream()
+                .map(step -> step.getFieldName() == null ? "[" + step.getIndex() + "]" : step.getFieldName())
+                .toList());
+        assertTrue(error.getCause() instanceof InputCoercionException, error.toString());
     }
 
     @Test

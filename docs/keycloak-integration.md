@@ -385,7 +385,7 @@ The extension reads the JSON body of its own endpoints with a JAX-RS `MessageBod
 Keycloak registers it when it builds the server with the jar.
 It reads only the records of the extension, which are the bodies of its endpoints.
 So every endpoint of Keycloak reads its body as before.
-The reader uses the JSON settings of Keycloak and adds three checks.
+The reader uses the JSON settings of Keycloak and adds four checks.
 A body that gives one key twice in one object fails with 400 and `invalid.duplicate_key`, which names the key with its path.
 Keycloak itself would keep the last value.
 A key that the body does not have fails with 400 and `invalid.unknown_key`, which names the key with its path, such as `steps[1].nmae`.
@@ -406,6 +406,18 @@ The reader turns off these conversions on a copy of the `ObjectMapper` of Keyclo
 - `null` for a primitive field fails. The reader wraps the deserializer of each primitive to do this. `DeserializationFeature.FAIL_ON_NULL_FOR_PRIMITIVES` would also fail a primitive that a body leaves out, such as `dryRun` of an import.
 
 An endpoint of Keycloak turns such a value into the type of its field as before.
+
+A whole number outside the range of its field fails with 400 and `invalid.out_of_range`, which names the field with its path and the limits in `min` and `max`.
+Jackson fails such a number with an `InputCoercionException`, which is not an error of the type, and names the Java type `int` or `long` as its target.
+The reader takes the limits from that type.
+The whole numbers of the bodies are `int` and `long`, and the columns `INT` and `BIGINT` have the same range, so every whole number that the reader takes can be stored.
+A row of an import reads its values from a tree, and that error had no path there, so the reader of a row adds the key of the row to it.
+Jackson does not read a number with more than 1000 characters, which `StreamReadConstraints` sets.
+Such a number fails with 400 and `invalid.too_long`, which names the field with its path and the `max`, whatever the field.
+The reader tells this error apart only by its text, as it does for a key twice, and the parser is still at the number, which gives the path.
+Keycloak itself would answer both with an error that has no error code and no path.
+An endpoint of Keycloak answers such a number with the error of Keycloak as before.
+
 Other bad JSON fails as it does in Keycloak.
 
 ### Query parameters
