@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import net.exoego.keycloak.fuhito.domain.AttributeDefinition;
 import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.Localized;
@@ -64,10 +65,11 @@ class CsvImportServiceTest {
             new ImportService.People(employments, employmentStore, assignments, assignmentStore, users,
                     new PersonService(personStore, externalIdStore, users, id -> false));
     private final MemoryAttributeDefinitionStore definitions = new MemoryAttributeDefinitionStore();
+    private final MemoryAttributeValueStore values = new MemoryAttributeValueStore();
     private final CsvImportService service = new CsvImportService(
             new ImportService(new RefItemService(refItems), refItems, orgUnits, orgUnitStore, people,
                     new ImportService.Setup(new RealmKindService(new MemoryRealmKindStore(), refItems, definitions),
-                            new AttributeDefinitionService(definitions, refItems),
+                            new AttributeDefinitionService(definitions, values, refItems),
                             new HierarchyService(new MemoryHierarchyStore())),
                     new ImportService.Organizations(new OrganizationLinkService(orgUnitStore, id -> false),
                             id -> false, id -> { }), new ImportService.Records(null, null, null,
@@ -432,9 +434,9 @@ class CsvImportServiceTest {
 
     @Test
     void aColumnSetsADefinedAttributeAndKeepsTheOthers() {
-        new AttributeDefinitionService(definitions, refItems).create("ORG_UNIT", "beds", "NUMBER", null, null, null);
-        new AttributeDefinitionService(definitions, refItems).create("ORG_UNIT", "open", "BOOLEAN", null,
-                null, null);
+        new AttributeDefinitionService(definitions, values, refItems).create("ORG_UNIT", "beds", "NUMBER", null, null, null, null);
+        new AttributeDefinitionService(definitions, values, refItems).create("ORG_UNIT", "open", "BOOLEAN", null,
+                null, null, null);
         orgUnits.create(new NewOrgUnit(null, "ja", ja("1病棟"), null, null, "2026-04-01", null,
                 Map.of("note", "kept"), "W", "import"));
 
@@ -482,11 +484,32 @@ class CsvImportServiceTest {
     }
 
     @Test
+    void aCellOfAValueToFillIsReadByTheTypeOfTheDefinition() {
+        values.add(AttributeDefinition.Target.ORG_UNIT, "u-1", Map.of());
+
+        assertEquals(List.of(), errors(load("attributeDefinitions", "2026-04-01", """
+                externalId,target,name,type,multiple,required,fillValue
+                S,ORG_UNIT,sizes,NUMBER,true,true,30|2.50
+                O,ORG_UNIT,open,BOOLEAN,,,
+                """)));
+        // A row of a stored definition that leaves out the type has the stored one.
+        assertEquals(List.of(), errors(load("attributeDefinitions", "2026-04-01", """
+                外部ID,必須,値のない行に入れる値
+                O,はい,はい
+                """)));
+        assertEquals(Map.of("sizes", List.of(30, 2.5), "open", true), values.rows.getFirst().attributes());
+        assertEquals(List.of("line 2 row 0 csv.bad_number"), errors(load("attributeDefinitions", "2026-04-01", """
+                externalId,target,name,type,required,fillValue
+                B,ORG_UNIT,beds,NUMBER,true,５
+                """)));
+    }
+
+    @Test
     void aColumnOfAListAttributeTakesItemsBetweenVerticalBars() {
-        AttributeDefinitionService service = new AttributeDefinitionService(definitions, refItems);
-        service.create("ORG_UNIT", "tags", "STRING", null, true, null);
-        service.create("ORG_UNIT", "sizes", "NUMBER", null, true, null);
-        service.create("ORG_UNIT", "flags", "BOOLEAN", null, true, null);
+        AttributeDefinitionService service = new AttributeDefinitionService(definitions, values, refItems);
+        service.create("ORG_UNIT", "tags", "STRING", null, true, null, null);
+        service.create("ORG_UNIT", "sizes", "NUMBER", null, true, null, null);
+        service.create("ORG_UNIT", "flags", "BOOLEAN", null, true, null, null);
         load("orgUnits", "2026-04-01", "外部ID,主言語,名称\nW,ja,1病棟\n");
 
         assertEquals(List.of(), errors(load("orgUnits", "2026-05-01", """
@@ -632,7 +655,7 @@ class CsvImportServiceTest {
     // A number has the form of a number of JSON, as in a JSON row. Java would read the full-width 5, +5, .5, and 05.
     @Test
     void aNumberCellHasTheFormOfJson() {
-        new AttributeDefinitionService(definitions, refItems).create("ORG_UNIT", "beds", "NUMBER", null, null, null);
+        new AttributeDefinitionService(definitions, values, refItems).create("ORG_UNIT", "beds", "NUMBER", null, null, null, null);
         load("orgUnits", "2026-04-01", "外部ID,主言語,名称\nH,ja,X病院\n");
 
         for (String cell : List.of("\uFF15", "\u0665", "+5", "05", "-", "1.0", "1e2", "0x10", "1,000", "5.")) {

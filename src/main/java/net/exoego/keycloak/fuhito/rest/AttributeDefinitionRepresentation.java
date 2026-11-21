@@ -38,21 +38,38 @@ public record AttributeDefinitionRepresentation(
                         + "list. A `NUMBER` value must be a number that a 64-bit floating point number (IEEE 754 "
                         + "double, the number of JavaScript) gives back as the same number, such as `0.1`, `1e300`, "
                         + "or `9007199254740992`, and not `1e400`, `1e-400`, `50.000000000000001`, or "
-                        + "`9007199254740993`. It is stored as sent.",
+                        + "`9007199254740993`. It is stored as sent. It never changes. A write of a stored definition "
+                        + "may leave it out. Another type fails with 400 and `invalid.value_fixed`.",
                 enumeration = {"STRING", "NUMBER", "BOOLEAN", "DATE", "REF_ITEM"})
         String type,
-        @Schema(description = "The kind of reference data, fixed or of the realm. Only the type `REF_ITEM` has it.")
+        @Schema(description = "The kind of reference data, fixed or of the realm. Only the type `REF_ITEM` has it. It "
+                + "never changes. A write of a stored definition may leave it out. Another kind fails with 400 and "
+                + "`invalid.value_fixed`.")
         String refKind,
         @Schema(
                 description = "True when the value is a JSON array, and each element has the type. An empty array "
-                        + "fails. Leave the name out or give null for no elements.",
+                        + "fails. Leave the name out or give null for no elements. It never changes. A write of a "
+                        + "stored definition may leave it out. Another value fails with 400 and "
+                        + "`invalid.value_fixed`.",
                 defaultValue = "false")
         Boolean multiple,
         @Schema(
                 description = "True when every write of the resource must give a value. A list needs at least one "
-                        + "element.",
+                        + "element. A create with true, or a change from false to true, needs `fillValue` when a "
+                        + "row of the resource has no value, also a row of a past version.",
                 defaultValue = "false")
         Boolean required,
+        @Schema(
+                description = "The value that the create or the change puts into each row of the resource that has "
+                        + "no value, in every version of a resource with dates. A row with a value keeps it. Only "
+                        + "this write uses it, and a read has none. It must fit the type, `multiple`, and `refKind`, "
+                        + "or it fails with 400 and `attribute.bad_value`. A list needs one element or more. It goes "
+                        + "only with `required` true, or it fails with 400 and `invalid.not_together`. A write that "
+                        + "needs it and has none fails with 400 and `attribute.fill_value_required`, which names the "
+                        + "number of rows with no value in `count`. A row that it would make larger than 64 KB fails "
+                        + "with 400 and `attribute.too_large`. When no row lacks a value, nothing is written.",
+                writeOnly = true)
+        Object fillValue,
         @Schema(
                 description = "The ID of the definition in the system that `source` names. A write stores it as the ID "
                         + "of that system, in place of the one that the system had. A read gives every ID in "
@@ -80,7 +97,7 @@ public record AttributeDefinitionRepresentation(
     static AttributeDefinitionRepresentation of(AttributeDefinition definition, ExternalIdLists ids) {
         return new AttributeDefinitionRepresentation(definition.id(), definition.version(),
                 definition.target().name(), definition.name(), definition.type().name(), definition.refKind(),
-                definition.multiple(), definition.required(), null, null,
+                definition.multiple(), definition.required(), null, null, null,
                 ExternalIdPairRepresentation.of(ids.of(definition.id(), null)));
     }
 }

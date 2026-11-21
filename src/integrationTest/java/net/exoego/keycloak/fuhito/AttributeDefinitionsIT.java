@@ -25,7 +25,7 @@ class AttributeDefinitionsIT {
 
     @Test
     void writesAreCheckedAgainstTheDefinitions() throws Exception {
-        TestRealm realm = TestRealm.withEmployer("attributes");
+        TestRealm realm = TestRealm.create("attributes");
         Api api = realm.api;
         JsonNode beds = created(api.post("/attribute-definitions", "{\"target\": \"ORG_UNIT\", \"name\": \"beds\", "
                 + "\"type\": \"NUMBER\", \"required\": true}"));
@@ -58,7 +58,12 @@ class AttributeDefinitionsIT {
         assertEquals(200, api.putWithVersion("/attribute-definitions/" + beds.get("id").asText(),
                 "{\"type\": \"NUMBER\", \"required\": false}").statusCode());
         assertEquals(201, api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"2病棟\"}}, \"validFrom\": \"2026-04-01\"}").statusCode());
-        assertEquals(204, api.deleteWithVersion("/attribute-definitions/" + beds.get("id").asText()).statusCode());
+        // Both versions of the ward have a value.
+        HttpResponse<String> inUse = api.deleteWithVersion("/attribute-definitions/" + beds.get("id").asText());
+        assertEquals("attribute.in_use", errorOf(409, inUse));
+        assertEquals("2", Api.json(inUse).get("params").get("count").asText());
+        assertEquals(204, api.deleteWithVersion("/attribute-definitions/" + beds.get("id").asText()
+                + "?clearValues=true").statusCode());
     }
 
     // The values of attributes are free JSON, so the reader of the body keeps their types and the definitions check them.
@@ -140,10 +145,13 @@ class AttributeDefinitionsIT {
         assertEquals(List.of("nurse", "clerk"), List.of(person.get("attributes").get("occupations").get(0).asText(),
                 person.get("attributes").get("occupations").get(1).asText()));
 
+        assertEquals("invalid.value_fixed", errorOf(400, api.putWithVersion("/attribute-definitions/"
+                + occupations.get("id").asText(), "{\"type\": \"REF_ITEM\", \"refKind\": \"OCCUPATION\", "
+                + "\"multiple\": false}")));
         assertEquals(200, api.putWithVersion("/attribute-definitions/" + occupations.get("id").asText(), "{\"type\": "
                 + "\"REF_ITEM\", \"refKind\": \"OCCUPATION\"}").statusCode());
-        assertEquals("attribute.bad_value", errorOf(400, api.post("/people", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"山田 太郎\"}}, "
-                + "\"attributes\": {\"occupations\": [\"nurse\"]}}")));
+        assertEquals(201, api.post("/people", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"山田 太郎\"}}, "
+                + "\"attributes\": {\"occupations\": [\"nurse\"]}}").statusCode());
     }
 
     @Test

@@ -124,27 +124,39 @@ final class SetupImport {
         Optional<String> stored = match.stored(source, row.id(), row.externalId(),
                 id -> definitions.find(id).isPresent());
         if (stored.isEmpty()) {
-            report.write(new Write.OfAttributeDefinition(true, match.create(source, row.externalId(),
+            AttributeDefinitionService.Written written = match.create(source, row.externalId(),
                     () -> definitions.create(row.target(), row.name(), row.type(), row.refKind(), row.multiple(),
-                            row.required()), AttributeDefinition::id)));
+                            row.required(), row.fillValue()), each -> each.definition().id());
+            report.write(new Write.OfAttributeDefinition(true, written.definition()));
+            written.values().forEach(report::write);
             return Outcome.CREATED;
         }
         AttributeDefinition before = definitions.get(stored.get());
         ImportMatch.source(before.id(), null, row.source(), row.externalId());
         ImportMatch.fixed(row, before.id(), "target", before.target().name(), row.target());
         ImportMatch.fixed(row, before.id(), "name", before.name(), row.name());
-        String type = row.or("type", row.type(), before.type().name());
-        String refKind = row.or("refKind", row.refKind(), before.refKind());
-        Boolean multiple = row.or("multiple", row.multiple(), before.multiple());
-        Boolean required = row.or("required", row.required(), before.required());
-        if (before.type().name().equals(type) && Objects.equals(before.refKind(), refKind)
-                && before.multiple() == Boolean.TRUE.equals(multiple)
-                && before.required() == Boolean.TRUE.equals(required)) {
+        ImportMatch.fixed(row, before.id(), "type", before.type().name(), row.type());
+        // A definition with no kind or with no list has null, so a row that clears one of these may give the stored
+        // value.
+        fixed(before.id(), "refKind", before.refKind(), row.or("refKind", row.refKind(), before.refKind()));
+        fixed(before.id(), "multiple", before.multiple(),
+                Boolean.TRUE.equals(row.or("multiple", row.multiple(), before.multiple())));
+        boolean required = Boolean.TRUE.equals(row.or("required", row.required(), before.required()));
+        if (before.required() == required) {
+            definitions.fillValue(before, row.fillValue());
             return Outcome.UNCHANGED;
         }
-        report.write(new Write.OfAttributeDefinition(false, definitions.replace(before.id(), type, refKind,
-                multiple, required)));
+        AttributeDefinitionService.Written written = definitions.replace(before.id(), null, null, null, required,
+                row.fillValue());
+        report.write(new Write.OfAttributeDefinition(false, written.definition()));
+        written.values().forEach(report::write);
         return Outcome.CHANGED;
+    }
+
+    private static void fixed(String id, String field, Object stored, Object given) {
+        if (!Objects.equals(stored, given)) {
+            throw FuhitoException.conflict("import.value_fixed", Map.of("id", id, "field", field));
+        }
     }
 
     private Outcome hierarchy(HierarchyRow row, ImportMatch match) {

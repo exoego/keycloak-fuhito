@@ -173,6 +173,8 @@ final class Writes {
                     language);
             case Write.OfAttributeDefinition definition -> AttributeDefinitionRepresentation.of(definition.state(),
                     ids.apply(ExternalId.Kind.ATTRIBUTE_DEFINITION));
+            // A fill or a clear changes a value in many rows at once, and reads none of them back.
+            case Write.OfAttributeValue value -> null;
             case Write.OfHierarchy hierarchy -> HierarchyRepresentation.of(hierarchy.state(),
                     ids.apply(ExternalId.Kind.HIERARCHY));
             case Write.OfPerson person -> PersonRepresentation.of(person.state(),

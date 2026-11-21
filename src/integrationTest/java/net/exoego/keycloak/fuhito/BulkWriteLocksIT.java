@@ -91,6 +91,8 @@ class BulkWriteLocksIT {
         Api api = realm.api;
         String unit = id(api.post("/org-units", UNIT.formatted("A")));
         JsonNode export = RealmExportIT.export(api);
+        String definition = id(api.post("/attribute-definitions",
+                "{\"target\": \"PERSON\", \"name\": \"note\", \"type\": \"STRING\"}"));
         record Bulk(String name, Callable<HttpResponse<String>> call) {
         }
         List<Bulk> bulkWrites = List.of(
@@ -102,6 +104,10 @@ class BulkWriteLocksIT {
                 new Bulk("csv", () -> api.postBytes("/imports/csv/hierarchies?effectiveDate=2026-04-01",
                         "text/csv; charset=UTF-8", "externalId,code,name\r\nr,r,R\r\n".getBytes(StandardCharsets.UTF_8))),
                 new Bulk("sync", () -> api.post("/attribute-sync/run", "")),
+                new Bulk("fill", () -> api.post("/attribute-definitions", "{\"target\": \"PERSON\", "
+                        + "\"name\": \"shift\", \"type\": \"STRING\", \"required\": true, \"fillValue\": \"day\"}")),
+                new Bulk("clear", () -> api.deleteWithVersion("/attribute-definitions/" + definition
+                        + "?clearValues=true")),
                 new Bulk("restore", () -> api.post("/restore?replace=true", export.toString())));
 
         for (Bulk bulk : bulkWrites) {

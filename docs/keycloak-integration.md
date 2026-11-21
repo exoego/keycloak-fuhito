@@ -731,6 +731,7 @@ The realm stores the events when admin events are turned on in its settings.
 | `FUHITO_EXTERNAL_ID` | `UPDATE`, `DELETE` | `fuhito/external-ids/{id}`, with the ID of the stored row |
 
 The event has the new state as its representation when the realm keeps representations.
+A write of an attribute definition that fills or clears a value records an `UPDATE` of each resource whose rows it changed. Such an event has no representation, so that the write reads none of the rows back.
 A failed request records no event.
 
 ## Change log

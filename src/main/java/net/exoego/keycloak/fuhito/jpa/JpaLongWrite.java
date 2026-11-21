@@ -1,8 +1,10 @@
 package net.exoego.keycloak.fuhito.jpa;
 
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import jakarta.persistence.EntityManager;
@@ -59,14 +61,25 @@ public final class JpaLongWrite implements LongWrite {
 
     @Override
     public void rowDone() {
+        detach(em, entity -> entity.getClass().getPackageName().equals(JpaLongWrite.class.getPackageName())
+                || USERS.contains(entity.getClass()));
+    }
+
+    /**
+     * Sends the changes of the session to the database, and lets go of some of its entities. An entity that counted
+     * up its version keeps the mark, as after {@link #rowDone}.
+     *
+     * @param em the entity manager of the transaction
+     * @param which picks the entities to let go of
+     */
+    static void detach(EntityManager em, Predicate<Object> which) {
         Set<String> counted = COUNTED.get();
         em.flush();
         for (Map.Entry<Object, EntityEntry> entry : em.unwrap(SessionImplementor.class)
                 .getPersistenceContextInternal().reentrantSafeEntityEntries()) {
             Object entity = entry.getKey();
-            if (entity.getClass().getPackageName().equals(JpaLongWrite.class.getPackageName())
-                    || USERS.contains(entity.getClass())) {
-                if (entity instanceof VersionedRow versioned && versioned.counted()) {
+            if (which.test(entity)) {
+                if (counted != null && entity instanceof VersionedRow versioned && versioned.counted()) {
                     counted.add(key(entity.getClass(), entry.getValue().getId()));
                 }
                 em.detach(entity);
@@ -84,6 +97,21 @@ public final class JpaLongWrite implements LongWrite {
     static boolean counted(Class<?> type, String id) {
         Set<String> counted = COUNTED.get();
         return counted != null && counted.contains(key(type, id));
+    }
+
+    /**
+     * Marks entities whose version a statement counted up in the database, so that a later write of this
+     * transaction does not count it up again. Outside a long write, a request writes each resource once, and nothing
+     * is marked.
+     *
+     * @param type the class of the entities
+     * @param ids the IDs of the entities
+     */
+    static void markCounted(Class<?> type, Collection<String> ids) {
+        Set<String> counted = COUNTED.get();
+        if (counted != null) {
+            ids.forEach(id -> counted.add(key(type, id)));
+        }
     }
 
     private static String key(Class<?> type, Object id) {

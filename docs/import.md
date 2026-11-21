@@ -142,7 +142,7 @@ The lists are applied in the order change orders, kinds of reference data, attri
 
 - A row of a reference item has `primaryLanguage` and `names`, as `POST /ref-items` has them. It can have `validFrom`, the first date of its names. A new item without it has names that hold for every date. A stored item without it gets the names of the row from the effective date, and keeps its old names for the dates before. Null is the same as no `validFrom`, as it names a date and no stored value. A row compares with the names of its date, so the same row changes nothing the second time. Two rows of one item with two dates load two periods of names, for example the names of a job title from a system that kept them.
 - The list `refKinds` adds kinds of reference data to the realm. A row has `code`, `primaryLanguage`, and `names`, as `POST /ref-kinds` has them. A row of a stored kind changes its names and keeps its code. A fixed kind such as `UNIT_TYPE` is in every realm and cannot be a row.
-- The list `attributeDefinitions` defines free attributes. A row has `target`, `name`, `type`, `refKind`, `multiple`, and `required`. A row of a stored definition changes the type, the kind, `multiple`, and `required`, as `PUT /attribute-definitions/{id}` does. The target and the name stay. Stored values stay as they are. The definitions come before the reference items, so that a row of a reference item can set an attribute that the same document defines.
+- The list `attributeDefinitions` defines free attributes. A row has `target`, `name`, `type`, `refKind`, `multiple`, `required`, and `fillValue`. A row of a stored definition changes `required`, as `PUT /attribute-definitions/{id}` does. The target, the name, the type, the kind, and `multiple` stay, and another value fails the row with `import.value_fixed`. A row that makes a definition required needs `fillValue` when a row of the resource has no value, as the `PUT` does, and puts it into each such row. The resource of each such row counts up its version once in the import, also when a later row of the same import writes it. It gets an entry in the change log for the fill. The definitions come before the reference items, so that a row of a reference item can set an attribute that the same document defines.
 - The list `hierarchies` adds hierarchies. A row has `code` and `name`. A row of a stored hierarchy changes its name and keeps its code. A row names the default hierarchy by its `id`, which the CSV export has, or by an ID that the list of IDs of other systems gave it. The code `default` in a row of a new hierarchy fails, as the code is taken.
 - Rows of org units can come in any order. A parent is applied before its children.
 - A parent with no external ID of the same source can be named by `parentId`, the ID of the unit. A row gives `parentExternalId` or `parentId`, not both.
@@ -252,6 +252,7 @@ curl -X POST \
 - `#CLEAR` counts as a cell there. So `#CLEAR` in one of the two columns fails with a value or `#CLEAR` in the other. A blank cell in one of them leaves the name to the other. For example, with `ja` as the primary language, `#CLEAR` in `shortName:ja` and a blank `shortName` remove the short name. Each name has its own two columns, so a row may fill `name` and `shortName:ja`. A CSV export leaves the column of the primary language empty, so it loads again.
 - A row that removes a language with `#CLEAR` in `name:en` leaves the other names of that language blank, such as `shortName:en` and `phoneticName:en`. A row that fills one of them fails with `csv.clear_conflict`, in any order of the columns. `#CLEAR` counts as a cell there too. When the language is the primary one, `shortName` and `phoneticName` are names of it as well. For example, with `ja` as the primary language, `#CLEAR` in `name:ja` and a cell in `shortName` fail. The error names the column of the other name as the file writes it in `field`, such as `略称:EN`, and the language tag in standard form in `value`. A file of reference items or kinds has only `name`, so this cannot happen there.
 - A column `attributes.<name>` sets an attribute that the realm defined for the resource of the list, for example `attributes.beds`. The cell is read by the type of the definition. The cell of a definition with `multiple` is a list, for example `night|icu`, and each item is read by the type of the definition. Other attributes keep what is stored. A column of an attribute with no definition is rejected.
+- The cell `fillValue` of a file of attribute definitions is read in the same way, by the type and `multiple` of the row. A row of a stored definition that leaves them blank has the stored ones.
 
 ### Columns
 
@@ -279,6 +280,7 @@ Attribute definitions.
 | `refKind` | `参照の種類` |
 | `multiple` | `複数` |
 | `required` | `必須` |
+| `fillValue` | `値のない行に入れる値` |
 
 Hierarchies.
 

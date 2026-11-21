@@ -105,6 +105,8 @@ class FixedValuesIT {
                 List.of("/ref-items/" + item, "code", "osaka"),
                 List.of("/attribute-definitions/" + definition, "target", "ORG_UNIT"),
                 List.of("/attribute-definitions/" + definition, "name", "rooms"),
+                List.of("/attribute-definitions/" + definition, "type", "STRING"),
+                List.of("/attribute-definitions/" + definition, "refKind", "GRADE"),
                 List.of(ofQualification, "personId", other),
                 List.of(ofQualification, "personId", other, "userId", doctor),
                 List.of(ofQualification, "userId", doctor),
@@ -121,7 +123,7 @@ class FixedValuesIT {
         readAsBodyWorks(api, "/ref-kinds/site", "code");
         readAsBodyWorks(api, "/hierarchies/" + hierarchy, "code");
         readAsBodyWorks(api, "/ref-items/" + item, "kind", "code");
-        readAsBodyWorks(api, "/attribute-definitions/" + definition, "target", "name");
+        readAsBodyWorks(api, "/attribute-definitions/" + definition, "target", "name", "type", "multiple");
         readAsBodyWorks(api, ofQualification, "personId", "userId");
         // Each way to name the stored person works alone.
         ok(api.put(ofQualification, read(api, ofQualification).without("userId").toString()));

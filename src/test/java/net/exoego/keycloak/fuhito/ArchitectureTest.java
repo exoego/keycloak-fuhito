@@ -4,6 +4,7 @@ import com.tngtech.archunit.core.domain.JavaClasses;
 import com.tngtech.archunit.core.importer.ClassFileImporter;
 import com.tngtech.archunit.core.importer.ImportOption;
 import jakarta.persistence.EntityManager;
+import net.exoego.keycloak.fuhito.jpa.JpaAttributeValues;
 import org.junit.jupiter.api.Test;
 
 import static com.tngtech.archunit.base.DescribedPredicate.describe;
@@ -28,10 +29,11 @@ class ArchitectureTest {
                 .check(CLASSES);
     }
 
-    // JPQL names entities and fields that the compiler and Hibernate know. Native SQL has no such check.
+    // JPQL names entities and fields that the compiler and Hibernate know. Native SQL has no such check. Only the fill
+    // and the clear of the values of an attribute need it, as JPQL cannot change a value inside JSON text.
     @Test
     void noCodeUsesNativeSql() {
-        noClasses()
+        noClasses().that().doNotHaveFullyQualifiedName(JpaAttributeValues.class.getName())
                 .should().callMethodWhere(describe("creates a native query",
                         call -> call.getTargetOwner().isAssignableTo(EntityManager.class)
                                 && call.getName().equals("createNativeQuery")))

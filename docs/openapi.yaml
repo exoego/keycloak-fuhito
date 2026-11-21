@@ -302,7 +302,8 @@ components:
             \ a 64-bit floating point number (IEEE 754 double, the number of JavaScript)\
             \ gives back as the same number, such as `0.1`, `1e300`, or `9007199254740992`,\
             \ and not `1e400`, `1e-400`, `50.000000000000001`, or `9007199254740993`.\
-            \ It is stored as sent."
+            \ It is stored as sent. It never changes. A write of a stored definition\
+            \ may leave it out. Another type fails with 400 and `invalid.value_fixed`."
           enum:
           - STRING
           - NUMBER
@@ -312,18 +313,34 @@ components:
         refKind:
           type: string
           description: "The kind of reference data, fixed or of the realm. Only the\
-            \ type `REF_ITEM` has it."
+            \ type `REF_ITEM` has it. It never changes. A write of a stored definition\
+            \ may leave it out. Another kind fails with 400 and `invalid.value_fixed`."
         multiple:
           type: boolean
           description: "True when the value is a JSON array, and each element has\
             \ the type. An empty array fails. Leave the name out or give null for\
-            \ no elements."
+            \ no elements. It never changes. A write of a stored definition may leave\
+            \ it out. Another value fails with 400 and `invalid.value_fixed`."
           default: false
         required:
           type: boolean
-          description: True when every write of the resource must give a value. A
-            list needs at least one element.
+          description: "True when every write of the resource must give a value. A\
+            \ list needs at least one element. A create with true, or a change from\
+            \ false to true, needs `fillValue` when a row of the resource has no value,\
+            \ also a row of a past version."
           default: false
+        fillValue:
+          description: "The value that the create or the change puts into each row\
+            \ of the resource that has no value, in every version of a resource with\
+            \ dates. A row with a value keeps it. Only this write uses it, and a read\
+            \ has none. It must fit the type, `multiple`, and `refKind`, or it fails\
+            \ with 400 and `attribute.bad_value`. A list needs one element or more.\
+            \ It goes only with `required` true, or it fails with 400 and `invalid.not_together`.\
+            \ A write that needs it and has none fails with 400 and `attribute.fill_value_required`,\
+            \ which names the number of rows with no value in `count`. A row that\
+            \ it would make larger than 64 KB fails with 400 and `attribute.too_large`.\
+            \ When no row lacks a value, nothing is written."
+          writeOnly: true
         externalId:
           type: string
           maxLength: 255
@@ -1423,9 +1440,10 @@ components:
       type: object
       description: "The definition of a free attribute. It is matched by its ID in\
         \ the system of `source`, or by `id`. A row needs one of them. A row of a\
-        \ stored definition changes the type, the kind, whether the value is a list,\
-        \ and whether a value is required. The target and the name do not change.\
-        \ A new definition needs a type."
+        \ stored definition changes whether a value is required. The target, the name,\
+        \ the type, the kind, and whether the value is a list do not change, and another\
+        \ value fails the row with `import.value_fixed`. A new definition needs a\
+        \ type."
       properties:
         id:
           type: string
@@ -1478,8 +1496,16 @@ components:
           default: false
         required:
           type: boolean
-          description: True when every write of the resource must give a value.
+          description: "True when every write of the resource must give a value. A\
+            \ new definition with true, or a change from false to true, needs `fillValue`\
+            \ when a row of the resource has no value."
           default: false
+        fillValue:
+          description: "The value that the row puts into each row of the resource\
+            \ with no value, in every version, as `fillValue` of `POST /attribute-definitions`\
+            \ does. Only this row uses it. In a CSV file, the cell is read by the\
+            \ type of the definition, and the cell of a list holds its items between\
+            \ `|`."
     ImportChangeOrderRow:
       type: object
       description: "A change order. It is matched by its ID in the system of `source`,\
@@ -5141,9 +5167,15 @@ paths:
           $ref: "#/components/responses/Conflict"
     post:
       summary: Defines a free attribute of a kind of resource.
-      description: Later writes of the resource are checked against it. A write with
-        a name that has no definition fails. Stored values are not checked until their
-        next write.
+      description: "Later writes of the resource are checked against it. A write with\
+        \ a name that has no definition fails. A required attribute needs a value\
+        \ in every row of the resource, also in each past version of a resource with\
+        \ dates. When a row has none, the create needs `fillValue` and puts it into\
+        \ each such row. A create or a change with `required` true, and every delete,\
+        \ hold the realm alone, as an import does. Other writes of the realm wait\
+        \ for them. A fill or a clear writes every row or none. The version of each\
+        \ resource whose rows it changes counts up once, and the resource gets an\
+        \ entry in the change log and an admin event `UPDATE` with no representation."
       operationId: createAttributeDefinition
       tags:
       - ref-items
@@ -5172,13 +5204,22 @@ paths:
           $ref: "#/components/responses/Conflict"
   /attribute-definitions/{id}:
     put:
-      summary: Replaces the type and the rule of a definition.
-      description: "The kind of resource and the name never change. The body can leave\
-        \ them out or give the stored ones. Another kind of resource or name fails\
-        \ with 400 and `invalid.value_fixed`. Stored values stay as they are. With\
-        \ `source` and `externalId`, the definition gets that ID of that system. `source`\
-        \ with no `externalId` fails with 400 and `invalid.value_fixed`, because a\
-        \ definition keeps no system that made it."
+      summary: Changes whether a definition is required.
+      description: "The kind of resource, the name, the type, `refKind`, and `multiple`\
+        \ never change. The body can leave them out or give the stored ones. Another\
+        \ value fails with 400 and `invalid.value_fixed`. To change the type, create\
+        \ a definition with another name, set its values through an import, and delete\
+        \ the old one with `clearValues=true`. A change from not required to required\
+        \ needs `fillValue` when a row of the resource has no value, also a row of\
+        \ a past version, and puts it into each such row. A create or a change with\
+        \ `required` true, and every delete, hold the realm alone, as an import does.\
+        \ Other writes of the realm wait for them. A fill or a clear writes every\
+        \ row or none. The version of each resource whose rows it changes counts up\
+        \ once, and the resource gets an entry in the change log and an admin event\
+        \ `UPDATE` with no representation. With `source` and `externalId`, the definition\
+        \ gets that ID of that system. `source` with no `externalId` fails with 400\
+        \ and `invalid.value_fixed`, because a definition keeps no system that made\
+        \ it."
       operationId: replaceAttributeDefinition
       tags:
       - ref-items
@@ -5246,7 +5287,15 @@ paths:
           $ref: "#/components/responses/Conflict"
     delete:
       summary: Deletes a definition.
-      description: Stored values stay as they are.
+      description: "While a row of the resource has the name, also a row of a past\
+        \ version and a row with null, the delete fails with 409 and `attribute.in_use`,\
+        \ which names the number of such rows in `count`. With `clearValues=true`,\
+        \ it removes the name from each such row first. A create or a change with\
+        \ `required` true, and every delete, hold the realm alone, as an import does.\
+        \ Other writes of the realm wait for them. A fill or a clear writes every\
+        \ row or none. The version of each resource whose rows it changes counts up\
+        \ once, and the resource gets an entry in the change log and an admin event\
+        \ `UPDATE` with no representation."
       operationId: deleteAttributeDefinition
       tags:
       - ref-items
@@ -5257,6 +5306,13 @@ paths:
         required: true
         schema:
           type: string
+      - description: "True to remove the name from every row of the resource that\
+          \ has it, then delete the definition."
+        schema:
+          type: boolean
+          default: false
+        name: clearValues
+        in: query
       - description: The version of the definition that the caller read.
         required: true
         name: version

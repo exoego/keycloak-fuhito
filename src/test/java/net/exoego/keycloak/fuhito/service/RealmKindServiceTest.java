@@ -88,15 +88,16 @@ class RealmKindServiceTest {
                 null, new RefItemService.Marks(null, null, true))));
 
         // An attribute can point to the kind of the realm.
-        AttributeDefinitionService definitions = new AttributeDefinitionService(definitionStore, items, kinds::isKnown);
+        AttributeDefinitionService definitions = new AttributeDefinitionService(definitionStore,
+                new MemoryAttributeValueStore(), items, kinds::isKnown);
         AttributeDefinition workLocation = definitions.create("ASSIGNMENT", "workLocation", "REF_ITEM",
-                "work-location", null, null);
+                "work-location", null, null, null).definition();
         assertEquals(Map.of("workLocation", "tokyo"), definitions.check(Target.ASSIGNMENT,
                 Map.of("workLocation", "tokyo")));
         assertEquals("attribute.bad_value", code(() -> definitions.check(Target.ASSIGNMENT,
                 Map.of("workLocation", "osaka"))));
         assertEquals("invalid.choice", code(() -> definitions.create("ASSIGNMENT", "cost", "REF_ITEM", "cost-center",
-                null, null)));
+                null, null, null)));
 
         assertEquals("ref_kind.in_use", code(() -> kinds.delete("work-location")));
         refItems.delete(refItems.list("work-location", true, null, Page.of(null, null)).getFirst().id());
@@ -104,7 +105,7 @@ class RealmKindServiceTest {
         FuhitoException used = assertThrows(FuhitoException.class, () -> kinds.delete("work-location"));
         assertEquals("ref_kind.in_use", used.code());
         assertEquals(Map.of("code", "work-location", "target", "ASSIGNMENT", "name", "workLocation"), used.params());
-        definitions.delete(workLocation.id());
+        definitions.delete(workLocation.id(), false);
         kinds.delete("work-location");
         assertFalse(kinds.isKnown("work-location"));
     }

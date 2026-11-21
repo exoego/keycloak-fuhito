@@ -185,7 +185,10 @@ A realm defines each name with `POST /attribute-definitions` before a write give
 - Every write of the resource is checked against the definitions. A value of the wrong type fails with `attribute.bad_value`. A missing required one fails with `attribute.required`.
 - A name with no definition fails with `attribute.unknown`.
 - An object has no type. Split it into several names, such as `addressZip` and `addressCity`.
-- A new, changed, or removed definition does not rewrite stored values. A row is checked at its next write. A row that keeps a value of a removed definition fails until the write drops the value.
+- The target, the name, the type, `refKind`, and `multiple` of a definition never change. A `PUT` with another value fails with `invalid.value_fixed`. To change the type, create a definition with another name, set its values through an import, and delete the old one with `clearValues=true`.
+- A required attribute has a value in every row of the resource. A resource with dates, such as an org unit, the terms of an employment, or an assignment, has a row for each version, the past ones too. A create with `required` true, or a change from false to true, needs `fillValue` when a row has no value, and puts it into each such row. A row with a value keeps it. Without `fillValue`, the write fails with `attribute.fill_value_required` and the number of rows with no value. `fillValue` must fit the type, `multiple`, and `refKind`, and goes only with `required` true. Only that write uses it, so a later write that leaves the attribute out fails with `attribute.required`.
+- A delete fails with 409 and `attribute.in_use` while a row has the name. `DELETE /attribute-definitions/{id}?clearValues=true` removes the name from each such row first.
+- A fill or a clear holds the realm alone, as an import does, and writes every row or none. The version of each resource whose rows it changes counts up once, and the resource gets an entry in the change log. So the stored values always meet the definitions, and a read is always a body of a write. An import of definitions follows the same rules.
 - A reader of the org structure may read the definitions.
 - The values are JSON text in the database. No read searches inside them. A value that a read must filter by needs a field of its own.
 

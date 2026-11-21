@@ -66,7 +66,7 @@ class VersionsIT {
                 "{\"target\": \"PERSON\", \"name\": \"beds\", \"type\": \"NUMBER\"}");
         String definitionId = id(definition);
         assertEquals(1, version(definition));
-        assertEquals(2, version(api.putWithVersion("/attribute-definitions/" + definitionId, "{\"type\": \"STRING\"}")));
+        assertEquals(2, version(api.putWithVersion("/attribute-definitions/" + definitionId, "{\"type\": \"NUMBER\"}")));
         assertEquals(2, version(api.get("/attribute-definitions/" + definitionId)));
 
         HttpResponse<String> order = api.post("/change-orders", "{\"title\": \"異動\", \"effectiveDate\": \"2026-04-01\"}");
@@ -358,7 +358,7 @@ class VersionsIT {
         ok(api.putWithVersion("/ref-items/" + item, "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"東京本社\"}}}"));
         String definition = id(api.post("/attribute-definitions",
                 "{\"target\": \"PERSON\", \"name\": \"beds\", \"type\": \"NUMBER\"}"));
-        ok(api.putWithVersion("/attribute-definitions/" + definition, "{\"type\": \"STRING\"}"));
+        ok(api.putWithVersion("/attribute-definitions/" + definition, "{\"type\": \"NUMBER\"}"));
         String hierarchy = id(api.post("/hierarchies", "{\"code\": \"project\", \"name\": \"P\"}"));
         ok(api.putWithVersion("/hierarchies/" + hierarchy, "{\"name\": \"プロジェクト\"}"));
         String unit = id(api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"病院\"}}, \"validFrom\": \"2020-04-01\"}"));

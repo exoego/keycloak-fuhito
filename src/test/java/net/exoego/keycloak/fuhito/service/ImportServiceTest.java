@@ -10,6 +10,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.function.Supplier;
 
+import net.exoego.keycloak.fuhito.domain.AttributeDefinition;
 import net.exoego.keycloak.fuhito.domain.ChangeOrder;
 import net.exoego.keycloak.fuhito.domain.Employer;
 import net.exoego.keycloak.fuhito.domain.Employment;
@@ -97,6 +98,7 @@ class ImportServiceTest {
             new MemoryReportingLineStore());
     private final MemoryAttributeDefinitionStore definitionStore = new MemoryAttributeDefinitionStore();
     private final RealmKindService kinds = new RealmKindService(new MemoryRealmKindStore(), refItems, definitionStore);
+    private final MemoryAttributeValueStore values = new MemoryAttributeValueStore();
     private final HierarchyService hierarchies = new HierarchyService(new MemoryHierarchyStore());
     private final List<String> managed = new ArrayList<>();
     private final OrganizationDirectory organizations = new OrganizationDirectory() {
@@ -111,7 +113,7 @@ class ImportServiceTest {
         }
     };
     private final AttributeDefinitionService definitions =
-            new AttributeDefinitionService(definitionStore, refItems, kinds::isKnown);
+            new AttributeDefinitionService(definitionStore, values, refItems, kinds::isKnown);
     // Whether the import runs, and how many of its rows are done.
     private boolean running;
     private int rowsDone;
@@ -2410,8 +2412,8 @@ class ImportServiceTest {
                 """);
 
         assertEquals(new Counts(0, 0, 1), kept.counts().get("attributeDefinitions"));
-        assertEquals(new Counts(0, 1, 0), cleared.counts().get("attributeDefinitions"));
-        assertFalse(definitions.get(id).multiple());
+        assertEquals(List.of("import.value_fixed multiple"), fields(cleared));
+        assertTrue(definitions.get(id).multiple());
         assertEquals("STRING", definitions.get(id).type().name());
         assertEquals(List.of("invalid.required name"), fields(rows("2026-04-01", "attributeDefinitions", """
                 {"externalId": "D", "name": null}
@@ -2422,6 +2424,42 @@ class ImportServiceTest {
         assertEquals(List.of("invalid.blank refKind"), fields(rows("2026-04-01", "attributeDefinitions", """
                 {"externalId": "D", "refKind": ""}
                 """)));
+    }
+
+    @Test
+    void aRowOfARequiredDefinitionFillsTheRowsWithNoValue() {
+        values.add(AttributeDefinition.Target.PERSON, "p-2", Map.of());
+        values.add(AttributeDefinition.Target.PERSON, "p-1", Map.of("beds", 1));
+        values.add(AttributeDefinition.Target.PERSON, "p-3", Map.of());
+        String row = """
+                {"externalId": "D", "target": "PERSON", "name": "beds", "type": "NUMBER", "required": true%s}""";
+
+        assertEquals(List.of("attribute.fill_value_required "), fields(rows("2026-04-01", "attributeDefinitions",
+                row.formatted(""))));
+        assertEquals(List.of("invalid.not_together fillValue"), fields(rows("2026-04-01", "attributeDefinitions",
+                row.formatted(", \"fillValue\": 3").replace("\"required\": true", "\"required\": false"))));
+        assertEquals(List.of("attribute.bad_value "), fields(rows("2026-04-01", "attributeDefinitions",
+                row.formatted(", \"fillValue\": \"3\""))));
+        ImportReport filled = rows("2026-04-01", "attributeDefinitions", row.formatted(", \"fillValue\": 3"));
+
+        String id = stored(ExternalId.Kind.ATTRIBUTE_DEFINITION, "import", "D");
+        assertEquals(List.of("fuhito/attribute-definitions/" + id, "fuhito/people/p-2", "fuhito/people/p-3"),
+                filled.writes().stream().map(ImportReport.Write::path).toList());
+        assertEquals(List.of(Map.of("beds", 3), Map.of("beds", 1), Map.of("beds", 3)),
+                values.rows.stream().map(MemoryAttributeValueStore.Row::attributes).toList());
+        assertEquals(Map.of("p-1", 1L, "p-2", 2L, "p-3", 2L), values.versions);
+
+        // A row that changes nothing still gives a value to fill that fits.
+        assertEquals(List.of("attribute.bad_value "), fields(rows("2026-04-01", "attributeDefinitions", """
+                {"externalId": "D", "fillValue": [3]}""")));
+        assertEquals(new Counts(0, 0, 1), rows("2026-04-01", "attributeDefinitions", """
+                {"externalId": "D", "fillValue": 4}""").counts().get("attributeDefinitions"));
+        for (String fixed : List.of("type", "multiple", "refKind")) {
+            String value = Map.of("type", "\"STRING\"", "multiple", "true", "refKind", "\"GRADE\"").get(fixed);
+            assertEquals(List.of("import.value_fixed " + fixed), fields(rows("2026-04-01", "attributeDefinitions",
+                    "{\"externalId\": \"D\", \"" + fixed + "\": " + value + "}")), fixed);
+        }
+        assertEquals(Map.of("p-1", 1L, "p-2", 2L, "p-3", 2L), values.versions);
     }
 
     @Test
