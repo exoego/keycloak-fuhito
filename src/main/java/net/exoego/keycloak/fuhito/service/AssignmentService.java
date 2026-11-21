@@ -230,10 +230,9 @@ public class AssignmentService {
                 if (previous.isEmpty()) {
                     throw FuhitoException.invalid("assignment.continues_unknown", Map.of("id", continuesAssignmentId));
                 }
-                if (!employment(previous.getFirst().employmentId()).map(Employment::personId)
-                        .equals(Optional.of(employment.personId()))) {
-                    throw FuhitoException.invalid("assignment.continues_other", Map.of("id", continuesAssignmentId));
-                }
+                requireSamePerson(continuesAssignmentId,
+                        employment(previous.getFirst().employmentId()).map(Employment::personId).orElse(null),
+                        employment.personId());
             }
 
             String assignmentId = newId();
@@ -373,6 +372,20 @@ public class AssignmentService {
                 .filter(row -> ids.contains(row.continuesAssignmentId()))
                 .forEach(row -> firsts.putIfAbsent(row.assignmentId(), row));
         return firsts.values();
+    }
+
+    /**
+     * Requires that an assignment continues only an assignment of the same person.
+     *
+     * @param continuesAssignmentId the ID of the assignment that it continues
+     * @param previousPersonId the ID of the person of that assignment, or null when its employment is not found
+     * @param personId the ID of the person of the assignment that continues it
+     * @throws FuhitoException when they are not the same person
+     */
+    static void requireSamePerson(String continuesAssignmentId, String previousPersonId, String personId) {
+        if (!personId.equals(previousPersonId)) {
+            throw FuhitoException.invalid("assignment.continues_other", Map.of("id", continuesAssignmentId));
+        }
     }
 
     /**

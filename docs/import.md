@@ -55,6 +55,27 @@ Some values tell what a thing is, so they never change. A row of a stored thing 
 
 Parents in hierarchies and the IDs of other systems have no ID of their own, so they keep their keys. How a row names another thing does not change either. For example, an assignment names its job title by code and its employment by `employmentExternalId`.
 
+### The source of a row
+
+A row can give its own `source`. A row that leaves it out takes the source of the document, which is `import` by default. `null` takes it too, as for other values with a default. In a CSV file, a blank cell and `#CLEAR` take the `source` of the query.
+
+The source of a row is the system of the external IDs that the row gives. A row that gives none of them finds nothing by its own `source`. So a row by `id` with its own `source` and no external ID can only give the `source` that the thing keeps. Another `source` fails with `import.value_fixed`, which names the field `source` and the `id` of the thing. A thing that keeps no source takes no `source` in such a row. The `PUT` of a resource follows the same rule with `invalid.value_fixed`. A failed row fails the whole import, so it writes nothing.
+
+| List | `source` of a row is the system of | A row by `id` with `source` and none of them |
+|---|---|---|
+| `refKinds`, `attributeDefinitions`, `refItems`, `hierarchies`, `changeOrders` | `externalId` | Fails. These things keep no source |
+| `unitRoles` | `externalId`, `employmentExternalId`, and `orgUnitExternalId` | Fails. A role keeps no source |
+| `reportingLines` | `externalId`, `assignmentExternalId`, and `managerPersonExternalId` | Fails. A line keeps no source |
+| `orgUnits` | `externalId`, `parentExternalId`, and `successorExternalIds` | Fails unless it is the `source` of the unit |
+| `people` | `externalId` | Fails unless it is the `source` of the person |
+| `employments` | `externalId`, `personExternalId`, `employerExternalId`, and `continuesEmploymentExternalId` | Fails unless it is the `source` of the employment |
+| `assignments` | `externalId`, `employmentExternalId`, `orgUnitExternalId`, and `continuesAssignmentExternalId` | Fails unless it is the `source` of the assignment |
+| `qualifications` | `externalId` and `personExternalId` | Fails unless it is the `source` of the qualification |
+| `orgUnitParents` | `orgUnitExternalId` and `parentExternalId` | A row has no `id`. A row with `source` and neither of them fails, because a parent keeps no source |
+| `externalIds` | `externalId`. `source` is part of the key of the row | A row has no `id`. Every row uses `source` |
+
+A CSV file of each list follows the same rule. A row of a CSV export has `source` and `externalId` together, only the `source` that the thing keeps, or neither. So an exported file loads again.
+
 ## People
 
 The list `people` loads people, also those with no Keycloak user, such as staff who left long ago or never log in. It comes before the employments.
@@ -559,7 +580,13 @@ This copies a realm to a test environment, moves it to another Keycloak, or brin
   | List | Rule | `field` | `rule` |
   |---|---|---|---|
   | `ref-kinds`, `ref-item-names`, `org-unit-versions`, `people` | The names keep the rules of a write. `primaryLanguage` is a language tag and a key of `names`. Each key of `names` is a language tag, and no two keys name one language. Each name has `name`, of 255 characters at most. A person may have no `primaryLanguage` and no `names`. | `primaryLanguage`, `names`, or the field of the name, such as `names.ja.name` | The error of the write, such as `invalid.primary_language` |
+  | `ref-items`, `org-unit-versions`, `people`, `employment-terms`, `assignments`, `qualifications` | The attributes of a row are at most 64 KiB as JSON. | `attributes` | `attribute.too_large` |
   | `ref-items` | The kind is a fixed kind or the `code` of a kind of the export. | `kind` | `invalid.kind` |
+  | `ref-items` | Only a unit type has `legalEntity`, `lateral`, or `rollup`, and only an assignment kind has `actingHead`. | The mark, such as `legalEntity` | `ref_item.legal_entity_kind`, `ref_item.lateral_kind`, `ref_item.rollup_kind`, `ref_item.acting_head_kind` |
+  | `ref-items` | A unit type has at most one of `legalEntity`, `lateral`, and `rollup`. | `lateral` or `rollup` | `ref_item.lateral_legal_entity`, `ref_item.rollup_lateral`, `ref_item.rollup_legal_entity` |
+  | `ref-items` | An item has names. | `versions` | None |
+  | `ref-item-names` | The names of an item have no gaps. Names with no `validFrom` hold from the start. | `validFrom` | None |
+  | `ref-item-names` | The last names of an item have no end. | `validTo` | None |
   | `attribute-definitions` | `target` and `type` are choices of a write, such as `PERSON` and `STRING`. | `target`, `type` | `invalid.choice` |
   | `attribute-definitions` | `refKind` is a fixed kind or the `code` of a kind of the export. | `refKind` | `invalid.choice` |
   | `attribute-definitions` | A definition of the type `REF_ITEM` has `refKind`, and a definition of another type has none. | `refKind` | `attribute.ref_kind` |
@@ -580,6 +607,8 @@ This copies a realm to a test environment, moves it to another Keycloak, or brin
   | `employments` | The employer exists on the first date of the employment. | `validFrom` | `employment.employer_unknown` |
   | `employments` | The employer is a legal entity on the first date of the employment. | `employerId` | `employment.employer_not_legal_entity` |
   | `employments` | An employment ends by the end of its employer. | `validTo` | `employment.employer_ends` |
+  | `employments` | Two people do not have one `staffNumber` at one employer. Two employers may give one number to two people. The row is the later one in the export. | `staffNumber` | `employment.staff_number_taken` |
+  | `employments` | An employment continues only an employment of the same person. | `continuesEmploymentId` | `employment.continues_other` |
   | `employments` | An employment ends by the start of an employment that continues it. The row is the one that it continues. | `validTo` | `employment.continues_holds` |
   | `employments` | An employment has terms. | `terms` | None |
   | `employment-terms` | The status is a choice of a write, such as `ACTIVE`. | `status` | `invalid.choice` |
@@ -590,11 +619,15 @@ This copies a realm to a test environment, moves it to another Keycloak, or brin
   | `assignments` | An assignment has rows. The `id` is the `assignmentId`. | `periods` | None |
   | `assignments` | The job title, the occupation, and the kind are reference items of the kinds `JOB_TITLE`, `OCCUPATION`, and `ASSIGNMENT_KIND`. | `jobTitleId`, `occupationId`, `kindId` | `ref_item.unknown` |
   | `assignments` | The rows of an assignment have no gaps. | `validFrom` | None |
+  | `assignments` | The rows of an assignment have one employment and one org unit, as a write never changes them. | `employmentId`, `orgUnitId` | None |
   | `assignments` | A row lies inside its employment. | `validFrom`, `validTo` | `assignment.outside_employment` |
   | `assignments` | A row lies inside the life of its org unit. | `validFrom`, `validTo` | `assignment.org_unit_not_valid` |
+  | `assignments` | An assignment continues only an assignment of the same person. | `continuesAssignmentId` | `assignment.continues_other` |
   | `assignments` | An assignment ends by the start of an assignment that continues it. The row is the last row of the one that it continues. | `validTo` | `assignment.continues_holds` |
   | `reporting-lines` | The kind is a choice of a write, such as `SOLID`. | `kind` | `invalid.choice` |
   | `reporting-lines` | A line lies inside its assignment, from its first row to the end of its last. | `validFrom`, `validTo` | `reporting_line.outside_assignment` |
+  | `reporting-lines` | The manager is not the person of the assignment. | `managerPersonId` | `reporting_line.self` |
+  | `reporting-lines` | An assignment has at most one solid line on a date. The row is the one that starts later. | `kind` | `reporting_line.solid_exists` |
   | `unit-roles` | A role lies inside its employment. | `validFrom`, `validTo` | `unit_role.outside_employment` |
   | `unit-roles` | A role lies inside the life of its org unit. | `validFrom`, `validTo` | `unit_role.org_unit_not_valid` |
   | `unit-roles` | The role is a reference item of the kind `UNIT_ROLE`. | `roleId` | `ref_item.unknown` |
@@ -603,6 +636,7 @@ This copies a realm to a test environment, moves it to another Keycloak, or brin
 
   A write of an employment checks its employer on its first date only. A change of the unit type of the employer from a later date keeps the employment.
   A write finds a reference item by its kind and its code, so it never takes an item of another kind. A restore names an item by its ID, so it checks the kind.
+  A restore does not check attributes against the attribute definitions. A change or a delete of a definition keeps the stored values, so a realm can have values that its definitions no longer allow, and its export has them. A restore brings them back as they were. They are checked at their next write, as other stored values are. Every write checks the size, and a change of a definition does not change a value, so a restore checks the size.
 - An ID that a row of the database has already, in any realm, fails with 409 and `restore.id_taken`. This holds for the ID of an assignment too. This happens for a copy into a second realm of the same database while the first realm still has the rows.
 - A row that breaks a rule of the database that the restore did not find fails with 409 and `restore.conflict`. The error names the rule in `constraint`, such as `PK_FUHITO_HIERARCHY`. This can happen when another write stores the same row at the same time. Nothing is written.
 - Rows name Keycloak users by username. A restore fails with `restore.username_unknown` when the target realm has no user with that name. A person whose user Keycloak no longer had is exported with no username, and is restored with no link.
@@ -613,4 +647,4 @@ This copies a realm to a test environment, moves it to another Keycloak, or brin
 - The change log, the admin events, and the records of the members that the projection added are not part of an export. The restore records one entry, `FUHITO_RESTORE`.
 - The export needs the full read permission, because it has the data of people. The restore needs the permission to write.
 
-Checked by `RealmExportIT.anExportLoadsIntoAnEmptyRealmAndGivesTheSameExportAgain`, `RestoreEmptyValuesIT.anExportOfCheckedDataRestoresUnchanged`, `RestoreEmptyValuesIT.anEmptyValueInAnyRowFailsTheRestoreAndNothingIsWritten`, `RestoreMissingValuesIT.aMissingRowOrValueFailsTheRestoreAndNothingIsWritten`, `RestoreLongValuesIT.aValueLongerThanItsColumnFailsTheRestoreAndNothingIsWritten`, `RestoreKeysIT`, `RestoreOverlapsIT`, `RestorePeriodsIT`, `RestoreRulesIT`, `RestoreKindsIT`, and `RestoreChoicesIT`.
+Checked by `RealmExportIT.anExportLoadsIntoAnEmptyRealmAndGivesTheSameExportAgain`, `RestoreEmptyValuesIT.anExportOfCheckedDataRestoresUnchanged`, `RestoreEmptyValuesIT.anEmptyValueInAnyRowFailsTheRestoreAndNothingIsWritten`, `RestoreMissingValuesIT.aMissingRowOrValueFailsTheRestoreAndNothingIsWritten`, `RestoreLongValuesIT.aValueLongerThanItsColumnFailsTheRestoreAndNothingIsWritten`, `RestoreKeysIT`, `RestoreOverlapsIT`, `RestorePeriodsIT`, `RestoreRulesIT`, `RestoreKindsIT`, `RestoreChoicesIT`, and `RestoreAttributesIT`.

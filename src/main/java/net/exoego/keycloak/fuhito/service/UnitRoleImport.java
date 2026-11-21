@@ -92,6 +92,8 @@ final class UnitRoleImport {
                 : stored.map(view -> view.role().includesDescendants()).orElse(false);
         stored.ifPresent(view -> {
             String id = view.role().id();
+            ImportMatch.source(id, null, row.source(), row.externalId(), row.employmentExternalId(),
+                    row.orgUnitExternalId());
             ImportMatch.fixed(id, "employmentId", view.role().employmentId(), employmentId);
             ImportMatch.fixed(id, "orgUnitId", view.role().orgUnitId(), orgUnitId);
             ImportMatch.fixed(id, "role", view.code(), role);

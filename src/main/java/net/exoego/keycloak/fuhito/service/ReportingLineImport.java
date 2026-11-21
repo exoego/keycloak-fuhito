@@ -87,6 +87,8 @@ final class ReportingLineImport {
         Kind kind = Checks.optionalEnum("kind", Kind.class, row.kind(),
                 stored.filter(line -> !row.isNull("kind")).map(ReportingLine::kind).orElse(Kind.SOLID));
         stored.ifPresent(line -> {
+            ImportMatch.source(line.id(), null, row.source(), row.externalId(), row.assignmentExternalId(),
+                    row.managerPersonExternalId());
             ImportMatch.fixed(line.id(), "assignmentId", line.assignmentId(), assignmentId);
             ImportMatch.fixed(line.id(), "managerPersonId", line.managerPersonId(), managerId);
             ImportMatch.fixed(line.id(), "kind", line.kind(), kind);

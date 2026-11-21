@@ -221,9 +221,9 @@ public class EmploymentService {
                     () -> FuhitoException.invalid("employment.person_unknown", Map.of("personId", personId)));
             Employer employer = employers.of(request.employerId(), request.externalEmployer(), from);
             employers.requireCovers(employer, period);
-            if (staffNumber != null && holdersOf(staffNumber).stream()
-                    .anyMatch(e -> employer.equals(e.employer()) && !e.personId().equals(personId))) {
-                throw FuhitoException.conflict("employment.staff_number_taken", Map.of("staffNumber", staffNumber));
+            if (staffNumber != null) {
+                requireOwnStaffNumber(staffNumber, personId, holdersOf(staffNumber).stream()
+                        .filter(e -> employer.equals(e.employer())).map(Employment::personId).toList());
             }
             ExternalId.Pair externalId = ids.check(null, request.source(), request.externalId());
             if (continuesEmploymentId != null) {
@@ -231,9 +231,7 @@ public class EmploymentService {
                         .or(() -> store.find(continuesEmploymentId))
                         .orElseThrow(() -> FuhitoException.invalid("employment.continues_unknown",
                                 Map.of("id", continuesEmploymentId)));
-                if (!previous.personId().equals(personId)) {
-                    throw FuhitoException.invalid("employment.continues_other", Map.of("id", continuesEmploymentId));
-                }
+                requireSamePerson(continuesEmploymentId, previous.personId(), personId);
             }
 
             Employment employment = new Employment(newId(), personId, person.userId(), employer, period,
@@ -339,6 +337,35 @@ public class EmploymentService {
         return new EmploymentTerms(termsId, employmentId, period, idOf(employmentType), idOf(grade), status,
                 idOf(leaveReason), Checks.optionalPercent("workPercent", values.workPercent()), contractEnd,
                 attributeRules.check(AttributeDefinition.Target.EMPLOYMENT_TERMS, values.attributes()));
+    }
+
+    /**
+     * Requires that no other person has a staff number at an employer. Each employer gives its own numbers, so two
+     * of them may give one number to two people.
+     *
+     * @param staffNumber the staff number
+     * @param personId the ID of the person who gets the number
+     * @param holders the IDs of the people who have the number at the employer
+     * @throws FuhitoException when another person has the number
+     */
+    static void requireOwnStaffNumber(String staffNumber, String personId, Collection<String> holders) {
+        if (holders.stream().anyMatch(holder -> !holder.equals(personId))) {
+            throw FuhitoException.conflict("employment.staff_number_taken", Map.of("staffNumber", staffNumber));
+        }
+    }
+
+    /**
+     * Requires that an employment continues only an employment of the same person.
+     *
+     * @param continuesEmploymentId the ID of the employment that it continues
+     * @param previousPersonId the ID of the person of that employment
+     * @param personId the ID of the person of the employment that continues it
+     * @throws FuhitoException when they are two people
+     */
+    static void requireSamePerson(String continuesEmploymentId, String previousPersonId, String personId) {
+        if (!previousPersonId.equals(personId)) {
+            throw FuhitoException.invalid("employment.continues_other", Map.of("id", continuesEmploymentId));
+        }
     }
 
     /**
@@ -592,11 +619,19 @@ public class EmploymentService {
         List<String> ids = moves.stream().map(move -> move.employment().id()).toList();
         Holding holding = holding(ids, date);
         List<String> staffNumbers = check(moves, employer, date, holding, endReason, reason);
+        // Each old assignment becomes one new assignment, with every period from the date on. An assignment may
+        // continue one of another employment of the same person that moves too.
+        Map<String, String> newAssignmentIds = new HashMap<>();
+        holding.rows().values().stream()
+                .flatMap(List::stream)
+                .filter(row -> row.period().endsAfter(date))
+                .forEach(row -> newAssignmentIds.computeIfAbsent(row.assignmentId(), oldId -> newId()));
         List<Copy> copies = new ArrayList<>();
         for (int i = 0; i < moves.size(); i++) {
             Employment old = moves.get(i).employment();
             copies.add(copy(old, new Employment(newId(), old.personId(), old.userId(), employer,
-                    from(date, old.period()), staffNumbers.get(i), null, null, old.id(), 1), date, holding));
+                    from(date, old.period()), staffNumbers.get(i), null, null, old.id(), 1), date, holding,
+                    newAssignmentIds));
         }
 
         List<Employment> olds = moves.stream().map(Move::employment).toList();
@@ -654,10 +689,7 @@ public class EmploymentService {
             String staffNumber = Checks.optionalCode("staffNumber", move.staffNumber());
             if (staffNumber != null) {
                 Set<String> people = holders.computeIfAbsent(staffNumber, any -> new HashSet<>());
-                if (people.stream().anyMatch(personId -> !personId.equals(old.personId()))) {
-                    throw FuhitoException.conflict("employment.staff_number_taken",
-                            Map.of("staffNumber", staffNumber));
-                }
+                requireOwnStaffNumber(staffNumber, old.personId(), people);
                 people.add(old.personId());
             }
             staffNumbers.add(staffNumber);
@@ -689,7 +721,8 @@ public class EmploymentService {
                         .collect(Collectors.groupingBy(ReportingLine::assignmentId)));
     }
 
-    private Copy copy(Employment old, Employment started, LocalDate date, Holding holding) {
+    private Copy copy(Employment old, Employment started, LocalDate date, Holding holding,
+            Map<String, String> newAssignmentIds) {
         List<EmploymentTerms> terms = holding.terms().getOrDefault(old.id(), List.of()).stream()
                 .map(t -> t.copy(newId(), started.id(), from(date, t.period())))
                 .toList();
@@ -700,10 +733,9 @@ public class EmploymentService {
                 .filter(row -> row.period().from().isBefore(date))
                 .map(Assignment::assignmentId)
                 .collect(Collectors.toSet());
-        // Each old assignment becomes one new assignment, with every period from the date on.
-        Map<String, String> newAssignmentIds = new LinkedHashMap<>();
-        moved.forEach(row -> newAssignmentIds.computeIfAbsent(row.assignmentId(), oldId -> newId()));
-        Map<String, String> goneAssignments = new HashMap<>(newAssignmentIds);
+        Map<String, String> ofEmployment = new LinkedHashMap<>();
+        moved.forEach(row -> ofEmployment.put(row.assignmentId(), newAssignmentIds.get(row.assignmentId())));
+        Map<String, String> goneAssignments = new HashMap<>(ofEmployment);
         goneAssignments.keySet().removeAll(kept);
         List<Assignment> rows = moved.stream().map(row -> {
             boolean stays = kept.contains(row.assignmentId());
@@ -716,7 +748,7 @@ public class EmploymentService {
                     row.workLocationId(), row.costCenterId(), row.head(), row.primary(), row.allocationPercent(),
                     row.displayOrder(), row.attributes(), stays ? null : row.source(), continues, 1);
         }).toList();
-        List<ReportingLine> oldLines = newAssignmentIds.keySet().stream()
+        List<ReportingLine> oldLines = ofEmployment.keySet().stream()
                 .flatMap(oldId -> holding.lines().getOrDefault(oldId, List.of()).stream())
                 .toList();
         List<ReportingLine> lines = oldLines.stream()
@@ -728,7 +760,7 @@ public class EmploymentService {
                 .map(role -> new UnitRole(newId(), started.id(), started.personId(), started.userId(),
                         role.orgUnitId(), role.roleId(), role.includesDescendants(), from(date, role.period()), 1))
                 .toList();
-        return new Copy(started, terms, rows, List.copyOf(newAssignmentIds.values()), lines, roles, Map.of(
+        return new Copy(started, terms, rows, List.copyOf(ofEmployment.values()), lines, roles, Map.of(
                 ExternalId.Kind.ASSIGNMENT, goneAssignments,
                 ExternalId.Kind.REPORTING_LINE, gone(oldLines, lines, ReportingLine::id, ReportingLine::period, date),
                 ExternalId.Kind.UNIT_ROLE, gone(oldRoles, roles, UnitRole::id, UnitRole::period, date)));

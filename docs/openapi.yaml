@@ -1323,8 +1323,11 @@ components:
           type: string
           maxLength: 64
           pattern: "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
-          description: The name of the system that the row comes from. The default
-            is the source of the document.
+          description: "The name of the system that the row comes from. The default\
+            \ is the source of the document. A row by `id` with this and none of `externalId`,\
+            \ `employmentExternalId`, `orgUnitExternalId`, and `continuesAssignmentExternalId`\
+            \ must give the `source` that a read of the assignment has, or it fails\
+            \ with `import.value_fixed`."
         externalId:
           type: string
           description: The ID of the assignment in that system.
@@ -1428,8 +1431,9 @@ components:
           type: string
           maxLength: 64
           pattern: "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
-          description: The name of the system that the row comes from. The default
-            is the source of the document.
+          description: "The name of the system that the row comes from. The default\
+            \ is the source of the document. A definition keeps no source, so a row\
+            \ by `id` with this and no `externalId` fails with `import.value_fixed`."
         externalId:
           type: string
           description: The ID of the definition in that system.
@@ -1487,8 +1491,9 @@ components:
           type: string
           maxLength: 64
           pattern: "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
-          description: The name of the system that the row comes from. The default
-            is the source of the document.
+          description: "The name of the system that the row comes from. The default\
+            \ is the source of the document. An order keeps no source, so a row by\
+            \ `id` with this and no `externalId` fails with `import.value_fixed`."
         externalId:
           type: string
           description: The ID of the order in that system.
@@ -1575,10 +1580,12 @@ components:
           type: string
           maxLength: 64
           pattern: "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
-          description: "The name of the system that the rows come from. Rows can override\
-            \ it. A row matches a stored record that has the ID of the row in that\
-            \ system, whichever system made the record. A new org unit, person, employment,\
-            \ assignment, or qualification keeps it as the system that made it."
+          description: "The name of the system that the rows come from. A row can\
+            \ give its own `source`. A row that leaves it out, or gives `null`, takes\
+            \ this one. A row matches a stored record that has the ID of the row in\
+            \ that system, whichever system made the record. A new org unit, person,\
+            \ employment, assignment, or qualification keeps it as the system that\
+            \ made it."
           default: import
         refItems:
           type: array
@@ -1659,8 +1666,11 @@ components:
           type: string
           maxLength: 64
           pattern: "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
-          description: The name of the system that the row comes from. The default
-            is the source of the document.
+          description: "The name of the system that the row comes from. The default\
+            \ is the source of the document. A row by `id` with this and none of `externalId`,\
+            \ `personExternalId`, `employerExternalId`, and `continuesEmploymentExternalId`\
+            \ must give the `source` that a read of the employment has, or it fails\
+            \ with `import.value_fixed`."
         externalId:
           type: string
           description: The ID of the employment in that system.
@@ -1810,8 +1820,9 @@ components:
           type: string
           maxLength: 64
           pattern: "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
-          description: The name of the system that the row comes from. The default
-            is the source of the document.
+          description: "The name of the system that the row comes from. The default\
+            \ is the source of the document. A hierarchy keeps no source, so a row\
+            \ by `id` with this and no `externalId` fails with `import.value_fixed`."
         externalId:
           type: string
           description: The ID of the hierarchy in that system.
@@ -1840,8 +1851,10 @@ components:
           type: string
           maxLength: 64
           pattern: "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
-          description: The name of the system that the external IDs come from. The
-            default is the source of the document.
+          description: "The name of the system that the external IDs come from. The\
+            \ default is the source of the document. A parent keeps no source, so\
+            \ a row with this and neither `orgUnitExternalId` nor `parentExternalId`\
+            \ fails with `import.value_fixed`."
         orgUnitExternalId:
           type: string
           description: The external ID of the org unit. Give this or `orgUnitId`.
@@ -1865,8 +1878,10 @@ components:
           type: string
           maxLength: 64
           pattern: "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
-          description: The name of the system that the row comes from. The default
-            is the source of the document.
+          description: "The name of the system that the row comes from. The default\
+            \ is the source of the document. A row by `id` with this and none of `externalId`,\
+            \ `parentExternalId`, and `successorExternalIds` must give the `source`\
+            \ that a read of the unit has, or it fails with `import.value_fixed`."
         externalId:
           type: string
           description: The ID of the unit in that system.
@@ -1964,8 +1979,10 @@ components:
           type: string
           maxLength: 64
           pattern: "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
-          description: The name of the system that the row comes from. The default
-            is the source of the document.
+          description: "The name of the system that the row comes from. The default\
+            \ is the source of the document. A row by `id` with this and no `externalId`\
+            \ must give the `source` that a read of the person has, or it fails with\
+            \ `import.value_fixed`."
         externalId:
           type: string
           description: The ID of the person in that system.
@@ -2013,8 +2030,10 @@ components:
           type: string
           maxLength: 64
           pattern: "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
-          description: The name of the system that the row comes from. The default
-            is the source of the document.
+          description: "The name of the system that the row comes from. The default\
+            \ is the source of the document. A row by `id` with this and neither `externalId`\
+            \ nor `personExternalId` must give the `source` that a read of the qualification\
+            \ has, or it fails with `import.value_fixed`."
         externalId:
           type: string
           description: The ID of the qualification in that system.
@@ -2064,8 +2083,9 @@ components:
           type: string
           maxLength: 64
           pattern: "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
-          description: The name of the system that the row comes from. The default
-            is the source of the document.
+          description: "The name of the system that the row comes from. The default\
+            \ is the source of the document. An item keeps no source, so a row by\
+            \ `id` with this and no `externalId` fails with `import.value_fixed`."
         externalId:
           type: string
           description: The ID of the item in that system.
@@ -2144,8 +2164,9 @@ components:
           type: string
           maxLength: 64
           pattern: "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
-          description: The name of the system that the row comes from. The default
-            is the source of the document.
+          description: "The name of the system that the row comes from. The default\
+            \ is the source of the document. A kind keeps no source, so a row by `id`\
+            \ with this and no `externalId` fails with `import.value_fixed`."
         externalId:
           type: string
           description: The ID of the kind in that system.
@@ -2211,8 +2232,10 @@ components:
           type: string
           maxLength: 64
           pattern: "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
-          description: The name of the system that the row and its external IDs come
-            from. The default is the source of the document.
+          description: "The name of the system that the row and its external IDs come\
+            \ from. The default is the source of the document. A line keeps no source,\
+            \ so a row by `id` with this and none of `externalId`, `assignmentExternalId`,\
+            \ and `managerPersonExternalId` fails with `import.value_fixed`."
         externalId:
           type: string
           description: The ID of the line in that system. A different line needs a
@@ -2300,8 +2323,10 @@ components:
           type: string
           maxLength: 64
           pattern: "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
-          description: The name of the system that the row and its external IDs come
-            from. The default is the source of the document.
+          description: "The name of the system that the row and its external IDs come\
+            \ from. The default is the source of the document. A role keeps no source,\
+            \ so a row by `id` with this and none of `externalId`, `employmentExternalId`,\
+            \ and `orgUnitExternalId` fails with `import.value_fixed`."
         externalId:
           type: string
           description: The ID of the role in that system. A different role needs a
@@ -9841,14 +9866,17 @@ paths:
         \ a `validTo` that is not after the `validFrom` of its row, as in a write.\
         \ So does an unknown choice, such as the `status` of terms, or names that\
         \ break a rule of a write, such as a `primaryLanguage` that is not a key of\
-        \ `names`. So does a row that names a reference item of another kind, such\
-        \ as a unit role as the grade of terms, or that breaks a rule between rows\
-        \ of a write, such as a row of an assignment that is not inside its employment,\
-        \ or a unit that other units follow and that has no end. Then `rule` names\
-        \ the error of the write for the rule, such as `assignment.outside_employment`,\
-        \ when the write has one. An empty text, a text of only spaces, or an empty\
-        \ array in a row fails with 400 and `invalid.blank`, as in a write. A text\
-        \ with NUL (U+0000) or half of a surrogate pair fails with 400 and `invalid.character`,\
+        \ `names`, or attributes of more than 64 KiB. So does a row that names a reference\
+        \ item of another kind, such as a unit role as the grade of terms, or that\
+        \ breaks a rule between rows of a write, such as a row of an assignment that\
+        \ is not inside its employment, a unit that other units follow and that has\
+        \ no end, or a manager who is the person. Then `rule` names the error of the\
+        \ write for the rule, such as `assignment.outside_employment`, when the write\
+        \ has one. A restore does not check attributes against their definitions,\
+        \ because a realm keeps the values that a later change of a definition no\
+        \ longer allows. An empty text, a text of only spaces, or an empty array in\
+        \ a row fails with 400 and `invalid.blank`, as in a write. A text with NUL\
+        \ (U+0000) or half of a surrogate pair fails with 400 and `invalid.character`,\
         \ as in a write. The error names the list, the `id` of the row, and the field.\
         \ A document that gives one key twice in one object fails with 400 and `invalid.duplicate_key`,\
         \ as in a write. That error names the key with its path in the document. A\

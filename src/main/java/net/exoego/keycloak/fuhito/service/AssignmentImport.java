@@ -257,9 +257,10 @@ final class AssignmentImport {
 
     // A row with an ID changes that assignment. An external ID beside it must be one of that assignment.
     private String byId(AssignmentRow row, String source) {
-        if (find(row.id()).isEmpty()) {
-            throw FuhitoException.invalid("import.id_unknown", Map.of("id", row.id()));
-        }
+        AssignmentView view = find(row.id())
+                .orElseThrow(() -> FuhitoException.invalid("import.id_unknown", Map.of("id", row.id())));
+        ImportMatch.source(row.id(), view.rows().getFirst().row().source(), row.source(), row.externalId(),
+                row.employmentExternalId(), row.orgUnitExternalId(), row.continuesAssignmentExternalId());
         PeopleImport.requireNames(ids, ExternalId.Kind.ASSIGNMENT, row.id(), source, row.externalId());
         return row.id();
     }
