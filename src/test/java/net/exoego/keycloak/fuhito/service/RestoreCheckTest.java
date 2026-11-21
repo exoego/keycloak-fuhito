@@ -87,6 +87,13 @@ class RestoreCheckTest {
                 null, false, false)));
     }
 
+    private static RealmExport link(String hierarchy) {
+        return of(List.of(new RealmExport.HierarchyRow("h-1", 1L, "project", "Project")), List.of(
+                new RealmExport.Unit("u-1", 1L, null, null, null, List.of(), List.of(), List.of(), null),
+                new RealmExport.Unit("u-2", 1L, null, null, null, List.of(), List.of(new RealmExport.Parent("l-1",
+                        hierarchy, "u-1", "2020-04-01", null)), List.of(), null)), null, null, null);
+    }
+
     private static void check(RealmExport document) {
         RestoreCheck.requireValues(document, list -> LENGTHS);
     }
@@ -163,5 +170,24 @@ class RestoreCheckTest {
                 "invalid.required");
         assertDoesNotThrow(() -> check(person(null, null)));
         assertDoesNotThrow(() -> check(names(null, null, "JA")));
+    }
+
+    @Test
+    void aUnitGivesTheListsOfItsParentsAndSuccessors() {
+        assertBadValue(of(null, List.of(new RealmExport.Unit("u-1", 1L, null, null, null, List.of(), null, List.of(),
+                null)), null, null, null), "org-units", "u-1", "parents");
+        assertBadValue(of(null, List.of(new RealmExport.Unit("u-1", 1L, null, null, null, List.of(), List.of(), null,
+                null)), null, null, null), "org-units", "u-1", "successors");
+    }
+
+    @Test
+    void aParentLinkNamesAHierarchyOfTheExportOrTheDefaultOne() {
+        assertDoesNotThrow(() -> RestoreCheck.requireReferences(link("project")));
+        assertDoesNotThrow(() -> RestoreCheck.requireReferences(link("default")));
+        for (String code : List.of("race", "Project")) {
+            FuhitoException e = assertThrows(FuhitoException.class, () -> RestoreCheck.requireReferences(link(code)));
+            assertEquals("restore.reference_unknown", e.code());
+            assertEquals(Map.of("list", "org-units", "field", "hierarchy", "value", code), e.params());
+        }
     }
 }

@@ -66,4 +66,12 @@ class RestoreKindsIT {
                 breaks("attribute-definitions", "d-1", "refKind", "attribute.ref_kind",
                         at("/attributeDefinitions/0", "{\"refKind\": \"site\"}"))));
     }
+
+    // Items of the kind grade would not be the items of the fixed kind GRADE.
+    @Test
+    void aKindWithTheCodeOfAFixedKindInAnyCaseFailsTheRestoreAndNothingIsWritten() throws Exception {
+        assertEachBreaks("restore-fixed-kinds", List.of(
+                breaks("ref-kinds", "k-1", "code", "ref_kind.code_taken", at("/refKinds/0", "{\"code\": \"grade\"}")),
+                breaks("ref-kinds", "k-1", "code", "ref_kind.code_taken", at("/refKinds/0", "{\"code\": \"GRADE\"}"))));
+    }
 }

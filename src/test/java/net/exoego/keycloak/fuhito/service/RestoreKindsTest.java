@@ -65,6 +65,15 @@ class RestoreKindsTest {
     }
 
     @Test
+    void aKindOfTheExportIsNotAFixedKindInAnyCase() {
+        for (String code : List.of("grade", "GRADE", "Grade")) {
+            assertBroken(new RealmExport(RealmExport.FORMAT, List.of(new RealmExport.Kind("k-1", 1L, code, "ja",
+                    Map.of())), null, null, null, null, null, null, null, null, null, null, null, null, null),
+                    "ref-kinds", "k-1", "code", "ref_kind.code_taken");
+        }
+    }
+
+    @Test
     void anItemOrADefinitionHasAKindOfTheExport() {
         assertBroken(document(items("SITE"), List.of(), null), "ref-items", "SITE", "kind", "invalid.kind");
         assertBroken(document(items(), List.of(definition("REF_ITEM", "building")), null), "attribute-definitions",
