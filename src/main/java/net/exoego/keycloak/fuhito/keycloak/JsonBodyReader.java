@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Type;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -12,9 +13,12 @@ import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.JsonStreamContext;
 import com.fasterxml.jackson.core.StreamReadFeature;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectReader;
 import com.fasterxml.jackson.databind.exc.InvalidDefinitionException;
 import com.fasterxml.jackson.databind.exc.MismatchedInputException;
+import com.fasterxml.jackson.databind.exc.UnrecognizedPropertyException;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.MediaType;
@@ -22,25 +26,28 @@ import jakarta.ws.rs.core.MultivaluedMap;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.ext.MessageBodyReader;
 import jakarta.ws.rs.ext.Provider;
+import net.exoego.keycloak.fuhito.service.ImportDocument;
 import org.keycloak.services.ErrorResponseException;
 import org.keycloak.services.util.ObjectMapperResolver;
 import org.keycloak.utils.KeycloakSessionUtil;
 
 /**
  * Reads the JSON body of a request to the extension as Keycloak reads a body, but a key that one object gives twice
- * fails with 400 and {@code invalid.duplicate_key}. Keycloak would keep the last value. Every body of the extension
- * is a record of the extension, and only such a record is read here. So the endpoints of Keycloak read their bodies
- * as before.
+ * fails with 400 and {@code invalid.duplicate_key}. Keycloak would keep the last value. A key that an import document
+ * does not have fails with 400 and {@code import.unknown_key}. Every body of the extension is a record of the
+ * extension, and only such a record is read here. So the endpoints of Keycloak read their bodies as before.
  */
 @Provider
 @Consumes(MediaType.APPLICATION_JSON)
 public class JsonBodyReader implements MessageBodyReader<Record> {
 
-    private static final String CODE = "invalid.duplicate_key";
+    private static final String DUPLICATE_KEY = "invalid.duplicate_key";
+    private static final String UNKNOWN_KEY = "import.unknown_key";
     private static final String EXTENSION = "net.exoego.keycloak.fuhito.";
 
     private static final ObjectReader READER = new ObjectMapperResolver().getContext(Record.class).reader()
-            .with(StreamReadFeature.STRICT_DUPLICATE_DETECTION);
+            .with(StreamReadFeature.STRICT_DUPLICATE_DETECTION)
+            .with(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
 
     /**
      * Creates the reader.
@@ -63,9 +70,11 @@ public class JsonBodyReader implements MessageBodyReader<Record> {
             } catch (JsonProcessingException e) {
                 Optional<String> key = duplicateKey(parser, e);
                 if (key.isPresent()) {
-                    Map<String, String> params = Map.of("field", key.get());
-                    throw new ErrorResponseException(KeycloakRequestContext.error(Response.Status.BAD_REQUEST, CODE,
-                            params, KeycloakRequestContext.locale(KeycloakSessionUtil.getKeycloakSession())));
+                    throw error(DUPLICATE_KEY, key.get());
+                }
+                // A JSON import names the key, as a CSV import names a column that its list does not have.
+                if (e instanceof UnrecognizedPropertyException unknown && ImportDocument.class.equals(type)) {
+                    throw error(UNKNOWN_KEY, path(unknown.getPath()));
                 }
                 // As Keycloak reads a body, so that its error handlers answer as before.
                 if (e instanceof MismatchedInputException || e instanceof InvalidDefinitionException) {
@@ -74,6 +83,11 @@ public class JsonBodyReader implements MessageBodyReader<Record> {
                 throw new WebApplicationException(e, Response.Status.BAD_REQUEST);
             }
         }
+    }
+
+    private static ErrorResponseException error(String code, String field) {
+        return new ErrorResponseException(KeycloakRequestContext.error(Response.Status.BAD_REQUEST, code,
+                Map.of("field", field), KeycloakRequestContext.locale(KeycloakSessionUtil.getKeycloakSession())));
     }
 
     // The path of the key that the parser read twice in one object, such as orgUnits[1].names.ja.
@@ -96,5 +110,17 @@ public class JsonBodyReader implements MessageBodyReader<Record> {
             path = path.isEmpty() || path.startsWith("[") ? step + path : step + "." + path;
         }
         return path;
+    }
+
+    private static String path(List<JsonMappingException.Reference> references) {
+        StringBuilder path = new StringBuilder();
+        for (JsonMappingException.Reference reference : references) {
+            if (reference.getFieldName() == null) {
+                path.append('[').append(reference.getIndex()).append(']');
+            } else {
+                path.append(path.isEmpty() ? "" : ".").append(reference.getFieldName());
+            }
+        }
+        return path.toString();
     }
 }

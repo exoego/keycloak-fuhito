@@ -385,10 +385,12 @@ The extension reads the JSON body of its own endpoints with a JAX-RS `MessageBod
 Keycloak registers it when it builds the server with the jar.
 It reads only the records of the extension, which are the bodies of its endpoints.
 So every endpoint of Keycloak reads its body as before.
-The reader uses the JSON settings of Keycloak and adds one check.
+The reader uses the JSON settings of Keycloak and adds two checks.
 A body that gives one key twice in one object fails with 400 and `invalid.duplicate_key`, which names the key with its path.
 Keycloak itself would keep the last value.
-Other bad JSON fails as it does in Keycloak.
+A key that an import document does not have fails with 400 and `import.unknown_key`, which names the key with its path.
+The reader turns on the setting of Jackson that rejects an unknown key, so the check holds even if Keycloak turns it off.
+Other bad JSON fails as it does in Keycloak. So a key that another body does not have gets the error of Keycloak.
 
 ### Query parameters
 
