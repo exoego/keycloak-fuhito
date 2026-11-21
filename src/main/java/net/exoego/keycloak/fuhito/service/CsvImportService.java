@@ -30,6 +30,7 @@ import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.Csv;
 import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
+import net.exoego.keycloak.fuhito.domain.JsonNumbers;
 import net.exoego.keycloak.fuhito.domain.Localized;
 import net.exoego.keycloak.fuhito.domain.OrgUnitName;
 import net.exoego.keycloak.fuhito.domain.Person;
@@ -649,10 +650,13 @@ public class CsvImportService {
         }
 
         // A stored attribute reads back from JSON as Integer, Long, BigInteger, or Double. A value of the same
-        // type compares equal to it, so a row that matches what is stored changes nothing.
-        private static Object asJson(BigDecimal value) {
-            if (value == null) {
-                return null;
+        // type compares equal to it, so a row that matches what is stored changes nothing. A number must be one
+        // that a double gives back the same, as in a JSON row. So a cell such as 1e999999999 fails before its
+        // digits are made.
+        private static Object asJson(String column, String text) {
+            BigDecimal value = converted(column, text, BigDecimal::new);
+            if (!JsonNumbers.fitsDouble(value)) {
+                throw FuhitoException.invalid("csv.bad_number", Map.of("field", column, "value", text));
             }
             BigDecimal stripped = value.stripTrailingZeros();
             if (stripped.scale() > 0) {
@@ -668,7 +672,7 @@ public class CsvImportService {
         // The definition checks a text later, as it does for a JSON import.
         private static Object typed(AttributeDefinition definition, String column, String text) {
             return switch (definition.type()) {
-                case NUMBER -> asJson(converted(column, text, BigDecimal::new));
+                case NUMBER -> asJson(column, text);
                 case BOOLEAN -> truth(column, text);
                 default -> text;
             };

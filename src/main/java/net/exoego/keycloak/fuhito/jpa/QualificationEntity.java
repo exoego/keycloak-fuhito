@@ -81,7 +81,7 @@ public class QualificationEntity implements VersionedRow {
     // A write may change several rows of the resource. It counts up the version once.
     void countUp() {
         if (!counted) {
-            version++;
+            version = Versions.next(version);
             counted = true;
         }
     }

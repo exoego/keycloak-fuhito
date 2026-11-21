@@ -14,6 +14,7 @@ import java.util.function.Predicate;
 import net.exoego.keycloak.fuhito.domain.AttributeDefinition;
 import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
+import net.exoego.keycloak.fuhito.domain.JsonNumbers;
 import net.exoego.keycloak.fuhito.domain.RefKind;
 import net.exoego.keycloak.fuhito.store.AttributeDefinitionStore;
 import net.exoego.keycloak.fuhito.store.RefItemStore;
@@ -237,7 +238,8 @@ public class AttributeDefinitionService implements AttributeRules {
     private boolean fits(AttributeDefinition definition, Object value) {
         return switch (definition.type()) {
             case STRING -> value instanceof String;
-            case NUMBER -> value instanceof Number;
+            // A client that reads a number as a double, such as JavaScript or a spreadsheet, must read the same one.
+            case NUMBER -> value instanceof Number number && JsonNumbers.fitsDouble(number);
             case BOOLEAN -> value instanceof Boolean;
             case DATE -> value instanceof String text && isDate(text);
             case REF_ITEM -> value instanceof String code

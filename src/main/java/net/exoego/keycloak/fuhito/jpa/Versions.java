@@ -19,6 +19,18 @@ final class Versions {
     private Versions() {
     }
 
+    /**
+     * Counts up a version by one.
+     *
+     * @param version the version
+     * @return the next version
+     * @throws ArithmeticException when the version is the largest long. A version that wraps around would be one
+     *         that the resource had long before, so a caller that read it then could write again.
+     */
+    static long next(long version) {
+        return Math.addExact(version, 1);
+    }
+
     static void orgUnit(EntityManager em, String realmId, String id) {
         Rows.require(em, OrgUnitEntity.class, id, realmId, row -> row.realmId).countUp();
     }
@@ -96,7 +108,7 @@ final class Versions {
                 .collect(Collectors.groupingBy(row -> row.assignmentId));
         rowsById.forEach((id, rows) -> {
             long current = rows.stream().mapToLong(row -> row.version).max().orElseThrow();
-            long version = rows.stream().anyMatch(row -> row.counted) ? current : current + 1;
+            long version = rows.stream().anyMatch(row -> row.counted) ? current : next(current);
             rows.forEach(row -> {
                 row.version = version;
                 row.counted = true;

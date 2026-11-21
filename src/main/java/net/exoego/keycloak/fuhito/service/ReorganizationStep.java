@@ -14,7 +14,8 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
                 + "names the key with its path, such as `steps[1].nmae`. A value of another JSON type than its field "
                 + "fails with 400 and `invalid.type`, which names the field with its path, such as "
                 + "`steps[0].displayOrder`. A whole number outside the range of its field fails with 400 and "
-                + "`invalid.out_of_range`, which names the field with its path and the limits.",
+                + "`invalid.out_of_range`, which names the field with its path and the limits. A number whose "
+                + "exponent is too large or too small to read fails with 400 and `invalid.number`.",
         requiredProperties = {"op"})
 public record ReorganizationStep(
         @Schema(enumeration = {"create", "change", "move", "end", "succeed"})

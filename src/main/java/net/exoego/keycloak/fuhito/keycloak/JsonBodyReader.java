@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Type;
+import java.math.BigDecimal;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -13,6 +14,7 @@ import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.JsonStreamContext;
+import com.fasterxml.jackson.core.JsonToken;
 import com.fasterxml.jackson.core.StreamReadFeature;
 import com.fasterxml.jackson.core.exc.InputCoercionException;
 import com.fasterxml.jackson.core.exc.StreamConstraintsException;
@@ -27,8 +29,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectReader;
 import com.fasterxml.jackson.databind.cfg.CoercionAction;
 import com.fasterxml.jackson.databind.cfg.CoercionInputShape;
+import com.fasterxml.jackson.databind.cfg.JsonNodeFeature;
 import com.fasterxml.jackson.databind.deser.BeanDeserializerModifier;
 import com.fasterxml.jackson.databind.deser.std.DelegatingDeserializer;
+import com.fasterxml.jackson.databind.deser.std.StdScalarDeserializer;
 import com.fasterxml.jackson.databind.exc.InvalidDefinitionException;
 import com.fasterxml.jackson.databind.exc.MismatchedInputException;
 import com.fasterxml.jackson.databind.exc.UnrecognizedPropertyException;
@@ -42,6 +46,7 @@ import jakarta.ws.rs.core.MultivaluedMap;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.ext.MessageBodyReader;
 import jakarta.ws.rs.ext.Provider;
+import net.exoego.keycloak.fuhito.domain.JsonNumbers;
 import org.keycloak.services.ErrorResponseException;
 import org.keycloak.services.util.ObjectMapperResolver;
 import org.keycloak.utils.KeycloakSessionUtil;
@@ -54,9 +59,12 @@ import org.keycloak.utils.KeycloakSessionUtil;
  * number, or {@code null} for a field that is never null, fails with 400 and {@code invalid.type}. Keycloak would
  * turn it into the type of the field. A whole number outside the range of its field, such as {@code 2147483648} for
  * an int, fails with 400 and {@code invalid.out_of_range}, and a number longer than Jackson reads fails with 400 and
- * {@code invalid.too_long}. Keycloak would answer both with an error that names no field. Every body of the extension
- * is a record of the extension, and only such a record is read here. So the endpoints of Keycloak read their bodies
- * as before.
+ * {@code invalid.too_long}. A decimal number with an exponent that Jackson cannot read, such as
+ * {@code 1e9999999999}, fails with 400 and {@code invalid.number}. Keycloak would answer these with an error that
+ * names no field. A decimal number is read as it is written, also in a row of an import. Keycloak would read it as a
+ * double, which can give another number, such as {@code 50} for {@code 50.000000000000001}. Every body of the
+ * extension is a record of the extension, and only such a record is read here. So the endpoints of Keycloak read
+ * their bodies as before.
  */
 @Provider
 @Consumes(MediaType.APPLICATION_JSON)
@@ -67,11 +75,14 @@ public class JsonBodyReader implements MessageBodyReader<Record> {
     private static final String TYPE = "invalid.type";
     private static final String OUT_OF_RANGE = "invalid.out_of_range";
     private static final String TOO_LONG = "invalid.too_long";
+    private static final String NUMBER = "invalid.number";
     private static final String EXTENSION = "net.exoego.keycloak.fuhito.";
 
     static final ObjectReader READER = strict(new ObjectMapperResolver().getContext(Record.class))
             .with(StreamReadFeature.STRICT_DUPLICATE_DETECTION)
             .with(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
+            .with(DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS)
+            .without(JsonNodeFeature.STRIP_TRAILING_BIGDECIMAL_ZEROES)
             .without(DeserializationFeature.ACCEPT_FLOAT_AS_INT);
 
     // The whole numbers of the bodies are int and long, and their columns have the same range.
@@ -118,6 +129,10 @@ public class JsonBodyReader implements MessageBodyReader<Record> {
                     throw error(TOO_LONG, Map.of("field", longNumber.get(),
                             "max", Integer.toString(parser.streamReadConstraints().getMaxNumberLength())));
                 }
+                Optional<String> unreadable = unreadableNumber(parser, e);
+                if (unreadable.isPresent()) {
+                    throw error(NUMBER, Map.of("field", unreadable.get(), "value", parser.getText()));
+                }
                 // As Keycloak reads a body, so that its error handlers answer as before.
                 if (e instanceof MismatchedInputException || e instanceof InvalidDefinitionException) {
                     throw e;
@@ -140,15 +155,40 @@ public class JsonBodyReader implements MessageBodyReader<Record> {
                 .setCoercion(CoercionInputShape.Integer, CoercionAction.Fail)
                 .setCoercion(CoercionInputShape.Float, CoercionAction.Fail)
                 .setCoercion(CoercionInputShape.Boolean, CoercionAction.Fail);
-        mapper.registerModule(new SimpleModule().setDeserializerModifier(new BeanDeserializerModifier() {
+        SimpleModule module = new SimpleModule().addDeserializer(Number.class, new ExactNumber());
+        module.setDeserializerModifier(new BeanDeserializerModifier() {
             @Override
             public JsonDeserializer<?> modifyDeserializer(DeserializationConfig config, BeanDescription description,
                     JsonDeserializer<?> deserializer) {
                 Class<?> type = deserializer.handledType();
                 return type != null && type.isPrimitive() ? new NotNull(deserializer) : deserializer;
             }
-        }));
+        });
+        mapper.registerModule(module);
         return mapper.reader();
+    }
+
+    // For a value with no type, such as a value of attributes. A stored value reads back from JSON as a Double, so
+    // such a decimal compares equal to it. Keycloak would read 1e400 as infinity, and no definition takes a BigDecimal.
+    private static final class ExactNumber extends StdScalarDeserializer<Number> {
+
+        private static final long serialVersionUID = 1L;
+
+        ExactNumber() {
+            super(Number.class);
+        }
+
+        @Override
+        public Number deserialize(JsonParser p, DeserializationContext ctxt) throws IOException {
+            if (p.hasToken(JsonToken.VALUE_NUMBER_INT)) {
+                return p.getNumberValue();
+            }
+            if (!p.hasToken(JsonToken.VALUE_NUMBER_FLOAT)) {
+                return (Number) ctxt.handleUnexpectedToken(Number.class, p);
+            }
+            BigDecimal value = p.getDecimalValue();
+            return JsonNumbers.sameDouble(value).<Number>map(nearest -> nearest).orElse(value);
+        }
     }
 
     // FAIL_ON_NULL_FOR_PRIMITIVES would also reject a primitive that a body leaves out, such as dryRun of an import.
@@ -237,6 +277,19 @@ public class JsonBodyReader implements MessageBodyReader<Record> {
             // Jackson tells this error apart only by its text.
             if (cause instanceof StreamConstraintsException limit
                     && limit.getOriginalMessage().startsWith("Number value length")) {
+                return Optional.of(path(parser.getParsingContext()));
+            }
+        }
+        return Optional.empty();
+    }
+
+    // The path of a decimal number whose exponent is beyond what a BigDecimal holds. The parser is still at the number.
+    private static Optional<String> unreadableNumber(JsonParser parser, Throwable error) {
+        if (!parser.hasToken(JsonToken.VALUE_NUMBER_FLOAT)) {
+            return Optional.empty();
+        }
+        for (Throwable cause = error; cause != null; cause = cause.getCause()) {
+            if (cause instanceof NumberFormatException) {
                 return Optional.of(path(parser.getParsingContext()));
             }
         }
