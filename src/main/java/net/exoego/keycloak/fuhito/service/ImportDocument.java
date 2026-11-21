@@ -26,7 +26,8 @@ public record ImportDocument(
         @Schema(description = "True to do all checks and write nothing.", defaultValue = "false")
         boolean dryRun,
         @Schema(
-                description = "The name of the system that the rows come from. Rows can override it. A row matches "
+                description = "The name of the system that the rows come from. A row can give its own `source`. A "
+                        + "row that leaves it out, or gives `null`, takes this one. A row matches "
                         + "a stored record that has the ID of the row in that system, whichever system made the "
                         + "record. A new org unit, person, employment, assignment, or qualification keeps it as the "
                         + "system that made it.",
@@ -108,7 +109,8 @@ public record ImportDocument(
             String id,
             @Schema(
                     description = "The name of the system that the row comes from. The default is the source of the "
-                            + "document.",
+                            + "document. An order keeps no source, so a row by `id` with this and no `externalId` "
+                            + "fails with `import.value_fixed`.",
                     maxLength = 64,
                     pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$")
             String source,
@@ -190,7 +192,9 @@ public record ImportDocument(
             String id,
             @Schema(
                     description = "The name of the system that the row comes from. The default is the source of the "
-                            + "document.",
+                            + "document. A row by `id` with this and neither `externalId` nor `personExternalId` must "
+                            + "give the `source` that a read of the qualification has, or it fails with "
+                            + "`import.value_fixed`.",
                     maxLength = 64,
                     pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$")
             String source,
@@ -237,8 +241,10 @@ public record ImportDocument(
             @Schema(description = "The ID of a stored role. A CSV export has it in every row. A new role has none.")
             String id,
             @Schema(
-                    description = "The name of the system that the row and its external IDs come from. The default "
-                            + "is the source of the document.",
+                    description = "The name of the system that the row and its external IDs come from. The default is "
+                            + "the source of the document. A role keeps no source, so a row by `id` with this and "
+                            + "none of `externalId`, `employmentExternalId`, and `orgUnitExternalId` fails with "
+                            + "`import.value_fixed`.",
                     maxLength = 64,
                     pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$")
             String source,
@@ -286,8 +292,10 @@ public record ImportDocument(
             @Schema(description = "The ID of a stored line. A CSV export has it in every row. A new line has none.")
             String id,
             @Schema(
-                    description = "The name of the system that the row and its external IDs come from. The default "
-                            + "is the source of the document.",
+                    description = "The name of the system that the row and its external IDs come from. The default is "
+                            + "the source of the document. A line keeps no source, so a row by `id` with this and none "
+                            + "of `externalId`, `assignmentExternalId`, and `managerPersonExternalId` fails with "
+                            + "`import.value_fixed`.",
                     maxLength = 64,
                     pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$")
             String source,
@@ -337,8 +345,9 @@ public record ImportDocument(
             @Schema(description = "The code of the hierarchy.")
             String hierarchy,
             @Schema(
-                    description = "The name of the system that the external IDs come from. The default is the "
-                            + "source of the document.",
+                    description = "The name of the system that the external IDs come from. The default is the source "
+                            + "of the document. A parent keeps no source, so a row with this and neither "
+                            + "`orgUnitExternalId` nor `parentExternalId` fails with `import.value_fixed`.",
                     maxLength = 64,
                     pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$")
             String source,
@@ -372,7 +381,8 @@ public record ImportDocument(
             String id,
             @Schema(
                     description = "The name of the system that the row comes from. The default is the source of the "
-                            + "document.",
+                            + "document. A hierarchy keeps no source, so a row by `id` with this and no `externalId` "
+                            + "fails with `import.value_fixed`.",
                     maxLength = 64,
                     pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$")
             String source,
@@ -404,7 +414,8 @@ public record ImportDocument(
             String id,
             @Schema(
                     description = "The name of the system that the row comes from. The default is the source of the "
-                            + "document.",
+                            + "document. A definition keeps no source, so a row by `id` with this and no `externalId` "
+                            + "fails with `import.value_fixed`.",
                     maxLength = 64,
                     pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$")
             String source,
@@ -476,7 +487,8 @@ public record ImportDocument(
             String id,
             @Schema(
                     description = "The name of the system that the row comes from. The default is the source of the "
-                            + "document.",
+                            + "document. A kind keeps no source, so a row by `id` with this and no `externalId` fails "
+                            + "with `import.value_fixed`.",
                     maxLength = 64,
                     pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$")
             String source,
@@ -509,7 +521,8 @@ public record ImportDocument(
     public record PersonRow(
             @Schema(
                     description = "The name of the system that the row comes from. The default is the source of the "
-                            + "document.",
+                            + "document. A row by `id` with this and no `externalId` must give the `source` that a "
+                            + "read of the person has, or it fails with `import.value_fixed`.",
                     maxLength = 64,
                     pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$")
             String source,
@@ -550,7 +563,9 @@ public record ImportDocument(
     public record EmploymentRow(
             @Schema(
                     description = "The name of the system that the row comes from. The default is the source of the "
-                            + "document.",
+                            + "document. A row by `id` with this and none of `externalId`, `personExternalId`, "
+                            + "`employerExternalId`, and `continuesEmploymentExternalId` must give the `source` that "
+                            + "a read of the employment has, or it fails with `import.value_fixed`.",
                     maxLength = 64,
                     pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$")
             String source,
@@ -707,7 +722,9 @@ public record ImportDocument(
     public record AssignmentRow(
             @Schema(
                     description = "The name of the system that the row comes from. The default is the source of the "
-                            + "document.",
+                            + "document. A row by `id` with this and none of `externalId`, `employmentExternalId`, "
+                            + "`orgUnitExternalId`, and `continuesAssignmentExternalId` must give the `source` that a "
+                            + "read of the assignment has, or it fails with `import.value_fixed`.",
                     maxLength = 64,
                     pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$")
             String source,
@@ -831,7 +848,8 @@ public record ImportDocument(
             String id,
             @Schema(
                     description = "The name of the system that the row comes from. The default is the source of the "
-                            + "document.",
+                            + "document. An item keeps no source, so a row by `id` with this and no `externalId` "
+                            + "fails with `import.value_fixed`.",
                     maxLength = 64,
                     pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$")
             String source,
@@ -913,7 +931,9 @@ public record ImportDocument(
     public record OrgUnitRow(
             @Schema(
                     description = "The name of the system that the row comes from. The default is the source of the "
-                            + "document.",
+                            + "document. A row by `id` with this and none of `externalId`, `parentExternalId`, and "
+                            + "`successorExternalIds` must give the `source` that a read of the unit has, or it fails "
+                            + "with `import.value_fixed`.",
                     maxLength = 64,
                     pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$")
             String source,

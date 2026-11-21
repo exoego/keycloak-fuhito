@@ -106,6 +106,7 @@ final class SetupImport {
             return Outcome.CREATED;
         }
         String id = stored.get();
+        ImportMatch.source(id, null, row.source(), row.externalId());
         String code = ImportMatch.fixed(row, id, "code", kinds.codeOf(id).orElseThrow(), row.code());
         Localized<RefKindName> before = kinds.get(code).names();
         String primaryLanguage = row.or("primaryLanguage", row.primaryLanguage(), before.primaryLanguage());
@@ -129,6 +130,7 @@ final class SetupImport {
             return Outcome.CREATED;
         }
         AttributeDefinition before = definitions.get(stored.get());
+        ImportMatch.source(before.id(), null, row.source(), row.externalId());
         ImportMatch.fixed(row, before.id(), "target", before.target().name(), row.target());
         ImportMatch.fixed(row, before.id(), "name", before.name(), row.name());
         String type = row.or("type", row.type(), before.type().name());
@@ -156,6 +158,7 @@ final class SetupImport {
             return Outcome.CREATED;
         }
         Hierarchy before = hierarchies.get(stored.get());
+        ImportMatch.source(before.id(), null, row.source(), row.externalId());
         ImportMatch.fixed(row, before.id(), "code", before.code(), row.code());
         String name = row.or("name", row.name(), before.name());
         if (Checks.name("name", name).equals(before.name())) {
@@ -185,6 +188,7 @@ final class SetupImport {
             return Outcome.CREATED;
         }
         RefItem before = refItems.find(stored.get(), date).orElseThrow();
+        ImportMatch.source(before.id(), null, row.source(), row.externalId());
         ImportMatch.fixed(row, before.id(), "kind", before.kind(), row.kind());
         ImportMatch.fixed(row, before.id(), "code", before.code(), row.code());
         String primaryLanguage = row.or("primaryLanguage", row.primaryLanguage(), before.names().primaryLanguage());

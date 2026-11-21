@@ -127,6 +127,7 @@ final class PersonImport {
     private Person byId(PersonRow row, String source) {
         Person person = find(row.id())
                 .orElseThrow(() -> FuhitoException.invalid("import.id_unknown", Map.of("id", row.id())));
+        ImportMatch.source(row.id(), person.source(), row.source(), row.externalId());
         PeopleImport.requireNames(ids, ExternalId.Kind.PERSON, row.id(), source, row.externalId());
         return person;
     }

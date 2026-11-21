@@ -341,9 +341,10 @@ final class OrgUnitImport {
         if (row.id() == null) {
             return ids.resourceOf(ExternalId.Kind.ORG_UNIT, source, row.externalId());
         }
-        if (units.unit(row.id()).isEmpty()) {
-            throw FuhitoException.invalid("import.id_unknown", Map.of("id", row.id()));
-        }
+        OrgUnit unit = units.unit(row.id())
+                .orElseThrow(() -> FuhitoException.invalid("import.id_unknown", Map.of("id", row.id())));
+        ImportMatch.source(row.id(), unit.source(), row.source(), row.externalId(), row.parentExternalId(),
+                row.successorExternalIds());
         if (row.externalId() != null && !ids.resourceOf(ExternalId.Kind.ORG_UNIT, source, row.externalId())
                 .equals(Optional.of(row.id()))) {
             throw FuhitoException.invalid("import.id_mismatch", Map.of("id", row.id(), "externalId", row.externalId()));

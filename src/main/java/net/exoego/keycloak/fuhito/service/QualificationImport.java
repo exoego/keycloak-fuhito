@@ -106,6 +106,8 @@ final class QualificationImport {
         }
         QualificationView view = qualifications.find(row.id())
                 .orElseThrow(() -> FuhitoException.invalid("import.id_unknown", Map.of("id", row.id())));
+        ImportMatch.source(row.id(), view.qualification().source(), row.source(), row.externalId(),
+                row.personExternalId());
         if (row.externalId() != null && !externalIds.resourceOf(ExternalId.Kind.QUALIFICATION, source,
                 row.externalId()).equals(Optional.of(row.id()))) {
             throw FuhitoException.invalid("import.id_mismatch", Map.of("id", row.id(), "externalId", row.externalId()));
