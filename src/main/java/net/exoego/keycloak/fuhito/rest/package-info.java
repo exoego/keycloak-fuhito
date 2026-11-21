@@ -49,6 +49,16 @@
                         restore, and the steps of a reorganization. The values in `attributes` keep their JSON type,
                         and their definitions check them.
 
+                        A whole number outside the range of its field fails with 400 and `invalid.out_of_range`. The
+                        error names the field with its path in `field`, such as `displayOrder` or
+                        `refItems[0].displayOrder`, and the limits in `min` and `max`. A field of the format `int32`
+                        takes a number from -2147483648 to 2147483647, and a field of the format `int64` takes a
+                        number from -9223372036854775808 to 9223372036854775807. The columns of the database have the
+                        same range, so every number that a field takes can be stored. A number with more than 1000
+                        characters fails with 400 and `invalid.too_long`, which names the field and the `max`,
+                        whatever the field. This holds for every body, also for an import, a restore, and the steps
+                        of a reorganization. A percentage has its own rule and fails with `invalid.percent`.
+
                         Each operation lists the query parameters that it takes. A request with another query
                         parameter fails with 400 and `invalid.unknown_parameter`, which names the parameter in
                         `field`. The case of each letter counts, so `asof` is not `asOf`. A request that gives one
@@ -158,7 +168,9 @@
                                     `invalid.character`. A body that gives one key twice in one object gets
                                     `invalid.duplicate_key`, and a body with a key that it does not have gets
                                     `invalid.unknown_key`. A value of another JSON type than its field gets
-                                    `invalid.type`. A write that names one thing in two ways gets
+                                    `invalid.type`. A whole number outside the range of its field gets
+                                    `invalid.out_of_range`, and a number with more than 1000 characters gets
+                                    `invalid.too_long`. A write that names one thing in two ways gets
                                     `invalid.twice`. A create with a person ID and a user ID that do not name the
                                     same person gets `invalid.mismatch`. A write of a stored resource with another
                                     value of a field that never changes, of a field that only a response fills, or

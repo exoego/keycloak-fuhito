@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Map;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.exc.InputCoercionException;
 import jakarta.ws.rs.core.MediaType;
 import org.junit.jupiter.api.Test;
 import org.keycloak.representations.idm.RealmRepresentation;
@@ -97,6 +98,65 @@ class JsonBodyReaderTest {
         assertEquals(type("rows.r.id", "string"), wrongType("{\"rows\": {\"r\": {\"id\": 1}}}"));
         assertEquals(type("attributes", "object"), wrongType("{\"attributes\": \"\"}"));
         assertEquals(type("body", "object"), wrongType("[]"));
+    }
+
+    private static Map<String, String> outOfRange(Class<?> type, String json) {
+        JsonProcessingException error = assertThrows(JsonProcessingException.class,
+                () -> JsonBodyReader.READER.forType(type).readValue(json));
+        return JsonBodyReader.outOfRange(error).orElseThrow(() -> new AssertionError(error));
+    }
+
+    private static Map<String, String> range(String field, long min, long max) {
+        return Map.of("field", field, "min", Long.toString(min), "max", Long.toString(max));
+    }
+
+    record Numbers(Integer displayOrder, int primitive, Long version, long count, List<Integer> orders,
+            Map<String, Numbers> rows, byte small) {
+    }
+
+    @Test
+    void aWholeNumberOutsideTheRangeOfItsFieldFails() {
+        int min = Integer.MIN_VALUE;
+        int max = Integer.MAX_VALUE;
+        assertEquals(range("displayOrder", min, max), outOfRange(Numbers.class, "{\"displayOrder\": 2147483648}"));
+        assertEquals(range("displayOrder", min, max), outOfRange(Numbers.class, "{\"displayOrder\": -2147483649}"));
+        assertEquals(range("displayOrder", min, max),
+                outOfRange(Numbers.class, "{\"displayOrder\": 99999999999999999999999}"));
+        assertEquals(range("primitive", min, max), outOfRange(Numbers.class, "{\"primitive\": 2147483648}"));
+        assertEquals(range("orders[1]", min, max), outOfRange(Numbers.class, "{\"orders\": [1, 2147483648]}"));
+        assertEquals(range("rows.r.displayOrder", min, max),
+                outOfRange(Numbers.class, "{\"rows\": {\"r\": {\"displayOrder\": -2147483649}}}"));
+        assertEquals(range("version", Long.MIN_VALUE, Long.MAX_VALUE),
+                outOfRange(Numbers.class, "{\"version\": 9223372036854775808}"));
+        assertEquals(range("count", Long.MIN_VALUE, Long.MAX_VALUE),
+                outOfRange(Numbers.class, "{\"count\": -9223372036854775809}"));
+        assertEquals(range("rows[0].displayOrder", min, max), outOfRange(Rows.class,
+                "{\"rows\": [{\"displayOrder\": 2147483648}]}"));
+    }
+
+    record Rows(List<Numbers> rows) {
+    }
+
+    @Test
+    void otherErrorsAreNotOutOfRange() {
+        // No body has a byte. Jackson fails it with the same error, and the reader passes it to Keycloak.
+        JsonProcessingException small = assertThrows(JsonProcessingException.class,
+                () -> JsonBodyReader.READER.forType(Numbers.class).readValue("{\"small\": 300}"));
+        assertTrue(small.getCause() instanceof InputCoercionException, small.toString());
+        assertTrue(JsonBodyReader.outOfRange(small).isEmpty(), small.toString());
+        JsonProcessingException type = assertThrows(JsonProcessingException.class,
+                () -> JsonBodyReader.READER.forType(Numbers.class).readValue("{\"version\": \"1\"}"));
+        assertTrue(JsonBodyReader.outOfRange(type).isEmpty(), type.toString());
+        JsonProcessingException syntax = assertThrows(JsonProcessingException.class,
+                () -> JsonBodyReader.READER.forType(Numbers.class).readValue("{\"version\": "));
+        assertTrue(JsonBodyReader.outOfRange(syntax).isEmpty(), syntax.toString());
+    }
+
+    @Test
+    void aWholeNumberAtTheLimitsOfItsFieldIsRead() throws Exception {
+        assertEquals(new Numbers(Integer.MAX_VALUE, Integer.MIN_VALUE, Long.MIN_VALUE, Long.MAX_VALUE, null, null,
+                (byte) 0), JsonBodyReader.READER.forType(Numbers.class).readValue("{\"displayOrder\": 2147483647, "
+                + "\"primitive\": -2147483648, \"version\": -9223372036854775808, \"count\": 9223372036854775807}"));
     }
 
     @Test

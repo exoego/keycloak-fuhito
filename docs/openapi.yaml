@@ -3688,7 +3688,9 @@ components:
         \ A key that no step has fails with 400 and `invalid.unknown_key`, which names\
         \ the key with its path, such as `steps[1].nmae`. A value of another JSON\
         \ type than its field fails with 400 and `invalid.type`, which names the field\
-        \ with its path, such as `steps[0].displayOrder`."
+        \ with its path, such as `steps[0].displayOrder`. A whole number outside the\
+        \ range of its field fails with 400 and `invalid.out_of_range`, which names\
+        \ the field with its path and the limits."
       properties:
         op:
           type: string
@@ -4450,7 +4452,9 @@ components:
         `invalid.character`. A body that gives one key twice in one object gets
         `invalid.duplicate_key`, and a body with a key that it does not have gets
         `invalid.unknown_key`. A value of another JSON type than its field gets
-        `invalid.type`. A write that names one thing in two ways gets
+        `invalid.type`. A whole number outside the range of its field gets
+        `invalid.out_of_range`, and a number with more than 1000 characters gets
+        `invalid.too_long`. A write that names one thing in two ways gets
         `invalid.twice`. A create with a person ID and a user ID that do not name the
         same person gets `invalid.mismatch`. A write of a stored resource with another
         value of a field that never changes, of a field that only a response fills, or
@@ -4540,6 +4544,16 @@ info:
     rows of a restore, which fail with `null`. This holds for every body, also for an import, a
     restore, and the steps of a reorganization. The values in `attributes` keep their JSON type,
     and their definitions check them.
+
+    A whole number outside the range of its field fails with 400 and `invalid.out_of_range`. The
+    error names the field with its path in `field`, such as `displayOrder` or
+    `refItems[0].displayOrder`, and the limits in `min` and `max`. A field of the format `int32`
+    takes a number from -2147483648 to 2147483647, and a field of the format `int64` takes a
+    number from -9223372036854775808 to 9223372036854775807. The columns of the database have the
+    same range, so every number that a field takes can be stored. A number with more than 1000
+    characters fails with 400 and `invalid.too_long`, which names the field and the `max`,
+    whatever the field. This holds for every body, also for an import, a restore, and the steps
+    of a reorganization. A percentage has its own rule and fails with `invalid.percent`.
 
     Each operation lists the query parameters that it takes. A request with another query
     parameter fails with 400 and `invalid.unknown_parameter`, which names the parameter in
@@ -6852,12 +6866,14 @@ paths:
         \ check them. A value of another JSON type than its field fails as a whole\
         \ with `invalid.type`, as in a write, such as `\"3\"` or `3.7` for `displayOrder`.\
         \ It names the field with its path, such as `refItems[0].displayOrder`, and\
-        \ the type of the field. A new thing has nothing stored, so a missing key\
-        \ and `null` both give no value. The lists are applied in the order change\
-        \ orders, kinds of reference data, definitions of attributes, reference items,\
-        \ hierarchies, org units, parents in hierarchies, people, qualifications,\
-        \ employments, roles over org units, assignments, reporting lines, IDs of\
-        \ other systems."
+        \ the type of the field. A whole number outside the range of its field fails\
+        \ as a whole with `invalid.out_of_range`, which names the field with its path\
+        \ and the limits in `min` and `max`. A new thing has nothing stored, so a\
+        \ missing key and `null` both give no value. The lists are applied in the\
+        \ order change orders, kinds of reference data, definitions of attributes,\
+        \ reference items, hierarchies, org units, parents in hierarchies, people,\
+        \ qualifications, employments, roles over org units, assignments, reporting\
+        \ lines, IDs of other systems."
       operationId: applyImport
       tags:
       - bulk
@@ -9918,7 +9934,9 @@ paths:
         \ A key that the document does not have fails with 400 and `invalid.unknown_key`,\
         \ as in a write. A value of another JSON type than its field fails with 400\
         \ and `invalid.type`, as in a write, such as `\"true\"` or `null` for `active`.\
-        \ These errors name the key with its path in the document, such as `orgUnits[0].versions[0].names.ja`.\
+        \ A whole number outside the range of its field fails with 400 and `invalid.out_of_range`,\
+        \ as in a write, such as `2147483648` for `displayOrder`. These errors name\
+        \ the key with its path in the document, such as `orgUnits[0].versions[0].names.ja`.\
         \ They have no list and no `id`, because the document is not read yet. A row\
         \ may have an empty list of its own rows, such as `parents`. Two rows with\
         \ the same ID or the same unique key, such as the `code` of a hierarchy, the\

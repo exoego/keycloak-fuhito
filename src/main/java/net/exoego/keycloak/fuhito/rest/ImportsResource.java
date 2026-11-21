@@ -183,8 +183,10 @@ public class ImportsResource {
                     + "`csv.bad_column`. The keys of `attributes` are the names of attributes, and their "
                     + "definitions check them. A value of another JSON type than its field fails as a whole with "
                     + "`invalid.type`, as in a write, such as `\"3\"` or `3.7` for `displayOrder`. It names the "
-                    + "field with its path, such as `refItems[0].displayOrder`, and the type of the field. A new thing has nothing stored, so a missing key and `null` both "
-                    + "give no value. The lists "
+                    + "field with its path, such as `refItems[0].displayOrder`, and the type of the field. A whole "
+                    + "number outside the range of its field fails as a whole with `invalid.out_of_range`, which "
+                    + "names the field with its path and the limits in `min` and `max`. A new thing has nothing "
+                    + "stored, so a missing key and `null` both give no value. The lists "
                     + "are applied in the order change orders, kinds of reference data, definitions of attributes, "
                     + "reference items, hierarchies, org units, parents in hierarchies, people, qualifications, "
                     + "employments, roles over org units, assignments, reporting lines, IDs of other systems.")

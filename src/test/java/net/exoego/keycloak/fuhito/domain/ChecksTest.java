@@ -226,7 +226,7 @@ class ChecksTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"0", "-1", "100.01", "33.333"})
+    @ValueSource(strings = {"0", "-1", "100.01", "33.333", "1E+999999999", "1E-999999999"})
     void rejectsABadPercentage(String value) {
         FuhitoException e = invalid(() -> Checks.optionalPercent("workPercent", new BigDecimal(value)));
         assertEquals("invalid.percent", e.code());
