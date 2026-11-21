@@ -20,7 +20,9 @@ public class FuhitoException extends RuntimeException {
         /** The request conflicts with existing data. */
         CONFLICT,
         /** The caller may not read the target. */
-        FORBIDDEN
+        FORBIDDEN,
+        /** The target is no longer kept. */
+        GONE
     }
 
     /**
@@ -102,6 +104,17 @@ public class FuhitoException extends RuntimeException {
      */
     public static FuhitoException forbidden(String code, Map<String, String> params) {
         return new FuhitoException(Reason.FORBIDDEN, code, params);
+    }
+
+    /**
+     * Creates an exception for a target that is no longer kept.
+     *
+     * @param code the stable error code
+     * @param params the values that the message refers to
+     * @return the exception
+     */
+    public static FuhitoException gone(String code, Map<String, String> params) {
+        return new FuhitoException(Reason.GONE, code, params);
     }
 
     /**

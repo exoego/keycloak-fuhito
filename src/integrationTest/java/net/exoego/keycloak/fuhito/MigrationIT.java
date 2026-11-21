@@ -79,9 +79,10 @@ class MigrationIT {
             assertEquals(List.of("0"), rows(statement, """
                     select count(*) from information_schema.columns
                     where table_name = 'fuhito_ref_item' and column_name in ('name', 'names_i18n')"""));
-            // An entry of the change log keeps all but the state.
-            assertEquals(List.of("entry-1 1 FUHITO_PERSON person-1 CREATE"), rows(statement, """
-                    select id, sequence_number, resource_type, resource_id, operation from fuhito_change_log"""));
+            // An entry of the change log keeps all but the state. It was a write.
+            assertEquals(List.of("entry-1 1 FUHITO_PERSON person-1 CREATE WRITE null null"), rows(statement, """
+                    select id, sequence_number, resource_type, resource_id, operation, kind, cause, cause_sequence
+                    from fuhito_change_log"""));
             assertEquals(List.of("0"), rows(statement, """
                     select count(*) from information_schema.columns
                     where table_name = 'fuhito_change_log' and column_name = 'representation'"""));

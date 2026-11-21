@@ -26,7 +26,17 @@ public class FuhitoAdminRealmResourceProviderFactory implements AdminRealmResour
      */
     static final String PROJECTION_TIMER_OPTION = "projection-timer-enabled";
 
+    /**
+     * The option with the number of seconds between two runs of the cleanup of the change log.
+     */
+    static final String CLEANUP_INTERVAL_OPTION = "change-log-cleanup-interval";
+
+    // The same as the scheduled tasks of Keycloak itself.
+    private static final int DEFAULT_CLEANUP_SECONDS = 900;
+
     private boolean projectionTimer = true;
+
+    private int cleanupSeconds = DEFAULT_CLEANUP_SECONDS;
 
     /**
      * Creates the factory.
@@ -42,17 +52,22 @@ public class FuhitoAdminRealmResourceProviderFactory implements AdminRealmResour
     @Override
     public void init(Config.Scope config) {
         projectionTimer = config.getBoolean(PROJECTION_TIMER_OPTION, true);
+        cleanupSeconds = config.getInt(CLEANUP_INTERVAL_OPTION, DEFAULT_CLEANUP_SECONDS);
+        if (cleanupSeconds < 1) {
+            throw new IllegalArgumentException("The option " + CLEANUP_INTERVAL_OPTION
+                    + " must be a number of seconds of 1 or more, not " + cleanupSeconds + ".");
+        }
     }
 
     @Override
     public void postInit(KeycloakSessionFactory factory) {
-        if (!projectionTimer) {
-            return;
-        }
         // The tables exist only after the migration of the database.
         factory.register(event -> {
             if (event instanceof PostMigrationEvent) {
-                ProjectionSchedule.start(factory);
+                ChangeLogSchedule.start(factory, cleanupSeconds * 1000L);
+                if (projectionTimer) {
+                    ProjectionSchedule.start(factory);
+                }
             }
         });
     }
@@ -66,6 +81,13 @@ public class FuhitoAdminRealmResourceProviderFactory implements AdminRealmResour
                 .helpText("Whether a timer rebuilds the projection once a day, after the day start of each realm"
                         + " that turned the projection on. false turns the timer off.")
                 .defaultValue(true)
+                .add()
+                .property()
+                .name(CLEANUP_INTERVAL_OPTION)
+                .type(ProviderConfigProperty.INTEGER_TYPE)
+                .helpText("The number of seconds between two runs of the task that removes the propagated changes"
+                        + " that each realm keeps no longer.")
+                .defaultValue(DEFAULT_CLEANUP_SECONDS)
                 .add()
                 .build();
     }

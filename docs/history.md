@@ -295,10 +295,15 @@ It does not keep the state of the resource. A reader that needs the state reads 
 A write with the query parameter `changeOrder` belongs to that change order.
 The change order has the approver and the effective date.
 
+A read can give a value that comes from another resource or from Keycloak, such as the link of an org unit to a Keycloak organization.
+When such a value changes, the read of a resource changes although nobody wrote it.
+That resource gets a new version and an entry of the kind `PROPAGATED`, with no user and with the cause.
+The entry of the write stays as it is. See "Propagated changes" in [keycloak-integration.md](keycloak-integration.md).
+
 So these two reads answer who approved a change.
 
-- `GET /change-log?resourceType=&resourceId=` lists the writes to one resource. Each entry has the ID of its change order.
-- `GET /change-orders/{id}/changes` lists the writes of one change order.
+- `GET /change-log?resourceType=&resourceId=&kind=WRITE` lists the writes to one resource. Each entry has the ID of its change order.
+- `GET /change-orders/{id}/changes` lists the writes of one change order. A propagated change that such a write caused has the change order too, so the list has it as well.
 
 ### Announcing a change order
 
@@ -317,26 +322,36 @@ Each entry of the change log has the ID of its change order. A row is hidden whe
 
 Each entry has a `sequence`. It is the position of the entry in the change log of its realm, counted from 1.
 
-`GET /change-log?after={sequence}&max=` lists the writes to every resource after that number, oldest first.
+`GET /change-log?after={sequence}&max=` lists the writes to every resource and the propagated changes after that number, oldest first.
 So another system can ask what changed since its last read.
 
 1. Read with `after=0`, or with no `after`.
 2. For each entry, read the resource again to get its state. A deleted resource answers 404. Keep the `sequence` of the last entry.
 3. Read again with `after` set to that number. A read with fewer entries than `max` has reached the end.
 
-`max` is 100 by default, and takes a number from 0 to 1000. `after` takes a number from 0. A number outside these limits fails with 400 and `invalid.out_of_range`, as on every list. `resourceType` and `resourceId` narrow the list, each alone or both.
+`max` is 100 by default, and takes a number from 0 to 1000. `after` takes a number from 0. A number outside these limits fails with 400 and `invalid.out_of_range`, as on every list. `resourceType`, `resourceId`, and `kind` narrow the list, each alone or together.
 
 The entries of a realm become readable in the order of their numbers.
 So a reader that goes on after the last number it saw misses no entry.
 For this, the writes to one realm record their entries one after another.
 
-The numbers have no gaps.
+Each realm gives the numbers with no gaps.
+The entries of writes are kept for good. A propagated change is removed after the days that the realm keeps it, 90 by default. Then the numbers have gaps.
+A reader that saw a number before a removed propagated change would miss it. So a read with `after` from 1 up to the number of the last removed one fails with 410 and `change_log.cursor_expired`.
+The error has the number to go on after in `keptAfter`.
+Such a reader reads every resource again, and then follows the log after `keptAfter`.
+
+- A read with no `after` or with `after=0` starts at the first entry that is kept, and never fails like this. A new reader reads every resource anyway.
+- A read with `kind=WRITE` never fails like this, because it leaves the propagated changes out.
+- A number that no entry ever had, because it is larger than the last number of the realm, fails with 400 and `invalid.out_of_range`. `max` in the error is the last number. Such a number comes from another realm, or from a realm that was removed and made again. So the reader reads everything again too.
+- The numbers that tell the two cases apart are kept with the counter of the log. A read takes them after it reads the entries. So a removal that ends during the read fails the read, and no read leaves out a removed entry without an error.
+
 An entry holds only IDs, so a mask and an erase do not change or remove earlier entries.
 The erase adds one entry of the type `FUHITO_PERSON_DATA` with the operation `DELETE`. Its resource ID is the ID of the person.
 It stands for every row that the erase removed, also the reporting lines where the person is the manager. A reader can use it to remove its own copy of those rows.
 A mask adds an entry of the same type with the operation `UPDATE`. A reader can use it to clear the personal data in its own copy.
 
-Checked by `ChangeLogIT.followsEveryWriteOfTheRealmAfterASequenceNumber`, `ChangeLogIT.eachRealmCountsItsOwnWritesFromOneWithoutGapsUnderParallelWrites`, `ChangeLogIT.anEntryHasNoStateOfTheResource`, and `UserRemovalIT.aMaskAndAnEraseKeepTheEarlierEntriesAndAddTheirOwn`.
+Checked by `ChangeLogIT.followsEveryWriteOfTheRealmAfterASequenceNumber`, `ChangeLogIT.eachRealmCountsItsOwnWritesFromOneWithoutGapsUnderParallelWrites`, `ChangeLogIT.anEntryHasNoStateOfTheResource`, `UserRemovalIT.aMaskAndAnEraseKeepTheEarlierEntriesAndAddTheirOwn`, `PropagatedChangesIT`, and `ChangeLogServiceTest`.
 
 ### Learning when a dated change takes effect
 
@@ -371,6 +386,7 @@ Checked by `ChangeLogIT.listsTheWritesOfAChangeOrderInTheOrderTheyHappened` and 
 
 - Removal of a realm removes all its rows and its change log.
 - `DELETE /people/{id}/data` erases everything about one person. The change log keeps its entries, which hold only IDs.
+- A propagated change in the change log goes after the days that the realm keeps it. The entries of writes stay.
 
 Removal of a user from Keycloak removes nothing that held.
 It ends the open employment of the user on that day, and the history stays readable.

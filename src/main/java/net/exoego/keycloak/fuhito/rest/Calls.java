@@ -228,6 +228,7 @@ final class Calls {
             case NOT_FOUND -> Response.Status.NOT_FOUND.getStatusCode();
             case CONFLICT -> Response.Status.CONFLICT.getStatusCode();
             case FORBIDDEN -> Response.Status.FORBIDDEN.getStatusCode();
+            case GONE -> Response.Status.GONE.getStatusCode();
         };
     }
 }

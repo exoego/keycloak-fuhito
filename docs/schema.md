@@ -45,6 +45,9 @@ erDiagram
         varchar(255) RESOURCE_PATH
         varchar(36) CHANGE_ORDER_ID FK
         bigint SEQUENCE_NUMBER
+        varchar(16) KIND
+        varchar(64) CAUSE
+        bigint CAUSE_SEQUENCE
     }
     FUHITO_CHANGE_ORDER {
         varchar(36) ID PK
@@ -290,6 +293,7 @@ erDiagram
     FUHITO_CHANGE_LOG_COUNTER {
         varchar(36) REALM_ID PK
         bigint LAST_SEQUENCE
+        bigint EXPIRED_SEQUENCE
     }
     FUHITO_ERASURE {
         varchar(36) ID PK

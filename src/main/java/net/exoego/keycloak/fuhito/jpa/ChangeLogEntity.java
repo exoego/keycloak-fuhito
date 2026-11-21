@@ -8,7 +8,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
 /**
- * One successful write.
+ * One successful write, or one change of a read that a write to other resources made.
  */
 @Entity
 @Table(name = "FUHITO_CHANGE_LOG")
@@ -27,6 +27,9 @@ public class ChangeLogEntity {
     @Column(name = "RECORDED_AT", nullable = false)
     Instant recordedAt;
 
+    @Column(name = "KIND", nullable = false, length = 16)
+    String kind;
+
     @Column(name = "ACTOR_USER_ID", length = 255)
     String actorUserId;
 
@@ -44,6 +47,12 @@ public class ChangeLogEntity {
 
     @Column(name = "CHANGE_ORDER_ID", length = 36)
     String changeOrderId;
+
+    @Column(name = "CAUSE", length = 64)
+    String cause;
+
+    @Column(name = "CAUSE_SEQUENCE")
+    Long causeSequence;
 
     /**
      * Creates an empty entity for JPA.

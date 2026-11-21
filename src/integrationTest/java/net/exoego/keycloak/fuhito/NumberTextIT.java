@@ -162,7 +162,9 @@ class NumberTextIT {
         JsonNode log = Api.json(api.get("/change-log?after=0&first=0&max=1000"));
         assertEquals(1, log.get(0).get("sequence").asLong());
         assertEquals(log.size() - 1, Api.json(api.get("/change-log?after=1")).size());
-        assertEquals(0, Api.json(api.get("/change-log?after=9223372036854775807")).size());
+        // The largest number passes the check of the query, and then fails because no entry of the realm had it.
+        assertEquals("400 invalid.out_of_range after 0 " + log.get(log.size() - 1).get("sequence").asText(),
+                failure(api.get("/change-log?after=9223372036854775807")));
 
         // The version passes the check and then fails as any other version that is not the one stored.
         for (String version : List.of("-9223372036854775808", "-1", "0", "9223372036854775807")) {

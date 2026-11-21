@@ -30,36 +30,64 @@ public class ChangeLogService {
     }
 
     /**
-     * Lists the writes to the realm, oldest first.
+     * Lists the entries of the realm, oldest first.
      *
-     * @param after the sequence number that the entries come after, or null for all
+     * @param after the sequence number that the entries come after, or null or 0 for all that are kept
      * @param resourceType the type of the resource, for example {@code FUHITO_ORG_UNIT}, or null for every type
      * @param resourceId the ID of the resource, or null for every resource
+     * @param kind {@code WRITE} or {@code PROPAGATED}, or null for both kinds
      * @param first the number of entries to skip, or null for 0
      * @param max the largest number of entries to return, or null for 100. At most 1000 are returned.
      * @return the entries
-     * @throws FuhitoException when the change log has no such type
+     * @throws FuhitoException when the change log has no such type or kind, when no entry has the number
+     *         {@code after}, or when a propagated change after it is removed
      */
-    public List<ChangeLogEntry> list(Long after, String resourceType, String resourceId, Integer first,
-            Integer max) {
+    public List<ChangeLogEntry> list(Long after, String resourceType, String resourceId, String kind,
+            Integer first, Integer max) {
         Page page = Page.of(first, max);
-        return store.list(after == null ? 0 : after, type(resourceType), resourceId, page.first(), page.max());
+        ResourceType type = type(resourceType);
+        ChangeLogEntry.Kind of = kind(kind);
+        List<ChangeLogEntry> entries = store.list(after == null ? 0 : after, type, resourceId, of, page.first(),
+                page.max());
+        if (after != null && after > 0) {
+            requireKept(after, of);
+        }
+        return entries;
+    }
+
+    // The numbers are read after the entries. So a removal that ends between the two reads fails the read, and no read
+    // leaves out a removed entry with no error.
+    private void requireKept(long after, ChangeLogEntry.Kind kind) {
+        ChangeLogStore.Bounds bounds = store.bounds();
+        if (after > bounds.lastSequence()) {
+            throw FuhitoException.invalid("invalid.out_of_range", Map.of("field", "after", "min", "0",
+                    "max", Long.toString(bounds.lastSequence())));
+        }
+        if (kind != ChangeLogEntry.Kind.WRITE && after < bounds.expiredSequence()) {
+            throw FuhitoException.gone("change_log.cursor_expired", Map.of("after", Long.toString(after),
+                    "keptAfter", Long.toString(bounds.expiredSequence())));
+        }
     }
 
     /**
-     * Counts the writes to the realm.
+     * Counts the entries of the realm.
      *
      * @param resourceType the type of the resource, for example {@code FUHITO_ORG_UNIT}, or null for every type
      * @param resourceId the ID of the resource, or null for every resource
+     * @param kind {@code WRITE} or {@code PROPAGATED}, or null for both kinds
      * @return the number of entries
-     * @throws FuhitoException when the change log has no such type
+     * @throws FuhitoException when the change log has no such type or kind
      */
-    public long count(String resourceType, String resourceId) {
-        return store.count(type(resourceType), resourceId);
+    public long count(String resourceType, String resourceId, String kind) {
+        return store.count(type(resourceType), resourceId, kind(kind));
     }
 
     private static ResourceType type(String resourceType) {
         return Checks.optionalEnum("resourceType", ResourceType.class, resourceType, null);
+    }
+
+    private static ChangeLogEntry.Kind kind(String kind) {
+        return Checks.optionalEnum("kind", ChangeLogEntry.Kind.class, kind, null);
     }
 
     /**

@@ -252,7 +252,7 @@ final class KeycloakRequestContext implements RequestContext {
                     .resourcePath(change.resourcePath())
                     .representation(change.representation())
                     .success();
-            entries.add(new ChangeLogEntry(UUID.randomUUID().toString(), 0,
+            entries.add(ChangeLogEntry.write(UUID.randomUUID().toString(),
                     Instant.now().truncatedTo(ChronoUnit.MILLIS), actorUserId, change.resourceType(),
                     change.resourceId(), change.change().name(), change.resourcePath(), changeOrderId));
         }

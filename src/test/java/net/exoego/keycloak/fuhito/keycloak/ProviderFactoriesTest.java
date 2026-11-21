@@ -1,43 +1,66 @@
 package net.exoego.keycloak.fuhito.keycloak;
 
 import java.lang.reflect.Proxy;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import org.junit.jupiter.api.Test;
 import org.keycloak.Config;
+import org.keycloak.models.KeycloakSessionFactory;
 import org.keycloak.provider.ProviderConfigProperty;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * The parts of the providers that Keycloak calls only for its help text or when it stops.
  */
 class ProviderFactoriesTest {
 
-    // A configuration where every option has the same value.
-    private static Config.Scope everyOptionIs(Object value) {
+    // A configuration with the values of some options. Any other option has its default.
+    private static Config.Scope options(Map<String, Object> values) {
         return (Config.Scope) Proxy.newProxyInstance(ProviderFactoriesTest.class.getClassLoader(),
-                new Class<?>[] {Config.Scope.class}, (proxy, method, args) -> value);
+                new Class<?>[] {Config.Scope.class},
+                (proxy, method, args) -> values.getOrDefault((String) args[0], args[1]));
     }
 
     @Test
-    void describesTheOptionOfTheProjectionTimer() {
+    void describesTheOptionsOfTheTimers() {
         List<ProviderConfigProperty> options = new FuhitoAdminRealmResourceProviderFactory().getConfigMetadata();
 
-        assertEquals(1, options.size());
-        assertEquals("projection-timer-enabled", options.get(0).getName());
-        assertEquals(true, options.get(0).getDefaultValue());
-        assertEquals("boolean", options.get(0).getType());
+        assertEquals(List.of("projection-timer-enabled boolean true", "change-log-cleanup-interval Integer 900"),
+                options.stream().map(option -> option.getName() + " " + option.getType() + " "
+                        + option.getDefaultValue()).toList());
+    }
+
+    // The tables exist only after the migration of the database, so the timers wait for it.
+    @Test
+    void theTimersWaitForTheMigration() {
+        var factory = new FuhitoAdminRealmResourceProviderFactory();
+        factory.init(options(Map.of("projection-timer-enabled", false)));
+        List<String> calls = new ArrayList<>();
+        var sessions = (KeycloakSessionFactory) Proxy.newProxyInstance(getClass().getClassLoader(),
+                new Class<?>[] {KeycloakSessionFactory.class}, (proxy, method, args) -> {
+                    calls.add(method.getName());
+                    return null;
+                });
+
+        factory.postInit(sessions);
+
+        assertEquals(List.of("register"), calls);
     }
 
     @Test
-    void falseStartsNoTimer() {
+    void rejectsACleanupIntervalOfNoSecond() {
         var factory = new FuhitoAdminRealmResourceProviderFactory();
-        factory.init(everyOptionIs(false));
 
-        // With a timer, this would ask the session factory, which is missing here.
-        assertDoesNotThrow(() -> factory.postInit(null));
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> factory.init(options(Map.of("change-log-cleanup-interval", 0))));
+        assertEquals("The option change-log-cleanup-interval must be a number of seconds of 1 or more, not 0.",
+                e.getMessage());
+        assertDoesNotThrow(() -> factory.init(options(Map.of("change-log-cleanup-interval", 1))));
     }
 
     @Test
