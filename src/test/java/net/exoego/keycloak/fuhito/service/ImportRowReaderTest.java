@@ -5,8 +5,10 @@ import java.util.Set;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.exc.MismatchedInputException;
+import com.fasterxml.jackson.databind.exc.UnrecognizedPropertyException;
 import net.exoego.keycloak.fuhito.domain.OrgUnitName;
 import net.exoego.keycloak.fuhito.service.ImportDocument.OrgUnitRow;
+import net.exoego.keycloak.fuhito.service.ImportDocument.PersonRow;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -43,13 +45,45 @@ class ImportRowReaderTest {
         assertNull(row.or("code", row.code(), "kept"));
     }
 
-    @Test
-    void ignoresAKeyNamedLikeTheKeysWithNull() {
-        OrgUnitRow row = ImportRows.read(OrgUnitRow.class, """
-                {"externalId": "W", "nulls": ["code"], "parentId": null}
-                """);
+    // The steps of the path of the error, such as orgUnits, [1], and names.
+    private static List<String> unknownKey(Class<?> type, String json) {
+        UnrecognizedPropertyException error = assertThrows(UnrecognizedPropertyException.class,
+                () -> new ObjectMapper().readValue(json, type));
+        return error.getPath().stream()
+                .map(step -> step.getFieldName() == null ? "[" + step.getIndex() + "]" : step.getFieldName())
+                .toList();
+    }
 
-        assertEquals(Set.of("parentId"), row.nulls());
+    @Test
+    void aKeyNamedLikeTheKeysWithNullFails() {
+        assertEquals(List.of("nulls"), unknownKey(OrgUnitRow.class, """
+                {"externalId": "W", "nulls": ["code"], "parentId": null}
+                """));
+    }
+
+    @Test
+    void aKeyThatTheRowDoesNotHaveFails() {
+        UnrecognizedPropertyException error = assertThrows(UnrecognizedPropertyException.class,
+                () -> new ObjectMapper().readValue("{\"externalId\": \"W\", \"parentExternalID\": \"H\"}",
+                        OrgUnitRow.class));
+
+        assertEquals("parentExternalID", error.getPropertyName());
+        assertTrue(error.getKnownPropertyIds().contains("parentExternalId"), error.getMessage());
+        assertFalse(error.getKnownPropertyIds().contains("nulls"), error.getMessage());
+        assertEquals(List.of("orgUnitId"), unknownKey(PersonRow.class, """
+                {"externalId": "P", "orgUnitId": "W"}
+                """));
+    }
+
+    @Test
+    void aKeyOfANameThatItDoesNotHaveFailsWithTheKeyOfTheRowInItsPath() {
+        assertEquals(List.of("names", "ja", "shortname"), unknownKey(OrgUnitRow.class, """
+                {"externalId": "W", "names": {"ja": {"name": "病棟", "shortname": "病"}}}
+                """));
+        assertEquals(List.of("orgUnits", "[1]", "names", "ja", "shortname"), unknownKey(ImportDocument.class, """
+                {"effectiveDate": "2026-04-01",
+                 "orgUnits": [{"externalId": "V"}, {"externalId": "W", "names": {"ja": {"shortname": "病"}}}]}
+                """));
     }
 
     @Test
