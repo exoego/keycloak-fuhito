@@ -6998,10 +6998,11 @@ paths:
           format: date
         name: asOf
         in: query
-      - description: '`ja` for the Japanese names of the columns. The default is the
-          English ones.'
+      - description: "`en` for the English names of the columns, and `ja` for the\
+          \ Japanese ones. Another value, such as `JA`, fails with 400 and `invalid.choice`."
         schema:
           type: string
+          default: en
           enum:
           - en
           - ja

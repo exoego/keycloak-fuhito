@@ -364,6 +364,29 @@ class CsvImportIT {
     }
 
     @Test
+    void anExportTakesOnlyEnOrJaAsTheHeader() throws Exception {
+        Api api = TestRealm.create("csv-export-header").api;
+        for (String header : List.of("fr", "JA", "EN", "ja-JP")) {
+            HttpResponse<String> response = api.get("/imports/csv/hierarchies?header=" + header);
+            assertEquals(400, response.statusCode(), response.body());
+            JsonNode error = Api.json(response);
+            assertEquals("invalid.choice", error.get("error").asText(), response.body());
+            assertEquals(Map.of("field", "header", "value", header), Map.of(
+                    "field", error.get("params").get("field").asText(),
+                    "value", error.get("params").get("value").asText()), response.body());
+        }
+        Map<String, String> columns = new LinkedHashMap<>();
+        columns.put("?header=en", "id,externalId,source,code,name");
+        columns.put("?header=ja", "ID,外部ID,ソース,コード,名称");
+        columns.put("", "id,externalId,source,code,name");
+        for (Map.Entry<String, String> query : columns.entrySet()) {
+            HttpResponse<String> exported = api.get("/imports/csv/hierarchies" + query.getKey());
+            assertEquals(200, exported.statusCode(), exported.body());
+            assertTrue(exported.body().startsWith("﻿" + query.getValue() + "\r\n"), exported.body());
+        }
+    }
+
+    @Test
     void anExportOfIdsOfOtherSystemsLoadsAgainWithNoChange() throws Exception {
         TestRealm realm = TestRealm.create("csv-export-external-ids");
         Api api = realm.api;

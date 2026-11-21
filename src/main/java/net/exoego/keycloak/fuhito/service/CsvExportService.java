@@ -118,12 +118,17 @@ public class CsvExportService {
      * @param list the list, as the path of the CSV import names it, for example {@code org-units}
      * @param asOf the date as {@code YYYY-MM-DD}, or null for today. For the qualifications, null is every date. A
      *        list with no date takes no date.
-     * @param japanese true for the Japanese names of the columns
+     * @param header {@code en} or null for the English names of the columns, or {@code ja} for the Japanese ones
      * @return the CSV
-     * @throws FuhitoException when the list is unknown, the date is bad, or the list has no date and the request
-     *         gives one
+     * @throws FuhitoException when the list or the header is unknown, the date is bad, or the list has no date and
+     *         the request gives one
      */
-    public String write(String list, String asOf, boolean japanese) {
+    public String write(String list, String asOf, String header) {
+        boolean japanese = switch (Objects.requireNonNullElse(header, "en")) {
+            case "en" -> false;
+            case "ja" -> true;
+            default -> throw FuhitoException.invalid("invalid.choice", Map.of("field", "header", "value", header));
+        };
         String name = String.valueOf(list);
         if (Checks.optionalDate("asOf", asOf) != null && UNDATED.contains(name)) {
             throw FuhitoException.invalid("csv.export_no_date", Map.of("field", "asOf", "list", name));
