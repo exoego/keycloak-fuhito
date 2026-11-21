@@ -36,6 +36,10 @@ class ReadsByIdPlansIT {
 
     private static final Pattern INDEX = Pattern.compile("(?:using|Bitmap Index Scan on) (\\w+)");
 
+    private static final String MORE_TABLES = """
+            fuhito_ref_item, fuhito_qualification, fuhito_reporting_line, fuhito_external_id, fuhito_change_order,
+            fuhito_change_log""";
+
     @FunctionalInterface
     private interface Check {
         void run(Statement statement) throws Exception;
@@ -324,14 +328,9 @@ class ReadsByIdPlansIT {
     // The rows of OldStatistics, and a qualification for each person, a reporting line and an ID of another system
     // for each assignment, and an entry of the change log for each employment.
     private static void oldStatistics(Statement statement) throws Exception {
-        KeycloakEnvironment.sql("""
-                vacuum full fuhito_ref_item, fuhito_qualification, fuhito_reporting_line, fuhito_external_id,
-                fuhito_change_order, fuhito_change_log""");
-        OldStatistics.realmsWithOldStatistics(statement);
+        OldStatistics.realmsWithOldStatistics(statement, MORE_TABLES);
         moreRows(statement, "ex-old", 20);
-        statement.execute("""
-                analyze fuhito_ref_item, fuhito_qualification, fuhito_reporting_line, fuhito_external_id,
-                fuhito_change_order, fuhito_change_log""");
+        statement.execute("analyze " + MORE_TABLES);
         moreRows(statement, "ex-new", 3000);
     }
 

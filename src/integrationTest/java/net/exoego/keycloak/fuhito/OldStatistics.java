@@ -3,35 +3,39 @@ package net.exoego.keycloak.fuhito;
 import java.sql.ResultSet;
 import java.sql.Statement;
 import java.util.List;
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 // The setup and the plans of the checks of reads while the statistics do not know a new realm, and after they do.
 final class OldStatistics {
 
-    private static final String ANALYZE = """
-            analyze fuhito_org_unit, fuhito_org_unit_version, fuhito_org_unit_version_name, fuhito_org_unit_link,
+    private static final String TABLES = """
+            fuhito_org_unit, fuhito_org_unit_version, fuhito_org_unit_version_name, fuhito_org_unit_link,
             fuhito_person, fuhito_employment, fuhito_employment_terms, fuhito_assignment""";
 
     private OldStatistics() {
     }
 
     // An import into a new realm writes its rows in one transaction, so the statistics still say that the realm has
-    // no rows. The caller rolls them back. Rows that other tests committed would change the statistics, and rows that
-    // they rolled back would leave space in the tables and their indexes. Both change the plans, so the setup empties
-    // the tables in its transaction. The rollback brings the rows of other tests back.
-    static void realmsWithOldStatistics(Statement statement) throws Exception {
-        statement.execute("""
-                truncate fuhito_org_unit, fuhito_org_unit_version, fuhito_org_unit_version_name, fuhito_org_unit_link,
-                fuhito_person, fuhito_employment, fuhito_employment_terms, fuhito_assignment cascade""");
+    // no rows. The caller rolls them back. The setup first empties its tables and the more tables of the caller.
+    static void realmsWithOldStatistics(Statement statement, String... moreTables) throws Exception {
+        emptyTables(statement, Stream.concat(Stream.of(TABLES), Stream.of(moreTables)).toArray(String[]::new));
         rowsOfRealm(statement, "ex-old", 20);
-        statement.execute(ANALYZE);
+        statement.execute("analyze " + TABLES);
         rowsOfRealm(statement, "ex-new", 3000);
+    }
+
+    // Rows that other tests committed would change the statistics, and rows that they rolled back would leave space in
+    // the tables and their indexes. Both change the plans, so a check empties its tables in its transaction. The
+    // rollback brings the rows of other tests back. Cascade also empties the tables that refer to them.
+    static void emptyTables(Statement statement, String... tables) throws Exception {
+        statement.execute("truncate " + String.join(", ", tables) + " cascade");
     }
 
     // The statistics after the import, as autovacuum makes them later. They know the rows of this transaction.
     static void freshStatistics(Statement statement) throws Exception {
-        statement.execute(ANALYZE);
+        statement.execute("analyze " + TABLES);
     }
 
     // Units below the first nine have a parent, and each unit has one version with a name. Each person has a user, one

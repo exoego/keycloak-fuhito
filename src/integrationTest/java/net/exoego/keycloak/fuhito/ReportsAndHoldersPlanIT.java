@@ -42,6 +42,8 @@ class ReportsAndHoldersPlanIT {
 
     private static final Pattern INDEX = Pattern.compile("(?:using|Bitmap Index Scan on) (\\w+)");
 
+    private static final String MORE_TABLES = "fuhito_ref_item, fuhito_reporting_line, fuhito_unit_role";
+
     // An index scan with only the realm reads every row of the new realm, and one with only the hierarchy every link.
     private static final String ONLY_ONE = "Index Cond: \\(+\\((realm|hierarchy)_id\\)::text = '[^']*'::text\\)"
             + "( AND \\(valid_\\w+ [^)]*\\))?\\)?";
@@ -56,7 +58,7 @@ class ReportsAndHoldersPlanIT {
             rows(statement);
             List<Executable> checks = new ArrayList<>(checks(statement));
             freshStatistics(statement);
-            statement.execute("analyze fuhito_ref_item, fuhito_reporting_line, fuhito_unit_role");
+            statement.execute("analyze " + MORE_TABLES);
             checks.addAll(checks(statement));
             connection.rollback();
             assertAll(checks);
@@ -109,10 +111,9 @@ class ReportsAndHoldersPlanIT {
     // The rows of OldStatistics, three unit roles, a reporting line for each assignment, and a role over each unit.
     // The manager heads the first unit, which has ten child units. One of them has its own head.
     private static void rows(Statement statement) throws Exception {
-        KeycloakEnvironment.sql("vacuum full fuhito_ref_item, fuhito_reporting_line, fuhito_unit_role");
-        realmsWithOldStatistics(statement);
+        realmsWithOldStatistics(statement, MORE_TABLES);
         moreRows(statement, "ex-old", 20);
-        statement.execute("analyze fuhito_ref_item, fuhito_reporting_line, fuhito_unit_role");
+        statement.execute("analyze " + MORE_TABLES);
         moreRows(statement, "ex-new", 3000);
         statement.execute("""
                 update fuhito_assignment set is_head = true
