@@ -76,8 +76,8 @@ public class RestoreResource {
                     + "date, such as two versions of one org unit, fail with 400 and `restore.overlap`. These errors "
                     + "also name the `other` row. A row that breaks a rule of the database that the restore did not "
                     + "find, for example because another write stored the same row at the same time, fails with 409 "
-                    + "and `restore.conflict`, with the name of the rule in `constraint`. A username must name a user "
-                    + "of this realm. An org unit names its Keycloak organization by alias, and the restore asks for "
+                    + "and `restore.conflict`, with the name of the rule in `constraint`. A username of a person or of "
+                    + "a change order must name a user of this realm. An org unit names its Keycloak organization by alias, and the restore asks for "
                     + "the permission to manage it.")
     @Parameter(ref = "changeOrder")
     @APIResponse(

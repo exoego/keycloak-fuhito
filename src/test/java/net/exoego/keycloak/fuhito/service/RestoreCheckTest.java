@@ -173,6 +173,14 @@ class RestoreCheckTest {
     }
 
     @Test
+    void aUnitGivesTheListsOfItsParentsAndSuccessors() {
+        assertBadValue(of(null, List.of(new RealmExport.Unit("u-1", 1L, null, null, null, List.of(), null, List.of(),
+                null)), null, null, null), "org-units", "u-1", "parents");
+        assertBadValue(of(null, List.of(new RealmExport.Unit("u-1", 1L, null, null, null, List.of(), List.of(), null,
+                null)), null, null, null), "org-units", "u-1", "successors");
+    }
+
+    @Test
     void aParentLinkNamesAHierarchyOfTheExportOrTheDefaultOne() {
         assertDoesNotThrow(() -> RestoreCheck.requireReferences(link("project")));
         assertDoesNotThrow(() -> RestoreCheck.requireReferences(link("default")));

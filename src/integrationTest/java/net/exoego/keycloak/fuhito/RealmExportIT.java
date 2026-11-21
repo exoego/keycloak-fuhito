@@ -379,7 +379,9 @@ class RealmExportIT {
         unit.putArray("successors");
         assertEquals("restore.bad_value", error(target.api.post("/restore", JSON.writeValueAsString(badDate))));
         ObjectNode noVersions = JSON.createObjectNode().put("format", "fuhito.export.v1");
-        noVersions.putArray("orgUnits").addObject().put("id", "u-2");
+        ObjectNode bare = noVersions.putArray("orgUnits").addObject().put("id", "u-2");
+        bare.putArray("parents");
+        bare.putArray("successors");
         assertEquals("restore.bad_value", error(target.api.post("/restore", JSON.writeValueAsString(noVersions))));
         // Nothing was written.
         assertEquals(0, Api.json(target.api.get("/export/org-units")).size());

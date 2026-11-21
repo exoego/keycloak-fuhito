@@ -371,8 +371,8 @@ public class RealmExportService {
                         q.validTo()), q.attributes(), q.source(), version(q.version())))));
         counts.put("change-orders", each("change-orders", document.changeOrders(), o -> stores.changeOrders().insert(new ChangeOrder(
                 o.id(), o.number(), o.kind(), o.title(), o.note(), date(o.orderDate()), date(o.effectiveDate()),
-                userId(o.approver()), userId(o.requester()), o.externalReference(), instant(o.createdAt()),
-                instant(o.announcedAt()), userId(o.announcedBy()), version(o.version())))));
+                users.get(o.approver()), users.get(o.requester()), o.externalReference(), instant(o.createdAt()),
+                instant(o.announcedAt()), users.get(o.announcedBy()), version(o.version())))));
         // An ID of another system needs the resource that has it.
         counts.put("external-ids", each("external-ids", document.externalIds(), x -> stores.externalIds().insert(new ExternalId(
                 x.id(), ExternalId.Kind.valueOf(x.resourceType()), x.resourceId(), x.source(), x.externalId(),
@@ -402,8 +402,8 @@ public class RealmExportService {
         return ids;
     }
 
-    // The IDs of the users of the people by username. One user has one person. Keycloak finds a user by a username
-    // in any case, so two usernames can name one user.
+    // The IDs of the users of the people and the change orders by username. One user has one person. Keycloak finds a
+    // user by a username in any case, so two usernames can name one user.
     private Map<String, String> users(RealmExport document) {
         Map<String, String> ids = new HashMap<>();
         Map<String, String> personOfUser = new HashMap<>();
@@ -411,14 +411,27 @@ public class RealmExportService {
             if (person.username() == null) {
                 continue;
             }
-            String id = userId(person.username());
-            ids.put(person.username(), id);
+            String id = userId(ids, "people", person.id(), "username", person.username());
             String other = personOfUser.putIfAbsent(id, person.id());
             if (other != null) {
                 throw RestoreKeys.duplicate("people", person.id(), "username", other);
             }
         }
+        for (RealmExport.Order order : Optional.ofNullable(document.changeOrders()).orElse(List.of())) {
+            userId(ids, "change-orders", order.id(), "approver", order.approver());
+            userId(ids, "change-orders", order.id(), "requester", order.requester());
+            userId(ids, "change-orders", order.id(), "announcedBy", order.announcedBy());
+        }
         return ids;
+    }
+
+    private String userId(Map<String, String> ids, String list, String id, String field, String username) {
+        if (username == null) {
+            return null;
+        }
+        return ids.computeIfAbsent(username, name -> stores.users().findIdByUsername(name).orElseThrow(
+                () -> FuhitoException.invalid("restore.username_unknown", Map.of("list", list, "id", id, "field",
+                        field, "username", name))));
     }
 
     // A copy into a second realm of the same database names the rows of the first one by their IDs.
@@ -508,14 +521,6 @@ public class RealmExportService {
         } catch (NullPointerException | IllegalArgumentException | DateTimeException e) {
             throw FuhitoException.invalid("restore.bad_value", Map.of("list", list)).causedBy(e);
         }
-    }
-
-    private String userId(String username) {
-        if (username == null) {
-            return null;
-        }
-        return stores.users().findIdByUsername(username).orElseThrow(() -> FuhitoException.invalid(
-                "restore.username_unknown", Map.of("username", username)));
     }
 
     // An export from before versions has none.

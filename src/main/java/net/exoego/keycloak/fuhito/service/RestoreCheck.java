@@ -100,7 +100,7 @@ final class RestoreCheck {
         all(document.refItems()).forEach(i -> values.check("ref-item-names", i.versions(), "id"));
         values.check("attribute-definitions", document.attributeDefinitions(), "id", "target", "name", "type");
         values.check("hierarchies", document.hierarchies(), "id", "code", "name");
-        values.check("org-units", document.orgUnits(), "id");
+        values.check("org-units", document.orgUnits(), "id", "parents", "successors");
         for (RealmExport.Unit unit : all(document.orgUnits())) {
             values.check("org-unit-versions", unit.versions(), "id", "validFrom", "attributes");
             values.check("org-unit-parents", unit.parents(), "id", "hierarchy", "parentId", "validFrom");
@@ -152,8 +152,9 @@ final class RestoreCheck {
 
     private record Values(Function<String, Map<String, Integer>> lengths) {
 
-        // The needed fields have columns that are not null, and the first one is the ID of the row. A list in a row
-        // holds the rows of the row, and a row may have none. Each of them is checked as a row.
+        // The needed fields have columns that are not null, or are lists that an export always gives, and the first
+        // one is the ID of the row. A list in a row holds the rows of the row, and a row may have none. Each of them
+        // is checked as a row.
         <T extends Record> void check(String list, List<T> rows, String... needed) {
             Map<String, Integer> longest = lengths.apply(list);
             for (T row : all(rows)) {
