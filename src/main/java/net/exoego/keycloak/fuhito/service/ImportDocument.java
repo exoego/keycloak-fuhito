@@ -994,6 +994,13 @@ public record ImportDocument(
             String workLocation,
             @Schema(description = "The code of the cost center that the unit gives its members.")
             String costCenter,
+            @Schema(
+                    description = "The code of the hierarchy of the parent, as a read of an org unit has it. A row "
+                            + "gives the parent in the default hierarchy, so it takes only `default`, or none. This "
+                            + "holds for a new unit and for a stored one. Another value fails with "
+                            + "`invalid.value_fixed`, also a code that no hierarchy has. The list `orgUnitParents` "
+                            + "gives a parent in another hierarchy. A CSV file has no such column.")
+            String hierarchy,
             @Schema(hidden = true)
             Set<String> nulls) implements ImportRow {
 
@@ -1004,7 +1011,7 @@ public record ImportDocument(
                 String dayStart, String workLocation, String costCenter) {
             this(source, externalId, code, primaryLanguage, names, unitType, parentExternalId, parentId, displayOrder,
                     attributes, validFrom, validTo, id, successorExternalIds, successorIds, organizationAlias, timeZone,
-                    dayStart, workLocation, costCenter, Set.of());
+                    dayStart, workLocation, costCenter, null, Set.of());
         }
 
         public OrgUnitRow(String source, String externalId, String code, String primaryLanguage,

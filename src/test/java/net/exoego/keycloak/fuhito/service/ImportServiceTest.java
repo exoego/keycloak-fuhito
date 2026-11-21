@@ -470,6 +470,36 @@ class ImportServiceTest {
         assertEquals("fuhito/org-units/" + c + "/parent", report.writes().getFirst().path());
     }
 
+    private static OrgUnitRow inHierarchy(OrgUnitRow row, String hierarchy) {
+        return new OrgUnitRow(row.source(), row.externalId(), row.code(), row.primaryLanguage(), row.names(),
+                row.unitType(), row.parentExternalId(), row.parentId(), row.displayOrder(), row.attributes(),
+                row.validFrom(), row.validTo(), row.id(), row.successorExternalIds(), row.successorIds(),
+                row.organizationAlias(), row.timeZone(), row.dayStart(), row.workLocation(), row.costCenter(),
+                hierarchy, row.nulls());
+    }
+
+    @Test
+    void aRowOfAnOrgUnitTakesOnlyTheDefaultHierarchy() {
+        orgUnitStore.hierarchyCodes.put("region-id", "region");
+        importUnits("2026-04-01", unit("P", "P", null), unit("K", "K", null), unit("C", "C", "P"));
+        String p = stored(ExternalId.Kind.ORG_UNIT, "import", "P");
+        String c = stored(ExternalId.Kind.ORG_UNIT, "import", "C");
+
+        // The list orgUnitParents gives a parent in another hierarchy, for a stored unit and a new one alike.
+        ImportReport bad = importUnits("2026-04-01", inHierarchy(unit("C", "C", "K"), "region"),
+                inHierarchy(unit("N", "N", null), "region"), inHierarchy(unit("P", "P", null), "nope"));
+        assertEquals(List.of("orgUnits[0] invalid.value_fixed", "orgUnits[1] invalid.value_fixed",
+                "orgUnits[2] invalid.value_fixed"), errors(bad));
+        assertEquals(Map.of("field", "hierarchy"), bad.errors().getFirst().error().params());
+        ImportReport report = importUnits("2026-04-01", inHierarchy(unit("C", "C", "P"), "default"),
+                inHierarchy(unit("O", "O", null), "default"));
+
+        assertEquals(List.of(), errors(report));
+        assertEquals(Map.of("orgUnits", new Counts(1, 0, 1)), report.counts());
+        assertEquals(p, orgUnits.get(c, "2026-04-01").parentId());
+        assertNull(orgUnits.get(c, "2026-04-01", "region").parentId());
+    }
+
     private static ImportDocument hierarchies(List<HierarchyRow> rows) {
         return ImportDocument.of("2026-04-01", false, null, "hierarchies", rows);
     }

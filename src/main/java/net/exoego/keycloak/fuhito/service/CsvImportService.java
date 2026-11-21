@@ -517,7 +517,7 @@ public class CsvImportService {
                 cells.integer("displayOrder"), cells.attributes(), cells.text("validFrom"), cells.text("validTo"),
                 cells.text("id"), cells.list("successorExternalIds"), cells.list("successorIds"),
                 cells.text("organizationAlias"), cells.text("timeZone"), cells.text("dayStart"),
-                cells.text("workLocation"), cells.text("costCenter"), cells.nulls());
+                cells.text("workLocation"), cells.text("costCenter"), null, cells.nulls());
     }
 
     private PersonRow person(Cells cells, String defaultSource) {

@@ -101,7 +101,9 @@ A read has the parent of its date, and the work location and the cost center tha
 So `PUT /org-units/{id}` takes a `parentId`, an `effectiveWorkLocation`, and an `effectiveCostCenter` that the unit has on any date of the details that it replaces. These dates run from `validFrom` to the end of the stored details of that date.
 Another value fails with 400 and `invalid.value_fixed`. For a unit with no parent on those dates, such as a root or a rollup unit, `parentId` must be null or left out.
 
-Checked by `ReplacedDetailsIT.anotherParentOrPlaceFailsAndWritesNothing`.
+A read gives the parent in the hierarchy of its `hierarchy` parameter, and names that hierarchy in `hierarchy`. `PUT /org-units/{id}` checks `parentId` against the parents in the `hierarchy` of its body, and in the default hierarchy when the body has none. So a read in any hierarchy is a valid body as it is. An example is a branch below a rollup unit, read with `hierarchy=region`. The work location and the cost center that apply always come from the default hierarchy.
+
+Checked by `ReplacedDetailsIT.anotherParentOrPlaceFailsAndWritesNothing` and `ParentHierarchyIT.aChangeOfDetailsChecksTheParentInTheHierarchyOfItsBody`.
 
 ## An end
 

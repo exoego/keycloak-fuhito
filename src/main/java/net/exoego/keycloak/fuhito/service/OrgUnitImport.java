@@ -14,6 +14,7 @@ import java.util.function.Supplier;
 import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
+import net.exoego.keycloak.fuhito.domain.Hierarchy;
 import net.exoego.keycloak.fuhito.domain.Localized;
 import net.exoego.keycloak.fuhito.domain.OrgUnit;
 import net.exoego.keycloak.fuhito.domain.OrgUnitVersion;
@@ -210,6 +211,8 @@ final class OrgUnitImport {
         }
         try {
             OrgUnitRow row = rows.get(index);
+            // The parent of a row is in the default hierarchy. The list orgUnitParents gives the others.
+            Checks.fixed("hierarchy", Hierarchy.DEFAULT_CODE, row.hierarchy());
             String source = Checks.code("source", sourceOf(row));
             String parentId = parentId(row, source);
             report.count(ORG_UNITS, applyRow(index, row, source, parentId));

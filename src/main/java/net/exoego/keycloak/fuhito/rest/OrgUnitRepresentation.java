@@ -105,13 +105,22 @@ public record OrgUnitRepresentation(
                 readOnly = true)
         Boolean rollup,
         @Schema(
-                description = "The ID of the parent in the default hierarchy. A root and a rollup unit have none. "
+                description = "The code of the hierarchy of `parentId`. A read gives the code of its `hierarchy` "
+                        + "parameter, or `default` without one. A history has none. `PUT /org-units/{id}` checks "
+                        + "`parentId` in this hierarchy, or in the default one when the body leaves it out. A code that "
+                        + "no hierarchy has fails with 400 and `hierarchy.unknown`, as the parameter of a read does. A "
+                        + "create takes only `default`, or none. Another value fails with 400 and "
+                        + "`invalid.value_fixed`.")
+        String hierarchy,
+        @Schema(
+                description = "The ID of the parent in `hierarchy`. A root has none, and a rollup unit has none in the "
+                        + "default hierarchy. A create takes the parent in the default hierarchy. "
                         + "`PUT /org-units/{id}/parent` moves the unit, and `PUT /org-units/{id}` does not. A "
-                        + "`PUT /org-units/{id}` can leave it out, or give a parent that the unit has on any date of "
-                        + "the details that the write replaces, as a read of such a date has it. These dates run from "
-                        + "`validFrom` to the end of the stored details of that date. Another value fails with 400 and "
-                        + "`invalid.value_fixed`. So for a unit with no parent on those dates, it must be null or left "
-                        + "out.")
+                        + "`PUT /org-units/{id}` can leave it out, or give a parent that the unit has in `hierarchy` "
+                        + "on any date of the details that the write replaces, as a read of such a date in that "
+                        + "hierarchy has it. These dates run from `validFrom` to the end of the stored details of that "
+                        + "date. Another value fails with 400 and `invalid.value_fixed`. So for a unit with no parent "
+                        + "there on those dates, it must be null or left out.")
         String parentId,
         @Schema(description = "The first date of these details.", format = "date")
         String validFrom,
@@ -179,8 +188,8 @@ public record OrgUnitRepresentation(
                 read.phoneticName(), version.names().primaryLanguage(), version.names().byLanguage(),
                 state.unitType(), places.workLocation(), places.costCenter(), places.effectiveWorkLocation(),
                 places.effectiveCostCenter(), state.legalEntity() ? Boolean.TRUE : null,
-                state.lateral() ? Boolean.TRUE : null, state.rollup() ? Boolean.TRUE : null, state.parentId(),
-                period.from().toString(),
+                state.lateral() ? Boolean.TRUE : null, state.rollup() ? Boolean.TRUE : null, state.hierarchy(),
+                state.parentId(), period.from().toString(),
                 Objects.toString(period.to(), null), version.displayOrder(), version.attributes(), null,
                 unit.source(), ExternalIdPairRepresentation.of(ids.of(unit.id(), unit.source())),
                 unit.keycloakOrganizationId(), unit.timeZone(), unit.dayStart());
