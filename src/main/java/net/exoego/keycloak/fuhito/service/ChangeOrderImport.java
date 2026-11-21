@@ -68,6 +68,7 @@ final class ChangeOrderImport {
             return Outcome.CREATED;
         }
         ChangeOrder before = stored.get();
+        ImportMatch.source(before.id(), null, row.source(), row.externalId());
         // A row that leaves out both keys of a user keeps the stored user. An effective date that the row clears is
         // the one of the import, as for a new order.
         boolean keepsApprover = !row.gives("approverUserId", row.approverUserId())

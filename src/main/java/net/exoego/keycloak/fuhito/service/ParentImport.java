@@ -68,6 +68,8 @@ final class ParentImport {
                 : externalIds.resourceOf(ExternalId.Kind.ORG_UNIT, source, row.orgUnitExternalId())
                         .orElseThrow(() -> FuhitoException.invalid("import.org_unit_unknown",
                                 Map.of("orgUnitExternalId", row.orgUnitExternalId())));
+        // A parent keeps no source.
+        ImportMatch.source(unitId, null, row.source(), row.orgUnitExternalId(), row.parentExternalId());
         if (!seen.add(hierarchy + "\u0000" + unitId)) {
             throw FuhitoException.invalid("import.duplicate_row",
                     Map.of("externalId", Objects.requireNonNullElse(row.orgUnitExternalId(), unitId)));
