@@ -78,7 +78,7 @@ public class RefItemEntity implements VersionedRow {
     // A write may change the item and its names. It counts up the version once.
     void countUp() {
         if (!counted) {
-            version++;
+            version = Versions.next(version);
             counted = true;
         }
     }

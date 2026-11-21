@@ -418,6 +418,20 @@ The reader tells this error apart only by its text, as it does for a key twice, 
 Keycloak itself would answer both with an error that has no error code and no path.
 An endpoint of Keycloak answers such a number with the error of Keycloak as before.
 
+A decimal number is read as it is written.
+Keycloak itself reads a decimal number of a value with no type, such as a value of `attributes`, as a `double`.
+So `1e400` became infinity and was stored as the text `"Infinity"`, and `50.000000000000001` became 50.
+A row of an import is first read as a tree, which held every decimal number as a `double` too, so a percentage of a row was rounded before its check.
+The reader turns on `DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS`, so that a tree holds a `BigDecimal`.
+It turns off `JsonNodeFeature.STRIP_TRAILING_BIGDECIMAL_ZEROES`, so that the tree keeps the number as it is written, such as `50.10`.
+A value with no type reads its numbers with a deserializer of `Number` of the reader.
+A decimal number that a `double` gives back the same becomes that `Double`, which is the value that Keycloak gave before.
+Another one stays a `BigDecimal`, which the check of a definition of the type `NUMBER` rejects.
+So a stored value has the Java type that it gets when it is read back from its JSON column, and a row of an import that matches what is stored changes nothing.
+A decimal number whose exponent is beyond what a `BigDecimal` holds, such as `1e9999999999`, makes Jackson throw a `NumberFormatException`.
+It fails with 400 and `invalid.number`, which names the field with its path and the number in `value`, whatever the field.
+The parser is still at the number, which gives the path.
+
 Other bad JSON fails as it does in Keycloak.
 
 ### Query parameters
@@ -518,7 +532,10 @@ A new resource has 1, and each write counts it up by one.
 A write of a part of a resource counts up the version of the whole resource.
 The parts are the periods and the parents of an org unit, the terms of an employment, the periods of an assignment, the names of a reference item, and the IDs that other systems have for a resource.
 A write by another endpoint or by Keycloak counts it up too, such as an import, the attribute sync, a mask, and the removal of a user or of an organization in Keycloak.
-A restore keeps the versions of the export.
+A restore keeps the versions of the export. It takes a version from 1 to 9007199254740991, the largest whole number that a client in JavaScript reads exactly.
+A version never wraps around, because a version that wrapped would be one that a caller read long before.
+A write of a resource whose version is the largest `long` fails with 500 and writes nothing. The extension counts up with `Math.addExact`, and checks the version of an ID of another system before Hibernate counts it up. The removal of an organization in Keycloak counts up its org unit in the database, which fails such a count-up, as PostgreSQL does with `bigint out of range`.
+No write gives such a version, since a restore gives at most 9007199254740991 and each write adds one.
 The work location and the cost center that apply come from other org units, so they are no part of an org unit or of an assignment. A change of a unit above does not count up the version of the units and the assignments below it.
 
 A write of a stored resource names the version that the caller read. The write goes on only when the resource still has that version.

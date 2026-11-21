@@ -10,6 +10,7 @@ import java.util.Map;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.exc.InputCoercionException;
 import jakarta.ws.rs.core.MediaType;
+import net.exoego.keycloak.fuhito.service.ImportDocument;
 import org.junit.jupiter.api.Test;
 import org.keycloak.representations.idm.RealmRepresentation;
 
@@ -171,5 +172,37 @@ class JsonBodyReaderTest {
         assertEquals(new Values(null, null, 0, false, null, null, null, null, null), values("{}"));
         assertEquals(new Values(null, null, 0, false, null, null, null, null, null),
                 values("{\"code\": null, \"displayOrder\": null, \"active\": null, \"ids\": null}"));
+    }
+
+    // A decimal that a double gives back the same is a Double, as Keycloak reads it. Another one stays as written.
+    @Test
+    void aNumberOfAValueWithNoTypeIsReadAsWritten() throws Exception {
+        Map<String, Object> attributes = values("{\"attributes\": {\"a\": 0.1, \"b\": 50.000000000000001, "
+                + "\"c\": 1e400, \"d\": -1e-400, \"e\": 7, \"f\": 9007199254740993, \"g\": [2.5, 1e400], "
+                + "\"h\": 1.7976931348623157e308}}").attributes();
+
+        assertEquals(0.1, attributes.get("a"));
+        assertEquals(new BigDecimal("50.000000000000001"), attributes.get("b"));
+        assertEquals(new BigDecimal("1e400"), attributes.get("c"));
+        assertEquals(new BigDecimal("-1e-400"), attributes.get("d"));
+        assertEquals(7, attributes.get("e"));
+        assertEquals(9007199254740993L, attributes.get("f"));
+        assertEquals(List.of(2.5, new BigDecimal("1e400")), attributes.get("g"));
+        assertEquals(Double.MAX_VALUE, attributes.get("h"));
+    }
+
+    // A row of an import is read as a tree first, which holds a decimal as written too.
+    @Test
+    void aRowOfAnImportReadsADecimalAsWritten() throws Exception {
+        ImportDocument document = JsonBodyReader.READER.forType(ImportDocument.class).readValue("""
+                {"orgUnits": [{"externalId": "W", "attributes": {"beds": 0.1, "floor": 1e400}}],
+                 "employments": [{"externalId": "E1", "workPercent": 50.000000000000001}],
+                 "assignments": [{"externalId": "A1", "allocationPercent": 50.10}]}
+                """);
+
+        assertEquals(Map.of("beds", 0.1, "floor", new BigDecimal("1e400")),
+                document.orgUnits().getFirst().attributes());
+        assertEquals(new BigDecimal("50.000000000000001"), document.employments().getFirst().workPercent());
+        assertEquals("50.10", document.assignments().getFirst().allocationPercent().toString());
     }
 }

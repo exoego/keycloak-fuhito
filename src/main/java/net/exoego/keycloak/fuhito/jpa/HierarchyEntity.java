@@ -144,7 +144,7 @@ public class HierarchyEntity implements VersionedRow {
     // A write and a change of its IDs of other systems count up the version once.
     void countUp() {
         if (!counted) {
-            version++;
+            version = Versions.next(version);
             counted = true;
         }
     }

@@ -126,7 +126,11 @@ public class ImportsResource {
                     + "first bad bytes. So does a file that starts with `FF FE` or `FE FF`, or has a `00` byte on its "
                     + "first line, unless the charset is UTF-16 or UTF-32. Such a file is most likely UTF-16. An "
                     + "unknown charset fails with `csv.bad_charset`. A `00` byte after the first line is NUL in a "
-                    + "cell, which fails with `invalid.character` and names the column.")
+                    + "cell, which fails with `invalid.character` and names the column. A cell of a number that the "
+                    + "column cannot take fails the row with `csv.bad_number`, which names the column. Such a cell "
+                    + "is a `displayOrder` outside -2147483648 to 2147483647, or a number of an attribute of the "
+                    + "type `NUMBER` that a 64-bit floating point number does not give back the same, such as "
+                    + "`1e400` or `1e999999999`, as in a JSON import.")
     @Parameter(ref = "changeOrder")
     @APIResponse(
             responseCode = "200",
@@ -185,8 +189,12 @@ public class ImportsResource {
                     + "`invalid.type`, as in a write, such as `\"3\"` or `3.7` for `displayOrder`. It names the "
                     + "field with its path, such as `refItems[0].displayOrder`, and the type of the field. A whole "
                     + "number outside the range of its field fails as a whole with `invalid.out_of_range`, which "
-                    + "names the field with its path and the limits in `min` and `max`. A new thing has nothing "
-                    + "stored, so a missing key and `null` both give no value. The lists "
+                    + "names the field with its path and the limits in `min` and `max`. A decimal number is read as "
+                    + "it is written, as in a write. So `50.000000000000001` for `workPercent` fails the row with "
+                    + "`invalid.percent`, and a value of the type `NUMBER` in `attributes` that a 64-bit floating "
+                    + "point number does not give back the same fails the row with `attribute.bad_value`. A number "
+                    + "whose exponent is too large or too small to read fails as a whole with `invalid.number`. A "
+                    + "new thing has nothing stored, so a missing key and `null` both give no value. The lists "
                     + "are applied in the order change orders, kinds of reference data, definitions of attributes, "
                     + "reference items, hierarchies, org units, parents in hierarchies, people, qualifications, "
                     + "employments, roles over org units, assignments, reporting lines, IDs of other systems.")

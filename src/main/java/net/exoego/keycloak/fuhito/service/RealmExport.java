@@ -34,7 +34,9 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
         name = "RealmExport",
         description = "Every stored row of a realm, with every period. `POST /restore` loads it into a realm that "
                 + "has no data of the extension, or in place of the data of a realm. Each resource has its "
-                + "`version`, which the restore keeps. A resource with none starts at 1.")
+                + "`version`, which the restore keeps. A resource with none starts at 1. A version is from 1 to "
+                + "9007199254740991, the largest whole number that a client in JavaScript reads exactly. Another "
+                + "one fails with 400 and `restore.bad_value`.")
 public record RealmExport(
         @Schema(description = "The name and the version of the format.", examples = {"fuhito.export.v1"})
         String format,
@@ -55,6 +57,12 @@ public record RealmExport(
 
     /** The name and the version of the format that this extension writes and reads. */
     public static final String FORMAT = "fuhito.export.v1";
+
+    /**
+     * The largest version that a restore takes. A client in JavaScript reads every version up to it exactly, and the
+     * writes after a restore can count it up far beyond it.
+     */
+    public static final long LARGEST_VERSION = 9_007_199_254_740_991L;
 
     /** The names of the lists, as the paths of the export name them. */
     public static final List<String> LISTS = List.of("ref-kinds", "ref-items", "attribute-definitions",

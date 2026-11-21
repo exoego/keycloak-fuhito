@@ -200,6 +200,28 @@ class OrganizationLinkIT {
         assertFalse(unit.has("keycloakOrganizationId"));
     }
 
+    // The removal counts up the version of the unit in the database, which does not let it wrap around.
+    @Test
+    void removingAnOrganizationFailsWhenItsUnitHasTheLargestVersion() throws Exception {
+        Keycloak admin = KEYCLOAK.getKeycloakAdminClient();
+        String realm = createRealm(admin, true);
+        Api api = new Api(realm, admin.tokenManager().getAccessTokenString());
+        String organization = createOrganization(admin, realm, "largest-version");
+        String hospital = unit(api, "X病院");
+        assertEquals(200, api.putWithVersion("/org-units/" + hospital + "/organization", "{\"organizationId\": \"" + organization + "\"}").statusCode());
+        KeycloakEnvironment.sql("update fuhito_org_unit set version = " + Long.MAX_VALUE + " where id = '"
+                + hospital + "'");
+
+        try (Response removed = admin.realm(realm).organizations().get(organization).delete()) {
+            assertEquals(500, removed.getStatus());
+        }
+
+        JsonNode unit = Api.json(api.get("/org-units/" + hospital + "?asOf=2026-04-01"));
+        assertEquals(List.of(organization, Long.toString(Long.MAX_VALUE)),
+                List.of(unit.path("keycloakOrganizationId").asText(), unit.get("version").asText()));
+        assertEquals(organization, admin.realm(realm).organizations().get(organization).toRepresentation().getId());
+    }
+
     @Test
     void aRealmWithoutOrganizationsWorksAndRejectsALink() throws Exception {
         Keycloak admin = KEYCLOAK.getKeycloakAdminClient();

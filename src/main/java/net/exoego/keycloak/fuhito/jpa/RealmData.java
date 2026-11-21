@@ -194,6 +194,7 @@ public final class RealmData {
      * @param organizationId the ID of the organization
      */
     public static void unlinkOrganization(EntityManager em, String realmId, String organizationId) {
+        // The database fails the count-up of the largest long, as PostgreSQL does with "bigint out of range".
         em.createQuery("""
                         update OrgUnitEntity u set u.keycloakOrganizationId = null, u.version = u.version + 1
                         where u.realmId = :realmId and u.keycloakOrganizationId = :organizationId""")

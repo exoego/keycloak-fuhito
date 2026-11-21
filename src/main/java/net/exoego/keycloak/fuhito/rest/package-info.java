@@ -59,6 +59,19 @@
                         whatever the field. This holds for every body, also for an import, a restore, and the steps
                         of a reorganization. A percentage has its own rule and fails with `invalid.percent`.
 
+                        A decimal number is read as it is written, also in a row of an import, and is not rounded to
+                        a 64-bit floating point number first. So `50.000000000000001` for a percentage fails with
+                        `invalid.percent`, and is not stored as 50. A number whose exponent is too large or too small
+                        to read, such as `1e9999999999`, fails with 400 and `invalid.number`, which names the field
+                        with its path and the number in `value`, whatever the field. A value of the type `NUMBER` in
+                        `attributes` must be a number that a 64-bit floating point number (IEEE 754 double, the
+                        number of JavaScript) gives back as the same number. Such a number has at most 17
+                        significant digits and is at most 1.7976931348623157e308 in size. Every number with at most
+                        15 significant digits from 1e-307 to 1e308 in size fits, and so do 0 and every whole number
+                        from -9007199254740992 to 9007199254740992. Another number, such as `1e400`, `1e-400`,
+                        `50.000000000000001`, or `9007199254740993`, fails with `attribute.bad_value`. A number that
+                        fits is stored as sent, and a read gives back the same number.
+
                         Each operation lists the query parameters that it takes. A request with another query
                         parameter fails with 400 and `invalid.unknown_parameter`, which names the parameter in
                         `field`. The case of each letter counts, so `asof` is not `asOf`. A request that gives one
@@ -169,8 +182,9 @@
                                     `invalid.duplicate_key`, and a body with a key that it does not have gets
                                     `invalid.unknown_key`. A value of another JSON type than its field gets
                                     `invalid.type`. A whole number outside the range of its field gets
-                                    `invalid.out_of_range`, and a number with more than 1000 characters gets
-                                    `invalid.too_long`. A write that names one thing in two ways gets
+                                    `invalid.out_of_range`, a number with more than 1000 characters gets
+                                    `invalid.too_long`, and a number whose exponent is too large or too small to
+                                    read gets `invalid.number`. A write that names one thing in two ways gets
                                     `invalid.twice`. A create with a person ID and a user ID that do not name the
                                     same person gets `invalid.mismatch`. A write of a stored resource with another
                                     value of a field that never changes, of a field that only a response fills, or

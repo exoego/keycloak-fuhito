@@ -91,15 +91,16 @@ final class RestoreCheck {
      * pass the rule. A choice, such as the status of terms, and the names of a row must be ones that a write takes.
      * A value that a write would store in another form, such as a name with spaces around it or the language tag
      * {@code JA} for {@code ja}, fails too. So does a time in another form than an export gives, such as a time with
-     * an offset. The {@code validTo} of a row must be after its {@code validFrom}, as in a write. A row inside a row,
+     * an offset. A version must be from 1 to {@link RealmExport#LARGEST_VERSION}, so that a write can count it up.
+     * The {@code validTo} of a row must be after its {@code validFrom}, as in a write. A row inside a row,
      * such as a version of an org unit, is named by the list and the ID that {@code restore.id_taken} gives it.
      *
      * @param document the export
      * @param lengths gives the longest text of each field of a row of a list
      * @throws FuhitoException when a row or a needed value is missing, a value is empty, a text cannot be stored or
      *         is too long for its column, a value breaks its rule or is not in the form that a write stores, a time
-     *         is not in the form that an export gives, a choice is unknown, the names break a rule of a write, or a
-     *         period does not end after it starts. The error names the list, the ID of the row when it has one, and
+     *         is not in the form that an export gives, a version is outside its range, a choice is unknown, the names
+     *         break a rule of a write, or a period does not end after it starts. The error names the list, the ID of the row when it has one, and
      *         the field. For a choice and the names, {@code rule} names the error of the write.
      */
     static void requireValues(RealmExport document, Function<String, Map<String, Integer>> lengths) {
@@ -261,6 +262,8 @@ final class RestoreCheck {
             Checks.optionalDate(field, (String) value);
         } else if (TIMES.contains(field)) {
             return time((String) value);
+        } else if (field.equals("version")) {
+            return version((Long) value);
         }
         return switch (list + "." + field) {
             case "ref-kinds.code", "ref-items.code", "hierarchies.code", "org-unit-versions.code", "org-units.source",
@@ -284,6 +287,15 @@ final class RestoreCheck {
             }
             default -> value;
         };
+    }
+
+    // A write gives 1 to a new resource and counts it up by one.
+    private static Long version(Long value) {
+        if (value < 1 || value > RealmExport.LARGEST_VERSION) {
+            throw FuhitoException.invalid("invalid.out_of_range", Map.of("field", "version", "min", "1",
+                    "max", Long.toString(RealmExport.LARGEST_VERSION)));
+        }
+        return value;
     }
 
     // An export gives a time as Instant writes it, and PostgreSQL keeps microseconds.
