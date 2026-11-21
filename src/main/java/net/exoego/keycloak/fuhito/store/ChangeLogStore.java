@@ -3,6 +3,7 @@ package net.exoego.keycloak.fuhito.store;
 import java.util.List;
 
 import net.exoego.keycloak.fuhito.domain.ChangeLogEntry;
+import net.exoego.keycloak.fuhito.domain.ResourceType;
 
 /**
  * Storage of the change log of one realm.
@@ -35,7 +36,7 @@ public interface ChangeLogStore {
      * @param max the largest number of entries to return
      * @return the entries
      */
-    List<ChangeLogEntry> list(long after, String resourceType, String resourceId, int first, int max);
+    List<ChangeLogEntry> list(long after, ResourceType resourceType, String resourceId, int first, int max);
 
     /**
      * Counts the entries of the realm.
@@ -44,7 +45,7 @@ public interface ChangeLogStore {
      * @param resourceId the ID of the resource, or null for every resource
      * @return the number of entries
      */
-    long count(String resourceType, String resourceId);
+    long count(ResourceType resourceType, String resourceId);
 
     /**
      * Lists the entries of one change order, oldest first.

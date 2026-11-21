@@ -16,6 +16,7 @@ import jakarta.ws.rs.core.Response;
 import net.exoego.keycloak.fuhito.domain.AttributeDefinition;
 import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.ExternalId;
+import net.exoego.keycloak.fuhito.domain.ResourceType;
 import net.exoego.keycloak.fuhito.rest.RequestContext.Change;
 import net.exoego.keycloak.fuhito.service.AttributeDefinitionService;
 import net.exoego.keycloak.fuhito.service.ExternalIdLists;
@@ -39,7 +40,7 @@ public class AttributeDefinitionsResource {
     /**
      * The resource type of definitions of attributes in the admin event log.
      */
-    public static final String RESOURCE_TYPE = "FUHITO_ATTRIBUTE_DEFINITION";
+    public static final ResourceType RESOURCE_TYPE = ResourceType.FUHITO_ATTRIBUTE_DEFINITION;
 
     private final RequestContext context;
     private final AttributeDefinitionService service;

@@ -248,7 +248,7 @@ final class KeycloakRequestContext implements RequestContext {
         List<ChangeLogEntry> entries = new ArrayList<>();
         for (ChangeRecord change : changes) {
             adminEvent.operation(OperationType.valueOf(change.change().name()))
-                    .resource(change.resourceType())
+                    .resource(change.resourceType().name())
                     .resourcePath(change.resourcePath())
                     .representation(change.representation())
                     .success();

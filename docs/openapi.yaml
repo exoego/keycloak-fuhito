@@ -5364,8 +5364,22 @@ paths:
           \ are listed."
         schema:
           type: string
-          examples:
+          enum:
           - FUHITO_ORG_UNIT
+          - FUHITO_PERSON
+          - FUHITO_PERSON_DATA
+          - FUHITO_EMPLOYMENT
+          - FUHITO_ASSIGNMENT
+          - FUHITO_QUALIFICATION
+          - FUHITO_REPORTING_LINE
+          - FUHITO_UNIT_ROLE
+          - FUHITO_CHANGE_ORDER
+          - FUHITO_REF_ITEM
+          - FUHITO_REF_KIND
+          - FUHITO_HIERARCHY
+          - FUHITO_ATTRIBUTE_DEFINITION
+          - FUHITO_EXTERNAL_ID
+          - FUHITO_RESTORE
         name: resourceType
         in: query
       responses:
@@ -5403,8 +5417,22 @@ paths:
           \ are counted."
         schema:
           type: string
-          examples:
+          enum:
           - FUHITO_ORG_UNIT
+          - FUHITO_PERSON
+          - FUHITO_PERSON_DATA
+          - FUHITO_EMPLOYMENT
+          - FUHITO_ASSIGNMENT
+          - FUHITO_QUALIFICATION
+          - FUHITO_REPORTING_LINE
+          - FUHITO_UNIT_ROLE
+          - FUHITO_CHANGE_ORDER
+          - FUHITO_REF_ITEM
+          - FUHITO_REF_KIND
+          - FUHITO_HIERARCHY
+          - FUHITO_ATTRIBUTE_DEFINITION
+          - FUHITO_EXTERNAL_ID
+          - FUHITO_RESTORE
         name: resourceType
         in: query
       responses:

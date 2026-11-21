@@ -9,6 +9,7 @@ import jakarta.persistence.criteria.CriteriaQuery;
 import jakarta.persistence.criteria.Predicate;
 import jakarta.persistence.criteria.Root;
 import net.exoego.keycloak.fuhito.domain.ChangeLogEntry;
+import net.exoego.keycloak.fuhito.domain.ResourceType;
 import net.exoego.keycloak.fuhito.store.ChangeLogStore;
 
 /**
@@ -48,7 +49,7 @@ public class JpaChangeLogStore implements ChangeLogStore {
             entity.sequence = ++sequence;
             entity.recordedAt = entry.recordedAt();
             entity.actorUserId = entry.actorUserId();
-            entity.resourceType = entry.resourceType();
+            entity.resourceType = entry.resourceType().name();
             entity.resourceId = entry.resourceId();
             entity.operation = entry.operation();
             entity.resourcePath = entry.resourcePath();
@@ -84,7 +85,7 @@ public class JpaChangeLogStore implements ChangeLogStore {
     }
 
     @Override
-    public List<ChangeLogEntry> list(long after, String resourceType, String resourceId, int first, int max) {
+    public List<ChangeLogEntry> list(long after, ResourceType resourceType, String resourceId, int first, int max) {
         CriteriaBuilder builder = em.getCriteriaBuilder();
         CriteriaQuery<ChangeLogEntity> query = builder.createQuery(ChangeLogEntity.class);
         Root<ChangeLogEntity> entry = query.from(ChangeLogEntity.class);
@@ -98,7 +99,7 @@ public class JpaChangeLogStore implements ChangeLogStore {
     }
 
     @Override
-    public long count(String resourceType, String resourceId) {
+    public long count(ResourceType resourceType, String resourceId) {
         CriteriaBuilder builder = em.getCriteriaBuilder();
         CriteriaQuery<Long> query = builder.createQuery(Long.class);
         Root<ChangeLogEntity> entry = query.from(ChangeLogEntity.class);
@@ -107,13 +108,13 @@ public class JpaChangeLogStore implements ChangeLogStore {
                 .getSingleResult();
     }
 
-    private Predicate[] where(CriteriaBuilder builder, Root<ChangeLogEntity> entry, long after, String resourceType,
-            String resourceId) {
+    private Predicate[] where(CriteriaBuilder builder, Root<ChangeLogEntity> entry, long after,
+            ResourceType resourceType, String resourceId) {
         List<Predicate> where = new ArrayList<>();
         where.add(builder.equal(entry.get("realmId"), realmId));
         where.add(builder.gt(entry.get("sequence"), after));
         if (resourceType != null) {
-            where.add(builder.equal(entry.get("resourceType"), resourceType));
+            where.add(builder.equal(entry.get("resourceType"), resourceType.name()));
         }
         if (resourceId != null) {
             where.add(builder.equal(entry.get("resourceId"), resourceId));
@@ -147,7 +148,7 @@ public class JpaChangeLogStore implements ChangeLogStore {
     }
 
     private static ChangeLogEntry toDomain(ChangeLogEntity e) {
-        return new ChangeLogEntry(e.id, e.sequence, e.recordedAt, e.actorUserId, e.resourceType, e.resourceId,
-                e.operation, e.resourcePath, e.changeOrderId);
+        return new ChangeLogEntry(e.id, e.sequence, e.recordedAt, e.actorUserId,
+                ResourceType.valueOf(e.resourceType), e.resourceId, e.operation, e.resourcePath, e.changeOrderId);
     }
 }

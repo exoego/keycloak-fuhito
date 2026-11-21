@@ -144,6 +144,43 @@ class ChangeLogIT {
     }
 
     @Test
+    void eachTypeKeepsItsOwnEntriesAndNoTypeKeepsThemAll() throws Exception {
+        long total = api.count("/change-log/count");
+        long sum = 0;
+        for (String type : List.of("FUHITO_ORG_UNIT", "FUHITO_PERSON", "FUHITO_PERSON_DATA", "FUHITO_EMPLOYMENT",
+                "FUHITO_ASSIGNMENT", "FUHITO_QUALIFICATION", "FUHITO_REPORTING_LINE", "FUHITO_UNIT_ROLE",
+                "FUHITO_CHANGE_ORDER", "FUHITO_REF_ITEM", "FUHITO_REF_KIND", "FUHITO_HIERARCHY",
+                "FUHITO_ATTRIBUTE_DEFINITION", "FUHITO_EXTERNAL_ID", "FUHITO_RESTORE")) {
+            JsonNode entries = ok(api.get("/change-log?max=1000&resourceType=" + type));
+            Set<String> types = new TreeSet<>(entries.findValuesAsText("resourceType"));
+            assertTrue(types.isEmpty() || types.equals(Set.of(type)), type + " " + types);
+            assertEquals(entries.size(), api.count("/change-log/count?resourceType=" + type), type);
+            sum += entries.size();
+        }
+
+        assertEquals(total, sum);
+        assertEquals(total, ok(api.get("/change-log?max=1000")).size());
+        for (String type : List.of("FUHITO_ORG_UNIT", "FUHITO_PERSON", "FUHITO_EMPLOYMENT", "FUHITO_ASSIGNMENT",
+                "FUHITO_CHANGE_ORDER", "FUHITO_REF_ITEM")) {
+            assertTrue(api.count("/change-log/count?resourceType=" + type) > 0, type);
+        }
+    }
+
+    @Test
+    void rejectsATypeThatTheChangeLogDoesNotWrite() throws Exception {
+        for (String type : List.of("ORG_UNIT", "fuhito_org_unit", "UNKNOWN")) {
+            for (String path : List.of("/change-log", "/change-log/count")) {
+                HttpResponse<String> response = api.get(path + "?resourceType=" + type);
+                assertEquals(400, response.statusCode(), path + " " + response.body());
+                JsonNode error = Api.json(response);
+                assertEquals("invalid.choice", error.get("error").asText());
+                assertEquals("resourceType", error.get("params").get("field").asText());
+                assertEquals(type, error.get("params").get("value").asText());
+            }
+        }
+    }
+
+    @Test
     void eachRealmCountsItsOwnWritesFromOneWithoutGapsUnderParallelWrites() throws Exception {
         TestRealm busy = TestRealm.create("change-log");
         int writes = 24;

@@ -1,6 +1,7 @@
 package net.exoego.keycloak.fuhito.rest;
 
 import net.exoego.keycloak.fuhito.domain.EffectiveChange;
+import net.exoego.keycloak.fuhito.domain.ResourceType;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 
 @Schema(
@@ -18,7 +19,7 @@ public record EffectiveChangeRepresentation(
         String resourcePath) {
 
     static EffectiveChangeRepresentation of(EffectiveChange change) {
-        String type = switch (change.kind()) {
+        ResourceType type = switch (change.kind()) {
             case ORG_UNIT -> OrgUnitsResource.RESOURCE_TYPE;
             case EMPLOYMENT -> EmploymentsResource.RESOURCE_TYPE;
             case ASSIGNMENT -> AssignmentsResource.RESOURCE_TYPE;
@@ -34,7 +35,7 @@ public record EffectiveChangeRepresentation(
             case QUALIFICATION -> "qualifications";
             case UNIT_ROLE -> "unit-roles";
         };
-        return new EffectiveChangeRepresentation(change.date().toString(), type, change.resourceId(),
+        return new EffectiveChangeRepresentation(change.date().toString(), type.name(), change.resourceId(),
                 "fuhito/" + collection + "/" + change.resourceId());
     }
 }

@@ -7,6 +7,7 @@ import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
+import net.exoego.keycloak.fuhito.domain.ResourceType;
 import net.exoego.keycloak.fuhito.rest.RequestContext.Change;
 import net.exoego.keycloak.fuhito.service.RealmExport;
 import net.exoego.keycloak.fuhito.service.RealmExportService;
@@ -29,7 +30,7 @@ public class RestoreResource {
     /**
      * The resource type of a restore in the admin event log.
      */
-    public static final String RESOURCE_TYPE = "FUHITO_RESTORE";
+    public static final ResourceType RESOURCE_TYPE = ResourceType.FUHITO_RESTORE;
 
     private final RequestContext context;
     private final RealmExportService service;

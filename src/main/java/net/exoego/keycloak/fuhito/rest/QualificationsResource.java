@@ -16,6 +16,7 @@ import jakarta.ws.rs.core.Response;
 import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.domain.Qualification;
+import net.exoego.keycloak.fuhito.domain.ResourceType;
 import net.exoego.keycloak.fuhito.rest.RequestContext.Change;
 import net.exoego.keycloak.fuhito.service.Cursor;
 import net.exoego.keycloak.fuhito.service.ExternalIdLists;
@@ -45,7 +46,7 @@ public class QualificationsResource {
     /**
      * The resource type of qualifications in the admin event log.
      */
-    public static final String RESOURCE_TYPE = "FUHITO_QUALIFICATION";
+    public static final ResourceType RESOURCE_TYPE = ResourceType.FUHITO_QUALIFICATION;
 
     private final RequestContext context;
     private final QualificationService service;

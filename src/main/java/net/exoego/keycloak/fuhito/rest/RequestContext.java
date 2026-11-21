@@ -7,6 +7,7 @@ import java.util.Map;
 import java.util.OptionalInt;
 
 import jakarta.ws.rs.core.Response;
+import net.exoego.keycloak.fuhito.domain.ResourceType;
 
 /**
  * What a resource needs to know about the current request and its caller.
@@ -155,12 +156,12 @@ public interface RequestContext {
      * A successful change, for the event log.
      *
      * @param change the kind of the change
-     * @param resourceType the type of the changed resource, for example {@code FUHITO_ORG_UNIT}
+     * @param resourceType the type of the changed resource
      * @param resourceId the ID of the changed resource
      * @param resourcePath the path of the request below the realm
      * @param representation the new state, or null
      */
-    record ChangeRecord(Change change, String resourceType, String resourceId, String resourcePath,
+    record ChangeRecord(Change change, ResourceType resourceType, String resourceId, String resourcePath,
             Object representation) {
     }
 
@@ -169,12 +170,12 @@ public interface RequestContext {
      * Only the admin event gets the new state.
      *
      * @param change the kind of the change
-     * @param resourceType the type of the changed resource, for example {@code FUHITO_ORG_UNIT}
+     * @param resourceType the type of the changed resource
      * @param resourceId the ID of the changed resource
      * @param resourcePath the path of the request below the realm
      * @param representation the new state, or null
      */
-    default void recordChange(Change change, String resourceType, String resourceId, String resourcePath,
+    default void recordChange(Change change, ResourceType resourceType, String resourceId, String resourcePath,
             Object representation) {
         recordChanges(List.of(new ChangeRecord(change, resourceType, resourceId, resourcePath, representation)));
     }

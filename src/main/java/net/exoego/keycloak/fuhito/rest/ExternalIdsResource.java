@@ -15,6 +15,7 @@ import jakarta.ws.rs.core.Response;
 import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
+import net.exoego.keycloak.fuhito.domain.ResourceType;
 import net.exoego.keycloak.fuhito.rest.RequestContext.Change;
 import net.exoego.keycloak.fuhito.service.ExternalIdService;
 import net.exoego.keycloak.fuhito.service.OrgUnitService;
@@ -36,7 +37,7 @@ public class ExternalIdsResource {
     /**
      * The resource type of IDs of other systems in the admin event log.
      */
-    public static final String RESOURCE_TYPE = "FUHITO_EXTERNAL_ID";
+    public static final ResourceType RESOURCE_TYPE = ResourceType.FUHITO_EXTERNAL_ID;
 
     private static final String KINDS = "ORG_UNIT, PERSON, EMPLOYMENT, ASSIGNMENT, QUALIFICATION, REPORTING_LINE, "
             + "UNIT_ROLE, CHANGE_ORDER, REF_ITEM, REF_KIND, HIERARCHY, or ATTRIBUTE_DEFINITION.";

@@ -7,6 +7,7 @@ import java.util.Set;
 import java.util.function.Consumer;
 
 import net.exoego.keycloak.fuhito.domain.Person;
+import net.exoego.keycloak.fuhito.domain.ResourceType;
 import net.exoego.keycloak.fuhito.rest.RequestContext.Change;
 import net.exoego.keycloak.fuhito.rest.UsersResource.MaskRepresentation;
 import net.exoego.keycloak.fuhito.service.PersonService;
@@ -19,7 +20,7 @@ import net.exoego.keycloak.fuhito.store.WriteScopes;
  */
 final class PersonData {
 
-    private static final String RESOURCE_TYPE = "FUHITO_PERSON_DATA";
+    private static final ResourceType RESOURCE_TYPE = ResourceType.FUHITO_PERSON_DATA;
 
     private final RequestContext context;
     private final UserMaskingService masking;
