@@ -105,7 +105,7 @@ public class ImportsResource {
                     schema = @Schema(enumeration = {"en", "ja"}))
             @QueryParam("header") String header) {
         context.requireRead();
-        return Calls.run(context, () -> Response.ok(csvExport.write(list, asOf, "ja".equals(header)))
+        return Calls.run(context, () -> Response.ok(csvExport.write(list, asOf, header))
                 .type("text/csv; charset=UTF-8")
                 .header("Content-Disposition", "attachment; filename=\"" + list + ".csv\"")
                 .build());
