@@ -17,9 +17,10 @@ import net.exoego.keycloak.fuhito.domain.ValidPeriod;
 
 /**
  * Checks that the rows of an export keep the rules between rows, and between the fields of one row, that the writes
- * keep. For example, an assignment lies inside its employment. A restore checks them before it writes, so that a row
- * that breaks one fails with an error that names it. Each rule is the one that the writes use, so the two cannot
- * differ. The export is the whole data of the realm, because a restore writes into a realm with no data.
+ * keep. For example, an assignment lies inside its employment, and an announced change order has the time of its
+ * announcement. A restore checks them before it writes, so that a row that breaks one fails with an error that names
+ * it. Each rule is the one that the writes use, so the two cannot differ. The export is the whole data of the realm,
+ * because a restore writes into a realm with no data.
  */
 final class RestoreRules {
 
@@ -60,6 +61,15 @@ final class RestoreRules {
         all(document.reportingLines()).forEach(rules::requireLine);
         requireOneSolid(document);
         all(document.unitRoles()).forEach(rules::requireRole);
+        all(document.changeOrders()).forEach(RestoreRules::requireAnnouncement);
+    }
+
+    // Only the announcement sets the user who announced an order, and it sets the time too. An export gives no
+    // username for a user of another realm, so a time may come alone.
+    private static void requireAnnouncement(RealmExport.Order order) {
+        if (order.announcedBy() != null && order.announcedAt() == null) {
+            throw broken("change-orders", order.id(), "announcedAt", null);
+        }
     }
 
     // An item has names on every date from its first names on. Names with no start hold from the start.

@@ -66,4 +66,19 @@ class RestoreReferencesIT {
             target.remove();
         }
     }
+
+    // The realm has only the organization x-hospital.
+    @Test
+    void anOrganizationAliasThatTheRealmDoesNotHaveFailsTheRestoreAndNothingIsWritten() throws Exception {
+        TestRealm target = RestoreKeysIT.target("restore-organizations");
+        try {
+            assertFails(target, "/orgUnits/0", "{\"organizationAlias\": \"nope\"}", "restore.organization_unknown",
+                    Map.of("list", "org-units", "id", "u-1", "field", "organizationAlias", "alias", "nope"));
+            HttpResponse<String> restored = target.api.post("/restore",
+                    JSON.writeValueAsString(RestoreKeysIT.document()));
+            assertEquals(200, restored.statusCode(), restored.body());
+        } finally {
+            target.remove();
+        }
+    }
 }

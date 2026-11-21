@@ -341,6 +341,10 @@ class DuplicateLanguagesIT {
                 () -> target.api.post("/restore", JSON.writeValueAsString(unit)));
 
         names.remove("ja");
+        // A write would store the tag as ja, and a restore stores it as the document has it.
+        assertFails(target, "restore.bad_value", Map.of("list", "people", "id", "dup-lang-p", "field", "names.JA"),
+                () -> target.api.post("/restore", JSON.writeValueAsString(person)));
+        names.set("ja", names.remove("JA"));
         ok(target.api.post("/restore", JSON.writeValueAsString(person)));
         JsonNode restored = Api.json(target.api.get("/people/dup-lang-p"));
         assertEquals("伊藤 次郎", restored.get("names").get("ja").get("name").asText());

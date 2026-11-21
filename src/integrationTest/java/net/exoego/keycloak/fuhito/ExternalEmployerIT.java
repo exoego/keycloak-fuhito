@@ -2,6 +2,7 @@ package net.exoego.keycloak.fuhito;
 
 import java.net.http.HttpResponse;
 import java.util.List;
+import java.util.Map;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -131,7 +132,9 @@ class ExternalEmployerIT {
         employment.put("employerId", "u-9");
         HttpResponse<String> twice = target.api.post("/restore", JSON.writeValueAsString(document));
         assertEquals(400, twice.statusCode(), twice.body());
-        assertEquals("employment.employer_twice", Api.json(twice).get("error").asText());
+        assertEquals("restore.bad_value", Api.json(twice).get("error").asText());
+        assertEquals(JSON.valueToTree(Map.of("list", "employments", "id", "e-9", "field", "externalEmployerId",
+                "rule", "employment.employer_twice")), Api.json(twice).get("params"));
         assertEquals(0, Api.json(target.api.get("/export/employments")).size());
     }
 }
