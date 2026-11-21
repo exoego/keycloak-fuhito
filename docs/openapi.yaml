@@ -5287,15 +5287,15 @@ paths:
           $ref: "#/components/responses/Conflict"
     delete:
       summary: Deletes a definition.
-      description: "While a row of the resource has the name, also a row of a past\
-        \ version and a row with null, the delete fails with 409 and `attribute.in_use`,\
-        \ which names the number of such rows in `count`. With `clearValues=true`,\
-        \ it removes the name from each such row first. A create or a change with\
-        \ `required` true, and every delete, hold the realm alone, as an import does.\
-        \ Other writes of the realm wait for them. A fill or a clear writes every\
-        \ row or none. The version of each resource whose rows it changes counts up\
-        \ once, and the resource gets an entry in the change log and an admin event\
-        \ `UPDATE` with no representation."
+      description: "While a row of the resource has a value of the name, also a row\
+        \ of a past version, the delete fails with 409 and `attribute.in_use`, which\
+        \ names the number of such rows in `count`. A row with null for the name has\
+        \ no value. With `clearValues=true`, it removes the name from each such row\
+        \ first. A create or a change with `required` true, and every delete, hold\
+        \ the realm alone, as an import does. Other writes of the realm wait for them.\
+        \ A fill or a clear writes every row or none. The version of each resource\
+        \ whose rows it changes counts up once, and the resource gets an entry in\
+        \ the change log and an admin event `UPDATE` with no representation."
       operationId: deleteAttributeDefinition
       tags:
       - ref-items
@@ -5306,8 +5306,8 @@ paths:
         required: true
         schema:
           type: string
-      - description: "True to remove the name from every row of the resource that\
-          \ has it, then delete the definition."
+      - description: "True to remove the name from every row of the resource with\
+          \ a value of it, then delete the definition."
         schema:
           type: boolean
           default: false
@@ -10101,38 +10101,40 @@ paths:
         \ with no `multiple` or a single value for one with it, a code that names\
         \ no reference item of the export of the kind of the definition, and a missing\
         \ value that the definition requires. Then `field` names the attribute, such\
-        \ as `attributes.beds`. So does a `version` outside 1 to 9007199254740991,\
-        \ which leaves a write room to count it up. So does a row that names a reference\
-        \ item of another kind, such as a unit role as the grade of terms, or that\
-        \ breaks a rule between rows of a write, such as a row of an assignment that\
-        \ is not inside its employment, a unit that other units follow and that has\
-        \ no end, or a manager who is the person. Then `rule` names the error of the\
-        \ write for the rule, such as `assignment.outside_employment` or `attribute.unknown`,\
-        \ when the write has one. An empty text, a text of only spaces, or an empty\
-        \ array in a row fails with 400 and `invalid.blank`, as in a write. A text\
-        \ with NUL (U+0000) or half of a surrogate pair fails with 400 and `invalid.character`,\
-        \ as in a write. The error names the list, the `id` of the row, and the field.\
-        \ A document that gives one key twice in one object fails with 400 and `invalid.duplicate_key`,\
-        \ as in a write. A key that the document does not have fails with 400 and\
-        \ `invalid.unknown_key`, as in a write. A value of another JSON type than\
-        \ its field fails with 400 and `invalid.type`, as in a write, such as `\"\
-        true\"` or `null` for `active`. A whole number outside the range of its field\
-        \ fails with 400 and `invalid.out_of_range`, as in a write, such as `2147483648`\
-        \ for `displayOrder`. A number whose exponent is too large or too small to\
-        \ read fails with 400 and `invalid.number`, as in a write. These errors name\
-        \ the key with its path in the document, such as `orgUnits[0].versions[0].names.ja`.\
-        \ They have no list and no `id`, because the document is not read yet. A row\
-        \ may have an empty list of its own rows, such as `parents`. Two rows with\
-        \ the same ID or the same unique key, such as the `code` of a hierarchy, the\
-        \ `number` of a change order, or the user of a person, fail with 400 and `restore.duplicate`.\
-        \ Two rows that must not be valid on the same date, such as two versions of\
-        \ one org unit, fail with 400 and `restore.overlap`. These errors also name\
-        \ the `other` row. A row that breaks a rule of the database that the restore\
-        \ did not find, for example because another write stored the same row at the\
-        \ same time, fails with 409 and `restore.conflict`, with the name of the rule\
-        \ in `constraint`. A username of a person or of a change order must name a\
-        \ user of this realm. An org unit names its Keycloak organization by alias,\
-        \ and the restore asks for the permission to manage it."
+        \ as `attributes.beds`. So does a name with null in `attributes`, with no\
+        \ `rule`, because a write stores the attributes without it. So does a `version`\
+        \ outside 1 to 9007199254740991, which leaves a write room to count it up.\
+        \ So does a row that names a reference item of another kind, such as a unit\
+        \ role as the grade of terms, or that breaks a rule between rows of a write,\
+        \ such as a row of an assignment that is not inside its employment, a unit\
+        \ that other units follow and that has no end, or a manager who is the person.\
+        \ Then `rule` names the error of the write for the rule, such as `assignment.outside_employment`\
+        \ or `attribute.unknown`, when the write has one. An empty text, a text of\
+        \ only spaces, or an empty array in a row fails with 400 and `invalid.blank`,\
+        \ as in a write. A text with NUL (U+0000) or half of a surrogate pair fails\
+        \ with 400 and `invalid.character`, as in a write. The error names the list,\
+        \ the `id` of the row, and the field. A document that gives one key twice\
+        \ in one object fails with 400 and `invalid.duplicate_key`, as in a write.\
+        \ A key that the document does not have fails with 400 and `invalid.unknown_key`,\
+        \ as in a write. A value of another JSON type than its field fails with 400\
+        \ and `invalid.type`, as in a write, such as `\"true\"` or `null` for `active`.\
+        \ A whole number outside the range of its field fails with 400 and `invalid.out_of_range`,\
+        \ as in a write, such as `2147483648` for `displayOrder`. A number whose exponent\
+        \ is too large or too small to read fails with 400 and `invalid.number`, as\
+        \ in a write. These errors name the key with its path in the document, such\
+        \ as `orgUnits[0].versions[0].names.ja`. They have no list and no `id`, because\
+        \ the document is not read yet. A row may have an empty list of its own rows,\
+        \ such as `parents`. Two rows with the same ID or the same unique key, such\
+        \ as the `code` of a hierarchy, the `number` of a change order, or the user\
+        \ of a person, fail with 400 and `restore.duplicate`. Two rows that must not\
+        \ be valid on the same date, such as two versions of one org unit, fail with\
+        \ 400 and `restore.overlap`. These errors also name the `other` row. A row\
+        \ that breaks a rule of the database that the restore did not find, for example\
+        \ because another write stored the same row at the same time, fails with 409\
+        \ and `restore.conflict`, with the name of the rule in `constraint`. A username\
+        \ of a person or of a change order must name a user of this realm. An org\
+        \ unit names its Keycloak organization by alias, and the restore asks for\
+        \ the permission to manage it."
       operationId: restore
       tags:
       - bulk

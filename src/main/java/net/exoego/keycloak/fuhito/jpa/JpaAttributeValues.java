@@ -45,7 +45,7 @@ public class JpaAttributeValues implements AttributeValueStore {
             coalesce(json_typeof(cast(r.ATTRIBUTES as json) -> cast(:name as text)), 'null') = 'null'""";
 
     private static final String PRESENT = """
-            cast(r.ATTRIBUTES as json) -> cast(:name as text) is not null""";
+            coalesce(json_typeof(cast(r.ATTRIBUTES as json) -> cast(:name as text)), 'null') <> 'null'""";
 
     // The other pairs of the row in their order, and the new pair last.
     private static final String FILLED = """

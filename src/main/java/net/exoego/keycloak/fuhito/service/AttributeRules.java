@@ -12,14 +12,15 @@ import net.exoego.keycloak.fuhito.domain.FuhitoException;
 public interface AttributeRules {
 
     /** Rules that accept every value that is not too large. */
-    AttributeRules NONE = (target, attributes) -> AttributeSize.require(attributes == null ? Map.of() : attributes);
+    AttributeRules NONE = (target, attributes) -> AttributeSize.require(StoredAttributes.of(attributes));
 
     /**
-     * Checks the attributes of one write.
+     * Checks the attributes of one write, in the form that a write stores them. A name with null has no value, so
+     * the stored attributes leave it out, and it needs no definition. A required name with null is missing.
      *
      * @param target the kind of resource
      * @param attributes the attributes of the write, or null for none
-     * @return the attributes to store, never null
+     * @return the attributes to store, without the names with null, never null
      * @throws FuhitoException when the attributes are larger than 64 KB as JSON, a text is empty or only spaces, a
      *         name has no definition, a value does not fit its definition, or a required one is missing
      */

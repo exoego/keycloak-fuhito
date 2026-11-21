@@ -20,7 +20,7 @@ public interface AttributeValueStore {
     long countMissing(AttributeDefinition.Target target, String name);
 
     /**
-     * Counts the rows that have a name, also with null.
+     * Counts the rows with a value of a name.
      *
      * @param target the kind of resource
      * @param name the name of the attribute
@@ -50,8 +50,8 @@ public interface AttributeValueStore {
     List<String> fill(AttributeDefinition.Target target, String name, Object value);
 
     /**
-     * Removes a name from every row that has it. The version of the resource of each such row counts up once in the
-     * transaction.
+     * Removes a name from every row with a value of it. The version of the resource of each such row counts up once
+     * in the transaction.
      *
      * @param target the kind of resource
      * @param name the name of the attribute

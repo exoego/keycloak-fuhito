@@ -77,6 +77,19 @@ class RestoreValueFormsIT {
                 time("erasures", "p-9", "/erasures/0", "erasedAt", "2024-03-01T00:00:00.1234567Z")));
     }
 
+    // A write stores the attributes without a name with null, so an export never gives one. The document defines only
+    // the attribute note of a person.
+    @Test
+    void aNameWithNullInTheAttributesFailsTheRestoreAndNothingIsWritten() throws Exception {
+        String note = "{\"attributes\": {\"note\": null}}";
+        assertEachBreaks("restore-attribute-nulls", List.of(
+                breaks("people", "p-1", "attributes.note", null, at("/people/0", note)),
+                breaks("ref-items", "role-1", "attributes.note", null, at("/refItems/0", note)),
+                breaks("org-unit-versions", "v-1", "attributes.note", null, at("/orgUnits/0/versions/0", note)),
+                breaks("employment-terms", "t-1", "attributes.note", null, at("/employments/0/terms/0", note)),
+                breaks("assignments", "r-1", "attributes.note", null, at("/assignments/0/periods/0", note))));
+    }
+
     @Test
     void aTimeInTheFormOfAnExportComesBackAsItWas() throws Exception {
         TestRealm target = RestoreKeysIT.target("restore-time-forms");

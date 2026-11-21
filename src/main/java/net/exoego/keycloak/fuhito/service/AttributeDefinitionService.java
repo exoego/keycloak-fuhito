@@ -169,14 +169,14 @@ public class AttributeDefinitionService implements AttributeRules {
     }
 
     /**
-     * Deletes a definition. While a row of the resource has the name, the delete fails, or removes the name from
-     * every such row first.
+     * Deletes a definition. While a row of the resource has a value of the name, the delete fails, or removes the
+     * name from every such row first. A row with null for the name has no value.
      *
      * @param id the ID
-     * @param clearValues true to remove the name from the rows that have it
-     * @return a write of each resource whose rows lost the name, in the order of the IDs
-     * @throws FuhitoException when the definition does not exist, or a row has the name and the delete does not
-     *         remove it
+     * @param clearValues true to remove the name from the rows with a value of it
+     * @return a write of each resource whose rows lost the value, in the order of the IDs
+     * @throws FuhitoException when the definition does not exist, or a row has a value of the name and the delete
+     *         does not remove it
      */
     public List<Write.OfAttributeValue> delete(String id, boolean clearValues) {
         AttributeDefinition definition = get(id);
@@ -311,7 +311,7 @@ public class AttributeDefinitionService implements AttributeRules {
 
     private static Map<String, Object> check(AttributeDefinition.Target target, Map<String, Object> attributes,
             List<AttributeDefinition> definitions, BiPredicate<String, String> items) {
-        Map<String, Object> values = AttributeSize.require(attributes == null ? Map.of() : attributes);
+        Map<String, Object> values = AttributeSize.require(StoredAttributes.of(attributes));
         // A CSV cell cannot hold an empty text or an empty list, so a stored value must not be one either.
         EmptyValues.rejectEmptyValues("attributes", values);
         Map<String, AttributeDefinition> byName = new HashMap<>();
@@ -321,12 +321,12 @@ public class AttributeDefinitionService implements AttributeRules {
             if (definition == null) {
                 throw FuhitoException.invalid("attribute.unknown", Map.of("target", target.name(), "name", name));
             }
-            if (value != null && !fitsAll(definition, value, items)) {
+            if (!fitsAll(definition, value, items)) {
                 throw FuhitoException.invalid("attribute.bad_value", Map.of("name", name, "type", typeOf(definition)));
             }
         });
         byName.values().stream()
-                .filter(definition -> definition.required() && values.get(definition.name()) == null)
+                .filter(definition -> definition.required() && !values.containsKey(definition.name()))
                 .findFirst()
                 .ifPresent(definition -> {
                     throw FuhitoException.invalid("attribute.required",

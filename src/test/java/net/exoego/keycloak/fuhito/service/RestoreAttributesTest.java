@@ -120,6 +120,20 @@ class RestoreAttributesTest {
                 "attributes.beds", "attribute.bad_value");
     }
 
+    // A write leaves out a name with null, so an export never gives one. A name with no definition fails the same way.
+    @Test
+    void aNameWithNullFailsWithNoRule() {
+        Map<String, Object> withNull = new HashMap<>();
+        withNull.put("note", null);
+        for (String id : List.of("p-1", "q-1")) {
+            FuhitoException e = assertThrows(FuhitoException.class, () -> RestoreAttributes.require(document(
+                    List.of(definition("PERSON", "note", "STRING", null, false, false)), Map.of(id, withNull))));
+            assertEquals("restore.bad_value", e.code());
+            assertEquals(Map.of("list", id.equals("p-1") ? "people" : "qualifications", "id", id, "field",
+                    "attributes.note"), e.params());
+        }
+    }
+
     @Test
     void attributesOfMoreThan64KiBNameNoAttribute() {
         assertBroken(document(List.of(definition("PERSON", "note", "STRING", null, false, false)),

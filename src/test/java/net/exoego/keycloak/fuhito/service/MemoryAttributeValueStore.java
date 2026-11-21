@@ -40,7 +40,7 @@ final class MemoryAttributeValueStore implements AttributeValueStore {
     }
 
     private static Predicate<Row> present(String name) {
-        return row -> row.attributes().containsKey(name);
+        return row -> row.attributes().get(name) != null;
     }
 
     @Override
