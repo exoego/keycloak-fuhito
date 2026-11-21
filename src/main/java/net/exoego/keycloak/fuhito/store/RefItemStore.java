@@ -4,6 +4,7 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
+import net.exoego.keycloak.fuhito.domain.AttributeDefinition;
 import net.exoego.keycloak.fuhito.domain.RefItem;
 import net.exoego.keycloak.fuhito.domain.RefItemPeriod;
 import net.exoego.keycloak.fuhito.domain.RefKind;
@@ -139,6 +140,17 @@ public interface RefItemStore {
      * @return true when the item is in use
      */
     boolean isInUse(String id);
+
+    /**
+     * Tells whether a row of the kind of resource of a definition has the code of an item in that attribute, as
+     * the value or as an element of a list. Every version counts, also past and future ones. The item itself does
+     * not count, because its own attributes go away with it.
+     *
+     * @param item the item
+     * @param definition a definition of the type {@code REF_ITEM} for the kind of the item
+     * @return true when such a value has the code
+     */
+    boolean isInAttribute(RefItem item, AttributeDefinition definition);
 
     /**
      * Stores a new item with every period of its names. The item keeps its version.

@@ -1,5 +1,6 @@
 package net.exoego.keycloak.fuhito.service;
 
+import java.util.List;
 import java.util.Map;
 
 import net.exoego.keycloak.fuhito.domain.AttributeDefinition;
@@ -23,6 +24,16 @@ public interface AttributeRules {
      *         name has no definition, a value does not fit its definition, or a required one is missing
      */
     Map<String, Object> check(AttributeDefinition.Target target, Map<String, Object> attributes);
+
+    /**
+     * Lists the definitions of the type {@code REF_ITEM} whose values are codes of items of a kind.
+     *
+     * @param refKind the code of the kind
+     * @return the definitions, by kind of resource and name
+     */
+    default List<AttributeDefinition> ofRefKind(String refKind) {
+        return List.of();
+    }
 
     /**
      * Returns rules that read the definitions of each kind of resource once. They suit a list of writes that
