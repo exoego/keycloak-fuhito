@@ -61,6 +61,37 @@ class AttributeDefinitionsIT {
         assertEquals(204, api.deleteWithVersion("/attribute-definitions/" + beds.get("id").asText()).statusCode());
     }
 
+    // The values of attributes are free JSON, so the reader of the body keeps their types and the definitions check them.
+    @Test
+    void aValueOfAnotherJsonTypeFailsItsDefinition() throws Exception {
+        TestRealm realm = TestRealm.create("attributes-type");
+        Api api = realm.api;
+        realm.attribute("ORG_UNIT", "beds", "NUMBER");
+        realm.attribute("ORG_UNIT", "night", "BOOLEAN");
+        realm.attribute("ORG_UNIT", "note", "STRING");
+        String unit = "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"1病棟\"}}, "
+                + "\"validFrom\": \"2026-04-01\", \"attributes\": %s}";
+        String row = "{\"externalId\": \"%s\", \"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"%1$s\"}}, "
+                + "\"attributes\": %s}";
+
+        assertEquals("attribute.bad_value", errorOf(400, api.post("/org-units", unit.formatted("{\"beds\": \"3\"}"))));
+        assertEquals("attribute.bad_value", errorOf(400, api.post("/org-units",
+                unit.formatted("{\"night\": \"true\"}"))));
+        assertEquals("attribute.bad_value", errorOf(400, api.post("/org-units", unit.formatted("{\"note\": 3}"))));
+        HttpResponse<String> imported = api.post("/imports", "{\"effectiveDate\": \"2026-04-01\", \"orgUnits\": ["
+                + row.formatted("W1", "{\"beds\": \"3\"}") + ", " + row.formatted("W2", "{\"night\": \"true\"}") + ", "
+                + row.formatted("W3", "{\"note\": 3}") + "]}");
+        assertEquals(400, imported.statusCode(), imported.body());
+        assertEquals(List.of("attribute.bad_value", "attribute.bad_value", "attribute.bad_value"),
+                Api.json(imported).get("errors").findValuesAsText("error"));
+        assertEquals(0, Api.json(api.get("/org-units?asOf=2026-04-01")).size());
+
+        JsonNode ward = created(api.post("/org-units", unit.formatted("{\"beds\": 3, \"night\": true, \"note\": \"3\"}")));
+        JsonNode attributes = ward.get("attributes");
+        assertEquals(List.of("3", "true", "\"3\""), List.of(attributes.get("beds").toString(),
+                attributes.get("night").toString(), attributes.get("note").toString()));
+    }
+
     @Test
     void attributesMayHave64KbAsJson() throws Exception {
         TestRealm realm = TestRealm.create("attributes-size");
