@@ -285,7 +285,10 @@ class PeopleIT {
         assertEquals(1, scratchApi.count("/people/count?staffNumber=S-77"));
         assertEquals(1, scratchApi.count("/people/count?q=TSUZUKI"));
         assertEquals(0, scratchApi.count("/people/count?q=hanako&staffNumber=S-77"));
-        assertEquals(3, scratchApi.count("/people/count?q=%20"));
+        // A text of only spaces fails as in a body. It used to count every person.
+        HttpResponse<String> spaces = scratchApi.get("/people/count?q=%20");
+        assertEquals(400, spaces.statusCode(), spaces.body());
+        assertEquals("invalid.blank", Api.json(spaces).get("error").asText());
         // The keys of the names in other languages are not names.
         assertEquals(List.of(), ok(scratchApi.get("/people?q=en")).findValuesAsText("id"));
 

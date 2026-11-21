@@ -204,6 +204,8 @@ The files of org units and of assignments have the work location and the cost ce
 The kinds, the definitions of attributes, the hierarchies, the people, the IDs of other systems, and the change orders have no date. So `ref-kinds`, `attribute-definitions`, `hierarchies`, `people`, `external-ids`, and `change-orders` take no `asOf`. A read of one of them with `asOf` fails with 400 and `csv.export_no_date`, so that no date is dropped.
 The query has `effectiveDate`, and optionally `dryRun` and `source`.
 Another query parameter fails with 400 and `invalid.unknown_parameter`, and nothing is written. The case of each letter counts, so `dryrun=true` fails and is no dry run.
+`dryRun` takes only `true` or `false` in lower case, as JSON does. Another value, such as `True`, `1`, or an empty value, fails with 400 and `invalid.type`, and nothing is written.
+An empty `effectiveDate` or `source`, or one of only spaces, fails with 400 and `invalid.blank`, which names the parameter.
 The content type is `text/csv`.
 
 ```sh
