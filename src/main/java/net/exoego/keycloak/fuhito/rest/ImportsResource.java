@@ -180,8 +180,9 @@ public class ImportsResource {
                     + "with `import.unknown_key`, which names the key with its path, such as "
                     + "`employments[2].employerExternalID`. This holds for the keys of the document, of each row, "
                     + "and of the names of one language, as a CSV column that its list does not have fails with "
-                    + "`csv.bad_column`. The keys of `attributes` are the names of attributes. A new thing has "
-                    + "nothing stored, so a missing key and `null` both give no value. The lists "
+                    + "`csv.bad_column`. The keys of `attributes` are the names of attributes, and their "
+                    + "definitions check them. A new thing has nothing stored, so a missing key and `null` both "
+                    + "give no value. The lists "
                     + "are applied in the order change orders, kinds of reference data, definitions of attributes, "
                     + "reference items, hierarchies, org units, parents in hierarchies, people, qualifications, "
                     + "employments, roles over org units, assignments, reporting lines, IDs of other systems.")
