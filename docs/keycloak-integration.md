@@ -385,7 +385,7 @@ The extension reads the JSON body of its own endpoints with a JAX-RS `MessageBod
 Keycloak registers it when it builds the server with the jar.
 It reads only the records of the extension, which are the bodies of its endpoints.
 So every endpoint of Keycloak reads its body as before.
-The reader uses the JSON settings of Keycloak and adds two checks.
+The reader uses the JSON settings of Keycloak and adds three checks.
 A body that gives one key twice in one object fails with 400 and `invalid.duplicate_key`, which names the key with its path.
 Keycloak itself would keep the last value.
 A key that the body does not have fails with 400 and `invalid.unknown_key`, which names the key with its path, such as `steps[1].nmae`.
@@ -393,6 +393,19 @@ This holds for every body of the extension, also for an import and a restore.
 Keycloak itself would answer with an error that names a Java type of the extension and a line and a column, with no error code and no path.
 The reader turns on the setting of Jackson that rejects an unknown key, so the check holds even if Keycloak turns it off.
 An endpoint of Keycloak answers an unknown key with the error of Keycloak as before.
+
+A value of another JSON type than its field fails with 400 and `invalid.type`, which names the field with its path and the type of the field, such as `integer`.
+Keycloak itself would turn the value into the type of the field, so that `3.7` became `3`, `"false"` became false, `1` became true, and `123` became `"123"`.
+A value that Jackson cannot turn, such as `"x"` for a number, would fail with an error that has no error code and no path.
+The reader turns off these conversions on a copy of the `ObjectMapper` of Keycloak, so the mapper of Keycloak keeps its settings.
+`ObjectMapper.copy()` works only for a mapper of the class `ObjectMapper` itself, which is the one that Keycloak makes.
+
+- `MapperFeature.ALLOW_COERCION_OF_SCALARS` is off, so a text, a boolean, or another type of number does not become a number or a boolean. A whole number still becomes a decimal number, because `80` is the same number as `80.0`.
+- `DeserializationFeature.ACCEPT_FLOAT_AS_INT` is off, so a number with a decimal point or an exponent does not become a whole number.
+- The coercion configuration of a text fails for a number and a boolean, which the feature above does not cover.
+- `null` for a primitive field fails. The reader wraps the deserializer of each primitive to do this. `DeserializationFeature.FAIL_ON_NULL_FOR_PRIMITIVES` would also fail a primitive that a body leaves out, such as `dryRun` of an import.
+
+An endpoint of Keycloak turns such a value into the type of its field as before.
 Other bad JSON fails as it does in Keycloak.
 
 ### Query parameters

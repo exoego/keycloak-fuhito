@@ -71,8 +71,6 @@ class DuplicateKeyIT {
 
         assertError(api.post("/hierarchies", "{\"code\": \"c\", \"name\": "),
                 "{\"error\":\"invalid_request\",\"error_description\":\"Cannot parse the JSON\"}");
-        assertError(api.post("/org-units", unit("{\"name\": \"甲\"}", ", \"displayOrder\": \"x\"")),
-                "{\"error\":\"unknown_error\",\"error_description\":\"Cannot parse the JSON\"}");
         assertError(api.post("/hierarchies", ""),
                 "{\"error\":\"invalid.required\",\"params\":{\"field\":\"body\"},\"message\":\"body is required.\"}");
     }
