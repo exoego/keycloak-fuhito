@@ -22,7 +22,7 @@ final class OldStatistics {
     static void realmsWithOldStatistics(Statement statement, String... moreTables) throws Exception {
         emptyTables(statement, Stream.concat(Stream.of(TABLES), Stream.of(moreTables)).toArray(String[]::new));
         rowsOfRealm(statement, "ex-old", 20);
-        statement.execute("analyze " + TABLES);
+        statement.execute("analyze %s".formatted(TABLES));
         rowsOfRealm(statement, "ex-new", 3000);
     }
 
@@ -30,12 +30,12 @@ final class OldStatistics {
     // the tables and their indexes. Both change the plans, so a check empties its tables in its transaction. The
     // rollback brings the rows of other tests back. Cascade also empties the tables that refer to them.
     static void emptyTables(Statement statement, String... tables) throws Exception {
-        statement.execute("truncate " + String.join(", ", tables) + " cascade");
+        statement.execute("truncate %s cascade".formatted(String.join(", ", tables)));
     }
 
     // The statistics after the import, as autovacuum makes them later. They know the rows of this transaction.
     static void freshStatistics(Statement statement) throws Exception {
-        statement.execute("analyze " + TABLES);
+        statement.execute("analyze %s".formatted(TABLES));
     }
 
     // Units below the first nine have a parent, and each unit has one version with a name. Each person has a user, one

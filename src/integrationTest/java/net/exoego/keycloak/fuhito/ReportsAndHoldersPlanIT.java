@@ -58,7 +58,7 @@ class ReportsAndHoldersPlanIT {
             rows(statement);
             List<Executable> checks = new ArrayList<>(checks(statement));
             freshStatistics(statement);
-            statement.execute("analyze " + MORE_TABLES);
+            statement.execute("analyze %s".formatted(MORE_TABLES));
             checks.addAll(checks(statement));
             connection.rollback();
             assertAll(checks);
@@ -113,7 +113,7 @@ class ReportsAndHoldersPlanIT {
     private static void rows(Statement statement) throws Exception {
         realmsWithOldStatistics(statement, MORE_TABLES);
         moreRows(statement, "ex-old", 20);
-        statement.execute("analyze " + MORE_TABLES);
+        statement.execute("analyze %s".formatted(MORE_TABLES));
         moreRows(statement, "ex-new", 3000);
         statement.execute("""
                 update fuhito_assignment set is_head = true

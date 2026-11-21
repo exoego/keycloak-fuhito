@@ -330,7 +330,7 @@ class ReadsByIdPlansIT {
     private static void oldStatistics(Statement statement) throws Exception {
         OldStatistics.realmsWithOldStatistics(statement, MORE_TABLES);
         moreRows(statement, "ex-old", 20);
-        statement.execute("analyze " + MORE_TABLES);
+        statement.execute("analyze %s".formatted(MORE_TABLES));
         moreRows(statement, "ex-new", 3000);
     }
 
