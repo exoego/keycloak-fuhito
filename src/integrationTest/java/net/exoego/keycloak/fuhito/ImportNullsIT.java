@@ -61,7 +61,7 @@ class ImportNullsIT {
         assertEquals(List.of("invalid.blank", "invalid.blank"),
                 Api.json(blank).get("errors").findValuesAsText("error"));
         assertEquals(List.of("code", "successorIds"), Api.json(blank).get("errors").findValuesAsText("field"));
-        assertEquals("code を空や空白だけにすることはできません。値がないときは null にしてください。",
+        assertEquals("code を空や空白だけにすることはできません。値がないときは、本文では null にし、クエリではパラメーターを省いてください。",
                 Api.json(blank).get("errors").get(0).get("message").asText());
     }
 
