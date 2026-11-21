@@ -212,9 +212,8 @@ public class AssignmentsResource {
             @PathParam("id") String id,
             @Parameter(
                     description = "The version of the assignment that the caller read.",
-                    required = true,
-                    schema = @Schema(type = SchemaType.INTEGER, format = "int64"))
-            @QueryParam("version") String version) {
+                    required = true)
+            @QueryParam("version") Long version) {
         context.requireWrite();
         return Calls.guarded(context, version, () -> version(id), () -> {
             removals.remove(ResourceRemoval.Kind.ASSIGNMENT, id);
@@ -328,9 +327,8 @@ public class AssignmentsResource {
             @PathParam("id") String id,
             @Parameter(
                     description = "The version of the assignment that the caller read.",
-                    required = true,
-                    schema = @Schema(type = SchemaType.INTEGER, format = "int64"))
-            @QueryParam("version") String version) {
+                    required = true)
+            @QueryParam("version") Long version) {
         context.requireWrite();
         return Calls.guarded(context, version, () -> version(id), () -> {
             var assignment = represent(service.removeEnd(id));

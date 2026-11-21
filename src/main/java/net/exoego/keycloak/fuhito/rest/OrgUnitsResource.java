@@ -179,9 +179,8 @@ public class OrgUnitsResource {
             @PathParam("id") String id,
             @Parameter(
                     description = "The version of the org unit that the caller read.",
-                    required = true,
-                    schema = @Schema(type = SchemaType.INTEGER, format = "int64"))
-            @QueryParam("version") String version) {
+                    required = true)
+            @QueryParam("version") Long version) {
         context.requireWrite();
         return Calls.guarded(context, version, () -> version(id), () -> {
             removals.remove(ResourceRemoval.Kind.ORG_UNIT, id);
@@ -229,9 +228,8 @@ public class OrgUnitsResource {
             @PathParam("id") String id,
             @Parameter(
                     description = "The version of the org unit that the caller read.",
-                    required = true,
-                    schema = @Schema(type = SchemaType.INTEGER, format = "int64"))
-            @QueryParam("version") String version) {
+                    required = true)
+            @QueryParam("version") Long version) {
         context.requireWrite();
         return Calls.guarded(context, version, () -> version(id),
                 () -> updated(path(id) + "/end", service.removeEnd(id)));
@@ -560,9 +558,8 @@ public class OrgUnitsResource {
             @PathParam("id") String id,
             @Parameter(
                     description = "The version of the org unit that the caller read.",
-                    required = true,
-                    schema = @Schema(type = SchemaType.INTEGER, format = "int64"))
-            @QueryParam("version") String version) {
+                    required = true)
+            @QueryParam("version") Long version) {
         context.requireWrite();
         return Calls.guarded(context, version, () -> version(id), () -> {
             organizationLinks.organizationOf(id).ifPresent(context::requireManageOrganization);

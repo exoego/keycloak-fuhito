@@ -186,12 +186,12 @@ final class Calls {
      *
      * @param <T> the type of the response
      * @param context the request
-     * @param version the version that the caller read as text, or null when the query has none
+     * @param version the version that the caller read, or null when the query has none
      * @param current reads the version of the resource that the path names
      * @param operation the write
      * @return the response
      */
-    static <T> T guarded(RequestContext context, String version, LongSupplier current, Supplier<T> operation) {
+    static <T> T guarded(RequestContext context, Long version, LongSupplier current, Supplier<T> operation) {
         return guarded(context, version, current, Map::of, operation);
     }
 
@@ -201,33 +201,18 @@ final class Calls {
      *
      * @param <T> the type of the response
      * @param context the request
-     * @param version the version that the caller read as text, or null when the query has none
+     * @param version the version that the caller read, or null when the query has none
      * @param current reads the version of the resource that the path names
      * @param others finds the other resources that the write changes, by the first part of their path
      * @param operation the write
      * @return the response
      */
-    static <T> T guarded(RequestContext context, String version, LongSupplier current,
+    static <T> T guarded(RequestContext context, Long version, LongSupplier current,
             Supplier<? extends Map<String, ? extends Collection<String>>> others, Supplier<T> operation) {
         return run(context, () -> {
-            requireTarget(context, versionOf(version), current, others);
+            requireTarget(context, version, current, others);
             return operation.get();
         });
-    }
-
-    /**
-     * Reads the version in the query of a request.
-     *
-     * @param text the value of the query parameter, or null
-     * @return the version, or null when the text is none or no number
-     */
-    static Long versionOf(String text) {
-        // Jakarta REST would answer 404 to a query parameter of the type Long that is no number.
-        try {
-            return text == null ? null : Long.valueOf(text.strip());
-        } catch (NumberFormatException e) {
-            return null;
-        }
     }
 
     private static void requireTarget(RequestContext context, Long version, LongSupplier current,

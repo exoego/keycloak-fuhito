@@ -322,7 +322,7 @@ So another system can ask what changed since its last read.
 2. For each entry, read the resource again to get its state. A deleted resource answers 404. Keep the `sequence` of the last entry.
 3. Read again with `after` set to that number. A read with fewer entries than `max` has reached the end.
 
-`max` is 100 by default and 1000 at most. `resourceType` and `resourceId` narrow the list, each alone or both.
+`max` is 100 by default, and takes a number from 0 to 1000. `after` takes a number from 0. A number outside these limits fails with 400 and `invalid.out_of_range`, as on every list. `resourceType` and `resourceId` narrow the list, each alone or both.
 
 The entries of a realm become readable in the order of their numbers.
 So a reader that goes on after the last number it saw misses no entry.

@@ -201,9 +201,8 @@ public class PeopleResource {
             @PathParam("id") String id,
             @Parameter(
                     description = "The version of the person that the caller read.",
-                    required = true,
-                    schema = @Schema(type = SchemaType.INTEGER, format = "int64"))
-            @QueryParam("version") String version) {
+                    required = true)
+            @QueryParam("version") Long version) {
         context.requireWrite();
         return Calls.guarded(context, version, () -> version(id), () -> {
             service.delete(id);
@@ -463,9 +462,8 @@ public class PeopleResource {
             @PathParam("id") String id,
             @Parameter(
                     description = "The version of the person that the caller read.",
-                    required = true,
-                    schema = @Schema(type = SchemaType.INTEGER, format = "int64"))
-            @QueryParam("version") String version) {
+                    required = true)
+            @QueryParam("version") Long version) {
         context.requireWrite();
         return Calls.guarded(context, version, () -> version(id), () -> data.ofPerson(id), () -> {
             data.erase(service.get(id).person().id());
