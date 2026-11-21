@@ -113,10 +113,20 @@ components:
           description: "Every ID that a system has for the assignment. The one of\
             \ `source` comes first, then the others by system."
           readOnly: true
-        continuesAssignmentId:
-          type: string
-          description: "The ID of the assignment that this one continues, after a\
-            \ move to another org unit or a transfer to another employer."
+        endedOnStart:
+          type: array
+          items:
+            $ref: "#/components/schemas/EndedAssignment"
+          description: "The assignments of the same person, in any of the person's\
+            \ employments, whose `validTo` is the `validFrom` of this one and that\
+            \ have the same primary flag, by `assignmentId`. A move to another org\
+            \ unit gives the old assignment, and so do a transfer and a merger of\
+            \ employers. Two posts can also end and start on one day with no tie between\
+            \ them, so this states only the dates. A gap gives none. It is missing\
+            \ when there is none. A read works it out from the other assignments,\
+            \ and a write never stores it. A create may leave it out. A create that\
+            \ gives another list than the one that the new assignment gets fails with\
+            \ 400 and `invalid.value_fixed`, and writes nothing."
           readOnly: true
         jobTitle:
           type: string
@@ -767,6 +777,25 @@ components:
           type: string
           description: The first date on which it no longer exists.
           format: date
+    EndedAssignment:
+      type: object
+      required:
+      - assignmentId
+      - orgUnitId
+      - primary
+      description: "An assignment of the same person that ends on the start of another\
+        \ one, with the same primary flag."
+      properties:
+        assignmentId:
+          type: string
+          description: The ID of the assignment that ends.
+        orgUnitId:
+          type: string
+          description: The ID of its org unit.
+        primary:
+          type: boolean
+          description: True when it is the main assignment of its employment on its
+            last day.
     Error:
       required:
       - error
@@ -834,8 +863,6 @@ components:
           type: object
           additionalProperties: {}
         source:
-          type: string
-        continuesAssignmentId:
           type: string
     ExportAttributeDefinition:
       type: object
@@ -1346,9 +1373,8 @@ components:
           pattern: "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
           description: "The name of the system that the row comes from. The default\
             \ is the source of the document. A row by `id` with this and none of `externalId`,\
-            \ `employmentExternalId`, `orgUnitExternalId`, and `continuesAssignmentExternalId`\
-            \ must give the `source` that a read of the assignment has, or it fails\
-            \ with `import.value_fixed`."
+            \ `employmentExternalId`, and `orgUnitExternalId` must give the `source`\
+            \ that a read of the assignment has, or it fails with `import.value_fixed`."
         externalId:
           type: string
           description: The ID of the assignment in that system.
@@ -1418,16 +1444,6 @@ components:
           description: "The ID of a stored assignment, for a row of an assignment\
             \ with no external ID. A CSV export has it in every row. A new assignment\
             \ has none."
-        continuesAssignmentExternalId:
-          type: string
-          description: "The external ID of the assignment that this one continues\
-            \ after a transfer between employers, with the same source. A new assignment\
-            \ gets the link. A stored one must have the same. The one it continues\
-            \ must end by the start of this one."
-        continuesAssignmentId:
-          type: string
-          description: "The ID of the assignment that this one continues. Give this\
-            \ or `continuesAssignmentExternalId`, not both."
         workLocation:
           type: string
           description: "The code of the work location. With none, the one of the org\
@@ -2593,6 +2609,15 @@ components:
           type: object
           additionalProperties: {}
           description: Free values that the realm defines.
+        endedOnStart:
+          type: array
+          items:
+            $ref: "#/components/schemas/EndedAssignment"
+          description: "The assignments of the same person, in any of the person's\
+            \ employments, whose `validTo` is the first date of the whole assignment\
+            \ and that have the same primary flag, by `assignmentId`. A move gives\
+            \ the old assignment, and so do a transfer and a merger of employers.\
+            \ A gap gives none. It is missing when there is none."
         employmentType:
           type: string
           description: The code of the employment type on the date.
@@ -4902,9 +4927,8 @@ paths:
   /assignments/{id}:
     delete:
       summary: "Deletes an assignment that nothing refers to, with all its history."
-      description: It works only when the assignment has no reporting line and no
-        assignment continues it. Every period of it goes. End an assignment that held
-        for a while instead.
+      description: It works only when the assignment has no reporting line. Every
+        period of it goes. End an assignment that held for a while instead.
       operationId: deleteAssignment
       tags:
       - assignments
@@ -5007,9 +5031,9 @@ paths:
   /assignments/{id}/end:
     delete:
       summary: Removes the end of an assignment.
-      description: "The assignment then lasts as long as its employment. When it would\
-        \ then hold on the start of an assignment that continues it, as after a move,\
-        \ the request fails with 409 and `assignment.continues_holds`."
+      description: "The assignment then lasts as long as its employment. A primary\
+        \ assignment that would then share a date with another primary assignment\
+        \ of the employment, as after a move, fails with 409 and `assignment.primary_exists`."
       operationId: removeAssignmentEnd
       tags:
       - assignments
@@ -5048,8 +5072,8 @@ paths:
     put:
       summary: Sets the end of an assignment.
       description: Its history stays readable. The end can move earlier or later.
-        A later end that comes after the start of an assignment that continues this
-        one fails with 409 and `assignment.continues_holds`.
+        A later end of a primary assignment that would then share a date with another
+        primary assignment of the employment fails with 409 and `assignment.primary_exists`.
       operationId: endAssignment
       tags:
       - assignments
@@ -5088,12 +5112,12 @@ paths:
     post:
       summary: "Moves a person to another org unit on a date, in one write."
       description: "The assignment ends on the date. A new assignment of the same\
-        \ employment to the new org unit starts on the same date, and names the old\
-        \ one in `continuesAssignmentId`. It keeps the occupation, the kind, the primary\
-        \ flag, the allocation, and the attributes. It keeps the job title unless\
-        \ the request gives one. The head flag, the display order, the work location,\
-        \ and the cost center belong to the old org unit and are not kept. The reporting\
-        \ lines of the old assignment end with it. A failure writes nothing."
+        \ employment to the new org unit starts on the same date, and its `endedOnStart`\
+        \ lists the old one. It keeps the occupation, the kind, the primary flag,\
+        \ the allocation, and the attributes. It keeps the job title unless the request\
+        \ gives one. The head flag, the display order, the work location, and the\
+        \ cost center belong to the old org unit and are not kept. The reporting lines\
+        \ of the old assignment end with it. A failure writes nothing."
       operationId: moveAssignment
       tags:
       - assignments
@@ -6296,9 +6320,7 @@ paths:
       summary: Sets the end of an employment.
       description: "An earlier end is how a person leaves. It also ends the terms\
         \ and the assignments on that date, and removes the ones that would start\
-        \ later. An end that would remove an assignment that another assignment continues\
-        \ fails with 409 and `assignment.in_use`, as the delete of that assignment\
-        \ does. A later end extends a fixed-term employment. A later end that comes\
+        \ later. A later end extends a fixed-term employment. A later end that comes\
         \ after the start of an employment that continues this one fails with 409\
         \ and `employment.continues_holds`."
       operationId: endEmployment
@@ -6510,10 +6532,9 @@ paths:
         \ must not end before the date. An assignment, a line, or a role that starts\
         \ on the date or later goes away from the old employment, and its copy takes\
         \ its IDs of other systems. One that holds before the date only ends and keeps\
-        \ its IDs. Its copy gets none. The transfer fails with 409 and `assignment.in_use`\
-        \ when such an assignment is one that another assignment continues, as its\
-        \ delete does. A failure writes nothing. An employment with an external employer\
-        \ cannot move. End it and start another employment."
+        \ its IDs. Its copy gets none, and the `endedOnStart` of the copy lists it.\
+        \ A failure writes nothing. An employment with an external employer cannot\
+        \ move. End it and start another employment."
       operationId: transferEmployment
       tags:
       - employments

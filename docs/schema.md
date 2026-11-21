@@ -31,7 +31,6 @@ erDiagram
         integer DISPLAY_ORDER
         text ATTRIBUTES
         varchar(64) SOURCE
-        varchar(36) CONTINUES_ASSIGNMENT_ID
         bigint VERSION
     }
     FUHITO_CHANGE_LOG {
