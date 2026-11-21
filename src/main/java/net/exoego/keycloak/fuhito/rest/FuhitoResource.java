@@ -297,7 +297,7 @@ public class FuhitoResource {
 
     private RealmKindService realmKinds() {
         return new RealmKindService(new JpaRealmKindStore(entityManager, realmId),
-                new JpaRefItemStore(entityManager, realmId));
+                new JpaRefItemStore(entityManager, realmId), new JpaAttributeDefinitionStore(entityManager, realmId));
     }
 
     /**

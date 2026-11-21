@@ -199,6 +199,31 @@ class RefItemServiceTest {
     }
 
     @Test
+    void doesNotDeleteAnItemWhoseCodeAnAttributeOfItsKindHas() {
+        MemoryAttributeDefinitionStore definitionStore = new MemoryAttributeDefinitionStore();
+        AttributeDefinitionService definitions = new AttributeDefinitionService(definitionStore, store, kind -> true);
+        RefItemService checked = new RefItemService(store, definitions, kind -> true);
+        RefItem site = checked.create("site", "tokyo", "en", english("Tokyo"), null, null, RefItemService.Marks.NONE);
+        RefItem region = checked.create("region", "tokyo", "en", english("Tokyo"), null, null,
+                RefItemService.Marks.NONE);
+        definitions.create("PERSON", "note", "STRING", null, null, null);
+        definitions.create("PERSON", "region", "REF_ITEM", "region", null, null);
+        definitions.create("ASSIGNMENT", "sites", "REF_ITEM", "site", true, null);
+        store.attributeValues.add(List.of("PERSON", "note", "tokyo"));
+        store.attributeValues.add(List.of("ASSIGNMENT", "sites", "tokyo"));
+
+        FuhitoException e = assertThrows(FuhitoException.class, () -> checked.delete(site.id()));
+
+        assertEquals(FuhitoException.Reason.CONFLICT, e.reason());
+        assertEquals("ref_item.in_use", e.code());
+        assertEquals(Map.of("id", site.id(), "target", "ASSIGNMENT", "name", "sites"), e.params());
+        assertEquals(site, checked.get(site.id()));
+        // The same code in another kind, and a text with the code, do not count.
+        checked.delete(region.id());
+        assertEquals("ref_item.not_found", assertThrows(FuhitoException.class, () -> checked.get(region.id())).code());
+    }
+
+    @Test
     void rejectsAnUnknownId() {
         assertEquals("ref_item.not_found",
                 assertThrows(FuhitoException.class, () -> service.update("nope", "en", english("x"), null, null, null)).code());

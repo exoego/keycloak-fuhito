@@ -66,7 +66,7 @@ class CsvImportServiceTest {
     private final MemoryAttributeDefinitionStore definitions = new MemoryAttributeDefinitionStore();
     private final CsvImportService service = new CsvImportService(
             new ImportService(new RefItemService(refItems), refItems, orgUnits, orgUnitStore, people,
-                    new ImportService.Setup(new RealmKindService(new MemoryRealmKindStore(), refItems),
+                    new ImportService.Setup(new RealmKindService(new MemoryRealmKindStore(), refItems, definitions),
                             new AttributeDefinitionService(definitions, refItems),
                             new HierarchyService(new MemoryHierarchyStore())),
                     new ImportService.Organizations(new OrganizationLinkService(orgUnitStore, id -> false),

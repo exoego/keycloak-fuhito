@@ -51,7 +51,7 @@ class RestoreAttributesIT {
     void valuesThatTheirChangedDefinitionsNoLongerAllowRestoreAsTheyWere() throws Exception {
         TestRealm source = TestRealm.create("restore-attributes-export");
         Api api = source.api;
-        String grade = source.refItem("GRADE", "g1", "一級");
+        source.refItem("GRADE", "g1", "一級");
         String note = id(api.post("/attribute-definitions", "{\"target\": \"PERSON\", \"name\": \"note\", "
                 + "\"type\": \"STRING\"}"));
         String old = id(api.post("/attribute-definitions", "{\"target\": \"PERSON\", \"name\": \"old\", "
@@ -62,7 +62,6 @@ class RestoreAttributesIT {
                 + "\"attributes\": {\"note\": \"text\", \"old\": \"x\", \"grade\": \"g1\"}}"));
         ok(api.putWithVersion("/attribute-definitions/" + note, "{\"type\": \"NUMBER\", \"multiple\": true}"));
         ok(api.deleteWithVersion("/attribute-definitions/" + old));
-        ok(api.deleteWithVersion("/ref-items/" + grade));
         ok(api.post("/attribute-definitions", "{\"target\": \"PERSON\", \"name\": \"badge\", \"type\": \"STRING\", "
                 + "\"required\": true}"));
         ObjectNode before = RealmExportIT.export(api);
