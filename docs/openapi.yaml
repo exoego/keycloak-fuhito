@@ -6451,7 +6451,10 @@ paths:
       description: "Follow the `Link` header of each response to the end of the list.\
         \ Put the lists together under their names in camel case, with `format`, to\
         \ get the document that `POST /restore` takes. Rows name Keycloak users by\
-        \ username."
+        \ username. The list `erasures` has a row for each person whose data was erased,\
+        \ with the ID of the person and the time of the erase, and nothing else. Its\
+        \ rows have no ID of their own, so it is ordered by the ID of the person.\
+        \ A restore erases these people again after the load."
       operationId: exportList
       tags:
       - bulk
@@ -6473,6 +6476,7 @@ paths:
           - qualifications
           - external-ids
           - change-orders
+          - erasures
         name: list
         in: path
         required: true

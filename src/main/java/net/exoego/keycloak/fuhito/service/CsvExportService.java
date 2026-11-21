@@ -47,7 +47,8 @@ public class CsvExportService {
     // The mark that tells a spreadsheet that the file is UTF-8.
     private static final String BYTE_ORDER_MARK = "﻿";
     private static final int ROWS_AT_A_TIME = 1000;
-    private static final List<String> LISTS = List.of("ref-kinds", "attribute-definitions", "ref-items",
+    /** The lists, as the paths of the CSV export name them. */
+    public static final List<String> LISTS = List.of("ref-kinds", "attribute-definitions", "ref-items",
             "hierarchies", "org-units", "org-unit-parents", "people", "employments", "assignments",
             "reporting-lines", "unit-roles", "qualifications", "external-ids", "change-orders");
     private static final Set<String> UNDATED = Set.of("ref-kinds", "attribute-definitions", "hierarchies", "people",

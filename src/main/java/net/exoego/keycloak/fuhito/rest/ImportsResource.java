@@ -34,7 +34,7 @@ import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 @Tag(ref = Tags.BULK)
 public class ImportsResource {
 
-    private static final Map<String, String> CSV_LISTS = Map.ofEntries(Map.entry("ref-kinds", "refKinds"),
+    static final Map<String, String> CSV_LISTS = Map.ofEntries(Map.entry("ref-kinds", "refKinds"),
             Map.entry("attribute-definitions", "attributeDefinitions"), Map.entry("ref-items", "refItems"),
             Map.entry("hierarchies", "hierarchies"), Map.entry("org-unit-parents", "orgUnitParents"),
             Map.entry("org-units", "orgUnits"), Map.entry("employments", "employments"),
