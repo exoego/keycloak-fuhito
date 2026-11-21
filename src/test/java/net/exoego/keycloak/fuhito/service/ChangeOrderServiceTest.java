@@ -34,12 +34,23 @@ class ChangeOrderServiceTest {
         }
 
         @Override
-        public List<ChangeLogEntry> list(long after, ResourceType resourceType, String resourceId, int first, int max) {
+        public List<ChangeLogEntry> list(long after, ResourceType resourceType, String resourceId,
+                ChangeLogEntry.Kind kind, int first, int max) {
             return List.of();
         }
 
         @Override
-        public long count(ResourceType resourceType, String resourceId) {
+        public long count(ResourceType resourceType, String resourceId, ChangeLogEntry.Kind kind) {
+            return 0;
+        }
+
+        @Override
+        public Bounds bounds() {
+            return new Bounds(0, 0);
+        }
+
+        @Override
+        public long removePropagated(Instant before) {
             return 0;
         }
 

@@ -103,8 +103,9 @@ class ChangeLogIT {
 
         Set<String> fields = new TreeSet<>();
         entries.forEach(entry -> entry.fieldNames().forEachRemaining(fields::add));
-        assertEquals(Set.of("id", "sequence", "recordedAt", "actorUserId", "resourceType", "resourceId", "operation",
-                "resourcePath", "changeOrderId"), fields);
+        assertEquals(Set.of("id", "sequence", "recordedAt", "kind", "actorUserId", "resourceType", "resourceId",
+                "operation", "resourcePath", "changeOrderId"), fields);
+        assertEquals(Set.of("WRITE"), new TreeSet<>(entries.findValuesAsText("kind")));
         for (String state : List.of("総務課", "人事課", "2026年4月異動")) {
             assertFalse(entries.toString().contains(state), state);
         }
@@ -127,7 +128,10 @@ class ChangeLogIT {
         assertEquals(unit, firstPage.get(2).get("resourceId").asText());
         assertEquals(List.of(4L, 5L, 6L), sequences(ok(api.get("/change-log?after=3&max=3"))));
         assertEquals(List.of(5L), sequences(ok(api.get("/change-log?after=3&first=1&max=1"))));
-        assertEquals(0, ok(api.get("/change-log?after=100000")).size());
+        // No entry ever had the number, so the reader has a number of another realm, or of a realm that was removed.
+        HttpResponse<String> unknown = api.get("/change-log?after=100000");
+        assertEquals(400, unknown.statusCode(), unknown.body());
+        assertEquals("invalid.out_of_range", Api.json(unknown).get("error").asText());
 
         JsonNode orders = ok(api.get("/change-log?resourceType=FUHITO_CHANGE_ORDER"));
         assertTrue(orders.findValuesAsText("resourceId").contains(order));

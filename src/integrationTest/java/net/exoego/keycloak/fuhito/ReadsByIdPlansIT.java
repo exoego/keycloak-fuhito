@@ -333,6 +333,18 @@ class ReadsByIdPlansIT {
         });
     }
 
+    // The cleanup reads only the old propagated changes of the realm, and never the newer ones or the writes.
+    @Test
+    void theCleanupFindsTheOldPropagatedChangesByTheirIndex() throws Exception {
+        withOldStatistics(statement -> {
+            String old = " from fuhito_change_log l where l.realm_id = " + REALM
+                    + " and l.kind = 'PROPAGATED' and l.recorded_at < now() - interval '90 days'";
+            for (String query : List.of("select max(l.sequence_number + 0)" + old, "delete" + old)) {
+                assertIndexes(statement, query, "idx_fuhito_change_log_propagated");
+            }
+        });
+    }
+
     private static void withOldStatistics(Check check) throws Exception {
         try (Connection connection = KeycloakEnvironment.connection();
                 Statement statement = connection.createStatement()) {
@@ -368,9 +380,10 @@ class ReadsByIdPlansIT {
                 insert into fuhito_change_order (id, realm_id, title, effective_date, created_at)
                 values ('%1$s-order', '%1$s-realm', 'Order', '2026-04-01', now())""", """
                 insert into fuhito_change_log (id, realm_id, recorded_at, resource_type, resource_id, operation,
-                resource_path, change_order_id, sequence_number)
-                select '%1$s-log-' || i, '%1$s-realm', now(), 'EMPLOYMENT', '%1$s-employment-' || i, 'CREATE', '/x',
-                case when i %% 20 = 0 then '%1$s-order' end, i from generate_series(1, %2$d) i""")) {
+                resource_path, change_order_id, sequence_number, kind)
+                select '%1$s-log-' || i, '%1$s-realm', now() - (%2$d - i) * interval '1 hour', 'EMPLOYMENT',
+                '%1$s-employment-' || i, 'CREATE', '/x', case when i %% 20 = 0 then '%1$s-order' end, i,
+                case when i %% 3 = 0 then 'PROPAGATED' else 'WRITE' end from generate_series(1, %2$d) i""")) {
             statement.execute(insert.formatted(prefix, count));
         }
     }

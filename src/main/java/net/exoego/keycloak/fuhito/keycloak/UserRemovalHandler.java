@@ -53,7 +53,7 @@ final class UserRemovalHandler {
                 new JpaPersonStore(em, realmId), new JpaUnitRoleStore(em, realmId), externalIds,
                 RealmTime.clockOrUtc(realm)).retire(userId)) {
             // No administrator did this write. The removal of the user did.
-            changeLog.append(new ChangeLogEntry(UUID.randomUUID().toString(), 0,
+            changeLog.append(ChangeLogEntry.write(UUID.randomUUID().toString(),
                     Instant.now().truncatedTo(ChronoUnit.MILLIS), null, write.resourceType(), write.resourceId(),
                     write.deleted() ? "DELETE" : "UPDATE", write.path(), null));
         }

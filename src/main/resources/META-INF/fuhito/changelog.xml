@@ -1262,6 +1262,33 @@
         <modifyDataType tableName="FUHITO_PROJECTED_MEMBER" columnName="KC_ORG_ID" newDataType="VARCHAR(255)"/>
     </changeSet>
 
+    <!-- An entry is a write or a propagated change. A propagated change is a change of the read of a resource that
+         nobody wrote. It names its cause, and the entry of the write that caused it. The counter keeps the last number
+         of the propagated changes that a scheduled task removed, so that a read from an older number fails. -->
+    <changeSet id="0.1.0-propagated-changes" author="keycloak-fuhito">
+        <addColumn tableName="FUHITO_CHANGE_LOG">
+            <column name="KIND" type="VARCHAR(16)" defaultValue="WRITE">
+                <constraints nullable="false"/>
+            </column>
+            <column name="CAUSE" type="VARCHAR(64)"/>
+            <column name="CAUSE_SEQUENCE" type="BIGINT"/>
+        </addColumn>
+        <addColumn tableName="FUHITO_CHANGE_LOG_COUNTER">
+            <column name="EXPIRED_SEQUENCE" type="BIGINT" defaultValueNumeric="0">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+    </changeSet>
+
+    <!-- The task finds the old propagated changes of a realm by their time. The index has no row of a write, which
+         the task never removes. PostgreSQL takes it only for a read with the same condition on the kind. -->
+    <changeSet id="0.1.0-propagated-changes-index" author="keycloak-fuhito" dbms="postgresql">
+        <sql>
+            CREATE INDEX IDX_FUHITO_CHANGE_LOG_PROPAGATED ON FUHITO_CHANGE_LOG (REALM_ID, RECORDED_AT)
+            WHERE KIND = 'PROPAGATED'
+        </sql>
+    </changeSet>
+
     <!-- A read of an assignment works out the assignments that end on its start, so no stored link names the one that
          it continues. Nothing was released, so no link moves. -->
     <changeSet id="0.1.0-assignment-without-continues" author="keycloak-fuhito">

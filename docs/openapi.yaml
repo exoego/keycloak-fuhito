@@ -379,13 +379,13 @@ components:
       - id
       - sequence
       - recordedAt
-      - actorUserId
+      - kind
       - resourceType
       - resourceId
       - operation
       - resourcePath
-      description: One successful write. It has no state of the resource. Read the
-        resource again for its state.
+      description: "One successful write, or one propagated change. It has no state\
+        \ of the resource. Read the resource again for its state."
       type: object
       properties:
         id:
@@ -397,11 +397,23 @@ components:
             \ counted from 1."
         recordedAt:
           type: string
-          description: "When the write happened, in UTC."
+          description: "When the write happened, in UTC. For a propagated change,\
+            \ when its cause happened."
           format: date-time
+        kind:
+          type: string
+          description: "`WRITE` for a write to the resource. `PROPAGATED` for a change\
+            \ of the read of the resource that nobody wrote, such as a value that\
+            \ the read takes from another resource. Its version counts up too. A propagated\
+            \ change has no user and the operation `UPDATE`."
+          enum:
+          - WRITE
+          - PROPAGATED
         actorUserId:
           type: string
-          description: The ID of the user who did the write.
+          description: "The ID of the user who did the write. It is absent when no\
+            \ user did it, as for a propagated change or for the end of the employments\
+            \ of a user that Keycloak removed."
         resourceType:
           type: string
           examples:
@@ -416,12 +428,29 @@ components:
           - DELETE
         resourcePath:
           type: string
-          description: The path of the request below the realm.
+          description: "The path of the request below the realm. For a propagated\
+            \ change, the path of the resource."
           examples:
           - fuhito/org-units/123/end
         changeOrderId:
           type: string
-          description: The ID of the change order that the write belongs to.
+          description: The ID of the change order that the write belongs to. A propagated
+            change has the change order of the write that caused it.
+        cause:
+          type: string
+          description: "What caused a propagated change. `WRITE` is a write to the\
+            \ API, whose entry `causeSequence` names. `KEYCLOAK_ORGANIZATION_REMOVED`\
+            \ is the removal of the linked organization in Keycloak. A write has no\
+            \ cause."
+          enum:
+          - WRITE
+          - KEYCLOAK_ORGANIZATION_REMOVED
+        causeSequence:
+          type: integer
+          format: int64
+          description: The sequence number of the entry of the write that caused a
+            propagated change. Only a propagated change with the cause `WRITE` has
+            it.
     ChangeOrder:
       required:
       - title
@@ -5419,17 +5448,22 @@ paths:
           $ref: "#/components/responses/Conflict"
   /change-log:
     get:
-      summary: "Lists the writes to the realm, oldest first."
+      summary: "Lists the writes to the realm and the propagated changes, oldest first."
       description: "To follow the changes, keep the `sequence` of the last entry of\
         \ each read and pass it as `after` in the next read. A read that returns fewer\
         \ entries than `max` has reached the end. The numbers of a realm start at\
-        \ 1 and have no gaps. An entry has no state of the resource. Read the resource\
-        \ again for its state."
+        \ 1. An entry has no state of the resource. Read the resource again for its\
+        \ state. The entries of writes are kept for good. A propagated change is removed\
+        \ after the days of the realm attribute `fuhito.changeLog.keepPropagatedDays`,\
+        \ 90 by default. So the numbers can have gaps. `after` that no entry ever\
+        \ had, because it is larger than the last number, fails with 400 and `invalid.out_of_range`,\
+        \ with the last number in `max`."
       operationId: listChangeLog
       tags:
       - change-orders
       parameters:
-      - description: The sequence number that the entries come after.
+      - description: "The sequence number that the entries come after. Without it,\
+          \ or with 0, the read starts at the first entry that is kept."
         schema:
           type: integer
           format: int64
@@ -5444,6 +5478,16 @@ paths:
           minimum: 0
           default: 0
         name: first
+        in: query
+      - description: "`WRITE` lists only the writes, and leaves out the propagated\
+          \ changes. `PROPAGATED` lists only the propagated changes. Without it, both\
+          \ are listed."
+        schema:
+          type: string
+          enum:
+          - WRITE
+          - PROPAGATED
+        name: kind
         in: query
       - description: The largest number of entries to return.
         schema:
@@ -5483,6 +5527,8 @@ paths:
         name: resourceType
         in: query
       responses:
+        "400":
+          $ref: "#/components/responses/BadRequest"
         "200":
           description: The entries.
           content:
@@ -5491,8 +5537,15 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/ChangeLogEntry"
-        "400":
-          $ref: "#/components/responses/BadRequest"
+        "410":
+          description: "A propagated change after `after` is removed, so the read\
+            \ would leave it out. The error is `change_log.cursor_expired`. Read every\
+            \ resource again, and then go on after the number in `keptAfter`. A read\
+            \ with `kind=WRITE` never gets it, nor does a read with no `after`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -5501,12 +5554,21 @@ paths:
           $ref: "#/components/responses/Conflict"
   /change-log/count:
     get:
-      summary: "Counts the writes that `GET /change-log` lists with the same filters,\
+      summary: "Counts the entries that `GET /change-log` lists with the same filters,\
         \ from the start."
       operationId: countChangeLog
       tags:
       - change-orders
       parameters:
+      - description: "`WRITE` counts only the writes, and `PROPAGATED` only the propagated\
+          \ changes that are kept. Without it, both are counted."
+        schema:
+          type: string
+          enum:
+          - WRITE
+          - PROPAGATED
+        name: kind
+        in: query
       - description: "The ID of the resource. Without it, the writes to every resource\
           \ are counted."
         name: resourceId
