@@ -14,6 +14,7 @@ import java.util.function.Supplier;
 import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
+import net.exoego.keycloak.fuhito.domain.Hierarchy;
 import net.exoego.keycloak.fuhito.domain.Localized;
 import net.exoego.keycloak.fuhito.domain.OrgUnit;
 import net.exoego.keycloak.fuhito.domain.OrgUnitVersion;
@@ -251,6 +252,7 @@ final class OrgUnitImport {
         boolean succeeds = hasSuccessors(row);
         Optional<String> stored = stored(row, source);
         if (stored.isEmpty()) {
+            Checks.fixed("hierarchy", Hierarchy.DEFAULT_CODE, row.hierarchy());
             if (succeeds && row.validTo() == null) {
                 throw FuhitoException.invalid("invalid.required", Map.of("field", "validTo"));
             }
@@ -273,6 +275,7 @@ final class OrgUnitImport {
         }
         String id = stored.get();
         unitIdByRow.put(index, id);
+        String hierarchyId = units.hierarchyId(row.hierarchy());
         List<OrgUnitVersion> versions = units.versions(id);
         LocalDate date = Checks.date("effectiveDate", effectiveDate);
         LocalDate end = versions.getLast().period().to();
@@ -294,17 +297,18 @@ final class OrgUnitImport {
         // it is, for example in the document that made it.
         if (first.isAfter(date)) {
             OrgUnitState onFirst = units.stateOn(id, first);
-            String parent = keepsParent ? onFirst.parentId() : parentId;
-            if (!quietlySame(row, onFirst) || !Objects.equals(parent, onFirst.parentId())) {
+            String storedParent = units.parentOn(hierarchyId, id, first);
+            if (!quietlySame(row, onFirst) || !Objects.equals(keepsParent ? storedParent : parentId, storedParent)) {
                 throw FuhitoException.notFound("org_unit.not_valid_on", Map.of("id", id, "date", effectiveDate));
             }
         } else if (end == null || end.isAfter(date)) {
             OrgUnitState before = units.stateOn(id, date);
-            String parent = keepsParent ? before.parentId() : parentId;
-            boolean moves = !Objects.equals(parent, before.parentId());
+            String storedParent = units.parentOn(hierarchyId, id, date);
+            String parent = keepsParent ? storedParent : parentId;
+            boolean moves = !Objects.equals(parent, storedParent);
             // A unit that becomes a rollup unit leaves its parent first. A rollup unit has no parent.
             if (moves && parent == null) {
-                written("/parent", id, () -> orgUnitService.move(id, null, effectiveDate));
+                written("/parent", id, () -> orgUnitService.move(id, null, effectiveDate, row.hierarchy()));
             }
             OrgUnitChange details = details(row, before);
             if (!sameDetails(details, before)) {
@@ -312,7 +316,7 @@ final class OrgUnitImport {
                 changed = true;
             }
             if (moves && parent != null) {
-                written("/parent", id, () -> orgUnitService.move(id, parent, effectiveDate));
+                written("/parent", id, () -> orgUnitService.move(id, parent, effectiveDate, row.hierarchy()));
             }
             changed |= moves;
         }

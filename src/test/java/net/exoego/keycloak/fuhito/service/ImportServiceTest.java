@@ -470,6 +470,46 @@ class ImportServiceTest {
         assertEquals("fuhito/org-units/" + c + "/parent", report.writes().getFirst().path());
     }
 
+    private static OrgUnitRow inHierarchy(OrgUnitRow row, String hierarchy) {
+        return new OrgUnitRow(row.source(), row.externalId(), row.code(), row.primaryLanguage(), row.names(),
+                row.unitType(), row.parentExternalId(), row.parentId(), row.displayOrder(), row.attributes(),
+                row.validFrom(), row.validTo(), row.id(), row.successorExternalIds(), row.successorIds(),
+                row.organizationAlias(), row.timeZone(), row.dayStart(), row.workLocation(), row.costCenter(),
+                hierarchy, row.nulls());
+    }
+
+    @Test
+    void aRowOfAStoredOrgUnitGivesItsParentInItsHierarchy() {
+        orgUnitStore.hierarchyCodes.put("region-id", "region");
+        importUnits("2026-04-01", unit("P", "P", null), unit("K", "K", null), unit("C", "C", "P"));
+        String p = stored(ExternalId.Kind.ORG_UNIT, "import", "P");
+        String k = stored(ExternalId.Kind.ORG_UNIT, "import", "K");
+        String c = stored(ExternalId.Kind.ORG_UNIT, "import", "C");
+
+        // A new unit is in the default hierarchy only, as a create of one is.
+        assertEquals(List.of("orgUnits[0] invalid.value_fixed", "orgUnits[1] hierarchy.unknown"),
+                errors(importUnits("2026-04-01", inHierarchy(unit("N", "N", null), "region"),
+                        inHierarchy(unit("P", "P", null), "nope"))));
+        ImportReport report = importUnits("2026-04-01", inHierarchy(unit("C", "C", "K"), "region"),
+                inHierarchy(unit("O", "O", null), "default"));
+
+        assertEquals(List.of(), errors(report));
+        assertEquals(Map.of("orgUnits", new Counts(1, 1, 0)), report.counts());
+        assertEquals(k, orgUnits.get(c, "2026-04-01", "region").parentId());
+        assertEquals(p, orgUnits.get(c, "2026-04-01").parentId());
+        OrgUnitState moved = ((ImportReport.Write.OfOrgUnit) report.writes().stream()
+                .filter(write -> write.path().endsWith("/parent")).findFirst().orElseThrow()).state();
+        assertEquals("region", moved.hierarchy());
+        assertEquals(k, moved.parentId());
+        // The same row again changes nothing, and a row that leaves out the parent keeps it.
+        assertEquals(Map.of("orgUnits", new Counts(0, 0, 1)),
+                importUnits("2026-04-01", inHierarchy(unit("C", "C", "K"), "region")).counts());
+        assertEquals(Map.of("orgUnits", new Counts(0, 0, 1)),
+                importUnits("2026-04-01", inHierarchy(unit("C", "C", null), "region")).counts());
+        assertEquals(k, orgUnits.get(c, "2026-04-01", "region").parentId());
+        assertEquals(p, orgUnits.get(c, "2026-04-01").parentId());
+    }
+
     private static ImportDocument hierarchies(List<HierarchyRow> rows) {
         return ImportDocument.of("2026-04-01", false, null, "hierarchies", rows);
     }

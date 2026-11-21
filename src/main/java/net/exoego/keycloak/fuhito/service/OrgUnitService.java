@@ -20,6 +20,7 @@ import java.util.UUID;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import net.exoego.keycloak.fuhito.domain.AttributeDefinition;
 import net.exoego.keycloak.fuhito.domain.BusinessDay;
@@ -242,15 +243,31 @@ public class OrgUnitService {
                     .orElseThrow();
             RefItem unitType = version.unitTypeId() == null ? null
                     : items.byId().apply(version.unitTypeId()).orElse(null);
-            String parentId = parents.computeIfAbsent(id, key -> store.parentLinks(hierarchyId(), key)).stream()
+            Function<String, String> code = itemId -> itemId == null ? null
+                    : items.byId().apply(itemId).map(RefItem::code).orElse(null);
+            return OrgUnitState.of(unit, version, unitType, parentOn(hierarchyId(), id, date))
+                    .withPlaces(new LocationAndCost(code.apply(version.workLocationId()),
+                            code.apply(version.costCenterId()), null, null));
+        }
+
+        /**
+         * Returns the parent of a stored unit in a hierarchy on a date. The parents in the default hierarchy are read
+         * once for each unit.
+         *
+         * @param ofHierarchy the ID of the hierarchy
+         * @param id the ID of the unit
+         * @param date the date
+         * @return the ID of the parent, or null when the unit has none there on the date
+         */
+        String parentOn(String ofHierarchy, String id, LocalDate date) {
+            List<OrgUnitLink> links = ofHierarchy.equals(hierarchyId())
+                    ? parents.computeIfAbsent(id, key -> store.parentLinks(ofHierarchy, key))
+                    : store.parentLinks(ofHierarchy, id);
+            return links.stream()
                     .filter(link -> link.period().contains(date))
                     .map(OrgUnitLink::parentId)
                     .findFirst()
                     .orElse(null);
-            Function<String, String> code = itemId -> itemId == null ? null
-                    : items.byId().apply(itemId).map(RefItem::code).orElse(null);
-            return OrgUnitState.of(unit, version, unitType, parentId).withPlaces(new LocationAndCost(
-                    code.apply(version.workLocationId()), code.apply(version.costCenterId()), null, null));
         }
 
         /**
@@ -263,6 +280,17 @@ public class OrgUnitService {
                 hierarchyId = store.defaultHierarchyId();
             }
             return hierarchyId;
+        }
+
+        /**
+         * Returns the ID of a hierarchy.
+         *
+         * @param code the code of the hierarchy, or null for the default one
+         * @return the ID
+         * @throws FuhitoException when the realm has no hierarchy with this code
+         */
+        String hierarchyId(String code) {
+            return isDefault(code) ? hierarchyId() : HierarchyCodes.idOf(store, code);
         }
 
         /**
@@ -369,15 +397,18 @@ public class OrgUnitService {
      *
      * @param id the ID
      * @param request the new details and their first date
+     * @param hierarchy the code of the hierarchy of the parent of the result, or null for the default one
      * @param source the name of the system, or null
      * @param externalId the ID in that system, or null to keep the IDs as they are
-     * @return the unit as it is on that date
-     * @throws FuhitoException when the unit does not exist on the date, a value is bad, or the ID names another
-     *         unit
+     * @return the unit as it is on that date, with its parent in that hierarchy
+     * @throws FuhitoException when the unit or the hierarchy does not exist, the unit does not exist on the date, a
+     *         value is bad, or the ID names another unit
      */
-    public OrgUnitState changeDetails(String id, OrgUnitChange request, String source, String externalId) {
+    public OrgUnitState changeDetails(String id, OrgUnitChange request, String hierarchy, String source,
+            String externalId) {
+        String hierarchyId = hierarchyId(hierarchy);
         ExternalId.Pair pair = externalIds.check(id, source, externalId);
-        OrgUnitState state = changeDetails(id, request);
+        OrgUnitState state = changeDetails(id, request, hierarchyId, hierarchy);
         externalIds.store(id, pair);
         return state;
     }
@@ -393,6 +424,11 @@ public class OrgUnitService {
      * @throws FuhitoException when the unit does not exist on the date or a value is bad
      */
     public OrgUnitState changeDetails(String id, OrgUnitChange request) {
+        return changeDetails(id, request, store.defaultHierarchyId(), null);
+    }
+
+    private OrgUnitState changeDetails(String id, OrgUnitChange request, String parentHierarchyId,
+            String hierarchy) {
         Checks.required("body", request);
         LocalDate from = Checks.date("validFrom", request.validFrom());
         requireUnit(id);
@@ -428,7 +464,7 @@ public class OrgUnitService {
             store.updateVersion(current.withPeriod(parts.getFirst()));
             store.insertVersion(next);
         }
-        return get(id, request.validFrom());
+        return state(id, from, parentHierarchyId, hierarchy);
     }
 
     /**
@@ -485,7 +521,7 @@ public class OrgUnitService {
             } else {
                 store.updateLink(new OrgUnitLink(current.id(), hierarchyId, id, parentId, period));
             }
-            return state(id, from, hierarchyId);
+            return state(id, from, hierarchyId, hierarchy);
         }
         if (current != null) {
             store.updateLink(new OrgUnitLink(current.id(), hierarchyId, id, current.parentId(),
@@ -494,7 +530,7 @@ public class OrgUnitService {
         if (parentId != null) {
             store.insertLink(new OrgUnitLink(newId(), hierarchyId, id, parentId, period));
         }
-        return state(id, from, hierarchyId);
+        return state(id, from, hierarchyId, hierarchy);
     }
 
     /**
@@ -762,10 +798,10 @@ public class OrgUnitService {
      * @throws FuhitoException when the unit or the hierarchy does not exist, or the unit does not exist on the date
      */
     public OrgUnitState get(String id, String asOf, String hierarchy) {
-        return state(id, dateOrToday(asOf, id), hierarchyId(hierarchy));
+        return state(id, dateOrToday(asOf, id), hierarchyId(hierarchy), hierarchy);
     }
 
-    private OrgUnitState state(String id, LocalDate date, String hierarchyId) {
+    private OrgUnitState state(String id, LocalDate date, String hierarchyId, String hierarchy) {
         OrgUnit unit = requireUnit(id);
         OrgUnitVersion version = versionOn(id, date);
         RefItem unitType = version.unitTypeId() == null ? null
@@ -775,8 +811,8 @@ public class OrgUnitService {
                 .map(OrgUnitLink::parentId)
                 .findFirst()
                 .orElse(null);
-        return UnitPlaces.on(List.of(OrgUnitState.of(unit, version, unitType, parentId)), store, refItems, date)
-                .getFirst();
+        return UnitPlaces.on(List.of(OrgUnitState.of(unit, version, unitType, parentId)
+                .withHierarchy(codeOf(hierarchy))), store, refItems, date).getFirst();
     }
 
     /**
@@ -792,7 +828,8 @@ public class OrgUnitService {
      */
     public List<OrgUnitState> children(String id, String asOf, String hierarchy, Boolean lateral, Page page) {
         LocalDate date = dateOfUnit(id, asOf);
-        return states(store.childrenOn(hierarchyId(hierarchy), id, lateral, date, page.first(), page.max()), date);
+        return states(store.childrenOn(hierarchyId(hierarchy), id, lateral, date, page.first(), page.max()), date,
+                hierarchy);
     }
 
     /**
@@ -825,7 +862,7 @@ public class OrgUnitService {
     public List<OrgUnitState> subtree(String id, String asOf, String hierarchy, Boolean lateral, Page page) {
         LocalDate date = dateOfUnit(id, asOf);
         List<OrgUnitState> units = states(store.treeOn(hierarchyId(hierarchy), id, lateral, date, page.first(),
-                page.max()), date);
+                page.max()), date, hierarchy);
         // A rollup unit is not in the default hierarchy. It can only be the unit of the read there, with no child.
         return isDefault(hierarchy) ? units.stream().filter(unit -> !unit.rollup()).toList() : units;
     }
@@ -892,7 +929,8 @@ public class OrgUnitService {
         String hierarchyId = hierarchyId(search.hierarchy());
         OrgUnitStore.Search filter = storeSearch(search, hierarchyId);
         OrgUnitVersion last = after == null ? null : versionAfter(after, date);
-        return states(store.searchOn(hierarchyId, filter, date, last, page.first(), page.max()), date);
+        return states(store.searchOn(hierarchyId, filter, date, last, page.first(), page.max()), date,
+                search.hierarchy());
     }
 
     /**
@@ -943,13 +981,19 @@ public class OrgUnitService {
         return hierarchy == null || hierarchy.equals(Hierarchy.DEFAULT_CODE);
     }
 
+    private static String codeOf(String hierarchy) {
+        return hierarchy == null ? Hierarchy.DEFAULT_CODE : hierarchy;
+    }
+
     private boolean isRollup(OrgUnitVersion version) {
         return version.unitTypeId() != null
                 && items.byId().apply(version.unitTypeId()).map(RefItem::rollup).orElse(false);
     }
 
-    private List<OrgUnitState> states(List<PlacedOrgUnit> placed, LocalDate date) {
-        return UnitPlaces.on(OrgUnitPaths.states(placed, refItems), store, refItems, date);
+    private List<OrgUnitState> states(List<PlacedOrgUnit> placed, LocalDate date, String hierarchy) {
+        return UnitPlaces.on(OrgUnitPaths.states(placed, refItems).stream()
+                .map(state -> state.withHierarchy(codeOf(hierarchy)))
+                .toList(), store, refItems, date);
     }
 
     /**
@@ -982,7 +1026,8 @@ public class OrgUnitService {
         if (path.getLast().rollup() && isDefault(hierarchy)) {
             return List.of();
         }
-        return UnitPlaces.on(path, store, refItems, date);
+        return UnitPlaces.on(path.stream().map(state -> state.withHierarchy(codeOf(hierarchy))).toList(), store,
+                refItems, date);
     }
 
     /**
@@ -997,7 +1042,8 @@ public class OrgUnitService {
         Map<String, RefItem> unitTypes = new HashMap<>();
         refItems.list(RefKind.UNIT_TYPE, true).forEach(item -> unitTypes.put(item.id(), item));
         List<OrgUnitState> versions = UnitPlaces.own(store.versions(id).stream()
-                .map(version -> OrgUnitState.of(unit, version, unitTypes.get(version.unitTypeId()), null))
+                .map(version -> OrgUnitState.of(unit, version, unitTypes.get(version.unitTypeId()), null)
+                        .withHierarchy(null))
                 .toList(), refItems);
         store.defaultHierarchyId();
         return new OrgUnitHistory(unit, versions, store.parentLinks(id), store.hierarchyCodes());
@@ -1028,7 +1074,7 @@ public class OrgUnitService {
     /**
      * The values that a read of an org unit has on the dates of the details that a change of details replaces.
      *
-     * @param parentIds the IDs of the parents in the default hierarchy
+     * @param parentIds the IDs of the parents in the hierarchy that the request names
      * @param workLocations the codes of the work locations that apply
      * @param costCenters the codes of the cost centers that apply
      */
@@ -1042,16 +1088,23 @@ public class OrgUnitService {
      *
      * @param id the ID
      * @param validFrom the first date of the change, as {@code YYYY-MM-DD}
+     * @param hierarchy the code of the hierarchy of the parents, or null for the default one
      * @return the values. A value that no date has, such as the parent of a root, is not there.
-     * @throws FuhitoException when the date is bad, or the unit does not exist on it
+     * @throws FuhitoException when the date is bad, the hierarchy does not exist, or the unit does not exist on the
+     *         date
      */
-    public ReplacedDetails replacedDetails(String id, String validFrom) {
+    public ReplacedDetails replacedDetails(String id, String validFrom, String hierarchy) {
         LocalDate from = Checks.date("validFrom", validFrom);
+        String parentHierarchyId = hierarchyId(hierarchy);
         requireUnit(id);
         ValidPeriod replaced = new ValidPeriod(from, versionOn(id, from).period().to());
+        Set<String> parentIds = store.parentLinks(parentHierarchyId, id).stream()
+                .filter(link -> link.period().intersection(replaced).isPresent())
+                .map(OrgUnitLink::parentId)
+                .collect(Collectors.toUnmodifiableSet());
+        // The places that apply come from the units above in the default hierarchy. They change only where the
+        // details or the parent of the unit or of a unit above change.
         String hierarchyId = store.defaultHierarchyId();
-        Set<String> parentIds = new HashSet<>();
-        // What applies changes only where the details or the parent of the unit or of a unit above change.
         Set<LocalDate> changes = new HashSet<>(List.of(from));
         Deque<Map.Entry<String, ValidPeriod>> line = new ArrayDeque<>(List.of(Map.entry(id, replaced)));
         while (!line.isEmpty()) {
@@ -1063,9 +1116,6 @@ public class OrgUnitService {
                     .forEach(changes::add);
             for (OrgUnitLink link : store.parentLinks(hierarchyId, unit.getKey())) {
                 link.period().intersection(period).ifPresent(shared -> {
-                    if (unit.getKey().equals(id)) {
-                        parentIds.add(link.parentId());
-                    }
                     changes.add(shared.from());
                     Optional.ofNullable(shared.to()).filter(period::contains).ifPresent(changes::add);
                     line.push(Map.entry(link.parentId(), shared));
@@ -1080,7 +1130,7 @@ public class OrgUnitService {
             Optional.ofNullable(code.apply(applying.workLocationId())).ifPresent(workLocations::add);
             Optional.ofNullable(code.apply(applying.costCenterId())).ifPresent(costCenters::add);
         }
-        return new ReplacedDetails(Set.copyOf(parentIds), Set.copyOf(workLocations), Set.copyOf(costCenters));
+        return new ReplacedDetails(parentIds, Set.copyOf(workLocations), Set.copyOf(costCenters));
     }
 
     /**

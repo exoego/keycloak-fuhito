@@ -94,6 +94,36 @@ class ReadAsBodyIT {
         createdAgain(api, "/qualifications", ofUser);
     }
 
+    // A read names the hierarchy of its parent, so a read in any hierarchy is the body of a change of the details.
+    @Test
+    void aReadOfAnOrgUnitInAnyHierarchyIsTheBodyOfAChangeOfItsDetails() throws Exception {
+        TestRealm realm = TestRealm.create("read-hierarchy-as-body");
+        Api api = realm.api;
+        createdWithNoId(api, "/ref-items", "{\"kind\": \"UNIT_TYPE\", \"code\": \"region\", \"primaryLanguage\": "
+                + "\"ja\", \"names\": {\"ja\": {\"name\": \"地域\"}}, \"rollup\": true}");
+        createdWithNoId(api, "/hierarchies", "{\"code\": \"region\", \"name\": \"地域\"}");
+        String company = createdWithNoId(api, "/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": "
+                + "{\"name\": \"本社\"}}, \"validFrom\": \"2020-04-01\"}").get("id").asText();
+        String branch = createdWithNoId(api, "/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": "
+                + "{\"name\": \"横浜支店\"}}, \"parentId\": \"" + company + "\", \"validFrom\": \"2020-04-01\"}")
+                .get("id").asText();
+        String region = createdWithNoId(api, "/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": "
+                + "{\"name\": \"関東\"}}, \"unitType\": \"region\", \"validFrom\": \"2020-04-01\"}").get("id").asText();
+        ok(api.putWithVersion("/org-units/" + branch + "/parent?hierarchy=region", "{\"parentId\": \"" + region
+                + "\", \"validFrom\": \"2020-04-01\"}"));
+
+        // The parent of the branch in the region is no parent of it in the default hierarchy.
+        for (String[] read : new String[][] {{branch, "region", region}, {branch, "default", company},
+                {region, "region", null}, {region, "default", null}}) {
+            String path = "/org-units/" + read[0];
+            JsonNode before = ok(api.get(path + "?asOf=2026-01-01&hierarchy=" + read[1]));
+            assertEquals(read[1], before.get("hierarchy").asText(), before.toString());
+            assertEquals(read[2], before.path("parentId").textValue(), before.toString());
+            assertEquals(withoutVersion(before), withoutVersion(ok(api.put(path, before.toString()))),
+                    String.join(" ", read));
+        }
+    }
+
     private static JsonNode withoutVersion(JsonNode resource) {
         return ((ObjectNode) resource.deepCopy()).without("version");
     }

@@ -1912,9 +1912,9 @@ components:
           description: The code of the unit type.
         parentExternalId:
           type: string
-          description: "The external ID of the parent with the same source. A root\
-            \ has none. A row of a stored unit that leaves out the parent keeps it,\
-            \ and `null` makes a root."
+          description: "The external ID of the parent in `hierarchy`, with the same\
+            \ source. A root has none. A row of a stored unit that leaves out the\
+            \ parent keeps it, and `null` takes the parent away."
         parentId:
           type: string
           description: "The ID of the parent, for a parent that has no external ID\
@@ -1973,6 +1973,15 @@ components:
         costCenter:
           type: string
           description: The code of the cost center that the unit gives its members.
+        hierarchy:
+          type: string
+          description: "The code of the hierarchy of the parent, as a read of an org\
+            \ unit has it. A row that leaves it out gives the parent in the default\
+            \ hierarchy. A row of a stored unit gives the parent in this hierarchy\
+            \ from the effective date. A code that no hierarchy has fails with `hierarchy.unknown`.\
+            \ A row of a new unit takes only `default`, or none, as `POST /org-units`\
+            \ does. Another value fails with `invalid.value_fixed`. A CSV file has\
+            \ no such column."
     ImportPersonRow:
       type: object
       description: "A person, also one with no Keycloak user. It is matched by its\
@@ -2759,16 +2768,27 @@ components:
             \ value fails with 400 and `invalid.value_fixed`. False is the same as\
             \ no value."
           readOnly: true
+        hierarchy:
+          type: string
+          description: "The code of the hierarchy of `parentId`. A read gives the\
+            \ code of its `hierarchy` parameter, or `default` without one. A history\
+            \ has none. `PUT /org-units/{id}` checks `parentId` in this hierarchy,\
+            \ or in the default one when the body leaves it out. A code that no hierarchy\
+            \ has fails with 400 and `hierarchy.unknown`, as the parameter of a read\
+            \ does. A create takes only `default`, or none. Another value fails with\
+            \ 400 and `invalid.value_fixed`."
         parentId:
           type: string
-          description: "The ID of the parent in the default hierarchy. A root and\
-            \ a rollup unit have none. `PUT /org-units/{id}/parent` moves the unit,\
-            \ and `PUT /org-units/{id}` does not. A `PUT /org-units/{id}` can leave\
-            \ it out, or give a parent that the unit has on any date of the details\
-            \ that the write replaces, as a read of such a date has it. These dates\
-            \ run from `validFrom` to the end of the stored details of that date.\
-            \ Another value fails with 400 and `invalid.value_fixed`. So for a unit\
-            \ with no parent on those dates, it must be null or left out."
+          description: "The ID of the parent in `hierarchy`. A root has none, and\
+            \ a rollup unit has none in the default hierarchy. A create takes the\
+            \ parent in the default hierarchy. `PUT /org-units/{id}/parent` moves\
+            \ the unit, and `PUT /org-units/{id}` does not. A `PUT /org-units/{id}`\
+            \ can leave it out, or give a parent that the unit has in `hierarchy`\
+            \ on any date of the details that the write replaces, as a read of such\
+            \ a date in that hierarchy has it. These dates run from `validFrom` to\
+            \ the end of the stored details of that date. Another value fails with\
+            \ 400 and `invalid.value_fixed`. So for a unit with no parent there on\
+            \ those dates, it must be null or left out."
         validFrom:
           type: string
           description: The first date of these details.
@@ -2860,7 +2880,8 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/OrgUnit"
-          description: "The details of each period, oldest first. They have no parent."
+          description: "The details of each period, oldest first. They have no parent\
+            \ and no hierarchy."
         parents:
           type: array
           items:
@@ -7257,6 +7278,9 @@ paths:
           $ref: "#/components/responses/Conflict"
     post:
       summary: Creates an org unit that starts on a date.
+      description: "The unit and its `parentId` are in the default hierarchy. A `hierarchy`\
+        \ other than `default` fails with 400 and `invalid.value_fixed`. `PUT /org-units/{id}/parent`\
+        \ gives the unit a parent in another hierarchy."
       operationId: createOrgUnit
       tags:
       - org-units
@@ -7451,10 +7475,11 @@ paths:
         \ order, and the attributes. The parent does not change here, and `PUT /org-units/{id}/parent`\
         \ moves the unit. A `parentId`, an `effectiveWorkLocation`, or an `effectiveCostCenter`\
         \ that the unit does not have on any date of the details that the write replaces\
-        \ fails with 400 and `invalid.value_fixed`. With `source` and `externalId`,\
-        \ the unit gets that ID of that system. Another `source` with no `externalId`\
-        \ fails with 400 and `invalid.value_fixed`. No other org unit may have the\
-        \ same code on a date of the change."
+        \ fails with 400 and `invalid.value_fixed`. The `parentId` is the one in the\
+        \ `hierarchy` of the body. So a read in any hierarchy is a valid body. With\
+        \ `source` and `externalId`, the unit gets that ID of that system. Another\
+        \ `source` with no `externalId` fails with 400 and `invalid.value_fixed`.\
+        \ No other org unit may have the same code on a date of the change."
       operationId: changeOrgUnitDetails
       tags:
       - org-units
@@ -7476,7 +7501,8 @@ paths:
         required: true
       responses:
         "200":
-          description: The unit as it is on that date.
+          description: "The unit as it is on that date, with its parent in the `hierarchy`\
+            \ of the body."
           content:
             application/json:
               schema:
@@ -8012,7 +8038,8 @@ paths:
   /org-units/{id}/parent:
     put:
       summary: Gives an org unit a new parent in a hierarchy from a date.
-      description: The response has the parent in that hierarchy.
+      description: "The response has the parent in that hierarchy, and the code of\
+        \ that hierarchy in `hierarchy`."
       operationId: moveOrgUnit
       tags:
       - org-units

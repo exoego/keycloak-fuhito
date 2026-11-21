@@ -954,8 +954,9 @@ public record ImportDocument(
             Map<String, OrgUnitName> names,
             @Schema(description = "The code of the unit type.")
             String unitType,
-            @Schema(description = "The external ID of the parent with the same source. A root has none. A row of a "
-                    + "stored unit that leaves out the parent keeps it, and `null` makes a root.")
+            @Schema(description = "The external ID of the parent in `hierarchy`, with the same source. A root has "
+                    + "none. A row of a stored unit that leaves out the parent keeps it, and `null` takes the parent "
+                    + "away.")
             String parentExternalId,
             @Schema(description = "The ID of the parent, for a parent that has no external ID with the same source. "
                     + "Give this or `parentExternalId`, not both.")
@@ -994,6 +995,14 @@ public record ImportDocument(
             String workLocation,
             @Schema(description = "The code of the cost center that the unit gives its members.")
             String costCenter,
+            @Schema(
+                    description = "The code of the hierarchy of the parent, as a read of an org unit has it. A row "
+                            + "that leaves it out gives the parent in the default hierarchy. A row of a stored unit "
+                            + "gives the parent in this hierarchy from the effective date. A code that no hierarchy has "
+                            + "fails with `hierarchy.unknown`. A row of a new unit takes only `default`, or none, as "
+                            + "`POST /org-units` does. Another value fails with `invalid.value_fixed`. A CSV file has no "
+                            + "such column.")
+            String hierarchy,
             @Schema(hidden = true)
             Set<String> nulls) implements ImportRow {
 
@@ -1004,7 +1013,7 @@ public record ImportDocument(
                 String dayStart, String workLocation, String costCenter) {
             this(source, externalId, code, primaryLanguage, names, unitType, parentExternalId, parentId, displayOrder,
                     attributes, validFrom, validTo, id, successorExternalIds, successorIds, organizationAlias, timeZone,
-                    dayStart, workLocation, costCenter, Set.of());
+                    dayStart, workLocation, costCenter, null, Set.of());
         }
 
         public OrgUnitRow(String source, String externalId, String code, String primaryLanguage,

@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import net.exoego.keycloak.fuhito.domain.Assignment;
 import net.exoego.keycloak.fuhito.domain.Employer;
@@ -691,19 +692,29 @@ class OrgUnitServiceTest {
                 null));
         service.move(unit, b, "2026-10-01");
         service.changeDetails(unit, rename("2027-04-01", "Later"));
+        // The parents of another hierarchy do not change the places, which come from the default hierarchy.
+        store.hierarchyCodes.put("matrix-id", "matrix");
+        String m = root("M");
+        service.move(unit, m, "2026-04-01", "matrix");
 
         assertEquals(new OrgUnitService.ReplacedDetails(Set.of(a, b), Set.of("tokyo", "osaka", "nagoya"),
-                Set.of("cc-a")), service.replacedDetails(unit, "2026-04-01"));
+                Set.of("cc-a")), service.replacedDetails(unit, "2026-04-01", null));
         assertEquals(new OrgUnitService.ReplacedDetails(Set.of(a, b), Set.of("osaka", "nagoya"), Set.of("cc-a")),
-                service.replacedDetails(unit, "2026-08-01"));
+                service.replacedDetails(unit, "2026-08-01", "default"));
         assertEquals(new OrgUnitService.ReplacedDetails(Set.of(b), Set.of("nagoya"), Set.of()),
-                service.replacedDetails(unit, "2027-04-01"));
+                service.replacedDetails(unit, "2027-04-01", null));
         assertEquals(new OrgUnitService.ReplacedDetails(Set.of(), Set.of("tokyo"), Set.of("cc-a")),
-                service.replacedDetails(a, "2026-04-01"));
+                service.replacedDetails(a, "2026-04-01", null));
+        assertEquals(new OrgUnitService.ReplacedDetails(Set.of(m), Set.of("tokyo", "osaka", "nagoya"),
+                Set.of("cc-a")), service.replacedDetails(unit, "2026-04-01", "matrix"));
+        assertEquals(new OrgUnitService.ReplacedDetails(Set.of(), Set.of("tokyo"), Set.of("cc-a")),
+                service.replacedDetails(a, "2026-04-01", "matrix"));
+        assertEquals("hierarchy.unknown", assertThrows(FuhitoException.class,
+                () -> service.replacedDetails(unit, "2026-04-01", "nope")).code());
         assertEquals("org_unit.not_valid_on",
-                assertThrows(FuhitoException.class, () -> service.replacedDetails(unit, "2026-03-31")).code());
+                assertThrows(FuhitoException.class, () -> service.replacedDetails(unit, "2026-03-31", null)).code());
         assertEquals("invalid.required",
-                assertThrows(FuhitoException.class, () -> service.replacedDetails(unit, null)).code());
+                assertThrows(FuhitoException.class, () -> service.replacedDetails(unit, null, null)).code());
     }
 
     @Test
@@ -1100,7 +1111,7 @@ class OrgUnitServiceTest {
         String ward = service.create(named("Ward", a, "2026-04-01")).unit().id();
 
         // B is the parent of the ward in the matrix, and A stays its parent in the default hierarchy.
-        assertEquals(b, service.move(ward, b, "2026-04-01", "matrix").parentId());
+        assertEquals("matrix", service.move(ward, b, "2026-04-01", "matrix").hierarchy());
         assertEquals(a, service.get(ward, "2026-04-01").parentId());
         assertEquals(List.of("default-hierarchy", "matrix-id"),
                 store.links.stream().map(OrgUnitLink::hierarchyId).toList());
@@ -1123,10 +1134,35 @@ class OrgUnitServiceTest {
                 store.links.stream().map(link -> link.period().to()).toList());
 
         assertEquals(b, service.move(ward, b, "2026-10-01", "matrix").parentId());
+        assertEquals("default", service.move(ward, null, "2026-10-01").hierarchy());
         FuhitoException unknown = assertThrows(FuhitoException.class,
                 () -> service.move(ward, b, "2026-04-01", "nope"));
         assertEquals(FuhitoException.Reason.INVALID, unknown.reason());
         assertEquals("hierarchy.unknown", unknown.code());
+    }
+
+    @Test
+    void aChangeOfDetailsGivesTheParentInTheHierarchyOfTheRequest() {
+        store.hierarchyCodes.put("matrix-id", "matrix");
+        String a = root("A");
+        String b = root("B");
+        String ward = service.create(named("Ward", a, "2026-04-01")).unit().id();
+        service.move(ward, b, "2026-04-01", "matrix");
+
+        OrgUnitState changed = service.changeDetails(ward, rename("2026-10-01", "New"), "matrix", null, null);
+        assertEquals("matrix", changed.hierarchy());
+        assertEquals(b, changed.parentId());
+        OrgUnitState inDefault = service.changeDetails(ward, rename("2026-10-01", "Newer"), null, null, null);
+        assertEquals("default", inDefault.hierarchy());
+        assertEquals(a, inDefault.parentId());
+        // An unknown hierarchy fails before anything is written.
+        assertEquals("hierarchy.unknown", assertThrows(FuhitoException.class,
+                () -> service.changeDetails(ward, rename("2027-04-01", "Later"), "nope", null, null)).code());
+        assertEquals(2, store.versions(ward).size());
+    }
+
+    private static Set<String> hierarchies(List<OrgUnitState> states) {
+        return states.stream().map(OrgUnitState::hierarchy).collect(Collectors.toSet());
     }
 
     @Test
@@ -1157,6 +1193,17 @@ class OrgUnitServiceTest {
         assertEquals(project, service.get(team, on, "matrix").parentId());
         assertEquals(line, service.get(team, on).parentId());
         assertNull(service.get(squad, on, "matrix").parentId());
+        // Each read names the hierarchy of its parents. A history has no parent in its details.
+        assertEquals("matrix", service.get(squad, on, "matrix").hierarchy());
+        assertEquals("default", service.get(team, on).hierarchy());
+        assertEquals("default", service.get(team, on, "default").hierarchy());
+        assertEquals(Set.of("matrix"), hierarchies(service.children(project, on, "matrix", null, all)));
+        assertEquals(Set.of("matrix"), hierarchies(service.subtree(project, on, "matrix", null, all)));
+        assertEquals(Set.of("matrix"), hierarchies(service.path(team, on, "matrix")));
+        assertEquals(Set.of("default"), hierarchies(service.path(team, on)));
+        assertEquals(Set.of("matrix"), hierarchies(service.list(roots(on, "matrix", null), all, null)));
+        assertEquals(Set.of("default"), hierarchies(service.list(roots(on, null, null), all, null)));
+        assertNull(service.history(team).versions().getFirst().hierarchy());
 
         assertEquals("hierarchy.unknown",
                 assertThrows(FuhitoException.class, () -> Trees.all(service, on, "nope")).code());

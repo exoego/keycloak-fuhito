@@ -24,7 +24,7 @@ public record OrgUnitHistoryRepresentation(
         @Schema(description = "Every ID that a system has for the unit. The one of `source` comes first, then the "
                 + "others by system.")
         List<ExternalIdPairRepresentation> externalIds,
-        @Schema(description = "The details of each period, oldest first. They have no parent.")
+        @Schema(description = "The details of each period, oldest first. They have no parent and no hierarchy.")
         List<OrgUnitRepresentation> versions,
         @Schema(description = "The parents in every hierarchy, oldest first. A gap in a hierarchy means that the unit had no "
                 + "parent there.")

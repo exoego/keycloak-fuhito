@@ -619,11 +619,13 @@ An org unit has at most one parent in each hierarchy on a date.
 
 - `PUT /org-units/{id}/parent`, `GET /org-units`, `GET /org-units/{id}`, `/children`, `/subtree`, `/path`, and `/members` take `hierarchy` with the code of a hierarchy. The default is `default`.
 - In `GET /org-units`, `hierarchy` names the hierarchy of the `parentId` of each unit and of `roots=true`. It does not leave out the units that are not in that hierarchy.
+- Every org unit of a response has `hierarchy`, the code of the hierarchy of its `parentId`. It is `default` for a read with no `hierarchy` parameter. The details in a history have no parent, so they have no `hierarchy` either.
+- `PUT /org-units/{id}` checks `parentId` in the `hierarchy` of its body, so a read in any hierarchy is a valid body. A body with no `hierarchy` is checked in the default hierarchy. A code that no hierarchy has fails with 400 and `hierarchy.unknown`.
 - Every org unit is in the default hierarchy. Another hierarchy has only the units with a parent or a child in it on the date.
 - The history of an org unit lists its parents in every hierarchy.
 - An org unit cannot end while it has a child in any hierarchy. Its end ends its parent links in every hierarchy.
-- These use the default hierarchy only. They are the `parentId` of a new org unit, of `PUT /org-units/{id}`, and of a row of the import, the reorganization, the managers that come from the head of the unit above, and the projection into Keycloak.
-- The import gives parents in other hierarchies with the list `orgUnitParents`. See [import.md](import.md).
+- These use the default hierarchy only. They are the `parentId` of a new org unit, the reorganization, the managers that come from the head of the unit above, and the projection into Keycloak. `POST /org-units` with a `hierarchy` other than `default` fails with 400 and `invalid.value_fixed`.
+- The import gives parents in other hierarchies with the list `orgUnitParents`, or with `hierarchy` in a row of a stored org unit. See [import.md](import.md).
 
 The members of an org unit with the units below come in the same tree order.
 Inside one unit, they follow the display order, then the start of the assignment.

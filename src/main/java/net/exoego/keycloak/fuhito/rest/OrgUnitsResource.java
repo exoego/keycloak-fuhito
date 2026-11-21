@@ -16,6 +16,7 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.ExternalId;
+import net.exoego.keycloak.fuhito.domain.Hierarchy;
 import net.exoego.keycloak.fuhito.domain.ResourceType;
 import net.exoego.keycloak.fuhito.rest.RequestContext.Change;
 import net.exoego.keycloak.fuhito.service.Cursor;
@@ -89,7 +90,12 @@ public class OrgUnitsResource {
     }
 
     @POST
-    @Operation(operationId = "createOrgUnit", summary = "Creates an org unit that starts on a date.")
+    @Operation(
+            operationId = "createOrgUnit",
+            summary = "Creates an org unit that starts on a date.",
+            description = "The unit and its `parentId` are in the default hierarchy. A `hierarchy` other than `default` "
+                    + "fails with 400 and `invalid.value_fixed`. `PUT /org-units/{id}/parent` gives the unit a parent "
+                    + "in another hierarchy.")
     @Parameter(ref = "changeOrder")
     @APIResponse(
             responseCode = "201",
@@ -103,6 +109,7 @@ public class OrgUnitsResource {
         context.requireWrite();
         return Calls.run(context, () -> {
             Calls.body(body);
+            Checks.fixed("hierarchy", Hierarchy.DEFAULT_CODE, body.hierarchy());
             var unit = represent(service.create(body.toNewOrgUnit()));
             context.recordChange(Change.CREATE, RESOURCE_TYPE, unit.id(), path(unit.id()), unit);
             return Response.status(Response.Status.CREATED).entity(unit).build();
@@ -118,11 +125,14 @@ public class OrgUnitsResource {
                     + "attributes. The parent does not change here, and `PUT /org-units/{id}/parent` moves the unit. "
                     + "A `parentId`, an `effectiveWorkLocation`, or an `effectiveCostCenter` that the unit does not "
                     + "have on any date of the details that the write replaces fails with 400 and "
-                    + "`invalid.value_fixed`. With `source` and `externalId`, the unit gets that "
+                    + "`invalid.value_fixed`. The `parentId` is the one in the `hierarchy` of the body. So a read in "
+                    + "any hierarchy is a valid body. With `source` and `externalId`, the unit gets that "
                     + "ID of that system. Another `source` with no `externalId` fails with 400 and "
                     + "`invalid.value_fixed`. No other org unit may have the same code on a date of the change.")
     @Parameter(ref = "changeOrder")
-    @APIResponse(responseCode = "200", description = "The unit as it is on that date.")
+    @APIResponse(
+            responseCode = "200",
+            description = "The unit as it is on that date, with its parent in the `hierarchy` of the body.")
     @BadRequest
     @NotFound
     @ApiErrors
@@ -136,9 +146,11 @@ public class OrgUnitsResource {
         return Calls.guarded(context, body, () -> version(id), () -> {
             Writes.requireSource(service.source(id), body.source(), body.externalId());
             Writes.requireRead(body, () -> represent(service.get(id,
-                    Checks.date("validFrom", body.validFrom()).toString())), OrgUnitRepresentation.READ_ONLY);
+                    Checks.date("validFrom", body.validFrom()).toString(), body.hierarchy())),
+                    OrgUnitRepresentation.READ_ONLY);
             requireReplacedValues(id, body);
-            return updated(path(id), service.changeDetails(id, body.toChange(), body.source(), body.externalId()));
+            return updated(path(id), service.changeDetails(id, body.toChange(), body.hierarchy(), body.source(),
+                    body.externalId()));
         });
     }
 
@@ -147,7 +159,8 @@ public class OrgUnitsResource {
     @Operation(
             operationId = "moveOrgUnit",
             summary = "Gives an org unit a new parent in a hierarchy from a date.",
-            description = "The response has the parent in that hierarchy.")
+            description = "The response has the parent in that hierarchy, and the code of that hierarchy in "
+                    + "`hierarchy`.")
     @Parameter(ref = "changeOrder")
     @APIResponse(responseCode = "200", description = "The unit as it is on that date.")
     @BadRequest
@@ -850,7 +863,7 @@ public class OrgUnitsResource {
         if (body.parentId() == null && body.effectiveWorkLocation() == null && body.effectiveCostCenter() == null) {
             return;
         }
-        OrgUnitService.ReplacedDetails replaced = service.replacedDetails(id, body.validFrom());
+        OrgUnitService.ReplacedDetails replaced = service.replacedDetails(id, body.validFrom(), body.hierarchy());
         Checks.fixedAmong("parentId", replaced.parentIds(), body.parentId());
         Checks.fixedAmong("effectiveWorkLocation", replaced.workLocations(), body.effectiveWorkLocation());
         Checks.fixedAmong("effectiveCostCenter", replaced.costCenters(), body.effectiveCostCenter());
