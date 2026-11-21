@@ -5,7 +5,7 @@ The numbers show which reads grow with the size of a realm. They are not a promi
 
 ## How to measure
 
-`scripts/bench/run.sh` starts PostgreSQL and Keycloak with the extension in Docker, fills one realm, and measures the reads.
+`scripts/bench/run.sh` starts PostgreSQL and Keycloak with the extension in Docker, fills one realm, and measures the reads. Then it measures the fill and the clear of an attribute, as the section below says.
 It needs Docker, curl, and jq. Run it from the root of the project. It is not a check of CI.
 
 `scripts/bench/seed.sql` fills the realm with SQL, because the API would take too long for this many rows.
@@ -301,6 +301,28 @@ Every rebuild before and after reported no change.
 - With 500,000 people, the select of one person ran 500,000 times. The walk of the groups read one group and its subgroups about 50,000 times each, and the attributes of the groups about 6,500 times.
 - Of the 3,535 statements that are left with 500,000 people, about 1,000 start a transaction. The others are reads of a piece of 100 org units or of a page of 1,000 recorded members, about 500 of each kind.
 
+## The fill and the clear of an attribute
+
+After the reads, `scripts/bench/run.sh` defines a required attribute of people with `fillValue`, and deletes it with `clearValues=true`. Then it does the same for org units. It runs this three times. `FILL=0` leaves it out.
+The fill of people writes the value into 50,000 rows, and the fill of org units into the 6,001 versions of 5,001 org units. Each clear removes it from as many rows.
+
+Run on 2026-11-21 at commit `7b724d8`, with Keycloak 26.8.2 and PostgreSQL 18, on a laptop with an Apple M4 Pro and 48 GB of memory. Docker (OrbStack 29.8.2) had 2 CPUs and 8 GB of memory for Keycloak and PostgreSQL together.
+Each number is the time of one request, measured by curl on the same machine.
+
+| Write | Rows | Round 1 | Round 2 | Round 3 |
+|---|---|---|---|---|
+| Fill of people | 50,000 | 1,842 ms | 1,755 ms | 1,783 ms |
+| Clear of people | 50,000 | 1,869 ms | 1,605 ms | 1,541 ms |
+| Fill of org units | 6,001 | 614 ms | 580 ms | 573 ms |
+| Clear of org units | 6,001 | 542 ms | 577 ms | 561 ms |
+
+What the runs showed.
+
+- The write holds the realm alone for the whole request. So the other writes of the realm wait up to about 2 seconds for a fill or a clear of 50,000 people, and about 0.6 seconds for one of 5,000 org units. That is short enough to keep the lock.
+- For people, the statements took about 0.7 seconds in the database. The update of the attributes took about 300 ms, the count up of the versions about 250 ms, and the read of the IDs and the check of the size about 60 ms each. The rest of the time went into the 50,000 entries of the change log and the admin events, which Keycloak writes one by one.
+- For org units, the update of the 6,001 versions took about 420 ms of the 0.6 seconds. The scan and the new JSON text took 11 ms of it. The database checks the exclusion constraint of the versions for each new row.
+- The other values of a row keep their text, as the update reads the text of each value with `json_each` and writes it back as it was.
+
 ## What the numbers say
 
 - A read about one org unit, one person, or one page of people does not grow with the realm.
@@ -312,5 +334,5 @@ Every rebuild before and after reported no change.
 ## Not measured
 
 - The token mapper.
-- Writes.
+- Writes other than the fill and the clear of an attribute.
 - More than one request at the same time.
