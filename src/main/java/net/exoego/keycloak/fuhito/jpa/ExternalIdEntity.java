@@ -3,6 +3,7 @@ package net.exoego.keycloak.fuhito.jpa;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
+import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 
@@ -40,5 +41,11 @@ public class ExternalIdEntity {
      * Creates an empty entity for JPA.
      */
     public ExternalIdEntity() {
+    }
+
+    // Hibernate counts the version up after this, and lets the largest long wrap around.
+    @PreUpdate
+    void countUp() {
+        Versions.next(version);
     }
 }

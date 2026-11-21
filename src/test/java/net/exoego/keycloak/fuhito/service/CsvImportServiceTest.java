@@ -463,14 +463,18 @@ class CsvImportServiceTest {
         assertEquals(99_999_999_999L, unit("W", "2026-05-25").version().attributes().get("beds"));
         load("orgUnits", "2026-05-26", """
                 外部ID,attributes.beds
-                W,99999999999999999999
+                W,1e20
                 """);
-        assertEquals(new BigInteger("99999999999999999999"),
+        assertEquals(new BigInteger("100000000000000000000"),
                 unit("W", "2026-05-26").version().attributes().get("beds"));
-        assertEquals(List.of("line 2 row 0 csv.bad_number"), errors(load("orgUnits", "2026-06-01", """
-                外部ID,attributes.beds
-                W,many
-                """)));
+        // A double gives back another number for each of these, as a client in JavaScript reads it.
+        for (String cell : List.of("many", "99999999999999999999", "50.000000000000001", "1e400", "1e-400",
+                "1e999999999")) {
+            assertEquals(List.of("line 2 row 0 csv.bad_number"), errors(load("orgUnits", "2026-06-01", """
+                    外部ID,attributes.beds
+                    W,%s
+                    """.formatted(cell))), cell);
+        }
         assertEquals("csv.bad_column", assertThrows(FuhitoException.class, () -> load("orgUnits", "2026-06-01", """
                 外部ID,attributes.rooms
                 W,3

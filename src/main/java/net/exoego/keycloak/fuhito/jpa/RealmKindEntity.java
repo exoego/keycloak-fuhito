@@ -50,7 +50,7 @@ public class RealmKindEntity implements VersionedRow {
     // A write may change only the names, which are rows of their own. It counts up the version once.
     void countUp() {
         if (!counted) {
-            version++;
+            version = Versions.next(version);
             counted = true;
         }
     }

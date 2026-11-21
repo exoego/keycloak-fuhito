@@ -35,7 +35,10 @@ public record AttributeDefinitionRepresentation(
         String name,
         @Schema(
                 description = "The type of the value. A `STRING` value must not be empty or only spaces, also in a "
-                        + "list.",
+                        + "list. A `NUMBER` value must be a number that a 64-bit floating point number (IEEE 754 "
+                        + "double, the number of JavaScript) gives back as the same number, such as `0.1`, `1e300`, "
+                        + "or `9007199254740992`, and not `1e400`, `1e-400`, `50.000000000000001`, or "
+                        + "`9007199254740993`. It is stored as sent.",
                 enumeration = {"STRING", "NUMBER", "BOOLEAN", "DATE", "REF_ITEM"})
         String type,
         @Schema(description = "The kind of reference data, fixed or of the realm. Only the type `REF_ITEM` has it.")

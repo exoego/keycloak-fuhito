@@ -51,7 +51,9 @@ class AttributeDefinitionServiceTest {
         for (Map<String, Object> bad : List.<Map<String, Object>>of(Map.of("shift", 1), Map.of("shift", "a", "beds", "3"),
                 Map.of("shift", "a", "night", "yes"), Map.of("shift", "a", "since", "April"),
                 Map.of("shift", "a", "since", "0000-12-31"), Map.of("shift", "a", "since", "+10000-01-01"),
-                Map.of("shift", "a", "also", "clerk"))) {
+                Map.of("shift", "a", "also", "clerk"), Map.of("shift", "a", "beds", new BigDecimal("1e400")),
+                Map.of("shift", "a", "beds", new BigDecimal("50.000000000000001")),
+                Map.of("shift", "a", "beds", 9007199254740993L), Map.of("shift", "a", "beds", Double.NaN))) {
             assertEquals("attribute.bad_value", code(() -> service.check(Target.ASSIGNMENT, bad)), bad.toString());
         }
         assertEquals(Map.of("shift", new BigDecimal("1.5")), service.check(Target.PERSON,
@@ -90,6 +92,7 @@ class AttributeDefinitionServiceTest {
         for (Map<String, Object> bad : List.<Map<String, Object>>of(Map.of("sites", "nurse"),
                 Map.of("sites", List.of("nurse", "driver")), Map.of("sites", withNull),
                 Map.of("sites", List.of("nurse"), "days", List.of("1")),
+                Map.of("sites", List.of("nurse"), "days", List.of(1, new BigDecimal("1e-400"))),
                 Map.of("sites", List.of("nurse"), "note", List.of("a")))) {
             assertEquals("attribute.bad_value", code(() -> service.check(Target.ASSIGNMENT, bad)), bad.toString());
         }

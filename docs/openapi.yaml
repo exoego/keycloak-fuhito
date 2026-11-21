@@ -298,7 +298,11 @@ components:
         type:
           type: string
           description: "The type of the value. A `STRING` value must not be empty\
-            \ or only spaces, also in a list."
+            \ or only spaces, also in a list. A `NUMBER` value must be a number that\
+            \ a 64-bit floating point number (IEEE 754 double, the number of JavaScript)\
+            \ gives back as the same number, such as `0.1`, `1e300`, or `9007199254740992`,\
+            \ and not `1e400`, `1e-400`, `50.000000000000001`, or `9007199254740993`.\
+            \ It is stored as sent."
           enum:
           - STRING
           - NUMBER
@@ -3269,7 +3273,9 @@ components:
       description: "Every stored row of a realm, with every period. `POST /restore`\
         \ loads it into a realm that has no data of the extension, or in place of\
         \ the data of a realm. Each resource has its `version`, which the restore\
-        \ keeps. A resource with none starts at 1."
+        \ keeps. A resource with none starts at 1. A version is from 1 to 9007199254740991,\
+        \ the largest whole number that a client in JavaScript reads exactly. Another\
+        \ one fails with 400 and `restore.bad_value`."
       type: object
       properties:
         format:
@@ -3690,7 +3696,8 @@ components:
         \ type than its field fails with 400 and `invalid.type`, which names the field\
         \ with its path, such as `steps[0].displayOrder`. A whole number outside the\
         \ range of its field fails with 400 and `invalid.out_of_range`, which names\
-        \ the field with its path and the limits."
+        \ the field with its path and the limits. A number whose exponent is too large\
+        \ or too small to read fails with 400 and `invalid.number`."
       properties:
         op:
           type: string
@@ -4453,8 +4460,9 @@ components:
         `invalid.duplicate_key`, and a body with a key that it does not have gets
         `invalid.unknown_key`. A value of another JSON type than its field gets
         `invalid.type`. A whole number outside the range of its field gets
-        `invalid.out_of_range`, and a number with more than 1000 characters gets
-        `invalid.too_long`. A write that names one thing in two ways gets
+        `invalid.out_of_range`, a number with more than 1000 characters gets
+        `invalid.too_long`, and a number whose exponent is too large or too small to
+        read gets `invalid.number`. A write that names one thing in two ways gets
         `invalid.twice`. A create with a person ID and a user ID that do not name the
         same person gets `invalid.mismatch`. A write of a stored resource with another
         value of a field that never changes, of a field that only a response fills, or
@@ -4554,6 +4562,19 @@ info:
     characters fails with 400 and `invalid.too_long`, which names the field and the `max`,
     whatever the field. This holds for every body, also for an import, a restore, and the steps
     of a reorganization. A percentage has its own rule and fails with `invalid.percent`.
+
+    A decimal number is read as it is written, also in a row of an import, and is not rounded to
+    a 64-bit floating point number first. So `50.000000000000001` for a percentage fails with
+    `invalid.percent`, and is not stored as 50. A number whose exponent is too large or too small
+    to read, such as `1e9999999999`, fails with 400 and `invalid.number`, which names the field
+    with its path and the number in `value`, whatever the field. A value of the type `NUMBER` in
+    `attributes` must be a number that a 64-bit floating point number (IEEE 754 double, the
+    number of JavaScript) gives back as the same number. Such a number has at most 17
+    significant digits and is at most 1.7976931348623157e308 in size. Every number with at most
+    15 significant digits from 1e-307 to 1e308 in size fits, and so do 0 and every whole number
+    from -9007199254740992 to 9007199254740992. Another number, such as `1e400`, `1e-400`,
+    `50.000000000000001`, or `9007199254740993`, fails with `attribute.bad_value`. A number that
+    fits is stored as sent, and a read gives back the same number.
 
     Each operation lists the query parameters that it takes. A request with another query
     parameter fails with 400 and `invalid.unknown_parameter`, which names the parameter in
@@ -6868,9 +6889,14 @@ paths:
         \ It names the field with its path, such as `refItems[0].displayOrder`, and\
         \ the type of the field. A whole number outside the range of its field fails\
         \ as a whole with `invalid.out_of_range`, which names the field with its path\
-        \ and the limits in `min` and `max`. A new thing has nothing stored, so a\
-        \ missing key and `null` both give no value. The lists are applied in the\
-        \ order change orders, kinds of reference data, definitions of attributes,\
+        \ and the limits in `min` and `max`. A decimal number is read as it is written,\
+        \ as in a write. So `50.000000000000001` for `workPercent` fails the row with\
+        \ `invalid.percent`, and a value of the type `NUMBER` in `attributes` that\
+        \ a 64-bit floating point number does not give back the same fails the row\
+        \ with `attribute.bad_value`. A number whose exponent is too large or too\
+        \ small to read fails as a whole with `invalid.number`. A new thing has nothing\
+        \ stored, so a missing key and `null` both give no value. The lists are applied\
+        \ in the order change orders, kinds of reference data, definitions of attributes,\
         \ reference items, hierarchies, org units, parents in hierarchies, people,\
         \ qualifications, employments, roles over org units, assignments, reporting\
         \ lines, IDs of other systems."
@@ -6983,7 +7009,12 @@ paths:
         \ or `FE FF`, or has a `00` byte on its first line, unless the charset is\
         \ UTF-16 or UTF-32. Such a file is most likely UTF-16. An unknown charset\
         \ fails with `csv.bad_charset`. A `00` byte after the first line is NUL in\
-        \ a cell, which fails with `invalid.character` and names the column."
+        \ a cell, which fails with `invalid.character` and names the column. A cell\
+        \ of a number that the column cannot take fails the row with `csv.bad_number`,\
+        \ which names the column. Such a cell is a `displayOrder` outside -2147483648\
+        \ to 2147483647, or a number of an attribute of the type `NUMBER` that a 64-bit\
+        \ floating point number does not give back the same, such as `1e400` or `1e999999999`,\
+        \ as in a JSON import."
       operationId: applyCsvImport
       tags:
       - bulk
@@ -9918,24 +9949,29 @@ paths:
         \ after the `validFrom` of its row, as in a write. So does an unknown choice,\
         \ such as the `status` of terms, or names that break a rule of a write, such\
         \ as a `primaryLanguage` that is not a key of `names`, or attributes of more\
-        \ than 64 KiB. So does a row that names a reference item of another kind,\
-        \ such as a unit role as the grade of terms, or that breaks a rule between\
-        \ rows of a write, such as a row of an assignment that is not inside its employment,\
-        \ a unit that other units follow and that has no end, or a manager who is\
-        \ the person. Then `rule` names the error of the write for the rule, such\
-        \ as `assignment.outside_employment`, when the write has one. A restore does\
-        \ not check attributes against their definitions, because a realm keeps the\
-        \ values that a later change of a definition no longer allows. An empty text,\
-        \ a text of only spaces, or an empty array in a row fails with 400 and `invalid.blank`,\
-        \ as in a write. A text with NUL (U+0000) or half of a surrogate pair fails\
-        \ with 400 and `invalid.character`, as in a write. The error names the list,\
-        \ the `id` of the row, and the field. A document that gives one key twice\
-        \ in one object fails with 400 and `invalid.duplicate_key`, as in a write.\
-        \ A key that the document does not have fails with 400 and `invalid.unknown_key`,\
-        \ as in a write. A value of another JSON type than its field fails with 400\
-        \ and `invalid.type`, as in a write, such as `\"true\"` or `null` for `active`.\
-        \ A whole number outside the range of its field fails with 400 and `invalid.out_of_range`,\
-        \ as in a write, such as `2147483648` for `displayOrder`. These errors name\
+        \ than 64 KiB. So does a number in `attributes` that a 64-bit floating point\
+        \ number does not give back the same, such as `1e400`, which no write stores.\
+        \ Then `field` names the attribute, such as `attributes.beds`. So does a `version`\
+        \ outside 1 to 9007199254740991, which leaves a write room to count it up.\
+        \ So does a row that names a reference item of another kind, such as a unit\
+        \ role as the grade of terms, or that breaks a rule between rows of a write,\
+        \ such as a row of an assignment that is not inside its employment, a unit\
+        \ that other units follow and that has no end, or a manager who is the person.\
+        \ Then `rule` names the error of the write for the rule, such as `assignment.outside_employment`,\
+        \ when the write has one. A restore does not check attributes against their\
+        \ definitions, because a realm keeps the values that a later change of a definition\
+        \ no longer allows. An empty text, a text of only spaces, or an empty array\
+        \ in a row fails with 400 and `invalid.blank`, as in a write. A text with\
+        \ NUL (U+0000) or half of a surrogate pair fails with 400 and `invalid.character`,\
+        \ as in a write. The error names the list, the `id` of the row, and the field.\
+        \ A document that gives one key twice in one object fails with 400 and `invalid.duplicate_key`,\
+        \ as in a write. A key that the document does not have fails with 400 and\
+        \ `invalid.unknown_key`, as in a write. A value of another JSON type than\
+        \ its field fails with 400 and `invalid.type`, as in a write, such as `\"\
+        true\"` or `null` for `active`. A whole number outside the range of its field\
+        \ fails with 400 and `invalid.out_of_range`, as in a write, such as `2147483648`\
+        \ for `displayOrder`. A number whose exponent is too large or too small to\
+        \ read fails with 400 and `invalid.number`, as in a write. These errors name\
         \ the key with its path in the document, such as `orgUnits[0].versions[0].names.ja`.\
         \ They have no list and no `id`, because the document is not read yet. A row\
         \ may have an empty list of its own rows, such as `parents`. Two rows with\
