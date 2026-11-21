@@ -246,6 +246,10 @@ class ExactNumbersIT {
     // The numbers are written into the text of the document, so that no mapper reads them first.
     private static String withAttributes(String attributes) throws Exception {
         ObjectNode document = RestoreKeysIT.document();
+        RestoreKeysIT.change(document, "/attributeDefinitions", "{\"id\": \"d-2\", \"target\": \"PERSON\", "
+                + "\"name\": \"beds\", \"type\": \"NUMBER\"}");
+        RestoreKeysIT.change(document, "/attributeDefinitions", "{\"id\": \"d-3\", \"target\": \"PERSON\", "
+                + "\"name\": \"sizes\", \"type\": \"NUMBER\", \"multiple\": true}");
         ((ObjectNode) document.at("/people/0")).put("attributes", "ATTRIBUTES");
         return EXACT.writeValueAsString(document).replace("\"ATTRIBUTES\"", attributes);
     }

@@ -7,7 +7,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.Test;
 
-import static net.exoego.keycloak.fuhito.KeycloakEnvironment.sql;
 import static net.exoego.keycloak.fuhito.RestoreRulesIT.assertEachBreaks;
 import static net.exoego.keycloak.fuhito.RestoreRulesIT.at;
 import static net.exoego.keycloak.fuhito.RestoreRulesIT.breaks;
@@ -37,36 +36,73 @@ class RestoreAttributesIT {
                         + "\"lic\", \"validFrom\": \"2020-04-01\"}]}"), at("/qualifications/0", LARGE))));
     }
 
+    private static String definition(String id, String target, String name, String rest) {
+        return "{\"id\": \"" + id + "\", \"target\": \"" + target + "\", \"name\": \"" + name + "\", " + rest + "}";
+    }
+
+    private static String attributes(String attributes) {
+        return "{\"attributes\": " + attributes + "}";
+    }
+
+    // The document defines only the attribute note of a person, of the type STRING.
+    @Test
+    void attributesThatBreakARuleOfAWriteFailTheRestoreAndNothingIsWritten() throws Exception {
+        String unknown = "attribute.unknown";
+        String bad = "attribute.bad_value";
+        String required = "attribute.required";
+        String tags = definition("d-2", "PERSON", "tags", "\"type\": \"STRING\", \"multiple\": true");
+        String role = definition("d-2", "PERSON", "role", "\"type\": \"REF_ITEM\", \"refKind\": \"UNIT_ROLE\"");
+        String beds = definition("d-2", "ORG_UNIT", "beds", "\"type\": \"NUMBER\"");
+        assertEachBreaks("restore-attribute-rules", List.of(
+                breaks("people", "p-1", "attributes.beds", unknown, at("/people/0", attributes("{\"beds\": 1}"))),
+                breaks("ref-items", "role-1", "attributes.note", unknown,
+                        at("/refItems/0", attributes("{\"note\": \"a\"}"))),
+                breaks("assignments", "r-1", "attributes.note", unknown,
+                        at("/assignments/0/periods/0", attributes("{\"note\": \"a\"}"))),
+                breaks("people", "p-1", "attributes.note", bad, at("/people/0", attributes("{\"note\": 1}"))),
+                breaks("people", "p-1", "attributes.note", bad, at("/people/0", attributes("{\"note\": [\"a\"]}"))),
+                breaks("people", "p-1", "attributes.tags", bad, at("/attributeDefinitions", tags),
+                        at("/people/0", attributes("{\"tags\": \"a\"}"))),
+                breaks("people", "p-1", "attributes.role", bad, at("/attributeDefinitions", role),
+                        at("/people/0", attributes("{\"role\": \"nobody\"}"))),
+                breaks("people", "p-1", "attributes.role", bad, at("/attributeDefinitions", role),
+                        at("/people/0", attributes("{\"role\": \"corp\"}"))),
+                breaks("employment-terms", "t-1", "attributes.rank", required, at("/attributeDefinitions",
+                        definition("d-2", "EMPLOYMENT_TERMS", "rank", "\"type\": \"STRING\", \"required\": true"))),
+                // v-9 is the past version of an org unit that ended.
+                breaks("org-unit-versions", "v-9", "attributes.beds", bad, at("/attributeDefinitions", beds),
+                        at("/orgUnits/0/versions/0", attributes("{\"beds\": 1}")),
+                        at("/orgUnits/2/versions/0", attributes("{\"beds\": \"ten\"}"))),
+                breaks("org-unit-versions", "v-9", "attributes.beds", required, at("/attributeDefinitions",
+                        definition("d-2", "ORG_UNIT", "beds", "\"type\": \"NUMBER\", \"required\": true")),
+                        at("/orgUnits/0/versions/0", attributes("{\"beds\": 1}")),
+                        at("/orgUnits/1/versions/0", attributes("{\"beds\": 2}")))));
+    }
+
     private static void ok(HttpResponse<String> response) {
         assertTrue(response.statusCode() < 300, response.statusCode() + " " + response.body());
     }
 
-    private static String id(HttpResponse<String> response) throws Exception {
-        ok(response);
-        return Api.json(response).get("id").asText();
-    }
-
-    // No write of a definition leaves values that it does not allow, so the definitions change in the database.
     @Test
-    void valuesThatTheirChangedDefinitionsNoLongerAllowRestoreAsTheyWere() throws Exception {
+    void anExportOfARealmThatMeetsItsDefinitionsRestoresAsItWas() throws Exception {
         TestRealm source = TestRealm.create("restore-attributes-export");
         Api api = source.api;
-        String grade = source.refItem("GRADE", "g1", "一級");
-        String note = id(api.post("/attribute-definitions", "{\"target\": \"PERSON\", \"name\": \"note\", "
-                + "\"type\": \"STRING\"}"));
-        String old = id(api.post("/attribute-definitions", "{\"target\": \"PERSON\", \"name\": \"old\", "
-                + "\"type\": \"STRING\"}"));
+        source.refItem("GRADE", "g1", "一級");
+        ok(api.post("/attribute-definitions", "{\"target\": \"ORG_UNIT\", \"name\": \"beds\", "
+                + "\"type\": \"NUMBER\", \"required\": true}"));
         ok(api.post("/attribute-definitions", "{\"target\": \"PERSON\", \"name\": \"grade\", \"type\": \"REF_ITEM\", "
                 + "\"refKind\": \"GRADE\"}"));
+        ok(api.post("/attribute-definitions", "{\"target\": \"PERSON\", \"name\": \"tags\", \"type\": \"STRING\", "
+                + "\"multiple\": true, \"required\": true}"));
+        String unit = Api.json(api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": "
+                + "{\"name\": \"病棟\"}}, \"validFrom\": \"2020-04-01\", \"attributes\": {\"beds\": 10}}"))
+                .get("id").asText();
+        ok(api.putWithVersion("/org-units/" + unit, "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": "
+                + "{\"name\": \"病棟\"}}, \"validFrom\": \"2024-04-01\", \"attributes\": {\"beds\": 12.5}}"));
         ok(api.post("/people", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"山田\"}}, "
-                + "\"attributes\": {\"note\": \"text\", \"old\": \"x\", \"grade\": \"g1\"}}"));
-        String badge = id(api.post("/attribute-definitions", "{\"target\": \"PERSON\", \"name\": \"badge\", "
-                + "\"type\": \"STRING\"}"));
-        sql("update fuhito_attribute_definition set value_type = 'NUMBER', multiple = true where id = '" + note + "'");
-        sql("delete from fuhito_attribute_definition where id = '" + old + "'");
-        sql("update fuhito_attribute_definition set required = true where id = '" + badge + "'");
-        ok(api.deleteWithVersion("/ref-items/" + grade));
+                + "\"attributes\": {\"grade\": \"g1\", \"tags\": [\"a\", \"b\"]}}"));
         ObjectNode before = RealmExportIT.export(api);
+        assertEquals(2, before.at("/orgUnits/0/versions").size(), before.toString());
 
         TestRealm target = TestRealm.create("restore-attributes-target");
         source.remove();
