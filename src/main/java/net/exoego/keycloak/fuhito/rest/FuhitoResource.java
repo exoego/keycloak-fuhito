@@ -17,6 +17,7 @@ import net.exoego.keycloak.fuhito.domain.BusinessDay;
 import net.exoego.keycloak.fuhito.domain.Unchecked;
 import net.exoego.keycloak.fuhito.jpa.JpaAssignmentStore;
 import net.exoego.keycloak.fuhito.jpa.JpaAttributeDefinitionStore;
+import net.exoego.keycloak.fuhito.jpa.JpaAttributeValues;
 import net.exoego.keycloak.fuhito.jpa.JpaChangeLogStore;
 import net.exoego.keycloak.fuhito.jpa.JpaChangeOrderStore;
 import net.exoego.keycloak.fuhito.jpa.JpaEffectiveChangeStore;
@@ -367,7 +368,8 @@ public class FuhitoResource {
 
     private AttributeDefinitionService attributeRules() {
         return new AttributeDefinitionService(new JpaAttributeDefinitionStore(entityManager, realmId),
-                new JpaRefItemStore(entityManager, realmId), realmKinds()::isKnown);
+                new JpaAttributeValues(entityManager, realmId), new JpaRefItemStore(entityManager, realmId),
+                realmKinds()::isKnown);
     }
 
     private AssignmentService assignmentService() {

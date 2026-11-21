@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.Test;
 
+import static net.exoego.keycloak.fuhito.KeycloakEnvironment.sql;
 import static net.exoego.keycloak.fuhito.RestoreRulesIT.assertEachBreaks;
 import static net.exoego.keycloak.fuhito.RestoreRulesIT.at;
 import static net.exoego.keycloak.fuhito.RestoreRulesIT.breaks;
@@ -45,8 +46,7 @@ class RestoreAttributesIT {
         return Api.json(response).get("id").asText();
     }
 
-    // A change or a delete of a definition keeps the stored values, so a realm can have values that its definitions
-    // no longer allow.
+    // No write of a definition leaves values that it does not allow, so the definitions change in the database.
     @Test
     void valuesThatTheirChangedDefinitionsNoLongerAllowRestoreAsTheyWere() throws Exception {
         TestRealm source = TestRealm.create("restore-attributes-export");
@@ -60,11 +60,12 @@ class RestoreAttributesIT {
                 + "\"refKind\": \"GRADE\"}"));
         ok(api.post("/people", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"山田\"}}, "
                 + "\"attributes\": {\"note\": \"text\", \"old\": \"x\", \"grade\": \"g1\"}}"));
-        ok(api.putWithVersion("/attribute-definitions/" + note, "{\"type\": \"NUMBER\", \"multiple\": true}"));
-        ok(api.deleteWithVersion("/attribute-definitions/" + old));
+        String badge = id(api.post("/attribute-definitions", "{\"target\": \"PERSON\", \"name\": \"badge\", "
+                + "\"type\": \"STRING\"}"));
+        sql("update fuhito_attribute_definition set value_type = 'NUMBER', multiple = true where id = '" + note + "'");
+        sql("delete from fuhito_attribute_definition where id = '" + old + "'");
+        sql("update fuhito_attribute_definition set required = true where id = '" + badge + "'");
         ok(api.deleteWithVersion("/ref-items/" + grade));
-        ok(api.post("/attribute-definitions", "{\"target\": \"PERSON\", \"name\": \"badge\", \"type\": \"STRING\", "
-                + "\"required\": true}"));
         ObjectNode before = RealmExportIT.export(api);
 
         TestRealm target = TestRealm.create("restore-attributes-target");

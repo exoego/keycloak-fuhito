@@ -96,6 +96,7 @@ class QueryValuesIT {
 
     // Each endpoint with its boolean parameters, as the OpenAPI document lists them.
     private static final Map<String, List<String>> BOOLEANS = Map.ofEntries(
+            Map.entry("DELETE /attribute-definitions/{id}", List.of("clearValues")),
             Map.entry("GET /org-units", List.of("lateral", "legalEntity", "rollup", "roots")),
             Map.entry("GET /org-units/count", List.of("lateral", "legalEntity", "rollup", "roots")),
             Map.entry("GET /org-units/{id}/children", List.of("lateral")),

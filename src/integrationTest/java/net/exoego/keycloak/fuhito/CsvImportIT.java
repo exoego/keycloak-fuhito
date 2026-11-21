@@ -512,10 +512,10 @@ class CsvImportIT {
         JsonNode kept = Api.json(api.get("/attribute-definitions?target=ORG_UNIT")).get(0);
         assertEquals("NUMBER", kept.get("type").asText());
         assertTrue(kept.get("required").asBoolean());
-        assertEquals(1, load(api, "attribute-definitions", "effectiveDate=2026-05-01",
-                "id,multiple\r\n" + beds + ",true\r\n").get("counts").get("attributeDefinitions")
-                .get("changed").asInt());
-        assertTrue(Api.json(api.get("/attribute-definitions?target=ORG_UNIT")).get(0).get("multiple").asBoolean());
+        // Whether the value is a list never changes.
+        assertEquals("import.value_fixed", failure(api, "attribute-definitions", "effectiveDate=2026-05-01",
+                "id,multiple\r\n" + beds + ",true\r\n"));
+        assertFalse(Api.json(api.get("/attribute-definitions?target=ORG_UNIT")).get(0).get("multiple").asBoolean());
     }
 
     @Test

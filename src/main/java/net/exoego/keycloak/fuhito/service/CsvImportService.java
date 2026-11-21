@@ -106,6 +106,7 @@ public class CsvImportService {
             Map.entry("employerId", "雇用主のID"), Map.entry("employmentId", "雇用のID"),
             Map.entry("orgUnitId", "組織のID"), Map.entry("target", "対象"), Map.entry("type", "型"),
             Map.entry("refKind", "参照の種類"), Map.entry("multiple", "複数"), Map.entry("required", "必須"),
+            Map.entry("fillValue", "値のない行に入れる値"),
             Map.entry("hierarchy", "階層"), Map.entry("workLocation", "勤務地"), Map.entry("costCenter", "コストセンター"),
             Map.entry("successorExternalIds", "後継の外部ID"), Map.entry("successorIds", "後継のID"),
             Map.entry("organizationAlias", "Organizationの別名"), Map.entry("assignmentExternalId", "所属の外部ID"),
@@ -162,7 +163,7 @@ public class CsvImportService {
     private static final Map<Kind, Set<String>> FIELDS = Map.ofEntries(
             Map.entry(Kind.REF_KINDS, Set.of("id", "externalId", "source", "code", "primaryLanguage", "name")),
             Map.entry(Kind.ATTRIBUTE_DEFINITIONS, Set.of("id", "externalId", "source", "target", "name", "type",
-                    "refKind", "multiple", "required")),
+                    "refKind", "multiple", "required", "fillValue")),
             Map.entry(Kind.HIERARCHIES, Set.of("id", "externalId", "source", "code", "name")),
             Map.entry(Kind.ORG_UNIT_PARENTS, Set.of("hierarchy", "source", "orgUnitExternalId", "orgUnitId",
                     "parentExternalId", "parentId")),
@@ -328,7 +329,8 @@ public class CsvImportService {
                 defaultSource, kind.list, typed);
         return switch (kind) {
             case REF_KINDS -> run(data, columns, defined, cells -> refKind(cells, defaultSource), document);
-            case ATTRIBUTE_DEFINITIONS -> run(data, columns, defined, this::attributeDefinition, document);
+            case ATTRIBUTE_DEFINITIONS -> run(data, columns, defined, cells -> attributeDefinition(cells, defaultSource),
+                    document);
             case HIERARCHIES -> run(data, columns, defined, this::hierarchy, document);
             case ORG_UNIT_PARENTS -> run(data, columns, defined, this::orgUnitParent, document);
             case REPORTING_LINES -> run(data, columns, defined, this::reportingLine, document);
@@ -485,10 +487,21 @@ public class CsvImportService {
                 cells.text("name"), cells.nulls());
     }
 
-    private AttributeDefinitionRow attributeDefinition(Cells cells) {
+    // The cell of the value to fill is read by the type of the definition. A row of a stored definition that leaves
+    // out the type or multiple has the stored one.
+    private AttributeDefinitionRow attributeDefinition(Cells cells, String defaultSource) {
+        String type = cells.text("type");
+        Boolean multiple = cells.bool("multiple");
+        Object fillValue = null;
+        if (cells.text("fillValue") != null) {
+            Optional<AttributeDefinition> stored = storedId(ExternalId.Kind.ATTRIBUTE_DEFINITION, cells, defaultSource)
+                    .flatMap(id -> importService.setup().definitions().find(id));
+            fillValue = cells.value("fillValue", type == null ? stored.map(d -> d.type().name()).orElse(null) : type,
+                    multiple == null ? stored.map(AttributeDefinition::multiple).orElse(false) : multiple);
+        }
         return new AttributeDefinitionRow(cells.text("id"), cells.text("source"), cells.text("externalId"),
-                cells.text("target"), cells.text("name"), cells.text("type"), cells.text("refKind"),
-                cells.bool("multiple"), cells.bool("required"), cells.nulls());
+                cells.text("target"), cells.text("name"), type, cells.text("refKind"), multiple,
+                cells.bool("required"), fillValue, cells.nulls());
     }
 
     // The cells of the primary names need the primary language of the names of the date of the row.
@@ -670,9 +683,28 @@ public class CsvImportService {
             return whole.bitLength() < Long.SIZE ? (Object) whole.longValue() : whole;
         }
 
-        // The definition checks a text later, as it does for a JSON import.
+        // A cell of a value of a type that a row names, such as the value to fill of a definition. A type that is
+        // not one of the types keeps the text, and the import rejects the type.
+        Object value(String column, String type, boolean multiple) {
+            AttributeDefinition.Type of = Arrays.stream(AttributeDefinition.Type.values())
+                    .filter(each -> each.name().equals(type))
+                    .findFirst()
+                    .orElse(AttributeDefinition.Type.STRING);
+            if (multiple) {
+                List<String> items = list(column);
+                return items == null ? null : items.stream().map(item -> typed(of, column, item)).toList();
+            }
+            String text = text(column);
+            return text == null ? null : typed(of, column, text);
+        }
+
         private static Object typed(AttributeDefinition definition, String column, String text) {
-            return switch (definition.type()) {
+            return typed(definition.type(), column, text);
+        }
+
+        // The definition checks a text later, as it does for a JSON import.
+        private static Object typed(AttributeDefinition.Type type, String column, String text) {
+            return switch (type) {
                 case NUMBER -> asJson(column, text);
                 case BOOLEAN -> truth(column, text);
                 default -> text;

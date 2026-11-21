@@ -170,6 +170,44 @@ public final class ImportReport {
         }
 
         /**
+         * A write of a definition that filled or cleared the value of the attribute in the rows of a resource.
+         *
+         * @param target the kind of the resource
+         * @param resourceId the ID of the resource
+         */
+        record OfAttributeValue(AttributeDefinition.Target target, String resourceId) implements Write {
+
+            @Override
+            public boolean created() {
+                return false;
+            }
+
+            @Override
+            public ResourceType resourceType() {
+                return switch (target) {
+                    case ORG_UNIT -> ResourceType.FUHITO_ORG_UNIT;
+                    case PERSON -> ResourceType.FUHITO_PERSON;
+                    case EMPLOYMENT_TERMS -> ResourceType.FUHITO_EMPLOYMENT;
+                    case ASSIGNMENT -> ResourceType.FUHITO_ASSIGNMENT;
+                    case QUALIFICATION -> ResourceType.FUHITO_QUALIFICATION;
+                    case REF_ITEM -> ResourceType.FUHITO_REF_ITEM;
+                };
+            }
+
+            @Override
+            public String path() {
+                return switch (target) {
+                    case ORG_UNIT -> "fuhito/org-units/";
+                    case PERSON -> "fuhito/people/";
+                    case EMPLOYMENT_TERMS -> "fuhito/employments/";
+                    case ASSIGNMENT -> "fuhito/assignments/";
+                    case QUALIFICATION -> "fuhito/qualifications/";
+                    case REF_ITEM -> "fuhito/ref-items/";
+                } + resourceId;
+            }
+        }
+
+        /**
          * A write of a hierarchy.
          *
          * @param created true for a new hierarchy, false for a change

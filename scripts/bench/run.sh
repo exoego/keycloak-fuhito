@@ -13,6 +13,9 @@ UNITS="${UNITS:-5000}"
 # BATCH=1 also measures the projection into Keycloak and the sync from user attributes. They take minutes.
 # SYNC=0 leaves the sync out.
 BATCH="${BATCH:-0}"
+# FILL=0 leaves out the writes of definitions that fill and clear an attribute in every row. They come after the
+# reads, so the reads do not see the values.
+FILL="${FILL:-1}"
 
 # A caller that built the jar already can name it in JAR, as a path from the root of the project.
 if [ -z "${JAR:-}" ]; then
@@ -130,6 +133,33 @@ if [ "${BATCH}" = 1 ]; then
     once 'Sync from user attributes, first run' '/attribute-sync/run'
     once 'Sync from user attributes, nothing changed' '/attribute-sync/run'
   fi
+fi
+
+if [ "${FILL}" = 1 ]; then
+  # Prints the time of one write in milliseconds, with its status, and keeps its body.
+  write() {
+    local name="$1" rows="$2" method="$3" path="$4" body="$5" line
+    line="$(curl -s -o /tmp/fuhito-bench-body -w '%{time_total} %{http_code}' --max-time 3600 -X "${method}" \
+      -H "Authorization: Bearer $(token)" -H 'Content-Type: application/json' ${body:+-d "${body}"} \
+      "${API}${path}")"
+    printf '| %s | %s | %s | %s |\n' "${name}" "${rows}" "$(awk '{printf "%d", $1 * 1000}' <<<"${line}")" \
+      "$(awk '{print $2}' <<<"${line}")"
+  }
+  echo
+  echo '| Write of a definition | Rows | ms | Status |'
+  echo '|---|---|---|---|'
+  # Each round defines a required attribute, which fills every row, and deletes it, which clears every row.
+  for round in 1 2 3; do
+    for target in PERSON ORG_UNIT; do
+      if [ "${target}" = PERSON ]; then rows="${PEOPLE}"; else rows="$((UNITS + 1 + (UNITS + 1) / 5))"; fi
+      write "Fill of ${target}, round ${round}" "${rows}" POST /attribute-definitions \
+        "{\"target\": \"${target}\", \"name\": \"bench\", \"type\": \"STRING\", \"required\": true, \"fillValue\": \"x\"}"
+      DEFINITION="$(jq -r .id /tmp/fuhito-bench-body)"
+      VERSION="$(jq -r .version /tmp/fuhito-bench-body)"
+      write "Clear of ${target}, round ${round}" "${rows}" DELETE \
+        "/attribute-definitions/${DEFINITION}?version=${VERSION}&clearValues=true" ""
+    done
+  done
 fi
 
 echo

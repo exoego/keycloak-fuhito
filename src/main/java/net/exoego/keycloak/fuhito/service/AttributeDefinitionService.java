@@ -16,40 +16,59 @@ import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.JsonNumbers;
 import net.exoego.keycloak.fuhito.domain.RefKind;
+import net.exoego.keycloak.fuhito.service.ImportReport.Write;
 import net.exoego.keycloak.fuhito.store.AttributeDefinitionStore;
+import net.exoego.keycloak.fuhito.store.AttributeValueStore;
 import net.exoego.keycloak.fuhito.store.RefItemStore;
 
 /**
- * Operations on the definitions of free attributes of one realm, and the check of writes against them.
+ * Operations on the definitions of free attributes of one realm, and the check of writes against them. A write of a
+ * definition keeps the stored values valid. It fills a new required attribute, and clears the values of a deleted
+ * one, in every row of the resource.
  */
 public class AttributeDefinitionService implements AttributeRules {
 
     private static final int MAX_NAME_LENGTH = 64;
 
     private final AttributeDefinitionStore store;
+    private final AttributeValueStore values;
     private final RefItemStore refItems;
     private final Predicate<String> knownKinds;
+
+    /**
+     * A write of a definition, with the resources whose rows it filled or cleared.
+     *
+     * @param definition the definition after the write
+     * @param values a write of each resource whose rows got or lost a value, in the order of the IDs
+     */
+    public record Written(AttributeDefinition definition, List<Write.OfAttributeValue> values) {
+    }
 
     /**
      * Creates the service.
      *
      * @param store the storage of definitions of the realm
+     * @param values the stored values of the attributes of the realm
      * @param refItems the storage of reference items of the realm
      */
-    public AttributeDefinitionService(AttributeDefinitionStore store, RefItemStore refItems) {
-        this(store, refItems, code -> Arrays.stream(RefKind.values()).anyMatch(kind -> kind.name().equals(code)));
+    public AttributeDefinitionService(AttributeDefinitionStore store, AttributeValueStore values,
+            RefItemStore refItems) {
+        this(store, values, refItems,
+                code -> Arrays.stream(RefKind.values()).anyMatch(kind -> kind.name().equals(code)));
     }
 
     /**
      * Creates the service with the kinds of reference data of the realm.
      *
      * @param store the storage of definitions of the realm
+     * @param values the stored values of the attributes of the realm
      * @param refItems the storage of reference items of the realm
      * @param knownKinds tells whether a code is a fixed kind or a kind of the realm
      */
-    public AttributeDefinitionService(AttributeDefinitionStore store, RefItemStore refItems,
-            Predicate<String> knownKinds) {
+    public AttributeDefinitionService(AttributeDefinitionStore store, AttributeValueStore values,
+            RefItemStore refItems, Predicate<String> knownKinds) {
         this.store = store;
+        this.values = values;
         this.refItems = refItems;
         this.knownKinds = knownKinds;
     }
@@ -88,7 +107,8 @@ public class AttributeDefinitionService implements AttributeRules {
     }
 
     /**
-     * Defines an attribute of a kind of resource.
+     * Defines an attribute of a kind of resource. A required attribute needs a value in every row of the resource,
+     * in each version of a dated resource too. When a row has none, the value to fill goes into each such row.
      *
      * @param target the kind of resource
      * @param name the name of the attribute
@@ -96,11 +116,13 @@ public class AttributeDefinitionService implements AttributeRules {
      * @param refKind the kind of reference data for the type {@code REF_ITEM}, or null
      * @param multiple true when the value is a list, or null for false
      * @param required true when every write must give a value, or null for false
-     * @return the new definition
-     * @throws FuhitoException when a value is bad or the kind of resource has the name already
+     * @param fillValue the value for the rows with no value, or null
+     * @return the new definition, with the resources whose rows got the value
+     * @throws FuhitoException when a value is bad, the kind of resource has the name already, or a row needs the
+     *         value to fill and the write gives none
      */
-    public AttributeDefinition create(String target, String name, String type, String refKind, Boolean multiple,
-            Boolean required) {
+    public Written create(String target, String name, String type, String refKind, Boolean multiple,
+            Boolean required, Object fillValue) {
         AttributeDefinition.Target of = Checks.optionalEnum("target", AttributeDefinition.Target.class,
                 Checks.required("target", target), null);
         String checkedName = name(name);
@@ -109,39 +131,114 @@ public class AttributeDefinitionService implements AttributeRules {
         }
         AttributeDefinition definition = definition(UUID.randomUUID().toString(), of, checkedName, type, refKind,
                 multiple, required, 1);
+        Object fill = fillValue(definition, fillValue);
+        boolean filling = definition.required() && requireFill(definition, fill);
         store.insert(definition);
-        return definition;
+        return new Written(definition, filling ? fill(definition, fill) : List.of());
     }
 
     /**
-     * Replaces the type and the rule of a definition. The kind of resource and the name never change.
-     * Stored values stay as they are.
+     * Changes whether a definition is required. The kind of resource, the name, the type, the kind of reference
+     * data, and whether the value is a list never change. When the attribute becomes required and a row has no
+     * value, the value to fill goes into each such row.
      *
      * @param id the ID
-     * @param type the type of the value
-     * @param refKind the kind of reference data for the type {@code REF_ITEM}, or null
-     * @param multiple true when the value is a list, or null for false
+     * @param type the type of the value, or null for the stored one
+     * @param refKind the kind of reference data, or null for the stored one
+     * @param multiple true when the value is a list, or null for the stored one
      * @param required true when every write must give a value, or null for false
-     * @return the changed definition
-     * @throws FuhitoException when the definition does not exist or a value is bad
+     * @param fillValue the value for the rows with no value, or null
+     * @return the changed definition, with the resources whose rows got the value
+     * @throws FuhitoException when the definition does not exist, the write gives another value of a field that
+     *         never changes, the value to fill is bad, or a row needs it and the write gives none
      */
-    public AttributeDefinition replace(String id, String type, String refKind, Boolean multiple, Boolean required) {
+    public Written replace(String id, String type, String refKind, Boolean multiple, Boolean required,
+            Object fillValue) {
         AttributeDefinition current = get(id);
-        AttributeDefinition changed = definition(id, current.target(), current.name(), type, refKind, multiple,
-                required, current.version());
+        Checks.fixed("type", current.type().name(), type);
+        Checks.fixed("refKind", current.refKind(), refKind);
+        Checks.fixed("multiple", current.multiple(), multiple);
+        AttributeDefinition changed = new AttributeDefinition(id, current.target(), current.name(), current.type(),
+                current.refKind(), current.multiple(), Boolean.TRUE.equals(required), current.version());
+        Object fill = fillValue(changed, fillValue);
+        boolean filling = changed.required() && !current.required() && requireFill(changed, fill);
         store.update(changed);
-        return get(id);
+        return new Written(get(id), filling ? fill(changed, fill) : List.of());
     }
 
     /**
-     * Deletes a definition. Stored values stay as they are.
+     * Deletes a definition. While a row of the resource has the name, the delete fails, or removes the name from
+     * every such row first.
      *
      * @param id the ID
-     * @throws FuhitoException when the definition does not exist
+     * @param clearValues true to remove the name from the rows that have it
+     * @return a write of each resource whose rows lost the name, in the order of the IDs
+     * @throws FuhitoException when the definition does not exist, or a row has the name and the delete does not
+     *         remove it
      */
-    public void delete(String id) {
-        get(id);
+    public List<Write.OfAttributeValue> delete(String id, boolean clearValues) {
+        AttributeDefinition definition = get(id);
+        long used = values.countPresent(definition.target(), definition.name());
+        if (used > 0 && !clearValues) {
+            throw FuhitoException.conflict("attribute.in_use", Map.of("id", id, "target",
+                    definition.target().name(), "name", definition.name(), "count", Long.toString(used)));
+        }
+        List<Write.OfAttributeValue> cleared = used == 0 ? List.of()
+                : writes(definition, values.clear(definition.target(), definition.name()));
         store.delete(id);
+        return cleared;
+    }
+
+    /**
+     * Checks the value that a write of a definition puts into the rows with no value.
+     *
+     * @param definition the definition after the write
+     * @param fillValue the value, or null
+     * @return the same value
+     * @throws FuhitoException when the definition is not required, or the value does not fit it
+     */
+    Object fillValue(AttributeDefinition definition, Object fillValue) {
+        if (fillValue == null) {
+            return null;
+        }
+        if (!definition.required()) {
+            throw FuhitoException.invalid("invalid.not_together",
+                    Map.of("field", "fillValue", "otherField", "required"));
+        }
+        EmptyValues.rejectEmptyValues("fillValue", fillValue);
+        if (!fitsAll(definition, fillValue)) {
+            throw FuhitoException.invalid("attribute.bad_value",
+                    Map.of("name", definition.name(), "type", typeOf(definition)));
+        }
+        AttributeSize.require(Map.of(definition.name(), fillValue));
+        return fillValue;
+    }
+
+    // Tells whether a row has no value, and requires the value to fill then. Each such row must stay in the limit
+    // of the size of attributes with it.
+    private boolean requireFill(AttributeDefinition definition, Object fillValue) {
+        long missing = values.countMissing(definition.target(), definition.name());
+        if (missing == 0) {
+            return false;
+        }
+        if (fillValue == null) {
+            throw FuhitoException.invalid("attribute.fill_value_required", Map.of("target",
+                    definition.target().name(), "name", definition.name(), "count", Long.toString(missing)));
+        }
+        long size = values.largestAfterFill(definition.target(), definition.name(), fillValue);
+        if (size > AttributeSize.MAX_BYTES) {
+            throw FuhitoException.invalid("attribute.too_large",
+                    Map.of("size", Long.toString(size), "max", Integer.toString(AttributeSize.MAX_BYTES)));
+        }
+        return true;
+    }
+
+    private List<Write.OfAttributeValue> fill(AttributeDefinition definition, Object fillValue) {
+        return writes(definition, values.fill(definition.target(), definition.name(), fillValue));
+    }
+
+    private static List<Write.OfAttributeValue> writes(AttributeDefinition definition, List<String> resourceIds) {
+        return resourceIds.stream().map(id -> new Write.OfAttributeValue(definition.target(), id)).toList();
     }
 
     private AttributeDefinition definition(String id, AttributeDefinition.Target target, String name,

@@ -23,6 +23,16 @@ public final class JsonConverters {
         return Unchecked.io(() -> MAPPER.writeValueAsString(map == null ? Map.of() : map));
     }
 
+    /**
+     * Writes one value as the converter writes it in a map.
+     *
+     * @param value the value
+     * @return the JSON text
+     */
+    static String text(Object value) {
+        return Unchecked.io(() -> MAPPER.writeValueAsString(value));
+    }
+
     private static <T> Map<String, T> read(String json, TypeReference<Map<String, T>> type) {
         if (json == null) {
             return new LinkedHashMap<>();

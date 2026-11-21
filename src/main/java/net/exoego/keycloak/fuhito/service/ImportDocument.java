@@ -404,9 +404,10 @@ public record ImportDocument(
     @Schema(
             name = "ImportAttributeDefinitionRow",
             description = "The definition of a free attribute. It is matched by its ID in the system of `source`, "
-                    + "or by `id`. A row needs one of them. A row of a stored definition changes the type, the kind, "
-                    + "whether the value is a list, and whether a value is required. The target and the name do not "
-                    + "change. A new definition needs a type.")
+                    + "or by `id`. A row needs one of them. A row of a stored definition changes whether a value is "
+                    + "required. The target, the name, the type, the kind, and whether the value is a list do not "
+                    + "change, and another value fails the row with `import.value_fixed`. A new definition needs a "
+                    + "type.")
     @JsonDeserialize(using = ImportRowReader.class)
     public record AttributeDefinitionRow(
             @Schema(description = "The ID of a stored definition. A CSV export has it in every row. A new "
@@ -440,14 +441,21 @@ public record ImportDocument(
                     + "array fails. Leave the name out or give null for no elements.",
                     defaultValue = "false")
             Boolean multiple,
-            @Schema(description = "True when every write of the resource must give a value.", defaultValue = "false")
+            @Schema(description = "True when every write of the resource must give a value. A new definition with "
+                    + "true, or a change from false to true, needs `fillValue` when a row of the resource has no "
+                    + "value.", defaultValue = "false")
             Boolean required,
+            @Schema(description = "The value that the row puts into each row of the resource with no value, in "
+                    + "every version, as `fillValue` of `POST /attribute-definitions` does. Only this row uses it. "
+                    + "In a CSV file, the cell is read by the type of the definition, and the cell of a list holds "
+                    + "its items between `|`.")
+            Object fillValue,
             @Schema(hidden = true)
             Set<String> nulls) implements ImportRow {
 
         public AttributeDefinitionRow(String id, String source, String externalId, String target, String name,
                 String type, String refKind, Boolean multiple, Boolean required) {
-            this(id, source, externalId, target, name, type, refKind, multiple, required, Set.of());
+            this(id, source, externalId, target, name, type, refKind, multiple, required, null, Set.of());
         }
     }
 

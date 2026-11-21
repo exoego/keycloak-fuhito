@@ -19,8 +19,8 @@ class AttributeSizeTest {
     @Test
     void attributesMayHave64KbAsJson() {
         AttributeDefinitionService defined = new AttributeDefinitionService(new MemoryAttributeDefinitionStore(),
-                new MemoryRefItemStore());
-        defined.create("PERSON", "x", "STRING", null, null, null);
+                new MemoryAttributeValueStore(), new MemoryRefItemStore());
+        defined.create("PERSON", "x", "STRING", null, null, null, null);
         for (AttributeRules rules : new AttributeRules[] {AttributeRules.NONE, defined}) {
             assertEquals(ofBytes(65_536), rules.check(Target.PERSON, ofBytes(65_536)));
             FuhitoException e = assertThrows(FuhitoException.class, () -> rules.check(Target.PERSON,

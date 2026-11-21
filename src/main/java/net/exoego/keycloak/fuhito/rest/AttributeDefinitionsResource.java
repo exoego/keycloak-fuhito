@@ -1,5 +1,6 @@
 package net.exoego.keycloak.fuhito.rest;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import jakarta.ws.rs.Consumes;
@@ -17,10 +18,11 @@ import net.exoego.keycloak.fuhito.domain.AttributeDefinition;
 import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.domain.ResourceType;
-import net.exoego.keycloak.fuhito.rest.RequestContext.Change;
 import net.exoego.keycloak.fuhito.service.AttributeDefinitionService;
+import net.exoego.keycloak.fuhito.service.AttributeDefinitionService.Written;
 import net.exoego.keycloak.fuhito.service.ExternalIdLists;
 import net.exoego.keycloak.fuhito.service.ExternalIdService;
+import net.exoego.keycloak.fuhito.service.ImportReport.Write;
 import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.media.Content;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
@@ -41,6 +43,12 @@ public class AttributeDefinitionsResource {
      * The resource type of definitions of attributes in the admin event log.
      */
     public static final ResourceType RESOURCE_TYPE = ResourceType.FUHITO_ATTRIBUTE_DEFINITION;
+
+    // What the endpoints that fill or clear say about it.
+    private static final String FILL = "A create or a change with `required` true, and every delete, hold the realm "
+            + "alone, as an import does. Other writes of the realm wait for them. A fill or a clear writes every row "
+            + "or none. The version of each resource whose rows it changes counts up once, and the resource gets an "
+            + "entry in the change log and an admin event `UPDATE` with no representation.";
 
     private final RequestContext context;
     private final AttributeDefinitionService service;
@@ -96,7 +104,9 @@ public class AttributeDefinitionsResource {
             operationId = "createAttributeDefinition",
             summary = "Defines a free attribute of a kind of resource.",
             description = "Later writes of the resource are checked against it. A write with a name that has no "
-                    + "definition fails. Stored values are not checked until their next write.")
+                    + "definition fails. A required attribute needs a value in every row of the resource, also in "
+                    + "each past version of a resource with dates. When a row has none, the create needs "
+                    + "`fillValue` and puts it into each such row. " + FILL)
     @Parameter(ref = "changeOrder")
     @APIResponse(
             responseCode = "201",
@@ -106,15 +116,17 @@ public class AttributeDefinitionsResource {
     @BadRequest
     @ApiErrors
     public Response create(AttributeDefinitionRepresentation body) {
-        context.requireWrite();
+        requireWrite(body != null && Boolean.TRUE.equals(body.required()));
         return Calls.run(context, () -> {
             Calls.body(body);
             Writes.requireNoSource(body.source(), body.externalId());
-            var definition = represent(externalIds.create(ExternalId.Kind.ATTRIBUTE_DEFINITION, body.source(),
+            Written written = externalIds.create(ExternalId.Kind.ATTRIBUTE_DEFINITION, body.source(),
                     body.externalId(), () -> service.create(body.target(), body.name(), body.type(), body.refKind(),
-                            body.multiple(), body.required()), AttributeDefinition::id));
-            context.recordChange(Change.CREATE, RESOURCE_TYPE, definition.id(), path(definition.id()), definition);
-            return Response.status(Response.Status.CREATED).entity(definition).build();
+                            body.multiple(), body.required(), body.fillValue()), each -> each.definition().id());
+            List<Write> writes = new ArrayList<>(List.of(new Write.OfAttributeDefinition(true, written.definition())));
+            writes.addAll(written.values());
+            Writes.recordAll(context, externalIds, writes);
+            return Response.status(Response.Status.CREATED).entity(represent(written.definition())).build();
         });
     }
 
@@ -122,12 +134,15 @@ public class AttributeDefinitionsResource {
     @Path("{id}")
     @Operation(
             operationId = "replaceAttributeDefinition",
-            summary = "Replaces the type and the rule of a definition.",
-            description = "The kind of resource and the name never change. The body can leave them out or give the "
-                    + "stored ones. Another kind of resource or name fails with 400 and `invalid.value_fixed`. Stored "
-                    + "values stay as they are. With `source` and `externalId`, the definition gets that ID of that "
-                    + "system. `source` with no `externalId` fails with 400 and `invalid.value_fixed`, because a "
-                    + "definition keeps no system that made it.")
+            summary = "Changes whether a definition is required.",
+            description = "The kind of resource, the name, the type, `refKind`, and `multiple` never change. The body "
+                    + "can leave them out or give the stored ones. Another value fails with 400 and "
+                    + "`invalid.value_fixed`. To change the type, create a definition with another name, set its "
+                    + "values through an import, and delete the old one with `clearValues=true`. A change from not "
+                    + "required to required needs `fillValue` when a row of the resource has no value, also a row "
+                    + "of a past version, and puts it into each such row. " + FILL + " With `source` and "
+                    + "`externalId`, the definition gets that ID of that system. `source` with no `externalId` fails "
+                    + "with 400 and `invalid.value_fixed`, because a definition keeps no system that made it.")
     @Parameter(ref = "changeOrder")
     @APIResponse(responseCode = "200", description = "The changed definition.")
     @BadRequest
@@ -139,18 +154,20 @@ public class AttributeDefinitionsResource {
             @RequestBody(required = true, content = @Content(mediaType = MediaType.APPLICATION_JSON,
                     schema = @Schema(allOf = {AttributeDefinitionRepresentation.class, VersionCheckRepresentation.class})))
             AttributeDefinitionRepresentation body) {
-        context.requireWrite();
+        requireWrite(body != null && Boolean.TRUE.equals(body.required()));
         return Calls.guarded(context, body, () -> version(id), () -> {
             AttributeDefinition stored = service.get(id);
             Checks.fixed("target", stored.target().name(), body.target());
             Checks.fixed("name", stored.name(), body.name());
             Writes.requireNoSource(body.source(), body.externalId());
             Writes.requireRead(body, () -> represent(stored), AttributeDefinitionRepresentation.READ_ONLY);
-            var definition = represent(externalIds.write(ExternalId.Kind.ATTRIBUTE_DEFINITION, id, body.source(),
+            Written written = externalIds.write(ExternalId.Kind.ATTRIBUTE_DEFINITION, id, body.source(),
                     body.externalId(), () -> service.replace(id, body.type(), body.refKind(), body.multiple(),
-                            body.required())));
-            context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, path(id), definition);
-            return definition;
+                            body.required(), body.fillValue()));
+            List<Write> writes = new ArrayList<>(List.of(new Write.OfAttributeDefinition(false, written.definition())));
+            writes.addAll(written.values());
+            Writes.recordAll(context, externalIds, writes);
+            return represent(written.definition());
         });
     }
 
@@ -159,7 +176,9 @@ public class AttributeDefinitionsResource {
     @Operation(
             operationId = "deleteAttributeDefinition",
             summary = "Deletes a definition.",
-            description = "Stored values stay as they are.")
+            description = "While a row of the resource has the name, also a row of a past version and a row with "
+                    + "null, the delete fails with 409 and `attribute.in_use`, which names the number of such rows "
+                    + "in `count`. With `clearValues=true`, it removes the name from each such row first. " + FILL)
     @Parameter(ref = "changeOrder")
     @APIResponse(responseCode = "204", description = "The definition is gone.")
     @BadRequest
@@ -171,13 +190,30 @@ public class AttributeDefinitionsResource {
             @Parameter(
                     description = "The version of the definition that the caller read.",
                     required = true)
-            @QueryParam("version") Long version) {
-        context.requireWrite();
+            @QueryParam("version") Long version,
+            @Parameter(
+                    description = "True to remove the name from every row of the resource that has it, then delete "
+                            + "the definition.",
+                    schema = @Schema(defaultValue = "false"))
+            @QueryParam("clearValues") boolean clearValues) {
+        // Without the lock alone, a write that runs at the same time could store a value of the name.
+        context.requireBulkWrite();
         return Calls.guarded(context, version, () -> version(id), () -> {
-            service.delete(id);
-            context.recordChange(Change.DELETE, RESOURCE_TYPE, id, path(id), null);
+            List<Write> writes = new ArrayList<>(service.delete(id, clearValues));
+            writes.add(new Write.Removed(RESOURCE_TYPE, id, path(id)));
+            Writes.recordAll(context, externalIds, writes);
             return Response.noContent().build();
         });
+    }
+
+    // A write that may make an attribute required holds the realm alone, so that no write of a row without a value
+    // runs at the same time.
+    private void requireWrite(boolean required) {
+        if (required) {
+            context.requireBulkWrite();
+        } else {
+            context.requireWrite();
+        }
     }
 
     private static String path(String id) {
