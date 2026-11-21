@@ -243,31 +243,15 @@ public class OrgUnitService {
                     .orElseThrow();
             RefItem unitType = version.unitTypeId() == null ? null
                     : items.byId().apply(version.unitTypeId()).orElse(null);
-            Function<String, String> code = itemId -> itemId == null ? null
-                    : items.byId().apply(itemId).map(RefItem::code).orElse(null);
-            return OrgUnitState.of(unit, version, unitType, parentOn(hierarchyId(), id, date))
-                    .withPlaces(new LocationAndCost(code.apply(version.workLocationId()),
-                            code.apply(version.costCenterId()), null, null));
-        }
-
-        /**
-         * Returns the parent of a stored unit in a hierarchy on a date. The parents in the default hierarchy are read
-         * once for each unit.
-         *
-         * @param ofHierarchy the ID of the hierarchy
-         * @param id the ID of the unit
-         * @param date the date
-         * @return the ID of the parent, or null when the unit has none there on the date
-         */
-        String parentOn(String ofHierarchy, String id, LocalDate date) {
-            List<OrgUnitLink> links = ofHierarchy.equals(hierarchyId())
-                    ? parents.computeIfAbsent(id, key -> store.parentLinks(ofHierarchy, key))
-                    : store.parentLinks(ofHierarchy, id);
-            return links.stream()
+            String parentId = parents.computeIfAbsent(id, key -> store.parentLinks(hierarchyId(), key)).stream()
                     .filter(link -> link.period().contains(date))
                     .map(OrgUnitLink::parentId)
                     .findFirst()
                     .orElse(null);
+            Function<String, String> code = itemId -> itemId == null ? null
+                    : items.byId().apply(itemId).map(RefItem::code).orElse(null);
+            return OrgUnitState.of(unit, version, unitType, parentId).withPlaces(new LocationAndCost(
+                    code.apply(version.workLocationId()), code.apply(version.costCenterId()), null, null));
         }
 
         /**
@@ -280,17 +264,6 @@ public class OrgUnitService {
                 hierarchyId = store.defaultHierarchyId();
             }
             return hierarchyId;
-        }
-
-        /**
-         * Returns the ID of a hierarchy.
-         *
-         * @param code the code of the hierarchy, or null for the default one
-         * @return the ID
-         * @throws FuhitoException when the realm has no hierarchy with this code
-         */
-        String hierarchyId(String code) {
-            return isDefault(code) ? hierarchyId() : HierarchyCodes.idOf(store, code);
         }
 
         /**

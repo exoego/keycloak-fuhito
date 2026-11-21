@@ -211,6 +211,8 @@ final class OrgUnitImport {
         }
         try {
             OrgUnitRow row = rows.get(index);
+            // The parent of a row is in the default hierarchy. The list orgUnitParents gives the others.
+            Checks.fixed("hierarchy", Hierarchy.DEFAULT_CODE, row.hierarchy());
             String source = Checks.code("source", sourceOf(row));
             String parentId = parentId(row, source);
             report.count(ORG_UNITS, applyRow(index, row, source, parentId));
@@ -252,7 +254,6 @@ final class OrgUnitImport {
         boolean succeeds = hasSuccessors(row);
         Optional<String> stored = stored(row, source);
         if (stored.isEmpty()) {
-            Checks.fixed("hierarchy", Hierarchy.DEFAULT_CODE, row.hierarchy());
             if (succeeds && row.validTo() == null) {
                 throw FuhitoException.invalid("invalid.required", Map.of("field", "validTo"));
             }
@@ -275,7 +276,6 @@ final class OrgUnitImport {
         }
         String id = stored.get();
         unitIdByRow.put(index, id);
-        String hierarchyId = units.hierarchyId(row.hierarchy());
         List<OrgUnitVersion> versions = units.versions(id);
         LocalDate date = Checks.date("effectiveDate", effectiveDate);
         LocalDate end = versions.getLast().period().to();
@@ -297,18 +297,17 @@ final class OrgUnitImport {
         // it is, for example in the document that made it.
         if (first.isAfter(date)) {
             OrgUnitState onFirst = units.stateOn(id, first);
-            String storedParent = units.parentOn(hierarchyId, id, first);
-            if (!quietlySame(row, onFirst) || !Objects.equals(keepsParent ? storedParent : parentId, storedParent)) {
+            String parent = keepsParent ? onFirst.parentId() : parentId;
+            if (!quietlySame(row, onFirst) || !Objects.equals(parent, onFirst.parentId())) {
                 throw FuhitoException.notFound("org_unit.not_valid_on", Map.of("id", id, "date", effectiveDate));
             }
         } else if (end == null || end.isAfter(date)) {
             OrgUnitState before = units.stateOn(id, date);
-            String storedParent = units.parentOn(hierarchyId, id, date);
-            String parent = keepsParent ? storedParent : parentId;
-            boolean moves = !Objects.equals(parent, storedParent);
+            String parent = keepsParent ? before.parentId() : parentId;
+            boolean moves = !Objects.equals(parent, before.parentId());
             // A unit that becomes a rollup unit leaves its parent first. A rollup unit has no parent.
             if (moves && parent == null) {
-                written("/parent", id, () -> orgUnitService.move(id, null, effectiveDate, row.hierarchy()));
+                written("/parent", id, () -> orgUnitService.move(id, null, effectiveDate));
             }
             OrgUnitChange details = details(row, before);
             if (!sameDetails(details, before)) {
@@ -316,7 +315,7 @@ final class OrgUnitImport {
                 changed = true;
             }
             if (moves && parent != null) {
-                written("/parent", id, () -> orgUnitService.move(id, parent, effectiveDate, row.hierarchy()));
+                written("/parent", id, () -> orgUnitService.move(id, parent, effectiveDate));
             }
             changed |= moves;
         }

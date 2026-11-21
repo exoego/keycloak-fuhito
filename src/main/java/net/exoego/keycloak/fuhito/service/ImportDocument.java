@@ -954,9 +954,8 @@ public record ImportDocument(
             Map<String, OrgUnitName> names,
             @Schema(description = "The code of the unit type.")
             String unitType,
-            @Schema(description = "The external ID of the parent in `hierarchy`, with the same source. A root has "
-                    + "none. A row of a stored unit that leaves out the parent keeps it, and `null` takes the parent "
-                    + "away.")
+            @Schema(description = "The external ID of the parent with the same source. A root has none. A row of a "
+                    + "stored unit that leaves out the parent keeps it, and `null` makes a root.")
             String parentExternalId,
             @Schema(description = "The ID of the parent, for a parent that has no external ID with the same source. "
                     + "Give this or `parentExternalId`, not both.")
@@ -997,11 +996,10 @@ public record ImportDocument(
             String costCenter,
             @Schema(
                     description = "The code of the hierarchy of the parent, as a read of an org unit has it. A row "
-                            + "that leaves it out gives the parent in the default hierarchy. A row of a stored unit "
-                            + "gives the parent in this hierarchy from the effective date. A code that no hierarchy has "
-                            + "fails with `hierarchy.unknown`. A row of a new unit takes only `default`, or none, as "
-                            + "`POST /org-units` does. Another value fails with `invalid.value_fixed`. A CSV file has no "
-                            + "such column.")
+                            + "gives the parent in the default hierarchy, so it takes only `default`, or none. This "
+                            + "holds for a new unit and for a stored one. Another value fails with "
+                            + "`invalid.value_fixed`, also a code that no hierarchy has. The list `orgUnitParents` "
+                            + "gives a parent in another hierarchy. A CSV file has no such column.")
             String hierarchy,
             @Schema(hidden = true)
             Set<String> nulls) implements ImportRow {

@@ -624,8 +624,8 @@ An org unit has at most one parent in each hierarchy on a date.
 - Every org unit is in the default hierarchy. Another hierarchy has only the units with a parent or a child in it on the date.
 - The history of an org unit lists its parents in every hierarchy.
 - An org unit cannot end while it has a child in any hierarchy. Its end ends its parent links in every hierarchy.
-- These use the default hierarchy only. They are the `parentId` of a new org unit, the reorganization, the managers that come from the head of the unit above, and the projection into Keycloak. `POST /org-units` with a `hierarchy` other than `default` fails with 400 and `invalid.value_fixed`.
-- The import gives parents in other hierarchies with the list `orgUnitParents`, or with `hierarchy` in a row of a stored org unit. See [import.md](import.md).
+- These use the default hierarchy only. They are the `parentId` of a new org unit and of a row of the import, the reorganization, the managers that come from the head of the unit above, and the projection into Keycloak. `POST /org-units` and a row of the import with a `hierarchy` other than `default` fail with `invalid.value_fixed`.
+- The import gives parents in other hierarchies with the list `orgUnitParents`. See [import.md](import.md).
 
 The members of an org unit with the units below come in the same tree order.
 Inside one unit, they follow the display order, then the start of the assignment.

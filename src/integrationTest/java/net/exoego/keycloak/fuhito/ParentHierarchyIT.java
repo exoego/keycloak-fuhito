@@ -158,31 +158,33 @@ class ParentHierarchyIT {
         assertEquals(5, api.count("/org-units/count?" + ON));
     }
 
-    // A row of an org unit follows the rules of POST /org-units and PUT /org-units/{id} for its hierarchy.
+    // A row of an org unit gives the parent in the default hierarchy. The list orgUnitParents gives the others.
     @Test
-    void aRowOfAStoredOrgUnitInAnImportGivesItsParentInItsHierarchy() throws Exception {
+    void aRowOfAnOrgUnitInAnImportTakesOnlyTheDefaultHierarchy() throws Exception {
         Realm realm = realm("parent-hierarchy-import");
         Api api = realm.api();
         String units = """
                 {"effectiveDate": "2026-04-01", "orgUnits": [%s]}
                 """;
-        String row = "{\"id\": \"%s\", \"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"東京\"}}, "
-                + "\"hierarchy\": \"%s\"%s}";
+        String row = "{\"id\": \"%s\", " + NAMES + ", \"hierarchy\": \"%s\"%s}";
+        String newUnit = "{\"externalId\": \"%s\", \"source\": \"sheet\", " + NAMES + ", \"hierarchy\": \"%s\"}";
 
         HttpResponse<String> bad = api.post("/imports", units.formatted(String.join(", ",
-                "{\"externalId\": \"N\", \"source\": \"sheet\", " + NAMES + ", \"hierarchy\": \"region\"}",
+                newUnit.formatted("N", "region"),
+                row.formatted(realm.branch(), "region", ", \"parentId\": \"" + realm.kanto() + "\""),
                 row.formatted(realm.company(), "nope", ""))));
         assertEquals(400, bad.statusCode(), bad.body());
-        assertEquals(List.of("invalid.value_fixed", "hierarchy.unknown"),
-                Api.json(bad).get("errors").findValuesAsText("error"), bad.body());
+        JsonNode errors = Api.json(bad).get("errors");
+        assertEquals(List.of("invalid.value_fixed", "invalid.value_fixed", "invalid.value_fixed"),
+                errors.findValuesAsText("error"), bad.body());
+        assertEquals(List.of("hierarchy", "hierarchy", "hierarchy"), errors.findValuesAsText("field"), bad.body());
         JsonNode report = ok(api.post("/imports", units.formatted(String.join(", ",
-                row.formatted(realm.branch(), "region", ", \"parentId\": \"" + realm.kanto() + "\""),
-                row.formatted(realm.company(), "default", "")))));
+                newUnit.formatted("O", "default"),
+                row.formatted(realm.branch(), "default", ", \"parentId\": \"" + realm.company() + "\"")))));
 
-        assertEquals(1, report.get("counts").get("orgUnits").get("changed").asInt(), report.toString());
+        assertEquals(1, report.get("counts").get("orgUnits").get("created").asInt(), report.toString());
         assertEquals(1, report.get("counts").get("orgUnits").get("unchanged").asInt(), report.toString());
-        assertEquals(List.of("region " + realm.kanto()),
-                parents(api, "/org-units/" + realm.kanto() + "/children?hierarchy=region&" + ON));
+        assertEquals(List.of(), parents(api, "/org-units/" + realm.kanto() + "/children?hierarchy=region&" + ON));
         assertEquals("default " + realm.company(), parents(api, "/org-units/" + realm.branch() + "/path?" + ON)
                 .getLast());
     }
