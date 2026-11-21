@@ -296,6 +296,24 @@ class ReadsByIdPlansIT {
         });
     }
 
+    // JpaAssignmentStore.endedOnStart for the assignments of a page.
+    @Test
+    void theAssignmentsThatEndOnTheStartOfOthersAreFoundThroughTheirPeople() throws Exception {
+        withOldStatistics(statement -> assertIndexes(statement, """
+                select x.assignment_id, x.realm_id, y.* from fuhito_assignment x
+                join fuhito_employment ex on ex.id = x.employment_id
+                join fuhito_employment ey on ey.person_id = ex.person_id
+                join fuhito_assignment y on y.employment_id = ey.id and y.valid_to = x.valid_from
+                and y.is_primary = x.is_primary
+                where x.assignment_id = any('{ex-new-assignment-7,ex-new-assignment-8}')
+                and not exists (select 1 from fuhito_assignment o where o.assignment_id = x.assignment_id
+                and o.valid_from < x.valid_from)
+                and y.valid_from = (select max(n.valid_from) from fuhito_assignment n
+                where n.assignment_id = y.assignment_id)
+                order by x.assignment_id, y.assignment_id""", BY_ASSIGNMENT, "pk_fuhito_employment",
+                "idx_fuhito_employment_person", "idx_fuhito_assignment_employment"));
+    }
+
     // The log of a change order pages in the database, so the realm of the change order comes from a sub-select.
     @Test
     void theRowsOfAnExportAndTheLogOfAChangeOrderAreFoundByTheirIds() throws Exception {
