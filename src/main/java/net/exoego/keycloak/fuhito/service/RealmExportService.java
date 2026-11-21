@@ -293,11 +293,12 @@ public class RealmExportService {
      * @return the number of rows of each list
      * @throws FuhitoException when the format is unknown, the realm has data and is not replaced, a value is empty or
      *         too long for its column or not in the form that a write stores, such as a name with spaces around it,
-     *         a choice or the names break a rule of a write, the attributes of a row are too large, a period does not
-     *         end after it starts, two rows have the same key or overlap, a kind has the code of a fixed kind, a row
-     *         names a row that the export does not have or a reference item of another kind, an item has a mark that
-     *         its kind cannot have, a row breaks a rule between rows of the writes or between the fields of one row,
-     *         a username has no user, or the realm has no organization with an alias
+     *         a time is not in the form that an export gives, a choice or the names break a rule of a write, the
+     *         attributes of a row are too large, a period does not end after it starts, two rows have the same key or
+     *         overlap, a kind has the code of a fixed kind, a row names a row that the export does not have or a
+     *         reference item of another kind, an item has a mark that its kind cannot have, a row breaks a rule
+     *         between rows of the writes or between the fields of one row, a username has no user, or the realm has
+     *         no organization with an alias
      */
     public Map<String, Integer> restore(RealmExport document, boolean replace, Consumer<String> linking) {
         Checks.required("body", document);

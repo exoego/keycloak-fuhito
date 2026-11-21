@@ -7,6 +7,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -37,7 +38,8 @@ import net.exoego.keycloak.fuhito.domain.ReportingLine;
  * value and no text that cannot be stored, as a row of an import, each of its texts fits its column, each of its
  * choices and names is one that a write takes, and its period ends after it starts. A write stores some values in one
  * form, such as a name with no spaces around it, and a restore stores a value as the export has it. So such a value
- * must be in that form already.
+ * must be in that form already. A time must be in the form that an export gives, because a restore stores the moment
+ * and not the text.
  */
 final class RestoreCheck {
 
@@ -88,17 +90,17 @@ final class RestoreCheck {
      * text must fit its column, and a value that a write checks by a rule of its own, such as a code or a date, must
      * pass the rule. A choice, such as the status of terms, and the names of a row must be ones that a write takes.
      * A value that a write would store in another form, such as a name with spaces around it or the language tag
-     * {@code JA} for {@code ja}, fails too. The {@code validTo} of a row must be after its {@code validFrom}, as in a
-     * write. A row inside a row, such as a version of an org unit, is named by the list and the ID that
-     * {@code restore.id_taken} gives it.
+     * {@code JA} for {@code ja}, fails too. So does a time in another form than an export gives, such as a time with
+     * an offset. The {@code validTo} of a row must be after its {@code validFrom}, as in a write. A row inside a row,
+     * such as a version of an org unit, is named by the list and the ID that {@code restore.id_taken} gives it.
      *
      * @param document the export
      * @param lengths gives the longest text of each field of a row of a list
      * @throws FuhitoException when a row or a needed value is missing, a value is empty, a text cannot be stored or
-     *         is too long for its column, a value breaks its rule or is not in the form that a write stores, a choice
-     *         is unknown, the names break a rule of a write, or a period does not end after it starts. The error
-     *         names the list, the ID of the row when it has one, and the field. For a choice and the names,
-     *         {@code rule} names the error of the write.
+     *         is too long for its column, a value breaks its rule or is not in the form that a write stores, a time
+     *         is not in the form that an export gives, a choice is unknown, the names break a rule of a write, or a
+     *         period does not end after it starts. The error names the list, the ID of the row when it has one, and
+     *         the field. For a choice and the names, {@code rule} names the error of the write.
      */
     static void requireValues(RealmExport document, Function<String, Map<String, Integer>> lengths) {
         Values values = new Values(lengths);
@@ -258,7 +260,7 @@ final class RestoreCheck {
         if (DATES.contains(field)) {
             Checks.optionalDate(field, (String) value);
         } else if (TIMES.contains(field)) {
-            Checks.inRange(LocalDate.ofInstant(Instant.parse((String) value), ZoneOffset.UTC));
+            return time((String) value);
         }
         return switch (list + "." + field) {
             case "ref-kinds.code", "ref-items.code", "hierarchies.code", "org-unit-versions.code", "org-units.source",
@@ -282,6 +284,13 @@ final class RestoreCheck {
             }
             default -> value;
         };
+    }
+
+    // An export gives a time as Instant writes it, and PostgreSQL keeps microseconds.
+    private static String time(String value) {
+        Instant time = Instant.parse(value);
+        Checks.inRange(LocalDate.ofInstant(time, ZoneOffset.UTC));
+        return time.truncatedTo(ChronoUnit.MICROS).toString();
     }
 
     private static void choice(String list, String field, String value) {
