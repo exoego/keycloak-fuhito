@@ -629,6 +629,39 @@ class CsvImportServiceTest {
         assertEquals(List.of("line 2 row 0 csv.bad_boolean", "line 3 row 1 csv.bad_number"), errors(flags));
     }
 
+    // A number has the form of a number of JSON, as in a JSON row. Java would read the full-width 5, +5, .5, and 05.
+    @Test
+    void aNumberCellHasTheFormOfJson() {
+        new AttributeDefinitionService(definitions, refItems).create("ORG_UNIT", "beds", "NUMBER", null, null, null);
+        load("orgUnits", "2026-04-01", "外部ID,主言語,名称\nH,ja,X病院\n");
+
+        for (String cell : List.of("\uFF15", "\u0665", "+5", "05", "-", "1.0", "1e2", "0x10", "1,000", "5.")) {
+            CsvImportService.Result order = load("orgUnits", "2026-05-01", "外部ID,表示順\nH,\"" + cell + "\"\n");
+            assertEquals(List.of("line 2 row 0 csv.bad_number"), errors(order), cell);
+            assertEquals(Map.of("field", "displayOrder", "value", cell), order.errors().getFirst().error().params());
+        }
+        for (String cell : List.of("\uFF15\uFF10", "+50", ".5", "50.", "050", "5e", "0x10", "Infinity")) {
+            CsvImportService.Result beds = load("orgUnits", "2026-05-01", "外部ID,attributes.beds\nH,\"" + cell
+                    + "\"\n");
+            assertEquals(List.of("line 2 row 0 csv.bad_number"), errors(beds), cell);
+            assertEquals(Map.of("field", "attributes.beds", "value", cell), beds.errors().getFirst().error().params());
+            CsvImportService.Result work = load("employments", "2026-05-01", "外部ID,勤務割合\nE1,\"" + cell + "\"\n");
+            assertEquals(Map.of("field", "workPercent", "value", cell), work.errors().getFirst().error().params());
+            CsvImportService.Result share = load("assignments", "2026-05-01",
+                    "外部ID,雇用の外部ID,組織の外部ID,配分割合\nA1,E1,H,\"" + cell + "\"\n");
+            assertEquals(Map.of("field", "allocationPercent", "value", cell),
+                    share.errors().getFirst().error().params());
+        }
+
+        assertEquals(List.of(), errors(load("orgUnits", "2026-05-01", "外部ID,表示順,attributes.beds\nH,-0,5E1\n")));
+        assertEquals(0, unit("H", "2026-05-01").version().displayOrder());
+        assertEquals(50, unit("H", "2026-05-01").version().attributes().get("beds"));
+        assertEquals(List.of(), errors(load("orgUnits", "2026-05-02", "外部ID,表示順\nH,-2147483648\n")));
+        assertEquals(Integer.MIN_VALUE, unit("H", "2026-05-02").version().displayOrder());
+        assertEquals(List.of("line 2 row 0 csv.bad_number"),
+                errors(load("orgUnits", "2026-05-03", "外部ID,表示順\nH,2147483648\n")));
+    }
+
     @Test
     void rejectsABadFile() {
         assertEquals("csv.no_header", failure("orgUnits", "\n\n").code());

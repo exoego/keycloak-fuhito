@@ -96,8 +96,8 @@ class ChangeLogServiceTest {
         }
 
         assertEquals(List.of("2 u1 UPDATE"), summary(service.list(null, "FUHITO_ORG_UNIT", "u1", 1, 1)));
-        assertEquals(3, service.list(null, "FUHITO_ORG_UNIT", "u1", -5, null).size());
-        assertEquals(0, service.list(null, "FUHITO_ORG_UNIT", "u1", null, -1).size());
+        assertEquals(3, service.list(null, "FUHITO_ORG_UNIT", "u1", 0, null).size());
+        assertEquals(0, service.list(null, "FUHITO_ORG_UNIT", "u1", null, 0).size());
     }
 
     @Test
@@ -136,6 +136,8 @@ class ChangeLogServiceTest {
         }
 
         assertEquals(100, service.list(null, null, null, null, null).size());
-        assertEquals(1000, service.list(null, null, null, null, 5000).size());
+        assertEquals(1000, service.list(null, null, null, null, 1000).size());
+        // The check of the query rejects a larger number before the service runs.
+        assertThrows(IllegalArgumentException.class, () -> service.list(null, null, null, null, 1001));
     }
 }

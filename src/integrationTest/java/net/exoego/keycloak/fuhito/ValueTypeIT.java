@@ -113,7 +113,8 @@ class ValueTypeIT {
                 "400 invalid.type primary boolean",
                 "400 invalid.type title string",
                 "400 invalid.type body object"), failures);
-        assertEquals("displayOrder は integer 型の値にしてください。別の型の値は変換しません。\"3\" は数値ではなく、3.0 は整数ではありません。",
+        assertEquals("displayOrder は integer 型の値にしてください。別の型の値は変換しません。本文の \"3\" は数値ではなく、3.0 は整数ではありません。"
+                + "クエリの数値は JSON と同じ形で、0 から 9 の数字だけで書いてください。",
                 Api.json(japanese).get("message").asText(), japanese.body());
         assertEquals(before, RealmExportIT.export(api));
 

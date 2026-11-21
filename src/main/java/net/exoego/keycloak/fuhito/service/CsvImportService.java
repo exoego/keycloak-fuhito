@@ -32,6 +32,7 @@ import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.JsonNumbers;
 import net.exoego.keycloak.fuhito.domain.Localized;
+import net.exoego.keycloak.fuhito.domain.NumberText;
 import net.exoego.keycloak.fuhito.domain.OrgUnitName;
 import net.exoego.keycloak.fuhito.domain.Person;
 import net.exoego.keycloak.fuhito.domain.PersonName;
@@ -654,9 +655,9 @@ public class CsvImportService {
         // that a double gives back the same, as in a JSON row. So a cell such as 1e999999999 fails before its
         // digits are made.
         private static Object asJson(String column, String text) {
-            BigDecimal value = converted(column, text, BigDecimal::new);
+            BigDecimal value = number(column, text);
             if (!JsonNumbers.fitsDouble(value)) {
-                throw FuhitoException.invalid("csv.bad_number", Map.of("field", column, "value", text));
+                throw badNumber(column, text);
             }
             BigDecimal stripped = value.stripTrailingZeros();
             if (stripped.scale() > 0) {
@@ -695,12 +696,22 @@ public class CsvImportService {
             return value.isEmpty() || value.equals(CLEAR) ? null : value;
         }
 
+        // A number has the form of a number of JSON, as in a JSON row. Java would also read ５ and +5.
         Integer integer(String field) {
-            return parsed(field, Integer::valueOf);
+            return parsed(field, value -> (int) NumberText.whole(value, Integer.MIN_VALUE, Integer.MAX_VALUE)
+                    .orElseThrow(() -> badNumber(field, value)));
         }
 
         BigDecimal decimal(String field) {
-            return parsed(field, BigDecimal::new);
+            return parsed(field, value -> number(field, value));
+        }
+
+        private static BigDecimal number(String field, String value) {
+            return NumberText.decimal(value).orElseThrow(() -> badNumber(field, value));
+        }
+
+        private static FuhitoException badNumber(String field, String value) {
+            return FuhitoException.invalid("csv.bad_number", Map.of("field", field, "value", value));
         }
 
         Boolean bool(String field) {
@@ -720,15 +731,7 @@ public class CsvImportService {
 
         private <T> T parsed(String field, Function<String, T> parse) {
             String value = text(field);
-            return value == null ? null : converted(field, value, parse);
-        }
-
-        private static <T> T converted(String field, String value, Function<String, T> parse) {
-            try {
-                return parse.apply(value);
-            } catch (NumberFormatException e) {
-                throw FuhitoException.invalid("csv.bad_number", Map.of("field", field, "value", value)).causedBy(e);
-            }
+            return value == null ? null : parse.apply(value);
         }
 
         // The primary language of the cell, or else the stored one, which places the cells of the primary names.

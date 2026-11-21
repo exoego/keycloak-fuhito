@@ -22,6 +22,7 @@ import net.exoego.keycloak.fuhito.domain.EmploymentTerms;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.MemberCursor;
 import net.exoego.keycloak.fuhito.domain.MemberFilter;
+import net.exoego.keycloak.fuhito.domain.NumberText;
 import net.exoego.keycloak.fuhito.domain.Person;
 import net.exoego.keycloak.fuhito.domain.RefItem;
 import net.exoego.keycloak.fuhito.domain.RefKind;
@@ -285,13 +286,18 @@ public class MembershipService {
             return null;
         }
         List<String> values = Cursor.decode(Cursor.MEMBERS, after);
+        int displayOrder = (int) NumberText.whole(values.get(1), Integer.MIN_VALUE, Integer.MAX_VALUE)
+                .orElseThrow(MembershipService::badCursor);
         try {
-            return new MemberCursor(values.get(0), Integer.parseInt(values.get(1)),
-                    Checks.inRange(LocalDate.parse(values.get(2))), values.get(3));
-        } catch (NumberFormatException | DateTimeException e) {
-            throw FuhitoException.invalid("invalid.cursor",
-                    Map.of("field", "after", "format", Cursor.MEMBERS.name())).causedBy(e);
+            return new MemberCursor(values.get(0), displayOrder, Checks.inRange(LocalDate.parse(values.get(2))),
+                    values.get(3));
+        } catch (DateTimeException e) {
+            throw badCursor().causedBy(e);
         }
+    }
+
+    private static FuhitoException badCursor() {
+        return FuhitoException.invalid("invalid.cursor", Map.of("field", "after", "format", Cursor.MEMBERS.name()));
     }
 
     // A filter may name an item that is no longer active, because old rows may still use it.
