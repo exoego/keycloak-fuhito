@@ -146,6 +146,21 @@ class RestoreCheckTest {
         assertDoesNotThrow(() -> check(erasure("9999-12-31T23:59:59.999999Z")));
     }
 
+    // An export gives a time in UTC with Z, and with 3 or 6 digits of a second when it has a fraction.
+    @Test
+    void aTimeIsInTheFormThatAnExportGives() {
+        for (String time : List.of("2024-03-01T00:00:00Z", "2024-03-01T00:00:00.120Z", "2024-03-01T00:00:00.000100Z",
+                "2024-03-01T00:00:00.123456Z")) {
+            assertDoesNotThrow(() -> check(erasure(time)), time);
+        }
+        for (String time : List.of("2024-03-01T09:00:00+09:00", "2024-03-01T00:00:00+00:00",
+                "2024-03-01T00:00:00.123456789Z", "2024-03-01T00:00:00.1234567Z", "2024-03-01T00:00:00.12Z",
+                "2024-03-01T00:00:00.000Z", "2024-03-01T00:00:00.123000Z", "2024-03-01t00:00:00z",
+                "2024-02-29T24:00:00Z", "2024-03-01T23:59:60Z")) {
+            assertBadValue(erasure(time), "erasures", "p-1", "erasedAt");
+        }
+    }
+
     @Test
     void aPeriodEndsAfterItStarts() {
         assertBadValue(terms("2021-04-01", "2020-04-01", null), "employment-terms", "t-1", "validTo");
