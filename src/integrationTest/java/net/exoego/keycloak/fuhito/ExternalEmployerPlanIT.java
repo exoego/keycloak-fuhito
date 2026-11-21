@@ -77,8 +77,7 @@ class ExternalEmployerPlanIT {
     // The rows of OldStatistics, and two external employers in each realm with people that they employ. The
     // statistics know the people of OldStatistics, and none of the people of the agencies.
     private static void rows(Statement statement) throws Exception {
-        KeycloakEnvironment.sql("vacuum full fuhito_ref_item");
-        realmsWithOldStatistics(statement);
+        realmsWithOldStatistics(statement, "fuhito_ref_item");
         moreRows(statement, "ex-old", 20);
         statement.execute("analyze fuhito_ref_item");
         moreRows(statement, "ex-new", 3000);

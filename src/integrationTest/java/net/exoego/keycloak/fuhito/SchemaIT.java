@@ -11,6 +11,7 @@ import java.util.TreeMap;
 import org.junit.jupiter.api.Test;
 
 import static net.exoego.keycloak.fuhito.OldStatistics.assertPlanHas;
+import static net.exoego.keycloak.fuhito.OldStatistics.emptyTables;
 import static net.exoego.keycloak.fuhito.OldStatistics.plan;
 import static net.exoego.keycloak.fuhito.OldStatistics.realmOfUnit;
 import static net.exoego.keycloak.fuhito.OldStatistics.realmsWithOldStatistics;
@@ -136,6 +137,7 @@ class SchemaIT {
         try (Connection connection = KeycloakEnvironment.connection();
                 Statement statement = connection.createStatement()) {
             connection.setAutoCommit(false);
+            emptyTables(statement, "fuhito_external_id");
             statement.execute("""
                     insert into fuhito_external_id (id, realm_id, resource_kind, resource_id, source, external_id)
                     select 'ex-old-' || i, 'ex-old-realm', 'ORG_UNIT', 'ex-old-unit-' || i, 'sheet', 'U' || i
