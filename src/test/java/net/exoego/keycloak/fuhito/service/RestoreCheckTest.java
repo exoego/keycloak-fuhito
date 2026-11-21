@@ -169,7 +169,33 @@ class RestoreCheckTest {
         assertBroken(person(null, Map.of("ja", new PersonName("Hanako", null))), "people", "p-1", "primaryLanguage",
                 "invalid.required");
         assertDoesNotThrow(() -> check(person(null, null)));
-        assertDoesNotThrow(() -> check(names(null, null, "JA")));
+    }
+
+    @Test
+    void aValueIsInTheFormThatAWriteStores() {
+        assertBadValue(hierarchy("project", "Project "), "hierarchies", "h-1", "name");
+        assertBadValue(unit(null, " Asia/Tokyo", null), "org-units", "u-1", "timeZone");
+        assertBadValue(unit(null, null, "04:00 "), "org-units", "u-1", "dayStart");
+        assertBadValue(names(null, null, "JA"), "ref-item-names", "n-1", "primaryLanguage");
+        assertBadValue(person("ja", Map.of("JA", new PersonName("Hanako", null))), "people", "p-1", "names.JA");
+        assertBadValue(person("ja", Map.of("ja", new PersonName(" Hanako", null))), "people", "p-1", "names.ja.name");
+        assertBadValue(person("ja", Map.of("ja", new PersonName("Hanako", "はなこ　"))), "people", "p-1",
+                "names.ja.phoneticName");
+        assertDoesNotThrow(() -> check(hierarchy("project", "My Project")));
+        assertDoesNotThrow(() -> check(person("en-US", Map.of("en-US", new PersonName("Hanako Yamada", null)))));
+    }
+
+    @Test
+    void anEmploymentHasOneEmployer() {
+        RealmExport document = new RealmExport(RealmExport.FORMAT, null, null, null, null, null, List.of(
+                new RealmExport.PersonRow("p-1", 1L, null, null, null, Map.of(), null, null)), List.of(
+                new RealmExport.EmploymentRow("e-1", 1L, "p-1", "u-1", "agency", "2020-04-01", null, null, null, null,
+                        null, List.of())), null, null, null, null, null, null, null);
+
+        FuhitoException e = assertThrows(FuhitoException.class, () -> RestoreCheck.requireReferences(document));
+        assertEquals("restore.bad_value", e.code());
+        assertEquals(Map.of("list", "employments", "id", "e-1", "field", "externalEmployerId", "rule",
+                "employment.employer_twice"), e.params());
     }
 
     @Test

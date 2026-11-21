@@ -80,6 +80,23 @@ class RestoreRulesTest {
                 employment("e-2", "p-2", null, "agency"), employment("e-3", "p-2", null, "agency")), null, null)));
     }
 
+    private static RealmExport orders(String announcedAt, String announcedBy) {
+        return new RealmExport(RealmExport.FORMAT, null, null, null, null, null, null, null, null, null, null, null,
+                null, List.of(new RealmExport.Order("o-1", 1L, null, null, "April", null, null, "2024-04-01", null,
+                        null, null, "2024-03-01T00:00:00Z", announcedAt, announcedBy)), null);
+    }
+
+    // An export gives no username for a user of another realm.
+    @Test
+    void aChangeOrderNamesWhoAnnouncedItOnlyWithTheTime() {
+        FuhitoException e = assertThrows(FuhitoException.class, () -> RestoreRules.require(orders(null, "nurse")));
+
+        assertEquals("restore.bad_value", e.code());
+        assertEquals(Map.of("list", "change-orders", "id", "o-1", "field", "announcedAt"), e.params());
+        assertDoesNotThrow(() -> RestoreRules.require(orders("2024-03-02T00:00:00Z", "nurse")));
+        assertDoesNotThrow(() -> RestoreRules.require(orders("2024-03-02T00:00:00Z", null)));
+    }
+
     @Test
     void aSolidLineMayShareDatesWithADottedLineOrALineOfAnotherAssignment() {
         assertDoesNotThrow(() -> RestoreRules.require(document(List.of(employment("e-1", "p-1", "u-1", null)),

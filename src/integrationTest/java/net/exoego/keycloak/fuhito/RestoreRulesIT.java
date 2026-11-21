@@ -105,6 +105,9 @@ class RestoreRulesIT {
                         at("/employments/0/terms/0", "{\"validFrom\": \"2019-04-01\"}")),
                 breaks("employments", "e-1", "employerId", "employment.employer_not_legal_entity",
                         at("/orgUnits/0/versions/0", "{\"unitTypeId\": null}")),
+                breaks("employments", "e-1", "externalEmployerId", "employment.employer_twice",
+                        at("/refItems", item("agency", "EXTERNAL_EMPLOYER", "")),
+                        at("/employments/0", "{\"externalEmployerId\": \"agency\"}")),
                 breaks("employments", "e-1", "validTo", "employment.employer_ends",
                         at("/orgUnits/2/versions/0", "{\"unitTypeId\": \"corp\"}"),
                         at("/employments/0", "{\"employerId\": \"u-3\"}")),
@@ -125,6 +128,14 @@ class RestoreRulesIT {
                         at("/employments/0/terms/0", "{\"leaveReasonId\": \"sick\"}")),
                 breaks("employment-terms", "t-1", "contractEndDate", "employment.contract_end_before_terms",
                         at("/employments/0/terms/0", "{\"contractEndDate\": \"2019-04-01\"}"))));
+    }
+
+    // Only the announcement sets announcedBy, and it sets announcedAt too. An export gives no username for an admin
+    // of another realm, so announcedAt may come alone.
+    @Test
+    void aChangeOrderThatNamesWhoAnnouncedItButNotWhenFailsTheRestoreAndNothingIsWritten() throws Exception {
+        assertEachBreaks("restore-announcements", List.of(breaks("change-orders", "o-1", "announcedAt", null,
+                at("/changeOrders/0", "{\"announcedBy\": \"nurse\"}"))));
     }
 
     @Test

@@ -12,9 +12,11 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import net.exoego.keycloak.fuhito.domain.AttributeDefinition;
 import net.exoego.keycloak.fuhito.domain.BusinessDay;
@@ -33,7 +35,9 @@ import net.exoego.keycloak.fuhito.domain.ReportingLine;
  * Checks an export before a restore writes it. A row may name only rows of the same export, so that a restore
  * never links to the rows of another realm, and fails with a clear error and not in the database. A row has no empty
  * value and no text that cannot be stored, as a row of an import, each of its texts fits its column, each of its
- * choices and names is one that a write takes, and its period ends after it starts.
+ * choices and names is one that a write takes, and its period ends after it starts. A write stores some values in one
+ * form, such as a name with no spaces around it, and a restore stores a value as the export has it. So such a value
+ * must be in that form already.
  */
 final class RestoreCheck {
 
@@ -83,15 +87,18 @@ final class RestoreCheck {
      * empty text, a text of only spaces, an empty list, or a text that cannot be stored, as in a row of an import. A
      * text must fit its column, and a value that a write checks by a rule of its own, such as a code or a date, must
      * pass the rule. A choice, such as the status of terms, and the names of a row must be ones that a write takes.
-     * The {@code validTo} of a row must be after its {@code validFrom}, as in a write. A row inside a row, such as a
-     * version of an org unit, is named by the list and the ID that {@code restore.id_taken} gives it.
+     * A value that a write would store in another form, such as a name with spaces around it or the language tag
+     * {@code JA} for {@code ja}, fails too. The {@code validTo} of a row must be after its {@code validFrom}, as in a
+     * write. A row inside a row, such as a version of an org unit, is named by the list and the ID that
+     * {@code restore.id_taken} gives it.
      *
      * @param document the export
      * @param lengths gives the longest text of each field of a row of a list
      * @throws FuhitoException when a row or a needed value is missing, a value is empty, a text cannot be stored or
-     *         is too long for its column, a value breaks its rule, a choice is unknown, the names break a rule of a
-     *         write, or a period does not end after it starts. The error names the list, the ID of the row when it
-     *         has one, and the field. For a choice and the names, {@code rule} names the error of the write.
+     *         is too long for its column, a value breaks its rule or is not in the form that a write stores, a choice
+     *         is unknown, the names break a rule of a write, or a period does not end after it starts. The error
+     *         names the list, the ID of the row when it has one, and the field. For a choice and the names,
+     *         {@code rule} names the error of the write.
      */
     static void requireValues(RealmExport document, Function<String, Map<String, Integer>> lengths) {
         Values values = new Values(lengths);
@@ -126,28 +133,48 @@ final class RestoreCheck {
     }
 
     private static void requireNames(RealmExport document) {
-        all(document.refKinds()).forEach(k -> names("ref-kinds", k.id(),
+        all(document.refKinds()).forEach(k -> names("ref-kinds", k.id(), k.primaryLanguage(), k.names(),
                 () -> RefKindName.check(k.primaryLanguage(), k.names())));
         for (RealmExport.Item item : all(document.refItems())) {
-            all(item.versions()).forEach(n -> names("ref-item-names", n.id(),
+            all(item.versions()).forEach(n -> names("ref-item-names", n.id(), n.primaryLanguage(), n.names(),
                     () -> RefItemName.check(n.primaryLanguage(), n.names())));
         }
         for (RealmExport.Unit unit : all(document.orgUnits())) {
-            all(unit.versions()).forEach(v -> names("org-unit-versions", v.id(),
+            all(unit.versions()).forEach(v -> names("org-unit-versions", v.id(), v.primaryLanguage(), v.names(),
                     () -> Localized.check(v.primaryLanguage(), v.names(), (field, name) -> name.checked(field))));
         }
-        all(document.people()).forEach(p -> names("people", p.id(),
+        all(document.people()).forEach(p -> names("people", p.id(), p.primaryLanguage(), p.names(),
                 () -> PersonName.check(p.primaryLanguage(), p.names())));
     }
 
-    // Only invalid.primary_language names no field, and it is about primaryLanguage.
-    private static void names(String list, String id, Runnable check) {
+    // Only invalid.primary_language names no field, and it is about primaryLanguage. A write stores the names that
+    // the check gives back. A person may have none.
+    private static <T extends Record> void names(String list, String id, String primaryLanguage, Map<String, T> names,
+            Supplier<Localized<T>> check) {
+        Localized<T> stored;
         try {
-            check.run();
+            stored = check.get();
         } catch (FuhitoException e) {
             throw RestoreRules.broken(list, id, e.params().getOrDefault("field", "primaryLanguage"), e.code())
                     .causedBy(e);
         }
+        if (stored == null) {
+            return;
+        }
+        if (!stored.primaryLanguage().equals(primaryLanguage)) {
+            throw RestoreRules.broken(list, id, "primaryLanguage", null);
+        }
+        names.forEach((tag, name) -> {
+            T same = stored.byLanguage().get(tag);
+            if (same == null) {
+                throw RestoreRules.broken(list, id, "names." + tag, null);
+            }
+            for (RecordComponent component : name.getClass().getRecordComponents()) {
+                if (!Objects.equals(EmptyValues.valueOf(component, name), EmptyValues.valueOf(component, same))) {
+                    throw RestoreRules.broken(list, id, "names." + tag + "." + component.getName(), null);
+                }
+            }
+        });
     }
 
     private record Values(Function<String, Map<String, Integer>> lengths) {
@@ -205,30 +232,35 @@ final class RestoreCheck {
         }
     }
 
-    // A text must fit its column, and a value that a write checks by a rule of its own must pass the rule.
+    // A text must fit its column, and a value that a write checks by a rule of its own must pass the rule. A write
+    // stores the value that the rule gives back.
     private static void requireFit(Map<String, String> params, String field, Object value, Integer length) {
         Map<String, String> named = new HashMap<>(params);
         named.put("field", field);
         if (value instanceof String text && length != null && !Checks.fits(text, length)) {
             throw FuhitoException.invalid("restore.bad_value", named);
         }
+        Object stored;
         try {
-            rule(params.get("list"), field, value);
+            stored = rule(params.get("list"), field, value);
         } catch (FuhitoException | DateTimeException e) {
             throw FuhitoException.invalid("restore.bad_value", named).causedBy(e);
         }
+        if (!Objects.equals(stored, value)) {
+            throw FuhitoException.invalid("restore.bad_value", named);
+        }
     }
 
-    private static void rule(String list, String field, Object value) {
+    private static Object rule(String list, String field, Object value) {
         if (value == null) {
-            return;
+            return null;
         }
         if (DATES.contains(field)) {
             Checks.optionalDate(field, (String) value);
         } else if (TIMES.contains(field)) {
             Checks.inRange(LocalDate.ofInstant(Instant.parse((String) value), ZoneOffset.UTC));
         }
-        switch (list + "." + field) {
+        return switch (list + "." + field) {
             case "ref-kinds.code", "ref-items.code", "hierarchies.code", "org-unit-versions.code", "org-units.source",
                     "people.source", "employments.source", "employments.staffNumber", "assignments.source",
                     "qualifications.source", "external-ids.source", "change-orders.number", "change-orders.kind" ->
@@ -239,11 +271,17 @@ final class RestoreCheck {
             case "external-ids.externalId" -> ExternalIdService.value((String) value);
             case "employment-terms.workPercent", "assignments.allocationPercent" ->
                     Checks.optionalPercent(field, (BigDecimal) value);
-            case "org-units.timeZone" -> ANY_DAY.with((String) value, null);
-            case "org-units.dayStart" -> ANY_DAY.with(null, (String) value);
-            default -> {
+            // A write strips the time settings.
+            case "org-units.timeZone" -> {
+                ANY_DAY.with((String) value, null);
+                yield ((String) value).strip();
             }
-        }
+            case "org-units.dayStart" -> {
+                ANY_DAY.with(null, (String) value);
+                yield ((String) value).strip();
+            }
+            default -> value;
+        };
     }
 
     private static void choice(String list, String field, String value) {
@@ -289,8 +327,7 @@ final class RestoreCheck {
             if (e.externalEmployerId() == null) {
                 required("employments", "employerId", e.employerId(), orgUnits);
             } else if (e.employerId() != null) {
-                throw FuhitoException.invalid("employment.employer_twice",
-                        Map.of("externalEmployer", e.externalEmployerId()));
+                throw RestoreRules.broken("employments", e.id(), "externalEmployerId", "employment.employer_twice");
             } else {
                 required("employments", "externalEmployerId", e.externalEmployerId(), refItems);
             }
