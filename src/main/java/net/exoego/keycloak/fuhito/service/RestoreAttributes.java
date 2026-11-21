@@ -1,18 +1,20 @@
 package net.exoego.keycloak.fuhito.service;
 
-import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
+import net.exoego.keycloak.fuhito.domain.AttributeDefinition;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
-import net.exoego.keycloak.fuhito.domain.JsonNumbers;
 
 import static net.exoego.keycloak.fuhito.service.RestoreRules.all;
 
 /**
- * Checks the free attributes of the rows of an export. A change or a delete of a definition does not rewrite the
- * stored values, so a realm can keep values that its definitions no longer allow, and its export has them. A restore
- * brings them back, and they are checked at their next write. So a restore checks only the rules that every stored
- * value keeps. These are the size, and a number that a double gives back the same.
+ * Checks the free attributes of the rows of an export with every rule of a write. A change or a delete of a definition
+ * never leaves a stored value that breaks it, so a realm always meets its definitions, and so does its export. A
+ * restore checks the attributes against the definitions and the items of the export, and not against those of the
+ * realm that it replaces. It checks every row and every version, as a write checked each of them.
  */
 final class RestoreAttributes {
 
@@ -20,47 +22,55 @@ final class RestoreAttributes {
     }
 
     /**
-     * Requires attributes of at most 64 KiB as JSON in every row, as in a write, and only numbers that a double gives
-     * back the same, as a write of the type {@code NUMBER} stores.
+     * Requires that the attributes of every row meet the definitions of the export, as in a write. A name has a
+     * definition, a value has its type, a list is given only for a definition with {@code multiple}, and the code of
+     * the type {@code REF_ITEM} is the code of an item of the export of the kind of the definition. A required value
+     * is in every row and every version. The attributes are at most 64 KiB as JSON, and a number is one that a double
+     * gives back the same.
      *
-     * @param document the export, whose values are checked
-     * @throws FuhitoException when the attributes of a row are larger, or have another number. The error is
-     *         {@code restore.bad_value} and names the list and the ID of the row. A size names the field
-     *         {@code attributes} and {@code attribute.too_large} in {@code rule}. A number names the attribute in the
-     *         field, such as {@code attributes.beds}, and {@code attribute.bad_value} in {@code rule}.
+     * @param document the export, whose values are checked, whose IDs and keys are unique, and whose definitions have
+     *        known choices and kinds
+     * @throws FuhitoException when the attributes of a row break a rule of a write. The error is
+     *         {@code restore.bad_value} and names the list, the ID of the row, the field, and the error of the write
+     *         in {@code rule}. A size names the field {@code attributes} and {@code attribute.too_large}. Another rule
+     *         names the attribute in the field, such as {@code attributes.beds}, and {@code attribute.unknown},
+     *         {@code attribute.bad_value}, or {@code attribute.required}.
      */
     static void require(RealmExport document) {
-        all(document.refItems()).forEach(i -> row("ref-items", i.id(), i.attributes()));
+        Map<String, Set<String>> codes = new HashMap<>();
+        all(document.refItems()).forEach(i -> codes.computeIfAbsent(i.kind(), kind -> new HashSet<>()).add(i.code()));
+        AttributeRules rules = AttributeDefinitionService.of(all(document.attributeDefinitions()).stream()
+                .map(RealmExportService::definition).toList(),
+                (kind, code) -> codes.getOrDefault(kind, Set.of()).contains(code));
+        all(document.refItems()).forEach(i -> row(rules, AttributeDefinition.Target.REF_ITEM, "ref-items", i.id(),
+                i.attributes()));
         for (RealmExport.Unit unit : all(document.orgUnits())) {
-            all(unit.versions()).forEach(v -> row("org-unit-versions", v.id(), v.attributes()));
+            all(unit.versions()).forEach(v -> row(rules, AttributeDefinition.Target.ORG_UNIT, "org-unit-versions",
+                    v.id(), v.attributes()));
         }
-        all(document.people()).forEach(p -> row("people", p.id(), p.attributes()));
+        all(document.people()).forEach(p -> row(rules, AttributeDefinition.Target.PERSON, "people", p.id(),
+                p.attributes()));
         for (RealmExport.EmploymentRow employment : all(document.employments())) {
-            all(employment.terms()).forEach(t -> row("employment-terms", t.id(), t.attributes()));
+            all(employment.terms()).forEach(t -> row(rules, AttributeDefinition.Target.EMPLOYMENT_TERMS,
+                    "employment-terms", t.id(), t.attributes()));
         }
         for (RealmExport.AssignmentRows assignment : all(document.assignments())) {
-            all(assignment.periods()).forEach(r -> row("assignments", r.rowId(), r.attributes()));
+            all(assignment.periods()).forEach(r -> row(rules, AttributeDefinition.Target.ASSIGNMENT, "assignments",
+                    r.rowId(), r.attributes()));
         }
-        all(document.qualifications()).forEach(q -> row("qualifications", q.id(), q.attributes()));
+        all(document.qualifications()).forEach(q -> row(rules, AttributeDefinition.Target.QUALIFICATION,
+                "qualifications", q.id(), q.attributes()));
     }
 
-    private static void row(String list, String id, Map<String, Object> attributes) {
-        RestoreRules.check(list, id, "attributes", () -> AttributeSize.require(attributes));
-        if (attributes != null) {
-            attributes.forEach((name, value) -> {
-                if (!fitsDouble(value)) {
-                    throw RestoreRules.broken(list, id, "attributes." + name, "attribute.bad_value");
-                }
-            });
+    // Only the error of the size names no attribute.
+    private static void row(AttributeRules rules, AttributeDefinition.Target target, String list, String id,
+            Map<String, Object> attributes) {
+        try {
+            rules.check(target, attributes);
+        } catch (FuhitoException e) {
+            String name = e.params().get("name");
+            throw RestoreRules.broken(list, id, name == null ? "attributes" : "attributes." + name, e.code())
+                    .causedBy(e);
         }
-    }
-
-    private static boolean fitsDouble(Object value) {
-        return switch (value) {
-            case Number number -> JsonNumbers.fitsDouble(number);
-            case Collection<?> values -> values.stream().allMatch(RestoreAttributes::fitsDouble);
-            case Map<?, ?> values -> values.values().stream().allMatch(RestoreAttributes::fitsDouble);
-            case null, default -> true;
-        };
     }
 }
