@@ -50,7 +50,10 @@ public class ExportResource {
             summary = "Reads one page of one list of every stored row of the realm, ordered by ID.",
             description = "Follow the `Link` header of each response to the end of the list. Put the lists "
                     + "together under their names in camel case, with `format`, to get the document that `POST "
-                    + "/restore` takes. Rows name Keycloak users by username.")
+                    + "/restore` takes. Rows name Keycloak users by username. The list `erasures` has a row for "
+                    + "each person whose data was erased, with the ID of the person and the time of the erase, and "
+                    + "nothing else. Its rows have no ID of their own, so it is ordered by the ID of the person. A "
+                    + "restore erases these people again after the load.")
     @APIResponse(
             responseCode = "200",
             description = "The rows of the page.",
@@ -67,7 +70,7 @@ public class ExportResource {
                     description = "The list.",
                     schema = @Schema(enumeration = {"ref-kinds", "ref-items", "attribute-definitions", "hierarchies",
                         "org-units", "people", "employments", "assignments", "reporting-lines", "unit-roles",
-                        "qualifications", "external-ids", "change-orders"}))
+                        "qualifications", "external-ids", "change-orders", "erasures"}))
             @PathParam("list") String list,
             @Parameter(
                     description = "The largest number of entries to return.",
