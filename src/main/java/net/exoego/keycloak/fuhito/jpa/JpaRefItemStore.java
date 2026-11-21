@@ -12,6 +12,7 @@ import java.util.Optional;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.TypedQuery;
+import net.exoego.keycloak.fuhito.domain.AttributeDefinition;
 import net.exoego.keycloak.fuhito.domain.Localized;
 import net.exoego.keycloak.fuhito.domain.RefItem;
 import net.exoego.keycloak.fuhito.domain.RefItemName;
@@ -163,6 +164,38 @@ public class JpaRefItemStore implements RefItemStore {
                 .setParameter("realmId", realmId)
                 .setParameter("id", id)
                 .getSingleResult() > 0);
+    }
+
+    // A value is a code or a list of codes, and the operator @> of jsonb finds the code in both. The text search
+    // comes first because it is cheaper, so only a row with the code somewhere in its text is read as JSON. A code
+    // has no character that JSON escapes.
+    @Override
+    public boolean isInAttribute(RefItem item, AttributeDefinition definition) {
+        boolean ofItems = definition.target() == AttributeDefinition.Target.REF_ITEM;
+        TypedQuery<String> query = em.createQuery("""
+                        select e.id from %s e where e.realmId = :realmId%s and cast(sql('case when ? like ? \
+                        then (cast(? as jsonb) -> cast(? as text)) @> to_jsonb(cast(? as text)) else false end', \
+                        e.attributes, :pattern, e.attributes, :name, :code) as boolean)"""
+                        .formatted(holderOf(definition.target()), ofItems ? " and e.id <> :id" : ""), String.class)
+                .setParameter("realmId", realmId)
+                .setParameter("pattern", "%\"" + item.code() + "\"%")
+                .setParameter("name", definition.name())
+                .setParameter("code", item.code());
+        if (ofItems) {
+            query.setParameter("id", item.id());
+        }
+        return !query.setMaxResults(1).getResultList().isEmpty();
+    }
+
+    private static String holderOf(AttributeDefinition.Target target) {
+        return switch (target) {
+            case ORG_UNIT -> "OrgUnitVersionEntity";
+            case PERSON -> "PersonEntity";
+            case EMPLOYMENT_TERMS -> "EmploymentTermsEntity";
+            case ASSIGNMENT -> "AssignmentEntity";
+            case QUALIFICATION -> "QualificationEntity";
+            case REF_ITEM -> "RefItemEntity";
+        };
     }
 
     @Override

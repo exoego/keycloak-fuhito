@@ -134,7 +134,11 @@ public class RefKindsResource {
 
     @DELETE
     @Path("{code}")
-    @Operation(operationId = "deleteRefKind", summary = "Removes a kind of the realm that has no items.")
+    @Operation(
+            operationId = "deleteRefKind",
+            summary = "Removes a kind of the realm that has no items.",
+            description = "A kind with items fails with 409 and `ref_kind.in_use`. So does a kind that a definition "
+                    + "of an attribute has as `refKind`. The error then names the definition in `target` and `name`.")
     @Parameter(ref = "changeOrder")
     @APIResponse(responseCode = "204", description = "The kind is gone.")
     @BadRequest

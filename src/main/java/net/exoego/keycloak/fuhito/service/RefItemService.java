@@ -388,16 +388,24 @@ public class RefItemService {
     }
 
     /**
-     * Deletes an item. An item that other data refers to cannot be deleted. Deactivate it instead.
+     * Deletes an item. An item that other data refers to cannot be deleted. Deactivate it instead. A value of an
+     * attribute of the type {@code REF_ITEM} for the kind of the item refers to it by its code, in any version.
      *
      * @param id the ID
      * @throws FuhitoException when the item does not exist or is in use
      */
     public void delete(String id) {
-        stored(id);
+        RefItem item = stored(id);
         if (store.isInUse(id)) {
             throw FuhitoException.conflict("ref_item.in_use", Map.of("id", id));
         }
+        attributeRules.ofRefKind(item.kind()).stream()
+                .filter(definition -> store.isInAttribute(item, definition))
+                .findFirst()
+                .ifPresent(definition -> {
+                    throw FuhitoException.conflict("ref_item.in_use", Map.of("id", id,
+                            "target", definition.target().name(), "name", definition.name()));
+                });
         store.delete(id);
     }
 

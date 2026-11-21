@@ -96,7 +96,8 @@ class ImportServiceTest {
     private final AssignmentService assignments =
             new AssignmentService(assignmentStore, externalIdStore, employmentStore, orgUnitStore, refItems,
             new MemoryReportingLineStore());
-    private final RealmKindService kinds = new RealmKindService(new MemoryRealmKindStore(), refItems);
+    private final MemoryAttributeDefinitionStore definitionStore = new MemoryAttributeDefinitionStore();
+    private final RealmKindService kinds = new RealmKindService(new MemoryRealmKindStore(), refItems, definitionStore);
     private final MemoryAttributeValueStore values = new MemoryAttributeValueStore();
     private final HierarchyService hierarchies = new HierarchyService(new MemoryHierarchyStore());
     private final List<String> managed = new ArrayList<>();
@@ -112,8 +113,7 @@ class ImportServiceTest {
         }
     };
     private final AttributeDefinitionService definitions =
-            new AttributeDefinitionService(new MemoryAttributeDefinitionStore(), values, refItems,
-                    kinds::isKnown);
+            new AttributeDefinitionService(definitionStore, values, refItems, kinds::isKnown);
     // Whether the import runs, and how many of its rows are done.
     private boolean running;
     private int rowsDone;

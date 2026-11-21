@@ -10,6 +10,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
+import net.exoego.keycloak.fuhito.domain.AttributeDefinition;
 import net.exoego.keycloak.fuhito.domain.RefItem;
 import net.exoego.keycloak.fuhito.domain.RefItemPeriod;
 import net.exoego.keycloak.fuhito.store.RefItemStore;
@@ -84,6 +85,14 @@ final class MemoryRefItemStore implements RefItemStore {
     @Override
     public boolean isInUse(String id) {
         return inUse.contains(id);
+    }
+
+    /** The stored values of attributes, each as the kind of resource, the name, and the code. */
+    final Set<List<String>> attributeValues = new HashSet<>();
+
+    @Override
+    public boolean isInAttribute(RefItem item, AttributeDefinition definition) {
+        return attributeValues.contains(List.of(definition.target().name(), definition.name(), item.code()));
     }
 
     /** Stores a new item whose names hold for every date. */

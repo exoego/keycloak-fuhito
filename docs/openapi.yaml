@@ -9707,6 +9707,11 @@ paths:
           $ref: "#/components/responses/Conflict"
     delete:
       summary: Deletes an item.
+      description: "An item that a field of a resource names fails with 409 and `ref_item.in_use`.\
+        \ So does an item whose code is the value of an attribute of the type `REF_ITEM`\
+        \ for its kind, also in a list or in a past or future version. The error then\
+        \ names the attribute in `target` and `name`. A value of the item itself does\
+        \ not count. Deactivate an item in use instead."
       operationId: deleteRefItem
       tags:
       - ref-items
@@ -9873,6 +9878,9 @@ paths:
           $ref: "#/components/responses/Conflict"
     delete:
       summary: Removes a kind of the realm that has no items.
+      description: A kind with items fails with 409 and `ref_kind.in_use`. So does
+        a kind that a definition of an attribute has as `refKind`. The error then
+        names the definition in `target` and `name`.
       operationId: deleteRefKind
       tags:
       - ref-items

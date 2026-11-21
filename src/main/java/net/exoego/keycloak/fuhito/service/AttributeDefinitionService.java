@@ -275,6 +275,14 @@ public class AttributeDefinitionService implements AttributeRules {
     }
 
     @Override
+    public List<AttributeDefinition> ofRefKind(String refKind) {
+        return store.list(null).stream()
+                .filter(definition -> definition.type() == AttributeDefinition.Type.REF_ITEM
+                        && refKind.equals(definition.refKind()))
+                .toList();
+    }
+
+    @Override
     public AttributeRules remembering() {
         Map<AttributeDefinition.Target, List<AttributeDefinition>> read =
                 new EnumMap<>(AttributeDefinition.Target.class);

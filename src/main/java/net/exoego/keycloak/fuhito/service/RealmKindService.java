@@ -14,6 +14,7 @@ import net.exoego.keycloak.fuhito.domain.Localized;
 import net.exoego.keycloak.fuhito.domain.RealmKind;
 import net.exoego.keycloak.fuhito.domain.RefKind;
 import net.exoego.keycloak.fuhito.domain.RefKindName;
+import net.exoego.keycloak.fuhito.store.AttributeDefinitionStore;
 import net.exoego.keycloak.fuhito.store.RealmKindStore;
 import net.exoego.keycloak.fuhito.store.RefItemStore;
 
@@ -44,16 +45,19 @@ public class RealmKindService {
 
     private final RealmKindStore store;
     private final RefItemStore items;
+    private final AttributeDefinitionStore definitions;
 
     /**
      * Creates the service.
      *
      * @param store the storage of the kinds of the realm
      * @param items the storage of reference items of the realm
+     * @param definitions the storage of the definitions of free attributes of the realm
      */
-    public RealmKindService(RealmKindStore store, RefItemStore items) {
+    public RealmKindService(RealmKindStore store, RefItemStore items, AttributeDefinitionStore definitions) {
         this.store = store;
         this.items = items;
+        this.definitions = definitions;
     }
 
     /**
@@ -154,10 +158,10 @@ public class RealmKindService {
     }
 
     /**
-     * Removes a kind of the realm that has no items.
+     * Removes a kind of the realm that has no items and that no definition of a free attribute has.
      *
      * @param code the code
-     * @throws FuhitoException when the realm added no such kind, or the kind has items
+     * @throws FuhitoException when the realm added no such kind, the kind has items, or a definition has it
      */
     public void delete(String code) {
         RealmKind kind = store.findByCode(code)
@@ -165,6 +169,13 @@ public class RealmKindService {
         if (!items.list(code, true).isEmpty()) {
             throw FuhitoException.conflict("ref_kind.in_use", Map.of("code", code));
         }
+        definitions.list(null).stream()
+                .filter(definition -> code.equals(definition.refKind()))
+                .findFirst()
+                .ifPresent(definition -> {
+                    throw FuhitoException.conflict("ref_kind.in_use", Map.of("code", code,
+                            "target", definition.target().name(), "name", definition.name()));
+                });
         store.delete(kind.id());
     }
 

@@ -227,7 +227,13 @@ public class RefItemsResource {
 
     @DELETE
     @Path("{id}")
-    @Operation(operationId = "deleteRefItem", summary = "Deletes an item.")
+    @Operation(
+            operationId = "deleteRefItem",
+            summary = "Deletes an item.",
+            description = "An item that a field of a resource names fails with 409 and `ref_item.in_use`. So does an "
+                    + "item whose code is the value of an attribute of the type `REF_ITEM` for its kind, also in a "
+                    + "list or in a past or future version. The error then names the attribute in `target` and "
+                    + "`name`. A value of the item itself does not count. Deactivate an item in use instead.")
     @Parameter(ref = "changeOrder")
     @APIResponse(responseCode = "204", description = "The item was deleted.")
     @BadRequest
