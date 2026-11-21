@@ -16,10 +16,11 @@ import static net.exoego.keycloak.fuhito.service.RestoreRules.broken;
 import static net.exoego.keycloak.fuhito.service.RestoreRules.check;
 
 /**
- * Checks the kinds of reference data in an export. An item has a fixed kind or the code of a kind of the export. An
- * attribute definition names such a kind for the type {@code REF_ITEM}, and only for it. A field that names an item
- * names one of the kind that a write takes for the field. A write finds an item by its kind and its code, so it never
- * takes an item of another kind. An item has only the marks of its kind.
+ * Checks the kinds of reference data in an export. A kind of the export is not a fixed kind in any case. An item has
+ * a fixed kind or the code of a kind of the export. An attribute definition names such a kind for the type
+ * {@code REF_ITEM}, and only for it. A field that names an item names one of the kind that a write takes for the
+ * field. A write finds an item by its kind and its code, so it never takes an item of another kind. An item has only
+ * the marks of its kind.
  */
 final class RestoreKinds {
 
@@ -45,20 +46,23 @@ final class RestoreKinds {
     }
 
     /**
-     * Requires known kinds of reference data, the marks of the kind of each item, and items of the right kind in every
-     * field that names an item.
+     * Requires kinds of reference data that are not fixed kinds, known kinds, the marks of the kind of each item, and
+     * items of the right kind in every field that names an item.
      *
      * @param document the export, whose values are checked, whose references name rows of the export, and whose IDs
      *        are unique
-     * @throws FuhitoException when an item or a definition has an unknown kind, an item has a mark that its kind
-     *         cannot have or two marks that exclude each other, a definition has a kind with a type other than
-     *         {@code REF_ITEM} or none with it, or a field names an item of another kind. The error is
-     *         {@code restore.bad_value} and names the list, the ID of the row, the field, and the error of the write
-     *         in {@code rule}.
+     * @throws FuhitoException when a kind of the export has the code of a fixed kind in any case, an item or a
+     *         definition has an unknown kind, an item has a mark that its kind cannot have or two marks that exclude
+     *         each other, a definition has a kind with a type other than {@code REF_ITEM} or none with it, or a field
+     *         names an item of another kind. The error is {@code restore.bad_value} and names the list, the ID of the
+     *         row, the field, and the error of the write in {@code rule}.
      */
     static void require(RealmExport document) {
         Set<String> codes = new HashSet<>();
-        all(document.refKinds()).forEach(kind -> codes.add(kind.code()));
+        for (RealmExport.Kind kind : all(document.refKinds())) {
+            check("ref-kinds", kind.id(), "code", () -> RealmKindService.requireNotFixed(kind.code()));
+            codes.add(kind.code());
+        }
         Predicate<String> known = code -> codes.contains(code)
                 || Arrays.stream(RefKind.values()).anyMatch(kind -> kind.name().equals(code));
         for (RealmExport.Item item : all(document.refItems())) {

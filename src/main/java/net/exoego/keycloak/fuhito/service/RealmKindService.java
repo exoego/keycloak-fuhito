@@ -83,15 +83,26 @@ public class RealmKindService {
         if (!Checks.fits(code, MAX_CODE_LENGTH)) {
             throw FuhitoException.invalid("invalid.code", Map.of("field", "code"));
         }
-        boolean fixed = Arrays.stream(RefKind.values())
-                .anyMatch(kind -> kind.name().equals(code.toUpperCase(Locale.ROOT)));
-        if (fixed || store.findByCode(code).isPresent()) {
+        requireNotFixed(code);
+        if (store.findByCode(code).isPresent()) {
             throw FuhitoException.conflict("ref_kind.code_taken", Map.of("code", code));
         }
         RealmKind kind = new RealmKind(UUID.randomUUID().toString(), code,
                 RefKindName.check(primaryLanguage, names), 1);
         store.insert(kind);
         return View.of(kind);
+    }
+
+    /**
+     * Requires that a code is not the code of a fixed kind in any case, such as {@code grade}.
+     *
+     * @param code the code of a kind that a realm adds
+     * @throws FuhitoException when it is
+     */
+    static void requireNotFixed(String code) {
+        if (Arrays.stream(RefKind.values()).anyMatch(kind -> kind.name().equals(code.toUpperCase(Locale.ROOT)))) {
+            throw FuhitoException.conflict("ref_kind.code_taken", Map.of("code", code));
+        }
     }
 
     /**

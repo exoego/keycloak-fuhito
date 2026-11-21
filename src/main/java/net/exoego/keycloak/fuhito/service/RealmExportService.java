@@ -293,9 +293,10 @@ public class RealmExportService {
      * @return the number of rows of each list
      * @throws FuhitoException when the format is unknown, the realm has data and is not replaced, a value is empty or
      *         too long for its column, a choice or the names break a rule of a write, the attributes of a row are
-     *         too large, a period does not end after it starts, two rows have the same key or overlap, a row names a
-     *         reference item of another kind, an item has a mark that its kind cannot have, a row breaks a rule
-     *         between rows of the writes, a username has no user, or the realm has no organization with an alias
+     *         too large, a period does not end after it starts, two rows have the same key or overlap, a kind has the
+     *         code of a fixed kind, a row names a row that the export does not have or a reference item of another
+     *         kind, an item has a mark that its kind cannot have, a row breaks a rule between rows of the writes, a
+     *         username has no user, or the realm has no organization with an alias
      */
     public Map<String, Integer> restore(RealmExport document, boolean replace, Consumer<String> linking) {
         Checks.required("body", document);
@@ -452,12 +453,8 @@ public class RealmExportService {
                     v.workLocationId(), v.costCenterId(), v.displayOrder(), v.attributes())));
         }
         for (RealmExport.Unit u : units) {
-            for (RealmExport.Parent p : u.parents()) {
-                String hierarchyId = Optional.ofNullable(hierarchyIds.get(p.hierarchy())).orElseThrow(
-                        () -> FuhitoException.invalid("restore.hierarchy_unknown", Map.of("code", p.hierarchy())));
-                store.insertLink(new OrgUnitLink(p.id(), hierarchyId, u.id(), p.parentId(),
-                        period(p.validFrom(), p.validTo())));
-            }
+            u.parents().forEach(p -> store.insertLink(new OrgUnitLink(p.id(), hierarchyIds.get(p.hierarchy()),
+                    u.id(), p.parentId(), period(p.validFrom(), p.validTo()))));
             u.successors().forEach(s -> store.insertSuccession(new OrgUnitSuccession(s.id(), u.id(),
                     s.successorId(), LocalDate.parse(s.effectiveDate()))));
         }
