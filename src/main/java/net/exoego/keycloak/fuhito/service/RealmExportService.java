@@ -294,11 +294,11 @@ public class RealmExportService {
      * @throws FuhitoException when the format is unknown, the realm has data and is not replaced, a value is empty or
      *         too long for its column or not in the form that a write stores, such as a name with spaces around it,
      *         a time is not in the form that an export gives, a choice or the names break a rule of a write, the
-     *         attributes of a row are too large, a period does not end after it starts, two rows have the same key or
-     *         overlap, a kind has the code of a fixed kind, a row names a row that the export does not have or a
-     *         reference item of another kind, an item has a mark that its kind cannot have, a row breaks a rule
-     *         between rows of the writes or between the fields of one row, a username has no user, or the realm has
-     *         no organization with an alias
+     *         attributes of a row break a rule of a write against the definitions of the export, a period does not
+     *         end after it starts, two rows have the same key or overlap, a kind has the code of a fixed kind, a row
+     *         names a row that the export does not have or a reference item of another kind, an item has a mark that
+     *         its kind cannot have, a row breaks a rule between rows of the writes or between the fields of one row,
+     *         a username has no user, or the realm has no organization with an alias
      */
     public Map<String, Integer> restore(RealmExport document, boolean replace, Consumer<String> linking) {
         Checks.required("body", document);
@@ -309,10 +309,10 @@ public class RealmExportService {
             throw FuhitoException.conflict("restore.realm_not_empty", Map.of());
         }
         RestoreCheck.requireValues(document, stores.export()::lengths);
-        RestoreAttributes.require(document);
         RestoreCheck.requireReferences(document);
         RestoreKeys.require(document);
         RestoreKinds.require(document);
+        RestoreAttributes.require(document);
         RestoreRules.require(document);
         Map<String, String> organizations = organizations(document);
         Map<String, String> users = users(document);
@@ -331,10 +331,8 @@ public class RealmExportService {
                 new RealmKind(k.id(), k.code(), RefKindName.check(k.primaryLanguage(), k.names()),
                         version(k.version())))));
         counts.put("ref-items", each("ref-items", document.refItems(), this::restoreRefItem));
-        counts.put("attribute-definitions", each("attribute-definitions", document.attributeDefinitions(), d -> stores.attributeDefinitions()
-                .insert(new AttributeDefinition(d.id(), AttributeDefinition.Target.valueOf(d.target()), d.name(),
-                        AttributeDefinition.Type.valueOf(d.type()), d.refKind(), d.multiple(), d.required(),
-                        version(d.version())))));
+        counts.put("attribute-definitions", each("attribute-definitions", document.attributeDefinitions(),
+                d -> stores.attributeDefinitions().insert(definition(d))));
         Map<String, String> hierarchyIds = new HashMap<>();
         // A replace deleted the default hierarchy, and this makes it again.
         hierarchyIds.put(Hierarchy.DEFAULT_CODE, stores.hierarchies().defaultId());
@@ -524,6 +522,18 @@ public class RealmExportService {
         } catch (NullPointerException | IllegalArgumentException | DateTimeException e) {
             throw FuhitoException.invalid("restore.bad_value", Map.of("list", list)).causedBy(e);
         }
+    }
+
+    /**
+     * Returns a definition of an export as the realm stores it.
+     *
+     * @param d the definition of an export, whose target and type are choices of a write
+     * @return the definition
+     */
+    static AttributeDefinition definition(RealmExport.Definition d) {
+        return new AttributeDefinition(d.id(), AttributeDefinition.Target.valueOf(d.target()), d.name(),
+                AttributeDefinition.Type.valueOf(d.type()), d.refKind(), d.multiple(), d.required(),
+                version(d.version()));
     }
 
     // An export from before versions has none.

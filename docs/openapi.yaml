@@ -10039,20 +10039,22 @@ paths:
         \ after the `validFrom` of its row, as in a write. So does an unknown choice,\
         \ such as the `status` of terms, or names that break a rule of a write, such\
         \ as a `primaryLanguage` that is not a key of `names`, or attributes of more\
-        \ than 64 KiB. So does a number in `attributes` that a 64-bit floating point\
-        \ number does not give back the same, such as `1e400`, which no write stores.\
-        \ Then `field` names the attribute, such as `attributes.beds`. So does a `version`\
-        \ outside 1 to 9007199254740991, which leaves a write room to count it up.\
-        \ So does a row that names a reference item of another kind, such as a unit\
-        \ role as the grade of terms, or that breaks a rule between rows of a write,\
-        \ such as a row of an assignment that is not inside its employment, a unit\
-        \ that other units follow and that has no end, or a manager who is the person.\
-        \ Then `rule` names the error of the write for the rule, such as `assignment.outside_employment`,\
-        \ when the write has one. A restore does not check attributes against their\
-        \ definitions, because a realm keeps the values that a later change of a definition\
-        \ no longer allows. An empty text, a text of only spaces, or an empty array\
-        \ in a row fails with 400 and `invalid.blank`, as in a write. A text with\
-        \ NUL (U+0000) or half of a surrogate pair fails with 400 and `invalid.character`,\
+        \ than 64 KiB. So do attributes that break a rule of a write against the definitions\
+        \ of the export, in any row or version. These are a name with no definition,\
+        \ a value of another type such as `1e400` for `NUMBER`, a list for a definition\
+        \ with no `multiple` or a single value for one with it, a code that names\
+        \ no reference item of the export of the kind of the definition, and a missing\
+        \ value that the definition requires. Then `field` names the attribute, such\
+        \ as `attributes.beds`. So does a `version` outside 1 to 9007199254740991,\
+        \ which leaves a write room to count it up. So does a row that names a reference\
+        \ item of another kind, such as a unit role as the grade of terms, or that\
+        \ breaks a rule between rows of a write, such as a row of an assignment that\
+        \ is not inside its employment, a unit that other units follow and that has\
+        \ no end, or a manager who is the person. Then `rule` names the error of the\
+        \ write for the rule, such as `assignment.outside_employment` or `attribute.unknown`,\
+        \ when the write has one. An empty text, a text of only spaces, or an empty\
+        \ array in a row fails with 400 and `invalid.blank`, as in a write. A text\
+        \ with NUL (U+0000) or half of a surrogate pair fails with 400 and `invalid.character`,\
         \ as in a write. The error names the list, the `id` of the row, and the field.\
         \ A document that gives one key twice in one object fails with 400 and `invalid.duplicate_key`,\
         \ as in a write. A key that the document does not have fails with 400 and\

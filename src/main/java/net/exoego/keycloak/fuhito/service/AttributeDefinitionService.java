@@ -2,6 +2,7 @@ package net.exoego.keycloak.fuhito.service;
 
 import java.time.DateTimeException;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumMap;
 import java.util.HashMap;
@@ -9,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.BiPredicate;
 import java.util.function.Predicate;
 
 import net.exoego.keycloak.fuhito.domain.AttributeDefinition;
@@ -172,7 +174,7 @@ public class AttributeDefinitionService implements AttributeRules {
 
     @Override
     public Map<String, Object> check(AttributeDefinition.Target target, Map<String, Object> attributes) {
-        return check(target, attributes, store.list(target));
+        return check(target, attributes, store.list(target), this::hasItem);
     }
 
     @Override
@@ -187,11 +189,31 @@ public class AttributeDefinitionService implements AttributeRules {
     public AttributeRules remembering() {
         Map<AttributeDefinition.Target, List<AttributeDefinition>> read =
                 new EnumMap<>(AttributeDefinition.Target.class);
-        return (target, attributes) -> check(target, attributes, read.computeIfAbsent(target, store::list));
+        return (target, attributes) -> check(target, attributes, read.computeIfAbsent(target, store::list),
+                this::hasItem);
     }
 
-    private Map<String, Object> check(AttributeDefinition.Target target, Map<String, Object> attributes,
-            List<AttributeDefinition> definitions) {
+    /**
+     * Returns rules that check attributes with every rule of a write, against the given definitions and items in
+     * place of those of the realm.
+     *
+     * @param definitions the definitions of every kind of resource
+     * @param items tells whether an item has a kind and a code
+     * @return the rules
+     */
+    static AttributeRules of(List<AttributeDefinition> definitions, BiPredicate<String, String> items) {
+        Map<AttributeDefinition.Target, List<AttributeDefinition>> byTarget =
+                new EnumMap<>(AttributeDefinition.Target.class);
+        definitions.forEach(d -> byTarget.computeIfAbsent(d.target(), target -> new ArrayList<>()).add(d));
+        return (target, attributes) -> check(target, attributes, byTarget.getOrDefault(target, List.of()), items);
+    }
+
+    private boolean hasItem(String kind, String code) {
+        return refItems.findByCode(kind, code).isPresent();
+    }
+
+    private static Map<String, Object> check(AttributeDefinition.Target target, Map<String, Object> attributes,
+            List<AttributeDefinition> definitions, BiPredicate<String, String> items) {
         Map<String, Object> values = AttributeSize.require(attributes == null ? Map.of() : attributes);
         // A CSV cell cannot hold an empty text or an empty list, so a stored value must not be one either.
         EmptyValues.rejectEmptyValues("attributes", values);
@@ -202,7 +224,7 @@ public class AttributeDefinitionService implements AttributeRules {
             if (definition == null) {
                 throw FuhitoException.invalid("attribute.unknown", Map.of("target", target.name(), "name", name));
             }
-            if (value != null && !fitsAll(definition, value)) {
+            if (value != null && !fitsAll(definition, value, items)) {
                 throw FuhitoException.invalid("attribute.bad_value", Map.of("name", name, "type", typeOf(definition)));
             }
         });
@@ -231,11 +253,11 @@ public class AttributeDefinitionService implements AttributeRules {
         return name;
     }
 
-    private boolean fitsAll(AttributeDefinition definition, Object value) {
+    private static boolean fitsAll(AttributeDefinition definition, Object value, BiPredicate<String, String> items) {
         if (!definition.multiple()) {
-            return fits(definition, value);
+            return fits(definition, value, items);
         }
-        return value instanceof List<?> list && list.stream().allMatch(element -> fits(definition, element));
+        return value instanceof List<?> list && list.stream().allMatch(element -> fits(definition, element, items));
     }
 
     private static String typeOf(AttributeDefinition definition) {
@@ -243,15 +265,14 @@ public class AttributeDefinitionService implements AttributeRules {
         return definition.refKind() == null ? type : type + " " + definition.refKind();
     }
 
-    private boolean fits(AttributeDefinition definition, Object value) {
+    private static boolean fits(AttributeDefinition definition, Object value, BiPredicate<String, String> items) {
         return switch (definition.type()) {
             case STRING -> value instanceof String;
             // A client that reads a number as a double, such as JavaScript or a spreadsheet, must read the same one.
             case NUMBER -> value instanceof Number number && JsonNumbers.fitsDouble(number);
             case BOOLEAN -> value instanceof Boolean;
             case DATE -> value instanceof String text && isDate(text);
-            case REF_ITEM -> value instanceof String code
-                    && refItems.findByCode(definition.refKind(), code).isPresent();
+            case REF_ITEM -> value instanceof String code && items.test(definition.refKind(), code);
         };
     }
 

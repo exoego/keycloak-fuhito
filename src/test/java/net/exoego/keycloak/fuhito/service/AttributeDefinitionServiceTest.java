@@ -144,4 +144,32 @@ class AttributeDefinitionServiceTest {
         assertEquals("invalid.required", code(() -> service.create("ORG_UNIT", "x", null, null, null, null)));
         assertEquals(1, store.definitions.size());
     }
+
+    @Test
+    void rulesOfGivenDefinitionsAndItemsReadNothingOfTheRealm() {
+        service.create("PERSON", "note", "NUMBER", null, null, null);
+        refItems.insert(new RefItem("site-1", RefKind.OCCUPATION, "clerk", ItemNames.of("Clerk"), 0, Map.of(), true));
+        AttributeRules rules = AttributeDefinitionService.of(List.of(
+                new AttributeDefinition("d-1", Target.PERSON, "note", AttributeDefinition.Type.STRING, null, false,
+                        false, 1),
+                new AttributeDefinition("d-2", Target.PERSON, "jobs", AttributeDefinition.Type.REF_ITEM, "OCCUPATION",
+                        true, true, 1),
+                new AttributeDefinition("d-3", Target.ASSIGNMENT, "beds", AttributeDefinition.Type.NUMBER, null,
+                        false, true, 1)),
+                (kind, code) -> kind.equals("OCCUPATION") && code.equals("nurse"));
+
+        Map<String, Object> good = Map.of("note", "a", "jobs", List.of("nurse"));
+        assertEquals(good, rules.check(Target.PERSON, good));
+        assertEquals(Map.of("beds", 1), rules.check(Target.ASSIGNMENT, Map.of("beds", 1)));
+        assertEquals(Map.of("name", "jobs", "type", "REF_ITEM[] OCCUPATION"), assertThrows(FuhitoException.class,
+                () -> rules.check(Target.PERSON, Map.of("jobs", List.of("clerk")))).params());
+        assertEquals("attribute.bad_value", code(() -> rules.check(Target.PERSON, Map.of("note", 1,
+                "jobs", List.of("nurse")))));
+        assertEquals("attribute.bad_value", code(() -> rules.check(Target.PERSON, Map.of("jobs", "nurse"))));
+        assertEquals(Map.of("target", "PERSON", "name", "jobs"), assertThrows(FuhitoException.class,
+                () -> rules.check(Target.PERSON, Map.of("note", "a"))).params());
+        assertEquals("attribute.unknown", code(() -> rules.check(Target.ORG_UNIT, Map.of("note", "a"))));
+        assertEquals("attribute.too_large", code(() -> rules.check(Target.ORG_UNIT,
+                Map.of("note", "x".repeat(70_000)))));
+    }
 }
