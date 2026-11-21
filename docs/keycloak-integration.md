@@ -388,9 +388,12 @@ So every endpoint of Keycloak reads its body as before.
 The reader uses the JSON settings of Keycloak and adds two checks.
 A body that gives one key twice in one object fails with 400 and `invalid.duplicate_key`, which names the key with its path.
 Keycloak itself would keep the last value.
-A key that an import document does not have fails with 400 and `import.unknown_key`, which names the key with its path.
+A key that the body does not have fails with 400 and `invalid.unknown_key`, which names the key with its path, such as `steps[1].nmae`.
+This holds for every body of the extension, also for an import and a restore.
+Keycloak itself would answer with an error that names a Java type of the extension and a line and a column, with no error code and no path.
 The reader turns on the setting of Jackson that rejects an unknown key, so the check holds even if Keycloak turns it off.
-Other bad JSON fails as it does in Keycloak. So a key that another body does not have gets the error of Keycloak.
+An endpoint of Keycloak answers an unknown key with the error of Keycloak as before.
+Other bad JSON fails as it does in Keycloak.
 
 ### Query parameters
 
