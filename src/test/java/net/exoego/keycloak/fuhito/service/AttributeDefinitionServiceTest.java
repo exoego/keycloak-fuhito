@@ -256,11 +256,12 @@ class AttributeDefinitionServiceTest {
     }
 
     @Test
-    void aDeleteFailsWhileARowHasTheNameOrClearsIt() {
+    void aDeleteFailsWhileARowHasAValueOrClearsIt() {
         AttributeDefinition note = service.create("ASSIGNMENT", "note", "STRING", null, null, null, null)
                 .definition();
         values.add(Target.ASSIGNMENT, "a-1", Map.of("note", "x"));
         values.add(Target.ASSIGNMENT, "a-1", Map.of("note", "y", "beds", 1));
+        // A row with null for the name has no value.
         Map<String, Object> withNull = new HashMap<>();
         withNull.put("note", null);
         values.add(Target.ASSIGNMENT, "a-2", withNull);
@@ -269,18 +270,18 @@ class AttributeDefinitionServiceTest {
 
         FuhitoException inUse = assertThrows(FuhitoException.class, () -> service.delete(note.id(), false));
         assertEquals("attribute.in_use", inUse.code());
-        assertEquals(Map.of("id", note.id(), "target", "ASSIGNMENT", "name", "note", "count", "3"), inUse.params());
+        assertEquals(Map.of("id", note.id(), "target", "ASSIGNMENT", "name", "note", "count", "2"), inUse.params());
         assertEquals(1, store.definitions.size());
 
-        assertEquals(List.of(new Write.OfAttributeValue(Target.ASSIGNMENT, "a-1"),
-                new Write.OfAttributeValue(Target.ASSIGNMENT, "a-2")), service.delete(note.id(), true));
-        assertEquals(List.of(Map.of(), Map.of("beds", 1), Map.of(), Map.of("beds", 2), Map.of("note", "z")),
+        assertEquals(List.of(new Write.OfAttributeValue(Target.ASSIGNMENT, "a-1")), service.delete(note.id(), true));
+        assertEquals(List.of(Map.of(), Map.of("beds", 1), withNull, Map.of("beds", 2), Map.of("note", "z")),
                 values.rows.stream().map(MemoryAttributeValueStore.Row::attributes).toList());
-        assertEquals(Map.of("a-1", 2L, "a-2", 2L, "a-3", 1L, "p-1", 1L), values.versions);
+        assertEquals(Map.of("a-1", 2L, "a-2", 1L, "a-3", 1L, "p-1", 1L), values.versions);
         assertEquals(List.of(), store.definitions);
 
         AttributeDefinition unused = service.create("ASSIGNMENT", "note", "STRING", null, null, null, null)
                 .definition();
+        // The row with null blocks no delete.
         assertEquals(List.of(), service.delete(unused.id(), false));
         assertEquals("attribute.not_found", code(() -> service.delete(unused.id(), true)));
     }

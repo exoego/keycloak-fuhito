@@ -129,6 +129,15 @@ public class OrgUnitService {
     }
 
     /**
+     * Returns the check of free attributes of these operations, so that an import checks the names of a row with it.
+     *
+     * @return the check
+     */
+    AttributeRules attributeRules() {
+        return attributeRules;
+    }
+
+    /**
      * Returns the same operations that read each reference item once, and the definitions of attributes once for
      * each kind of resource. They suit a list of writes that changes no reference item and no definition.
      *

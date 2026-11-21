@@ -8,6 +8,7 @@ import java.util.Optional;
 import java.util.function.Function;
 
 import net.exoego.keycloak.fuhito.domain.AttributeDefinition;
+import net.exoego.keycloak.fuhito.domain.AttributeDefinition.Target;
 import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
@@ -70,7 +71,8 @@ final class SetupImport {
 
     void refItems(List<RefItemRow> rows) {
         ImportMatch match = new ImportMatch(externalIds, ExternalId.Kind.REF_ITEM);
-        each(REF_ITEMS, rows, row -> refItem(row, match));
+        AttributeRules rules = refItemService.attributeRules().remembering();
+        each(REF_ITEMS, rows, row -> refItem(row, match, rules));
     }
 
     void hierarchies(List<HierarchyRow> rows) {
@@ -182,7 +184,7 @@ final class SetupImport {
 
     // A row compares with the names of its date, so the same row on the same date changes nothing. Rows of one item
     // with other dates give the names of each date. A mark that the row clears is off.
-    private Outcome refItem(RefItemRow row, ImportMatch match) {
+    private Outcome refItem(RefItemRow row, ImportMatch match, AttributeRules rules) {
         String source = source(row.source());
         LocalDate validFrom = Checks.optionalDate("validFrom", row.validFrom());
         LocalDate date = validFrom == null ? effectiveDate : validFrom;
@@ -194,7 +196,7 @@ final class SetupImport {
             Map<String, RefItemName> names = Merged.names(row, row.names(), null, Merged.ITEM_NAMES);
             RefItem item = match.create(source, row.externalId(), () -> refItemService.create(
                     Checks.required("kind", row.kind()), row.code(), row.primaryLanguage(), names,
-                    row.displayOrder(), Merged.attributes(row, row.attributes(), null), marks,
+                    row.displayOrder(), Merged.attributes(row, row.attributes(), null, rules, Target.REF_ITEM), marks,
                     !Boolean.FALSE.equals(row.active()), row.validFrom()), RefItem::id);
             report.write(new Write.OfRefItem(true, item));
             return Outcome.CREATED;
@@ -207,7 +209,8 @@ final class SetupImport {
         Map<String, RefItemName> names = Merged.names(row, row.names(), before.names().byLanguage(),
                 Merged.ITEM_NAMES);
         Integer displayOrder = row.or("displayOrder", row.displayOrder(), before.displayOrder());
-        Map<String, Object> attributes = Merged.attributes(row, row.attributes(), before.attributes());
+        Map<String, Object> attributes = Merged.attributes(row, row.attributes(), before.attributes(), rules,
+                Target.REF_ITEM);
         Boolean active = row.or("active", row.active(), before.active());
         RefItem wanted = new RefItem(before.id(), before.kind(), before.code(),
                 RefItemName.check(primaryLanguage, names), displayOrder == null ? 0 : displayOrder, attributes,

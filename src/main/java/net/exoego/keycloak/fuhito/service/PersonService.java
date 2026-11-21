@@ -76,6 +76,15 @@ public class PersonService {
     }
 
     /**
+     * Returns the check of free attributes of these operations, so that an import checks the names of a row with it.
+     *
+     * @return the check
+     */
+    AttributeRules attributeRules() {
+        return attributeRules;
+    }
+
+    /**
      * Returns the same operations that read the definitions of attributes once for each kind of resource. They
      * suit a list of writes that changes no definition.
      *

@@ -11,6 +11,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Supplier;
 
+import net.exoego.keycloak.fuhito.domain.AttributeDefinition.Target;
 import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
@@ -33,6 +34,7 @@ final class OrgUnitImport {
     private static final String ORG_UNITS = "orgUnits";
 
     private final OrgUnitService orgUnitService;
+    private final AttributeRules rules;
     private final OrgUnitService.NewOrgUnits units;
     private final ListIds ids;
     private final ImportService.Organizations organizations;
@@ -58,6 +60,7 @@ final class OrgUnitImport {
             List<OrgUnitRow> rows, ImportReport report, Runnable rowDone) {
         this.rowDone = rowDone;
         this.orgUnitService = orgUnitService.remembering();
+        this.rules = this.orgUnitService.attributeRules();
         this.ids = new ListIds(externalIds);
         this.units = this.orgUnitService.newOrgUnits(
                 (source, value) -> ids.resourceOf(ExternalId.Kind.ORG_UNIT, source, value));
@@ -260,7 +263,8 @@ final class OrgUnitImport {
             NewOrgUnit request = new NewOrgUnit(row.code(), row.primaryLanguage(),
                     Merged.names(row, row.names(), null, Merged.UNIT_NAMES), row.unitType(), row.workLocation(),
                     row.costCenter(), parentId, row.validFrom() == null ? effectiveDate : row.validFrom(),
-                    row.displayOrder(), Merged.attributes(row, row.attributes(), null), row.externalId(), source);
+                    row.displayOrder(), Merged.attributes(row, row.attributes(), null, rules, Target.ORG_UNIT),
+                    row.externalId(), source);
             String id = ids.create(ExternalId.Kind.ORG_UNIT, source, row.externalId(),
                     () -> units.create(request), state -> state.unit().id()).unit().id();
             unitIdByRow.put(index, id);
@@ -413,7 +417,7 @@ final class OrgUnitImport {
                 row.or("workLocation", row.workLocation(), stored.places().workLocation()),
                 row.or("costCenter", row.costCenter(), stored.places().costCenter()),
                 row.or("displayOrder", row.displayOrder(), version.displayOrder()),
-                Merged.attributes(row, row.attributes(), version.attributes()));
+                Merged.attributes(row, row.attributes(), version.attributes(), rules, Target.ORG_UNIT));
     }
 
     // A bad value is not the same as what is stored.

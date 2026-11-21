@@ -120,6 +120,21 @@ class RestoreAttributesTest {
                 "attributes.beds", "attribute.bad_value");
     }
 
+    // A write leaves out a name with null, so an export never gives one. A name with no definition fails first, as in
+    // a write.
+    @Test
+    void aNameWithNullFailsWithNoRule() {
+        Map<String, Object> withNull = new HashMap<>();
+        withNull.put("note", null);
+        List<RealmExport.Definition> definitions = List.of(definition("PERSON", "note", "STRING", null, false, false));
+        FuhitoException e = assertThrows(FuhitoException.class,
+                () -> RestoreAttributes.require(document(definitions, Map.of("p-1", withNull))));
+        assertEquals("restore.bad_value", e.code());
+        assertEquals(Map.of("list", "people", "id", "p-1", "field", "attributes.note"), e.params());
+        assertBroken(document(definitions, Map.of("q-1", withNull)), "qualifications", "q-1", "attributes.note",
+                "attribute.unknown");
+    }
+
     @Test
     void attributesOfMoreThan64KiBNameNoAttribute() {
         assertBroken(document(List.of(definition("PERSON", "note", "STRING", null, false, false)),

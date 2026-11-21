@@ -26,15 +26,17 @@ final class RestoreAttributes {
      * definition, a value has its type, a list is given only for a definition with {@code multiple}, and the code of
      * the type {@code REF_ITEM} is the code of an item of the export of the kind of the definition. A required value
      * is in every row and every version. The attributes are at most 64 KiB as JSON, and a number is one that a double
-     * gives back the same.
+     * gives back the same. A restore stores the attributes as the export has them, so they must be in the form that a
+     * write stores. A name with null is not, because a write leaves it out, and an export never gives one.
      *
      * @param document the export, whose values are checked, whose IDs and keys are unique, and whose definitions have
      *        known choices and kinds
-     * @throws FuhitoException when the attributes of a row break a rule of a write. The error is
-     *         {@code restore.bad_value} and names the list, the ID of the row, the field, and the error of the write
-     *         in {@code rule}. A size names the field {@code attributes} and {@code attribute.too_large}. Another rule
-     *         names the attribute in the field, such as {@code attributes.beds}, and {@code attribute.unknown},
-     *         {@code attribute.bad_value}, or {@code attribute.required}.
+     * @throws FuhitoException when the attributes of a row break a rule of a write or have a name with null. The
+     *         error is {@code restore.bad_value} and names the list, the ID of the row, the field, and the error of
+     *         the write in {@code rule}. A size names the field {@code attributes} and {@code attribute.too_large}.
+     *         Another rule names the attribute in the field, such as {@code attributes.beds}, and
+     *         {@code attribute.unknown}, {@code attribute.bad_value}, or {@code attribute.required}. A name with null
+     *         and a definition names the attribute in the field and has no rule.
      */
     static void require(RealmExport document) {
         Map<String, Set<String>> codes = new HashMap<>();
@@ -65,12 +67,16 @@ final class RestoreAttributes {
     // Only the error of the size names no attribute.
     private static void row(AttributeRules rules, AttributeDefinition.Target target, String list, String id,
             Map<String, Object> attributes) {
+        Map<String, Object> stored;
         try {
-            rules.check(target, attributes);
+            stored = rules.check(target, attributes);
         } catch (FuhitoException e) {
             String name = e.params().get("name");
             throw RestoreRules.broken(list, id, name == null ? "attributes" : "attributes." + name, e.code())
                     .causedBy(e);
         }
+        attributes.keySet().stream().filter(name -> !stored.containsKey(name)).findFirst().ifPresent(name -> {
+            throw RestoreRules.broken(list, id, "attributes." + name, null);
+        });
     }
 }

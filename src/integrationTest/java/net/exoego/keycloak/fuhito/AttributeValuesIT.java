@@ -239,7 +239,7 @@ class AttributeValuesIT {
     }
 
     @Test
-    void aDeleteCountsEveryRowWithTheNameAndAReadIsABodyAfterTheClear() throws Exception {
+    void aDeleteCountsEveryRowWithAValueAndAReadIsABodyAfterTheClear() throws Exception {
         TestRealm realm = TestRealm.create("attribute-values-delete");
         Api api = realm.api;
         String note = id(api.post("/attribute-definitions", "{\"target\": \"PERSON\", \"name\": \"note\", "
@@ -247,24 +247,25 @@ class AttributeValuesIT {
         realm.attribute("PERSON", "memo", "STRING");
         String noted = person(api, "{\"memo\": \"y\", \"note\": \"x\"}");
         String other = person(api, "{\"memo\": \"z\"}");
-        // A row may keep the name with null.
+        // A write before the rule of null kept the name with null. Such a row has no value.
         String withNull = person(api, "{\"memo\": \"w\"}");
         sql("update fuhito_person set attributes = '{\"note\":null,\"memo\":\"w\"}' where id = '" + withNull + "'");
         String path = "/attribute-definitions/" + note;
 
         HttpResponse<String> inUse = api.deleteWithVersion(path);
-        assertEquals("409 attribute.in_use 2 note PERSON", outcome(inUse, "count", "name", "target"));
-        assertEquals("PERSON の 2 行に属性「note」があります。先に値を消すか、clearValues=true で定義を削除してください。",
+        assertEquals("409 attribute.in_use 1 note PERSON", outcome(inUse, "count", "name", "target"));
+        assertEquals("PERSON の 1 行に属性「note」があります。先に値を消すか、clearValues=true で定義を削除してください。",
                 Api.json(api.withAcceptLanguage("ja").deleteWithVersion(path)).get("message").asText());
         assertEquals("x", ok(api.get("/people/" + noted)).get("attributes").get("note").asText());
 
         assertEquals(204, api.deleteWithVersion(path + "?clearValues=true").statusCode());
         assertEquals("{\"memo\":\"y\"}", sql("select attributes from fuhito_person where id = '" + noted + "'"));
-        assertEquals("{\"memo\":\"w\"}", sql("select attributes from fuhito_person where id = '" + withNull + "'"));
+        assertEquals("{\"note\":null,\"memo\":\"w\"}",
+                sql("select attributes from fuhito_person where id = '" + withNull + "'"));
         JsonNode read = ok(api.get("/people/" + noted));
         assertFalse(read.get("attributes").has("note"), read.toString());
         assertEquals(2, read.get("version").asLong());
-        assertEquals(2, api.version("/people/" + withNull));
+        assertEquals(1, api.version("/people/" + withNull));
         assertEquals(1, api.version("/people/" + other));
         ok(api.put("/people/" + noted, read.toString()));
         assertEquals("400 attribute.unknown", outcome(api.post("/people", "{" + NAMES

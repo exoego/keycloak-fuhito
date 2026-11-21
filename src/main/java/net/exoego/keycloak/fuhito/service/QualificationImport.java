@@ -8,6 +8,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Stream;
 
+import net.exoego.keycloak.fuhito.domain.AttributeDefinition.Target;
 import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
@@ -25,6 +26,7 @@ final class QualificationImport {
     static final String QUALIFICATIONS = "qualifications";
 
     private final QualificationService qualifications;
+    private final AttributeRules rules;
     private final ImportService.People people;
     private final ExternalIdService externalIds;
     private final String effectiveDate;
@@ -38,6 +40,7 @@ final class QualificationImport {
             Runnable rowDone) {
         this.rowDone = rowDone;
         this.qualifications = qualifications;
+        this.rules = qualifications.attributeRules().remembering();
         this.people = people;
         this.externalIds = externalIds;
         this.effectiveDate = Checks.date("effectiveDate", effectiveDate).toString();
@@ -71,7 +74,8 @@ final class QualificationImport {
         if (stored.isEmpty()) {
             report.write(new Write.OfQualification(true, qualifications.add(new QualificationValues(personId,
                     row.kind(), row.number(), row.validFrom() == null ? effectiveDate : row.validFrom(),
-                    row.validTo(), Merged.attributes(row, row.attributes(), null), row.externalId(), source))));
+                    row.validTo(), Merged.attributes(row, row.attributes(), null, rules, Target.QUALIFICATION),
+                    row.externalId(), source))));
             return Outcome.CREATED;
         }
         Qualification before = stored.get().qualification();
@@ -85,7 +89,8 @@ final class QualificationImport {
                 row.or("kind", row.kind(), stored.get().kind()), row.or("number", row.number(), before.number()),
                 row.or("validFrom", row.validFrom(), before.period().from().toString()),
                 row.or("validTo", row.validTo(), Objects.toString(before.period().to(), null)),
-                Merged.attributes(row, row.attributes(), before.attributes()), row.externalId(), source);
+                Merged.attributes(row, row.attributes(), before.attributes(), rules, Target.QUALIFICATION),
+                row.externalId(), source);
         boolean same = Objects.equals(stored.get().kind(), values.kind())
                 && Objects.equals(before.number(), Checks.optionalName("number", values.number()))
                 && before.period().from().toString().equals(values.validFrom())

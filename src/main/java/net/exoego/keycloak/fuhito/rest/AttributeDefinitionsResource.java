@@ -176,9 +176,10 @@ public class AttributeDefinitionsResource {
     @Operation(
             operationId = "deleteAttributeDefinition",
             summary = "Deletes a definition.",
-            description = "While a row of the resource has the name, also a row of a past version and a row with "
-                    + "null, the delete fails with 409 and `attribute.in_use`, which names the number of such rows "
-                    + "in `count`. With `clearValues=true`, it removes the name from each such row first. " + FILL)
+            description = "While a row of the resource has a value of the name, also a row of a past version, the "
+                    + "delete fails with 409 and `attribute.in_use`, which names the number of such rows in "
+                    + "`count`. A row with null for the name has no value. With `clearValues=true`, it removes the "
+                    + "name from each such row first. " + FILL)
     @Parameter(ref = "changeOrder")
     @APIResponse(responseCode = "204", description = "The definition is gone.")
     @BadRequest
@@ -192,8 +193,8 @@ public class AttributeDefinitionsResource {
                     required = true)
             @QueryParam("version") Long version,
             @Parameter(
-                    description = "True to remove the name from every row of the resource that has it, then delete "
-                            + "the definition.",
+                    description = "True to remove the name from every row of the resource with a value of it, "
+                            + "then delete the definition.",
                     schema = @Schema(defaultValue = "false"))
             @QueryParam("clearValues") boolean clearValues) {
         // Without the lock alone, a write that runs at the same time could store a value of the name.

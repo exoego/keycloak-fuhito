@@ -13,6 +13,7 @@ import java.util.TreeMap;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import net.exoego.keycloak.fuhito.domain.AttributeDefinition.Target;
 import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.Employment;
 import net.exoego.keycloak.fuhito.domain.EmploymentStatus;
@@ -35,6 +36,7 @@ final class EmploymentImport {
     private final ListIds ids;
     // The rows change no org unit, so the employer of a date is the same for all of them.
     private final EmploymentService service;
+    private final AttributeRules rules;
     private final EmploymentService.NewEmployments started;
     private final Map<String, Optional<EmploymentView>> stored = new HashMap<>();
     private final Map<String, Boolean> units = new HashMap<>();
@@ -48,6 +50,7 @@ final class EmploymentImport {
         this.document = document;
         this.ids = new ListIds(document.externalIds);
         this.service = document.people.employmentService().remembering();
+        this.rules = service.attributeRules();
         this.started = service.newEmployments(
                 (source, value) -> ids.resourceOf(ExternalId.Kind.EMPLOYMENT, source, value));
     }
@@ -131,7 +134,8 @@ final class EmploymentImport {
             NewEmployment request = new NewEmployment(personId,
                     row.validFrom() == null ? document.effectiveDate : row.validFrom(), row.validTo(),
                     row.staffNumber(), row.employmentType(), row.grade(), row.status(), row.leaveReason(),
-                    row.workPercent(), row.contractEndDate(), Merged.attributes(row, row.attributes(), null),
+                    row.workPercent(), row.contractEndDate(),
+                    Merged.attributes(row, row.attributes(), null, rules, Target.EMPLOYMENT_TERMS),
                     row.externalId(), source, employerId, row.externalEmployer());
             Employment employment = ids.create(ExternalId.Kind.EMPLOYMENT, source, row.externalId(),
                     () -> started.start(request, continues), Employment::id);
@@ -237,7 +241,7 @@ final class EmploymentImport {
                 row.or("grade", row.grade(), terms.grade()), status, leaveReason,
                 row.or("workPercent", row.workPercent(), stored.workPercent()),
                 row.or("contractEndDate", row.contractEndDate(), Objects.toString(stored.contractEndDate(), null)),
-                Merged.attributes(row, row.attributes(), stored.attributes()));
+                Merged.attributes(row, row.attributes(), stored.attributes(), rules, Target.EMPLOYMENT_TERMS));
     }
 
     // An employment that another one continues must end by the start of that one. The row that ends it may come
